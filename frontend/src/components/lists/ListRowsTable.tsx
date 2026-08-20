@@ -2,7 +2,11 @@ import { useMemo, type ReactNode } from 'react';
 import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
 import type { ColumnDef } from '@foundation/src/lib/table/features';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
-import { EMPTY_CELL, formatListCell } from '@foundation/src/components/lists/format-list-cell';
+import {
+  EMPTY_CELL,
+  formatListCell,
+  rowDisplayLabel,
+} from '@foundation/src/components/lists/format-list-cell';
 
 interface ListRowsTableProps {
   columns: ListColumn[];
@@ -10,6 +14,8 @@ interface ListRowsTableProps {
   isLoading?: boolean;
   error?: string | null;
   emptyMessage?: string;
+  /** The definition's display column, which names a row a `row_ref` cell points at. */
+  displayColumnId?: string | null;
   /** Per-row controls (edit, delete). Rendered in a trailing column when provided. */
   renderRowActions?: (row: ListRow) => ReactNode;
 }
@@ -35,18 +41,32 @@ export function ListRowsTable({
   isLoading,
   error,
   emptyMessage = 'No rows yet.',
+  displayColumnId,
   renderRowActions,
 }: ListRowsTableProps) {
   const activeColumns = useMemo(() => columns.filter((c) => c.isActive), [columns]);
 
+  // A row_ref points at a row of this same instance, so the rows already on screen are the whole
+  // universe of targets — no second query names them.
+  const rowLabels = useMemo(
+    () =>
+      new Map(rows.map((row) => [row.id, rowDisplayLabel(row, activeColumns, displayColumnId ?? null)])),
+    [rows, activeColumns, displayColumnId],
+  );
+
   const tableColumns = useMemo<ColumnDef<ListRow>[]>(() => {
     const defs: ColumnDef<ListRow>[] = activeColumns.map((column) => ({
       id: column.key,
-      accessorFn: (row: ListRow) => row.values[column.key] ?? null,
+      // A row_ref sorts and filters by the words shown, not by the id stored: nobody searches a
+      // department list for a UUID.
+      accessorFn: (row: ListRow) =>
+        column.dataType === 'row_ref'
+          ? formatListCell(column, row.values[column.key] ?? null, rowLabels)
+          : (row.values[column.key] ?? null),
       header: column.label,
       meta: {
         label: column.label,
-        // select → enum (the oneOf filter fn is registered centrally); text/url → text;
+        // select → enum (the oneOf filter fn is registered centrally); text/url/row_ref → text;
         // date → date; number → number; boolean → nothing, see the note above.
         ...(column.dataType === 'select'
           ? { filter: { type: 'enum' as const } }
@@ -58,8 +78,11 @@ export function ListRowsTable({
                 ? {}
                 : { filter: { type: 'text' as const } }),
       },
-      cell: ({ row }) => {
+      cell: ({ row, getValue }) => {
         const value = row.original.values[column.key] ?? null;
+        // The accessor already resolved a reference to its label; formatting it twice per cell
+        // would just repeat a map lookup and a switch.
+        if (column.dataType === 'row_ref') return getValue() as string;
         if (column.dataType === 'url' && typeof value === 'string' && value.length > 0) {
           return (
             <a
@@ -87,7 +110,7 @@ export function ListRowsTable({
     }
 
     return defs;
-  }, [activeColumns, renderRowActions]);
+  }, [activeColumns, rowLabels, renderRowActions]);
 
   return (
     <OrkyoDataTable
@@ -104,7 +127,7 @@ export function ListRowsTable({
             <div key={column.key} className="flex justify-between gap-3 text-sm">
               <span className="text-muted-foreground">{column.label}</span>
               <span className="text-right">
-                {formatListCell(column, row.values[column.key] ?? null) || EMPTY_CELL}
+                {formatListCell(column, row.values[column.key] ?? null, rowLabels) || EMPTY_CELL}
               </span>
             </div>
           ))}

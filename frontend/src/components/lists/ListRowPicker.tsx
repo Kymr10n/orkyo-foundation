@@ -3,7 +3,12 @@ import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { Label } from '@foundation/src/components/ui/label';
 import { useListRows } from '@foundation/src/hooks/useListRows';
 import { useListDefinition } from '@foundation/src/hooks/useListDefinitions';
-import { formatListCell } from '@foundation/src/components/lists/format-list-cell';
+import {
+  EMPTY_CELL,
+  formatListCell,
+  resolveDisplayColumn,
+  rowDisplayLabel,
+} from '@foundation/src/components/lists/format-list-cell';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 
 interface ListRowPickerProps {
@@ -88,30 +93,28 @@ export function ListRowPicker({
 /**
  * A row as one line.
  *
- * When the definition designates a display column, that column alone names the row — the author
- * said which field identifies it, so nothing else is appended. Without a designation the first
- * active column leads and the rest follow as context, which is a guess and reads like one
- * ("Name — 7'865"); that fallback exists so definitions predating the designation still render.
- *
- * Uses the same formatter the table does, so a date reads identically whether it is being picked
- * or being displayed.
+ * The name comes from {@link rowDisplayLabel}, so a row reads the same here as in a cell that
+ * points at it. What is added here is the tail: without a designated display column the name is
+ * only a guess (the first active column), so the remaining columns follow as context and it reads
+ * like a guess — "Name — 7'865". A designation is the author saying which field identifies the
+ * row, and nothing is appended to that.
  */
 function describeRow(row: ListRow, columns: ListColumn[], displayColumnId: string | null): string {
   if (columns.length === 0) return row.id;
 
-  // A designated column that has since been deactivated is not in `columns`, so this falls
-  // through to the guess rather than naming the row by a field the form no longer asks for.
-  const designated = displayColumnId
-    ? columns.find((column) => column.id === displayColumnId)
-    : undefined;
+  const head = rowDisplayLabel(row, columns, displayColumnId);
 
-  if (designated) return formatListCell(designated, row.values[designated.key] ?? null);
+  // Only a designation suppresses the tail. A deactivated designated column is not in `columns`,
+  // so the label fell back to the guess and the context belongs with it.
+  const named = resolveDisplayColumn(columns, displayColumnId);
+  if (displayColumnId && named?.id === displayColumnId) return head;
 
-  const [primary, ...rest] = columns;
-  const head = formatListCell(primary, row.values[primary.key] ?? null);
-  const tail = rest
+  // row_ref columns are skipped: their labels resolve against rows this function cannot see, so
+  // they would contribute nothing but em dashes.
+  const tail = columns
+    .filter((column) => column !== named && column.dataType !== 'row_ref')
     .map((column) => formatListCell(column, row.values[column.key] ?? null))
-    .filter((text) => text !== '—');
+    .filter((text) => text !== EMPTY_CELL);
 
   return tail.length > 0 ? `${head} — ${tail.join(' · ')}` : head;
 }

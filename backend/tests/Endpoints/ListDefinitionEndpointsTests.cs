@@ -661,6 +661,66 @@ public class ListDefinitionEndpointsTests
     }
 
     [Fact]
+    public async Task ARowReferenceColumn_CannotBeRequired()
+    {
+        // The first row of a list has no other row to point at, so a required row_ref is a list
+        // nobody can add to — and there is no way out of it but editing the column back.
+        var definition = await CreateDefinitionAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "parent",
+                Label = "Parent",
+                DataType = ListColumnDataTypes.RowRef,
+                IsRequired = true,
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ARowReferenceColumn_CannotBeMadeRequiredLater()
+    {
+        var definition = await CreateDefinitionAsync();
+        var column = (await (await _client.PostAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "parent",
+                Label = "Parent",
+                DataType = ListColumnDataTypes.RowRef,
+            })).Content.ReadFromJsonAsync<ListColumnInfo>())!;
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns/{column.Id}",
+            new UpdateListColumnRequest { IsRequired = true });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task TheDisplayColumn_CannotBeARowReference()
+    {
+        // A reference is not a name. Designating one would make every row read as an empty cell —
+        // including in the combobox that picks the row being pointed at.
+        var definition = await CreateDefinitionAsync();
+        var column = (await (await _client.PostAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "parent",
+                Label = "Parent",
+                DataType = ListColumnDataTypes.RowRef,
+            })).Content.ReadFromJsonAsync<ListColumnInfo>())!;
+
+        var response = await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { DisplayColumnId = column.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UpdateDefinition_RenamingIntoANameUsedByAnotherScope_Succeeds()
     {
         // The namespace is per scope since 1810, so a common list and an organization list are

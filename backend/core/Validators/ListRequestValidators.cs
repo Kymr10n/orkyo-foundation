@@ -75,6 +75,12 @@ public class CreateListColumnRequestValidator : AbstractValidator<CreateListColu
         When(x => x.Options is not null, () =>
             RuleForEach(x => x.Options!).NotEmpty().MaximumLength(MaxOptionLength));
 
+        // A row_ref points at another row of the same list, so the first row of an empty list has
+        // nothing to fill it with. Required there is a list nobody can put a row into.
+        When(x => x.DataType == ListColumnDataTypes.RowRef, () =>
+            RuleFor(x => x.IsRequired)
+                .Equal(false).WithMessage("A row reference cannot be required: the first row has nothing to point at"));
+
         When(x => x.Description is not null, () =>
             RuleFor(x => x.Description!).MaximumLength(2000));
     }

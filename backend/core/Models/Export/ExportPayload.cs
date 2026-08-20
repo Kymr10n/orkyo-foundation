@@ -55,6 +55,17 @@ public record ExportListDefinition
 {
     public required string Name { get; init; }
     public string? Description { get; init; }
+    /// <summary>
+    /// Who owns the definition. Carried because names are unique only within a scope since
+    /// migration 1810 — without it an export can hold two definitions called "Consumables" with
+    /// nothing to tell them apart.
+    /// </summary>
+    public required string Scope { get; init; }
+    /// <summary>
+    /// The column that names a row, by key rather than id: an id means nothing in the deployment
+    /// an export is read in, which is the same reason sites are referenced by code.
+    /// </summary>
+    public string? DisplayColumnKey { get; init; }
     public bool IsActive { get; init; }
     public required List<ExportListColumn> Columns { get; init; }
     public required List<ExportListInstance> SharedInstances { get; init; }

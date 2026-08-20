@@ -204,16 +204,20 @@ export function ListColumnEditDialog({
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="list-column-required"
-            checked={form.isRequired}
-            onCheckedChange={(c) => set({ isRequired: !!c })}
-          />
-          <Label htmlFor="list-column-required" className="cursor-pointer text-sm">
-            Required in every row
-          </Label>
-        </div>
+        {/* Not offered for a row reference: the first row of a list has no other row to point
+            at, so requiring one is a list nobody can add to. The server refuses it too. */}
+        {form.dataType !== 'row_ref' && (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="list-column-required"
+              checked={form.isRequired}
+              onCheckedChange={(c) => set({ isRequired: !!c })}
+            />
+            <Label htmlFor="list-column-required" className="cursor-pointer text-sm">
+              Required in every row
+            </Label>
+          </div>
+        )}
 
         {column && (
           <div className="flex items-center gap-2">

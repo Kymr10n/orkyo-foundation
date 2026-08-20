@@ -108,7 +108,10 @@ export function useResourceTransfer(
       successMessage: (count) => `Imported ${count} ${plural.toLowerCase()}`,
       errorMessage: `Failed to import ${plural.toLowerCase()}`,
       formats: ['csv', 'json'],
-      invalidates: [qk.resources.byType(resourceType.key)],
+      // all(), not byType: the floorplan reads qk.resources.placeable(siteId), which byType's
+      // prefix never reaches — an import of placed resources would leave the canvas empty until
+      // a reload. all() is the prefix over both.
+      invalidates: [qk.resources.all(), qk.resources.byType(resourceType.key)],
     },
   );
 }

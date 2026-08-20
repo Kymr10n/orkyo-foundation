@@ -81,21 +81,27 @@ export function useScheduleRequest() {
     // release. Requests now live under scoped keys (["requests","scheduled",site,from,to]), so we
     // update them all via setQueriesData rather than a single ["requests"] cache.
     onMutate: async ({ requestId, data, resourceTypeKey }) => {
+      // The type the optimistic assignment goes under: the one the caller named, else the one the
+      // request already sits on. Null when neither is known — the placeable types have not loaded
+      // yet — and the optimistic write is skipped rather than invented. An assignment written
+      // under an empty key matches no placeable filter, so nothing afterwards could clear it; the
+      // server response is what corrects the bar in that case.
+      const optimisticTypeKey = (r: Request) =>
+        resourceTypeKey ?? getPlacementAssignment(r, placeableKeys)?.resourceTypeKey ?? null;
+
       await queryClient.cancelQueries({ queryKey: qk.requests.all() });
       const previous = queryClient.getQueriesData<Request[]>({ queryKey: qk.requests.scheduledAll() });
 
       queryClient.setQueriesData<Request[]>({ queryKey: qk.requests.scheduledAll() }, (old) =>
         old?.map((r) =>
           r.id === requestId
-            ? (data.resourceId && data.startTs && data.endTs
+            ? (data.resourceId && data.startTs && data.endTs && optimisticTypeKey(r)
                 // A resize keeps the resource it is already on, so its type comes from the
                 // existing assignment when the caller did not name one.
                 ? applyPlacementAssignmentOptimistic(
                     r,
                     data.resourceId,
-                    resourceTypeKey
-                      ?? getPlacementAssignment(r, placeableKeys)?.resourceTypeKey
-                      ?? '',
+                    optimisticTypeKey(r)!,
                     data.startTs,
                     data.endTs,
                     placeableKeys,

@@ -114,15 +114,24 @@ public class ResourceTypeCatalogService(
         var existingKeys = existing.Select(f => f.Key).ToHashSet(StringComparer.Ordinal);
         foreach (var field in spec.Fields.Where(f => !existingKeys.Contains(f.Key)))
         {
-            await customFieldService.CreateAsync(type.Id, new CreateResourceCustomFieldRequest
+            try
             {
-                Key = field.Key,
-                Label = field.Label,
-                Description = field.Description,
-                DataType = field.DataType,
-                IsRequired = false,
-                SortOrder = field.SortOrder,
-            }, ct);
+                await customFieldService.CreateAsync(type.Id, new CreateResourceCustomFieldRequest
+                {
+                    Key = field.Key,
+                    Label = field.Label,
+                    Description = field.Description,
+                    DataType = field.DataType,
+                    IsRequired = false,
+                    SortOrder = field.SortOrder,
+                }, ct);
+            }
+            catch (Npgsql.PostgresException pg) when (pg.SqlState == Npgsql.PostgresErrorCodes.UniqueViolation)
+            {
+                // The same race the type row above handles, one level down: two activations of
+                // one key both read an empty field set and both insert. The other call made it,
+                // which is the outcome either way.
+            }
         }
 
         if (spec.HasDirectoryProfile)

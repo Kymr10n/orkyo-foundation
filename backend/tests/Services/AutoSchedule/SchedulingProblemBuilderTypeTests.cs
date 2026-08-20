@@ -65,6 +65,9 @@ public class SchedulingProblemBuilderTypeTests
         resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .Callback((ResourceListFilter f, CancellationToken _) => filters.Add(f))
             .ReturnsAsync(candidates);
+        resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .Callback((ResourceListFilter f, CancellationToken _) => filters.Add(f))
+            .ReturnsAsync(candidates);
 
         var capabilities = new Mock<IResourceCapabilityRepository>();
         capabilities.Setup(c => c.GetByResourcesAsync(

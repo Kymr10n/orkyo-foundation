@@ -601,8 +601,8 @@ public class ResourceEndpointTests
         var person = await CreatePersonAsync($"Dir-{Guid.NewGuid():N}"[..20]);
         var email = $"dir_{Guid.NewGuid():N}@example.com";
 
-        var upsert = await _client.PutAsJsonAsync($"/api/person-profiles/{person.Id}",
-            new UpsertPersonProfileRequest { Email = email, Notes = "Confidential note" });
+        var upsert = await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
+            new UpdateResourceRequest { Email = email, Notes = "Confidential note" });
         Assert.Equal(HttpStatusCode.OK, upsert.StatusCode);
 
         var fetched = await _client.GetFromJsonAsync<ResourceInfo>($"/api/resources/{person.Id}");

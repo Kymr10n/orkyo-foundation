@@ -415,55 +415,33 @@ guarantees this feature holds, and the remaining backlog.
 - D1: foundation#110 — `SpaceInfo`/`Create/UpdateSpaceRequest` gain `CustomFields`;
   `EditSpaceDialog` renders the custom-fields block (incl. list fields via the kit).
 - D2: directory fields onto the generic contract (`ResourceInfo` + requests, gated by
-  `has_directory_profile`) — **DONE**. Retiring `PersonProfileEndpoints` +
-  `person-profiles-api.ts` is **refuted**: see below.
+  `has_directory_profile`) — **DONE**, and the profile endpoints are **retired** with it.
 
-  **D2 revision (2026-08-15, evidence from the consumers).** The profile endpoints are not a
-  thin shim over the same data — they are a read-optimised projection layer, and the generic
-  per-resource contract cannot replace them:
+  **D2 closed (2026-08-20).** The 2026-08-15 revision below argued the retirement was refuted,
+  because five consumers needed the profile API's resolved projections. Every one of them was
+  deleted later on this same branch:
 
-  - `POST /api/person-profiles/job-titles` returns `{resourceId, jobTitleName}` only. It exists
-    because `ResourceUtilizationGrid` previously fanned out one request per resource. It needs
-    the *resolved* name, not the id.
-  - `POST /api/person-profiles/batch` serves `PersonList`, which renders `jobTitleName` and
-    `departmentPath` for every row.
-  - `POST|DELETE /{id}/link` is its own operation with its own checks; `LinkedUserId` is
-    deliberately absent from the generic requests for the same reason.
+  - `ResourceUtilizationGrid` and `PersonList` read `/job-titles` and `/batch` for a resolved
+    job title and department path. `0374b06` removed `frontend/src/components/people/` entirely,
+    and job titles and departments became organization lists resolved through
+    `useLookupFieldLabels` — client-side, from rows the page already holds.
+  - `PersonEditDialog` was deleted with the same commit; a person is edited through the generic
+    resource form.
+  - `person-profiles-api.ts` went with `32858a8`. `grep -rn "person-profiles" frontend/src`
+    returns nothing, in this repo and in both product shells.
+  - `/link` had no caller in any of the three frontends.
 
-  Both resolved fields come from a `LEFT JOIN` to `job_titles` and a recursive CTE that walks
-  the department parent chain. Putting them on `ResourceInfo` would add both to *every* resource
-  read — including list reads and the utilization grid — to serve two screens.
+  What remained was an authenticated, member-open API — `/batch` returned decrypted notes for
+  any list of resource ids — reachable by nothing. It is deleted: `PersonProfileEndpoints`,
+  `PersonProfileRepository`, `PersonProfile.cs`, `UpsertPersonProfileRequestValidator`, the
+  `LinkUserToPersonProfileRequestValidator`, the DI registrations, the three test suites, and the
+  route pins in the saas and community `RouteInventoryTests`.
 
-  What can still be simplified: `GET /{id}` and `PUT /{id}` are now genuinely duplicated by
-  `/api/resources/{id}`, so `PersonEditDialog` could move its read and write across, leaving the
-  profile API as a pure projection layer (`/job-titles`, `/batch`, `/link`). That is a smaller,
-  honest change than the retirement this plan assumed, and it is what should be scheduled.
-
-  **D2 leftover is blocked (2026-08-15). The generic update cannot clear a field.**
-  `ResourceRepository.UpdateAsync` models every column as "null means the caller is not editing
-  it" (`SetIfNotNull` / `.HasValue`, lines 296-318). `upsertPersonProfile` instead replaces the
-  profile row, so it *can* clear. Moving `PersonEditDialog`'s write across as-is would silently
-  turn "remove this person's job title" into a no-op — the dialog already sends
-  `jobTitleId: form.jobTitleId === '' ? null : form.jobTitleId` and depends on null meaning erase.
-
-  The frontend contract has not landed either: `ResourceInfo` /
-  `Create|UpdateResourceRequest` in `resources-api.ts` carry no `email`, `jobTitleId`,
-  `departmentId`, `notes` or `hasDirectoryProfile`. D2 was backend-only.
-
-  **Pre-existing bug found while verifying this.** The same gap already bites `homeSiteId`.
-  `PersonEditDialog` maps the "Unset" option to `''` and sends `homeSiteId: form.homeSiteId || null`
-  (line 244); `UpdateAsync` line 304 tests `.HasValue`, so the column is never touched. Unsetting a
-  person's home site through this dialog does nothing and reports success. This is independent of
-  Lists and wants its own fix.
-
-  Unblocking needs a decision on how the generic update expresses erasure. The options, with the
-  in-repo precedent for each:
-  1. Per-field clear flags (`ClearJobTitle`, …), as `UpdateListDefinitionRequest.ClearDisplayColumn`
-     already does. Explicit and consistent; four more flags on an already wide request.
-  2. A presence-aware wrapper so "absent" and "null" differ on the wire. Fixes every field at once,
-     including `homeSiteId`; touches the whole update contract.
-  3. Leave directory writes on the profile upsert and close D2 as complete. Cheapest; keeps two
-     write paths for one row.
+  The erasure gap the revision raised is real and is **unrelated to D2**: `UpdateAsync` uses
+  `SetIfNotNull`, so a null cannot mean "clear this". `home_site_id` already answers it through
+  `Optional<T>` (option 2 below, applied to one field), and the same wrapper is what the
+  remaining directory fields want when a caller needs to clear one. Nothing on this branch
+  depends on it.
 - D3: retire the `SpaceEndpoints` thin shim in favour of `/api/resources` (needs D1; the
   placeable-cannot-travel rule is already enforced centrally in `ResourceService`).
 

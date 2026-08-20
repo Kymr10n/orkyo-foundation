@@ -64,12 +64,10 @@ public class ListRowService(
         var instance = await instanceRepository.GetByIdAsync(instanceId, ct);
         if (instance is null) return null;
 
-        await ValidateValuesAsync(instance, request.Values, ct);
+        await ValidateValuesAsync(instance, request.Values, null, ct);
 
-        if (await instanceRepository.CountRowsAsync(instanceId, ct) >= MaxRowsPerInstance)
-            throw new ArgumentException($"A list holds at most {MaxRowsPerInstance} rows");
-
-        return await instanceRepository.CreateRowAsync(instanceId, request.Values, ct);
+        return await instanceRepository.CreateRowAsync(instanceId, request.Values, MaxRowsPerInstance, ct)
+            ?? throw new ArgumentException($"A list holds at most {MaxRowsPerInstance} rows");
     }
 
     public async Task<ListRowInfo?> UpdateRowAsync(
@@ -83,7 +81,7 @@ public class ListRowService(
         var existing = await instanceRepository.GetRowAsync(rowId, ct);
         if (existing is null || existing.ListInstanceId != instanceId) return null;
 
-        await ValidateValuesAsync(instance, request.Values, ct);
+        await ValidateValuesAsync(instance, request.Values, existing.Id, ct);
 
         return await instanceRepository.UpdateRowAsync(rowId, request.Values, ct);
     }
@@ -127,8 +125,13 @@ public class ListRowService(
     /// way inactive fields are: a column retired while rows still carry values for it must not make
     /// those rows unsaveable.
     /// </summary>
+    /// <param name="rowId">
+    /// The row being written, or null when it is being created. Only a row that already exists can
+    /// be pointed at, so this is what a <c>row_ref</c> cell must not reach.
+    /// </param>
     private async Task ValidateValuesAsync(
-        ListInstanceInfo instance, IReadOnlyDictionary<string, JsonElement> values, CancellationToken ct)
+        ListInstanceInfo instance, IReadOnlyDictionary<string, JsonElement> values,
+        Guid? rowId, CancellationToken ct)
     {
         var columns = await definitionRepository.GetColumnsAsync(instance.ListDefinitionId, ct);
         var byKey = columns.ToDictionary(c => c.Key, StringComparer.Ordinal);
@@ -150,5 +153,76 @@ public class ListRowService(
             if (!values.TryGetValue(column.Key, out var value) || CustomFieldValueRules.IsEmpty(value))
                 throw new ArgumentException($"Column '{column.Label}' is required");
         }
+
+        await ValidateRowRefsAsync(instance, columns, values, rowId, ct);
     }
+
+    /// <summary>
+    /// Checks what a <c>row_ref</c> cell points at: a row of this same instance, not this row, and
+    /// no chain that comes back here.
+    /// </summary>
+    /// <remarks>
+    /// The database cannot hold this — every row lives in one table, so a foreign key would let a
+    /// cell name a row of some other instance, and a cycle is not a constraint at all. The rows are
+    /// read once and walked in memory instead, which an instance capped at
+    /// <see cref="MaxRowsPerInstance"/> rows makes cheap; the read happens only when a cell
+    /// actually carries a reference.
+    /// <para>
+    /// The read and the write are not one transaction, so two edits landing together can still
+    /// close a loop neither saw — A pointed at B while B was being pointed at A. Left as is
+    /// deliberately: serializing every row write to defend a two-person race costs more than the
+    /// state it prevents, which is visible in the table and cleared by emptying either cell.
+    /// </para>
+    /// </remarks>
+    private async Task ValidateRowRefsAsync(
+        ListInstanceInfo instance, IReadOnlyList<ListColumnInfo> columns,
+        IReadOnlyDictionary<string, JsonElement> values, Guid? rowId, CancellationToken ct)
+    {
+        var refs = columns
+            .Where(c => c.DataType == ListColumnDataTypes.RowRef)
+            .Select(c => (Column: c, Target: TargetOf(values, c.Key)))
+            .Where(r => r.Target is not null)
+            .ToList();
+
+        if (refs.Count == 0) return;
+
+        var rows = (await instanceRepository.GetRowsAsync(instance.Id, ct)).ToDictionary(r => r.Id);
+
+        foreach (var (column, target) in refs)
+        {
+            if (target == rowId)
+                throw new ArgumentException($"Column '{column.Label}' cannot point at this row itself");
+
+            if (!rows.ContainsKey(target!.Value))
+                throw new ArgumentException($"Column '{column.Label}' must point at a row of this list");
+
+            // A row being created is pointed at by nothing yet, so it cannot close a cycle.
+            if (rowId is not { } self) continue;
+
+            // Walk up from the target. `seen` is not the cycle check — it stops a cycle that
+            // already exists elsewhere in the column from looping this walk forever.
+            var seen = new HashSet<Guid>();
+            for (var current = target.Value; seen.Add(current);)
+            {
+                if (current == self)
+                    throw new ArgumentException($"Column '{column.Label}' would make a loop");
+
+                if (!rows.TryGetValue(current, out var row)
+                    || TargetOf(row.Values, column.Key) is not { } next)
+                {
+                    break;
+                }
+
+                current = next;
+            }
+        }
+    }
+
+    /// <summary>The row id a cell holds, or null when it is empty or absent. Shape is already checked.</summary>
+    private static Guid? TargetOf(IReadOnlyDictionary<string, JsonElement> values, string key)
+        => values.TryGetValue(key, out var value)
+           && !CustomFieldValueRules.IsEmpty(value)
+           && Guid.TryParse(value.GetString(), out var id)
+            ? id
+            : null;
 }

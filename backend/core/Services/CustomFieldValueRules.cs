@@ -90,6 +90,14 @@ public static class CustomFieldValueRules
                     throw Mismatch(subject, $"one of: {string.Join(", ", options)}");
                 break;
 
+            case ListColumnDataTypes.RowRef:
+                // Shape only. That the id names a row of this same instance, is not the row
+                // itself, and closes no cycle needs the other rows, so it stays in the service.
+                Expect(subject, value, JsonValueKind.String, "a row of this list");
+                if (!Guid.TryParse(value.GetString(), out _))
+                    throw Mismatch(subject, "a row of this list");
+                break;
+
             default:
                 // Unreachable while the CHECK constraints and the create validators agree on the set.
                 throw new InvalidOperationException($"Unknown data type '{dataType}'");

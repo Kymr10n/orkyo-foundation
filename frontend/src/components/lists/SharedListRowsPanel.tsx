@@ -107,6 +107,7 @@ export function SharedListRowsPanel({ entries, selectId, emptyMessage }: SharedL
         <ListRowsEditor
           columns={columns}
           instanceId={instanceId}
+          displayColumnId={definition?.displayColumnId ?? null}
           readOnly={!canEdit}
           emptyMessage={`No ${active.label.toLowerCase()} yet.`}
           toolbar={selector}

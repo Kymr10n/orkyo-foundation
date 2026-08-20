@@ -37,6 +37,19 @@ const columns: ListColumn[] = [
   },
 ];
 
+const parentColumn: ListColumn = {
+  id: 'c2',
+  listDefinitionId: 'd1',
+  key: 'parent',
+  label: 'Parent',
+  dataType: 'row_ref',
+  isRequired: false,
+  sortOrder: 1,
+  isActive: true,
+  createdAt: '2026-01-01T00:00:00Z',
+  updatedAt: '2026-01-01T00:00:00Z',
+};
+
 const existingRow: ListRow = {
   id: 'r1',
   listInstanceId: 'i1',
@@ -165,5 +178,72 @@ describe('ListRowsEditor', () => {
 
     expect(screen.getByRole('button', { name: 'picker' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /add/i })).not.toBeInTheDocument();
+  });
+
+  describe('a column that points at another row', () => {
+    const parent: ListRow = { ...existingRow, id: 'r2', values: { note: 'Quality' } };
+    const child: ListRow = { ...existingRow, id: 'r3', values: { note: 'Quality North', parent: 'r2' } };
+
+    const renderTree = () =>
+      renderEditor({ columns: [columns[0], parentColumn], displayColumnId: 'c1' });
+
+    beforeEach(() => {
+      getListRows.mockResolvedValue([parent, child]);
+    });
+
+    it('shows the parent by name in the table, never by id', async () => {
+      renderTree();
+
+      expect(await screen.findByText('Quality North')).toBeInTheDocument();
+      // Two cells read "Quality": the parent's own name and the child's Parent cell.
+      await waitFor(() => expect(screen.getAllByText('Quality')).toHaveLength(2));
+      expect(screen.queryByText('r2')).not.toBeInTheDocument();
+    });
+
+    it('offers the other rows to pick from, and not the row being edited', async () => {
+      const user = userEvent.setup();
+      renderTree();
+
+      const editButtons = await screen.findAllByRole('button', { name: 'Edit row' });
+      await user.click(editButtons[0]);
+      await user.click(screen.getByLabelText('Parent'));
+
+      // The row being edited is "Quality" itself, so only the other one is offerable.
+      expect(await screen.findByRole('option', { name: 'Quality North' })).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Quality' })).not.toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'None' })).toBeInTheDocument();
+    });
+
+    it('saves the picked row id', async () => {
+      const user = userEvent.setup();
+      renderTree();
+
+      const editButtons = await screen.findAllByRole('button', { name: 'Edit row' });
+      await user.click(editButtons[0]);
+      await user.click(screen.getByLabelText('Parent'));
+      await user.click(await screen.findByRole('option', { name: 'Quality North' }));
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(updateListRow).toHaveBeenCalled());
+      expect(updateListRow).toHaveBeenCalledWith('i1', 'r2', {
+        values: { note: 'Quality', parent: 'r3' },
+      });
+    });
+
+    it('clears the reference through the None entry', async () => {
+      const user = userEvent.setup();
+      renderTree();
+
+      const editButtons = await screen.findAllByRole('button', { name: 'Edit row' });
+      await user.click(editButtons[1]);
+      await user.click(screen.getByLabelText('Parent'));
+      await user.click(await screen.findByRole('option', { name: 'None' }));
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(updateListRow).toHaveBeenCalled());
+      expect(updateListRow).toHaveBeenCalledWith('i1', 'r3', {
+        values: { note: 'Quality North', parent: null },
+      });
+    });
   });
 });

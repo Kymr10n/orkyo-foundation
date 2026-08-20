@@ -91,8 +91,8 @@ public class ListBatchReadTests
         var one = await _instances.CreateSharedAsync(definition.Id, new CreateListInstanceRequest { Name = Unique("One") });
         var two = await _instances.CreateSharedAsync(definition.Id, new CreateListInstanceRequest { Name = Unique("Two") });
         foreach (var text in new[] { "first", "second" })
-            await _instances.CreateRowAsync(one.Id, Values(key, text));
-        await _instances.CreateRowAsync(two.Id, Values(key, "only"));
+            await _instances.CreateRowAsync(one.Id, Values(key, text), ListRowService.MaxRowsPerInstance);
+        await _instances.CreateRowAsync(two.Id, Values(key, "only"), ListRowService.MaxRowsPerInstance);
 
         var byInstance = await _instances.GetRowsByInstancesAsync([one.Id, two.Id]);
 
@@ -110,8 +110,8 @@ public class ListBatchReadTests
         var key = (await _definitions.GetColumnsAsync(definition.Id))[0].Key;
         var one = await _instances.CreateSharedAsync(definition.Id, new CreateListInstanceRequest { Name = Unique("One") });
         var two = await _instances.CreateSharedAsync(definition.Id, new CreateListInstanceRequest { Name = Unique("Two") });
-        var rowInOne = await _instances.CreateRowAsync(one.Id, Values(key, "a"));
-        var rowInTwo = await _instances.CreateRowAsync(two.Id, Values(key, "b"));
+        var rowInOne = (await _instances.CreateRowAsync(one.Id, Values(key, "a"), ListRowService.MaxRowsPerInstance))!;
+        var rowInTwo = (await _instances.CreateRowAsync(two.Id, Values(key, "b"), ListRowService.MaxRowsPerInstance))!;
 
         var found = await _instances.CountExistingRowsBatchAsync(
         [

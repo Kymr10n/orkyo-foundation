@@ -134,6 +134,7 @@ function ListFieldInput({
           key={`${resourceId}:${field.id}`}
           columns={definition?.columns ?? []}
           instanceId={instanceId}
+          displayColumnId={definition?.displayColumnId ?? null}
           ensureInstanceId={ensureInstanceId}
           emptyMessage="No rows yet."
           entityLabel={field.label}

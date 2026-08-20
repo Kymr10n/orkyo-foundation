@@ -344,7 +344,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IResourceTypeCatalogService, ResourceTypeCatalogService>();
         builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         builder.Services.AddScoped<IConflictService, ConflictService>();
-        builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
         builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         builder.Services.AddScoped<IUtilizationService, UtilizationService>();
         // NB: integration tests bind IInsightsService directly to the real service (no caching

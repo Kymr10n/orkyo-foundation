@@ -198,6 +198,8 @@ public class ExportService : IExportService
             {
                 Name = definition.Name,
                 Description = definition.Description,
+                Scope = definition.Scope,
+                DisplayColumnKey = columns.FirstOrDefault(c => c.Id == definition.DisplayColumnId)?.Key,
                 IsActive = definition.IsActive,
                 Columns = columns.Select(column => new ExportListColumn
                 {
@@ -235,7 +237,7 @@ public class ExportService : IExportService
             .ToHashSet(StringComparer.Ordinal);
         if (nonPlaceableKeys.Count == 0) return [];
 
-        var resources = (await _resourceRepo.GetAllAsync(new ResourceListFilter { IsActive = true }, ct))
+        var resources = (await _resourceRepo.GetEveryAsync(new ResourceListFilter { IsActive = true }, ct))
             .Where(r => nonPlaceableKeys.Contains(r.ResourceTypeKey))
             .ToList();
         if (resources.Count == 0) return [];

@@ -267,6 +267,13 @@ This is a deliberate decision, taken with knowledge of the following costs:
 1. **The department tree flattens.** `departments.parent_department_id` has no equivalent in
    `list_rows`, whose values are flat JSON. A parent column can hold a text value. The database no longer
    enforces the tree, the self-reference constraint, or the sibling-name uniqueness.
+
+   *Superseded (2026-08-20).* Migrations 1890 and 1900 gave the tree back, as the `row_ref`
+   column type: a cell holds the id of another row of the same list, and `ListRowService` checks
+   on write that the target exists in that list, is not the row itself, and closes no cycle. The
+   database still does not enforce it — every row lives in one table, so a foreign key could not
+   tell a sibling from a row of another instance — but the application does, and the department
+   parent is a reference again rather than a name.
 2. **Referential integrity ends.** `resources.department_id` and `resources.job_title_id`
    are foreign keys. They become `list_lookup` custom fields on the person type, whose value
    is a JSON array of row identifiers with no foreign key behind it.

@@ -48,7 +48,6 @@ import { EditSpaceDialog } from "./EditSpaceDialog";
 import {
   usePlaceableResources,
   useCreatePlaceableResource,
-  useUpdatePlaceableResource,
   useMovePlaceableResource,
   useDeletePlaceableResource,
 } from "@foundation/src/hooks/usePlaceableResources";
@@ -75,9 +74,9 @@ export function SpaceManagementPanel({
   // React Query hooks
   const { data: spaces = [], isLoading: isLoadingSpaces } = usePlaceableResources(siteId);
   const createSpaceMutation = useCreatePlaceableResource(siteId);
-  const _updateSpaceMutation = useUpdatePlaceableResource(siteId);
+  // One mutation for both move and resize: a resize writes the same geometry through the same
+  // endpoint, so a second instance of it was two names for one call.
   const moveSpaceMutation = useMovePlaceableResource(siteId);
-  const resizeSpaceMutation = useMovePlaceableResource(siteId);
   const deleteSpaceMutation = useDeletePlaceableResource(siteId);
 
   const canEdit = useCanEdit();
@@ -283,7 +282,7 @@ export function SpaceManagementPanel({
     newGeometry: ResourceGeometry,
   ) => {
     try {
-      await resizeSpaceMutation.mutateAsync({ resourceId, geometry: newGeometry });
+      await moveSpaceMutation.mutateAsync({ resourceId, geometry: newGeometry });
     } catch (error) {
       // Feedback owned by the move mutation's meta.errorMessage (central MutationCache).
       logger.error("Failed to resize resource:", error);
@@ -291,8 +290,6 @@ export function SpaceManagementPanel({
   };
 
   const floorplanUrl = floorplanMetadata ? floorplanBlobUrl : null;
-
-  const _selectedSpace = spaces.find((s) => s.id === selectedResourceId);
 
   return (
     <div className={cn("flex h-full", className)}>

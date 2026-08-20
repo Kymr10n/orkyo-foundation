@@ -50,7 +50,9 @@ export function ListDefinitionEditDialog({
   // The collection response carries no columns, so the picker fetches the one definition. Only
   // while editing: a definition being created has no columns to choose from yet.
   const { data: loaded } = useListDefinition(open && definition ? definition.id : null);
-  const columns = (loaded?.columns ?? []).filter((c) => c.isActive);
+  // row_ref is excluded: a reference is not a name, and designating one would make every row on
+  // the list read as an empty cell. The server refuses it as well.
+  const columns = (loaded?.columns ?? []).filter((c) => c.isActive && c.dataType !== 'row_ref');
 
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ListDefinition,

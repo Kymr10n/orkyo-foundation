@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
@@ -266,6 +267,62 @@ public class ResourceTypeCatalogEndpointTests
         scopeCmd.Parameters.AddWithValue("b", resource.Id);
         scopeCmd.Parameters.AddWithValue("c", group.Id);
         Assert.Equal(0L, await scopeCmd.ExecuteScalarAsync());
+    }
+
+    [Fact]
+    public async Task Purge_TakesTheTypesOwnLists_RatherThanTrippingTheirRestrict()
+    {
+        // list_definitions cascades from the type, but its rows, instances and bound fields are
+        // ON DELETE RESTRICT — so a type that owns a list is the case where the cascade aborts
+        // and the admin gets a 500 with nothing to act on.
+        var activate = await _client.PostAsync("/api/resource-type-catalog/lathe/activate", null);
+        activate.EnsureSuccessStatusCode();
+        var type = (await activate.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
+
+        var definition = (await (await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = $"Consumables {Guid.NewGuid():N}",
+                Scope = ListDefinitionScopes.Resource,
+                ResourceTypeId = type.Id,
+            })).Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+
+        await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest { Key = "name", Label = "Name", DataType = ListColumnDataTypes.Text });
+
+        var instance = (await (await _client.PostAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/instances",
+            new CreateListInstanceRequest { Name = $"Standard {Guid.NewGuid():N}" }))
+            .Content.ReadFromJsonAsync<ListInstanceInfo>())!;
+
+        var rowResponse = await _client.PostAsJsonAsync($"/api/list-instances/{instance.Id}/rows",
+            new ListRowRequest
+            {
+                Values = new Dictionary<string, JsonElement>
+                {
+                    ["name"] = JsonDocument.Parse("\"Gloves\"").RootElement,
+                },
+            });
+        Assert.Equal(HttpStatusCode.Created, rowResponse.StatusCode);
+
+        // A field of the purged type bound to its own list — the other RESTRICT.
+        await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
+            new CreateResourceCustomFieldRequest
+            {
+                Key = "consumables",
+                Label = "Consumables",
+                DataType = CustomFieldDataTypes.ListLookup,
+                ListInstanceId = instance.Id,
+            });
+
+        var purged = await _client.DeleteAsync("/api/resource-type-catalog/lathe");
+        Assert.Equal(HttpStatusCode.OK, purged.StatusCode);
+
+        // The list went with the type rather than surviving as an orphan.
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await _client.GetAsync($"/api/list-definitions/{definition.Id}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await _client.GetAsync($"/api/list-instances/{instance.Id}")).StatusCode);
     }
 
     [Fact]

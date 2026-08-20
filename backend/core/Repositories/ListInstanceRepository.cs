@@ -46,7 +46,13 @@ public interface IListInstanceRepository
         IReadOnlyList<Guid> instanceIds, CancellationToken ct = default);
 
     Task<ListRowInfo?> GetRowAsync(Guid rowId, CancellationToken ct = default);
-    Task<ListRowInfo> CreateRowAsync(Guid instanceId, IReadOnlyDictionary<string, JsonElement> values, CancellationToken ct = default);
+    /// <summary>
+    /// Inserts a row, or returns null when the instance already holds <paramref name="maxRows"/>.
+    /// The cap is part of the insert, so two concurrent writers cannot both pass it.
+    /// </summary>
+    Task<ListRowInfo?> CreateRowAsync(
+        Guid instanceId, IReadOnlyDictionary<string, JsonElement> values, int maxRows,
+        CancellationToken ct = default);
     Task<ListRowInfo?> UpdateRowAsync(Guid rowId, IReadOnlyDictionary<string, JsonElement> values, CancellationToken ct = default);
 
     /// <summary>
@@ -64,7 +70,6 @@ public interface IListInstanceRepository
     Task<IReadOnlyList<int>> CountExistingRowsBatchAsync(
         IReadOnlyList<(Guid InstanceId, IReadOnlyList<Guid> RowIds)> checks, CancellationToken ct = default);
 
-    Task<int> CountRowsAsync(Guid instanceId, CancellationToken ct = default);
 }
 
 public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
@@ -256,18 +261,25 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             p => p.AddWithValue("id", rowId), MapRow, ct);
     }
 
-    public async Task<ListRowInfo> CreateRowAsync(
-        Guid instanceId, IReadOnlyDictionary<string, JsonElement> values, CancellationToken ct = default)
+    public async Task<ListRowInfo?> CreateRowAsync(
+        Guid instanceId, IReadOnlyDictionary<string, JsonElement> values, int maxRows,
+        CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return (await db.QuerySingleOrDefaultAsync(
-            $@"INSERT INTO list_rows (list_instance_id, values) VALUES (@instanceId, @values)
+        // The count rides inside the INSERT rather than preceding it: counted separately, two
+        // writers both see room and both insert, and the cap the row-reference walk relies on
+        // drifts under a scripted import. No row inserted means the cap was reached.
+        return await db.QuerySingleOrDefaultAsync(
+            $@"INSERT INTO list_rows (list_instance_id, values)
+               SELECT @instanceId, @values
+                WHERE (SELECT count(*) FROM list_rows WHERE list_instance_id = @instanceId) < @maxRows
                RETURNING {RowColumns}",
             p =>
             {
                 p.AddWithValue("instanceId", instanceId);
                 p.AddJsonb("values", JsonSerializer.Serialize(values));
-            }, MapRow, ct))!;
+                p.AddWithValue("maxRows", maxRows);
+            }, MapRow, ct);
     }
 
     public async Task<ListRowInfo?> UpdateRowAsync(
@@ -302,25 +314,60 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
         // Strip the id from every lookup value that picked this row. Matches nothing for a
         // per-resource instance — no field points at one — so the statement is unconditional
         // rather than branching on kind.
+        //
+        // One rewrite per resource, not one per field: `UPDATE ... FROM` applies a single
+        // arbitrarily chosen match to a target row, and nothing stops two lookup fields on the
+        // same type binding the same shared instance. Stripping only one of them would leave the
+        // other holding an id that no longer resolves, which is exactly the dangling reference
+        // this statement exists to prevent — and it would make the resource unsaveable.
         await using (var stripCmd = new NpgsqlCommand(
             @"UPDATE resources r
-                 SET custom_fields = jsonb_set(
-                         r.custom_fields,
-                         ARRAY[f.key],
-                         COALESCE((SELECT jsonb_agg(elem)
-                                     FROM jsonb_array_elements(r.custom_fields -> f.key) elem
-                                    WHERE elem <> to_jsonb(@rowId::text)), '[]'::jsonb))
-                FROM resource_custom_fields f
-               WHERE f.data_type = @lookupType
-                 AND f.list_instance_id = @instanceId
-                 AND r.resource_type_id = f.resource_type_id
-                 AND jsonb_exists(r.custom_fields, f.key)
-                 AND r.custom_fields -> f.key @> to_jsonb(@rowId::text)", db, tx))
+                 SET custom_fields = r.custom_fields || (
+                     SELECT jsonb_object_agg(
+                                f.key,
+                                COALESCE((SELECT jsonb_agg(elem)
+                                            FROM jsonb_array_elements(r.custom_fields -> f.key) elem
+                                           WHERE elem <> to_jsonb(@rowId::text)), '[]'::jsonb))
+                       FROM resource_custom_fields f
+                      WHERE f.data_type = @lookupType
+                        AND f.list_instance_id = @instanceId
+                        AND f.resource_type_id = r.resource_type_id
+                        AND jsonb_typeof(r.custom_fields -> f.key) = 'array'
+                        AND r.custom_fields -> f.key @> to_jsonb(@rowId::text))
+               WHERE EXISTS (
+                   SELECT 1 FROM resource_custom_fields f
+                    WHERE f.data_type = @lookupType
+                      AND f.list_instance_id = @instanceId
+                      AND f.resource_type_id = r.resource_type_id
+                      AND jsonb_typeof(r.custom_fields -> f.key) = 'array'
+                      AND r.custom_fields -> f.key @> to_jsonb(@rowId::text))", db, tx))
         {
             stripCmd.Parameters.AddWithValue("rowId", rowId.ToString());
             stripCmd.Parameters.AddWithValue("instanceId", instanceId);
             stripCmd.Parameters.AddWithValue("lookupType", CustomFieldDataTypes.ListLookup);
             await stripCmd.ExecuteNonQueryAsync(ct);
+        }
+
+        // Sibling rows that pointed at this one lose the reference, the same way a lookup value
+        // does above — a delete is a delete, not a refusal. The keys are aggregated per row rather
+        // than removed one at a time, so a definition with two row_ref columns both naming this
+        // row loses both.
+        await using (var unlinkCmd = new NpgsqlCommand(
+            @"WITH refs AS (
+                  SELECT c.key::text AS key
+                    FROM list_columns c
+                    JOIN list_instances i ON i.list_definition_id = c.list_definition_id
+                   WHERE i.id = @instanceId AND c.data_type = @rowRefType
+              )
+              UPDATE list_rows r
+                 SET values = r.values - (SELECT array_agg(key) FROM refs WHERE r.values ->> key = @rowId)
+               WHERE r.list_instance_id = @instanceId
+                 AND EXISTS (SELECT 1 FROM refs WHERE r.values ->> key = @rowId)", db, tx))
+        {
+            unlinkCmd.Parameters.AddWithValue("rowId", rowId.ToString());
+            unlinkCmd.Parameters.AddWithValue("instanceId", instanceId);
+            unlinkCmd.Parameters.AddWithValue("rowRefType", ListColumnDataTypes.RowRef);
+            await unlinkCmd.ExecuteNonQueryAsync(ct);
         }
 
         await using (var deleteCmd = new NpgsqlCommand("DELETE FROM list_rows WHERE id = @id", db, tx))
@@ -383,14 +430,6 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
         while (await reader.ReadAsync(ct))
             results[reader.GetInt32(0)] = reader.GetInt32(1);
         return results;
-    }
-
-    public async Task<int> CountRowsAsync(Guid instanceId, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QuerySingleOrDefaultAsync(
-            "SELECT count(*)::int AS n FROM list_rows WHERE list_instance_id = @id",
-            p => p.AddWithValue("id", instanceId), r => r.GetInt32("n"), ct);
     }
 
     private static ListInstanceInfo MapInstance(NpgsqlDataReader r) => new()

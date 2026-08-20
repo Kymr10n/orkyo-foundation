@@ -282,9 +282,14 @@ public static class PresetApplier
         cmd.Parameters.AddNullable("description", group.Description);
         cmd.Parameters.AddNullable("color", group.Color);
         cmd.Parameters.AddWithValue("displayOrder", group.DisplayOrder);
+        // ArgumentException, not InvalidOperationException: a tenant with nothing activated yet is
+        // an ordinary state since the built-in types became a catalog, and it is one the admin can
+        // fix. The 500 the other shape maps to says neither. Same wording as RequestRepository,
+        // which refuses the same state on the request path.
         return (Guid)(await cmd.ExecuteScalarAsync()
-            ?? throw new InvalidOperationException(
-                "No placeable resource type exists to hold the preset's groups."));
+            ?? throw new ArgumentException(
+                "No active placeable resource type exists. Activate one under Configuration "
+                + "before applying a preset."));
     }
 
     private static async Task UpdateSpaceGroupAsync(

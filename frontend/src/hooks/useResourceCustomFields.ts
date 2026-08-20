@@ -10,7 +10,13 @@ import { qk } from "@foundation/src/lib/api/query-keys";
  * alongside the definition list itself.
  */
 export const CUSTOM_FIELD_INVALIDATES = (resourceTypeId: string) =>
-  [qk.resourceTypes.customFields(resourceTypeId), qk.resources.allFlat()] as const;
+  [
+    qk.resourceTypes.customFields(resourceTypeId),
+    // Both roots: `all()` covers the per-type lists and the floorplan, `allFlat()` is its own
+    // namespace by design and is not reached by the first.
+    qk.resources.all(),
+    qk.resources.allFlat(),
+  ] as const;
 
 export const useResourceCustomFields = (resourceTypeId: string, enabled = true) =>
   useQuery({

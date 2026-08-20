@@ -49,6 +49,8 @@ public class InsightsServiceTests
             .ReturnsAsync([]);
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         _assignments.Setup(a => a.GetByResourceAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _availability.Setup(a => a.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
@@ -130,6 +132,8 @@ public class InsightsServiceTests
     private void SetupResource(ResourceInfo resource, params ResourceAssignmentInfo[] assignments)
     {
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([resource]);
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([resource]);
         _assignments.Setup(a => a.GetByResourceAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([.. assignments]);
@@ -250,6 +254,8 @@ public class InsightsServiceTests
         // First half of January is blocked (shutdown) → capacity is the open minutes only.
         var room = Guid.NewGuid();
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SpaceResource(room)]);
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([SpaceResource(room)]);
         _availability.Setup(a => a.GetBlockedPeriodsForResourcesAsync(
                 It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))

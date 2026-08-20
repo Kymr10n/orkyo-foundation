@@ -60,8 +60,10 @@ public static class PeopleFactories
     /// migration's copies survived.
     /// </summary>
     /// <remarks>
-    /// Departments keep their two levels as a descriptive <c>parent</c> cell. The tree stopped
-    /// being a database relationship in 1820, so a child names its parent instead of pointing at it.
+    /// Departments keep their two levels. 1820 flattened the tree into a name in a text cell;
+    /// 1900 put it back on a <c>row_ref</c> column, so a child points at its parent's row id.
+    /// The ids do not exist while the rows are being built, so a child names its parent through
+    /// <see cref="ParentByName"/> and the insert loop resolves it.
     /// </remarks>
     // Subdivision suffixes for child departments — generic enough to work across all profiles;
     // combined with the parent name (for example "Operations North").
@@ -77,12 +79,13 @@ public static class PeopleFactories
 
         var jobTitles = await SeedOrgListAsync(
             conn, now, "Job Titles", "Roles a person holds.",
-            [("description", "Description"), ("active", "Active")],
+            [("description", "Description", "text"), ("active", "Active", "boolean")],
             BuildJobTitleNames(profile, scale));
 
         var departments = await SeedOrgListAsync(
             conn, now, "Departments", "Organizational units.",
-            [("code", "Code"), ("description", "Description"), ("parent", "Parent"), ("active", "Active")],
+            [("code", "Code", "text"), ("description", "Description", "text"),
+             ("parent", "Parent", "row_ref"), ("active", "Active", "boolean")],
             BuildDepartmentRows(profile, scale));
 
         // Bound to the directory type. DO NOTHING on conflict, because migration 1820 creates the
@@ -108,7 +111,7 @@ public static class PeopleFactories
     /// </summary>
     private static async Task<SeededOrgList> SeedOrgListAsync(
         NpgsqlConnection conn, DateTime now, string name, string description,
-        IReadOnlyList<(string Key, string Label)> extraColumns,
+        IReadOnlyList<(string Key, string Label, string DataType)> extraColumns,
         IReadOnlyList<Dictionary<string, object>> rows)
     {
         const string scope = "organization";
@@ -121,10 +124,9 @@ public static class PeopleFactories
                 conn, definitionId.Value, "name", "Name", "text", required: true, sort: 0, now);
             for (var i = 0; i < extraColumns.Count; i++)
             {
-                var (key, label) = extraColumns[i];
+                var (key, label, dataType) = extraColumns[i];
                 await ListSeedHelpers.InsertColumnAsync(
-                    conn, definitionId.Value, key, label,
-                    key == "active" ? "boolean" : "text", required: false, sort: i + 1, now);
+                    conn, definitionId.Value, key, label, dataType, required: false, sort: i + 1, now);
             }
             await ListSeedHelpers.SetDisplayColumnAsync(conn, definitionId.Value, nameColumn);
         }
@@ -132,15 +134,49 @@ public static class PeopleFactories
         var instanceId = await ListSeedHelpers.FindSharedInstanceAsync(conn, definitionId.Value)
             ?? await ListSeedHelpers.InsertSharedInstanceAsync(conn, definitionId.Value, name, now);
 
-        var seeded = new List<(Guid, string)>(rows.Count);
+        var seeded = new List<(Guid Id, string Name)>(rows.Count);
         foreach (var values in rows)
         {
             var rowId = await ListSeedHelpers.InsertRowAsync(
-                conn, instanceId, JsonSerializer.Serialize(values), now);
+                conn, instanceId, JsonSerializer.Serialize(ResolveRowRefs(values, seeded)), now);
             seeded.Add((rowId, (string)values["name"]));
         }
 
         return new SeededOrgList(instanceId, seeded);
+    }
+
+    /// <summary>
+    /// A cell that points at another row of the same list, written while the ids do not exist yet.
+    /// The insert loop swaps it for the row id once that row is in.
+    /// </summary>
+    private sealed record ParentByName(string Name);
+
+    /// <summary>
+    /// Replaces every <see cref="ParentByName"/> with the id of the row of that name.
+    /// </summary>
+    /// <remarks>
+    /// A <c>row_ref</c> cell holds a row id (migration 1900), so a name in it would be rejected by
+    /// the API on the row's next save. Rows are seeded parents-first, so the target is always
+    /// already in <paramref name="seeded"/>; a name that is not is a bug in the row builder and
+    /// throws rather than seeding a dangling reference.
+    /// </remarks>
+    private static Dictionary<string, object> ResolveRowRefs(
+        Dictionary<string, object> values, IReadOnlyList<(Guid Id, string Name)> seeded)
+    {
+        if (!values.Values.Any(v => v is ParentByName)) return values;
+
+        var resolved = new Dictionary<string, object>(values);
+        foreach (var (key, value) in values)
+        {
+            if (value is not ParentByName parent) continue;
+
+            var target = seeded.FirstOrDefault(r => r.Name == parent.Name);
+            if (target.Id == Guid.Empty)
+                throw new InvalidOperationException($"No seeded row named '{parent.Name}' to point at");
+
+            resolved[key] = target.Id.ToString();
+        }
+        return resolved;
     }
 
     private static List<Dictionary<string, object>> BuildJobTitleNames(IProfile profile, IScale scale)
@@ -159,8 +195,8 @@ public static class PeopleFactories
     }
 
     /// <remarks>
-    /// Two levels, kept as a descriptive <c>parent</c> cell. The tree stopped being a database
-    /// relationship in 1820, so a child names its parent instead of pointing at it.
+    /// Two levels. Roots come first so that by the time a child is inserted, the row it points at
+    /// exists — see <see cref="ResolveRowRefs"/>.
     /// </remarks>
     private static List<Dictionary<string, object>> BuildDepartmentRows(IProfile profile, IScale scale)
     {
@@ -189,7 +225,7 @@ public static class PeopleFactories
             rows.Add(new Dictionary<string, object>
             {
                 ["name"] = $"{rootNames[parentIdx]} {suffix}",
-                ["parent"] = rootNames[parentIdx],
+                ["parent"] = new ParentByName(rootNames[parentIdx]),
                 ["active"] = true,
             });
         }

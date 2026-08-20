@@ -202,6 +202,45 @@ public sealed class MigrationHarnessSmokeTests
         dangling.Should().Be(0, "every organization lookup value must name a row of its own instance");
     }
 
+    // The department tree, back as a row reference (migrations 1890/1900)
+    [Fact]
+    public async Task TestTenant_DepartmentParent_ShouldBe_ARowReference()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT c.data_type
+              FROM list_columns c
+              JOIN list_definitions d ON d.id = c.list_definition_id
+             WHERE d.name = 'Departments' AND d.scope = 'organization' AND c.key = 'parent'
+            """;
+        (await cmd.ExecuteScalarAsync() as string).Should().Be("row_ref",
+            "1900 puts the parent back on a reference after 1820 held it as a name");
+    }
+
+    [Fact]
+    public async Task TestTenant_DepartmentParents_PointAtRealRows()
+    {
+        // What 1900 converts the names into, and what the service refuses to break afterwards: a
+        // parent names a row of the same instance. Nothing enforces it at rest.
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT count(*)
+              FROM list_rows r
+              JOIN list_instances i ON i.id = r.list_instance_id
+              JOIN list_definitions d ON d.id = i.list_definition_id
+             WHERE d.name = 'Departments' AND d.scope = 'organization'
+               AND r.values ? 'parent'
+               AND NOT EXISTS (
+                   SELECT 1 FROM list_rows p
+                    WHERE p.id::text = r.values ->> 'parent'
+                      AND p.list_instance_id = r.list_instance_id)
+            """;
+        var dangling = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        dangling.Should().Be(0, "1900 drops a parent it cannot resolve rather than leaving it dangling");
+    }
+
     [Fact]
     public async Task TestTenant_Resources_ShouldNotHave_LegacyFreeTextColumns()
     {

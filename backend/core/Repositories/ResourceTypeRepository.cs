@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -201,7 +202,37 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
             "DELETE FROM request_target_resource_types WHERE resource_type_id = @t");
         var resources = await ExecAsync("DELETE FROM resources WHERE resource_type_id = @t");
         var groups = await ExecAsync("DELETE FROM resource_groups WHERE resource_type_id = @t");
-        var deleted = await ExecAsync("DELETE FROM resource_types WHERE id = @t");
+
+        // The type's own lists, taken down child-first. list_definitions cascades from the type
+        // (migration 1810), but its own children are ON DELETE RESTRICT (1780) — so left alone the
+        // cascade aborts with a raw 23503 and the purge surfaces as a 500. The type's custom fields
+        // go first because a field bound to one of these instances is one of those RESTRICTs; they
+        // would cascade with the type anyway, one statement earlier.
+        await ExecAsync("DELETE FROM resource_custom_fields WHERE resource_type_id = @t");
+        await ExecAsync(@"
+            DELETE FROM list_rows
+            WHERE list_instance_id IN (
+                SELECT li.id FROM list_instances li
+                  JOIN list_definitions ld ON ld.id = li.list_definition_id
+                 WHERE ld.resource_type_id = @t)");
+        await ExecAsync(@"
+            DELETE FROM list_instances
+            WHERE list_definition_id IN (SELECT id FROM list_definitions WHERE resource_type_id = @t)");
+
+        int deleted;
+        try
+        {
+            deleted = await ExecAsync("DELETE FROM resource_types WHERE id = @t");
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+        {
+            // Something outside this type still points at one of its lists — a custom field on
+            // another type bound to a shared instance of it. Refusing is the honest answer: the
+            // alternative is deleting a field the admin did not ask about.
+            await tx.RollbackAsync(ct);
+            throw new ConflictException(
+                "This type owns a list another resource type still uses. Remove that field first");
+        }
 
         if (deleted == 0)
         {

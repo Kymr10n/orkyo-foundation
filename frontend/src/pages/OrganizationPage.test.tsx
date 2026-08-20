@@ -7,7 +7,7 @@ let definitions: ListDefinition[] = [];
 
 // Scope and activity are filtered server-side now; the mock replays that filter so the
 // tests can assert the page asks for exactly the slice it renders.
-const useListDefinitionsMock = vi.fn((includeInactive: boolean = false, scope?: ListDefinitionScope) => ({
+const useListDefinitionsMock = vi.fn((includeInactive = false, scope?: ListDefinitionScope) => ({
   data: definitions.filter(
     (d) => (includeInactive || d.isActive) && (scope === undefined || d.scope === scope),
   ),

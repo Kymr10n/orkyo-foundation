@@ -60,6 +60,8 @@ public class UtilizationServiceTests
         resourceRepo.Setup(r => r.GetByIdAsync(ResourceId)).ReturnsAsync(resource);
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>()))
             .ReturnsAsync([resource]);
+        resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>()))
+            .ReturnsAsync([resource]);
 
         resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([resource]);
@@ -278,6 +280,9 @@ public class UtilizationServiceTests
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
             .ReturnsAsync([resource]);
+        resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
+            .ReturnsAsync([resource]);
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();
         assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
@@ -308,6 +313,9 @@ public class UtilizationServiceTests
         ResourceListFilter? captured = null;
         var resourceRepo = new Mock<IResourceRepository>();
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
+            .ReturnsAsync([resource]);
+        resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
             .ReturnsAsync([resource]);
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();
@@ -360,6 +368,8 @@ public class UtilizationServiceTests
         resourceRepo.Setup(r => r.GetByIdAsync(resource2.Id)).ReturnsAsync(resource2);
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>()))
             .ReturnsAsync([resource1, resource2]);
+        resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>()))
+            .ReturnsAsync([resource1, resource2]);
         resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([resource1, resource2]);
 
@@ -398,6 +408,8 @@ public class UtilizationServiceTests
 
         var resourceRepo = new Mock<IResourceRepository>();
         resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([r1, r2]);
+        resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([r1, r2]);
 
         var assignmentRepo = new Mock<IResourceAssignmentRepository>();

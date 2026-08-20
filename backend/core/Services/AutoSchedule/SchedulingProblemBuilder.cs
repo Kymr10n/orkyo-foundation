@@ -73,7 +73,9 @@ public class SchedulingProblemBuilder
         // resource's location as of now(), so solving three months out included or excluded
         // people and tools by where they happen to be today — and the same run tomorrow
         // produced a different pool, and a different fingerprint.
-        var candidates = await _resourceRepository.GetAllAsync(
+        // Every candidate: a pool silently cut at 1000 would make the solver produce a valid
+        // schedule over the wrong set, and change the run fingerprint for no visible reason.
+        var candidates = await _resourceRepository.GetEveryAsync(
             new ResourceListFilter
             {
                 ResourceTypeKey = targetTypeKey,

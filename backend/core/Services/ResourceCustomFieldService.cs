@@ -162,6 +162,13 @@ public class ResourceCustomFieldService(
         var existing = await repository.GetByIdAsync(fieldId, ct);
         if (existing is null || existing.ResourceTypeId != resourceTypeId) return null;
 
+        // Create rejects this for a list field, and an update that did not would leave a stored
+        // row contradicting the rule — the required sweep skips list fields precisely so the
+        // behaviour does not depend on a rule enforced somewhere else.
+        if (request.IsRequired == true && existing.DataType == CustomFieldDataTypes.List)
+            throw new ArgumentException(
+                "A list field cannot be required — its rows are added after the resource is created");
+
         return await repository.UpdateAsync(fieldId, request, ct);
     }
 

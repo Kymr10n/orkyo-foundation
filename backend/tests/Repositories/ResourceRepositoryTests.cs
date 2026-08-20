@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
@@ -337,6 +338,62 @@ public class ResourceRepositoryTests
             SiteWindowTo = to,
         });
 
+
+    // ── code uniqueness ───────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Update_CannotTakeACodeAlreadyUsedAtTheSameSite()
+    {
+        // Create refuses a taken code. An update that did not would be the way around it, and the
+        // floorplan and import paths that key on (site, code) would then have two answers.
+        var site = await CreateSiteAsync("C");
+        var first = await CreateSpaceAsync(site, $"A-{Guid.NewGuid():N}"[..10]);
+        var second = await CreateSpaceAsync(site, $"B-{Guid.NewGuid():N}"[..10]);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _repo.UpdateAsync(second.Id, new UpdateResourceRequest { Code = first.Code! }));
+    }
+
+    [Fact]
+    public async Task Update_KeepingItsOwnCode_IsNotAClashWithItself()
+    {
+        var site = await CreateSiteAsync("D");
+        var space = await CreateSpaceAsync(site, $"K-{Guid.NewGuid():N}"[..10]);
+
+        var updated = await _repo.UpdateAsync(space.Id, new UpdateResourceRequest
+        {
+            Code = space.Code!,
+            Name = $"Renamed-{Guid.NewGuid():N}"[..16],
+        });
+
+        Assert.Equal(space.Code, updated!.Code);
+    }
+
+    [Fact]
+    public async Task Update_MovingToASiteWhereTheCodeIsTaken_IsRefused()
+    {
+        // The check is against the site the resource will have, not the one it has now.
+        var siteA = await CreateSiteAsync("E");
+        var siteB = await CreateSiteAsync("F");
+        var shared = $"MOVE-{Guid.NewGuid():N}"[..10];
+
+        await CreateSpaceAsync(siteB, shared);
+        var mover = await CreateSpaceAsync(siteA, shared);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _repo.UpdateAsync(mover.Id, new UpdateResourceRequest { HomeSiteId = siteB }));
+    }
+
+    private async Task<ResourceInfo> CreateSpaceAsync(Guid siteId, string code) =>
+        await _resources.CreateAsync(new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            Name = $"Space-{Guid.NewGuid():N}"[..20],
+            Code = code,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+        });
 
     private async Task<Guid> CreateSiteAsync(string label)
     {

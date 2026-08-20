@@ -4,6 +4,8 @@ using System.Text.Json;
 using Api.Constants;
 using Api.Models;
 using Api.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -21,8 +23,11 @@ public class ListLookupTests
 {
     private readonly HttpClient _client;
 
+    private readonly DatabaseFixture _fixture;
+
     public ListLookupTests(DatabaseFixture databaseFixture)
     {
+        _fixture = databaseFixture;
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
@@ -298,6 +303,96 @@ public class ListLookupTests
 
         var rows = await _client.GetFromJsonAsync<List<ListRowInfo>>($"/api/list-instances/{instance.Id}/rows");
         Assert.Equal("Bolt (M8)", Assert.Single(rows!).Values["name"].GetString());
+    }
+
+    [Fact]
+    public async Task RenamingASharedRow_UpdatesTheSearchIndexOfEveryResourceHoldingIt()
+    {
+        // Deleting a row already refreshed, because the delete writes resources.custom_fields and
+        // trips that trigger. A rename touches no resource, so before migration 1910 the index
+        // kept the old label for good and the new name found nobody.
+        // Organization-scoped with a designated display column: that is the shape the search
+        // function resolves labels from, so it is the shape whose rename has to propagate.
+        var created = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest
+            {
+                Name = UniqueName("Trades"),
+                Scope = ListDefinitionScopes.Organization,
+            });
+        var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+
+        var nameColumn = (await (await _client.PostAsJsonAsync(
+            $"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest { Key = "name", Label = "Name", DataType = ListColumnDataTypes.Text }))
+            .Content.ReadFromJsonAsync<ListColumnInfo>())!;
+        await _client.PutAsJsonAsync($"/api/list-definitions/{definition.Id}",
+            new UpdateListDefinitionRequest { DisplayColumnId = nameColumn.Id });
+
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var bolt = await CreateRowAsync(instance.Id, "Fitter");
+
+        var type = await CreateResourceTypeAsync();
+        var field = await CreateLookupFieldAsync(type.Id, instance.Id);
+        var resource = await CreateResourceAsync(type.Key, new Dictionary<string, JsonElement>
+        {
+            [field.Key] = Json($"[\"{bolt.Id}\"]"),
+        });
+
+        var renamed = $"Technician-{Guid.NewGuid():N}"[..18];
+        var updated = await _client.PutAsJsonAsync($"/api/list-instances/{instance.Id}/rows/{bolt.Id}",
+            new ListRowRequest
+            {
+                Values = new Dictionary<string, JsonElement> { ["name"] = Json($"\"{renamed}\"") },
+            });
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+
+        using var scope = _fixture.Factory.Services.CreateScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
+        var org = scope.ServiceProvider.GetRequiredService<OrgContext>();
+        await using var conn = factory.CreateOrgConnection(org);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT subtitle FROM search_documents WHERE entity_type = 'resource' AND entity_id = @id",
+            conn);
+        cmd.Parameters.AddWithValue("id", resource.Id);
+
+        Assert.Contains(renamed, await cmd.ExecuteScalarAsync() as string ?? "");
+    }
+
+    [Fact]
+    public async Task DeletingASharedRow_DropsItFromEveryFieldThatPickedIt_NotJustOne()
+    {
+        // Two lookup fields on one type, both bound to the same shared list — nothing forbids it,
+        // and a resource can legitimately pick the same row in both. The strip has to clear both:
+        // an id left in the second field names a row that is gone, and the next save of that
+        // resource is refused for selecting a row that no longer exists.
+        var definition = await CreateComponentsDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var bolt = await CreateRowAsync(instance.Id, "Bolt");
+        var nut = await CreateRowAsync(instance.Id, "Nut");
+
+        var type = await CreateResourceTypeAsync();
+        var primary = await CreateLookupFieldAsync(type.Id, instance.Id, "parts");
+        var spares = await CreateLookupFieldAsync(type.Id, instance.Id, "spare_parts");
+
+        var resource = await CreateResourceAsync(type.Key, new Dictionary<string, JsonElement>
+        {
+            [primary.Key] = Json($"[\"{bolt.Id}\", \"{nut.Id}\"]"),
+            [spares.Key] = Json($"[\"{bolt.Id}\"]"),
+        });
+
+        var deleted = await _client.DeleteAsync($"/api/list-instances/{instance.Id}/rows/{bolt.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        var after = await _client.GetFromJsonAsync<ResourceInfo>($"/api/resources/{resource.Id}");
+        var primaryIds = after!.CustomFields![primary.Key].EnumerateArray().Select(e => e.GetString());
+        Assert.Equal([nut.Id.ToString()], primaryIds);
+        Assert.Empty(after.CustomFields![spares.Key].EnumerateArray());
+
+        // The point of the whole exercise: the resource is still editable afterwards.
+        var resaved = await _client.PutAsJsonAsync($"/api/resources/{resource.Id}",
+            new UpdateResourceRequest { CustomFields = after.CustomFields });
+        Assert.Equal(HttpStatusCode.OK, resaved.StatusCode);
     }
 
     [Fact]

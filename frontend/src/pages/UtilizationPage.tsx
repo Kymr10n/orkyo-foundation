@@ -523,9 +523,12 @@ export function UtilizationPage() {
 
   const handleSpaceReorder = useCallback((activeId: string | number, overId: string | number) => {
     const currentOrder = useAppStore.getState().spaceOrder;
+    // Seeded from every station, not the filtered rows: a first drag under an active type filter
+    // would otherwise persist an order naming only that type, and SchedulerGrid sinks every
+    // unlisted station below it for good once the filter clears.
     const orderedIds = currentOrder.length > 0
       ? currentOrder
-      : spaces.map(s => s.id);
+      : allSpaces.map(s => s.id);
 
     const oldIndex = orderedIds.indexOf(String(activeId));
     const newIndex = orderedIds.indexOf(String(overId));
@@ -537,7 +540,7 @@ export function UtilizationPage() {
       useAppStore.getState().setSpaceOrder(reordered);
       updatePreferencesMutation.mutate({ ...preferences, spaceOrder: reordered });
     }
-  }, [spaces, preferences, updatePreferencesMutation]);
+  }, [allSpaces, preferences, updatePreferencesMutation]);
 
   const handleUnschedule = useCallback((request: Request & { isScheduled?: boolean }) => {
     if (!request.isScheduled) return;

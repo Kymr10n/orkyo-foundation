@@ -17,8 +17,18 @@ import { API_PATHS } from '../core/api-paths';
 import { apiGet, apiPost } from '../core/api-client';
 import { createCrudApi } from './create-crud-api';
 
-/** The five scalar types a custom field has, plus `select` — which lists have and fields do not. */
-export type ListColumnDataType = 'text' | 'number' | 'boolean' | 'date' | 'url' | 'select';
+/**
+ * The five scalar types a custom field has, plus the two only a list has: `select`, and `row_ref`
+ * — the id of another row of the same list, which is what makes a list a tree.
+ */
+export type ListColumnDataType =
+  | 'text'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'url'
+  | 'select'
+  | 'row_ref';
 
 /**
  * Every column type, with the words the UI uses for it. One source, so the column dialog's
@@ -35,13 +45,21 @@ export const LIST_COLUMN_DATA_TYPES: readonly {
   { value: 'date', label: 'Date', hint: 'A calendar date — serviced on, expires.' },
   { value: 'url', label: 'Link', hint: 'An http(s) address — a manual, an invoice.' },
   { value: 'select', label: 'Choice', hint: 'One of a set of options you define.' },
+  {
+    value: 'row_ref',
+    label: 'Row of this list',
+    hint: 'Points at another row of this same list — a parent department, a part of a part.',
+  },
 ];
 
 export function listColumnDataTypeLabel(dataType: ListColumnDataType): string {
   return LIST_COLUMN_DATA_TYPES.find((t) => t.value === dataType)?.label ?? dataType;
 }
 
-/** A single cell. `null` means unfilled — the same convention custom field values use. */
+/**
+ * A single cell. `null` means unfilled — the same convention custom field values use. A
+ * `row_ref` cell is the id of another row, so it is a string like any other.
+ */
 export type ListCellValue = string | number | boolean | null;
 
 export interface ListColumn {

@@ -64,6 +64,43 @@ public class ListRowTests
         return (await response.Content.ReadFromJsonAsync<ListInstanceInfo>())!;
     }
 
+    /// <summary>A definition shaped like a tree: a text "name" and a row_ref "parent".</summary>
+    private async Task<ListDefinitionInfo> CreateTreeDefinitionAsync()
+    {
+        var created = await _client.PostAsJsonAsync("/api/list-definitions",
+            new CreateListDefinitionRequest { Name = UniqueName("Departments") });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
+
+        foreach (var (key, type) in new[]
+                 {
+                     ("name", ListColumnDataTypes.Text),
+                     ("parent", ListColumnDataTypes.RowRef),
+                 })
+        {
+            var column = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+                new CreateListColumnRequest { Key = key, Label = key, DataType = type });
+            Assert.Equal(HttpStatusCode.Created, column.StatusCode);
+        }
+
+        return definition;
+    }
+
+    /// <summary>Adds a row, asserting it was accepted, and returns it.</summary>
+    private async Task<ListRowInfo> AddRowAsync(Guid instanceId, params (string Key, string Raw)[] cells)
+    {
+        var response = await _client.PostAsJsonAsync($"/api/list-instances/{instanceId}/rows",
+            new ListRowRequest { Values = Values(cells) });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ListRowInfo>())!;
+    }
+
+    private Task<HttpResponseMessage> SetParentAsync(Guid instanceId, ListRowInfo row, Guid parentId) =>
+        _client.PutAsJsonAsync($"/api/list-instances/{instanceId}/rows/{row.Id}", new ListRowRequest
+        {
+            Values = Values(("name", $"\"{row.Values["name"].GetString()}\""), ("parent", $"\"{parentId}\"")),
+        });
+
     private async Task<ResourceTypeInfo> CreateResourceTypeAsync()
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
@@ -456,6 +493,186 @@ public class ListRowTests
         Assert.Equal(HttpStatusCode.Created, editorWrite.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, viewerWrite.StatusCode);
         Assert.Equal(HttpStatusCode.OK, viewerRead.StatusCode);
+    }
+
+    // ── row references ────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ARowRefColumn_TakesNoOptions()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+
+        var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "successor",
+                Label = "Successor",
+                DataType = ListColumnDataTypes.RowRef,
+                Options = ["one", "two"],
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AParent_IsAnotherRowOfTheSameList()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var quality = await AddRowAsync(instance.Id, ("name", "\"Quality\""));
+        var north = await AddRowAsync(instance.Id, ("name", "\"Quality North\""));
+
+        var response = await SetParentAsync(instance.Id, north, quality.Id);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var rows = await _client.GetFromJsonAsync<List<ListRowInfo>>($"/api/list-instances/{instance.Id}/rows");
+        var stored = rows!.Single(r => r.Id == north.Id);
+        Assert.Equal(quality.Id.ToString(), stored.Values["parent"].GetString());
+    }
+
+    [Fact]
+    public async Task AnEmptyParent_IsAnUnfilledOptionalCell()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+
+        var response = await _client.PostAsJsonAsync($"/api/list-instances/{instance.Id}/rows",
+            new ListRowRequest { Values = Values(("name", "\"Quality\""), ("parent", "null")) });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AParentThatIsNotARowId_IsRejected()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+
+        var response = await _client.PostAsJsonAsync($"/api/list-instances/{instance.Id}/rows",
+            new ListRowRequest { Values = Values(("name", "\"Quality\""), ("parent", "\"Operations\"")) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AParentNamingNoRow_IsRejected()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var quality = await AddRowAsync(instance.Id, ("name", "\"Quality\""));
+
+        var response = await SetParentAsync(instance.Id, quality, Guid.NewGuid());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AParentInAnotherInstance_IsRejected()
+    {
+        // The reference is to a row of this list, not to any row anywhere: both instances share a
+        // definition, so nothing but the instance check keeps them apart.
+        var definition = await CreateTreeDefinitionAsync();
+        var here = await CreateSharedInstanceAsync(definition.Id);
+        var elsewhere = await CreateSharedInstanceAsync(definition.Id);
+
+        var mine = await AddRowAsync(here.Id, ("name", "\"Quality\""));
+        var theirs = await AddRowAsync(elsewhere.Id, ("name", "\"Quality\""));
+
+        var response = await SetParentAsync(here.Id, mine, theirs.Id);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ARowCannotBeItsOwnParent()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var quality = await AddRowAsync(instance.Id, ("name", "\"Quality\""));
+
+        var response = await SetParentAsync(instance.Id, quality, quality.Id);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AParentChainThatComesBack_IsRejected()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var a = await AddRowAsync(instance.Id, ("name", "\"A\""));
+        var b = await AddRowAsync(instance.Id, ("name", "\"B\""));
+        var c = await AddRowAsync(instance.Id, ("name", "\"C\""));
+
+        // A → B → C is a chain and stands; closing it with C → A is a loop and does not.
+        Assert.Equal(HttpStatusCode.OK, (await SetParentAsync(instance.Id, a, b.Id)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SetParentAsync(instance.Id, b, c.Id)).StatusCode);
+
+        var closing = await SetParentAsync(instance.Id, c, a.Id);
+
+        Assert.Equal(HttpStatusCode.BadRequest, closing.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeletingAParent_LeavesItsChildrenWithoutOne()
+    {
+        var definition = await CreateTreeDefinitionAsync();
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var quality = await AddRowAsync(instance.Id, ("name", "\"Quality\""));
+        var north = await AddRowAsync(instance.Id, ("name", "\"Quality North\""));
+        await SetParentAsync(instance.Id, north, quality.Id);
+
+        var deleted = await _client.DeleteAsync($"/api/list-instances/{instance.Id}/rows/{quality.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        // The reference is dropped rather than left dangling, so the child stays editable.
+        var rows = await _client.GetFromJsonAsync<List<ListRowInfo>>($"/api/list-instances/{instance.Id}/rows");
+        var child = rows!.Single(r => r.Id == north.Id);
+        Assert.False(child.Values.ContainsKey("parent"));
+    }
+
+    [Fact]
+    public async Task DeletingARow_ClearsEveryReferenceToIt_NotJustTheFirst()
+    {
+        // Two row_ref columns on one definition, both naming the deleted row. The unlink
+        // aggregates the keys per row for exactly this: cleared one at a time, the second cell
+        // would keep an id naming nothing and the row would be refused on its next save.
+        var definition = await CreateTreeDefinitionAsync();
+        var second = await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
+            new CreateListColumnRequest
+            {
+                Key = "deputy",
+                Label = "Deputy",
+                DataType = ListColumnDataTypes.RowRef,
+            });
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+
+        var instance = await CreateSharedInstanceAsync(definition.Id);
+        var quality = await AddRowAsync(instance.Id, ("name", "\"Quality\""));
+        var north = await AddRowAsync(instance.Id, ("name", "\"Quality North\""));
+
+        var both = await _client.PutAsJsonAsync($"/api/list-instances/{instance.Id}/rows/{north.Id}",
+            new ListRowRequest
+            {
+                Values = Values(
+                    ("name", "\"Quality North\""),
+                    ("parent", $"\"{quality.Id}\""),
+                    ("deputy", $"\"{quality.Id}\"")),
+            });
+        Assert.Equal(HttpStatusCode.OK, both.StatusCode);
+
+        var deleted = await _client.DeleteAsync($"/api/list-instances/{instance.Id}/rows/{quality.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+
+        var rows = await _client.GetFromJsonAsync<List<ListRowInfo>>($"/api/list-instances/{instance.Id}/rows");
+        var survivor = rows!.Single(r => r.Id == north.Id);
+        Assert.False(survivor.Values.ContainsKey("parent"));
+        Assert.False(survivor.Values.ContainsKey("deputy"));
+
+        // The point of clearing both: the row is still editable.
+        var resaved = await _client.PutAsJsonAsync($"/api/list-instances/{instance.Id}/rows/{north.Id}",
+            new ListRowRequest { Values = Values(("name", "\"Quality North\"")) });
+        Assert.Equal(HttpStatusCode.OK, resaved.StatusCode);
     }
 
     [Fact]

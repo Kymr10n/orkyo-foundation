@@ -62,6 +62,12 @@ public class ListDefinitionService(
             var column = await repository.GetColumnAsync(columnId, ct);
             if (column is null || column.ListDefinitionId != id)
                 throw new ArgumentException("The display column must be a column of this list definition");
+
+            // A reference is not a name. The display column is what names a row wherever one is
+            // shown as a single value — including inside a row_ref cell pointing at it — so a
+            // row_ref there would make every row read as an empty cell, itself included.
+            if (column.DataType == ListColumnDataTypes.RowRef)
+                throw new ArgumentException("The display column cannot be a row reference");
         }
 
         return await repository.UpdateAsync(id, request, ct);
@@ -93,6 +99,12 @@ public class ListDefinitionService(
 
         if (existing.DataType == ListColumnDataTypes.Select && request.Options is not null)
             EnsureSelectHasOptions(existing.DataType, request.Options);
+
+        // Same reason the create validator refuses it, checked here for the same reason options
+        // are: the update carries no data type, so only the stored column can answer.
+        if (request.IsRequired == true && existing.DataType == ListColumnDataTypes.RowRef)
+            throw new ArgumentException(
+                $"Column '{existing.Label}' is a row reference, so it cannot be required");
 
         return await repository.UpdateColumnAsync(columnId, request, ct);
     }

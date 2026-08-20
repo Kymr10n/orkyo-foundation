@@ -95,9 +95,3 @@ public class SetResourceGroupMembersRequestValidator : AbstractValidator<SetReso
             .WithMessage("ResourceIds must not contain empty GUIDs");
     }
 }
-
-public class LinkUserToPersonProfileRequestValidator : AbstractValidator<LinkUserToPersonProfileRequest>
-{
-    public LinkUserToPersonProfileRequestValidator() =>
-        RuleFor(x => x.UserId).NotEmpty();
-}

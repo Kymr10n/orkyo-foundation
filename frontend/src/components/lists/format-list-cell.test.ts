@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { EMPTY_CELL, formatListCell } from './format-list-cell';
-import type { ListColumn } from '@foundation/src/lib/api/lists-api';
+import { EMPTY_CELL, formatListCell, rowDisplayLabel } from './format-list-cell';
+import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 
 function column(overrides: Partial<ListColumn> = {}): ListColumn {
   return {
@@ -15,6 +15,16 @@ function column(overrides: Partial<ListColumn> = {}): ListColumn {
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     ...overrides,
+  };
+}
+
+function row(values: Record<string, string>, id = 'r1'): ListRow {
+  return {
+    id,
+    listInstanceId: 'i1',
+    values,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
   };
 }
 
@@ -63,5 +73,41 @@ describe('formatListCell', () => {
 
   it('shows a false checkbox rather than treating it as unfilled', () => {
     expect(formatListCell(column({ dataType: 'boolean' }), false)).toBe('No');
+  });
+
+  it('names the row a reference points at', () => {
+    const labels = new Map([['r2', 'Quality']]);
+
+    expect(formatListCell(column({ dataType: 'row_ref' }), 'r2', labels)).toBe('Quality');
+  });
+
+  it('reads an unresolved reference as a gap, never as an id', () => {
+    // The row was deleted under us, or the caller passed no labels. Either way a UUID on screen
+    // is worse than an em dash: nobody can do anything with it.
+    expect(formatListCell(column({ dataType: 'row_ref' }), 'r2', new Map())).toBe(EMPTY_CELL);
+    expect(formatListCell(column({ dataType: 'row_ref' }), 'r2')).toBe(EMPTY_CELL);
+  });
+});
+
+describe('rowDisplayLabel', () => {
+  const name = column({ id: 'c1', key: 'name', label: 'Name' });
+  const code = column({ id: 'c2', key: 'code', label: 'Code' });
+
+  it('uses the designated display column alone', () => {
+    expect(rowDisplayLabel(row({ name: 'Quality', code: 'QA' }), [name, code], 'c2')).toBe('QA');
+  });
+
+  it('falls back to the first active column when nothing is designated', () => {
+    expect(rowDisplayLabel(row({ name: 'Quality', code: 'QA' }), [name, code], null)).toBe('Quality');
+  });
+
+  it('falls back again when the designated column has since been deactivated', () => {
+    // A deactivated column is not in `columns`, and naming the row by a field the form no longer
+    // asks for would be worse than the guess.
+    expect(rowDisplayLabel(row({ name: 'Quality' }), [name], 'c2')).toBe('Quality');
+  });
+
+  it('falls back to the id when a definition has no columns at all', () => {
+    expect(rowDisplayLabel(row({}), [], null)).toBe('r1');
   });
 });

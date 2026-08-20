@@ -195,19 +195,21 @@ export function SchedulerGrid({
   // types, and a row whose type was not fetched would silently fall into the ungrouped bucket.
   // One query per type key, so each still shares its cache entry with the per-type group pages.
   const sortedPlaceableKeys = useMemo(() => [...placeableKeys].sort(), [placeableKeys]);
-  const groupQueries = useQueries({
+  //
+  // `combine` rather than a memo over the results: useQueries hands back a fresh array every
+  // render, and the alternative was a hand-rolled key over `dataUpdatedAt` that needed a lint
+  // suppression and went stale whenever two queries settled in the same millisecond. combine's
+  // result is identity-stable through replaceEqualDeep, which is what the memos below want.
+  const { groups, groupsLoading } = useQueries({
     queries: sortedPlaceableKeys.map((key) => ({
       queryKey: qk.resourceGroups.byType(key),
       queryFn: () => getResourceGroups(key),
     })),
+    combine: (results) => ({
+      groups: results.flatMap((r) => r.data ?? []) as ResourceGroupInfo[],
+      groupsLoading: results.some((r) => r.isLoading),
+    }),
   });
-  const groupsLoading = groupQueries.some((q) => q.isLoading);
-  const groups = useMemo<ResourceGroupInfo[]>(
-    () => groupQueries.flatMap((q) => q.data ?? []),
-    // The query results array is a new object every render; its data is what matters here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [groupQueries.map((q) => q.dataUpdatedAt).join(',')],
-  );
 
   // Memoize sorting + grouping — expensive with 50+ spaces (#5). Spaces are
   // sorted (manual order, then code) before bucketing so each group keeps that

@@ -239,12 +239,15 @@ export function useRequestForm(request?: Request | null, parentRequestId?: strin
   // The types query can still be cold when the dialog mounts, and the reducer's initializer runs
   // once — so without this the form would keep an empty target list for its whole life. Apply the
   // default once, when the types arrive. There is no space fallback to lean on any more.
+  // Not when a defaultResource was supplied: buildInitialState already targeted that resource's
+  // own type through applyDefaultResource, and overwriting it here would drop the type the user
+  // clicked and strand the pre-selected id under a type no longer targeted.
   const defaultApplied = useRef(defaultTargetKey !== null);
   useEffect(() => {
-    if (defaultApplied.current || request || defaultTargetKey === null) return;
+    if (defaultApplied.current || request || defaultResource || defaultTargetKey === null) return;
     defaultApplied.current = true;
     dispatch({ type: 'SET_FIELD', field: 'targetResourceTypeKeys', value: [defaultTargetKey] });
-  }, [defaultTargetKey, request]);
+  }, [defaultTargetKey, request, defaultResource]);
 
   return {
     state,

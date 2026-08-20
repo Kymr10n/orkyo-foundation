@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
@@ -16,6 +16,11 @@ interface ListRowsEditorProps {
   columns: ListColumn[];
   /** Null while the list has no instance yet — the table renders empty and add still works. */
   instanceId: string | null;
+  /**
+   * The definition's display column. Names a row wherever one is shown as a single value, which
+   * is what a `row_ref` cell and its picker show.
+   */
+  displayColumnId?: string | null;
   /**
    * Creates the instance on demand and returns its id. Supplied for a per-resource list, where
    * the holder is made on the first row rather than when the form opens; omitted for a shared
@@ -49,6 +54,7 @@ interface ListRowsEditorProps {
 export function ListRowsEditor({
   columns,
   instanceId,
+  displayColumnId,
   ensureInstanceId,
   readOnly,
   emptyMessage,
@@ -93,6 +99,44 @@ export function ListRowsEditor({
       ? updateRow.mutateAsync({ rowId: row.id, request: { values } })
       : createRow.mutateAsync({ values });
 
+  // Stable across renders on purpose: the table memoizes its column definitions on this, and an
+  // inline arrow here would hand it a new identity every render — the memo would never hold, and
+  // the columns would be rebuilt on every keystroke anywhere in the page. The setters are stable,
+  // so the closure only has to follow the label and the read-only flag.
+  const renderRowActions = useCallback(
+    (row: ListRow) => (
+      <div className="flex justify-end gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Edit ${entityLabel}`}
+          onClick={(e) => {
+            // The row itself may be clickable in a host that wires onRowClick.
+            e.stopPropagation();
+            setEditing(row);
+            setDialogOpen(true);
+          }}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Delete ${entityLabel}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setPendingDelete(row);
+          }}
+        >
+          <Trash2 className="text-destructive h-4 w-4" />
+        </Button>
+      </div>
+    ),
+    [entityLabel],
+  );
+
   return (
     <div className="space-y-3">
       {(!readOnly || toolbar) && (
@@ -110,43 +154,11 @@ export function ListRowsEditor({
       <ListRowsTable
         columns={columns}
         rows={rows ?? []}
+        displayColumnId={displayColumnId}
         isLoading={isLoading}
         error={error ? 'Failed to load rows' : null}
         emptyMessage={emptyMessage}
-        renderRowActions={
-          readOnly
-            ? undefined
-            : (row) => (
-                <div className="flex justify-end gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Edit ${entityLabel}`}
-                    onClick={(e) => {
-                      // The row itself may be clickable in a host that wires onRowClick.
-                      e.stopPropagation();
-                      setEditing(row);
-                      setDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Delete ${entityLabel}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPendingDelete(row);
-                    }}
-                  >
-                    <Trash2 className="text-destructive h-4 w-4" />
-                  </Button>
-                </div>
-              )
-        }
+        renderRowActions={readOnly ? undefined : renderRowActions}
       />
 
       {dialogOpen && (
@@ -156,6 +168,7 @@ export function ListRowsEditor({
           row={editing}
           columns={columns}
           instanceId={effectiveInstanceId}
+          displayColumnId={displayColumnId}
           entityLabel={entityLabel}
           save={saveRow}
         />

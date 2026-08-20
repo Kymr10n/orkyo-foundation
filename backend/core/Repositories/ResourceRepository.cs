@@ -10,7 +10,23 @@ namespace Api.Repositories;
 
 public interface IResourceRepository
 {
+    /// <summary>
+    /// One capped page of the filtered list — at most 1000 rows, no total, no signal when it cut.
+    /// Right for a list view; wrong wherever the answer has to be complete. See
+    /// <see cref="GetEveryAsync"/>.
+    /// </summary>
     Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
+
+    /// <summary>
+    /// Every resource matching the filter, read in pages until the total is reached.
+    /// </summary>
+    /// <remarks>
+    /// For callers that aggregate, export or schedule, where <see cref="GetAllAsync"/>'s cap
+    /// would not shorten a list but produce a wrong number — a utilization figure computed over
+    /// the first 1000 of 1200 resources is not a partial answer, it is an incorrect one, and
+    /// nothing in the response would say so.
+    /// </remarks>
+    Task<List<ResourceInfo>> GetEveryAsync(ResourceListFilter filter, CancellationToken ct = default);
     /// <summary>One page of the filtered list plus the unpaged total, in one connection.
     /// The caller clamps <paramref name="limit"/>/<paramref name="offset"/>.</summary>
     Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
@@ -221,6 +237,22 @@ public class ResourceRepository(
         return (items, total);
     }
 
+    public async Task<List<ResourceInfo>> GetEveryAsync(
+        ResourceListFilter filter, CancellationToken ct = default)
+    {
+        // Pages through GetPageAsync rather than lifting GetAllAsync's LIMIT: same query, same
+        // stable ORDER BY, and the total it already reports is what ends the loop.
+        const int pageSize = 500;
+        var all = new List<ResourceInfo>();
+        while (true)
+        {
+            var (items, total) = await GetPageAsync(filter, pageSize, all.Count, ct);
+            all.AddRange(items);
+            // The count is the terminator; the empty page covers a delete landing mid-read.
+            if (items.Count == 0 || all.Count >= total) return all;
+        }
+    }
+
     public async Task<ResourceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
@@ -242,22 +274,8 @@ public class ResourceRepository(
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
 
-        // A code identifies a resource within its site, so the clash is per-site. Enforced here
-        // rather than by a unique index because an index cannot see has_geometry, which is a
-        // property of the type, and codes are only meaningful for placeable types.
         if (request.Code is not null)
-        {
-            var taken = await db.ExecuteScalarAsync<long>(
-                $"SELECT COUNT(*) {FromClause} WHERE {PlaceableScope} " +
-                "AND r.home_site_id = @siteId AND r.code = @code",
-                p =>
-                {
-                    p.AddNullable("siteId", request.HomeSiteId);
-                    p.AddWithValue("code", request.Code);
-                }, ct) > 0;
-            if (taken)
-                throw new ConflictException($"Code '{request.Code}' already exists for this site");
-        }
+            await ThrowIfCodeTakenAsync(db, request.HomeSiteId, request.Code, excludeId: null, ct);
 
         // properties and custom_fields are NOT NULL: an absent object is an empty one, never a SQL NULL.
         var geometryJson = request.Geometry is null ? null : JsonSerializer.Serialize(request.Geometry);
@@ -333,6 +351,35 @@ public class ResourceRepository(
             }, ct))!;
     }
 
+    /// <summary>
+    /// Refuses a code already used at the same site.
+    /// </summary>
+    /// <remarks>
+    /// A code identifies a resource within its site, so the clash is per-site. Enforced here rather
+    /// than by a unique index because an index cannot see <c>has_geometry</c>, which is a property
+    /// of the type, and codes are only meaningful for placeable types.
+    /// <para>
+    /// A site-less resource is not checked: <c>home_site_id = NULL</c> is never true, and a code
+    /// with no site to be unique within has nothing to clash with.
+    /// </para>
+    /// </remarks>
+    private static async Task ThrowIfCodeTakenAsync(
+        NpgsqlConnection db, Guid? siteId, string code, Guid? excludeId, CancellationToken ct)
+    {
+        var taken = await db.ExecuteScalarAsync<long>(
+            $"SELECT COUNT(*) {FromClause} WHERE {PlaceableScope} "
+            + "AND r.home_site_id = @siteId AND r.code = @code "
+            + "AND (@excludeId::uuid IS NULL OR r.id <> @excludeId)",
+            p =>
+            {
+                p.AddNullable("siteId", siteId);
+                p.AddWithValue("code", code);
+                p.AddNullable("excludeId", excludeId);
+            }, ct) > 0;
+
+        if (taken) throw new ConflictException($"Code '{code}' already exists for this site");
+    }
+
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
@@ -342,6 +389,22 @@ public class ResourceRepository(
         var geometryJson = request.Geometry is null ? null : JsonSerializer.Serialize(request.Geometry);
         var propertiesJson = request.Properties is null ? null : JsonSerializer.Serialize(request.Properties);
         var customFieldsJson = request.CustomFields is null ? null : JsonSerializer.Serialize(request.CustomFields);
+
+        // Create rejects a taken code; an update that did not would be the way around it. The site
+        // to check against is the one the resource will have, which this request may be changing.
+        if (request.Code is not null || request.HomeSiteId.IsPresent)
+        {
+            var existing = await db.QuerySingleOrDefaultAsync(
+                "SELECT code, home_site_id FROM resources WHERE id = @id",
+                p => p.AddWithValue("id", id),
+                r => (Code: r.IsDBNull(0) ? null : r.GetString(0),
+                      SiteId: r.IsDBNull(1) ? (Guid?)null : r.GetGuid(1)), ct);
+
+            var code = request.Code ?? existing.Code;
+            var siteId = request.HomeSiteId.IsPresent ? request.HomeSiteId.Value : existing.SiteId;
+            if (code is not null)
+                await ThrowIfCodeTakenAsync(db, siteId, code, excludeId: id, ct);
+        }
 
         var update = new UpdateBuilder();
         update.SetIfNotNull("name", request.Name);

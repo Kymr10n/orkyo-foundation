@@ -130,6 +130,7 @@ export function ListInstancesDialog({
           <ListRowsEditor
             columns={definition?.columns ?? []}
             instanceId={managingRows.id}
+            displayColumnId={definition?.displayColumnId ?? null}
             emptyMessage="No rows yet."
           />
         </ScaffoldDialog>

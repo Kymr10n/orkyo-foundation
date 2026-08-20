@@ -358,7 +358,9 @@ public class InsightsService(
         var rangeFrom = buckets[0].Start;
         var rangeTo = buckets[^1].End;
 
-        var resources = await resourceRepository.GetAllAsync(new ResourceListFilter
+        // Every resource: this feeds a capacity series, where a cut pool reads as lower demand
+        // rather than as missing data.
+        var resources = await resourceRepository.GetEveryAsync(new ResourceListFilter
         {
             IsActive = true,
             ResourceTypeKey = resourceType,

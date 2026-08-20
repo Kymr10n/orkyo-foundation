@@ -59,7 +59,9 @@ export const useUpdateListRow = (instanceId: string | null) =>
 
 /**
  * Deletes a row. For a shared instance this also drops the row from every resource that had
- * selected it, so resource reads are invalidated alongside the rows themselves.
+ * selected it, so resource reads are invalidated alongside the rows themselves — `all()` and
+ * `allFlat()` both, because the two live under separate roots on purpose and the resource lists
+ * that show lookup labels read the first one.
  */
 export const useDeleteListRow = (instanceId: string | null) =>
   useMutation({
@@ -67,7 +69,11 @@ export const useDeleteListRow = (instanceId: string | null) =>
     meta: {
       successMessage: "Row removed",
       errorMessage: "Failed to remove row",
-      invalidates: [qk.lists.instanceRows(instanceId ?? "none"), qk.resources.allFlat()],
+      invalidates: [
+        qk.lists.instanceRows(instanceId ?? "none"),
+        qk.resources.all(),
+        qk.resources.allFlat(),
+      ],
     },
   });
 

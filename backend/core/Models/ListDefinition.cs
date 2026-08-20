@@ -3,13 +3,15 @@ using System.Text.Json;
 namespace Api.Models;
 
 /// <summary>
-/// The data types a list column can hold: the five a custom field has, plus <c>select</c>.
+/// The data types a list column can hold: the five a custom field has, plus <c>select</c> and
+/// <c>row_ref</c>.
 /// </summary>
 /// <remarks>
 /// <c>select</c> exists here and not on <see cref="CustomFieldDataTypes"/> on purpose — migration
 /// 1770 deferred it for scalar fields because an options editor was an unasked UI question, and a
 /// list column is where that question got answered. Keeping the sets separate means the deferral
-/// still holds where it was made.
+/// still holds where it was made. <c>row_ref</c> stays here for the same reason: it means "another
+/// row of this same list", which is a sentence only a list column can say.
 /// </remarks>
 public static class ListColumnDataTypes
 {
@@ -20,8 +22,16 @@ public static class ListColumnDataTypes
     public const string Url = CustomFieldDataTypes.Url;
     public const string Select = "select";
 
+    /// <summary>
+    /// The id of another row of the same instance — what makes a list a tree. Validated by
+    /// <see cref="IListRowService"/> rather than by the database: rows live in one table with no
+    /// per-instance identity to point a foreign key at, so existence, self-reference and cycles
+    /// are checked on write.
+    /// </summary>
+    public const string RowRef = "row_ref";
+
     public static readonly IReadOnlySet<string> All =
-        new HashSet<string>(StringComparer.Ordinal) { Text, Number, Boolean, Date, Url, Select };
+        new HashSet<string>(StringComparer.Ordinal) { Text, Number, Boolean, Date, Url, Select, RowRef };
 }
 
 /// <summary>Which of the two things a <see cref="ListInstanceInfo"/> is. See migration 1780.</summary>
