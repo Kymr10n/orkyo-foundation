@@ -148,28 +148,27 @@ public static class MachineListFactory
             if (id is not null) ids[(typeKey, key)] = id.Value;
         }
 
-        // Mill. spindle_max_rpm is required — legal on a tenant-defined placeable type, and worth
-        // proving, because a required field with no value would make every mill fail validation.
-        await Field("mill", "spindle_max_rpm", "Spindle max RPM", "number", required: true, sort: 0);
-        await Field("mill", "axis_count", "Axes", "number", sort: 1);
-        await Field("mill", "controller", "Controller", "text", sort: 2);
-        await Field("mill", "last_service", "Last service", "date", sort: 3);
-        await Field("mill", "manual_url", "Manual", "url", sort: 4);
-        await Field("mill", ToolingField, "Fitted tooling", "list_lookup", sort: 5, instanceId: lists.ToolingInstanceId);
-        await Field("mill", MaintenanceLogField, "Maintenance log", "list", sort: 6, definitionId: lists.MaintenanceDefinitionId);
+        // Scalar fields come from the type spec, which mirrors the product's own type catalog —
+        // so a seeded mill and a mill someone activates from the catalog agree on every field key.
+        foreach (var type in Narrative.MachineCatalog.Types)
+        {
+            foreach (var field in type.Fields)
+                await Field(type.Key, field.Key, field.Label, field.DataType, sort: field.SortOrder);
+        }
 
-        await Field("drill", "max_bore_mm", "Max bore (mm)", "number", sort: 0);
-        await Field("drill", "spindle_max_rpm", "Spindle max RPM", "number", sort: 1);
-        await Field("drill", "pillar_mounted", "Pillar mounted", "boolean", sort: 2);
-        await Field("drill", "last_service", "Last service", "date", sort: 3);
-        await Field("drill", ToolingField, "Fitted tooling", "list_lookup", sort: 4, instanceId: lists.ToolingInstanceId);
-        await Field("drill", MaintenanceLogField, "Maintenance log", "list", sort: 5, definitionId: lists.MaintenanceDefinitionId);
-
-        await Field("assembly_station", "takt_time_s", "Takt time (s)", "number", sort: 0);
-        await Field("assembly_station", "esd_protected", "ESD protected", "boolean", sort: 1);
-        await Field("assembly_station", "sop_url", "Work instructions", "url", sort: 2);
-        await Field("assembly_station", "last_service", "Last service", "date", sort: 3);
-        await Field("assembly_station", MaintenanceLogField, "Maintenance log", "list", sort: 4, definitionId: lists.MaintenanceDefinitionId);
+        // The two list-bound fields are the seeder's own: the catalog cannot ship a field that
+        // points at a list definition, because the definition does not exist until a workspace
+        // makes one. ResourceTypeCatalogParityTests whitelists exactly these two.
+        foreach (var type in Narrative.MachineCatalog.Types)
+        {
+            if (type.Key is "mill" or "drill" or "lathe" or "cnc")
+            {
+                await Field(type.Key, ToolingField, "Fitted tooling", "list_lookup",
+                    sort: 60, instanceId: lists.ToolingInstanceId);
+            }
+            await Field(type.Key, MaintenanceLogField, "Maintenance log", "list",
+                sort: 70, definitionId: lists.MaintenanceDefinitionId);
+        }
 
         return new SeededFields(ids);
     }
@@ -191,27 +190,54 @@ public static class MachineListFactory
             switch (machine.TypeKey)
             {
                 case "mill":
-                    values["spindle_max_rpm"] = faker.PickRandom(8000, 10000, 12000, 15000);
                     values["axis_count"] = faker.PickRandom(3, 3, 4, 5);
-                    values["controller"] = faker.PickRandom("Fanuc 0i-MF", "Siemens 840D", "Heidenhain TNC 640");
-                    values["last_service"] = ServiceDate(faker);
-                    values["manual_url"] = "https://example.com/manuals/vmc";
+                    values["spindle_speed_max"] = faker.PickRandom(8000, 10000, 12000, 15000);
+                    values["table_size"] = faker.PickRandom("800 × 400 mm", "1100 × 500 mm", "1300 × 600 mm");
+                    values["tool_changer_positions"] = faker.PickRandom(20, 24, 30);
+                    values["max_workpiece_weight"] = faker.PickRandom(300, 500, 800);
                     values[ToolingField] = PickTooling(lists.ToolingRowIds, faker);
                     break;
 
                 case "drill":
-                    values["max_bore_mm"] = faker.PickRandom(16, 20, 25, 32);
-                    values["spindle_max_rpm"] = faker.PickRandom(1500, 2200, 3000);
-                    values["pillar_mounted"] = true;
+                    values["spindle_speed_max"] = faker.PickRandom(1500, 2200, 3000);
+                    values["drilling_capacity_steel"] = faker.PickRandom(16, 20, 25, 32);
+                    values["spindle_taper"] = faker.PickRandom("MT2", "MT3", "MT4");
+                    values["coolant_system"] = faker.Random.Bool(0.6f);
                     values["last_service"] = ServiceDate(faker);
                     values[ToolingField] = PickTooling(lists.ToolingRowIds, faker);
                     break;
 
+                case "lathe":
+                    values["swing_over_bed"] = faker.PickRandom(330, 400, 500);
+                    values["distance_between_centers"] = faker.PickRandom(650, 1000, 1500);
+                    values["spindle_bore"] = faker.PickRandom(38, 52);
+                    values["spindle_speed_max"] = faker.PickRandom(2000, 3000, 4500);
+                    values["live_tooling"] = faker.Random.Bool(0.4f);
+                    values[ToolingField] = PickTooling(lists.ToolingRowIds, faker);
+                    break;
+
+                case "cnc":
+                    values["controller"] = faker.PickRandom("Fanuc 0i-MF", "Siemens 840D", "Heidenhain TNC 640");
+                    values["axis_count"] = faker.PickRandom(4, 5, 5);
+                    values["program_storage_mb"] = faker.PickRandom(512, 1024, 2048, 4096);
+                    values["maintenance_contract_until"] = ContractDate(faker);
+                    values["documentation_url"] = "https://example.com/manuals/5-axis";
+                    values[ToolingField] = PickTooling(lists.ToolingRowIds, faker);
+                    break;
+
                 case "assembly_station":
-                    values["takt_time_s"] = faker.PickRandom(90, 120, 150, 180);
+                    values["bench_length_m"] = faker.PickRandom(2, 3, 4);
+                    values["max_bench_load_kg"] = faker.PickRandom(150, 300, 500);
                     values["esd_protected"] = faker.Random.Bool(0.5f);
-                    values["sop_url"] = "https://example.com/sop/assembly";
-                    values["last_service"] = ServiceDate(faker);
+                    values["compressed_air"] = faker.Random.Bool(0.7f);
+                    break;
+
+                case "test_station":
+                    values["test_types"] = faker.PickRandom(
+                        "ICT, functional", "leak, hipot", "functional, burn-in");
+                    values["calibrated_until"] = ContractDate(faker);
+                    values["calibration_certificate_url"] = "https://example.com/certs/test-rig";
+                    values["climate_controlled"] = faker.Random.Bool(0.5f);
                     break;
             }
 
@@ -230,7 +256,13 @@ public static class MachineListFactory
         Faker faker)
     {
         var now = DateTime.UtcNow;
-        var withHistory = new[] { "PMF-VMC-1", "PMF-VMC-2", "PMF-ASM-1", "PMF-DRL-1" };
+        // Most machines, not a hand-picked four: a log that exists on one site's mills only reads
+        // as a feature nobody uses. Every fifth machine in catalog order is left without one,
+        // because a shop that has serviced everything is its own kind of unrealistic.
+        var withHistory = machines
+            .Where((_, index) => index % 5 != 0)
+            .Select(m => m.Code)
+            .ToHashSet(StringComparer.Ordinal);
         var rows = 0;
 
         foreach (var machine in machines.Where(m => withHistory.Contains(m.Code)))
@@ -271,6 +303,10 @@ public static class MachineListFactory
 
         return rows;
     }
+
+    /// <summary>A date some months ahead — a contract or calibration that has not lapsed yet.</summary>
+    private static string ContractDate(Faker faker) =>
+        DateTime.UtcNow.AddDays(faker.Random.Int(60, 400)).ToString("yyyy-MM-dd");
 
     private static string ServiceDate(Faker faker) =>
         DateTime.UtcNow.Date.AddDays(-faker.Random.Int(10, 300)).ToString("yyyy-MM-dd");

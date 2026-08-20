@@ -17,6 +17,15 @@ public interface IProfile
     /// <summary>Top-level department names (children generated automatically).</summary>
     IReadOnlyList<string> DepartmentRootPool { get; }
 
+    /// <summary>
+    /// Second-level department names, combined with a root ("Production" + "Machining").
+    /// </summary>
+    /// <remarks>
+    /// Profile-specific because the child names are what make the tree read as a real
+    /// organization. A compass point works anywhere and means nothing anywhere.
+    /// </remarks>
+    IReadOnlyList<string> DepartmentChildPool { get; }
+
     /// <summary>Candidate resource-group names (space groups).</summary>
     IReadOnlyList<string> ResourceGroupPool { get; }
 

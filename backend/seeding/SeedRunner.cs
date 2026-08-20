@@ -104,8 +104,11 @@ public static class SeedRunner
             conn, tx, profile, scale, personTypeId);
         var jobTitles = orgLists.JobTitles;
         var departments = orgLists.Departments;
+        // The floorplan path assigns job title and department by persona once the cohorts exist,
+        // so it asks for neither here — a random pair now would only be overwritten later.
         var people = await PeopleFactories.SeedPeopleAsync(
-            conn, tx, profile, scale, faker, personTypeId, jobTitles, departments);
+            conn, tx, profile, scale, faker, personTypeId, jobTitles, departments,
+            assignOrgFields: !opts.UseFloorplans);
 
         // Person groups: the floorplan path groups by team/role (derived from the skills assigned
         // below in the narrative block); the generic path keeps round-robin. Assigned per-branch.
@@ -137,11 +140,15 @@ public static class SeedRunner
             // Configuration the shop runs on, and the fields a tenant hangs off the built-in types.
             await TenantConfigFactory.SeedSchedulingSettingsAsync(conn, sites);
             var builtIn = await TenantConfigFactory.SeedBuiltInCustomFieldsAsync(
-                conn, lists.ConsumablesInstanceId, faker);
+                conn, lists.ConsumablesInstanceId, lists.ConsumablesRowIds, faker);
             customFields = machineFields.Ids.Count + builtIn.Fields;
 
             var skillCriteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
             var cohorts = Narrative.Cohorts.Build(facilities, sites, spaces, people, seededTools, seededMachines);
+
+            // Job title and department by role, now that the cohorts say who works where. People
+            // were inserted without them for exactly this reason.
+            await PersonaFactory.ApplyAsync(conn, cohorts, jobTitles, departments);
 
             // Pin each cohort's people to their facility site so cohort work stays same-site; the
             // post-commit round-robin in SiteModelFactory then only fills any people left un-sited.
@@ -157,7 +164,7 @@ public static class SeedRunner
             var calendar = new Narrative.YearCalendar(opts.ReferenceDate);
             var avail = await AvailabilityFactory.SeedAsync(conn, calendar, sites, people, faker);
             var year = await Narrative.NarrativeYearSeeder.SeedAsync(
-                conn, cohorts, skillCriteria, caps.PersonSkills, calendar, scale, faker);
+                conn, cohorts, skillCriteria, caps.PersonSkills, calendar, scale, faker, avail.Vacations);
 
             tools = seededTools.Count;
             machines = seededMachines.Count;

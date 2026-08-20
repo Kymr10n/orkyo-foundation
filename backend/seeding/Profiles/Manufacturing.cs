@@ -24,6 +24,11 @@ public sealed class Manufacturing : IProfile
         "Production", "Quality", "Maintenance", "Logistics", "Engineering", "Safety",
     };
 
+    public IReadOnlyList<string> DepartmentChildPool { get; } = new[]
+    {
+        "Machining", "Fabrication", "Assembly & Test", "Packaging", "Tooling", "Inbound", "Outbound", "Calibration", "Day Shift", "Night Shift"
+    };
+
     public IReadOnlyList<string> ResourceGroupPool { get; } = new[]
     {
         "CNC Cells", "Assembly Bays", "Welding Stations", "Paint Booths", "QA Stations",

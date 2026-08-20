@@ -24,6 +24,11 @@ public sealed class Camping : IProfile
         "Reception", "Housekeeping", "Activities", "Maintenance", "Food & Beverage", "Safety",
     };
 
+    public IReadOnlyList<string> DepartmentChildPool { get; } = new[]
+    {
+        "Pitches", "Cabins", "Reception", "Grounds", "Catering", "Housekeeping", "Waterfront", "Activities"
+    };
+
     public IReadOnlyList<string> ResourceGroupPool { get; } = new[]
     {
         "Tent Pitches", "Cabins", "Caravans", "Beach Pitches", "Pet-friendly",

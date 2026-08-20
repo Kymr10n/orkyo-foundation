@@ -65,10 +65,7 @@ public static class PeopleFactories
     /// The ids do not exist while the rows are being built, so a child names its parent through
     /// <see cref="ParentByName"/> and the insert loop resolves it.
     /// </remarks>
-    // Subdivision suffixes for child departments — generic enough to work across all profiles;
-    // combined with the parent name (for example "Operations North").
-    private static readonly string[] DeptSubdivisions =
-        ["North", "South", "East", "West", "Central", "Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
+
 
     public static async Task<SeededOrgLists> SeedOrganizationListsAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx,
@@ -221,7 +218,10 @@ public static class PeopleFactories
         for (var i = 0; i < childCount; i++)
         {
             var parentIdx = i % rootNames.Count;
-            var suffix = DeptSubdivisions[counters[parentIdx]++ % DeptSubdivisions.Length];
+            // Named after what the unit does, not where it sits. "Production Machining" reads
+            // like a real department; "Operations North" reads like filler, which it was.
+            var childPool = profile.DepartmentChildPool;
+            var suffix = childPool[counters[parentIdx]++ % childPool.Count];
             rows.Add(new Dictionary<string, object>
             {
                 ["name"] = $"{rootNames[parentIdx]} {suffix}",
@@ -237,7 +237,9 @@ public static class PeopleFactories
         IProfile profile, IScale scale, Faker faker,
         Guid personResourceTypeId,
         IReadOnlyList<SeededJobTitle> jobTitles,
-        IReadOnlyList<SeededDepartment> departments)
+        IReadOnlyList<SeededDepartment> departments,
+        /// <summary>False when a later pass assigns job title and department by role.</summary>
+        bool assignOrgFields = true)
     {
         var now = DateTime.UtcNow;
         var people = new List<SeededPerson>(scale.People);
@@ -256,8 +258,13 @@ public static class PeopleFactories
                 var id = Guid.NewGuid();
                 var fullName = faker.Name.FullName();
                 var email = $"{Slugify(fullName)}@orkyo.example";
-                var jobTitleId = jobTitles.Count == 0 ? (Guid?)null : jobTitles[faker.Random.Int(0, jobTitles.Count - 1)].Id;
-                var deptId = departments.Count == 0 ? (Guid?)null : departments[faker.Random.Int(0, departments.Count - 1)].Id;
+                // Random title and department only where nothing better follows. The demo path
+                // passes false and PersonaFactory writes both from the person's role instead, so
+                // a QA Tech lands in Quality rather than wherever the shuffle put them.
+                var jobTitleId = !assignOrgFields || jobTitles.Count == 0
+                    ? (Guid?)null : jobTitles[faker.Random.Int(0, jobTitles.Count - 1)].Id;
+                var deptId = !assignOrgFields || departments.Count == 0
+                    ? (Guid?)null : departments[faker.Random.Int(0, departments.Count - 1)].Id;
                 var customFields = new Dictionary<string, object>();
                 if (jobTitleId is not null) customFields["job_title"] = new[] { jobTitleId.Value.ToString() };
                 if (deptId is not null) customFields["department"] = new[] { deptId.Value.ToString() };
@@ -270,8 +277,11 @@ public static class PeopleFactories
                 await writer.WriteAsync(100, NpgsqlDbType.Integer);
                 await writer.WriteAsync(true, NpgsqlDbType.Boolean);
                 await writer.WriteAsync(email, NpgsqlDbType.Citext);
-                if (customFields.Count == 0) await writer.WriteNullAsync();
-                else await writer.WriteAsync(JsonSerializer.Serialize(customFields), NpgsqlDbType.Jsonb);
+                // An empty document, never null: the column is NOT NULL, and "this person has no
+                // custom values yet" is what {} means. PersonaFactory merges into it afterwards.
+                await writer.WriteAsync(
+                    customFields.Count == 0 ? "{}" : JsonSerializer.Serialize(customFields),
+                    NpgsqlDbType.Jsonb);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 people.Add(new SeededPerson(id, fullName));

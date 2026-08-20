@@ -81,9 +81,10 @@ public class RequestTargetSeedingTests
         var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools, machines);
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
         var cal = new YearCalendar(DateTime.UtcNow);
-        await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
+        var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
         var year = await NarrativeYearSeeder.SeedAsync(
-            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker);
+            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
+            avail.Vacations);
 
         // Scope every assertion to this run's rows — the shared fixture DB carries committed data.
         var seededIds = year.RequestIds.ToArray();

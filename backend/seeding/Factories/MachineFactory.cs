@@ -15,7 +15,9 @@ namespace Orkyo.Foundation.Seed.Factories;
 public static class MachineFactory
 {
     public sealed record SeededMachine(
-        Guid Id, string TypeKey, string Role, string SiteCode, string Name, string Code);
+        Guid Id, string TypeKey, string Role, string SiteCode, string Name, string Code,
+        /// <summary>False for a machine that is owned but has never been drawn on the plan.</summary>
+        bool Placed);
 
     /// <summary>
     /// Creates the machine resource types and returns their ids by key. Plain INSERTs rather than a
@@ -29,10 +31,17 @@ public static class MachineFactory
         foreach (var spec in MachineCatalog.Types)
         {
             var id = Guid.NewGuid();
+            // Adopt a type the workspace already has rather than failing on its key. Append mode
+            // runs over a database that may hold these already — and so does any workspace that
+            // activated one of them from the type catalog first. Adoption reactivates and changes
+            // nothing else, which is the rule catalog activation follows: the row is the tenant's,
+            // renames and edits included.
             await using var cmd = new NpgsqlCommand(
                 "INSERT INTO public.resource_types " +
                 "(id, key, display_name, display_name_plural, description, icon, is_system, is_active, has_geometry, created_at, updated_at) " +
-                "VALUES (@id, @key, @name, @plural, @description, @icon, false, true, true, @now, @now)", conn);
+                "VALUES (@id, @key, @name, @plural, @description, @icon, false, true, true, @now, @now) " +
+                "ON CONFLICT (key) DO UPDATE SET is_active = true, updated_at = @now " +
+                "RETURNING id", conn);
             cmd.Parameters.AddWithValue("id", id);
             cmd.Parameters.AddWithValue("key", spec.Key);
             cmd.Parameters.AddWithValue("name", spec.DisplayName);
@@ -40,8 +49,7 @@ public static class MachineFactory
             cmd.Parameters.AddWithValue("description", spec.Description);
             cmd.Parameters.AddWithValue("icon", spec.Icon);
             cmd.Parameters.AddWithValue("now", now);
-            await cmd.ExecuteNonQueryAsync();
-            ids[spec.Key] = id;
+            ids[spec.Key] = (Guid)(await cmd.ExecuteScalarAsync())!;
         }
 
         return ids;
@@ -93,15 +101,23 @@ public static class MachineFactory
             // A machine is bolted to its floor. Letting it travel would put it on another site's plan.
             await writer.WriteAsync(false, NpgsqlDbType.Boolean);
             await writer.WriteAsync(spec.Code, NpgsqlDbType.Varchar);
-            await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-            await writer.WriteAsync(GeometryJson(spec.Geometry), NpgsqlDbType.Jsonb);
+            // A machine with no shape is owned but not placed — the floorplan's
+            // place-an-existing-resource flow is what puts it on the plan. It is not physical
+            // until then: `resources_physical_has_geometry_check` reads physical as "occupies
+            // floor area", and something with no footprint occupies none.
+            await writer.WriteAsync(spec.Geometry is not null, NpgsqlDbType.Boolean);
+            if (spec.Geometry is null)
+                await writer.WriteNullAsync();
+            else
+                await writer.WriteAsync(GeometryJson(spec.Geometry), NpgsqlDbType.Jsonb);
             await writer.WriteAsync("{}", NpgsqlDbType.Jsonb);
             await writer.WriteAsync(1, NpgsqlDbType.Integer);
             await writer.WriteAsync(customFieldDocs.GetValueOrDefault(spec.Code, "{}"), NpgsqlDbType.Jsonb);
             await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
             await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
 
-            machines.Add(new SeededMachine(id, spec.TypeKey, spec.Role, spec.SiteCode, spec.Name, spec.Code));
+            machines.Add(new SeededMachine(
+                id, spec.TypeKey, spec.Role, spec.SiteCode, spec.Name, spec.Code, spec.Geometry is not null));
         }
 
         await writer.CompleteAsync();

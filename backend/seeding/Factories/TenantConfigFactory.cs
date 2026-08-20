@@ -159,7 +159,8 @@ public static class TenantConfigFactory
     /// definition/instance split visible: one shape, two catalogues.
     /// </summary>
     public static async Task<(int Fields, int Values)> SeedBuiltInCustomFieldsAsync(
-        NpgsqlConnection conn, Guid consumablesInstanceId, Faker faker)
+        NpgsqlConnection conn, Guid consumablesInstanceId,
+        IReadOnlyList<Guid> consumablesRowIds, Faker faker)
     {
         var now = DateTime.UtcNow;
         var typeIds = new Dictionary<string, Guid>();
@@ -220,10 +221,17 @@ public static class TenantConfigFactory
             ["has_extraction"] = faker.Random.Bool(0.3f),
         });
 
+        // Tools reference consumables. The field and its shared list existed already, but nothing
+        // ever pointed at a row — so the reason that second instance exists (one definition, two
+        // instances) was invisible in the UI.
         values += await FillValuesAsync(conn, "tool", faker, r => new Dictionary<string, object>
         {
             ["serial_number"] = $"SN-{faker.Random.Int(100000, 999999)}",
             ["purchased_on"] = DateTime.UtcNow.Date.AddDays(-faker.Random.Int(200, 3000)).ToString("yyyy-MM-dd"),
+            ["consumables"] = consumablesRowIds.Count == 0
+                ? Array.Empty<string>()
+                : faker.PickRandom(consumablesRowIds, Math.Min(3, consumablesRowIds.Count))
+                    .Select(id => id.ToString()).ToArray(),
         });
 
         return (fields, values);
@@ -248,7 +256,11 @@ public static class TenantConfigFactory
         var docs = ids.Select(id => JsonSerializer.Serialize(build(id))).ToArray();
 
         await using var update = new NpgsqlCommand(
-            "UPDATE public.resources r SET custom_fields = v.doc::jsonb " +
+            // Merge rather than replace. A person already carries their job-title and department
+            // lookups by the time this runs, and assigning the document wholesale silently dropped
+            // both — the fields were written, then overwritten a few statements later.
+            "UPDATE public.resources r " +
+            "SET custom_fields = COALESCE(r.custom_fields, '{}'::jsonb) || v.doc::jsonb " +
             "FROM (SELECT unnest(@ids) AS id, unnest(@docs) AS doc) v WHERE r.id = v.id", conn);
         update.Parameters.AddWithValue("ids", ids.ToArray());
         update.Parameters.AddWithValue("docs", docs);

@@ -28,8 +28,9 @@ public static class NarrativeYearSeeder
     // tracked so they never exceed 100 % (≈4 simultaneous jobs before full).
     private const decimal StoragePct = 25m;
 
-    // Curated, scale-independent backlog of unscheduled tasks the demo user schedules themselves.
-    private const int BacklogCount = 15;
+    // Backlog of unscheduled tasks the demo user schedules themselves. Scaled, but bounded: a
+    // backlog nobody could work through is not a demo of anything.
+    private static int BacklogCount(IScale scale) => Math.Clamp(scale.Requests / 250, 12, 24);
 
     public static async Task<Result> SeedAsync(
         NpgsqlConnection conn,
@@ -38,11 +39,15 @@ public static class NarrativeYearSeeder
         IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills,
         YearCalendar cal,
         IScale scale,
-        Faker faker)
+        Faker faker,
+        IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> vacations)
     {
         var parents = new List<(Guid Id, string Name, int SortOrder)>();
         var jobs = new List<Job>();
         var conflicts = 0;
+        // Kept per cohort so the showcase pass below can book against the same capacity ledger the
+        // cohort built, rather than double-booking by accident where it means to book cleanly.
+        var contexts = new List<(FacilityCohort Cohort, AssignContext Ctx)>();
 
         // Recurring cadence is fixed; campaign+routine volume fills up to the scale target.
         var recurringPerFacility = cal.MonthStarts().Count() /*PM monthly*/ + 4 /*QA quarterly*/;
@@ -53,6 +58,7 @@ public static class NarrativeYearSeeder
         {
             var cohortStart = jobs.Count; // snapshot before this cohort adds jobs
             var ctx = new AssignContext(cohort, personSkills, faker);
+            contexts.Add((cohort, ctx));
             var campaignWin = cal.CampaignWindow(cohort.Facility.SiteCode);
 
             // Campaign summary parent.
@@ -179,13 +185,26 @@ public static class NarrativeYearSeeder
             }
         }
 
+        // ── Showcase conflicts ────────────────────────────────────────────────────
+        // The two injections above cover capability and overbooking. Three kinds had no example
+        // anywhere in the demo, because the seeder is built to avoid them: it books only working
+        // days and only free capacity, and it pins each cohort to its own site. Each is arranged
+        // once here, deliberately, so the conflict list shows what the product can actually detect.
+        conflicts += InjectAbsenceOverlaps(jobs, contexts, cal, criteria, vacations, faker);
+        conflicts += InjectShutdownOverlap(jobs, contexts, cal, criteria, faker);
+        conflicts += InjectCrossSiteAssignments(conn, jobs, contexts);
+
         await WriteRequestsAsync(conn, parents, jobs);
-        var reqCount = await WriteRequirementsAsync(conn, jobs, criteria);
+        var reqCount = await WriteRequirementsAsync(
+            conn, jobs.Select(j => (j.Id, (IReadOnlyList<Guid>)j.RequiredCriteria)), criteria);
         var asgCount = await WriteAssignmentsAsync(conn, jobs);
 
         // A small curated backlog of unscheduled tasks so the demo's utilization backlog isn't empty —
         // users drag these onto the grid to schedule them.
-        var backlogIds = await WriteBacklogAsync(conn, cohorts, faker, BacklogCount);
+        var backlog = await WriteBacklogAsync(conn, cohorts, criteria, faker, BacklogCount(scale));
+        var backlogIds = backlog.Select(b => b.Id).ToList();
+        reqCount += await WriteRequirementsAsync(
+            conn, backlog.Select(b => (b.Id, b.RequiredCriteria)), criteria);
 
         var allIds = parents.Select(p => p.Id)
             .Concat(jobs.Select(j => j.Id))
@@ -204,6 +223,9 @@ public static class NarrativeYearSeeder
         // key of the machine that was actually booked rather than one blanket value.
         var machineTypeById = cohorts.SelectMany(c => c.Machines).ToDictionary(m => m.Id, m => m.TypeKey);
         var targets = allIds.Select(id => (id, "room"))
+            // A backlog item names the type that can satisfy it, which is what makes
+            // auto-scheduling a real demo rather than a room-placement one.
+            .Concat(backlog.Where(b => b.TargetTypeKey is not null).Select(b => (b.Id, b.TargetTypeKey!)))
             .Concat(jobs.Where(j => j.Assignees.Any(a => allToolIds.Contains(a.ResId)))
                         .Select(j => (j.Id, "tool")))
             .Concat(jobs.SelectMany(j => j.Assignees
@@ -214,6 +236,183 @@ public static class NarrativeYearSeeder
         await RequestTargetFactory.WriteAsync(conn, targets);
 
         return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds);
+    }
+
+    /// <summary>
+    /// Books a few people over their own holiday.
+    /// </summary>
+    /// <remarks>
+    /// The seeder tracks capacity, not time off, so an assignment never lands on an absence by
+    /// accident and the conflict has no example. One per cohort, on the first vacation that starts
+    /// after the reference date, staffed by the person whose holiday it is.
+    /// </remarks>
+    private static int InjectAbsenceOverlaps(
+        List<Job> jobs,
+        IReadOnlyList<(FacilityCohort Cohort, AssignContext Ctx)> contexts,
+        YearCalendar cal,
+        IReadOnlyDictionary<string, Guid> criteria,
+        IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> vacations,
+        Faker faker)
+    {
+        var vacationByPerson = vacations
+            .Where(v => v.Start > cal.ReferenceDate)
+            .GroupBy(v => v.PersonId)
+            .ToDictionary(g => g.Key, g => g.First());
+
+        var injected = 0;
+        foreach (var (cohort, ctx) in contexts)
+        {
+            var arch = cohort.Facility.Archetypes.FirstOrDefault(a => a.Cadence == JobCadence.Routine);
+            if (arch is null) continue;
+
+            // The first person of the cohort with a vacation still ahead of us. Cohort order is
+            // stable, so which person it is does not move between runs of the same seed.
+            var pick = cohort.People
+                .Select(p => p.ResourceId)
+                .Where(vacationByPerson.ContainsKey)
+                .Select(pid => (PersonId: pid, Vacation: vacationByPerson[pid]))
+                .FirstOrDefault(x => FirstWeekdayIn(x.Vacation.Start, x.Vacation.End) is not null);
+            if (pick.PersonId == Guid.Empty) continue;
+
+            var day = FirstWeekdayIn(pick.Vacation.Start, pick.Vacation.End)!.Value;
+            var (start, end) = cal.MakeSlot(day, arch.MinHours, arch.MaxHours, faker);
+
+            var assignees = new List<(Guid, decimal?)>();
+            Guid? spaceId = null;
+            if (cohort.SpaceByRoomCode.TryGetValue(arch.RoomCode, out var room) && ctx.IsFree(room.Id, start, end))
+            {
+                spaceId = room.Id;
+                assignees.Add((room.Id, null));
+                ctx.MarkBusy(room.Id, start, end);
+            }
+            assignees.Add((pick.PersonId, 100m));
+            ctx.MarkBusy(pick.PersonId, start, end);
+
+            jobs.Add(new Job(
+                Guid.NewGuid(), $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}", null,
+                start, end, cal.StatusFor(start, end, faker),
+                (int)(end - start).TotalHours,
+                arch.RequiredSkills.Select(sk => criteria[sk]).ToList(), arch,
+                spaceId, assignees));
+            injected++;
+        }
+        return injected;
+    }
+
+    /// <summary>The first Monday-to-Friday inside a window, or null when it holds none.</summary>
+    private static DateTime? FirstWeekdayIn(DateTime start, DateTime end)
+    {
+        for (var day = start.Date; day < end.Date; day = day.AddDays(1))
+        {
+            if (day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday)) return day;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Books one job inside a site shutdown.
+    /// </summary>
+    /// <remarks>
+    /// <c>PickWorkingDay</c> refuses shutdown days by design, so the calendar is asked for the slot
+    /// directly. Both the room and the person sit under the site-wide closure the availability
+    /// factory wrote, so the overlap is reported against each of them.
+    /// </remarks>
+    private static int InjectShutdownOverlap(
+        List<Job> jobs,
+        IReadOnlyList<(FacilityCohort Cohort, AssignContext Ctx)> contexts,
+        YearCalendar cal,
+        IReadOnlyDictionary<string, Guid> criteria,
+        Faker faker)
+    {
+        var shutdown = cal.Shutdowns.FirstOrDefault(sd => sd.Start > cal.ReferenceDate);
+        if (shutdown == default) return 0;
+
+        var day = FirstWeekdayIn(shutdown.Start, shutdown.End);
+        if (day is null) return 0;
+
+        var (cohort, ctx) = contexts[0];
+        var arch = cohort.Facility.Archetypes.FirstOrDefault(a => a.Cadence == JobCadence.Routine);
+        if (arch is null) return 0;
+
+        var (start, end) = cal.MakeSlot(day.Value, arch.MinHours, arch.MaxHours, faker);
+        var required = arch.RequiredSkills.Select(sk => criteria[sk]).ToList();
+
+        var assignees = new List<(Guid, decimal?)>();
+        Guid? spaceId = null;
+        if (cohort.SpaceByRoomCode.TryGetValue(arch.RoomCode, out var room) && ctx.IsFree(room.Id, start, end))
+        {
+            spaceId = room.Id;
+            assignees.Add((room.Id, null));
+            ctx.MarkBusy(room.Id, start, end);
+        }
+        if (ctx.PickCapablePerson(required, start, end) is { } lead)
+        {
+            assignees.Add((lead, 100m));
+            ctx.MarkBusy(lead, start, end);
+        }
+        if (assignees.Count == 0) return 0;
+
+        jobs.Add(new Job(
+            Guid.NewGuid(), $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}", null,
+            start, end, cal.StatusFor(start, end, faker),
+            (int)(end - start).TotalHours, required, arch, spaceId, assignees));
+        return 1;
+    }
+
+    /// <summary>
+    /// Lends a person to the other site's work, where they are not allowed to travel.
+    /// </summary>
+    /// <remarks>
+    /// A request adopts the site of the space it books, and a person pinned to another site with
+    /// <c>cross_site_allowed = false</c> is a blocker on it. The flag is stamped after this
+    /// transaction commits, by the same <c>hashtext</c> rule replicated here — so the person picked
+    /// is one the later pass will actually pin.
+    /// </remarks>
+    private static int InjectCrossSiteAssignments(
+        NpgsqlConnection conn,
+        List<Job> jobs,
+        IReadOnlyList<(FacilityCohort Cohort, AssignContext Ctx)> contexts)
+    {
+        if (contexts.Count < 2) return 0;
+
+        var injected = 0;
+        for (var i = 0; i < contexts.Count && injected < 2; i++)
+        {
+            var (host, ctx) = contexts[i];
+            var visitorCohort = contexts[(i + 1) % contexts.Count].Cohort;
+
+            var candidate = PinnedToTheirSite(conn, visitorCohort.People.Select(p => p.ResourceId).ToList());
+            if (candidate is null) continue;
+
+            // A host job with a room, so the request adopts the host site, and a slot the visitor
+            // is free in — the point is the site mismatch, not an overbooking on top of it.
+            var hostJob = jobs.FirstOrDefault(j =>
+                j.SpaceId is not null
+                && j.Start > DateTime.UtcNow
+                && host.SpaceByRoomCode.Values.Any(sp => sp.Id == j.SpaceId)
+                && ctx.IsFree(candidate.Value, j.Start, j.End, 50m));
+            if (hostJob is null) continue;
+
+            var index = jobs.IndexOf(hostJob);
+            jobs[index] = hostJob with { Assignees = hostJob.Assignees.Append((candidate.Value, (decimal?)50m)).ToList() };
+            ctx.MarkBusy(candidate.Value, hostJob.Start, hostJob.End, 50m);
+            injected++;
+        }
+        return injected;
+    }
+
+    /// <summary>
+    /// The first of <paramref name="personIds"/> that <c>SiteModelFactory</c> will forbid from
+    /// travelling, using its own rule so the two passes agree.
+    /// </summary>
+    private static Guid? PinnedToTheirSite(NpgsqlConnection conn, IReadOnlyList<Guid> personIds)
+    {
+        if (personIds.Count == 0) return null;
+        using var cmd = new NpgsqlCommand(
+            "SELECT id FROM resources WHERE id = ANY(@ids) AND abs(hashtext(id::text)) % 4 = 0 " +
+            "ORDER BY id LIMIT 1", conn);
+        cmd.Parameters.AddWithValue("ids", personIds.ToArray());
+        return cmd.ExecuteScalar() as Guid?;
     }
 
     private static Job BuildJob(
@@ -435,55 +634,96 @@ public static class NarrativeYearSeeder
     /// sites assigned requests), so they appear in every site's backlog and can be dragged onto any
     /// space. Names mirror the scheduled jobs' "{Verb} {Noun} — {Site}".
     /// </summary>
-    private static async Task<IReadOnlyList<Guid>> WriteBacklogAsync(
-        NpgsqlConnection conn, IReadOnlyList<FacilityCohort> cohorts, Faker faker, int count)
+    /// <summary>One unscheduled backlog item, with what it needs and what can satisfy it.</summary>
+    private sealed record BacklogItem(Guid Id, IReadOnlyList<Guid> RequiredCriteria, string? TargetTypeKey);
+
+    private static async Task<IReadOnlyList<BacklogItem>> WriteBacklogAsync(
+        NpgsqlConnection conn, IReadOnlyList<FacilityCohort> cohorts,
+        IReadOnlyDictionary<string, Guid> criteria, Faker faker, int count)
     {
         var now = DateTime.UtcNow;
-        var ids = new List<Guid>(count);
-        using var w = await conn.BeginBinaryImportAsync(RequestCopy);
+        var items = new List<BacklogItem>(count + 2);
+
+        // Which machine type each machine-driven archetype needs, read from the machines the
+        // cohort actually owns — the archetype names a role, and the role is what a type answers.
+        static string? TypeKeyFor(FacilityCohort cohort, JobArchetype arch) =>
+            arch.MachineRole is null
+                ? null
+                : cohort.Machines.FirstOrDefault(m => m.Role == arch.MachineRole)?.TypeKey;
+
+        var planned = new List<(string Name, int Hours, IReadOnlyList<Guid> Required, string? TargetTypeKey)>(count + 2);
+
         for (var i = 0; i < count; i++)
         {
             var cohort = faker.PickRandom(cohorts.AsEnumerable());
             var arch = faker.PickRandom(cohort.Facility.Archetypes.AsEnumerable());
             var name = $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}";
-            if (name.Length > 200) name = name[..200];
             var hours = Math.Max(1, faker.Random.Int(arch.MinHours, arch.MaxHours));
-            var id = Guid.NewGuid();
-            ids.Add(id);
+            var typeKey = TypeKeyFor(cohort, arch);
 
-            await w.StartRowAsync();
-            await w.WriteAsync(id, NpgsqlDbType.Uuid);
-            await w.WriteAsync(name, NpgsqlDbType.Varchar);
-            await w.WriteNullAsync();                                  // description
-            await w.WriteNullAsync();                                  // start_ts  → unscheduled
-            await w.WriteNullAsync();                                  // end_ts
-            await w.WriteAsync(hours, NpgsqlDbType.Integer);          // minimal_duration_value
-            await w.WriteAsync("hours", NpgsqlDbType.Varchar);        // minimal_duration_unit
-            await w.WriteAsync("new", NpgsqlDbType.Varchar);      // status
-            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await w.WriteAsync(true, NpgsqlDbType.Boolean);           // scheduling_settings_apply
-            await w.WriteAsync("leaf", NpgsqlDbType.Varchar);         // planning_mode
-            await w.WriteAsync(i, NpgsqlDbType.Integer);              // sort_order
-            await w.WriteNullAsync();                                  // parent_request_id → top-level
+            // Requirements only on the machine-driven items. A room-targeted item carrying a person
+            // skill would be reported as having no compatible resource for the wrong reason — the
+            // solver matches the target type's capabilities, and a room holds no person skills.
+            var required = typeKey is null
+                ? (IReadOnlyList<Guid>)[]
+                : arch.RequiredSkills.Select(sk => criteria[sk]).ToList();
+
+            planned.Add((name, hours, required, typeKey));
         }
-        await w.CompleteAsync();
-        return ids;
+
+        // Two that cannot be satisfied by anything, on purpose. Auto-scheduling that always
+        // succeeds teaches nobody what it does when it cannot — these report "No compatible
+        // resource" against a skill no person and no machine in the tenant holds.
+        var weldInspection = (IReadOnlyList<Guid>)new[] { criteria[SkillCatalog.WeldInspection] };
+        planned.Add(("Certify weld procedures — FWF", 6, weldInspection, "person"));
+        planned.Add(("Commission new test rig — PPF", 4, weldInspection, "test_station"));
+
+        using (var w = await conn.BeginBinaryImportAsync(RequestCopy))
+        {
+            for (var i = 0; i < planned.Count; i++)
+            {
+                var (name, hours, required, typeKey) = planned[i];
+                if (name.Length > 200) name = name[..200];
+                var id = Guid.NewGuid();
+                items.Add(new BacklogItem(id, required, typeKey));
+
+                await w.StartRowAsync();
+                await w.WriteAsync(id, NpgsqlDbType.Uuid);
+                await w.WriteAsync(name, NpgsqlDbType.Varchar);
+                await w.WriteNullAsync();                                  // description
+                await w.WriteNullAsync();                                  // start_ts  → unscheduled
+                await w.WriteNullAsync();                                  // end_ts
+                await w.WriteAsync(hours, NpgsqlDbType.Integer);          // minimal_duration_value
+                await w.WriteAsync("hours", NpgsqlDbType.Varchar);        // minimal_duration_unit
+                await w.WriteAsync("new", NpgsqlDbType.Varchar);      // status
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await w.WriteAsync(true, NpgsqlDbType.Boolean);           // scheduling_settings_apply
+                await w.WriteAsync("leaf", NpgsqlDbType.Varchar);         // planning_mode
+                await w.WriteAsync(i, NpgsqlDbType.Integer);              // sort_order
+                await w.WriteNullAsync();                                  // parent_request_id → top-level
+            }
+            await w.CompleteAsync();
+        }
+
+        return items;
     }
 
     private static async Task<int> WriteRequirementsAsync(
-        NpgsqlConnection conn, IReadOnlyList<Job> jobs, IReadOnlyDictionary<string, Guid> criteria)
+        NpgsqlConnection conn,
+        IEnumerable<(Guid RequestId, IReadOnlyList<Guid> Criteria)> requests,
+        IReadOnlyDictionary<string, Guid> criteria)
     {
         var byId = criteria.ToDictionary(kv => kv.Value, kv => SkillCatalog.ByKey(kv.Key));
         var count = 0;
         using var w = await conn.BeginBinaryImportAsync(
             "COPY public.request_requirements (request_id, criterion_id, value, operator, allowed_values) FROM STDIN (FORMAT BINARY)");
-        foreach (var j in jobs)
-            foreach (var cid in j.RequiredCriteria)
+        foreach (var (requestId, required) in requests)
+            foreach (var cid in required)
             {
                 var skill = byId[cid];
                 await w.StartRowAsync();
-                await w.WriteAsync(j.Id, NpgsqlDbType.Uuid);
+                await w.WriteAsync(requestId, NpgsqlDbType.Uuid);
                 await w.WriteAsync(cid, NpgsqlDbType.Uuid);
                 if (skill.DataType == "Enum")
                 {

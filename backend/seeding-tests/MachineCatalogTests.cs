@@ -18,10 +18,14 @@ public class MachineCatalogTests
     private static FloorplanRoom RoomFor(MachineSpec machine) =>
         SiteFor(machine.SiteCode).Rooms.First(r => r.Code == machine.RoomCode);
 
+    /// <summary>The machines that were drawn. An unplaced one has no room to be inside of.</summary>
+    private static IEnumerable<MachineSpec> Placed =>
+        MachineCatalog.All.Where(m => m.Geometry is not null);
+
     [Fact]
     public void EveryMachine_ReferencesARoomThatExists()
     {
-        foreach (var machine in MachineCatalog.All)
+        foreach (var machine in Placed)
         {
             var site = FloorplanCatalog.ForProfile("manufacturing")
                 .FirstOrDefault(s => s.Code == machine.SiteCode);
@@ -36,10 +40,10 @@ public class MachineCatalogTests
     {
         // A machine drawn outside its room is not an error anywhere in the stack — it just looks
         // wrong on the plan, which is the kind of thing nobody notices until a demo.
-        foreach (var machine in MachineCatalog.All)
+        foreach (var machine in Placed)
         {
             var room = RoomFor(machine);
-            var (minX, minY, maxX, maxY) = Extent(machine.Geometry);
+            var (minX, minY, maxX, maxY) = Extent(machine.Geometry!);
 
             Assert.True(minX >= room.X, $"{machine.Code} starts left of room {room.Code}.");
             Assert.True(minY >= room.Y, $"{machine.Code} starts above room {room.Code}.");
@@ -95,13 +99,70 @@ public class MachineCatalogTests
     [Fact]
     public void ConvertedTools_AreGoneFromTheToolCatalogue()
     {
-        // Mills and assembly stations became placed machines. Leaving the tools behind would show
-        // the demo the same equipment twice, once schedulable from a list and once from the plan.
+        // Mills, lathes and assembly stations became placed machines. Leaving the tools behind
+        // would show the demo the same equipment twice, once schedulable from a list and once
+        // from the plan.
         var toolNames = FacilityModel.All.SelectMany(f => f.Tools).Select(t => t.Name).ToList();
 
         Assert.DoesNotContain("CNC Mill", toolNames);
         Assert.DoesNotContain("Assembly Station", toolNames);
-        Assert.Contains("CNC Lathe", toolNames);
+        Assert.DoesNotContain("CNC Lathe", toolNames);
+        Assert.DoesNotContain("Line Station", toolNames);
+
+        // What is left is genuinely fetched rather than stood at.
+        Assert.Contains("Band Saw", toolNames);
+        Assert.Contains("Overhead Crane", toolNames);
+    }
+
+    [Fact]
+    public void EverySiteRunsRealStations()
+    {
+        // Two of the three sites used to have almost nothing on the floor — one machine at FWF,
+        // none at PPF — so the whole stations story lived at one site. Each site now runs the
+        // machines its own work needs.
+        var byType = MachineCatalog.All
+            .GroupBy(m => m.SiteCode)
+            .ToDictionary(g => g.Key, g => g.Select(m => m.TypeKey).ToHashSet());
+
+        Assert.Superset(new HashSet<string> { "mill", "drill", "lathe", "cnc" }, byType["PMF"]);
+        Assert.Superset(new HashSet<string> { "drill" }, byType["FWF"]);
+        Assert.Superset(new HashSet<string> { "assembly_station", "test_station" }, byType["PPF"]);
+    }
+
+    [Fact]
+    public void EverySiteOwnsMachinesNobodyHasDrawnYet()
+    {
+        // The floorplan's place-an-existing-resource flow has nothing to offer on a plan where
+        // every machine is already drawn, so each site keeps a few waiting.
+        foreach (var site in new[] { "PMF", "FWF", "PPF" })
+        {
+            var unplaced = MachineCatalog.ForSite(site).Count(m => m.Geometry is null);
+            Assert.InRange(unplaced, 2, 3);
+        }
+    }
+
+    [Fact]
+    public void AnUnplacedMachine_HasNeitherRoomNorShape()
+    {
+        // Half-placed is the one state that would break the plan: a room with no shape draws
+        // nothing, and a shape with no room sits outside every wall.
+        foreach (var machine in MachineCatalog.All)
+            Assert.Equal(machine.RoomCode is null, machine.Geometry is null);
+    }
+
+    [Fact]
+    public void EveryMachineRole_IsWorkSomeFacilityActuallySchedules()
+    {
+        // A machine nobody books is a row in a list. FWF used to own exactly one drill with a
+        // comment explaining that it was never scheduled; now its work asks for it.
+        var scheduledRoles = FacilityModel.All
+            .SelectMany(f => f.Archetypes)
+            .Select(a => a.MachineRole)
+            .Where(r => r is not null)
+            .ToHashSet();
+
+        foreach (var role in MachineCatalog.All.Select(m => m.Role).Distinct())
+            Assert.Contains(role, scheduledRoles);
     }
 
     [Fact]

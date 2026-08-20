@@ -98,14 +98,20 @@ public class MachineSeedingTests
                      count(*) FILTER (WHERE NOT r.cross_site_allowed)
               FROM resources r
               JOIN resource_types rt ON rt.id = r.resource_type_id
-              WHERE rt.key IN ('mill','drill','assembly_station')", conn, tx);
+              WHERE rt.key IN ('mill','drill','lathe','cnc','assembly_station','test_station')", conn, tx);
         await using var r2 = await cmd.ExecuteReaderAsync();
         await r2.ReadAsync();
 
+        var placed = MachineCatalog.All.Count(m => m.Geometry is not null);
+        var unplaced = MachineCatalog.All.Count - placed;
+
         Assert.Equal(seeded.Machines.Count, r2.GetInt64(0));
-        Assert.Equal(seeded.Machines.Count, r2.GetInt64(1));
-        // A circle is centre plus one rim point — three drills in the catalog.
-        Assert.Equal(3, r2.GetInt64(2));
+        // Only a drawn machine is physical: the check constraint reads physical as "occupies floor
+        // area", and the ones waiting to be placed occupy none yet.
+        Assert.Equal(placed, r2.GetInt64(1));
+        Assert.True(unplaced >= 6, "every site keeps machines for the place-on-plan flow");
+        // A circle is centre plus one rim point — the drill presses that were drawn.
+        Assert.Equal(MachineCatalog.All.Count(m => m.Geometry is MachineGeometry.Circle), r2.GetInt64(2));
         // A machine is bolted down; letting it travel would put it on another site's plan.
         Assert.Equal(seeded.Machines.Count, r2.GetInt64(3));
     }
@@ -126,7 +132,7 @@ public class MachineSeedingTests
             @"SELECT r.code, r.resource_type_id, r.custom_fields
               FROM resources r
               JOIN resource_types rt ON rt.id = r.resource_type_id
-              WHERE rt.key IN ('mill','drill','assembly_station')", conn, tx);
+              WHERE rt.key IN ('mill','drill','lathe','cnc','assembly_station','test_station')", conn, tx);
 
         var docs = new List<(string Code, Guid TypeId, Dictionary<string, JsonElement> Values)>();
         await using (var reader = await cmd.ExecuteReaderAsync())
@@ -301,7 +307,7 @@ public class MachineSeedingTests
               FROM resource_groups g
               JOIN resource_group_members m ON m.resource_group_id = g.id
               JOIN resource_types rt ON rt.id = g.resource_type_id
-              WHERE rt.key IN ('mill','drill','assembly_station')", conn, tx);
+              WHERE rt.key IN ('mill','drill','lathe','cnc','assembly_station','test_station')", conn, tx);
         await using var r = await cmd.ExecuteReaderAsync();
         await r.ReadAsync();
 

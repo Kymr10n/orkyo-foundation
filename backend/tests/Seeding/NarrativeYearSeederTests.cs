@@ -88,7 +88,8 @@ public class NarrativeYearSeederTests
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
         var cal = new YearCalendar(DateTime.UtcNow);
         var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
-        var year = await NarrativeYearSeeder.SeedAsync(conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker);
+        var year = await NarrativeYearSeeder.SeedAsync(
+            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker, avail.Vacations);
 
         year.Requests.Should().BeGreaterThan(0);
         year.Requirements.Should().BeGreaterThan(0);
@@ -110,12 +111,50 @@ public class NarrativeYearSeederTests
         // committed rows to these tables (via the API) and we must not count them.
         var seededIds = year.RequestIds.ToArray();
 
-        // The demo seeds a small, scale-independent backlog of unscheduled tasks (no start/end) for
-        // the user to schedule themselves — they must surface in the utilization backlog.
+        // The demo seeds a backlog of unscheduled tasks (no start/end) for the user to schedule
+        // themselves — they must surface in the utilization backlog. Scaled, plus the two items
+        // nothing can satisfy.
         var (_, backlog) = await TwoLongs(conn, tx,
             "SELECT 0, count(*) FROM requests WHERE id = ANY(@ids) AND start_ts IS NULL AND planning_mode='leaf'",
             ("ids", seededIds));
-        backlog.Should().Be(15, "the narrative seed adds a 15-item unscheduled backlog");
+        backlog.Should().Be(14, "tiny seeds 12 backlog items plus the 2 deliberately unsatisfiable ones");
+
+        // Auto-scheduling that always succeeds teaches nobody what it does when it cannot. Exactly
+        // two backlog items require a skill no resource in the tenant holds, so the preview has
+        // something to reject by name.
+        var (weldReqs, weldSatisfiable) = await TwoLongs(conn, tx, @"
+            SELECT count(*),
+                   count(*) FILTER (WHERE EXISTS (
+                       SELECT 1 FROM resource_capabilities rc WHERE rc.criterion_id = rr.criterion_id))
+            FROM request_requirements rr
+            JOIN criteria c ON c.id = rr.criterion_id
+            WHERE rr.request_id = ANY(@ids) AND c.name = 'Certified Weld Inspector'",
+            ("ids", seededIds));
+        weldReqs.Should().Be(2, "two backlog items ask for the skill nobody holds");
+        weldSatisfiable.Should().Be(0, "no resource anywhere carries that skill");
+
+        // ── The three conflict kinds the seeder used to make impossible ────────────────────
+        // Each is arranged deliberately, because the generator avoids all three by construction:
+        // it books only free capacity on working days, and pins each cohort to its own site. With
+        // no example seeded, three detectable conflict kinds had nothing to show in the demo.
+
+        var (_, overAbsence) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*)
+            FROM resource_assignments ra
+            JOIN resource_absences ab ON ab.resource_id = ra.resource_id
+            WHERE ra.request_id = ANY(@ids) AND ab.enabled
+              AND ra.start_utc < ab.end_ts AND ab.start_ts < ra.end_utc",
+            ("ids", seededIds));
+        overAbsence.Should().BeGreaterThan(0, "someone is booked over their own holiday");
+
+        var (_, overShutdown) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*)
+            FROM resource_assignments ra
+            JOIN availability_events ev ON ev.event_type = 'shutdown'
+            WHERE ra.request_id = ANY(@ids)
+              AND ra.start_utc < ev.end_ts AND ev.start_ts < ra.end_utc",
+            ("ids", seededIds));
+        overShutdown.Should().BeGreaterThan(0, "one job runs inside a site shutdown");
 
         // Per request with requirements: does ANY assigned resource cover ALL of them? (reqSat).
         var (reqTotal, reqSat) = await TwoLongs(conn, tx, @"
@@ -245,6 +284,10 @@ public class NarrativeYearSeederTests
         sitedReqs.Should().BeGreaterThan(0, "scheduled requests adopt their space's site");
         ((double)crossSiteReqs / sitedReqs).Should().BeLessThan(0.15,
             "cohort people stay at their facility site — only a small deliberate set is cross-site");
+        // And that deliberate set exists: without one, site mismatch is a conflict kind the demo
+        // can detect and never shows. The seeder lends a person to the next site's work on purpose.
+        crossSiteReqs.Should().BeGreaterThan(0,
+            "a couple of jobs are staffed from another site, so site mismatch has an example");
 
         await tx.RollbackAsync();
     }

@@ -24,6 +24,11 @@ public sealed class Education : IProfile
         "Sciences", "Humanities", "Arts", "Engineering", "Administration", "Athletics",
     };
 
+    public IReadOnlyList<string> DepartmentChildPool { get; } = new[]
+    {
+        "Undergraduate", "Postgraduate", "Laboratories", "Library", "Admissions", "Facilities", "Research", "Student Services"
+    };
+
     public IReadOnlyList<string> ResourceGroupPool { get; } = new[]
     {
         "Lecture Halls", "Seminar Rooms", "Wet Labs", "Computer Labs",
