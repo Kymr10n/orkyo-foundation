@@ -30,8 +30,7 @@ public interface IInsightsService
 public class InsightsService(
     OrgContext orgContext,
     IOrgDbConnectionFactory connectionFactory,
-    IConflictService conflictService,
-    IRequestRepository requestRepository,
+    IConflictTimelineProvider conflictTimeline,
     IResourceRepository resourceRepository,
     IResourceTypeService resourceTypeService,
     IResourceAssignmentRepository assignmentRepository,
@@ -49,7 +48,7 @@ public class InsightsService(
     {
         var inWindow = await FetchInWindowFactsAsync(filter.From, filter.To, filter.SiteId, ct);
         var backlog = await FetchBacklogCountAsync(filter.SiteId, ct);
-        var conflicts = await LoadConflictTimelineAsync(filter.From, filter.To, filter.SiteId, ct);
+        var conflicts = await conflictTimeline.GetAsync(filter.From, filter.To, filter.SiteId, ct);
 
         return new InsightsOverview
         {
@@ -73,28 +72,38 @@ public class InsightsService(
     /// The bucket is fixed at "month" because AggregatePercent sums capacity minutes before
     /// dividing, which is granularity-invariant; the choice only affects how the range is chunked.
     ///
-    /// Sequential by necessity, not oversight: these share one scoped org connection, so a
-    /// Task.WhenAll fan-out would use it concurrently. Cost grows with the number of types a tenant
-    /// defines, which is why the caching decorator sits in front of this call.
+    /// One read for every type, not one read per type. The resources of different types are
+    /// disjoint sets, so fetching them all and grouping in memory gives the same answer as asking
+    /// per type — and asks three questions instead of three per type, which on a workspace with
+    /// nine of them was twenty-seven sequential round-trips on one scoped connection.
     /// </summary>
     private async Task<UtilizationSummary> SummarizeUtilizationAsync(
         InsightsFilter filter, CancellationToken ct)
     {
         var types = await resourceTypeService.GetAllAsync(isActive: true, ct: ct);
-        var byType = new List<ResourceTypeUtilization>(types.Count);
+        var buckets = InsightsBuckets.Generate(filter.From, filter.To, "month");
+        if (types.Count == 0 || buckets.Count == 0)
+            return new UtilizationSummary { ByResourceType = [] };
 
-        foreach (var type in types)
+        var data = await LoadUtilizationInputsAsync(
+            resourceTypeKey: null, buckets[0].Start, buckets[^1].End, filter.SiteId, ct);
+
+        var byResourceKey = data.Resources
+            .GroupBy(r => r.ResourceTypeKey)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<ResourceInfo>)g.ToList());
+
+        var byType = types.Select(type =>
         {
-            var series = (await ComputeUtilizationSeriesAsync(
-                type.Key, filter.From, filter.To, "month", filter.SiteId, ct)).Buckets;
-            byType.Add(new ResourceTypeUtilization
+            var resources = byResourceKey.GetValueOrDefault(type.Key, []);
+            var series = Accumulate(resources, buckets, data);
+            return new ResourceTypeUtilization
             {
                 ResourceTypeKey = type.Key,
                 DisplayName = type.DisplayName,
                 DisplayNamePlural = type.DisplayNamePlural,
                 Percent = AggregatePercent(series),
-            });
-        }
+            };
+        }).ToList();
 
         return new UtilizationSummary { ByResourceType = byType };
     }
@@ -139,7 +148,7 @@ public class InsightsService(
         var bucket = filter.Bucket!;
         var buckets = InsightsBuckets.Generate(filter.From, filter.To, bucket);
         var (rangeFrom, rangeTo) = Bounds(buckets, filter);
-        var timeline = await LoadConflictTimelineAsync(rangeFrom, rangeTo, filter.SiteId, ct);
+        var timeline = await conflictTimeline.GetAsync(rangeFrom, rangeTo, filter.SiteId, ct);
 
         var series = buckets.Select(b =>
         {
@@ -169,7 +178,7 @@ public class InsightsService(
         var series = computed.Buckets;
         var rangeFrom = series.Count > 0 ? series[0].Start : filter.From;
         var rangeTo = series.Count > 0 ? series[^1].End : filter.To;
-        var timeline = await LoadConflictTimelineAsync(rangeFrom, rangeTo, filter.SiteId, ct);
+        var timeline = await conflictTimeline.GetAsync(rangeFrom, rangeTo, filter.SiteId, ct);
 
         var points = series.Select(s =>
         {
@@ -262,35 +271,6 @@ public class InsightsService(
 
     // ── Conflicts (from the live conflict service) ────────────────────────────
 
-    private sealed record ConflictPoint(DateTime StartTs, string Kind);
-
-    /// <summary>
-    /// Flattens the live conflict registry into (scheduled-start, kind) points so conflicts can be
-    /// bucketed by when they occur. Joins each conflict's request back to its start_ts/site via the
-    /// scheduled-request set (the conflict registry itself carries no timestamp). Site-filtered here —
-    /// site-neutral requests (no site) are kept under every site.
-    /// </summary>
-    private async Task<List<ConflictPoint>> LoadConflictTimelineAsync(
-        DateTime from, DateTime to, Guid? siteId, CancellationToken ct)
-    {
-        var registry = await conflictService.GetAllAsync(from, to, ct);
-        if (registry.Count == 0) return [];
-
-        var scheduled = (await requestRepository.GetScheduledLiteAsync(from, to, ct))
-            .ToDictionary(r => r.Id);
-
-        var points = new List<ConflictPoint>();
-        foreach (var rc in registry)
-        {
-            if (!scheduled.TryGetValue(rc.RequestId, out var request)) continue;
-            // Exclude only when the request is bound to a *different* site; site-neutral stays in.
-            if (siteId.HasValue && request.SiteId.HasValue && request.SiteId != siteId) continue;
-            foreach (var c in rc.Conflicts)
-                points.Add(new ConflictPoint(request.StartTs, c.Kind));
-        }
-        return points;
-    }
-
     /// <summary>Maps live <c>ConflictInfo.Kind</c> values into the stable analytics categories.</summary>
     private static ConflictCounts CountConflicts(IEnumerable<string> kinds)
     {
@@ -350,40 +330,60 @@ public class InsightsService(
     /// Resource selection (incl. site resolution) and blocked periods reuse the same repositories the
     /// grid uses, so only the metric — not the data sourcing — is bespoke.
     /// </summary>
-    private async Task<UtilSeries> ComputeUtilizationSeriesAsync(
-        string resourceType, DateTime from, DateTime to, string bucket, Guid? siteId, CancellationToken ct)
-    {
-        var buckets = InsightsBuckets.Generate(from, to, bucket);
-        if (buckets.Count == 0) return new UtilSeries([], 0);
-        var rangeFrom = buckets[0].Start;
-        var rangeTo = buckets[^1].End;
+    /// <summary>The rows every utilization figure is computed from, read once for a window.</summary>
+    private sealed record UtilizationInputs(
+        IReadOnlyList<ResourceInfo> Resources,
+        IReadOnlyDictionary<Guid, List<ResourceAssignmentInfo>> AssignmentsByResource,
+        IReadOnlyDictionary<Guid, List<BlockedPeriod>> BlockedByResource);
 
+    /// <summary>
+    /// Loads the resources of one type — or of every type, when <paramref name="resourceTypeKey"/>
+    /// is null — together with their assignments and blocked periods.
+    /// </summary>
+    /// <remarks>
+    /// Three round-trips whatever the size of the answer. The assignments and blocked periods were
+    /// an N+1 per resource once; keeping the bulk reads in one place is what stops that returning.
+    /// </remarks>
+    private async Task<UtilizationInputs> LoadUtilizationInputsAsync(
+        string? resourceTypeKey, DateTime rangeFrom, DateTime rangeTo, Guid? siteId, CancellationToken ct)
+    {
         // Every resource: this feeds a capacity series, where a cut pool reads as lower demand
         // rather than as missing data.
         var resources = await resourceRepository.GetEveryAsync(new ResourceListFilter
         {
             IsActive = true,
-            ResourceTypeKey = resourceType,
+            ResourceTypeKey = resourceTypeKey,
             SiteId = siteId,
             SiteWindowFrom = siteId.HasValue ? rangeFrom : null,
             SiteWindowTo = siteId.HasValue ? rangeTo : null,
         }, ct);
 
-        var cap = new double[buckets.Count];
-        var used = new double[buckets.Count];
-
-        // Bulk-preload assignments + blocked periods for all resources up front (was N+1: two DB
-        // round-trips per resource). The per-bucket math below is unchanged.
         var resourceIds = resources.Select(r => r.Id).ToList();
         var assignmentsByResource = (await assignmentRepository.GetActiveByResourcesAsync(resourceIds, rangeFrom, rangeTo, ct))
             .GroupBy(a => a.ResourceId)
             .ToDictionary(g => g.Key, g => g.ToList());
         var blockedByResource = await availabilityResolver.GetBlockedPeriodsForResourcesAsync(resourceIds, ct);
 
+        return new UtilizationInputs(resources, assignmentsByResource, blockedByResource);
+    }
+
+    /// <summary>
+    /// Sums capacity and occupied minutes per bucket over a set of resources. Pure — the reads
+    /// happened in <see cref="LoadUtilizationInputsAsync"/>, so the trend chart and the overview
+    /// KPI share this arithmetic instead of each carrying a copy of it.
+    /// </summary>
+    private static List<UtilBucket> Accumulate(
+        IReadOnlyList<ResourceInfo> resources,
+        IReadOnlyList<(DateTime Start, DateTime End)> buckets,
+        UtilizationInputs data)
+    {
+        var cap = new double[buckets.Count];
+        var used = new double[buckets.Count];
+
         foreach (var resource in resources)
         {
-            var assignments = assignmentsByResource.GetValueOrDefault(resource.Id, []);
-            var blocked = blockedByResource.GetValueOrDefault(resource.Id, []);
+            var assignments = data.AssignmentsByResource.GetValueOrDefault(resource.Id, []);
+            var blocked = data.BlockedByResource.GetValueOrDefault(resource.Id, []);
 
             for (var i = 0; i < buckets.Count; i++)
             {
@@ -411,7 +411,19 @@ public class InsightsService(
         var result = new List<UtilBucket>(buckets.Count);
         for (var i = 0; i < buckets.Count; i++)
             result.Add(new UtilBucket(buckets[i].Start, buckets[i].End, cap[i], used[i]));
-        return new UtilSeries(result, resources.Count);
+        return result;
+    }
+
+    private async Task<UtilSeries> ComputeUtilizationSeriesAsync(
+        string resourceType, DateTime from, DateTime to, string bucket, Guid? siteId, CancellationToken ct)
+    {
+        var buckets = InsightsBuckets.Generate(from, to, bucket);
+        if (buckets.Count == 0) return new UtilSeries([], 0);
+
+        var data = await LoadUtilizationInputsAsync(
+            resourceType, buckets[0].Start, buckets[^1].End, siteId, ct);
+
+        return new UtilSeries(Accumulate(data.Resources, buckets, data), data.Resources.Count);
     }
 
     private static double OverlapMinutes(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)

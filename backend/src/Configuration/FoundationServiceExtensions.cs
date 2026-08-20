@@ -169,6 +169,15 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISignInAuditRecorder, SignInAuditRecorder>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
+        // The conflict timeline is the same answer for every report on the page — it varies by
+        // window and site, never by resource type — so it is computed behind its own cache and
+        // shared, rather than recomputed inside each report.
+        services.AddScoped<Api.Services.Insights.ConflictTimelineProvider>();
+        services.AddScoped<Api.Services.Insights.IConflictTimelineProvider>(sp =>
+            new Api.Services.Insights.CachingConflictTimelineProvider(
+                sp.GetRequiredService<Api.Services.Insights.ConflictTimelineProvider>(),
+                sp.GetRequiredService<OrgContext>()));
+
         // Insights is wrapped in a short-TTL read-through cache (dashboard hot path).
         services.AddScoped<Api.Services.Insights.InsightsService>();
         services.AddScoped<Api.Services.Insights.IInsightsService>(sp =>

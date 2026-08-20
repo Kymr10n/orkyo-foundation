@@ -89,6 +89,36 @@ public class InsightsEndpointsTests
     }
 
     [Fact]
+    public async Task Overview_AgreesWithTheTrendItSummarizes()
+    {
+        // The overview reports one figure per active type. It used to read resources, assignments
+        // and blocked periods once per type; it now reads them once and groups in memory, which is
+        // only the same answer if a resource counts towards its own type and no other. The trend
+        // endpoint still reads one type at a time, so it is the control: batched and unbatched must
+        // agree, or the grouping is spreading one type's load across the others.
+        var ov = await GetAsync<InsightsOverview>($"/api/insights/overview?from={From}&to={To}");
+
+        ov.Utilization.ByResourceType.Select(u => u.ResourceTypeKey).Should().OnlyHaveUniqueItems();
+
+        foreach (var entry in ov.Utilization.ByResourceType)
+        {
+            var trend = await GetAsync<InsightsUtilization>(
+                $"/api/insights/utilization?from={From}&to={To}&bucket=month&resourceType={entry.ResourceTypeKey}");
+
+            // Both aggregate Σ used / Σ capacity over the same window, so the overview's figure is
+            // the trend's total — granularity-invariant by construction.
+            var totalCap = trend.Series.Sum(p => p.TotalCapacityMinutes);
+            var totalUsed = trend.Series.Sum(p => p.UsedCapacityMinutes);
+            var expected = totalCap > 0
+                ? Math.Round((decimal)totalUsed / totalCap * 100m, 2)
+                : (decimal?)null;
+
+            entry.Percent.Should().BeApproximately(expected, 0.01m,
+                $"the overview figure for '{entry.ResourceTypeKey}' must match its own trend");
+        }
+    }
+
+    [Fact]
     public async Task Conflicts_RangeTooLargeForBucket_Returns400()
     {
         // Weekly bucket caps at ~2 years; 50 years must be rejected.

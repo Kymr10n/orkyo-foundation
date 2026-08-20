@@ -351,6 +351,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // shared test OrgId would leak data between tests. The decorator is covered by its own unit
         // test (CachingInsightsServiceTests); production wiring lives in FoundationServiceExtensions.
         builder.Services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
+        // Uncached here too, for the same reason: an integration test asserting on freshly written
+        // data must not be answered from a 60-second-old timeline.
+        builder.Services.AddScoped<
+            Api.Services.Insights.IConflictTimelineProvider,
+            Api.Services.Insights.ConflictTimelineProvider>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<IUserSessionService, UserSessionService>();
