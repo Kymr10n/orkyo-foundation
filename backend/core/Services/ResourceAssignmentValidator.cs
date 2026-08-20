@@ -81,9 +81,12 @@ public class ResourceAssignmentValidator(
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => (IReadOnlyList<ResourceCapabilityInfo>)g.ToList());
         var siteByResource = await schedulingRepository.GetSiteIdsForResourcesAsync(resourceIds, ct);
+        // Indexed rather than listed: the allocation rule below asks each resource "what overlaps
+        // this window?" once per assignment being validated, and re-reading the whole list each
+        // time is quadratic in a resource's own bookings. See AssignmentOverlapIndex.
         var activeByResource = (await assignmentRepository.GetActiveByResourcesAsync(resourceIds, windowStart, windowEnd, ct))
             .GroupBy(a => a.ResourceId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<ResourceAssignmentInfo>)g.ToList());
+            .ToDictionary(g => g.Key, g => new AssignmentOverlapIndex(g));
 
         // Off-times only apply to sited resources (matches the single path's early-return).
         // Bulk-resolve in one pass over the sited subset (was N+1: ~4 DB round-trips per resource);
@@ -138,16 +141,17 @@ public class ResourceAssignmentValidator(
             }
 
             // Allocation: compute the overlapping set / committed total in memory from the
-            // resource's active assignments, then apply the shared rule.
-            var active = activeByResource.GetValueOrDefault(resource.Id, []);
+            // resource's active assignments, then apply the shared rule. Both modes want the same
+            // set, so it is found once and read differently.
             var mode = request.AllocationMode ?? resource.AllocationMode;
-            var overlapping = mode == AllocationModes.Exclusive
-                ? active.Where(a => Overlaps(a, request) && NotExcluded(a, request)).ToList()
+            var overlapping = activeByResource.TryGetValue(resource.Id, out var index)
+                ? index.Overlapping(request.StartUtc, request.EndUtc, request.ExcludeAssignmentId)
                 : [];
+            var exclusiveOverlaps = mode == AllocationModes.Exclusive ? overlapping : [];
             var fractionalTotal = mode == AllocationModes.Fractional
-                ? active.Where(a => Overlaps(a, request) && NotExcluded(a, request)).Sum(a => a.AllocationPercent ?? 0m)
+                ? overlapping.Sum(a => a.AllocationPercent ?? 0m)
                 : 0m;
-            EvaluateAllocation(request, resource, overlapping, fractionalTotal, blockers);
+            EvaluateAllocation(request, resource, exclusiveOverlaps, fractionalTotal, blockers);
 
             results.Add(Correlated(request, Build(blockers, warnings)));
         }
@@ -291,12 +295,6 @@ public class ResourceAssignmentValidator(
                 });
         }
     }
-
-    private static bool Overlaps(ResourceAssignmentInfo a, ValidateResourceAssignmentRequest request)
-        => a.StartUtc < request.EndUtc && a.EndUtc > request.StartUtc;
-
-    private static bool NotExcluded(ResourceAssignmentInfo a, ValidateResourceAssignmentRequest request)
-        => request.ExcludeAssignmentId is null || a.Id != request.ExcludeAssignmentId;
 
     private static void EvaluateBlockedPeriods(
         ValidateResourceAssignmentRequest request, Guid resourceId,
