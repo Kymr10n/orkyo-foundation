@@ -25,7 +25,6 @@ import {
 import { EnumValueEditor } from './EnumValueEditor';
 import { useCriterionForm } from './useCriterionForm';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
-import { RESOURCE_TYPE_KEY } from '@foundation/src/constants/resource-type-key';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface CriterionEditDialogProps {
@@ -78,9 +77,13 @@ export function CriterionEditDialog({
       description: criterion?.description ?? '',
       unit: criterion?.unit ?? '',
       enumValues: criterion?.enumValues ?? [],
+      // No preselected fallback type: nothing is built in, so an unseeded dialog starts
+      // empty and validation requires an explicit choice.
       resourceTypeKeys: criterion
         ? [...(criterion.resourceTypeKeys ?? [])]
-        : [defaultResourceType ?? RESOURCE_TYPE_KEY.SPACE],
+        : defaultResourceType
+          ? [defaultResourceType]
+          : [],
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [criterion, open, defaultResourceType]);
@@ -162,7 +165,7 @@ export function CriterionEditDialog({
       description={
         criterion
           ? 'Update the criterion details.'
-          : 'Define a new criterion for evaluating spaces and requests.'
+          : 'Define a new criterion for evaluating resources and requests.'
       }
       onSubmit={handleSubmit}
       isSubmitting={isSubmitting}

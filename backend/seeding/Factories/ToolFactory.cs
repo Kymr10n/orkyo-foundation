@@ -15,17 +15,34 @@ public static class ToolFactory
 {
     public sealed record SeededTool(Guid Id, string SiteCode, string Role, string Name, string AllocationMode, double? MaxLoadTons);
 
+    /// <summary>
+    /// The type the seeded tools belong to, defined by the seed itself — `tool` is a catalog
+    /// type since built-ins went away, so a fresh DB has no row to find. Values mirror the
+    /// `tool` entry of ResourceTypeCatalog (backend/core; no project reference from seeding).
+    /// Also used by <see cref="AvailabilityFactory"/>, which runs later and shares the row.
+    /// </summary>
+    public static async Task<Guid> EnsureToolTypeAsync(NpgsqlConnection conn)
+    {
+        var id = Guid.NewGuid();
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO public.resource_types " +
+            "(id, key, display_name, display_name_plural, description, icon, " +
+            " is_system, is_active, created_at, updated_at) " +
+            "VALUES (@id, 'tool', 'Tool', 'Tools', " +
+            "'Mobile equipment: hand tools, forklifts, cranes and the like.', " +
+            "'Wrench', false, true, @now, @now) " +
+            "ON CONFLICT (key) DO UPDATE SET updated_at = EXCLUDED.updated_at " +
+            "RETURNING id", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("now", DateTime.UtcNow);
+        return (Guid)(await cmd.ExecuteScalarAsync())!;
+    }
+
     public static async Task<IReadOnlyList<SeededTool>> SeedAsync(
         NpgsqlConnection conn, IReadOnlyList<Facility> facilities,
         IReadOnlyList<SpaceFactories.SeededSite> sites)
     {
-        Guid toolTypeId;
-        await using (var cmd = new NpgsqlCommand(
-            "SELECT id FROM public.resource_types WHERE key = 'tool' LIMIT 1", conn))
-        {
-            toolTypeId = (Guid?)await cmd.ExecuteScalarAsync()
-                ?? throw new InvalidOperationException("resource_types row with key='tool' not found. Has the tenant DB been migrated?");
-        }
+        var toolTypeId = await EnsureToolTypeAsync(conn);
 
         var now = DateTime.UtcNow;
         var tools = new List<SeededTool>();

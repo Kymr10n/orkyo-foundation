@@ -7,6 +7,8 @@ namespace Api.Repositories;
 public interface IResourceGroupRepository
 {
     Task<List<ResourceGroupInfo>> GetByTypeKeyAsync(string resourceTypeKey, CancellationToken ct = default);
+    /// <summary>The groups of many types in one round trip, by name. Empty input yields an empty list.</summary>
+    Task<List<ResourceGroupInfo>> GetByTypeKeysAsync(IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default);
     Task<ResourceGroupInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<ResourceGroupInfo> CreateAsync(string resourceTypeKey, string name, string? description, int defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default);
     Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default);
@@ -33,6 +35,15 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
         return await conn.QueryListAsync(
             SelectWithCount + "WHERE rt.key = @resourceTypeKey " + GroupBy + "ORDER BY g.name",
             p => p.AddWithValue("resourceTypeKey", resourceTypeKey), MapGroup, ct);
+    }
+
+    public async Task<List<ResourceGroupInfo>> GetByTypeKeysAsync(IReadOnlyList<string> resourceTypeKeys, CancellationToken ct = default)
+    {
+        if (resourceTypeKeys.Count == 0) return [];
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        return await conn.QueryListAsync(
+            SelectWithCount + "WHERE rt.key = ANY(@resourceTypeKeys) " + GroupBy + "ORDER BY g.name",
+            p => p.AddWithValue("resourceTypeKeys", resourceTypeKeys.ToArray()), MapGroup, ct);
     }
 
     public async Task<ResourceGroupInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)

@@ -7,21 +7,24 @@
  * - Error handling and validation
  */
 
+import { useResourceCustomFieldForm } from '@foundation/src/hooks/useResourceCustomFieldForm';
+import { CustomFieldInput } from '@foundation/src/components/resources/CustomFieldInput';
+import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
-import type { Space } from "@foundation/src/types/space";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import { useMemo, useState } from "react";
-import { useUpdateSpace } from "@foundation/src/hooks/useSpaces";
+import { useUpdatePlaceableResource } from "@foundation/src/hooks/usePlaceableResources";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface EditSpaceDialogProps {
-  space: Space;
+  space: ResourceInfo;
   siteId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: (space: Space) => void;
+  onSuccess: (space: ResourceInfo) => void;
 }
 
 export function EditSpaceDialog({
@@ -34,19 +37,36 @@ export function EditSpaceDialog({
   const [name, setName] = useState(space.name);
   const [description, setDescription] = useState(space.description || "");
   const [capacity, setCapacity] = useState(space.capacity ?? 1);
+  const [customFieldValues, setCustomFieldValues] = useState(space.customFields ?? {});
+  // Snapshot of the values as last seeded. Dirtiness compares identity against it, which works
+  // because every edit builds a new object — comparing against `space.customFields ?? {}`
+  // instead would allocate a fresh {} each render and report the form dirty forever.
+  const [customFieldsBaseline, setCustomFieldsBaseline] = useState(customFieldValues);
   const [error, setError] = useState<string | null>(null);
 
-  const updateMutation = useUpdateSpace(siteId);
+  // A placeable resource is a resource, so a tenant can put custom fields on it like any other
+  // type — lists included, whose rows hang off the resource itself. The resource carries its own
+  // type id, so the dialog no longer resolves the space type by key and is correct for any
+  // placeable type.
+  const spaceTypeId = space.resourceTypeId;
+  const customFields = useResourceCustomFieldForm(spaceTypeId, open);
+  const setCustomField = (key: string, value: CustomFieldValue) =>
+    setCustomFieldValues((current) => customFields.withValue(current, key, value));
+
+  const updateMutation = useUpdatePlaceableResource(siteId);
   const isSubmitting = updateMutation.isPending;
 
   // Reseed on open / space swap — a render-phase update, not an effect (see useEntityFormDialog.ts).
-  const [synced, setSynced] = useState<{ open: boolean; space: Space } | null>(null);
+  const [synced, setSynced] = useState<{ open: boolean; space: ResourceInfo } | null>(null);
   if (synced?.open !== open || synced.space !== space) {
     setSynced({ open, space });
     if (open) {
       setName(space.name);
       setDescription(space.description || "");
       setCapacity(space.capacity ?? 1);
+      const seededCustomFields = space.customFields ?? {};
+      setCustomFieldValues(seededCustomFields);
+      setCustomFieldsBaseline(seededCustomFields);
       setError(null);
     }
   }
@@ -55,8 +75,9 @@ export function EditSpaceDialog({
     () =>
       name !== space.name ||
       description !== (space.description || "") ||
-      capacity !== (space.capacity ?? 1),
-    [name, description, capacity, space],
+      capacity !== (space.capacity ?? 1) ||
+      customFieldValues !== customFieldsBaseline,
+    [name, description, capacity, customFieldValues, customFieldsBaseline, space],
   );
 
   const handleSubmit = async () => {
@@ -70,13 +91,14 @@ export function EditSpaceDialog({
     try {
       await updateMutation.mutateAsync({
         resourceId: space.id,
+        // Only what this form edits. The generic update writes the fields the request names and
+        // leaves the rest alone, so re-stating code/isPhysical/geometry would just race a
+        // concurrent move back to its old shape.
         data: {
           name: name.trim(),
-          code: space.code, // Keep existing code
           description: description.trim() || undefined,
-          isPhysical: space.isPhysical,
-          geometry: space.geometry,
           capacity,
+          customFields: customFields.forSave(customFieldValues),
         },
       });
       onSuccess(space); // Just close dialog, cache will update
@@ -99,6 +121,7 @@ export function EditSpaceDialog({
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
         submitLabel="Save Changes"
+        submitDisabled={!customFields.isSatisfied(customFieldValues)}
       >
         {/* Code (read-only) */}
         <div className="space-y-2">
@@ -152,6 +175,22 @@ export function EditSpaceDialog({
             Number of concurrent allocations allowed (e.g., 5 for a hot desk area with 5 desks)
           </p>
         </div>
+
+        {/* Custom fields defined on the space type — the same block the resource and person
+            forms render, so a field behaves identically wherever its type is edited. */}
+        {customFields.fields.length > 0 && (
+          <div className="space-y-4 border-t pt-4">
+            {customFields.fields.map((field) => (
+              <CustomFieldInput
+                key={field.id}
+                field={field}
+                value={customFields.valueOf(field, customFieldValues)}
+                onChange={(value) => setCustomField(field.key, value)}
+                resourceId={space.id}
+              />
+            ))}
+          </div>
+        )}
       </FormDialog>
     </>
   );

@@ -56,7 +56,7 @@ const mockGroups: ResourceGroupInfo[] = [
   },
 ];
 
-function renderList(resourceTypeKey = 'person', initialEntries: string[] = ['/people/teams']) {
+function renderList(resourceTypeKey = 'person', initialEntries: string[] = ['/assets/person/groups']) {
   // Delete feedback flows through the meta-driven MutationCache (matching prod).
   const queryClient: QueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },

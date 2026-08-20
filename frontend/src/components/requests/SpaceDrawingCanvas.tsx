@@ -9,7 +9,7 @@
  */
 
 import { cn } from "@foundation/src/lib/utils";
-import type { Coordinate, DrawingMode, SpaceGeometry } from "@foundation/src/types/space";
+import type { Coordinate, DrawingMode, ResourceGeometry } from "@foundation/src/types/geometry";
 import {
   type MouseEvent as ReactMouseEvent,
   useEffect,
@@ -28,16 +28,20 @@ interface SpaceDrawingCanvasProps {
   /** Current drawing mode */
   drawingMode: DrawingMode;
   /** Callback when drawing is complete */
-  onDrawingComplete: (geometry: SpaceGeometry) => void;
+  onDrawingComplete: (geometry: ResourceGeometry) => void;
   /** Callback when drawing is cancelled */
   onDrawingCancel: () => void;
-  /** Existing spaces to display */
+  /** Existing placeable resources to display. Structurally typed rather than tied to
+   *  ResourceInfo — the canvas draws shapes and needs nothing else. Nullable code/geometry match
+   *  the wire shape, where an absent value is null rather than undefined. */
   existingSpaces?: {
     id: string;
     name: string;
-    code?: string;
-    geometry?: SpaceGeometry;
+    code?: string | null;
+    geometry?: ResourceGeometry | null;
   }[];
+  /** Right-click on a placed shape. Reports the pointer position so the caller can anchor a menu. */
+  onSpaceContextMenu?: (resourceId: string, position: { x: number; y: number }) => void;
   /** When true, spaces are interactive: single-click selects, drag moves, handles resize */
   editEnabled?: boolean;
   /** Selected space ID */
@@ -47,9 +51,9 @@ interface SpaceDrawingCanvasProps {
   /** Callback when a space is double-clicked (open detail dialog; works regardless of editEnabled) */
   onSpaceDoubleClick?: (resourceId: string) => void;
   /** Callback when a space is moved */
-  onSpaceMove?: (resourceId: string, newGeometry: SpaceGeometry) => void;
+  onSpaceMove?: (resourceId: string, newGeometry: ResourceGeometry) => void;
   /** Callback when a space is resized */
-  onSpaceResize?: (resourceId: string, newGeometry: SpaceGeometry) => void;
+  onSpaceResize?: (resourceId: string, newGeometry: ResourceGeometry) => void;
   /** Current zoom level */
   zoom?: number;
   /** Custom colors per space ID - { fill, stroke } */
@@ -60,6 +64,16 @@ interface SpaceDrawingCanvasProps {
   className?: string;
 }
 
+/**
+ * How far the pointer must travel, in screen pixels, before a press on a shape counts as a drag
+ * rather than a click.
+ *
+ * Screen pixels rather than canvas units: canvas units scale with zoom, so the same physical
+ * wobble is a fraction of a unit zoomed in and several units zoomed out. Roughly what a hand
+ * moves while clicking, and well under a deliberate drag.
+ */
+const DRAG_THRESHOLD_PX = 4;
+
 export function SpaceDrawingCanvas({
   floorplanUrl,
   floorplanDimensions,
@@ -67,6 +81,7 @@ export function SpaceDrawingCanvas({
   onDrawingComplete,
   onDrawingCancel,
   existingSpaces = [],
+  onSpaceContextMenu,
   editEnabled = false,
   selectedResourceId,
   onSpaceClick,
@@ -86,12 +101,26 @@ export function SpaceDrawingCanvas({
   const [draggingSpace, setDraggingSpace] = useState<{
     id: string;
     startPos: Coordinate;
-    geometry: SpaceGeometry;
+    geometry: ResourceGeometry;
+  } | null>(null);
+  /**
+   * A press on a shape that has not become a drag yet.
+   *
+   * Pressing used to start the drag outright, which made every click a one-pixel move: the
+   * pointer never holds perfectly still between press and release, and the shape crept each time
+   * someone selected it. A press is only a drag once it travels far enough to mean one — until
+   * then it is a click, and a click only selects.
+   */
+  const [pendingDrag, setPendingDrag] = useState<{
+    id: string;
+    startPos: Coordinate;
+    startScreen: { x: number; y: number };
+    geometry: ResourceGeometry;
   } | null>(null);
   const [resizingSpace, setResizingSpace] = useState<{
     id: string;
     handleIndex: number;
-    geometry: SpaceGeometry;
+    geometry: ResourceGeometry;
   } | null>(null);
   const [baseScale, setBaseScale] = useState<number | null>(null);
   const baseScaleRef = useRef<number | null>(null);
@@ -166,6 +195,26 @@ export function SpaceDrawingCanvas({
   const handleMouseMove = (e: ReactMouseEvent<HTMLDivElement>) => {
     const pos = screenToCanvas(e.clientX, e.clientY);
 
+    // A press becomes a drag here, once it has travelled far enough to be one. Measured on
+    // screen rather than on the canvas: canvas units scale with zoom, so a canvas-space
+    // threshold would be strict when zoomed in and useless when zoomed out.
+    if (pendingDrag && !draggingSpace) {
+      const travelled = Math.hypot(
+        e.clientX - pendingDrag.startScreen.x,
+        e.clientY - pendingDrag.startScreen.y,
+      );
+      if (travelled >= DRAG_THRESHOLD_PX) {
+        setDraggingSpace({
+          id: pendingDrag.id,
+          startPos: pendingDrag.startPos,
+          geometry: pendingDrag.geometry,
+        });
+        setPendingDrag(null);
+        setMousePosition(pos);
+      }
+      return;
+    }
+
     // For resize/drag/draw previews, mousePosition drives the render — just update it.
     if (resizingSpace || draggingSpace || !isPassiveMode) {
       setMousePosition(pos);
@@ -217,9 +266,11 @@ export function SpaceDrawingCanvas({
         if (selectedResourceId !== space.id) onSpaceClick?.(space.id);
         if (onSpaceMove) {
           const pos = screenToCanvas(e.clientX, e.clientY);
-          setDraggingSpace({
+          // Held, not yet moved. handleMouseMove decides whether this becomes a drag.
+          setPendingDrag({
             id: space.id,
             startPos: pos,
+            startScreen: { x: e.clientX, y: e.clientY },
             geometry: space.geometry,
           });
         }
@@ -242,7 +293,7 @@ export function SpaceDrawingCanvas({
         const newCoords = [...resizingSpace.geometry.coordinates];
         newCoords[resizingSpace.handleIndex] = mousePosition;
 
-        const newGeometry: SpaceGeometry = {
+        const newGeometry: ResourceGeometry = {
           type: "rectangle",
           coordinates: newCoords,
         };
@@ -253,12 +304,20 @@ export function SpaceDrawingCanvas({
         const newCoords = [...resizingSpace.geometry.coordinates];
         newCoords[resizingSpace.handleIndex] = mousePosition;
 
-        const newGeometry: SpaceGeometry = {
+        const newGeometry: ResourceGeometry = {
           type: "polygon",
           coordinates: newCoords,
         };
 
         onSpaceResize(resizingSpace.id, newGeometry);
+      } else if (space.geometry.type === "circle") {
+        // Deliberately not the generic `coords[handleIndex] = point` the other two use: writing
+        // the centre through explicitly makes "a resize never moves the centre" a property of the
+        // code rather than a consequence of index 1 happening to be the only handle.
+        onSpaceResize(resizingSpace.id, {
+          type: "circle",
+          coordinates: [resizingSpace.geometry.coordinates[0], mousePosition],
+        });
       }
 
       setResizingSpace(null);
@@ -266,30 +325,34 @@ export function SpaceDrawingCanvas({
       return;
     }
 
+    // A press that never travelled far enough to become a drag: that was a click, and the
+    // selection it made on press is all it does.
+    setPendingDrag(null);
+
     if (draggingSpace && onSpaceMove) {
       const pos = screenToCanvas(e.clientX, e.clientY);
       const deltaX = pos.x - draggingSpace.startPos.x;
       const deltaY = pos.y - draggingSpace.startPos.y;
 
-      // Only save if actually moved
-      if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
-        const newGeometry: SpaceGeometry = {
-          type: draggingSpace.geometry.type,
-          coordinates: draggingSpace.geometry.coordinates.map((coord) => ({
-            x: coord.x + deltaX,
-            y: coord.y + deltaY,
-          })),
-        };
+      // No distance check here any more: crossing DRAG_THRESHOLD_PX is what made this a drag,
+      // and the old canvas-space test would swallow a real drag when zoomed in — the shape had
+      // visibly followed the pointer and then snapped back on release.
+      const newGeometry: ResourceGeometry = {
+        type: draggingSpace.geometry.type,
+        coordinates: draggingSpace.geometry.coordinates.map((coord) => ({
+          x: coord.x + deltaX,
+          y: coord.y + deltaY,
+        })),
+      };
 
-        onSpaceMove(draggingSpace.id, newGeometry);
-      }
-
+      onSpaceMove(draggingSpace.id, newGeometry);
       setDraggingSpace(null);
     }
   };
 
   const handleMouseLeave = () => {
     setMousePosition(null);
+    setPendingDrag(null);
     // Cancel drag if mouse leaves canvas
     if (draggingSpace) {
       setDraggingSpace(null);
@@ -320,11 +383,20 @@ export function SpaceDrawingCanvas({
         setDrawingPoints([point]);
       } else if (drawingPoints.length === 1) {
         // Second point - complete rectangle
-        const geometry: SpaceGeometry = {
+        const geometry: ResourceGeometry = {
           type: "rectangle",
           coordinates: [drawingPoints[0], point],
         };
         onDrawingComplete(geometry);
+        setDrawingPoints([]);
+        setMousePosition(null);
+      }
+    } else if (drawingMode === "circle") {
+      if (drawingPoints.length === 0) {
+        // The centre. The rim follows on the next click, and the radius is the gap.
+        setDrawingPoints([point]);
+      } else if (drawingPoints.length === 1) {
+        onDrawingComplete({ type: "circle", coordinates: [drawingPoints[0], point] });
         setDrawingPoints([]);
         setMousePosition(null);
       }
@@ -333,11 +405,22 @@ export function SpaceDrawingCanvas({
     }
   };
 
+  const handleContextMenu = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onSpaceContextMenu) return;
+    const shape = (e.target as HTMLElement).closest("[data-space-id]");
+    const resourceId = shape?.getAttribute("data-space-id");
+    // Only swallow the browser menu over an actual shape. Suppressing it across the whole
+    // floorplan would take away reload, inspect and back for no gain.
+    if (!resourceId) return;
+    e.preventDefault();
+    onSpaceContextMenu(resourceId, { x: e.clientX, y: e.clientY });
+  };
+
   const handleDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (drawingMode === "polygon" && drawingPoints.length >= 3) {
       e.preventDefault();
       // Complete polygon (don't add the double-click point)
-      const geometry: SpaceGeometry = {
+      const geometry: ResourceGeometry = {
         type: "polygon",
         coordinates: drawingPoints,
       };
@@ -357,7 +440,7 @@ export function SpaceDrawingCanvas({
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key !== "Escape") return;
-    if (drawingMode === "rectangle" || drawingMode === "polygon") {
+    if (drawingMode !== "none") {
       onDrawingCancel();
       setDrawingPoints([]);
       setMousePosition(null);
@@ -410,6 +493,7 @@ export function SpaceDrawingCanvas({
           }}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
           onMouseMove={handleMouseMove}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
@@ -450,7 +534,7 @@ export function SpaceDrawingCanvas({
               const deltaX = mousePosition.x - draggingSpace.startPos.x;
               const deltaY = mousePosition.y - draggingSpace.startPos.y;
 
-              const previewGeometry: SpaceGeometry = {
+              const previewGeometry: ResourceGeometry = {
                 type: draggingSpace.geometry.type,
                 coordinates: draggingSpace.geometry.coordinates.map(
                   (coord) => ({

@@ -157,12 +157,6 @@ public class FoundationServiceExtensionsTests
         services.Should().Contain(sd => IsScoped<IRequestRepository, RequestRepository>(sd));
     }
 
-    [Fact]
-    public void AddFoundationServices_RegistersDepartmentRepository()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IDepartmentRepository, DepartmentRepository>(sd));
-    }
 
     [Fact]
     public void AddFoundationServices_RegistersSchedulingRepository()

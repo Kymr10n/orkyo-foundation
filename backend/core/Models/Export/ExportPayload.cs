@@ -39,6 +39,65 @@ public record ExportData
     /// <see cref="ExportSite.Spaces"/>), which is where they are managed.
     /// </summary>
     public List<ExportResource>? Resources { get; init; }
+
+    /// <summary>
+    /// List definitions with their columns, and the shared instances built from them, rows
+    /// included. Per-resource list rows are NOT here: they belong to one resource each and would
+    /// need the resource identity to round-trip, which is its own piece of work (follow-up
+    /// issue). Lookup values already travel inside <see cref="ExportResource.CustomFields"/> as
+    /// the row ids they are, so a shared list and the picks referencing it export together.
+    /// </summary>
+    public List<ExportListDefinition>? ListDefinitions { get; init; }
+}
+
+/// <summary>A list definition: the reusable shape, its columns, and its shared instances.</summary>
+public record ExportListDefinition
+{
+    public required string Name { get; init; }
+    public string? Description { get; init; }
+    /// <summary>
+    /// Who owns the definition. Carried because names are unique only within a scope since
+    /// migration 1810 — without it an export can hold two definitions called "Consumables" with
+    /// nothing to tell them apart.
+    /// </summary>
+    public required string Scope { get; init; }
+    /// <summary>
+    /// The column that names a row, by key rather than id: an id means nothing in the deployment
+    /// an export is read in, which is the same reason sites are referenced by code.
+    /// </summary>
+    public string? DisplayColumnKey { get; init; }
+    public bool IsActive { get; init; }
+    public required List<ExportListColumn> Columns { get; init; }
+    public required List<ExportListInstance> SharedInstances { get; init; }
+}
+
+public record ExportListColumn
+{
+    public required string Key { get; init; }
+    public required string Label { get; init; }
+    public string? Description { get; init; }
+    public required string DataType { get; init; }
+    /// <summary>Declared options for a `select` column; absent for every other type.</summary>
+    public List<string>? Options { get; init; }
+    public bool IsRequired { get; init; }
+    public int SortOrder { get; init; }
+    public bool IsActive { get; init; }
+}
+
+public record ExportListInstance
+{
+    public required string Name { get; init; }
+    /// <summary>
+    /// Rows carry their id because lookup values reference them by id: dropping it would export
+    /// a selection that names nothing.
+    /// </summary>
+    public required List<ExportListRow> Rows { get; init; }
+}
+
+public record ExportListRow
+{
+    public required Guid Id { get; init; }
+    public required Dictionary<string, JsonElement> Values { get; init; }
 }
 
 /// <summary>
@@ -80,7 +139,7 @@ public record ExportSpace
     public string? Code { get; init; }
     public string? Description { get; init; }
     public required bool IsPhysical { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     /// <summary>Values for the space type's custom fields, keyed by field key.</summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }

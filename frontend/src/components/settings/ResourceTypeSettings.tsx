@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Plus, Pencil, Trash2, ListPlus } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
-import { Badge } from '@foundation/src/components/ui/badge';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -30,20 +29,15 @@ export function ResourceTypeSettings() {
   const [removing, setRemoving] = useState<ResourceTypeInfo | null>(null);
   const [managingFields, setManagingFields] = useState<ResourceTypeInfo | null>(null);
 
-  // Shared by the desktop table cell and the phone card. Custom fields are offered on every
-  // type, built-in ones included: a serial number on a Tool is as ordinary as one on a Car,
-  // even though a system type's own name and behaviour stay locked.
+  // Shared by the desktop table cell and the phone card. Every type is an ordinary tenant
+  // type — nothing is built in — so every row offers the full set of actions.
   const renderActions = (type: ResourceTypeInfo) => (
     <RowActions
       triggerLabel={`Actions for ${type.displayName}`}
       actions={[
         { label: 'Custom fields', icon: ListPlus, onSelect: () => setManagingFields(type) },
-        ...(type.isSystem
-          ? []
-          : [
-              { label: 'Edit', icon: Pencil, onSelect: () => setEditing(type) },
-              { label: 'Remove', icon: Trash2, onSelect: () => setRemoving(type), destructive: true },
-            ]),
+        { label: 'Edit', icon: Pencil, onSelect: () => setEditing(type) },
+        { label: 'Remove', icon: Trash2, onSelect: () => setRemoving(type), destructive: true },
       ]}
     />
   );
@@ -59,7 +53,6 @@ export function ResourceTypeSettings() {
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="font-semibold">{row.original.displayName}</span>
-            {row.original.isSystem && <Badge variant="secondary">Built-in</Badge>}
           </div>
         );
       },
@@ -102,7 +95,6 @@ export function ResourceTypeSettings() {
           <div className="flex items-center gap-2">
             <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
             <span className="font-semibold truncate">{type.displayName}</span>
-            {type.isSystem && <Badge variant="secondary">Built-in</Badge>}
             {!type.isActive && <StatusBadge status="inactive" label="Inactive" />}
           </div>
           <p className="text-sm text-muted-foreground truncate">
@@ -124,7 +116,7 @@ export function ResourceTypeSettings() {
     <div className="space-y-6">
       <SettingsPageHeader
         title="Resource Types"
-        description="The kinds of things your organization manages. Spaces, people, and tools are built in; add your own — cars, cameras, anything — and give each the custom fields it needs."
+        description="The kinds of things your organization manages. Add your own — cars, cameras, anything — and give each the custom fields it needs, or switch on pre-configured manufacturing types under Type catalog."
       >
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />

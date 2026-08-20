@@ -5,6 +5,14 @@ import { MemoryRouter } from 'react-router';
 import { FloorplanView } from './FloorplanView';
 
 vi.mock('@foundation/src/store/app-store', () => ({ useAppStore: vi.fn() }));
+
+// The view registers CSV import/export per placeable type; those queries have their own suites.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({ data: [] }),
+}));
+vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
+  usePlaceableResources: () => ({ data: [] }),
+}));
 vi.mock('./SpaceManagementPanel', () => ({
   SpaceManagementPanel: ({ siteId }: { siteId: string }) => (
     <div data-testid="panel">{`panel:site=${siteId}`}</div>

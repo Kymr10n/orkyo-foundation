@@ -54,7 +54,7 @@ public static class FloorplanCatalog
             new FloorplanRoom("Material Storage",      "MAT",   4,1150, 560, 295, 165, "Fractional"),
         }),
 
-        new FloorplanSite("Production & Packaging", "PPF", "production-packaging.png", 1536, 1024, new[]
+        new FloorplanSite("Assembly & Test", "PPF", "production-packaging.png", 1536, 1024, new[]
         {
             new FloorplanRoom("Office",                "OFC",   4,  44, 100, 206,  76),
             new FloorplanRoom("Conference",            "CONF", 12,  44, 188, 206, 112),

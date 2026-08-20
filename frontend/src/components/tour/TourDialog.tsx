@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Button } from "@foundation/src/components/ui/button";
 import { Badge } from "@foundation/src/components/ui/badge";
@@ -9,6 +9,7 @@ import {
   BarChart3,
   Box,
   Boxes,
+  Building2,
   CheckSquare,
   Compass,
   LayoutDashboard,
@@ -18,9 +19,9 @@ import {
   X,
 } from "lucide-react";
 import { markTourSeen } from "@foundation/src/lib/api/session-api";
-import { ROUTE_SETTINGS } from "@foundation/src/constants/auth";
+import { ROUTE_CONFIGURATION, ROUTE_SETTINGS } from "@foundation/src/constants/auth";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { logger } from "@foundation/src/lib/core/logger";
 
 interface TourStep {
@@ -32,6 +33,8 @@ interface TourStep {
   path?: string;
   /** Editor-only destination (e.g. Settings) — hidden for viewers so the tour never bounces them. */
   requiresEditor?: boolean;
+  /** Administrator-only destination (Configuration) — hidden for everyone else, same reason. */
+  requiresAdmin?: boolean;
 }
 
 const STEPS: TourStep[] = [
@@ -44,11 +47,20 @@ const STEPS: TourStep[] = [
     // No path — opening the tour shouldn't move you until you click Next.
   },
   {
+    icon: Boxes,
+    title: "Your resource types",
+    description: "Decide what this workspace schedules.",
+    detail:
+      "Nothing is built in. Switch on the kinds you run — mills, benches, people, forklifts — from the catalog, or define one nobody thought of. Each type carries its own fields and the lists it needs, and every step after this one works with whatever you chose here.",
+    path: `${ROUTE_CONFIGURATION}/catalog`,
+    requiresAdmin: true,
+  },
+  {
     icon: CheckSquare,
     title: "Criteria",
     description: "Define what properties matter for your resources.",
     detail:
-      "Criteria are the attributes you track per resource — capacity for a space, skills for a person, specs for a tool. Set these up first so you can match the right resources to each request.",
+      "Criteria are the attributes you match on — a capability a resource offers, a requirement a job asks for. Set these up so Orkyo can tell which resources can actually do a piece of work.",
     path: `${ROUTE_SETTINGS}/criteria`,
     requiresEditor: true,
   },
@@ -62,59 +74,61 @@ const STEPS: TourStep[] = [
     requiresEditor: true,
   },
   {
-    icon: Boxes,
-    title: "Groups",
-    description: "Organize resources into logical groups.",
-    detail:
-      "Groups let you cluster resources by site, team, or function. Use them to manage related spaces or people together and keep large catalogues navigable.",
-    path: "/spaces/groups",
-  },
-  {
     icon: Box,
-    title: "Spaces",
-    description: "Manage the spaces you schedule work into.",
+    title: "Stations",
+    description: "Manage the fixed places you schedule work into.",
     detail:
-      "Spaces are one of Orkyo's resource types — a room, lab bench, or any area you schedule. People and tools are resources too. Attach criteria, assign groups, and describe each space's capabilities.",
-    path: "/spaces/list",
+      "A station is a resource with a fixed location — a mill, a cell, an assembly bay. Pick a type from the selector, then work through its tabs: the list, the Groups that cluster them, and the site Floorplan they stand on.",
+    // No type key: the page lands on the first station type this workspace activated, and
+    // any key we could name here is one a tenant may not have.
+    path: "/stations",
   },
   {
     icon: Users,
-    title: "People",
-    description: "Manage the people you schedule.",
+    title: "Assets",
+    description: "Manage the mobile resources you schedule.",
     detail:
-      "People are resources with skills, working availability, and absences. Orkyo matches them to requests and tracks how their time is used — keep their profiles and availability up to date.",
-    path: "/people/list",
+      "An asset moves: a person, a tool, a vehicle. People carry skills, working availability and absences. Groups work the same way here as on stations, clustering by crew or function.",
+    path: "/assets",
+  },
+  {
+    icon: Building2,
+    title: "Organization",
+    description: "The reference data your workspace keeps about itself.",
+    detail:
+      "Departments, job titles and any other shared list you define. Departments form a real tree — each one points at its parent — and people reference these values rather than repeating them.",
+    path: "/organization",
   },
   {
     icon: Package,
     title: "Requests",
     description: "Capture the work that needs scheduling.",
     detail:
-      "A request is a piece of work to place onto your resources, with the criteria it requires. Review and schedule requests here, keeping a clear record of who and what is needed, and when.",
+      "A request is a piece of work with requirements attached. Orkyo matches it against your resources, so you find out what can satisfy it before you commit to a date.",
     path: "/requests",
   },
   {
     icon: AlertTriangle,
     title: "Conflicts",
-    description: "Spot and resolve scheduling problems automatically.",
+    description: "See what does not add up, as it happens.",
     detail:
-      "The Conflicts view surfaces overbooking, criteria mismatches, and availability clashes in real time. Review and resolve them before they cause disruption.",
+      "Overbooked resources, missing capabilities, work booked over someone's absence or a site shutdown. Conflicts surface the moment they are created rather than on the morning the job was due to run.",
     path: "/insights/conflicts",
   },
   {
     icon: LayoutDashboard,
     title: "Utilization",
-    description: "See how spaces and people are used over time.",
+    description: "The board where the plan gets built.",
     detail:
-      "The Utilization view gives you a calendar plus per-space and per-person timelines. Use the date navigator to move through time and quickly spot under-used or over-booked resources.",
+      "One row per resource across time. Drag requests into place, or let auto-scheduling propose placements and tell you what it could not fit and why.",
     path: "/",
   },
   {
     icon: BarChart3,
     title: "Insights",
-    description: "Track utilization, conflicts, and requests at a glance.",
+    description: "How your capacity is actually used.",
     detail:
-      "The Insights dashboard summarises your operation: KPI cards plus utilization, conflict, and request-status trends across a period you choose. A quick health check without leaving the app.",
+      "Utilization per resource type, conflict counts and trends over a period you choose. This is where a chronically overbooked machine or a quiet quarter shows up.",
     path: "/insights/overview",
   },
 ];
@@ -128,12 +142,13 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
   const navigate = useNavigate();
   const { appUser, setAppUser } = useAuth();
   const canEdit = useCanEdit();
+  const isAdmin = useIsTenantAdmin();
 
-  // Viewers can't reach editor-only destinations (Settings is RequireEditor) — drop those steps so
-  // the guided browse never navigates to a page that redirects them away.
+  // Nobody is walked to a page their role bounces them off: Settings is RequireEditor and
+  // Configuration is admin-only, so those steps simply are not part of the tour they get.
   const steps = useMemo(
-    () => STEPS.filter((s) => !s.requiresEditor || canEdit),
-    [canEdit],
+    () => STEPS.filter((s) => (!s.requiresEditor || canEdit) && (!s.requiresAdmin || isAdmin)),
+    [canEdit, isAdmin],
   );
 
   const [step, setStep] = useState(0);
@@ -160,9 +175,25 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
     if (open) setStep(0);
   }
 
-  // Each step navigates to its page so the user browses the app behind the panel.
+  // Each step navigates to its page so the user browses the app behind the panel — once per
+  // step, which the ref is what guarantees.
+  //
+  // Without it the tour fought the router. `navigate` takes a new identity on every pathname
+  // change under BrowserRouter, and a step can point at a route that redirects on arrival:
+  // /stations sends you to the first station type's list. The redirect changed the pathname,
+  // which changed `navigate`, which re-ran this effect, which pushed /stations again — an
+  // endless loop at frame speed, showing the blank half of the redirect each time.
+  const navigatedForStep = useRef<number | null>(null);
   useEffect(() => {
-    if (open && current?.path) navigate(current.path);
+    if (!open) {
+      // Reopening the tour has to navigate again, so forget what this run did.
+      navigatedForStep.current = null;
+      return;
+    }
+    if (current?.path && navigatedForStep.current !== step) {
+      navigatedForStep.current = step;
+      navigate(current.path);
+    }
   }, [open, step, current?.path, navigate]);
 
   // Esc closes (the panel is non-modal, so wire this up ourselves).

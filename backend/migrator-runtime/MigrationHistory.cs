@@ -35,6 +35,10 @@ internal sealed class MigrationHistory
                 success            boolean     NOT NULL DEFAULT true,
                 error_message      text        NULL
             );
+            -- Also added by OrkyoDbUpJournal's upgrade, but that runs later in the pipeline
+            -- than RefreshChecksumAsync, which writes these columns. Both creators must agree.
+            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_checksum text NULL;
+            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_at timestamptz NULL;
             CREATE INDEX IF NOT EXISTS idx_{TableName}_target_database
                 ON {TableName} (target_database);
         ";
@@ -58,29 +62,6 @@ internal sealed class MigrationHistory
                 Checksum: reader.GetString(3));
         }
         return result;
-    }
-
-    public async Task RecordAppliedAsync(
-        MigrationScript script,
-        int executionMs,
-        string? appliedByVersion,
-        NpgsqlTransaction? transaction = null,
-        CancellationToken ct = default)
-    {
-        const string sql = $@"
-            INSERT INTO {TableName}
-                (id, module, target_database, checksum, applied_by_version, execution_ms, success)
-            VALUES
-                (@id, @module, @target, @checksum, @version, @ms, true)
-        ";
-        await using var cmd = new NpgsqlCommand(sql, _connection, transaction);
-        cmd.Parameters.AddWithValue("id", script.Id);
-        cmd.Parameters.AddWithValue("module", script.Module);
-        cmd.Parameters.AddWithValue("target", script.TargetDatabase.ToString());
-        cmd.Parameters.AddWithValue("checksum", script.Checksum);
-        cmd.Parameters.AddWithValue("version", (object?)appliedByVersion ?? DBNull.Value);
-        cmd.Parameters.AddWithValue("ms", executionMs);
-        await cmd.ExecuteNonQueryAsync(ct);
     }
 
     /// <summary>

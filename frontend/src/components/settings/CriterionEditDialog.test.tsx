@@ -111,8 +111,11 @@ describe('CriterionEditDialog', () => {
     });
 
     it('submits form with a display name containing spaces', async () => {
+      const user = userEvent.setup();
       render(<CriterionEditDialog {...defaultProps} />);
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Project Management' } });
+      // Applicability starts empty — the type is an explicit choice now.
+      await user.click(screen.getByLabelText('Space'));
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
@@ -137,9 +140,11 @@ describe('CriterionEditDialog', () => {
     });
 
     it('shows error on mutation failure', async () => {
+      const user = userEvent.setup();
       mockCreateMutateAsync.mockRejectedValueOnce(new Error('Create failed'));
       render(<CriterionEditDialog {...defaultProps} />);
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'valid-name' } });
+      await user.click(screen.getByLabelText('Space'));
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
@@ -162,10 +167,11 @@ describe('CriterionEditDialog', () => {
       expect(screen.getByLabelText('Tool')).toBeInTheDocument();
     });
 
-    it('defaults the Space checkbox to checked', () => {
+    it('starts with no applicability selected — the type is an explicit choice', () => {
       render(<CriterionEditDialog {...defaultProps} />);
-      const spacesCheckbox = screen.getByLabelText('Space');
-      expect(spacesCheckbox).toHaveAttribute('aria-checked', 'true');
+      expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'false');
+      expect(screen.getByLabelText('Tool')).toHaveAttribute('aria-checked', 'false');
     });
 
     it('defaults to defaultResourceType when provided', () => {
@@ -175,10 +181,8 @@ describe('CriterionEditDialog', () => {
     });
 
     it('shows validation error when no applicability is selected', async () => {
-      const user = userEvent.setup();
       render(<CriterionEditDialog {...defaultProps} />);
-      // Uncheck Space (the default)
-      await user.click(screen.getByLabelText('Space'));
+      // Nothing is preselected, so submitting straight away trips the rule.
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'valid-criterion' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
@@ -188,10 +192,12 @@ describe('CriterionEditDialog', () => {
     });
 
     it('calls onSaved with the created criterion and closes the dialog', async () => {
+      const user = userEvent.setup();
       const onSaved = vi.fn();
       const onOpenChange = vi.fn();
       render(<CriterionEditDialog {...defaultProps} onSaved={onSaved} onOpenChange={onOpenChange} />);
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Project Management' } });
+      await user.click(screen.getByLabelText('Space'));
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {

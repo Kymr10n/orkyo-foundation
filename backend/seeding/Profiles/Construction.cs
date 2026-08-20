@@ -24,6 +24,11 @@ public sealed class Construction : IProfile
         "Structural", "Electrical", "Mechanical", "Civil", "Safety", "Logistics",
     };
 
+    public IReadOnlyList<string> DepartmentChildPool { get; } = new[]
+    {
+        "Groundworks", "Structures", "Fit-Out", "Plant", "Surveying", "Safety", "Logistics", "Site Office"
+    };
+
     public IReadOnlyList<string> ResourceGroupPool { get; } = new[]
     {
         "Excavation", "Foundations", "Framing", "MEP", "Finishing", "Crane Zones",

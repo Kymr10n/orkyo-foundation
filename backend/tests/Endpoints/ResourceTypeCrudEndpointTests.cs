@@ -199,19 +199,33 @@ public class ResourceTypeCrudEndpointTests
     }
 
     [Fact]
-    public async Task SystemTypes_CannotBeDeactivatedOrDeleted()
+    public async Task FormerlyBuiltInTypes_CanBeDeactivatedAndReactivated()
     {
-        // Naming is the tenant's (covered by UpdateType_SystemType_RejectsBehaviourChange_…);
-        // existence is not — every built-in page is written against these types.
+        // Nothing is built in any more: person is an ordinary tenant type, so its lifecycle is
+        // the tenant's — this is what the catalog's off-switch relies on. Restored at the end
+        // because the rest of the suite creates person resources.
         var all = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        var space = all!.First(t => t.Key == "space");
+        var person = all!.First(t => t.Key == ResourceTypeKeys.Person);
 
-        var deactivate = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
+        var deactivate = await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
             new UpdateResourceTypeRequest { IsActive = false });
-        Assert.Equal(HttpStatusCode.BadRequest, deactivate.StatusCode);
+        deactivate.EnsureSuccessStatusCode();
+        (await deactivate.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.IsActive.Should().BeFalse();
 
-        var delete = await _client.DeleteAsync($"/api/resource-types/{space.Id}");
-        Assert.Equal(HttpStatusCode.BadRequest, delete.StatusCode);
+        var reactivate = await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
+            new UpdateResourceTypeRequest { IsActive = true });
+        reactivate.EnsureSuccessStatusCode();
+        (await reactivate.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.IsActive.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task NoTypeIsSystem_EveryRowIsAnOrdinaryTenantType()
+    {
+        // 1800 demoted space, 1870 demoted the rest, and the API has never been able to create
+        // a system type — so is_system is false everywhere, always.
+        var all = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
+
+        Assert.All(all!, t => Assert.False(t.IsSystem));
     }
 
     [Fact]
@@ -320,27 +334,33 @@ public class ResourceTypeCrudEndpointTests
     }
 
     [Fact]
-    public async Task UpdateType_SystemType_RejectsBehaviourChange_ButAllowsRenaming()
+    public async Task UpdateType_FormerlyBuiltIn_BehaviourAndNamingAreEditable()
     {
         var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        var space = types!.Single(t => t.Key == ResourceTypeKeys.Space);
+        var person = types!.Single(t => t.Key == ResourceTypeKeys.Person);
 
-        // Behaviour is locked: the product's own Spaces page is built on has_geometry, so a
-        // tenant could break a page they have no way to repair.
-        var behaviour = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { HasGeometry = false });
-        behaviour.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        // Behaviour flags used to be locked on system types; nothing is system any more, so
+        // the tenant owns them. Flipped and restored, because the directory suite depends on
+        // person's flag.
+        var behaviour = await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
+            new UpdateResourceTypeRequest { HasDirectoryProfile = false });
+        behaviour.EnsureSuccessStatusCode();
+        (await behaviour.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.HasDirectoryProfile
+            .Should().BeFalse();
+        var restoreFlag = await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
+            new UpdateResourceTypeRequest { HasDirectoryProfile = true });
+        restoreFlag.EnsureSuccessStatusCode();
 
-        // Naming is theirs — "Space" may be "Room" in their vocabulary.
-        var rename = await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { DisplayName = "Room", DisplayNamePlural = "Rooms" });
+        // Naming was always theirs — "Person" may be "Colleague" in their vocabulary.
+        var rename = await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
+            new UpdateResourceTypeRequest { DisplayName = "Colleague", DisplayNamePlural = "Colleagues" });
         rename.EnsureSuccessStatusCode();
         (await rename.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.DisplayNamePlural
-            .Should().Be("Rooms");
+            .Should().Be("Colleagues");
 
-        // Restore, so the rest of the suite sees the seeded vocabulary.
-        await _client.PutAsJsonAsync($"/api/resource-types/{space.Id}",
-            new UpdateResourceTypeRequest { DisplayName = "Space", DisplayNamePlural = "Spaces" });
+        // Restore, so the rest of the suite sees the classic vocabulary.
+        await _client.PutAsJsonAsync($"/api/resource-types/{person.Id}",
+            new UpdateResourceTypeRequest { DisplayName = "Person", DisplayNamePlural = "People" });
     }
 
     [Fact]

@@ -142,7 +142,9 @@ public class UtilizationService(
         string? resourceTypeKey, DateTime from, DateTime to, string granularity, CancellationToken ct = default)
     {
         var filter = new ResourceListFilter { IsActive = true, ResourceTypeKey = resourceTypeKey };
-        var resources = await resourceRepository.GetAllAsync(filter, ct);
+        // Every resource: a utilization figure over the first 1000 of 1200 is a wrong number,
+        // not a short list, and the response carries nothing that would say it was cut.
+        var resources = await resourceRepository.GetEveryAsync(filter, ct);
 
         if (resources.Count == 0)
             return new UtilizationResponse
@@ -203,7 +205,7 @@ public class UtilizationService(
             SiteWindowFrom = siteId.HasValue ? from : null,
             SiteWindowTo = siteId.HasValue ? to : null,
         };
-        var resources = await resourceRepository.GetAllAsync(filter, ct);
+        var resources = await resourceRepository.GetEveryAsync(filter, ct);
 
         var bucketsById = await ComputeBucketsForResourcesAsync(resources, from, to, granularity, ct);
         return resources.Select(resource => new ResourceUtilizationResponse

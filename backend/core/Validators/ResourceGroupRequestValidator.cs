@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using FluentValidation;
 
@@ -8,9 +9,9 @@ public class CreateResourceGroupRequestValidator : AbstractValidator<CreateResou
     public CreateResourceGroupRequestValidator()
     {
         RuleFor(x => x.ResourceTypeKey).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(255);
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.ResourceGroupNameMaxLength);
         When(x => !string.IsNullOrWhiteSpace(x.Description), () =>
-            RuleFor(x => x.Description!).MaximumLength(1000));
+            RuleFor(x => x.Description!).MaximumLength(DomainLimits.ResourceGroupDescriptionMaxLength));
         RuleFor(x => x.DefaultAvailabilityPercent).InclusiveBetween(0, 100);
         When(x => !string.IsNullOrWhiteSpace(x.Color), () =>
             RuleFor(x => x.Color!)
@@ -26,9 +27,9 @@ public class UpdateResourceGroupRequestValidator : AbstractValidator<UpdateResou
     public UpdateResourceGroupRequestValidator()
     {
         When(x => x.Name != null, () =>
-            RuleFor(x => x.Name!).NotEmpty().MaximumLength(255));
+            RuleFor(x => x.Name!).NotEmpty().MaximumLength(DomainLimits.ResourceGroupNameMaxLength));
         When(x => !string.IsNullOrWhiteSpace(x.Description), () =>
-            RuleFor(x => x.Description!).MaximumLength(1000));
+            RuleFor(x => x.Description!).MaximumLength(DomainLimits.ResourceGroupDescriptionMaxLength));
         When(x => x.DefaultAvailabilityPercent.HasValue, () =>
             RuleFor(x => x.DefaultAvailabilityPercent!.Value).InclusiveBetween(0, 100));
         When(x => !string.IsNullOrWhiteSpace(x.Color), () =>

@@ -58,11 +58,11 @@ describe('AboutPage', () => {
 
   it('displays current features list', () => {
     renderAboutPage();
-    expect(screen.getByText(/Spaces —/)).toBeInTheDocument();
+    expect(screen.getByText(/Stations —/)).toBeInTheDocument();
     expect(screen.getByText(/Utilization —/)).toBeInTheDocument();
     expect(screen.getByText(/Requests —/)).toBeInTheDocument();
     expect(screen.getByText(/Conflict detection —/)).toBeInTheDocument();
-    expect(screen.getByText(/People —/)).toBeInTheDocument();
+    expect(screen.getByText(/Assets —/)).toBeInTheDocument();
     expect(screen.getByText(/Reporting —/)).toBeInTheDocument();
   });
 

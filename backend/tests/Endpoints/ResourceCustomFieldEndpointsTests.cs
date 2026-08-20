@@ -27,13 +27,14 @@ public class ResourceCustomFieldEndpointsTests
 
     private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
-    private async Task<ResourceTypeInfo> CreateTypeAsync()
+    private async Task<ResourceTypeInfo> CreateTypeAsync(bool hasGeometry = false)
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
             Key = UniqueKey("machine"),
             DisplayName = "Machine",
             DisplayNamePlural = "Machines",
+            HasGeometry = hasGeometry,
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
@@ -385,13 +386,6 @@ public class ResourceCustomFieldEndpointsTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
-    /// <summary>The seeded space type — the one type created from a form that cannot carry values.</summary>
-    private async Task<ResourceTypeInfo> SpaceTypeAsync()
-    {
-        var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
-        return types!.Single(t => t is { IsSystem: true, HasGeometry: true });
-    }
-
     [Fact]
     public async Task CreateCustomField_AllowsRequiredOnATenantDefinedPlaceableType()
     {
@@ -421,14 +415,19 @@ public class ResourceCustomFieldEndpointsTests
     }
 
     [Fact]
-    public async Task CreateCustomField_RejectsRequiredOnTheBuiltInSpaceType()
+    public async Task CreateCustomField_AllowsRequiredOnAPlaceableType()
     {
-        // POST /api/sites/{id}/spaces carries no custom-field document, so a required field
-        // there would make every space uncreatable. Optional stays fine.
-        var space = await SpaceTypeAsync();
+        // A required field on a placeable type used to be rejected outright: the floorplan's
+        // create dialog sent no custom-field document, so the only path that creates a placed
+        // resource could never satisfy one. The dialog asks now, and the guard is gone.
+        //
+        // Deliberately on a throwaway type rather than the shared `space` one: these tests commit,
+        // and a required field left on a type other suites create bare resources of would fail
+        // every one of them. That cascade is exactly what the old guard's comment described.
+        var placeable = await CreateTypeAsync(hasGeometry: true);
 
-        var required = await _client.PostAsJsonAsync(
-            $"/api/resource-types/{space.Id}/custom-fields",
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-types/{placeable.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
             {
                 Key = UniqueKey("floor_finish"),
@@ -436,30 +435,8 @@ public class ResourceCustomFieldEndpointsTests
                 DataType = CustomFieldDataTypes.Text,
                 IsRequired = true,
             });
-        Assert.Equal(HttpStatusCode.BadRequest, required.StatusCode);
 
-        var optional = await _client.PostAsJsonAsync(
-            $"/api/resource-types/{space.Id}/custom-fields",
-            new CreateResourceCustomFieldRequest
-            {
-                Key = UniqueKey("floor_finish"),
-                Label = "Floor finish",
-                DataType = CustomFieldDataTypes.Text,
-            });
-        Assert.Equal(HttpStatusCode.Created, optional.StatusCode);
-    }
-
-    [Fact]
-    public async Task UpdateCustomField_RejectsMakingASpaceFieldRequired()
-    {
-        var space = await SpaceTypeAsync();
-        var field = await CreateFieldAsync(space.Id, UniqueKey("floor_finish"));
-
-        var response = await _client.PutAsJsonAsync(
-            $"/api/resource-types/{space.Id}/custom-fields/{field.Id}",
-            new UpdateResourceCustomFieldRequest { IsRequired = true });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     // ── authorization ─────────────────────────────────────────────────────────

@@ -17,7 +17,6 @@ public class NpgsqlQueryExtensionsAllowlistTests
     [InlineData("users")]
     [InlineData("tenants")]
     [InlineData("announcements")]
-    [InlineData("presets")]
     [InlineData("templates")]
     public async Task ExistsAsync_AllowedTable_DoesNotThrow(string table)
     {
@@ -35,6 +34,7 @@ public class NpgsqlQueryExtensionsAllowlistTests
     [InlineData("users; DROP TABLE sites;--")]
     [InlineData("")]
     [InlineData("SITES")] // case-sensitive
+    [InlineData("presets")] // no such table; removed from the allowlist
     public async Task ExistsAsync_DisallowedTable_ThrowsArgumentException(string table)
     {
         var ex = await Assert.ThrowsAsync<ArgumentException>(

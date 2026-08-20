@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  exportSpaces,
-  importSpaces,
+  exportResources,
+  importResources,
+  type ResourceExportRow,
   exportRequests,
   importRequests,
   exportConflicts,
@@ -18,11 +19,13 @@ import {
 } from './export-handlers';
 import { getResources } from '@foundation/src/lib/api/resources-api';
 import { exportGanttChartToPDF } from './gantt-pdf-export';
-import type { Space } from '@foundation/src/types/space';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+
+// Placement is resolved against the placeable type set now, not the literal 'space' key.
+const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
 
 // Mock downloadFile
 let mockDownloadFile = vi.fn();
@@ -59,93 +62,104 @@ describe('Export Handlers', () => {
     mockDownloadFile = vi.fn();
   });
 
-  describe('exportSpaces', () => {
-    const mockSpaces: Space[] = [
-      {
-        id: '1',
-        siteId: 'site1',
-        name: 'Room A',
-        isPhysical: true,
-        capacity: 1,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
+  describe('placement columns on the generic transfer', () => {
+    // Placement used to have its own spaces-only exporter. It rides the generic one now, so
+    // these pin what that exporter must keep doing — including the round-trip, which the old
+    // spaces path never had (its JSON export was a no-op).
+    const placeable: ResourceExportRow = {
+      id: '1',
+      resourceTypeId: 'type-space',
+      resourceTypeKey: 'space',
+      name: 'Room A',
+      allocationMode: 'Exclusive',
+      baseAvailabilityPercent: 100,
+      isActive: true,
+      homeSiteId: 'site1',
+      crossSiteAllowed: false,
+      code: 'RM-A',
+      isPhysical: true,
+      capacity: 4,
+      geometry: {
+        type: 'rectangle',
+        coordinates: [{ x: 10, y: 20 }, { x: 30, y: 40 }],
       },
-      {
-        id: '2',
-        siteId: 'site1',
-        name: 'Room B',
-        isPhysical: true,
-        capacity: 1,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      },
-    ];
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    };
 
-    it('should export spaces as CSV', async () => {
-      await exportSpaces(mockSpaces, 'csv');
+    it('writes a shape as two legible columns, not a blob', async () => {
+      await exportResources([placeable], 'csv', 'space');
 
-      expect(mockDownloadFile).toHaveBeenCalledTimes(1);
-      const [content, filename, mimetype] = mockDownloadFile.mock.calls[0];
-      expect(content).toContain('Room A');
-      expect(content).toContain('Room B');
-      expect(filename).toMatch(/spaces-.*\.csv$/);
-      expect(mimetype).toBe('text/csv');
+      const [content] = mockDownloadFile.mock.calls[0];
+      expect(content).toContain('geometry_type');
+      expect(content).toContain('rectangle');
+      expect(content).toContain('coordinates');
+      // The failure this guards: an object dropped into a CSV cell verbatim.
+      expect(content).not.toContain('[object Object]');
     });
 
-    it('should export spaces as JSON', async () => {
-      // JSON export is not implemented for spaces in the current version
-      await exportSpaces(mockSpaces, 'json');
+    it('leaves placement columns out for a resource that has none', async () => {
+      const person: ResourceExportRow = {
+        ...placeable,
+        resourceTypeKey: 'person',
+        isPhysical: false,
+        geometry: undefined,
+        code: null,
+      };
+      await exportResources([person], 'csv', 'person');
 
-      // Since JSON export isn't implemented, it won't call downloadFile
-      expect(mockDownloadFile).toHaveBeenCalledTimes(0);
+      const [content] = mockDownloadFile.mock.calls[0];
+      expect(content).not.toContain('geometry_type');
+      expect(content).not.toContain('coordinates');
     });
 
-    it('should include siteId in filename when provided', async () => {
-      await exportSpaces(mockSpaces, 'csv', 'site-123');
+    it('round-trips a drawn shape through export and import', async () => {
+      await exportResources([placeable], 'csv', 'space');
+      const [content] = mockDownloadFile.mock.calls[0];
+      const file = createMockFile(content as string, 'stations.csv', 'text/csv');
 
-      expect(mockDownloadFile).toHaveBeenCalledTimes(1);
-      const [, filename] = mockDownloadFile.mock.calls[0];
-      // Note: Current implementation doesn't use siteId in filename for exportSpaces
-      expect(filename).toMatch(/spaces-.*\.csv$/);
-    });
-  });
+      const rows = await importResources(file, 'csv', 'space');
 
-  describe('importSpaces', () => {
-    it('should import spaces from CSV', async () => {
-      const csvContent = 'id,name,site_id,is_physical\n1,Room A,site1,true\n2,Room B,site1,false';
-      const file = createMockFile(csvContent, 'spaces.csv', 'text/csv');
-
-      const result = await importSpaces(file, 'csv');
-
-      expect(result).toHaveLength(2);
-      expect(result[0]).toMatchObject({
+      expect(rows).toHaveLength(1);
+      expect(rows[0].request).toMatchObject({
+        resourceTypeKey: 'space',
         name: 'Room A',
+        code: 'RM-A',
+        isPhysical: true,
+        capacity: 4,
+        geometry: { type: 'rectangle', coordinates: [{ x: 10, y: 20 }, { x: 30, y: 40 }] },
       });
     });
 
-    it('should import spaces from JSON', async () => {
-      // JSON import returns empty array when not implemented
-      const jsonContent = JSON.stringify({
-        data: [
-          { id: '1', name: 'Room A', siteId: 'site1', isPhysical: true },
-          { id: '2', name: 'Room B', siteId: 'site1', isPhysical: false },
-        ]
+    it('round-trips a circle, centre and rim intact', async () => {
+      // The exporter writes whatever shape type it is given, so this pins that a circle survives
+      // the trip rather than being flattened into the two-point form a rectangle also uses.
+      await exportResources(
+        [{ ...placeable, geometry: { type: 'circle', coordinates: [{ x: 200, y: 200 }, { x: 250, y: 200 }] } }],
+        'csv',
+        'space',
+      );
+      const [content] = mockDownloadFile.mock.calls[0];
+      const file = createMockFile(content as string, 'stations.csv', 'text/csv');
+
+      const rows = await importResources(file, 'csv', 'space');
+
+      expect(rows[0].request.geometry).toEqual({
+        type: 'circle',
+        coordinates: [{ x: 200, y: 200 }, { x: 250, y: 200 }],
       });
-      const file = createMockFile(jsonContent, 'spaces.json', 'application/json');
-
-      const result = await importSpaces(file, 'json');
-
-      // JSON import not implemented for spaces - returns empty array
-      expect(result).toEqual([]);
     });
 
-    it('should return empty array for unsupported format', async () => {
-      const file = createMockFile('invalid', 'spaces.txt', 'text/plain');
+    it('drops a shape it cannot parse rather than guessing at one', async () => {
+      // A resource placed at coordinates nobody drew is worse than one the server rejects by
+      // name for being physical with no geometry.
+      const csv = 'name,is_physical,geometry_type,coordinates\nBroken,true,rectangle,"not json"';
+      const file = createMockFile(csv, 'stations.csv', 'text/csv');
 
-      const result = await importSpaces(file, 'pdf' as any);
+      const rows = await importResources(file, 'csv', 'space');
 
-      // Returns empty array for unsupported formats
-      expect(result).toEqual([]);
+      expect(rows[0].request.geometry).toBeUndefined();
+      expect(rows[0].request.isPhysical).toBe(true);
     });
   });
 
@@ -180,7 +194,7 @@ describe('Export Handlers', () => {
     ];
 
     it('should export requests as CSV', async () => {
-      await exportRequests(mockRequests, 'csv');
+      await exportRequests(mockRequests, 'csv', PLACEABLE_KEYS);
 
       expect(mockDownloadFile).toHaveBeenCalledTimes(1);
       const [content, filename] = mockDownloadFile.mock.calls[0];
@@ -191,7 +205,7 @@ describe('Export Handlers', () => {
 
     it('should export requests as JSON', async () => {
       // JSON export not implemented for requests
-      await exportRequests(mockRequests, 'json');
+      await exportRequests(mockRequests, 'json', PLACEABLE_KEYS);
 
       expect(mockDownloadFile).toHaveBeenCalledTimes(0);
     });
@@ -512,28 +526,27 @@ describe('Export Handlers', () => {
     it('should handle empty files gracefully', async () => {
       const file = createMockFile('', 'empty.csv', 'text/csv');
 
-      const result = await importSpaces(file, 'csv');
+      const result = await importResources(file, 'csv', 'space');
 
       expect(result).toEqual([]);
     });
 
-    it('should handle malformed CSV with property conversion', async () => {
-      const csvContent = 'name,isPhysical\nRoom A,invalid'; // Invalid boolean
-      const file = createMockFile(csvContent, 'spaces.csv', 'text/csv');
+    it('reads an unparseable boolean as not-physical rather than failing the row', async () => {
+      // The row still names a resource, so it is offered to the server; only the flag is lost.
+      const csvContent = 'name,is_physical\nRoom A,invalid';
+      const file = createMockFile(csvContent, 'stations.csv', 'text/csv');
 
-      const result = await importSpaces(file, 'csv');
+      const result = await importResources(file, 'csv', 'space');
 
       expect(result).toHaveLength(1);
-      // Invalid boolean becomes string 'invalid' which is truthy
-      expect(result[0].name).toBe('Room A');
+      expect(result[0].request.name).toBe('Room A');
+      expect(result[0].request.isPhysical).toBe(false);
     });
 
     it('should handle malformed JSON gracefully', async () => {
-      const file = createMockFile('{ invalid json }', 'spaces.json', 'application/json');
+      const file = createMockFile('{ invalid json }', 'stations.json', 'application/json');
 
-      // JSON import for spaces just returns empty array (not implemented)
-      const result = await importSpaces(file, 'json');
-      expect(result).toEqual([]);
+      await expect(importResources(file, 'json', 'space')).rejects.toThrow();
     });
   });
 

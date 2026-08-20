@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { exportRequests, importRequests } from './export-handlers';
 import type { Request } from '@foundation/src/types/requests';
 
+// Placement is resolved against the placeable type set now, not the literal 'space' key.
+const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
+
 const downloaded: { content: string; filename: string }[] = [];
 vi.mock('./import-export', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -43,7 +46,7 @@ beforeEach(() => {
 
 describe('requests export → import round-trip', () => {
   it('re-imports its own export as a valid camelCase create payload', async () => {
-    await exportRequests([makeRequest()], 'csv');
+    await exportRequests([makeRequest()], 'csv', PLACEABLE_KEYS);
     const payloads = await importRequests(fileOf(downloaded[0].content), 'csv');
 
     expect(payloads).toHaveLength(1);
@@ -88,7 +91,7 @@ describe('requests export → import round-trip', () => {
   });
 
   it('omits resourceIds when the export had no space assignment', async () => {
-    await exportRequests([makeRequest({ assignments: [] } as Partial<Request>)], 'csv');
+    await exportRequests([makeRequest({ assignments: [] } as Partial<Request>)], 'csv', PLACEABLE_KEYS);
     const payloads = await importRequests(fileOf(downloaded[0].content), 'csv');
 
     expect(payloads[0].resourceIds).toBeUndefined();

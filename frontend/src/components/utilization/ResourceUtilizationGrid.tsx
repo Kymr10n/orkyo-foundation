@@ -7,7 +7,6 @@ import {
   getUtilizationByResource,
   type ResourceUtilizationBucket,
 } from '@foundation/src/lib/api/resource-utilization-api';
-import { getPersonJobTitles } from '@foundation/src/lib/api/person-profiles-api';
 import {
   getResourceGroups,
   getResourceGroupMembers,
@@ -19,6 +18,7 @@ import {
   type ResourceAssignmentInfo,
   type ValidateResourceAssignmentRequest,
 } from '@foundation/src/lib/api/resource-assignments-api';
+import { useLookupFieldLabels } from '@foundation/src/hooks/useLookupFieldLabels';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import {
   mergeBucketsToSegments,
@@ -26,11 +26,14 @@ import {
 } from '@foundation/src/domain/scheduling/utilization-segments';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
-import { Input } from '@foundation/src/components/ui/input';
 import { ResourceTimelineRow } from './ResourceTimelineRow';
 import { ResourceAssignmentDialog } from './ResourceAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
-import { type BucketStatus, STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
+import {
+  UTILIZATION_FILTER_ORDER,
+  filterResourceRows,
+  type ResourceGridFilter,
+} from './resource-grid-filter';
 import { groupRowsByResourceGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
@@ -41,34 +44,28 @@ import {
 } from './time-grid-utils';
 import { enrichColumnsWithOffTime } from './time-grid-offtime';
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
 export interface ResourceUtilizationGridProps {
   /** The resource type whose rows this grid shows. Every query is scoped to its key. */
   resourceType: ResourceTypeInfo;
   anchorTs: Date;
   scale: TimeScale;
   /**
-   * Site-level non-working ranges (availability events + weekends). Any
-   * bucket overlapping one of these is rendered as “Off”, mirroring the
-   * Spaces grid's off-time cell-tint behaviour. `resourceIds === null` means
-   * the range applies to every resource (site-wide). When non-null, only
-   * those resources are affected.
+   * Site-level non-working ranges (availability events + weekends). Any bucket overlapping one of
+   * these is rendered as "Off", mirroring the stations grid's off-time cell-tint behaviour.
+   * `resourceIds === null` means the range applies to every resource (site-wide).
    */
   offTimeRanges?: readonly OffTimeRange[];
-  /** When true, weekend columns are highlighted to match the Spaces grid. */
   weekendsEnabled?: boolean;
-  /**
-   * Selected site. When set, rows are limited to resources homed at the site or assigned there
-   * during the visible window (server-filtered via the utilization query). Null = no filter.
-   */
   siteId?: string | null;
+  /**
+   * Search and utilization-state filter. Owned by the Assets tab rather than by this grid: the tab
+   * stacks one grid per selected type, and a search box per stack entry would ask the reader which
+   * of three identical boxes to type in — and could only ever be labelled after one type.
+   */
+  filter: ResourceGridFilter;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
 const EMPTY_SET: ReadonlySet<string> = new Set();
-
 const EMPTY_UTILIZATION: { segments: ResourceUtilizationSegment[]; overallPct: number } = {
   segments: [],
   overallPct: 0,
@@ -104,17 +101,6 @@ function overallPercent(
   );
 }
 
-// ── Legend dot ───────────────────────────────────────────────────────────────
-
-function LegendDot({ status, label, title }: { status: BucketStatus; label: string; title?: string }) {
-  return (
-    <span className="flex items-center gap-1" title={title}>
-      <span className={`inline-block h-2.5 w-4 rounded-sm border ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${STATUS_PATTERN_CLASS[status]}`} />
-      {label}
-    </span>
-  );
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface DialogState {
@@ -125,16 +111,17 @@ interface DialogState {
   end: string;
 }
 
-export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId }: ResourceUtilizationGridProps) {
+/** The lookup whose label names a row. Seeded on the person type by migration 1820. */
+const JOB_TITLE_KEYS = ['job_title'] as const;
+
+export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId, filter }: ResourceUtilizationGridProps) {
   const typeKey = resourceType.key;
-  // The column header names one row, so it stays singular; everything else here names the
-  // collection and uses the plural the type carries.
-  const typeLabel = resourceType.displayName;
+  // Everything here names the collection and uses the plural the type carries; the row-label
+  // column heads "Name", because the tab and the rows already say what kind of thing these are.
   const typeNoun = resourceType.displayNamePlural.toLowerCase();
-  const [search, setSearch] = useState('');
-  // Defer the filter so typing stays responsive — the input echoes `search`
-  // immediately while the (heavier) row regrouping trails by a render.
-  const deferredSearch = useDeferredValue(search);
+  // Defer the filter so typing stays responsive — the toolbar echoes the query immediately while
+  // the (heavier) row regrouping trails by a render.
+  const deferredFilter = useDeferredValue(filter);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
 
   const columns = useMemo(
@@ -196,24 +183,21 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
     [siteId, allResources, bucketsByResource],
   );
 
-  // 5. Job-title labels in one request — replaces the old one-query-per-resource fan-out (which also
-  //    swallowed every failure with `.catch(() => null)`). Fetches only the label the grid renders,
-  //    not the full profile; failures surface via `jobTitlesError` instead of disappearing silently.
-  //    A job title is a directory-profile concept, so only types declaring one have it; every
-  //    other type falls back to its description below and never issues this request.
-  const resourceIds = useMemo(() => resources.map((r) => r.id), [resources]);
+  // 5. Job-title labels. A job title is a directory-profile concept, so only types declaring one
+  //    have it; every other type falls back to its description below and issues no request.
   const showsJobTitles = resourceType.hasDirectoryProfile;
-  const { data: jobTitles = [], isError: jobTitlesError } = useQuery({
-    queryKey: qk.personJobTitles.byIds(resourceIds),
-    queryFn: () => getPersonJobTitles(resourceIds),
-    enabled: showsJobTitles && resourceIds.length > 0,
-    staleTime: 5 * 60_000,
-  });
+  // The job title is an organization list lookup since 1820, so it resolves from the resource's
+  // own custom fields rather than from a person-shaped endpoint.
+  const lookupLabels = useLookupFieldLabels(
+    showsJobTitles ? resourceType.id : undefined,
+    resources,
+    JOB_TITLE_KEYS,
+  );
   const jobTitleByResource = useMemo(() => {
     const map = new Map<string, string | undefined>();
-    for (const j of jobTitles) map.set(j.resourceId, j.jobTitleName);
+    for (const r of resources) map.set(r.id, lookupLabels[r.id]?.job_title);
     return map;
-  }, [jobTitles]);
+  }, [resources, lookupLabels]);
 
   // 6. Assignments for every resource in the window, in one request — drives the
   //    per-segment count badge. Grouped into a resourceId→assignments map.
@@ -301,20 +285,6 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
     return map;
   }, [groups, memberQueries]);
 
-  // Build groups → resources mapping. Groups sorted by displayOrder, empty groups
-  // kept (includeEmpty: true) so users see their structure, ungrouped last.
-  const shellGroups: ShellGroup<ResourceInfo>[] = useMemo(() => {
-    const filtered = resources.filter((p) =>
-      p.name.toLowerCase().includes(deferredSearch.toLowerCase()),
-    );
-    return groupRowsByResourceGroup(
-      filtered,
-      groups,
-      (p) => groupIdsByResource.get(p.id) ?? [],
-      { includeEmpty: true },
-    );
-  }, [resources, groups, groupIdsByResource, deferredSearch]);
-
   // Precompute each resource's merged segments + overall percentage once per
   // bucket/off-time change, instead of re-deriving both inside every row's
   // render pass (renderRow runs for every visible row on any grid re-render).
@@ -328,6 +298,24 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
     }
     return map;
   }, [bucketsByResource, offTimes]);
+
+
+  // Build groups → resources mapping. Groups sorted by displayOrder, empty groups
+  // kept (includeEmpty: true) so users see their structure, ungrouped last.
+  const shellGroups: ShellGroup<ResourceInfo>[] = useMemo(() => {
+    const filtered = filterResourceRows(
+      resources,
+      deferredFilter,
+      (id) => utilizationByResourceId.get(id)?.segments ?? EMPTY_UTILIZATION.segments,
+    );
+    return groupRowsByResourceGroup(
+      filtered,
+      groups,
+      (p) => groupIdsByResource.get(p.id) ?? [],
+      { includeEmpty: true },
+    );
+  }, [resources, groups, groupIdsByResource, deferredFilter, utilizationByResourceId]);
+
 
   const handleSegmentClick = useCallback(
     (p: ResourceInfo, seg: ResourceUtilizationSegment) =>
@@ -357,7 +345,7 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
 
   // Surface load failures explicitly instead of swallowing them (a silent empty/stuck grid was
   // the confusing part). Covers the grid's data: resources, utilization, assignments and profiles.
-  if (resourcesError || utilizationError || assignmentsError || jobTitlesError) {
+  if (resourcesError || utilizationError || assignmentsError) {
     return (
       <div
         role="alert"
@@ -383,30 +371,24 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
     );
   }
 
-  const toolbar = (
-    <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <LegendDot status="available"    label="Available" />
-        <LegendDot status="partial"      label="Booked" title="Booked % = share of this period the resource is allocated (time-weighted)." />
-        <LegendDot status="assigned"     label="Assigned" />
-        <LegendDot status="overbooked"   label="Overbooked" title="Allocated beyond capacity (>100%) in this period." />
-        <LegendDot status="non-working"  label="Off" />
-      </div>
-      <Input
-        type="search"
-        placeholder={`Search ${typeNoun}…`}
-        aria-label={`Search ${typeNoun}`}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="h-8 w-48"
-      />
+  const isFiltered =
+    filter.query.trim().length > 0 || filter.states.length !== UTILIZATION_FILTER_ORDER.length;
+  const matchCount = shellGroups.reduce((total, group) => total + group.rows.length, 0);
+
+  // Only the match count remains local: the tab owns one search and one filter for every stacked
+  // type, but "3 of 12" is a fact about this grid and belongs over its own rows.
+  const toolbar = isFiltered ? (
+    <div className="px-4 py-1.5 border-b bg-card text-xs text-muted-foreground shrink-0">
+      <span role="status">
+        {matchCount} of {resources.length} {typeNoun}
+      </span>
     </div>
-  );
+  ) : undefined;
 
   return (
     <>
       <TimelineGridShell<ResourceInfo>
-        labelHeader={typeLabel}
+        labelHeader="Name"
         columns={columns}
         scale={scale}
         groups={shellGroups}
@@ -414,7 +396,6 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
         getRowId={(p) => p.id}
         emptyMessage={`No ${typeNoun} match your search.`}
         toolbar={toolbar}
-        className="h-full flex flex-col overflow-hidden rounded-xl border bg-background"
         testId={`${typeKey}-utilization-grid`}
         renderRow={(resource) => {
           const { segments, overallPct } =

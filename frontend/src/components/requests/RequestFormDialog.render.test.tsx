@@ -27,7 +27,7 @@ const apiMocks = vi.hoisted(() => ({
   getTemplates: vi.fn(() => Promise.resolve([] as unknown[])),
   getResourceTypes: vi.fn(() =>
     Promise.resolve([
-      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true, hasGeometry: true },
     ] as unknown[]),
   ),
   getResources: vi.fn((_filter?: { resourceTypeKey?: string }) =>
@@ -289,7 +289,7 @@ beforeEach(() => {
   apiMocks.getRequestChildren.mockResolvedValue([]);
   apiMocks.getTemplates.mockResolvedValue([]);
   apiMocks.getResourceTypes.mockResolvedValue([
-    { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+    { key: "space", displayName: "Space", icon: "Building2", isActive: true, hasGeometry: true },
   ]);
   apiMocks.getResources.mockResolvedValue({ data: [] });
   apiMocks.createRequest.mockResolvedValue({});
@@ -564,7 +564,7 @@ describe("RequestFormDialog", () => {
 
   it("renders one picker per targeted resource type", async () => {
     apiMocks.getResourceTypes.mockResolvedValue([
-      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true, hasGeometry: true },
       { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
     ]);
     renderDialog({
@@ -583,7 +583,7 @@ describe("RequestFormDialog", () => {
     // The property this contract exists for: picks for several types go out together, so a
     // failure cannot leave the request holding a room but not the van it also needs.
     apiMocks.getResourceTypes.mockResolvedValue([
-      { key: "space", displayName: "Space", icon: "Building2", isActive: true },
+      { key: "space", displayName: "Space", icon: "Building2", isActive: true, hasGeometry: true },
       { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
     ]);
     // Each picker queries its own type, so the mock answers per resourceTypeKey.

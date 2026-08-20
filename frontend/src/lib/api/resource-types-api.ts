@@ -1,9 +1,10 @@
 /**
  * API client for resource types.
  *
- * Resource types are the tenant's catalogue of manageable things. Three are seeded and
- * system-owned (space, person, tool); tenants may define their own (car, camera, …).
- * The descriptive fields a type puts on its resources live in `resource-custom-fields-api`.
+ * Resource types are the tenant's catalogue of manageable things. No type is built in:
+ * tenants define their own (car, camera, …) or activate pre-configured ones from the
+ * catalog (`resource-type-catalog-api`). The descriptive fields a type puts on its
+ * resources live in `resource-custom-fields-api`.
  */
 
 import { API_PATHS } from '../core/api-paths';
@@ -24,7 +25,7 @@ export interface ResourceTypeInfo {
   hasDirectoryProfile: boolean;
   /** Belongs to at most one group; enforced in the database. */
   singleGroupMembership: boolean;
-  /** Seeded types (space, person, tool) — identity, lifecycle and behaviour are read-only. */
+  /** Historical flag — no type is system-owned any more; the server always sends false. */
   isSystem: boolean;
   isActive: boolean;
   createdAt: string;
@@ -48,7 +49,7 @@ export interface UpdateResourceTypeRequest {
   displayNamePlural?: string;
   description?: string;
   icon?: string;
-  /** Omit to leave as-is. Rejected for system types, whose behaviour the built-in pages need. */
+  /** Omit to leave as-is. */
   hasGeometry?: boolean;
   hasDirectoryProfile?: boolean;
   singleGroupMembership?: boolean;

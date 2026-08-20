@@ -22,6 +22,8 @@ public class ExportService : IExportService
     private readonly ISchedulingRepository _schedulingRepo;
     private readonly IAvailabilityEventRepository _availabilityEventRepo;
     private readonly IRequestRepository _requestRepo;
+    private readonly IListDefinitionRepository _listDefinitionRepo;
+    private readonly IListInstanceRepository _listInstanceRepo;
     private readonly ICurrentTenant _currentTenant;
 
     public ExportService(
@@ -36,6 +38,8 @@ public class ExportService : IExportService
         ISchedulingRepository schedulingRepo,
         IAvailabilityEventRepository availabilityEventRepo,
         IRequestRepository requestRepo,
+        IListDefinitionRepository listDefinitionRepo,
+        IListInstanceRepository listInstanceRepo,
         ICurrentTenant currentTenant)
     {
         _siteRepo = siteRepo;
@@ -49,6 +53,8 @@ public class ExportService : IExportService
         _schedulingRepo = schedulingRepo;
         _availabilityEventRepo = availabilityEventRepo;
         _requestRepo = requestRepo;
+        _listDefinitionRepo = listDefinitionRepo;
+        _listInstanceRepo = listInstanceRepo;
         _currentTenant = currentTenant;
     }
 
@@ -59,7 +65,11 @@ public class ExportService : IExportService
         var criteria = await _criteriaRepo.GetAllAsync(ct);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => GenerateKey(c.Name));
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space, ct);
+        // Groups of every placeable type. The resources below come from GetPlaceableBySitesAsync
+        // (has_geometry), and a group section keyed to space alone disagreed with them the moment
+        // a second placeable type existed — machines in the export, their cells silently missing.
+        var placeableKeys = await _resourceTypeRepo.GetPlaceableKeysAsync(ct);
+        var groups = await _resourceGroupRepo.GetByTypeKeysAsync(placeableKeys, ct);
         var groupIdToKey = groups.ToDictionary(g => g.Id, g => GenerateKey(g.Name));
 
         var allSites = await _siteRepo.GetAllAsync(ct);
@@ -70,10 +80,10 @@ public class ExportService : IExportService
         ExportData data = new();
 
         if (request.IncludeMasterData)
-            data = await BuildMasterDataAsync(filteredSites, criteria, groups, criterionIdToKey, groupIdToKey);
+            data = await BuildMasterDataAsync(filteredSites, criteria, groups, criterionIdToKey, groupIdToKey, ct);
 
         if (request.IncludePlanningData)
-            data = data with { Requests = await BuildRequestDataAsync(filteredSites, criterionIdToKey) };
+            data = data with { Requests = await BuildRequestDataAsync(filteredSites, criterionIdToKey, ct) };
 
         return new ExportPayload
         {
@@ -94,7 +104,8 @@ public class ExportService : IExportService
         List<CriterionInfo> criteria,
         List<ResourceGroupInfo> groups,
         Dictionary<Guid, string> criterionIdToKey,
-        Dictionary<Guid, string> groupIdToKey)
+        Dictionary<Guid, string> groupIdToKey,
+        CancellationToken ct)
     {
         var exportCriteria = criteria
             .OrderBy(c => c.Name, StringComparer.Ordinal)
@@ -109,7 +120,7 @@ public class ExportService : IExportService
             }).ToList();
 
         // Bulk-fetch capabilities for all groups up front (was one query per group).
-        var capsByGroup = await _groupCapabilityRepo.GetByGroupsAsync(groups.Select(g => g.Id).ToList());
+        var capsByGroup = await _groupCapabilityRepo.GetByGroupsAsync(groups.Select(g => g.Id).ToList(), ct);
 
         var exportGroups = new List<ExportSpaceGroup>();
         foreach (var g in groups.OrderBy(g => g.DisplayOrder ?? 0).ThenBy(g => g.Name, StringComparer.Ordinal))
@@ -126,9 +137,10 @@ public class ExportService : IExportService
             });
         }
 
-        var exportTemplates = await BuildTemplatesAsync(criterionIdToKey);
-        var exportSites = await BuildSitesAsync(sites, groupIdToKey, criterionIdToKey);
-        var exportResources = await BuildResourcesAsync(sites, criterionIdToKey);
+        var exportTemplates = await BuildTemplatesAsync(criterionIdToKey, ct);
+        var exportSites = await BuildSitesAsync(sites, groupIdToKey, criterionIdToKey, ct);
+        var exportResources = await BuildResourcesAsync(sites, criterionIdToKey, ct);
+        var exportListDefinitions = await BuildListDefinitionsAsync(ct);
 
         return new ExportData
         {
@@ -136,8 +148,75 @@ public class ExportService : IExportService
             Criteria = exportCriteria,
             SpaceGroups = exportGroups,
             Templates = exportTemplates,
-            Resources = exportResources
+            Resources = exportResources,
+            ListDefinitions = exportListDefinitions
         };
+    }
+
+    /// <summary>
+    /// Every list definition with its columns, and the shared instances built from it with their
+    /// rows.
+    ///
+    /// Inactive definitions are included: a retired shape still describes data that exists, and
+    /// an export that dropped it would lose the meaning of the rows it exported. Per-resource
+    /// instances are deliberately absent — see ExportData.ListDefinitions.
+    /// </summary>
+    private async Task<List<ExportListDefinition>> BuildListDefinitionsAsync(CancellationToken ct)
+    {
+        // Four round trips for the whole section, however many definitions exist: definitions,
+        // columns, instances, rows. The grouped reads keep each group's order (form order for
+        // columns, name for instances, insertion for rows), so the payload is unchanged.
+        var definitions = await _listDefinitionRepo.GetAllAsync(includeInactive: true, ct: ct);
+        var definitionIds = definitions.Select(d => d.Id).ToList();
+        var columnsByDefinition = await _listDefinitionRepo.GetColumnsByDefinitionsAsync(definitionIds, ct);
+        var instancesByDefinition = await _listInstanceRepo.GetSharedByDefinitionsAsync(definitionIds, ct);
+        var rowsByInstance = await _listInstanceRepo.GetRowsByInstancesAsync(
+            instancesByDefinition.Values.SelectMany(i => i).Select(i => i.Id).ToList(), ct);
+
+        var exported = new List<ExportListDefinition>();
+        foreach (var definition in definitions)
+        {
+            var columns = columnsByDefinition.GetValueOrDefault(definition.Id, []);
+            var instances = instancesByDefinition.GetValueOrDefault(definition.Id, []);
+
+            var exportedInstances = new List<ExportListInstance>();
+            foreach (var instance in instances)
+            {
+                var rows = rowsByInstance.GetValueOrDefault(instance.Id, []);
+                exportedInstances.Add(new ExportListInstance
+                {
+                    Name = instance.Name!,
+                    Rows = rows.Select(row => new ExportListRow
+                    {
+                        Id = row.Id,
+                        Values = new Dictionary<string, JsonElement>(row.Values),
+                    }).ToList(),
+                });
+            }
+
+            exported.Add(new ExportListDefinition
+            {
+                Name = definition.Name,
+                Description = definition.Description,
+                Scope = definition.Scope,
+                DisplayColumnKey = columns.FirstOrDefault(c => c.Id == definition.DisplayColumnId)?.Key,
+                IsActive = definition.IsActive,
+                Columns = columns.Select(column => new ExportListColumn
+                {
+                    Key = column.Key,
+                    Label = column.Label,
+                    Description = column.Description,
+                    DataType = column.DataType,
+                    Options = column.Options?.ToList(),
+                    IsRequired = column.IsRequired,
+                    SortOrder = column.SortOrder,
+                    IsActive = column.IsActive,
+                }).ToList(),
+                SharedInstances = exportedInstances,
+            });
+        }
+
+        return exported;
     }
 
     /// <summary>
@@ -148,16 +227,17 @@ public class ExportService : IExportService
     /// </summary>
     private async Task<List<ExportResource>> BuildResourcesAsync(
         List<SiteInfo> sites,
-        Dictionary<Guid, string> criterionIdToKey)
+        Dictionary<Guid, string> criterionIdToKey,
+        CancellationToken ct)
     {
-        var types = await _resourceTypeRepo.GetAllAsync();
+        var types = await _resourceTypeRepo.GetAllAsync(ct);
         var nonPlaceableKeys = types
             .Where(t => !t.HasGeometry)
             .Select(t => t.Key)
             .ToHashSet(StringComparer.Ordinal);
         if (nonPlaceableKeys.Count == 0) return [];
 
-        var resources = (await _resourceRepo.GetAllAsync(new ResourceListFilter { IsActive = true }))
+        var resources = (await _resourceRepo.GetEveryAsync(new ResourceListFilter { IsActive = true }, ct))
             .Where(r => nonPlaceableKeys.Contains(r.ResourceTypeKey))
             .ToList();
         if (resources.Count == 0) return [];
@@ -165,7 +245,7 @@ public class ExportService : IExportService
         // Sites are referenced by code, not id: an id is meaningless in another
         // deployment, which is where an export tends to be read.
         var siteCodeById = sites.ToDictionary(s => s.Id, s => s.Code ?? GenerateKey(s.Name));
-        var capsByResource = (await _capabilityRepo.GetByResourcesAsync(resources.Select(r => r.Id).ToList()))
+        var capsByResource = (await _capabilityRepo.GetByResourcesAsync(resources.Select(r => r.Id).ToList(), ct))
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -196,15 +276,16 @@ public class ExportService : IExportService
     private async Task<List<ExportSite>> BuildSitesAsync(
         List<SiteInfo> sites,
         Dictionary<Guid, string> groupIdToKey,
-        Dictionary<Guid, string> criterionIdToKey)
+        Dictionary<Guid, string> criterionIdToKey,
+        CancellationToken ct)
     {
         // Bulk-fetch all per-site data up front (was N+1: three queries per site plus one per space).
         var siteIds = sites.Select(s => s.Id).ToList();
-        var spacesBySite = await _resourceRepo.GetPlaceableBySitesAsync(siteIds);
-        var settingsBySite = await _schedulingRepo.GetSettingsBySitesAsync(siteIds);
-        var eventsBySite = await _availabilityEventRepo.GetBySitesAsync(siteIds);
+        var spacesBySite = await _resourceRepo.GetPlaceableBySitesAsync(siteIds, ct);
+        var settingsBySite = await _schedulingRepo.GetSettingsBySitesAsync(siteIds, ct);
+        var eventsBySite = await _availabilityEventRepo.GetBySitesAsync(siteIds, ct);
         var capsByResource = (await _capabilityRepo.GetByResourcesAsync(
-                spacesBySite.Values.SelectMany(spaces => spaces).Select(s => s.Id).ToList()))
+                spacesBySite.Values.SelectMany(spaces => spaces).Select(s => s.Id).ToList(), ct))
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -282,15 +363,16 @@ public class ExportService : IExportService
             }).ToList();
     }
 
-    private async Task<List<ExportTemplate>> BuildTemplatesAsync(Dictionary<Guid, string> criterionIdToKey)
+    private async Task<List<ExportTemplate>> BuildTemplatesAsync(
+        Dictionary<Guid, string> criterionIdToKey, CancellationToken ct)
     {
         var templatesByType = new List<(string EntityType, List<Template> Templates)>();
         foreach (var entityType in new[] { TemplateEntityTypes.Space, TemplateEntityTypes.Group, TemplateEntityTypes.Request })
-            templatesByType.Add((entityType, await _templateRepo.GetAllAsync(entityType)));
+            templatesByType.Add((entityType, await _templateRepo.GetAllAsync(entityType, ct)));
 
         // Bulk-fetch items for all templates in one query (was one query per template).
         var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(
-            templatesByType.SelectMany(t => t.Templates).Select(t => t.Id).ToList());
+            templatesByType.SelectMany(t => t.Templates).Select(t => t.Id).ToList(), ct);
 
         var allTemplates = new List<ExportTemplate>();
         foreach (var (entityType, templates) in templatesByType)
@@ -323,14 +405,15 @@ public class ExportService : IExportService
         return allTemplates;
     }
 
-    private async Task<List<ExportRequestData>> BuildRequestDataAsync(List<SiteInfo> sites, Dictionary<Guid, string> criterionIdToKey)
+    private async Task<List<ExportRequestData>> BuildRequestDataAsync(
+        List<SiteInfo> sites, Dictionary<Guid, string> criterionIdToKey, CancellationToken ct)
     {
         var resourceIdToName = new Dictionary<Guid, string>();
         var resourceIdToSiteCode = new Dictionary<Guid, string>();
         var allowedResourceIds = new HashSet<Guid>();
 
         // Bulk-fetch spaces for all sites in one query (was one query per site).
-        var spacesBySite = await _resourceRepo.GetPlaceableBySitesAsync(sites.Select(s => s.Id).ToList());
+        var spacesBySite = await _resourceRepo.GetPlaceableBySitesAsync(sites.Select(s => s.Id).ToList(), ct);
 
         foreach (var site in sites)
         {
@@ -343,10 +426,11 @@ public class ExportService : IExportService
             }
         }
 
-        var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true);
+        var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true, ct);
 
+        var placeableKeySet = (await _resourceTypeRepo.GetPlaceableKeysAsync(ct)).ToHashSet();
         return allRequests
-            .Select(r => (Request: r, SpaceResourceId: r.GetResourceIdForType(ResourceTypeKeys.Space)))
+            .Select(r => (Request: r, SpaceResourceId: r.GetPlacementResourceId(placeableKeySet)))
             .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>

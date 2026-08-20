@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Api.Models;
 
@@ -46,10 +47,10 @@ public record ResourceInfo
     public required int BaseAvailabilityPercent { get; init; }
     public required bool IsActive { get; init; }
 
-    // Location model. Spaces resolve their site via spaces.site_id and leave HomeSiteId null;
-    // people/tools carry an administrative home site. CurrentSiteId is derived (read-only), not
-    // stored: it is where the resource actually is right now.
-    /// <summary>Administrative/owning site and idle-time anchor (null for spaces and un-remediated resources).</summary>
+    // Location model. Every resource carries an administrative home site on resources.home_site_id
+    // (stations got theirs from the folded spaces.site_id in 1700/1710). CurrentSiteId is derived
+    // (read-only), not stored: it is where the resource actually is right now.
+    /// <summary>Administrative/owning site and idle-time anchor (null for un-remediated resources).</summary>
     public Guid? HomeSiteId { get; init; }
     /// <summary>Derived (read-only): where the resource is right now — the site of the non-cancelled
     /// assignment overlapping the current time, else the home site (spaces always resolve to their own site).</summary>
@@ -64,7 +65,7 @@ public record ResourceInfo
     public string? Code { get; init; }
     /// <summary>Occupies real floor area, so it must carry geometry (the DB CHECK enforces the pair).</summary>
     public bool IsPhysical { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int Capacity { get; init; } = 1;
     /// <summary>The group this resource belongs to. Single-valued because placeable types declare
@@ -77,6 +78,20 @@ public record ResourceInfo
     /// values for retired fields too, so an edit that round-trips the document keeps them.
     /// </summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
+
+    // Directory details. Only types declaring HasDirectoryProfile carry them; for every other
+    // type they are null. The columns live on `resources` (migration 1700), so reading them here
+    // adds no join and no cost. Job title and department left this contract in 1820 — they are
+    // organization lists now, reached through `list_lookup` custom fields like any other list.
+    /// <summary>Lookup and display address. Stored CITEXT, so comparisons are case-insensitive.</summary>
+    public string? Email { get; init; }
+    /// <summary>The user account this person signs in as, when one is linked.</summary>
+    public Guid? LinkedUserId { get; init; }
+    /// <summary>
+    /// Confidential free text — encrypted at rest, decrypted on the way out. Never log it and
+    /// never put it in an error message.
+    /// </summary>
+    public string? Notes { get; init; }
 
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
@@ -123,7 +138,7 @@ public record CreateResourceRequest
     // Placement — rejected unless the named type declares HasGeometry.
     public string? Code { get; init; }
     public bool IsPhysical { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int Capacity { get; init; } = 1;
 
@@ -131,6 +146,15 @@ public record CreateResourceRequest
     /// the type marks required must still be present, so a required field cannot be skipped
     /// by leaving the document out.</summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
+
+    // Directory details — rejected unless the named type declares HasDirectoryProfile, the same
+    // way placement is rejected on a type that cannot be placed. LinkedUserId is absent on
+    // purpose: linking a person to a user account is its own operation with its own checks, not
+    // a field on a create form.
+    public string? Email { get; init; }
+    /// <summary>Confidential free text — encrypted before it is stored.</summary>
+    public string? Notes { get; init; }
+
 }
 
 public record UpdateResourceRequest
@@ -142,14 +166,16 @@ public record UpdateResourceRequest
     public int? BaseAvailabilityPercent { get; init; }
     public bool? IsActive { get; init; }
 
-    public Guid? HomeSiteId { get; init; }
+    /// <summary>Absent leaves the home site alone; present-and-null unsets it.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Optional<Guid?> HomeSiteId { get; init; }
     public bool? CrossSiteAllowed { get; init; }
 
     // Placement — rejected unless the resource's type declares HasGeometry. IsPhysical is absent
     // deliberately: flipping it would have to add or remove geometry in the same statement to
     // satisfy resources_physical_has_geometry_check, so it is a create-time decision.
     public string? Code { get; init; }
-    public SpaceGeometry? Geometry { get; init; }
+    public ResourceGeometry? Geometry { get; init; }
     public Dictionary<string, object>? Properties { get; init; }
     public int? Capacity { get; init; }
 
@@ -157,6 +183,15 @@ public record UpdateResourceRequest
     /// the form must send back the values they did not show (retired fields), or those values are
     /// what "replaces" discards.</summary>
     public Dictionary<string, JsonElement>? CustomFields { get; init; }
+
+    // Directory details — rejected unless the resource's type declares HasDirectoryProfile.
+    //
+    // Email and Notes are plain nullables: the empty string is a usable "no value" for both, so
+    // absent still means "not editing" without costing the caller the ability to clear. The two
+    // Optional ids that needed the distinction — job title and department — left this record in
+    // 1820 and are list lookups on custom_fields now.
+    public string? Email { get; init; }
+    public string? Notes { get; init; }
 }
 
 public record ResourceListFilter
@@ -173,4 +208,16 @@ public record ResourceListFilter
     public Guid? SiteId { get; init; }
     public DateTime? SiteWindowFrom { get; init; }
     public DateTime? SiteWindowTo { get; init; }
+
+    /// <summary>
+    /// When set, restricts results to types that do (or do not) declare geometry — the placeable
+    /// resources that can sit on a floorplan.
+    ///
+    /// With <see cref="SiteId"/>, this reproduces the site-scoped placeable read exactly. That is
+    /// not obvious, because SiteId is the wider "home or current site" predicate: a placeable
+    /// resource is created with cross_site_allowed = false and cannot be assigned away from its
+    /// site, so its current site is always its home site and the wider predicate collapses to
+    /// home_site_id = SiteId for these rows. A test pins the equivalence.
+    /// </summary>
+    public bool? HasGeometry { get; init; }
 }

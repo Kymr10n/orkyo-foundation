@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
@@ -139,7 +140,7 @@ vi.mock("@foundation/src/hooks/useUtilization", () => ({
   useBacklogRequests: () => mockUseBacklog(),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
-  useSpaces: (arg?: any) => mockUseSpaces(arg),
+  usePlaceableResources: (arg?: any) => mockUseSpaces(arg),
 }));
 
 vi.mock("@foundation/src/hooks/useImportExport", () => ({
@@ -221,18 +222,12 @@ vi.mock("@foundation/src/components/utilization/CollapsibleFloorplan", () => ({
   ),
 }));
 
-vi.mock("@foundation/src/components/utilization/RequestsPanel", () => ({
-  RequestsPanel: ({ isLoading, onCreateChild }: any) => (
-    <div data-testid="requests-panel">
-      {isLoading ? "panel-loading" : "panel-ready"}
-      {onCreateChild && <button data-testid="create-child-btn" onClick={() => onCreateChild("r1")}>Add Child</button>}
-    </div>
-  ),
-}));
-
 vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
-  SchedulerGrid: ({ onRequestDoubleClick, onRequestResize, onTimeCursorClick, onEmptyCellClick }: any) => (
-    <div data-testid="scheduler-grid">
+  SchedulerGrid: ({ onRequestDoubleClick, onRequestResize, onTimeCursorClick, onEmptyCellClick, onRequestContextMenu, requests }: any) => (
+    <div data-testid="scheduler-grid" data-request-names={(requests ?? []).map((r: any) => r.name).join(",")}>
+      {onRequestContextMenu && (
+        <button data-testid="context-request" onClick={() => onRequestContextMenu("r1", { x: 10, y: 20 })}>Context</button>
+      )}
       {onRequestDoubleClick && <button data-testid="dblclick-request" onClick={() => onRequestDoubleClick("r1")}>DblClick</button>}
       {onRequestResize && <button data-testid="resize-request" onClick={() => onRequestResize("r1", "2024-01-15T10:00:00Z", "2024-01-15T12:00:00Z")}>Resize</button>}
       {onTimeCursorClick && <button data-testid="cursor-click" onClick={() => onTimeCursorClick(new Date("2024-06-01"))}>Cursor</button>}
@@ -241,7 +236,9 @@ vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
           data-testid="empty-cell-click"
           onClick={() =>
             onEmptyCellClick(
-              { id: "space-1", code: "CRA", name: "Conference Room A" },
+              // resourceTypeKey is what the chooser filters the backlog by — a real grid row
+              // always carries it, so the stub must too.
+              { id: "space-1", code: "CRA", name: "Conference Room A", resourceTypeKey: "space" },
               { start: new Date("2026-06-22T00:00:00Z"), end: new Date("2026-06-23T00:00:00Z"), label: "22 Mon" },
             )
           }
@@ -254,8 +251,12 @@ vi.mock("@foundation/src/components/utilization/SchedulerGrid", () => ({
 }));
 
 vi.mock("@foundation/src/components/utilization/ResourceUtilizationGrid", () => ({
-  ResourceUtilizationGrid: ({ resourceType, siteId }: any) => (
-    <div data-testid={`${resourceType.key}-utilization-grid`} data-site-id={siteId ?? ""} />
+  ResourceUtilizationGrid: ({ resourceType, siteId, filter }: any) => (
+    <div
+      data-testid={`${resourceType.key}-utilization-grid`}
+      data-site-id={siteId ?? ""}
+      data-query={filter?.query ?? ""}
+    />
   ),
 }));
 
@@ -279,15 +280,21 @@ vi.mock("@foundation/src/components/utilization/AutoScheduleButton", () => ({
   ),
 }));
 
-const mockResourceType = (key: string, displayName: string, plural: string, isSystem = true) => ({
+// hasGeometry is required on ResourceTypeInfo and drives which tab a type lands on, so it is set
+// here rather than left undefined — this factory returns an untyped literal, so a missing field
+// is not a compile error and silently reads as false.
+const mockResourceType = (
+  key: string, displayName: string, plural: string, isSystem = true, hasGeometry = false,
+) => ({
   id: `type-${key}`, key, displayName, displayNamePlural: plural, isSystem, isActive: true,
+  hasGeometry,
   createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z",
 });
-// Tabs are derived from the active types: Spaces keeps its own scheduler tab, every other type
-// gets a grid tab. `forklift` stands in for a tenant-defined type.
+// Tabs are derived from the active types: placeable types share the scheduler tab, every other
+// type gets a grid tab. `forklift` stands in for a tenant-defined type.
 const mockResourceTypes = vi.fn(() => ({
   data: [
-    mockResourceType("space", "Space", "Spaces"),
+    mockResourceType("space", "Space", "Spaces", true, true),
     mockResourceType("person", "Person", "People"),
     mockResourceType("tool", "Tool", "Tools"),
     mockResourceType("forklift", "Forklift", "Forklifts", false),
@@ -344,7 +351,8 @@ vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
   },
 }));
 
-const createWrapper = (initialTab = "space") => {
+// The scheduler tab is identified by its surface now, not by the space type key.
+const createWrapper = (initialTab = "stations", types?: string) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -353,7 +361,7 @@ const createWrapper = (initialTab = "space") => {
   });
 
   return ({ children }: { children: React.ReactNode }) => (
-    <MemoryRouter initialEntries={[`/?tab=${initialTab}`]}>
+    <MemoryRouter initialEntries={[`/?tab=${initialTab}${types ? `&${initialTab === "stations" ? "stationTypes" : "assetTypes"}=${types}` : ""}`]}>
       <QueryClientProvider client={queryClient}>
         {children}
       </QueryClientProvider>
@@ -425,23 +433,22 @@ describe("UtilizationPage", () => {
     expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
   });
 
-  it("renders floorplan and requests panel", () => {
+  it("renders the floorplan above the grid", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     expect(screen.getByTestId("collapsible-floorplan")).toBeInTheDocument();
-    expect(screen.getByTestId("requests-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
   });
 
-  it("on phones shows the Spaces grid without the floorplan or backlog panel", () => {
+  it("on phones shows the Spaces grid without the floorplan", () => {
     mockIsPhone = true;
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // Grid stays; the heavy floorplan canvas + backlog side panel are dropped.
+    // Grid stays; the heavy floorplan canvas is dropped.
     expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("collapsible-floorplan")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("requests-panel")).not.toBeInTheDocument();
     // Scale/nav controls live in the header's wrapping actions slot — exactly
     // once (guards against the old header + bespoke phone row double-render).
     expect(screen.getAllByTestId("scale-select")).toHaveLength(1);
@@ -471,23 +478,6 @@ describe("UtilizationPage", () => {
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     expect(screen.queryByTestId("auto-schedule-btn")).not.toBeInTheDocument();
-  });
-
-  it("passes isLoading to RequestsPanel", () => {
-    mockUseRequests.mockReturnValue({ data: [], isLoading: true });
-    // spacesLoading false so we can see the panel text
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(screen.getByText("panel-loading")).toBeInTheDocument();
-  });
-
-  it("passes loaded requests to RequestsPanel", () => {
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(screen.getByText("panel-ready")).toBeInTheDocument();
   });
 
   // --- Time navigation handlers ---
@@ -526,7 +516,7 @@ describe("UtilizationPage", () => {
     expect(mockSetAnchorTs).not.toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
     unmount();
 
-    const GridWrapper = createWrapper("space");
+    const GridWrapper = createWrapper("stations");
     render(<GridWrapper><UtilizationPage /></GridWrapper>);
     mockSetAnchorTs.mockClear();
     fireEvent.click(screen.getByTestId("nav-next"));
@@ -617,26 +607,6 @@ describe("UtilizationPage", () => {
 
   // --- Create child ---
 
-  it("opens create-child dialog from RequestsPanel", async () => {
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("create-child-btn"));
-    await waitFor(() => {
-      expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument();
-    });
-  });
-
-  it("hides create-child button for viewers", () => {
-    vi.mocked(useCanEdit).mockReturnValue(false);
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(screen.queryByTestId("create-child-btn")).not.toBeInTheDocument();
-  });
-
   // --- Resize ---
 
   it("calls scheduleMutation on resize", () => {
@@ -670,11 +640,11 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("solves for the tab's own type, in preview and apply alike", async () => {
-    // The tab names the type, so there is nothing to choose and nothing to keep in step:
+  it("solves for the single filtered type, in preview and apply alike", async () => {
+    // The filter names the type, and the button is live only while it names exactly one, so
     // preview and apply cannot disagree about which type was solved for.
     mockUseAutoScheduleAvailable.mockReturnValue(true);
-    const Wrapper = createWrapper("tool");
+    const Wrapper = createWrapper("assets", "tool");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     fireEvent.click(screen.getByTestId("auto-schedule-btn"));
@@ -909,7 +879,7 @@ describe("UtilizationPage", () => {
   });
 
   it("drag start sets the overlay label and drag cancel clears it", async () => {
-    const Wrapper = createWrapper("space");
+    const Wrapper = createWrapper("stations");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     capturedOnDragStart!({ active: { data: { current: { type: "request", name: "Task 1" } } } });
@@ -943,37 +913,6 @@ describe("UtilizationPage", () => {
     expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
   });
 
-  it("closing the create-child dialog clears the parent", async () => {
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("create-child-btn"));
-    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByTestId("close-form"));
-    expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
-  });
-
-  // --- Save child request ---
-
-  it("saves child request from create-child dialog", async () => {
-    const { createRequest } = await import("@foundation/src/lib/api/request-api");
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("create-child-btn"));
-    await waitFor(() => {
-      expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("save-request"));
-    await waitFor(() => {
-      expect(vi.mocked(createRequest)).toHaveBeenCalled();
-    });
-  });
-
   // --- Export handler ---
 
   it("calls exportUtilization via export handler for pdf", async () => {
@@ -996,13 +935,56 @@ describe("UtilizationPage", () => {
   it("exports only the active tab's resource type", async () => {
     const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
     // The Spaces tab is on screen, so a PDF full of people would disagree with it.
-    const Wrapper = createWrapper("space");
+    const Wrapper = createWrapper("stations");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     await capturedExportHandler!("pdf");
 
     const types = vi.mocked(exportUtilization).mock.calls[0][3];
     expect(types.map((t) => t.key)).toEqual(["space"]);
+  });
+
+  it("gives a placeable type no tab of its own", async () => {
+    // The floorplan read path never filtered by type — GET /api/sites/{id}/spaces scopes on
+    // `rt.has_geometry` — so a tenant-defined placeable type already rendered on the plan. While
+    // the grid tabs were "everything except the space key" it also got a tab, listing the same
+    // resources a second time under a surface that cannot place them.
+    mockResourceTypes.mockReturnValueOnce({
+      data: [
+        mockResourceType("space", "Space", "Spaces", true, true),
+        mockResourceType("zone", "Zone", "Zones", false, true),
+        mockResourceType("person", "Person", "People"),
+      ],
+      isSuccess: true,
+    });
+    const Wrapper = createWrapper("calendar");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    // Three fixed tabs. A type is a filter inside one of them, never a tab.
+    expect(screen.queryByRole("tab", { name: "Zones" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "People" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Assets" })).toBeInTheDocument();
+  });
+
+  it("exports every placeable type from the scheduler tab, not just the one the tab names", async () => {
+    const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
+    // One floorplan holds every placeable type, so a PDF naming only the tab's own key would
+    // omit resources that are visibly on the plan.
+    mockResourceTypes.mockReturnValueOnce({
+      data: [
+        mockResourceType("space", "Space", "Spaces", true, true),
+        mockResourceType("zone", "Zone", "Zones", false, true),
+        mockResourceType("person", "Person", "People"),
+      ],
+      isSuccess: true,
+    });
+    const Wrapper = createWrapper("stations");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    await capturedExportHandler!("pdf");
+
+    const types = vi.mocked(exportUtilization).mock.calls[0][3];
+    expect(types.map((t) => t.key)).toEqual(["space", "zone"]);
   });
 
   it("exports every type from the Calendar tab, in tab order", async () => {
@@ -1019,7 +1001,7 @@ describe("UtilizationPage", () => {
   });
 
   it("names the export after what it will contain", async () => {
-    const Wrapper = createWrapper("person");
+    const Wrapper = createWrapper("assets", "person");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     expect(capturedExportOffer?.label).toBe("Utilization (People)");
@@ -1209,21 +1191,28 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("handleDragEnd unschedules request", async () => {
+  it("unschedules a request from the bar's context menu", async () => {
+    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    capturedOnDragEnd!({
-      active: { id: "r1", data: { current: { id: "r1", isScheduled: true } } },
-      over: { id: "unschedule", data: { current: { type: "unschedule" } } },
-    });
+    fireEvent.click(screen.getByTestId("context-request"));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Unschedule" }));
 
     expect(mockScheduleMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         requestId: "r1",
-        data: expect.objectContaining({ resourceId: null }),
+        data: expect.objectContaining({ resourceId: null, startTs: null, endTs: null }),
       }),
     );
+  });
+
+  it("gives viewers no context menu on the bar", () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.queryByTestId("context-request")).not.toBeInTheDocument();
   });
 
   it("handleDragEnd reorders spaces", async () => {
@@ -1241,25 +1230,6 @@ describe("UtilizationPage", () => {
     });
 
     expect(mockSetSpaceOrder).toHaveBeenCalledWith(["s2", "s1"]);
-  });
-
-  it("handleDragEnd reparents request in tree", async () => {
-    const { moveRequest } = await import("@foundation/src/lib/api/request-api");
-    mockUseRequests.mockReturnValue({
-      data: [{ id: "r1", name: "Task 1" }, { id: "r2", name: "Parent" }],
-      isLoading: false,
-    });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    capturedOnDragEnd!({
-      active: { id: "r1", data: { current: { id: "r1", name: "Task 1" } } },
-      over: { id: "r2", data: { current: { type: "tree-reparent", parentRequestId: "r2" } } },
-    });
-
-    await waitFor(() => {
-      expect(vi.mocked(moveRequest)).toHaveBeenCalledWith("r1", expect.objectContaining({ newParentRequestId: "r2" }));
-    });
   });
 
   it("handleDragEnd schedules already-scheduled request preserving duration", async () => {
@@ -1314,7 +1284,7 @@ describe("UtilizationPage", () => {
   });
 
   it("passes the selected site to the People utilization grid", () => {
-    const Wrapper = createWrapper("person");
+    const Wrapper = createWrapper("assets", "person");
     render(<Wrapper><UtilizationPage /></Wrapper>);
     expect(screen.getByTestId('person-utilization-grid')).toHaveAttribute('data-site-id', 'site-1');
   });
@@ -1415,15 +1385,26 @@ describe("navigateTime", () => {
   // Tabs are derived from the active resource types, so a built-in `tool` and a tenant-defined
   // type are first-class without the page naming either of them.
 
-  it("renders a tab and a grid for every type without a purpose-built page", () => {
-    const Wrapper = createWrapper("tool");
+  it("stacks a grid per selected asset type under the one Assets tab", () => {
+    const Wrapper = createWrapper("assets", "tool,forklift");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    expect(screen.getByRole("tab", { name: "Tools" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Forklifts" })).toBeInTheDocument();
-    // Spaces keeps its own scheduler tab rather than a derived grid.
-    expect(screen.queryByTestId("space-utilization-grid")).not.toBeInTheDocument();
+    // Three fixed tabs; the types are a filter within Assets, not tabs of their own.
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Calendar", "Stations", "Assets",
+    ]);
     expect(screen.getByTestId("tool-utilization-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("forklift-utilization-grid")).toBeInTheDocument();
+    // Placeable types belong to Stations, never to the asset stack.
+    expect(screen.queryByTestId("space-utilization-grid")).not.toBeInTheDocument();
+  });
+
+  it("drops a filtered-out type from the asset stack", () => {
+    const Wrapper = createWrapper("assets", "tool");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.getByTestId("tool-utilization-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("forklift-utilization-grid")).not.toBeInTheDocument();
   });
 
   it("falls back to Calendar when the URL names a type that is not active", () => {
@@ -1445,15 +1426,138 @@ describe("navigateTime", () => {
     await waitFor(() => expect(window.location.search).not.toContain("vanished-type"));
   });
 
-  it("offers auto-schedule on type tabs but not on Calendar", async () => {
+  it("offers auto-schedule on a grid tab filtered to one type, never on Calendar", async () => {
     const Wrapper = createWrapper("calendar");
     const { unmount } = render(<Wrapper><UtilizationPage /></Wrapper>);
     expect(screen.queryByTestId("auto-schedule-btn")).not.toBeInTheDocument();
     unmount();
 
-    const ToolWrapper = createWrapper("tool");
+    const ToolWrapper = createWrapper("assets", "tool");
     render(<ToolWrapper><UtilizationPage /></ToolWrapper>);
     expect(await screen.findByTestId("auto-schedule-btn")).toBeInTheDocument();
   });
 
+  it("disables auto-schedule while the filter names more than one type", async () => {
+    // One solver run solves one type; solving a guessed pool would be worse than not offering it.
+    const Wrapper = createWrapper("assets", "tool,forklift");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(await screen.findByTestId("auto-schedule-btn")).toBeDisabled();
+  });
+
+
+  describe("stations grid search and filters", () => {
+    // Status is derived from the schedule (withEffectiveStatus), so the dates decide it: an
+    // undated request reads as New, one that has already ended as Done.
+    const twoScheduled = [
+      { id: "r1", name: "Fabricate frame", status: "new", assignments: [] },
+      {
+        id: "r2",
+        name: "Finish weld",
+        status: "new",
+        startTs: "2020-01-01T09:00:00Z",
+        endTs: "2020-01-01T11:00:00Z",
+        assignments: [],
+      },
+    ];
+
+    it("shows the grid's own key, not the calendar's statuses", () => {
+      const Wrapper = createWrapper("stations");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      // A grid bar is coloured by what it does to the station, never by request status.
+      expect(screen.getByText("Assigned")).toBeInTheDocument();
+      expect(screen.getByText("Overbooked")).toBeInTheDocument();
+      expect(screen.getByText("Off-time")).toBeInTheDocument();
+    });
+
+    it("narrows the grid's requests to the search", async () => {
+      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
+      const Wrapper = createWrapper("stations");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      await userEvent.type(screen.getByLabelText("Search requests"), "weld");
+
+      await waitFor(() =>
+        expect(screen.getByTestId("scheduler-grid")).toHaveAttribute(
+          "data-request-names",
+          "Finish weld",
+        ),
+      );
+    });
+
+    it("narrows the grid's requests by status", async () => {
+      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
+      const Wrapper = createWrapper("stations");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      await userEvent.click(screen.getByRole("button", { name: "Filter by status" }));
+      await userEvent.click(await screen.findByRole("menuitem", { name: "Done" }));
+
+      await waitFor(() =>
+        expect(screen.getByTestId("scheduler-grid")).toHaveAttribute(
+          "data-request-names",
+          "Fabricate frame",
+        ),
+      );
+    });
+
+    it("leaves the station rows alone, so a match stays findable", async () => {
+      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
+      const Wrapper = createWrapper("stations");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      await userEvent.type(screen.getByLabelText("Search requests"), "nothing matches");
+
+      // The filter hides bars, never stations: which station is empty is part of the answer.
+      await waitFor(() =>
+        expect(screen.getByTestId("scheduler-grid")).toHaveAttribute("data-request-names", ""),
+      );
+      expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
+    });
+  });
+
+  describe("assets tab search and filters", () => {
+    it("carries one search for the whole tab, named after the tab", async () => {
+      // Not "Search people": the tab stacks a grid per selected type, so a box labelled after one
+      // of them would be wrong the moment a second type is shown.
+      const Wrapper = createWrapper("assets");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(await screen.findByLabelText("Search assets")).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Search people/i)).not.toBeInTheDocument();
+    });
+
+    it("shows one search however many types are stacked", async () => {
+      const Wrapper = createWrapper("assets", "tool,forklift");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(await screen.findAllByLabelText("Search assets")).toHaveLength(1);
+    });
+
+    it("shows the asset grids' own key, not the calendar's statuses", () => {
+      const Wrapper = createWrapper("assets");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      expect(screen.getByText("Booked")).toBeInTheDocument();
+      expect(screen.getByText("Overbooked")).toBeInTheDocument();
+      expect(screen.queryByText("In Progress")).not.toBeInTheDocument();
+    });
+
+    it("hands the same filter to every stacked grid", async () => {
+      const Wrapper = createWrapper("assets", "tool,forklift");
+      render(<Wrapper><UtilizationPage /></Wrapper>);
+
+      await userEvent.type(screen.getByLabelText("Search assets"), "drill");
+
+      await waitFor(() => {
+        for (const key of ["tool", "forklift"]) {
+          expect(screen.getByTestId(`${key}-utilization-grid`)).toHaveAttribute(
+            "data-query",
+            "drill",
+          );
+        }
+      });
+    });
+  });
 });

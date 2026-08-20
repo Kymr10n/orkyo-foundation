@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 /**
  * Redirects `?tab=<legacy>` query-param routes to their new path-based equivalents.
  * Used during the deprecation window for pages that moved from query-param tabs
- * (e.g. `/people?tab=jobTitles`) to nested routes (`/people/job-titles`).
+ * (e.g. `/settings?tab=jobTitles`) to nested routes (`/people/job-titles`).
  *
  * The map keys are legacy `?tab=` values; the values are absolute target paths.
  * Declare the map at module scope so the reference is stable across renders.

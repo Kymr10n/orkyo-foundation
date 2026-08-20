@@ -18,9 +18,10 @@ import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 import { useDataExportAvailable } from '@foundation/src/hooks/useDataExportAvailable';
 import { useSites } from '@foundation/src/hooks/useSites';
 import { useAppStore } from '@foundation/src/store/app-store';
-import { createSpace, getSpaces } from '@foundation/src/lib/api/space-api';
+import { createResource, getResources } from '@foundation/src/lib/api/resources-api';
 import { createRequest } from '@foundation/src/lib/api/request-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { invalidateRequestData } from '@foundation/src/lib/core/invalidate-request-data';
 import { readWorkbook } from '@foundation/src/lib/utils/spreadsheet-file';
 import {
@@ -64,6 +65,15 @@ export function SpreadsheetImportWizard({
   onOpenChange,
   upgradeHref,
 }: SpreadsheetImportWizardProps) {
+  // The template's Workstations sheet becomes resources of the tenant's placeable type —
+  // `space` where it still exists (the template's historical meaning), else whatever placeable
+  // type the tenant kept. Null when no placeable type is active: nothing is built in, so the
+  // import blocks with a pointer at the catalog instead of inventing a key.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const placeableTypes = resourceTypes.filter((t) => t.hasGeometry);
+  const workstationTypeKey =
+    placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? null;
+
   const available = useDataExportAvailable();
   const queryClient = useQueryClient();
   const { data: sites = [] } = useSites();
@@ -89,13 +99,13 @@ export function SpreadsheetImportWizard({
   };
 
   const analyze = async () => {
-    if (!file || !effectiveSiteId) return;
+    if (!file || !effectiveSiteId || !workstationTypeKey) return;
     setBusy(true);
     setLoadError(null);
     try {
       const sheets = await readWorkbook(file);
       const parsed = parseTemplateWorkbook(sheets);
-      const existing = await getSpaces(effectiveSiteId);
+      const existing = (await getResources({ hasGeometry: true, isActive: true, siteId: effectiveSiteId })).data;
       const existingCodes = new Map(
         existing.filter((s) => s.code).map((s) => [s.code as string, s.id]),
       );
@@ -108,7 +118,7 @@ export function SpreadsheetImportWizard({
   };
 
   const commit = async (parsed: ParsedWorkbook, existingCodes: Map<string, string>) => {
-    if (!effectiveSiteId) return;
+    if (!effectiveSiteId || !workstationTypeKey) return;
     const toCreate = parsed.workstations.filter((w) => !existingCodes.has(w.code));
     const total = toCreate.length + parsed.jobs.length;
     setStep({ kind: 'committing', done: 0, total });
@@ -122,7 +132,8 @@ export function SpreadsheetImportWizard({
       // Workstations first, so a failure partway leaves a usable state — places
       // without jobs, rather than jobs pointing at places that don't exist.
       for (const workstation of toCreate) {
-        const space = await createSpace(effectiveSiteId, workstationToCreateSpace(workstation));
+        const space = await createResource(
+          workstationToCreateSpace(workstation, effectiveSiteId, workstationTypeKey));
         codeToResourceId.set(workstation.code, space.id);
         createdWorkstations++;
         setStep({ kind: 'committing', done: ++done, total });
@@ -147,7 +158,7 @@ export function SpreadsheetImportWizard({
         failure: errorMessage(err),
       });
     } finally {
-      queryClient.invalidateQueries({ queryKey: qk.spaces.list(effectiveSiteId) });
+      queryClient.invalidateQueries({ queryKey: qk.resources.all() });
       invalidateRequestData(queryClient);
     }
   };
@@ -180,6 +191,9 @@ export function SpreadsheetImportWizard({
           />
         ) : step.kind === 'pick' ? (
           <>
+            {!workstationTypeKey && (
+              <ErrorAlert message="No placeable resource type is active. Activate one under Configuration → Type catalog before importing workstations." />
+            )}
             <div className="space-y-2">
               <Label htmlFor="spreadsheet-file">Template file</Label>
               <input
@@ -275,7 +289,7 @@ export function SpreadsheetImportWizard({
 
       <DialogFooter className="px-6 pb-6">
         {step.kind === 'pick' && available && (
-          <Button onClick={analyze} disabled={!file || !effectiveSiteId || busy}>
+          <Button onClick={analyze} disabled={!file || !effectiveSiteId || !workstationTypeKey || busy}>
             {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Review
           </Button>

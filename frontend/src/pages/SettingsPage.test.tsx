@@ -83,8 +83,8 @@ describe('SettingsPage', () => {
   it.each([
     ['sites', '/tenant-admin/sites'],
     ['organization', '/tenant-admin/organization'],
-    ['jobTitles', '/people/job-titles'],
-    ['departments', '/people/departments'],
+    ['jobTitles', '/organization'],
+    ['departments', '/organization'],
   ])('legacy ?tab=%s redirects out of Settings to %s', (legacy, target) => {
     renderAt(`/settings?tab=${legacy}`);
     expect(screen.getByTestId('path').textContent).toBe(target);

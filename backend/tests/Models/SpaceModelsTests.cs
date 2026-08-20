@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Models;
 using Api.Validators;
 using FluentValidation;
@@ -10,8 +11,8 @@ namespace Api.Tests.Models;
 /// </summary>
 public class SpaceModelsTests
 {
-    private readonly IValidator<CreateSpaceRequest> _createValidator = new CreateSpaceRequestValidator();
-    private readonly IValidator<UpdateSpaceRequest> _updateValidator = new UpdateSpaceRequestValidator();
+    private readonly IValidator<CreateResourceRequest> _createValidator = new CreateResourceRequestValidator();
+    private readonly IValidator<UpdateResourceRequest> _updateValidator = new UpdateResourceRequestValidator();
 
     #region Coordinate Tests
 
@@ -35,7 +36,7 @@ public class SpaceModelsTests
 
     #endregion
 
-    #region SpaceGeometry Tests
+    #region ResourceGeometry Tests
 
     [Theory]
     [InlineData("rectangle", 2, true)]
@@ -44,9 +45,13 @@ public class SpaceModelsTests
     [InlineData("rectangle", 1, false)]
     [InlineData("rectangle", 3, false)]
     [InlineData("polygon", 2, false)]
+    // A circle is its centre and one rim point — never one, never three.
+    [InlineData("circle", 2, true)]
+    [InlineData("circle", 1, false)]
+    [InlineData("circle", 3, false)]
     public void SpaceGeometry_ValidateCoordinateCount(string type, int coordinateCount, bool expectedValid)
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = type,
             Coordinates = Enumerable.Range(0, coordinateCount)
@@ -62,16 +67,17 @@ public class SpaceModelsTests
     [Theory]
     [InlineData("rectangle", true)]
     [InlineData("polygon", true)]
+    [InlineData("circle", true)]
     [InlineData("RECTANGLE", true)] // Case insensitive
-    [InlineData("circle", false)]
+    [InlineData("CIRCLE", true)]
     [InlineData("line", false)]
     [InlineData("", false)]
     public void SpaceGeometry_ValidateType(string type, bool expectedValid)
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = type,
-            Coordinates = type.ToLower() == "rectangle"
+            Coordinates = type.ToLower() is "rectangle" or "circle"
                 ? new List<Coordinate> { new() { X = 0, Y = 0 }, new() { X = 100, Y = 100 } }
                 : new List<Coordinate> { new() { X = 0, Y = 0 }, new() { X = 100, Y = 0 }, new() { X = 100, Y = 100 } }
         };
@@ -82,9 +88,33 @@ public class SpaceModelsTests
     }
 
     [Fact]
+    public void SpaceGeometry_GetBoundingBox_ForCircle_SpansTheWholeCircleNotTheStoredPoints()
+    {
+        // The stored pair is the centre and one rim point, so their extent is a quadrant of the
+        // real box. Taking Min/Max over the coordinates — right for every other shape, whose
+        // points sit on the outline — would report a box a quarter of the size.
+        var geometry = new ResourceGeometry
+        {
+            Type = "circle",
+            Coordinates = new List<Coordinate>
+            {
+                new() { X = 100, Y = 100 },  // centre
+                new() { X = 130, Y = 140 },  // rim: dx 30, dy 40 -> r 50
+            }
+        };
+
+        var bounds = geometry.GetBoundingBox();
+
+        Assert.Equal(50, bounds.MinX);
+        Assert.Equal(50, bounds.MinY);
+        Assert.Equal(150, bounds.MaxX);
+        Assert.Equal(150, bounds.MaxY);
+    }
+
+    [Fact]
     public void SpaceGeometry_GetBoundingBox_ReturnsCorrectBounds()
     {
-        var geometry = new SpaceGeometry
+        var geometry = new ResourceGeometry
         {
             Type = "polygon",
             Coordinates = new List<Coordinate>
@@ -106,13 +136,15 @@ public class SpaceModelsTests
 
     #endregion
 
-    #region CreateSpaceRequest Validation Tests
+    #region CreateResourceRequest Validation Tests
 
     [Fact]
-    public void CreateSpaceRequest_ValidVirtualSpace_PassesValidation()
+    public void CreateResourceRequest_ValidVirtualSpace_PassesValidation()
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
             Name = "Virtual Space",
             Code = "V-01",
             IsPhysical = false,
@@ -125,13 +157,15 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void CreateSpaceRequest_ValidPhysicalSpace_PassesValidation()
+    public void CreateResourceRequest_ValidPhysicalSpace_PassesValidation()
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
             Name = "Physical Space",
             IsPhysical = true,
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -148,10 +182,12 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void CreateSpaceRequest_PhysicalSpaceWithoutGeometry_FailsValidation()
+    public void CreateResourceRequest_PhysicalSpaceWithoutGeometry_FailsValidation()
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
             Name = "Invalid Physical Space",
             IsPhysical = true,
             Geometry = null
@@ -164,10 +200,12 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void CreateSpaceRequest_EmptyName_FailsValidation()
+    public void CreateResourceRequest_EmptyName_FailsValidation()
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
             Name = "",
             IsPhysical = false
         };
@@ -179,10 +217,12 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void CreateSpaceRequest_NullName_FailsValidation()
+    public void CreateResourceRequest_NullName_FailsValidation()
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
             Name = null!,
             IsPhysical = false
         };
@@ -193,13 +233,15 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void CreateSpaceRequest_InvalidGeometry_FailsValidation()
+    public void CreateResourceRequest_InvalidGeometry_FailsValidation()
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
             Name = "Space",
             IsPhysical = true,
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 } } // Only 1 point
@@ -215,12 +257,12 @@ public class SpaceModelsTests
 
     #endregion
 
-    #region UpdateSpaceRequest Validation Tests
+    #region UpdateResourceRequest Validation Tests
 
     [Fact]
-    public void UpdateSpaceRequest_PartialUpdate_IsValid()
+    public void UpdateResourceRequest_PartialUpdate_IsValid()
     {
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
             Name = "Updated Name"
         };
@@ -231,11 +273,11 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void UpdateSpaceRequest_UpdateGeometryOnly_IsValid()
+    public void UpdateResourceRequest_UpdateGeometryOnly_IsValid()
     {
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -252,11 +294,11 @@ public class SpaceModelsTests
     }
 
     [Fact]
-    public void UpdateSpaceRequest_InvalidGeometry_FailsValidation()
+    public void UpdateResourceRequest_InvalidGeometry_FailsValidation()
     {
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "invalid",
                 Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 } }
@@ -270,57 +312,4 @@ public class SpaceModelsTests
 
     #endregion
 
-    #region SpaceInfo
-
-    [Fact]
-    public void SpaceInfo_StoresAllFields()
-    {
-        var id = Guid.NewGuid();
-        var siteId = Guid.NewGuid();
-        var groupId = Guid.NewGuid();
-        var now = DateTime.UtcNow;
-
-        var info = new SpaceInfo
-        {
-            Id = id,
-            SiteId = siteId,
-            Name = "Hall A",
-            Code = "HA-01",
-            Description = "Production hall A",
-            IsPhysical = true,
-            GroupId = groupId,
-            Capacity = 10,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
-
-        info.Id.Should().Be(id);
-        info.SiteId.Should().Be(siteId);
-        info.Name.Should().Be("Hall A");
-        info.Code.Should().Be("HA-01");
-        info.IsPhysical.Should().BeTrue();
-        info.GroupId.Should().Be(groupId);
-        info.Capacity.Should().Be(10);
-    }
-
-    [Fact]
-    public void SpaceInfo_OptionalFields_AreNullByDefault()
-    {
-        var info = new SpaceInfo
-        {
-            Id = Guid.NewGuid(),
-            SiteId = Guid.NewGuid(),
-            Name = "Room 1",
-            IsPhysical = false
-        };
-
-        info.Code.Should().BeNull();
-        info.Description.Should().BeNull();
-        info.Geometry.Should().BeNull();
-        info.Properties.Should().BeNull();
-        info.GroupId.Should().BeNull();
-        info.Capacity.Should().Be(1); // default
-    }
-
-    #endregion
 }

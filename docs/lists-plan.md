@@ -1,7 +1,48 @@
+> **Partly superseded.** Migration 1820 moved departments and job titles into organization
+> lists, 1830 dropped their tables, and the `/spaces` and `/people` surfaces this document
+> refers to are now `/stations` and `/assets`. Read
+> [resource-navigation-and-lists-spec.md](resource-navigation-and-lists-spec.md) for the
+> current model; what follows records how the lists feature itself was built.
+
 # Lists — tenant-defined list definitions and instances, linkable from custom fields
 
-Status: **approved plan, implementation starting 2026-08-12.** This block is updated as
-phases land, with deviations recorded. Supersedes the discarded `catalogs-plan.md` draft.
+Status: **phases A, B and C implemented 2026-08-15** on branch
+`everythingisaresource`, unpushed and awaiting visual sign-off. Phase D (Space/People
+dissolution, D1-D7) remains as backlog. Supersedes the discarded `catalogs-plan.md` draft.
+
+### What shipped
+
+Migration 1780 (validated against a real Postgres: full chain, constraint behaviours,
+revert, re-apply), the definition/instance/row API with its governance split, per-resource
+lists and shared lists with lookup fields, the "Resources" admin section, and export of
+definitions with their shared rows. 3029 backend tests and 3822 frontend tests.
+
+### Deviations from this plan, and why
+
+1. **Resource delete does not cascade list data.** The plan said it did. `DELETE
+   /api/resources` deactivates (`is_active = false`) rather than deleting, so the FK
+   cascade never fires and a deactivated resource keeps its rows — the coherent outcome,
+   since one restored without its history would have lost data nobody agreed to discard.
+   The CASCADE still covers paths that truly remove a row, such as a tenant purge. Found by
+   a test, not by review; an earlier check against Postgres had exercised a hard DELETE and
+   so confirmed a path the API never takes.
+2. **The per-resource resolver GET answers 200 with a null body**, not 404. An untouched
+   list is the ordinary state, not an error, and this repo already answers that question
+   this way in `getFloorplanMetadata`.
+3. **German UI names dropped.** The frontend has no i18n layer at all, so the plan's
+   `de:` names had nowhere to live. English only; the German terms stay a documentation
+   glossary.
+4. **Boolean list columns declare no filter.** `ColumnFilterMeta` has no boolean case;
+   they still sort, which is the useful half.
+5. **`keyFromLabel` extracted** to `src/lib/key-from-label.ts` — it was module-private in
+   `CustomFieldEditDialog` and list columns need the same derivation, which must agree with
+   the server's key CHECK.
+6. **The sidebar item sits after Administration**, not between it and Settings:
+   `SidebarNav.test` pins that adjacency deliberately.
+
+**Reviewed against the codebase 2026-08-15 before implementation; corrections applied**
+(citations, paths, and three design gaps — i18n, boolean column filters, the phase A/B
+type gate). The design itself is unchanged.
 
 ## Context
 
@@ -26,7 +67,9 @@ Decisions (2026-08-12):
   *Listeninstanz*) = a data holder created from a definition. Shared instances are named
   ("Standard components"); per-resource instances are anonymous — the custom field's
   label serves. The UI uses these terms verbatim.
-- New admin section in the left-hand sidebar: **"Resources"** (de: *Ressourcen*), a
+- New admin section in the left-hand sidebar: **"Resources"** (German glossary term
+  *Ressourcen* is documentation-only — the frontend has no i18n layer, every string is a
+  hardcoded English literal, so the UI ships English), a
   dedicated page with tabs of its own, housing **Resource Types** (moved from
   Administration) and **List definitions**. Route `/configuration` (label ≠ route has
   precedent: "Administration" lives at `/tenant-admin`; `/resources` is taken by the
@@ -78,7 +121,9 @@ and `data_type` immutability then forbids mode switching for free):
 NOT NULL)` — so scalar fields cannot carry a stray binding. Both immutable after create
 (absent from the update request, like key/dataType).
 
-**Delete semantics:** resource delete → its instances+rows cascade. Field delete →
+**Delete semantics:** the FK from an instance to its resource is ON DELETE CASCADE, which covers
+paths that truly remove the row (a tenant purge). `DELETE /api/resources` is *not* such a path —
+it deactivates (`is_active = false`), so a deactivated resource keeps its list data. Field delete →
 per-resource instances cascade (`field_id` FK) + the existing key-strip. Definition /
 shared-instance delete → RESTRICT (409) while anything references them. Shared **row**
 delete → strip that row id from every referencing resource's `custom_fields` array in the
@@ -104,7 +149,10 @@ and model docs: the solver never reads list data; matchable attributes remain cr
 
 ### 1. Migration — `backend/migrations-foundation/sql/tenant/1780.foundation.lists.sql`
 
-`-- @migration-class: expand` (+ revert script). Creates the four tables with updated_at
+`-- @migration-class: expand`, plus a revert at
+`backend/migrations-foundation/revert/1780.foundation.lists.revert.sql` (parallel
+directory, referenced from the migration header the way 1770 does). Creates the four
+tables with updated_at
 triggers: `list_definitions` (no key column — `UNIQUE(name)` like `job_titles`;
 `is_active` is the retire path under RESTRICT), `list_columns` (key-format CHECK
 `^[a-z][a-z0-9_]{0,49}$`, `data_type IN (text,number,boolean,date,url,select)`,
@@ -112,7 +160,8 @@ triggers: `list_definitions` (no key column — `UNIQUE(name)` like `job_titles`
 `resource_custom_fields`), `list_instances` (kind-shape CHECK, the two UNIQUEs),
 `list_rows` (plain `(list_instance_id)` index inside the transaction — never
 CONCURRENTLY). Alters `resource_custom_fields`: widen the data_type CHECK by same-name
-drop/re-add (1610 precedent) with `list` + `list_lookup`, add the two FK columns
+drop/re-add (same technique as 1610, which drops and re-adds `requests_status_check`)
+with `list` + `list_lookup`, add the two FK columns
 (RESTRICT) + the bidirectional binding CHECK. The header restates non-matchability and
 notes this is where the deferred `select` lands — for list columns only.
 
@@ -184,20 +233,28 @@ Pattern sources: `ResourceCustomFieldRepository/Service/Endpoints`, `JobTitleRep
    `/configuration`.
 4. `pages/TenantAdminPage.tsx`: drop the resource-types tab, update `LEGACY_TAB_TO_PATH`.
 5. `components/layout/SidebarNav.tsx`: admin-gated "Resources" item, next to the
-   Administration item. Check first for a literal "Resources" group label over the
-   per-type items — if present, surface the collision before proceeding.
+   Administration item. No collision: SidebarNav is a flat list with no group labels, and
+   no item is named "Resources" (verified 2026-08-15). Only a tenant type whose
+   `displayNamePlural` is "Resources" could ever clash, and none ships.
 
 **API layer:** `lib/core/api-paths.ts` (+ list paths); `lib/api/lists-api.ts` (new,
 pattern `resource-custom-fields-api.ts`, incl. `LIST_COLUMN_DATA_TYPES`);
 `resource-custom-fields-api.ts` (types `'list' | 'list_lookup'` + hints,
 `CustomFieldValue` += `string[]`, `listDefinitionId`/`listInstanceId` fields);
-`query-keys.ts` (`qk.lists.*`); `hooks/useListDefinitions.ts`.
+`lib/api/query-keys.ts` (`qk.lists.*`); `hooks/useListDefinitions.ts`.
+
+Widening `CustomFieldValue` to include `string[]` ripples through a fixed set — miss one
+and the type lies: `CustomFieldValue` and `CustomFieldDataType`, `CUSTOM_FIELD_DATA_TYPES`,
+`customFieldDataTypeLabel`, `hasCustomFieldValue` (in
+`components/resources/CustomFieldInput.tsx`), and `hooks/useResourceCustomFieldForm.ts`.
 
 **Frontend primitive kit (`components/lists/` + hooks)** — every surface below is an
 assembly of these primitives; future surfaces (Space/People dissolution, new admin
 grids) reuse them unchanged:
 
-1. `components/fields/ScalarValueInput.tsx` (new): one typed-value input driven by
+1. `components/fields/ScalarValueInput.tsx` (new — `components/fields/` does not exist yet
+   and is created here as the reuse point; `CustomFieldInput.tsx` itself lives in
+   `components/resources/`): one typed-value input driven by
    `{ dataType, options?, value, onChange, id }` — the frontend counterpart of the
    backend `CustomFieldValueRules` extraction; all six scalar types incl. `select`.
    `CustomFieldInput.tsx` delegates its scalar rendering to it (public prop API
@@ -206,7 +263,19 @@ grids) reuse them unchanged:
    `formatListCell(column, value)` used by tables, cards, and the picker.
 3. `components/lists/ListRowsTable.tsx` (new): schema-driven `OrkyoDataTable` wrapper —
    dynamic columns from `ListColumn[]`, phone `renderCard`, optional `RowActions`. Pure
-   presentation.
+   presentation. Four constraints come from the react-table v9 seam
+   (`lib/table/features.ts`, migrated 2026-08-14):
+   - type runtime-built columns as the `ColumnDef<TData>` alias from `lib/table/features`,
+     never the raw `@tanstack/react-table` type, or the feature generic will not line up;
+   - filter functions are registered centrally and named, not passed: only `oneOf`,
+     `arrayOverlaps`, `dateBetween`, `includesString` and `inNumberRange` exist, and
+     adding one edits a file shared by every table in the product;
+   - filters are declared only through `meta.filter`, resolved by `filterFnFor` in
+     `lib/table/column-meta.ts`;
+   - `ColumnFilterMeta` is a closed union (`text | enum | date | number`) with **no
+     boolean**. v1: `select` columns declare `enum`; `boolean` columns declare no filter
+     and remain sortable. Extra meta keys need the `declare module` augmentation in
+     `column-meta.ts`.
 4. `hooks/useListRows.ts` (new): row queries/mutations keyed by **instanceId** — one
    data path, no adapter interface (`apiFor(instanceId)` over `createCrudApi` mirrors
    `resource-custom-fields-api.ts`). Plus `useResourceListInstance(resourceId, fieldId)`:
@@ -227,7 +296,9 @@ grids) reuse them unchanged:
   ResourceTypeSettings/JobTitleSettings) → `ListDefinitionEditDialog`
   (name/description/active) → `ListColumnsDialog` (pattern
   ResourceTypeCustomFieldsDialog) → `ListColumnEditDialog` (pattern
-  CustomFieldEditDialog, reuse `keyFromLabel` + `EnumValueEditor` for select options) →
+  CustomFieldEditDialog; `keyFromLabel` is currently module-private in
+  `CustomFieldEditDialog.tsx` and must be exported/extracted first, then reused with
+  `EnumValueEditor` for select options) →
   `ListInstancesDialog` (shared instances of one definition) → `ListInstanceDataDialog` =
   ScaffoldDialog wrapping `ListRowsEditor(instanceId)`.
 - Resource form: `CustomFieldInput.tsx` branches — `list` →
@@ -266,9 +337,50 @@ ScalarValueInput refactor must keep existing tests green).
 ### Phasing (PR boundaries only; migration 1780 complete from day one)
 
 A: migration + definition/column backend + "Resources" section + primitive kit (items
-1–6) + `list` type + per-resource rows editor. B: shared instances + data grid (reusing
+1–6) + `list` type + per-resource rows editor. Migration 1780 admits both CHECK values on
+day one, but `CustomFieldDataTypes.All` is the API gate: phase A adds **only** `List`, so
+`list_lookup` cannot be created before its binding validation lands in B. B: shared instances + data grid (reusing
 the kit) + `list_lookup` + `ListRowPicker` + row-delete strip. C: export + polish. D:
 dissolution readiness (below).
+
+## Backlog — a designated display column (requested 2026-08-15, from review)
+
+**What is wrong today.** A row has no single field that identifies it, so every surface that
+must show a row in one line invents an answer: `describeRow` in `ListRowPicker` takes the first
+active column as the head and appends the rest as context, joined with `—` and `·`. Reviewing a
+lookup field on the space form showed the result — `Name — 7'865` — which is a concatenation, not
+a name. The author knows which column identifies a row; the code is guessing.
+
+**What is wanted.** The admin marks one column of a definition as the one shown wherever a row
+is represented as a single value.
+
+**Shape.** A nullable `display_column_id` on `list_definitions`, FK to `list_columns` with
+`ON DELETE SET NULL`, rather than an `is_display` flag on the column — one definition has exactly
+one display column, and a single FK cannot drift into two columns both claiming it. `SET NULL`
+matters: deleting the designated column must not take the definition with it, and the fallback
+below then applies again.
+
+**Rules.**
+- The column must belong to that definition (validate on set, like every other cross-entity
+  binding here).
+- Unset falls back to the current behaviour — first active column by `sort_order`, then label.
+  Existing definitions therefore keep working with no migration of data.
+- A designated column that is later deactivated falls back the same way rather than showing a
+  field the row form no longer asks for.
+- Any column type may be designated. A `boolean` display column reads "Yes"/"No", which is
+  useless but is the author's choice to make, and refusing it adds a rule to explain.
+
+**Surfaces that consume it.** `ListRowPicker.describeRow` (the case that prompted this),
+`ListRowsTable` for the phone card heading, and any future place a row is rendered as one value.
+`formatListCell` already produces the text; this only decides which column to hand it.
+
+**UI.** A "Shown in forms" picker in `ListDefinitionEditDialog`, listing the definition's active
+columns; or a radio in the columns dialog. The dialog needs the columns loaded either way, which
+`ListColumnsDialog` already does.
+
+**Tests.** The fallback when unset, when the designated column is deactivated, and when it is
+deleted; rejection of a column from another definition; and that the picker's line changes to
+the designated column's value alone.
 
 ## Path to Space/People dissolution (Phase D)
 
@@ -281,7 +393,8 @@ guarantees this feature holds, and the remaining backlog.
 1. List fields bind by `resource_type_id`; space and person are ordinary
    `resource_types` rows, so tenants can attach lists to them (certifications on a
    person, equipment in a space) with zero special-casing. Per-resource instances key on
-   `resources.id` — spaces and people ARE `resources` rows since migration 1710. A
+   `resources.id` — spaces and people ARE `resources` rows since migration 1700 (1710 is
+   the contract half that dropped the side tables). A
    backend test pins this end-to-end on the system person type.
 2. `list` fields cannot be required, so `EnsureRequirable`/foundation#110 (the space
    create form carries no custom-field document) is not aggravated — rows attach after
@@ -302,13 +415,81 @@ guarantees this feature holds, and the remaining backlog.
 - D1: foundation#110 — `SpaceInfo`/`Create/UpdateSpaceRequest` gain `CustomFields`;
   `EditSpaceDialog` renders the custom-fields block (incl. list fields via the kit).
 - D2: directory fields onto the generic contract (`ResourceInfo` + requests, gated by
-  `has_directory_profile`); retire `PersonProfileEndpoints` + `person-profiles-api.ts`.
+  `has_directory_profile`) — **DONE**, and the profile endpoints are **retired** with it.
+
+  **D2 closed (2026-08-20).** The 2026-08-15 revision below argued the retirement was refuted,
+  because five consumers needed the profile API's resolved projections. Every one of them was
+  deleted later on this same branch:
+
+  - `ResourceUtilizationGrid` and `PersonList` read `/job-titles` and `/batch` for a resolved
+    job title and department path. `0374b06` removed `frontend/src/components/people/` entirely,
+    and job titles and departments became organization lists resolved through
+    `useLookupFieldLabels` — client-side, from rows the page already holds.
+  - `PersonEditDialog` was deleted with the same commit; a person is edited through the generic
+    resource form.
+  - `person-profiles-api.ts` went with `32858a8`. `grep -rn "person-profiles" frontend/src`
+    returns nothing, in this repo and in both product shells.
+  - `/link` had no caller in any of the three frontends.
+
+  What remained was an authenticated, member-open API — `/batch` returned decrypted notes for
+  any list of resource ids — reachable by nothing. It is deleted: `PersonProfileEndpoints`,
+  `PersonProfileRepository`, `PersonProfile.cs`, `UpsertPersonProfileRequestValidator`, the
+  `LinkUserToPersonProfileRequestValidator`, the DI registrations, the three test suites, and the
+  route pins in the saas and community `RouteInventoryTests`.
+
+  The erasure gap the revision raised is real and is **unrelated to D2**: `UpdateAsync` uses
+  `SetIfNotNull`, so a null cannot mean "clear this". `home_site_id` already answers it through
+  `Optional<T>` (option 2 below, applied to one field), and the same wrapper is what the
+  remaining directory fields want when a caller needs to clear one. Nothing on this branch
+  depends on it.
 - D3: retire the `SpaceEndpoints` thin shim in favour of `/api/resources` (needs D1; the
   placeable-cannot-travel rule is already enforced centrally in `ResourceService`).
+
+  **D3's "thin shim" premise is partly refuted (2026-08-15).** `SpaceEndpoints` delegates to the
+  generic stack but carries behaviour `/api/resources` cannot currently express:
+
+  - **Scope.** Every route filters on `PlaceableScope` = `rt.has_geometry AND r.is_active` plus
+    `home_site_id = @siteId`. The generic list has no placeable filter — only `resourceTypeKey`,
+    and reaching for `space` there is exactly the key-driven special-casing design guarantee §3
+    forbids.
+  - **Site semantics differ.** `ResourceListFilter.SiteId` also matches resources merely *assigned*
+    to the site, so `/api/resources?siteId=X` is a strictly wider set than `/api/sites/X/spaces`.
+  - **Create defaults.** The POST supplies `AllocationMode.Exclusive`, `HomeSiteId = siteId`,
+    `CrossSiteAllowed = false`. Retiring the route moves those defaults to every caller.
+  - **404 semantics.** A space belonging to another site reads as absent from this one; the generic
+    `GET /{id}` has no site in scope.
+
+  So D3 is not a deletion. Its real prerequisite is a `hasGeometry`/placeable filter on the generic
+  list, and the DTO migration (`SpaceInfo` → `ResourceInfo`) reaches `useSpaces`,
+  `SpreadsheetImportWizard`, `SpaceCapabilitiesEditor` and `SpaceResizeEndpoints`. Much of that is
+  D4/D5 work, so doing D3 first churns the same frontend twice — D4/D5 should lead.
 - D4: frontend convergence — retire `TYPES_WITH_DEDICATED_PAGES`; `SpacesPage`/
   `PeoplePage` become configured compositions of generic surfaces.
+
+  **D4 depends on D5; this list's order is backwards (2026-08-15).**
+  `TYPES_WITH_DEDICATED_PAGES` is a routing table, not a behaviour flag — its own docstring says
+  "identity, not behaviour", the same category §2.1/§2.2 calls permanent, and `DEDICATED_TYPE_ROUTES`
+  sits beside it holding the routes. Its three consumers all ask one question: does this type have a
+  page of its own? That stays true for as long as the pages exist. The set therefore cannot be
+  retired first — it dissolves as a *consequence* of the dedicated pages losing their reason to
+  exist, which is the floorplan (`/spaces/floorplan`) and teams (`/people/teams`) surfaces the
+  generic page lacks. Do D5 first.
 - D5: floorplan/utilization surfaces generalized by `has_geometry`
   (`SpaceManagementPanel`, the `UtilizationPage` space scheduler grid).
+
+  **D5 is not a substitution — it needs a cardinality decision first (2026-08-15).**
+  `UtilizationPage` assumes there is exactly *one* placeable type. `isSchedulerTab` is a boolean
+  (`activeTab === RESOURCE_TYPE_KEY.SPACE`, line 170), the tab's value is the literal `'space'`,
+  `gridTypes` is defined as "everything that is not space" (line 143), and `orderedTypes` prepends
+  the single space type (line 183). One floorplan height state serves it. Swapping the key for
+  `hasGeometry` does not generalize any of that — `.find(t => t.hasGeometry)` just picks an
+  arbitrary placeable type once a tenant defines a second one.
+
+  The open question is product, not code: **can a tenant have more than one placeable type, and if
+  so does each get its own scheduler tab and floorplan?** Today a second `has_geometry` type gets a
+  read-only grid tab and cannot be placed on a floorplan at all. Until that is answered, every
+  key→flag substitution in these surfaces is ambiguous, including the one-line one in
+  `EditSpaceDialog.tsx:52`.
 - D6: scheduling stops defaulting a missing target type to `space`
   (`SchedulingProblemBuilder.cs:51`, `RequestRepository.cs:437`).
 - D7: `absence_type`/`off_times.type` CHECK enums become tenant-editable reference data.
@@ -318,8 +499,9 @@ guarantees this feature holds, and the remaining backlog.
 
 ## Verification
 
-- `dotnet test` in `backend` (includes migration-numbering + authorization
-  contract/matrix guards); `npm test`, `npm run lint`, `tsc` in `frontend`.
+- `dotnet test` in `backend` (includes the authorization contract/matrix guards). Migration
+  numbering is not test-guarded: `scripts/ci/lint-migration-headers.sh` checks the class
+  header and `migrator-runtime/MigrationOrderer.cs` rejects duplicate ids; `npm test`, `npm run lint`, `tsc` in `frontend`.
 - Manual: (1) create a "Maintenance log" definition (date+number), bind it as a `list`
   field on a type, add/edit/delete rows on a resource, delete the resource → rows gone.
   (2) "Components" definition with a select column, shared instance, `list_lookup` field
@@ -331,7 +513,7 @@ guarantees this feature holds, and the remaining backlog.
 
 ## User-visible changes to announce
 
-A new admin-only sidebar section **"Resources"** (de: Ressourcen) with tabs of its own:
+A new admin-only sidebar section **"Resources"** with tabs of its own:
 Resource Types (moved out of Administration) and List definitions (new). Administration
 keeps its "Configuration" tab unchanged — no tab is renamed. Old resource-types URLs
 redirect.

@@ -5,8 +5,38 @@
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import type { CustomFieldValue } from './resource-custom-fields-api';
+import type { ResourceGeometry } from '../../types/geometry';
 
-export interface ResourceInfo {
+/**
+ * Directory details — the fields a resource carries when its type declares a directory profile.
+ * On the generic contract rather than a person-specific one, and rejected by the backend for any
+ * type that has no directory. `null` clears; omitting leaves the stored value alone.
+ *
+ * Job title and department left this contract in migration 1830, which dropped their columns; both
+ * are `list_lookup` custom fields now and ride in `customFields`.
+ */
+interface ResourceDirectory {
+  email?: string | null;
+  notes?: string | null;
+}
+
+/**
+ * Placement — the fields a resource carries when its type declares geometry. Present on the
+ * generic contract rather than a space-specific one: a space is just the built-in placeable type,
+ * and the backend rejects these fields for any type that cannot be placed.
+ */
+interface ResourcePlacement {
+  /** Short site-unique label shown on the floorplan. */
+  code?: string | null;
+  /** Whether the resource occupies actual area on the plan (a physical one must have geometry). */
+  isPhysical: boolean;
+  geometry?: ResourceGeometry | null;
+  properties?: Record<string, unknown> | null;
+  /** How many concurrent occupants the resource holds. At least 1. */
+  capacity: number;
+}
+
+export interface ResourceInfo extends ResourcePlacement, ResourceDirectory {
   id: string;
   resourceTypeId: string;
   resourceTypeKey: string;
@@ -27,11 +57,15 @@ export interface ResourceInfo {
   /** Values for the type's custom fields, keyed by field key. Includes values for retired
    * fields, so an edit that sends the document back keeps them. */
   customFields?: Record<string, CustomFieldValue> | null;
+  /** Read-only: the group the resource belongs to, when its type is grouped. */
+  groupId?: string | null;
+  /** Read-only: linking a user is its own operation with its own checks. */
+  linkedUserId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface CreateResourceRequest {
+export interface CreateResourceRequest extends Partial<ResourcePlacement>, ResourceDirectory {
   resourceTypeKey: string;
   name: string;
   description?: string;
@@ -45,7 +79,13 @@ export interface CreateResourceRequest {
   customFields?: Record<string, CustomFieldValue>;
 }
 
-export interface UpdateResourceRequest {
+/**
+ * Every field is optional and absent means "leave alone" — the backend only writes what the
+ * request names. `isPhysical` is deliberately absent: a resource cannot stop being physical, so
+ * geometry can never be orphaned by an update.
+ */
+export interface UpdateResourceRequest
+  extends Partial<Omit<ResourcePlacement, 'isPhysical'>>, ResourceDirectory {
   name?: string;
   description?: string;
   externalReference?: string;
@@ -71,6 +111,8 @@ export interface ResourceListFilter {
   search?: string;
   /** Restricts to resources belonging to this site: its home site, or (people/tools) where they are now. */
   siteId?: string;
+  /** Restricts to types that do (or do not) declare geometry — the resources a floorplan holds. */
+  hasGeometry?: boolean;
   page?: number;
   pageSize?: number;
 }
@@ -84,6 +126,7 @@ export async function getResources(filter?: ResourceListFilter): Promise<Resourc
   if (filter?.isActive !== undefined) params.append('isActive', String(filter.isActive));
   if (filter?.search) params.append('search', filter.search);
   if (filter?.siteId) params.append('siteId', filter.siteId);
+  if (filter?.hasGeometry !== undefined) params.append('hasGeometry', String(filter.hasGeometry));
   if (filter?.page) params.append('page', String(filter.page));
   if (filter?.pageSize) params.append('pageSize', String(filter.pageSize));
 

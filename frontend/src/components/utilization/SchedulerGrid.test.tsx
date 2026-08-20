@@ -7,7 +7,7 @@ import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
 import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/ScheduledRequestOverlay';
 import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
 import type { Request } from '@foundation/src/types/requests';
-import type { Space } from '@foundation/src/types/space';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { DndContext } from '@dnd-kit/core';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
@@ -39,6 +39,17 @@ vi.mock('@foundation/src/store/app-store', () => ({
 // Mock the resource groups API
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn(() => Promise.resolve([])),
+}));
+
+// usePlaceableTypeKeys derives the placeable set from the tenant's active types now —
+// nothing is built in, so the tests must provide the `space` type themselves.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({
+    data: [{ key: 'space', hasGeometry: true }],
+    isSuccess: true,
+  }),
+  RESOURCE_TYPE_INVALIDATES: [],
+  useDeleteResourceType: vi.fn(),
 }));
 
 // Mock the tenant-wide conflicts registry — the grid's source of truth for
@@ -76,10 +87,16 @@ const createWrapper = () => {
   );
 };
 
-const mockSpaces: Space[] = [
+const mockSpaces: ResourceInfo[] = [
   {
     id: 'space-1',
-    siteId: 'site-1',
+    resourceTypeId: 'type-space',
+    resourceTypeKey: 'space',
+    allocationMode: 'Exclusive',
+    baseAvailabilityPercent: 100,
+    isActive: true,
+    homeSiteId: 'site-1',
+    crossSiteAllowed: false,
     name: 'Room A101',
     code: 'A101',
     isPhysical: true,
@@ -90,7 +107,13 @@ const mockSpaces: Space[] = [
   },
   {
     id: 'space-2',
-    siteId: 'site-1',
+    resourceTypeId: 'type-space',
+    resourceTypeKey: 'space',
+    allocationMode: 'Exclusive',
+    baseAvailabilityPercent: 100,
+    isActive: true,
+    homeSiteId: 'site-1',
+    crossSiteAllowed: false,
     name: 'Room A102',
     code: 'A102',
     isPhysical: true,
@@ -319,7 +342,7 @@ describe('SchedulerGrid', () => {
     ]);
     // Custom order pins space-2 first; each space sits in a different group.
     appStoreMock.spaceOrder = ['space-2', 'space-1'];
-    const grouped: Space[] = [
+    const grouped: ResourceInfo[] = [
       { ...mockSpaces[0], groupId: 'group-1' },
       { ...mockSpaces[1], groupId: 'group-2' },
     ];
@@ -397,7 +420,8 @@ describe('SchedulerGrid', () => {
 
     fireEvent.click(screen.getByText('Ungrouped'));
 
-    expect(appStoreMock.toggleGroupCollapse).toHaveBeenCalledWith('spaces:ungrouped');
+    // The collapse namespace follows the tab: one floorplan of stations, not spaces.
+    expect(appStoreMock.toggleGroupCollapse).toHaveBeenCalledWith('stations:ungrouped');
     expect(appStoreMock.toggleGroupCollapse).not.toHaveBeenCalledWith('ungrouped');
   });
 
@@ -873,7 +897,7 @@ describe('SchedulerGrid', () => {
         );
 
         // Verify it renders for each scale
-        expect(screen.getByText('Space')).toBeInTheDocument();
+        expect(screen.getByText('Name')).toBeInTheDocument();
         unmount();
       });
     });

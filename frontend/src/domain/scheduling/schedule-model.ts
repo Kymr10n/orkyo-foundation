@@ -10,7 +10,7 @@
 
 import type { Conflict, DurationUnit, Request } from "@foundation/src/types/requests";
 import { DURATION_UNIT_MS, MS_PER_MINUTE } from "../constants";
-import { getSpaceResourceId } from "./request-assignments";
+import { getPlacementResourceId } from "./request-assignments";
 
 // ---------------------------------------------------------------------------
 // Committed entry — one scheduled request from the server / query cache
@@ -91,14 +91,17 @@ export function durationToMs(value: number, unit: DurationUnit): number {
 }
 
 /** Convert a domain Request into a ScheduledEntry, or null if not scheduled. */
-export function toScheduledEntry(request: Request): ScheduledEntry | null {
+export function toScheduledEntry(
+  request: Request,
+  placeableKeys: ReadonlySet<string>,
+): ScheduledEntry | null {
   if (!request.startTs || !request.endTs) return null;
   const startMs = new Date(request.startTs).getTime();
   const endMs = new Date(request.endTs).getTime();
   if (isNaN(startMs) || isNaN(endMs) || startMs >= endMs) return null;
-  // Spaceless-but-scheduled requests use the request id as a synthetic resourceId so
+  // Unplaced-but-scheduled requests use the request id as a synthetic resourceId so
   // below_min_duration is still detected. Each gets its own "slot" — no false overlaps.
-  const resourceId = getSpaceResourceId(request) ?? request.id;
+  const resourceId = getPlacementResourceId(request, placeableKeys) ?? request.id;
   return {
     requestId: request.id,
     resourceId,

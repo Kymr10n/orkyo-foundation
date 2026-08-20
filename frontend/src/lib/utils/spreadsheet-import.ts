@@ -1,5 +1,5 @@
 import type { CreateRequestRequest } from '@foundation/src/types/requests';
-import type { CreateSpaceRequest } from '@foundation/src/types/space';
+import type { CreateResourceRequest } from '@foundation/src/lib/api/resources-api';
 
 // Parses the published Orkyo capacity-planning workbook (orkyo.com/guides/
 // capacity-planning-excel-template/) into create payloads. Kept free of any
@@ -154,12 +154,22 @@ export function parseTemplateWorkbook(sheets: SheetData[]): ParsedWorkbook {
 // The template's "Capacity (h/day)" is hours a workstation can absorb; a space's
 // `capacity` is how many things fit in it at once. Different quantities — the
 // hours column is deliberately not mapped, and the wizard says so.
-export function workstationToCreateSpace(row: WorkstationRow): CreateSpaceRequest {
+export function workstationToCreateSpace(
+  row: WorkstationRow,
+  siteId: string,
+  resourceTypeKey: string,
+): CreateResourceRequest {
   const description = [row.standsThere, row.notes].filter(Boolean).join(' — ');
   return {
+    // A workstation is a placed thing; which placeable type it becomes is the caller's answer,
+    // resolved from the tenant's own types rather than assuming the built-in space still exists.
+    resourceTypeKey,
     name: row.name,
     code: row.code,
     description: description || undefined,
+    allocationMode: 'Exclusive',
+    homeSiteId: siteId,
+    crossSiteAllowed: false,
     isPhysical: true,
   };
 }

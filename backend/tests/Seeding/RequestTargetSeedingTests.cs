@@ -40,7 +40,7 @@ public class RequestTargetSeedingTests
         await using var tx = await conn.BeginTransactionAsync();
         var faker = new Faker { Random = new Randomizer(1337) };
 
-        var spaceTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='space' LIMIT 1");
+        var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
         var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
         var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
@@ -69,13 +69,22 @@ public class RequestTargetSeedingTests
 
         var facilities = FacilityModel.All;
         var tools = await ToolFactory.SeedAsync(conn, facilities, fp.Sites);
+        // Machines are part of the narrative now — mills, drills and assembly stations carry the
+        // work that used to be booked onto tools of the same name.
+        var machineTypeIds = await MachineFactory.SeedTypesAsync(conn);
+        var lists = await MachineListFactory.SeedDefinitionsAsync(conn);
+        var machineFields = await MachineListFactory.SeedFieldsAsync(conn, machineTypeIds, lists);
+        var machines = await MachineFactory.SeedMachinesAsync(
+            conn, fp.Sites, machineTypeIds,
+            MachineListFactory.BuildValueDocuments(MachineCatalog.All, lists, faker));
         var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
-        var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools);
+        var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools, machines);
         var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
         var cal = new YearCalendar(DateTime.UtcNow);
-        await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
+        var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
         var year = await NarrativeYearSeeder.SeedAsync(
-            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker);
+            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
+            avail.Vacations);
 
         // Scope every assertion to this run's rows — the shared fixture DB carries committed data.
         var seededIds = year.RequestIds.ToArray();

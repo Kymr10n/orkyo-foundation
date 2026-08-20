@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
-import type { Space } from '@foundation/src/types/space';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { Request } from '@foundation/src/types/requests';
 import type { TimeColumn } from './scheduler-types';
 import type { PreviewEntry, ValidationResult } from '@foundation/src/domain/scheduling/schedule-model';
@@ -51,9 +51,15 @@ import { SpaceRow } from './SpaceRow';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
 // ---- Fixtures ----
-const baseSpace: Space = {
+const baseSpace: ResourceInfo = {
   id: 'space-1',
-  siteId: 'site-1',
+  resourceTypeId: 'type-space',
+  resourceTypeKey: 'space',
+  allocationMode: 'Exclusive',
+  baseAvailabilityPercent: 100,
+  isActive: true,
+  homeSiteId: 'site-1',
+  crossSiteAllowed: false,
   name: 'Conference Room A',
   code: 'CRA',
   isPhysical: true,
@@ -129,7 +135,7 @@ function renderRow({
   offTimeRanges?: OffTimeRangeFixture[];
   columns?: TimeColumn[];
   onRequestClick?: (id: string) => void;
-  onEmptyCellClick?: (space: Space, col: TimeColumn) => void;
+  onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
   editable?: boolean;
 } = {}) {
   mockUseSortable.mockReturnValue({

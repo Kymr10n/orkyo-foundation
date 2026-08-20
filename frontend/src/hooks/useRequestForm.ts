@@ -4,8 +4,9 @@
  * Following DRY/KISS principles for complex form management
  */
 
-import { useReducer } from 'react';
-import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT, DEFAULT_TARGET_RESOURCE_TYPE_KEYS } from '@foundation/src/constants';
+import { useEffect, useReducer, useRef } from 'react';
+import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
+import { DEFAULT_START_TIME, DEFAULT_END_TIME, DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@foundation/src/constants';
 import { formatDateForInput, formatTimeForInput } from '@foundation/src/lib/utils';
 import { getAssignmentOfType, getTargetResourceTypeKeys } from '@foundation/src/domain/scheduling/request-assignments';
 import type { Request, DurationUnit, PlanningMode } from '@foundation/src/types/requests';
@@ -69,7 +70,7 @@ const initialState: RequestFormState = {
   planningMode: 'leaf',
   parentRequestId: '',
   siteId: '',
-  targetResourceTypeKeys: [...DEFAULT_TARGET_RESOURCE_TYPE_KEYS],
+  targetResourceTypeKeys: [],
   selectedResourceIds: {},
   startDate: '',
   startTime: DEFAULT_START_TIME,
@@ -173,7 +174,7 @@ function applyDefaultResource(state: RequestFormState, resource?: DefaultResourc
 }
 
 /** @internal Exported for unit testing */
-export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource): RequestFormState {
+export function buildInitialState(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource, defaultTargets?: string[]): RequestFormState {
   if (request) {
     const reqMap = new Map<string, RequirementEntry>();
     request.requirements?.forEach((r) => {
@@ -216,14 +217,37 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
   // scoped to where the user is working; fall back to the schedule slot's site, else '' = site-neutral.
   const createSiteId = (defaultSiteId ?? '') || (scheduleSiteId ?? '');
   if (parentRequestId) {
-    return applyDefaultResource(applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
+    return applyDefaultResource(applyDefaultSchedule({ ...initialState, parentRequestId, siteId: createSiteId, ...(defaultTargets ? { targetResourceTypeKeys: defaultTargets } : {}), ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
   }
 
-  return applyDefaultResource(applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
+  return applyDefaultResource(applyDefaultSchedule({ ...initialState, siteId: createSiteId, ...(defaultTargets ? { targetResourceTypeKeys: defaultTargets } : {}), ...(defaultPlanningMode ? { planningMode: defaultPlanningMode } : {}) }, defaultSchedule), defaultResource);
 }
 
 export function useRequestForm(request?: Request | null, parentRequestId?: string, defaultPlanningMode?: PlanningMode, defaultSchedule?: DefaultSchedule, defaultSiteId?: string | null, scheduleSiteId?: string | null, defaultResource?: DefaultResource) {
-  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource));
+  // A new request defaults to needing ONE place. Every targeted type is a separate assignment
+  // the request waits for, so defaulting to all placeable types would mean needing a room *and* a
+  // mill *and* a drill. Prefer `space` where it still exists — the historical default, unchanged
+  // for anyone who never renamed it — else the tenant's first placeable type. Read from the query
+  // cache at mount; while it is cold, the shared constant covers the gap.
+  const { data: resourceTypes = [], isSuccess: typesLoaded } = useResourceTypes(true);
+  const placeable = resourceTypes.filter((t) => t.hasGeometry);
+  const defaultTargetKey = typesLoaded && placeable.length > 0
+    ? (placeable.find((t) => t.key === 'space') ?? placeable[0]).key
+    : null;
+  const [state, dispatch] = useReducer(formReducer, undefined, () => buildInitialState(request, parentRequestId, defaultPlanningMode, defaultSchedule, defaultSiteId, scheduleSiteId, defaultResource, defaultTargetKey ? [defaultTargetKey] : undefined));
+
+  // The types query can still be cold when the dialog mounts, and the reducer's initializer runs
+  // once — so without this the form would keep an empty target list for its whole life. Apply the
+  // default once, when the types arrive. There is no space fallback to lean on any more.
+  // Not when a defaultResource was supplied: buildInitialState already targeted that resource's
+  // own type through applyDefaultResource, and overwriting it here would drop the type the user
+  // clicked and strand the pre-selected id under a type no longer targeted.
+  const defaultApplied = useRef(defaultTargetKey !== null);
+  useEffect(() => {
+    if (defaultApplied.current || request || defaultResource || defaultTargetKey === null) return;
+    defaultApplied.current = true;
+    dispatch({ type: 'SET_FIELD', field: 'targetResourceTypeKeys', value: [defaultTargetKey] });
+  }, [defaultTargetKey, request, defaultResource]);
 
   return {
     state,

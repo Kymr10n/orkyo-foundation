@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Api.Constants;
 using Api.Models;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -28,9 +29,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room A", 100, 100, 300, 300);
 
         // Act - Resize by moving bottom-right corner
-        var resizeRequest = new UpdateSpaceRequest
+        var resizeRequest = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -42,12 +43,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             resizeRequest);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(updated);
         Assert.Equal("rectangle", updated.Geometry?.Type);
         Assert.Equal(400, updated.Geometry?.Coordinates[1].X);
@@ -62,9 +63,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room B", 0, 0, 500, 500);
 
         // Act - Shrink rectangle
-        var resizeRequest = new UpdateSpaceRequest
+        var resizeRequest = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -76,12 +77,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             resizeRequest);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(updated);
         Assert.Equal(250, updated.Geometry?.Coordinates[1].X);
     }
@@ -94,9 +95,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room C", 100, 100, 300, 300);
 
         // Act - Resize by moving top-left corner
-        var resizeRequest = new UpdateSpaceRequest
+        var resizeRequest = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -108,15 +109,55 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             resizeRequest);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(updated);
         Assert.Equal(50, updated.Geometry?.Coordinates[0].X);
         Assert.Equal(50, updated.Geometry?.Coordinates[0].Y);
+    }
+
+    [Fact]
+    public async Task ResizeCircle_MovesTheRimAndLeavesTheCentreWhereItWas()
+    {
+        // A circle resizes by its rim alone. If a resize ever wrote the centre, the shape would
+        // drift across the floorplan while the user thought they were only changing its size.
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var createResponse = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+            Name = "Round Table",
+            Code = $"RT-{Guid.NewGuid():N}"[..10],
+            IsPhysical = true,
+            Geometry = new ResourceGeometry
+            {
+                Type = "circle",
+                Coordinates = [new() { X = 200, Y = 200 }, new() { X = 250, Y = 200 }],
+            },
+        });
+        createResponse.EnsureSuccessStatusCode();
+        var space = (await createResponse.Content.ReadFromJsonAsync<ResourceInfo>())!;
+
+        var response = await _client.PutAsJsonAsync($"/api/resources/{space.Id}", new UpdateResourceRequest
+        {
+            Geometry = new ResourceGeometry
+            {
+                Type = "circle",
+                Coordinates = [new() { X = 200, Y = 200 }, new() { X = 320, Y = 200 }],
+            },
+        });
+
+        response.EnsureSuccessStatusCode();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
+        Assert.Equal(200, updated!.Geometry?.Coordinates[0].X);
+        Assert.Equal(200, updated.Geometry?.Coordinates[0].Y);
+        Assert.Equal(320, updated.Geometry?.Coordinates[1].X);
     }
 
     #endregion
@@ -136,9 +177,9 @@ public class SpaceResizeEndpointsTests
         });
 
         // Act - Move the right vertex
-        var resizeRequest = new UpdateSpaceRequest
+        var resizeRequest = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "polygon",
                 Coordinates = new List<Coordinate>
@@ -151,12 +192,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             resizeRequest);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(updated);
         Assert.Equal(3, updated.Geometry?.Coordinates.Count);
         Assert.Equal(150, updated.Geometry?.Coordinates[1].X);
@@ -177,9 +218,9 @@ public class SpaceResizeEndpointsTests
         });
 
         // Act - Move two vertices
-        var resizeRequest = new UpdateSpaceRequest
+        var resizeRequest = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "polygon",
                 Coordinates = new List<Coordinate>
@@ -194,12 +235,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             resizeRequest);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(updated);
         Assert.Equal(5, updated.Geometry?.Coordinates.Count);
     }
@@ -216,9 +257,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room D", 0, 0, 100, 100);
 
         // Act - Try to resize with invalid geometry (only 1 coordinate)
-        var invalidRequest = new UpdateSpaceRequest
+        var invalidRequest = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -229,7 +270,7 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             invalidRequest);
 
         // Assert
@@ -244,9 +285,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room E", 0, 0, 100, 100);
 
         // Act - Resize to zero area (same point)
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -258,7 +299,7 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             request);
 
         // Assert - Should succeed (zero area is technically valid)
@@ -273,9 +314,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room F", 0, 0, 100, 100);
 
         // Act - Resize with negative coordinates
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -287,12 +328,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             request);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.Equal(-50, updated?.Geometry?.Coordinates[0].X);
     }
 
@@ -305,9 +346,9 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Original Name", 0, 0, 100, 100, originalCode);
 
         // Act - Update only geometry
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -319,12 +360,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             request);
 
         // Assert - Other fields should remain unchanged
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.Equal("Original Name", updated?.Name);
         Assert.Equal(originalCode, updated?.Code);
         Assert.Equal(200, updated?.Geometry?.Coordinates[1].X);
@@ -343,13 +384,13 @@ public class SpaceResizeEndpointsTests
 
         // Act - Perform multiple resizes in sequence
         var sizes = new[] { 150, 200, 250, 300 };
-        SpaceInfo? lastUpdate = null;
+        ResourceInfo? lastUpdate = null;
 
         foreach (var size in sizes)
         {
-            var request = new UpdateSpaceRequest
+            var request = new UpdateResourceRequest
             {
-                Geometry = new SpaceGeometry
+                Geometry = new ResourceGeometry
                 {
                     Type = "rectangle",
                     Coordinates = new List<Coordinate>
@@ -361,11 +402,11 @@ public class SpaceResizeEndpointsTests
             };
 
             var response = await _client.PutAsJsonAsync(
-                $"/api/sites/{siteId}/spaces/{space.Id}",
+                $"/api/resources/{space.Id}",
                 request);
 
             response.EnsureSuccessStatusCode();
-            lastUpdate = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+            lastUpdate = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         }
 
         // Assert - Final size should be 300
@@ -385,10 +426,10 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room H", 0, 0, 100, 100);
 
         // Act - Update both description and geometry
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
             Description = "This room was resized to accommodate more people",
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -400,12 +441,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             request);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(updated);
         Assert.Equal("This room was resized to accommodate more people", updated.Description);
         Assert.Equal(200, updated.Geometry?.Coordinates[1].X);
@@ -419,14 +460,14 @@ public class SpaceResizeEndpointsTests
         var space = await CreateRectangleSpace(siteId, "Room I", 0, 0, 100, 100);
 
         // First, add a description
-        await _client.PutAsJsonAsync($"/api/sites/{siteId}/spaces/{space.Id}",
-            new UpdateSpaceRequest { Description = "Original description" });
+        await _client.PutAsJsonAsync($"/api/resources/{space.Id}",
+            new UpdateResourceRequest { Description = "Original description" });
 
         // Act - Clear description while resizing
-        var request = new UpdateSpaceRequest
+        var request = new UpdateResourceRequest
         {
             Description = "", // Clear description
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -438,12 +479,12 @@ public class SpaceResizeEndpointsTests
         };
 
         var response = await _client.PutAsJsonAsync(
-            $"/api/sites/{siteId}/spaces/{space.Id}",
+            $"/api/resources/{space.Id}",
             request);
 
         // Assert
         response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.True(string.IsNullOrEmpty(updated?.Description));
         Assert.Equal(150, updated?.Geometry?.Coordinates[1].X);
     }
@@ -452,7 +493,7 @@ public class SpaceResizeEndpointsTests
 
     #region Helper Methods
 
-    private async Task<SpaceInfo> CreateRectangleSpace(
+    private async Task<ResourceInfo> CreateRectangleSpace(
         Guid siteId,
         string name,
         double x1,
@@ -461,12 +502,16 @@ public class SpaceResizeEndpointsTests
         double y2,
         string? code = null)
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
             Name = name,
             Code = code ?? $"R-{Guid.NewGuid():N}".Substring(0, 10),
             IsPhysical = true,
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "rectangle",
                 Coordinates = new List<Coordinate>
@@ -477,33 +522,37 @@ public class SpaceResizeEndpointsTests
             }
         };
 
-        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/spaces", request);
+        var response = await _client.PostAsJsonAsync("/api/resources", request);
         response.EnsureSuccessStatusCode();
-        var space = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var space = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(space);
         return space;
     }
 
-    private async Task<SpaceInfo> CreatePolygonSpace(
+    private async Task<ResourceInfo> CreatePolygonSpace(
         Guid siteId,
         string name,
         (double x, double y)[] vertices)
     {
-        var request = new CreateSpaceRequest
+        var request = new CreateResourceRequest
         {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
             Name = name,
             Code = $"P-{Guid.NewGuid():N}".Substring(0, 10),
             IsPhysical = true,
-            Geometry = new SpaceGeometry
+            Geometry = new ResourceGeometry
             {
                 Type = "polygon",
                 Coordinates = vertices.Select(v => new Coordinate { X = (decimal)v.x, Y = (decimal)v.y }).ToList()
             }
         };
 
-        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/spaces", request);
+        var response = await _client.PostAsJsonAsync("/api/resources", request);
         response.EnsureSuccessStatusCode();
-        var space = await response.Content.ReadFromJsonAsync<SpaceInfo>();
+        var space = await response.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.NotNull(space);
         return space;
     }

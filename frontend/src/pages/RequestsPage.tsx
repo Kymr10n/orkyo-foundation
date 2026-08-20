@@ -64,6 +64,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
+import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -91,6 +92,7 @@ type Dialog =
 export function RequestsPage() {
   usePageTitle("Requests");
   const queryClient = useQueryClient();
+  const placeableKeys = usePlaceableTypeKeys();
   const canEdit = useCanEdit();
   const navigate = useNavigate();
   // The request list lives in the query cache under the shared `requests`
@@ -154,7 +156,7 @@ export function RequestsPage() {
 
   // Handle export/import
   useExportHandler('requests', async (format) => {
-    await exportRequests(requests, format);
+    await exportRequests(requests, format, placeableKeys);
     logger.info(`Exported ${requests.length} requests as ${format.toUpperCase()}`);
   }, { label: 'Requests', description: 'Export or import requests with their requirements and constraints.', formats: ['csv'] });
 

@@ -52,6 +52,11 @@ public sealed class PostgresFixture : IAsyncLifetime
             "orkyo:control-plane");
         await runner.RunAsync(TestTenantConnectionString, MigrationTargetDatabase.Tenant,
             $"orkyo:tenant:{TestTenantDatabase}");
+
+        // The same three types DatabaseFixture ensures. Migration 1880 removes them from a fresh
+        // database, and the repository tests against this fixture look them up by key.
+        await using var tenantConn = await OpenTestTenantConnectionAsync();
+        await TestResourceTypes.EnsureAsync(tenantConn);
     }
 
     public Task DisposeAsync() => _container.DisposeAsync().AsTask();

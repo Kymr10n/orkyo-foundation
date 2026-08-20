@@ -4,6 +4,9 @@ import type { DraftResize } from './schedule-model';
 import type { Request } from '@foundation/src/types/requests';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 
+// Placement is resolved by type set now; these fixtures are all spaces.
+const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -42,19 +45,19 @@ function makeScheduledRequest(id = 'req-1', resourceId = 's1'): Request {
 
 describe('buildPreviewSchedule', () => {
   it('returns an empty map for no requests', () => {
-    const preview = buildPreviewSchedule([], null);
+    const preview = buildPreviewSchedule([], null, PLACEABLE_KEYS);
     expect(preview.size).toBe(0);
   });
 
   it('skips unscheduled requests', () => {
     const req = makeRequest(); // no resourceId / timestamps
-    const preview = buildPreviewSchedule([req], null);
+    const preview = buildPreviewSchedule([req], null, PLACEABLE_KEYS);
     expect(preview.size).toBe(0);
   });
 
   it('includes a scheduled request with committed bounds when no draft', () => {
     const req = makeScheduledRequest();
-    const preview = buildPreviewSchedule([req], null);
+    const preview = buildPreviewSchedule([req], null, PLACEABLE_KEYS);
     expect(preview.size).toBe(1);
     const entry = preview.get('req-1')!;
     expect(entry.isDraft).toBe(false);
@@ -76,7 +79,7 @@ describe('buildPreviewSchedule', () => {
       previewStartMs: T('2024-06-01T08:00:00.000Z'),
       previewEndMs: T('2024-06-01T12:00:00.000Z'), // extended by 2 h
     };
-    const preview = buildPreviewSchedule([req], draft);
+    const preview = buildPreviewSchedule([req], draft, PLACEABLE_KEYS);
     const entry = preview.get('req-1')!;
     expect(entry.isDraft).toBe(true);
     expect(entry.endMs).toBe(T('2024-06-01T12:00:00.000Z'));
@@ -97,7 +100,7 @@ describe('buildPreviewSchedule', () => {
       previewStartMs: T('2024-06-01T08:00:00.000Z'),
       previewEndMs: T('2024-06-01T12:00:00.000Z'),
     };
-    const preview = buildPreviewSchedule([r1, r2], draft);
+    const preview = buildPreviewSchedule([r1, r2], draft, PLACEABLE_KEYS);
     const e2 = preview.get('req-2')!;
     expect(e2.isDraft).toBe(false);
     expect(e2.endMs).toBe(T('2024-06-01T10:00:00.000Z'));
@@ -109,7 +112,7 @@ describe('buildPreviewSchedule', () => {
       makeScheduledRequest('req-2', 's1'),
       makeScheduledRequest('req-3', 's2'),
     ];
-    const preview = buildPreviewSchedule(requests, null);
+    const preview = buildPreviewSchedule(requests, null, PLACEABLE_KEYS);
     expect(preview.size).toBe(3);
     for (const entry of preview.values()) {
       expect(entry.isDraft).toBe(false);
@@ -125,7 +128,7 @@ describe('buildPreviewSchedule', () => {
       minimalDurationValue: 2,
       minimalDurationUnit: 'hours',
     });
-    const preview = buildPreviewSchedule([req], null);
+    const preview = buildPreviewSchedule([req], null, PLACEABLE_KEYS);
     expect(preview.get('req-1')!.minimalDurationMs).toBe(7_200_000);
   });
 });

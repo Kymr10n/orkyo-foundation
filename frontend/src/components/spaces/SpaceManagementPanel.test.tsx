@@ -14,13 +14,25 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
 
 const mockUseSpaces = vi.fn();
 const mockCreateMutateAsync = vi.fn();
+const mockDeleteMutateAsync = vi.fn();
 const mockMoveMutateAsync = vi.fn();
 
-vi.mock('@foundation/src/hooks/useSpaces', () => ({
-  useSpaces: (siteId: any) => mockUseSpaces(siteId),
-  useCreateSpace: () => ({ mutateAsync: mockCreateMutateAsync }),
-  useUpdateSpace: () => ({ mutateAsync: vi.fn() }),
-  useMoveSpace: () => ({ mutateAsync: mockMoveMutateAsync }),
+vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
+  usePlaceableResources: (siteId: any) => mockUseSpaces(siteId),
+  useCreatePlaceableResource: () => ({ mutateAsync: mockCreateMutateAsync }),
+  useUpdatePlaceableResource: () => ({ mutateAsync: vi.fn() }),
+  useMovePlaceableResource: () => ({ mutateAsync: mockMoveMutateAsync }),
+  useDeletePlaceableResource: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),
+}));
+
+// The panel resolves what the next drawn shape becomes; one placeable type by default so the
+// picker stays hidden.
+const mockResourceTypes = vi.fn(() => ({
+  data: [{ id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true }],
+  isSuccess: true,
+}));
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: (...args: unknown[]) => mockResourceTypes(...(args as [])),
 }));
 
 const mockGetFloorplanMetadata = vi.fn();
@@ -62,8 +74,17 @@ vi.mock('./EditSpaceDialog', () => ({
 }));
 
 vi.mock('@/components/requests/CreateSpaceDialog', () => ({
-  CreateSpaceDialog: ({ open, onSuccess }: any) =>
-    open ? <button data-testid="create-dialog-save" onClick={() => onSuccess({ id: 'new', name: 'New Space' })}>Create</button> : null,
+  // The real dialog takes onSubmit and is told which type it is creating.
+  CreateSpaceDialog: ({ open, onSubmit, resourceTypeKey }: any) =>
+    open ? (
+      <button
+        data-testid="create-dialog-save"
+        data-resource-type-key={resourceTypeKey}
+        onClick={() => onSubmit?.({ name: 'New Space' })}
+      >
+        Create
+      </button>
+    ) : null,
 }));
 
 vi.mock('@/components/requests/FloorplanUploadDialog', () => ({
@@ -72,9 +93,27 @@ vi.mock('@/components/requests/FloorplanUploadDialog', () => ({
 }));
 
 vi.mock('@/components/requests/SpaceDrawingCanvas', () => ({
-  SpaceDrawingCanvas: ({ onSpaceDoubleClick, editEnabled }: any) => (
-    <div data-testid="drawing-canvas" data-edit-enabled={String(!!editEnabled)}>
+  SpaceDrawingCanvas: ({ onSpaceDoubleClick, onSpaceContextMenu, onDrawingComplete, editEnabled, drawingMode }: any) => (
+    <div
+      data-testid="drawing-canvas"
+      data-edit-enabled={String(!!editEnabled)}
+      data-drawing-mode={drawingMode}
+    >
       <button data-testid="dblclick-space-1" onClick={() => onSpaceDoubleClick?.('space-1')}>dbl</button>
+      <button
+        data-testid="rightclick-space-1"
+        onClick={() => onSpaceContextMenu?.('space-1', { x: 40, y: 60 })}
+      >
+        ctx
+      </button>
+      <button
+        data-testid="finish-drawing"
+        onClick={() =>
+          onDrawingComplete?.({ type: 'rectangle', coordinates: [{ x: 0, y: 0 }, { x: 10, y: 10 }] })
+        }
+      >
+        finish
+      </button>
     </div>
   ),
 }));
@@ -84,8 +123,16 @@ vi.mock('@/components/requests/SpaceDrawingCanvas', () => ({
 const mockSpace = { id: 'space-1', name: 'Office A', siteId: 'site-1', geometry: null };
 const mockFloorplan = { id: 'fp-1', siteId: 'site-1', filename: 'floor.png', createdAt: '' };
 
+const ONE_PLACEABLE_TYPE = {
+  data: [{ id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true }],
+  isSuccess: true,
+};
+
 function setup() {
   vi.clearAllMocks();
+  // clearAllMocks resets calls but keeps implementations, so a mockReturnValue set by one test
+  // would otherwise decide what the next one sees.
+  mockResourceTypes.mockReturnValue(ONE_PLACEABLE_TYPE);
   mockUseSpaces.mockReturnValue({ data: [], isLoading: false });
   mockGetFloorplanMetadata.mockResolvedValue(null);
   mockFetchFloorplanImageUrl.mockResolvedValue('blob:test');
@@ -310,5 +357,215 @@ describe('SpaceManagementPanel', () => {
     await waitFor(() => {
       expect(mockDeleteFloorplan).toHaveBeenCalledWith('site-1');
     });
+  });
+
+  // ── Station type, shape tools and the right-click menu ──────────────────────
+
+  /** Floorplan loaded and edit mode on — the state every drawing affordance needs. */
+  async function enterEditMode() {
+    mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
+    mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
+    mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });
+    const user = userEvent.setup();
+    render(<SpaceManagementPanel siteId="site-1" />);
+    await waitFor(() => screen.getByRole('button', { name: /Edit/i }));
+    await user.click(screen.getByRole('button', { name: /Edit/i }));
+    return user;
+  }
+
+  it('does not ask which station type when only one thing can be placed', async () => {
+    await enterEditMode();
+    // A question with one answer is not a question.
+    expect(screen.queryByLabelText('Station type')).not.toBeInTheDocument();
+  });
+
+  it('asks which station type when the tenant has more than one', async () => {
+    mockResourceTypes.mockReturnValue({
+      data: [
+        { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true },
+        { id: 'type-booth', key: 'booth', displayName: 'Booth', displayNamePlural: 'Booths', hasGeometry: true, isActive: true },
+      ],
+      isSuccess: true,
+    });
+    await enterEditMode();
+
+    expect(screen.getByLabelText('Station type')).toBeInTheDocument();
+  });
+
+  it('leaves types that cannot be placed out of the picker', async () => {
+    // Offering "Person" would build a resource the backend rejects.
+    mockResourceTypes.mockReturnValue({
+      data: [
+        { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, isActive: true },
+        { id: 'type-person', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, isActive: true },
+      ],
+      isSuccess: true,
+    });
+    await enterEditMode();
+
+    expect(screen.queryByLabelText('Station type')).not.toBeInTheDocument();
+  });
+
+  it('disables the shape tools when nothing can be placed at all', async () => {
+    // An armed tool with no type could only ever produce a rejection, after the user has done
+    // the work of drawing.
+    mockResourceTypes.mockReturnValue({ data: [], isSuccess: true });
+    await enterEditMode();
+
+    expect(screen.getByRole('button', { name: 'Draw rectangle' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Draw circle' })).toBeDisabled();
+  });
+
+  it('offers a circle tool alongside rectangle and polygon', async () => {
+    const user = await enterEditMode();
+    const circle = screen.getByRole('button', { name: 'Draw circle' });
+
+    await user.click(circle);
+
+    expect(circle).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('drawing-canvas')).toHaveAttribute('data-drawing-mode', 'circle');
+  });
+
+  it('stays armed after a shape is drawn, so a row of stations is one pass', async () => {
+    // Re-arming between every station was the tedium this removes. The tool holds until the user
+    // says otherwise.
+    const user = await enterEditMode();
+    await user.click(screen.getByRole('button', { name: 'Draw rectangle' }));
+
+    await user.click(screen.getByTestId('finish-drawing'));
+
+    expect(screen.getByTestId('drawing-canvas')).toHaveAttribute('data-drawing-mode', 'rectangle');
+    expect(screen.getByRole('button', { name: 'Draw rectangle' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  describe('what a finished shape becomes', () => {
+    // A resource of the armed type that exists but was never drawn — imported, or added from its
+    // type's list page. The floorplan query already returns it; the canvas just skips it.
+    const unplacedMill = {
+      id: 'space-9',
+      name: 'Mill 9',
+      code: 'M-09',
+      siteId: 'site-1',
+      resourceTypeKey: 'space',
+      geometry: null,
+    };
+
+    async function drawWith(spaces: unknown[]) {
+      mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
+      mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
+      mockUseSpaces.mockReturnValue({ data: spaces, isLoading: false });
+      const user = userEvent.setup();
+      render(<SpaceManagementPanel siteId="site-1" />);
+      await waitFor(() => screen.getByRole('button', { name: /Edit/i }));
+      await user.click(screen.getByRole('button', { name: /Edit/i }));
+      await user.click(screen.getByRole('button', { name: 'Draw rectangle' }));
+      await user.click(screen.getByTestId('finish-drawing'));
+      return user;
+    }
+
+    it('goes straight to the create form when nothing is waiting to be placed', async () => {
+      // The older behaviour, and still the right one: a choice with one real answer is friction.
+      await drawWith([mockSpace]);
+
+      expect(screen.getByTestId('create-dialog-save')).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Place Space' })).not.toBeInTheDocument();
+    });
+
+    it('offers the unplaced resources of the armed type instead', async () => {
+      await drawWith([mockSpace, unplacedMill]);
+
+      expect(await screen.findByRole('heading', { name: 'Place Space' })).toBeInTheDocument();
+      expect(screen.queryByTestId('create-dialog-save')).not.toBeInTheDocument();
+    });
+
+    it('gives the drawn shape to the resource that was picked', async () => {
+      const user = await drawWith([mockSpace, unplacedMill]);
+
+      await user.click(await screen.findByLabelText('Not yet on the plan'));
+      await user.click(await screen.findByRole('option', { name: 'M-09 — Mill 9' }));
+      await user.click(screen.getByRole('button', { name: 'Place here' }));
+
+      // The same write a drag makes: geometry only, because the candidate already belongs here.
+      await waitFor(() =>
+        expect(mockMoveMutateAsync).toHaveBeenCalledWith({
+          resourceId: 'space-9',
+          geometry: { type: 'rectangle', coordinates: [{ x: 0, y: 0 }, { x: 10, y: 10 }] },
+        }),
+      );
+      expect(mockCreateMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('falls through to the create form, carrying the same shape', async () => {
+      const user = await drawWith([mockSpace, unplacedMill]);
+
+      await user.click(await screen.findByRole('button', { name: /Create a new space instead/i }));
+
+      expect(screen.getByTestId('create-dialog-save')).toBeInTheDocument();
+      expect(mockMoveMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('offers nothing from another type than the one armed', async () => {
+      // The shape was drawn as a space; a drill with no place is not what it becomes.
+      await drawWith([{ ...unplacedMill, resourceTypeKey: 'drill' }]);
+
+      expect(screen.getByTestId('create-dialog-save')).toBeInTheDocument();
+    });
+  });
+
+  it('forces the tool off when edit mode is left', async () => {
+    // Newly load-bearing: with the tool staying armed, leaving edit mode is the other way out.
+    const user = await enterEditMode();
+    await user.click(screen.getByRole('button', { name: 'Draw rectangle' }));
+
+    await user.click(screen.getByRole('button', { name: /Done/i }));
+
+    expect(screen.getByTestId('drawing-canvas')).toHaveAttribute('data-drawing-mode', 'none');
+  });
+
+  it('disarms when the armed tool is clicked again', async () => {
+    const user = await enterEditMode();
+    const circle = screen.getByRole('button', { name: 'Draw circle' });
+
+    await user.click(circle);
+    await user.click(circle);
+
+    expect(circle).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('drawing-canvas')).toHaveAttribute('data-drawing-mode', 'none');
+  });
+
+  it('opens a right-click menu offering exactly Duplicate and Delete', async () => {
+    const user = await enterEditMode();
+
+    await user.click(screen.getByTestId('rightclick-space-1'));
+
+    expect(await screen.findByRole('menuitem', { name: /Duplicate/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Delete/ })).toBeInTheDocument();
+    // Editing already has a gesture — double-click — so the menu does not repeat it.
+    expect(screen.queryByRole('menuitem', { name: /Edit/ })).not.toBeInTheDocument();
+  });
+
+  it('duplicates without carrying the code across', async () => {
+    const user = await enterEditMode();
+
+    await user.click(screen.getByTestId('rightclick-space-1'));
+    await user.click(await screen.findByRole('menuitem', { name: /Duplicate/ }));
+
+    await waitFor(() => expect(mockCreateMutateAsync).toHaveBeenCalled());
+    const request = mockCreateMutateAsync.mock.calls[0][0];
+    // Codes are unique per site; copying one turns Duplicate into a conflict error.
+    expect(request.code).toBeUndefined();
+    expect(request.name).toBe('Office A (copy)');
+  });
+
+  it('asks before deleting, then deletes', async () => {
+    const user = await enterEditMode();
+
+    await user.click(screen.getByTestId('rightclick-space-1'));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
+
+    expect(await screen.findByText(/Delete "Office A"/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(mockDeleteMutateAsync).toHaveBeenCalledWith('space-1'));
   });
 });

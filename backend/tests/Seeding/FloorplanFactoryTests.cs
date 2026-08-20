@@ -34,12 +34,8 @@ public class FloorplanFactoryTests
         await conn.OpenAsync();
         await using var tx = await conn.BeginTransactionAsync();
 
-        Guid spaceTypeId;
-        await using (var cmd = new NpgsqlCommand(
-            "SELECT id FROM resource_types WHERE key = 'space' LIMIT 1", conn, tx))
-        {
-            spaceTypeId = (Guid)(await cmd.ExecuteScalarAsync())!;
-        }
+        // The seeder defines its own `room` type rather than borrowing the built-in space one.
+        var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
 
         var fixtures = FloorplanCatalog.ForProfile("manufacturing");
         var result = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, fixtures, spaceTypeId);

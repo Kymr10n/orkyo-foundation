@@ -384,4 +384,14 @@ public static class RequestInfoExtensions
     /// </summary>
     public static Guid? GetResourceIdForType(this RequestInfo r, string resourceTypeKey) =>
         r.Assignments.FirstOrDefault(a => a.ResourceTypeKey == resourceTypeKey)?.ResourceId;
+
+    /// <summary>
+    /// The resource this request occupies on a floorplan, if any: the assignment whose type is in
+    /// the placeable set. Takes the set rather than assuming <c>space</c> — the backend records an
+    /// assignment under the resource's own type, so a request placed on a tenant-defined machine
+    /// carries that key, and a space-only lookup reads it as unplaced. A request holds at most one
+    /// placeable resource, because one thing cannot be in two places.
+    /// </summary>
+    public static Guid? GetPlacementResourceId(this RequestInfo r, IReadOnlySet<string> placeableKeys) =>
+        r.Assignments.FirstOrDefault(a => placeableKeys.Contains(a.ResourceTypeKey))?.ResourceId;
 }

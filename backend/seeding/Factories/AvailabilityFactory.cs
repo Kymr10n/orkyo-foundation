@@ -14,7 +14,18 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// </summary>
 public static class AvailabilityFactory
 {
-    public sealed record Result(int Events, int Absences);
+    public sealed record Result(
+        int Events,
+        int Absences,
+        /// <summary>
+        /// The vacations, so the narrative seeder can book someone over one on purpose.
+        /// </summary>
+        /// <remarks>
+        /// Absences are invisible to the seeder's own booking bookkeeping — it tracks capacity,
+        /// not time off — so an overlap has to be arranged rather than avoided. Without one, the
+        /// absence-overlap conflict has no example anywhere in the demo.
+        /// </remarks>
+        IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> Vacations);
 
     public static async Task<Result> SeedAsync(
         NpgsqlConnection conn,
@@ -23,9 +34,9 @@ public static class AvailabilityFactory
         IReadOnlyList<Factories.PeopleFactories.SeededPerson> people,
         Faker faker)
     {
-        Guid toolTypeId;
-        await using (var cmd = new NpgsqlCommand("SELECT id FROM public.resource_types WHERE key='tool' LIMIT 1", conn))
-            toolTypeId = (Guid)(await cmd.ExecuteScalarAsync())!;
+        // The seed owns the tool type (built-ins are gone); ToolFactory has already run, so
+        // this is a no-op re-read of the same row.
+        var toolTypeId = await ToolFactory.EnsureToolTypeAsync(conn);
 
         var now = DateTime.UtcNow;
         var events = 0;
@@ -73,6 +84,7 @@ public static class AvailabilityFactory
         }
 
         var absences = 0;
+        var vacations = new List<(Guid PersonId, DateTime Start, DateTime End)>(people.Count);
         using (var w = await conn.BeginBinaryImportAsync(
             "COPY public.resource_absences (id, resource_id, absence_type, title, notes, start_ts, end_ts, " +
             "is_recurring, recurrence_rule, enabled, created_at, updated_at) FROM STDIN (FORMAT BINARY)"))
@@ -82,8 +94,10 @@ public static class AvailabilityFactory
             {
                 // Everyone takes a vacation.
                 var vacStart = cal.Start.AddDays(faker.Random.Int(0, spanDays - 12));
+                var vacEnd = vacStart.AddDays(faker.Random.Int(5, 12));
                 absences += await WriteAbsence(w, p.ResourceId, "vacation", "Annual Leave",
-                    vacStart, vacStart.AddDays(faker.Random.Int(5, 12)), now);
+                    vacStart, vacEnd, now);
+                vacations.Add((p.ResourceId, vacStart, vacEnd));
 
                 if (faker.Random.Bool(0.15f))
                 {
@@ -99,7 +113,7 @@ public static class AvailabilityFactory
             await w.CompleteAsync();
         }
 
-        return new Result(events, absences);
+        return new Result(events, absences, vacations);
     }
 
     private static async Task<int> WriteEvent(

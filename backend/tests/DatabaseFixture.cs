@@ -169,6 +169,12 @@ public class DatabaseFixture : IAsyncLifetime
         var tenantCs = $"Host=localhost;Port={DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
         await using var tenantSeedConn = new NpgsqlConnection(tenantCs);
         await tenantSeedConn.OpenAsync();
+
+        // The three classic types the suite assumes. Shared with PostgresFixture — see
+        // TestResourceTypes for why migrations no longer provide them.
+        await TestResourceTypes.EnsureAsync(tenantSeedConn);
+        Console.WriteLine("    ✓ Fixture resource types (space, person, tool) ensured");
+
         await using var criteriaCmd = new NpgsqlCommand(@"
             INSERT INTO criteria (name, description, data_type, enum_values, created_at, updated_at)
             VALUES

@@ -60,7 +60,11 @@ interface TimelineGridShellProps<R> {
   toolbar?: ReactNode;
   /** Show a loading indicator in the body instead of emptyMessage / rows. */
   isLoading?: boolean;
-  /** Outer container className override. Defaults to the Spaces grid styling. */
+  /**
+   * Outer container className override. The default makes the shell a flex child that owns exactly
+   * one scroll region: its header row stays put and only the rows below scroll. Both utilization
+   * grids use it as-is; overriding it with a fixed height is what produces a second scroller.
+   */
   className?: string;
   testId?: string;
 }

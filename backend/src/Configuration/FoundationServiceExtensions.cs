@@ -104,11 +104,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
         services.AddScoped<ICriteriaRepository, CriteriaRepository>();
         services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
-        services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
-        services.AddScoped<IJobTitleRepository, JobTitleRepository>();
-        services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
         services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
@@ -117,6 +114,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
         services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
         services.AddScoped<IResourceCustomFieldRepository, ResourceCustomFieldRepository>();
+        services.AddScoped<IListDefinitionRepository, ListDefinitionRepository>();
+        services.AddScoped<IListInstanceRepository, ListInstanceRepository>();
         services.AddScoped<IResourceRepository, ResourceRepository>();
         services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
         services.AddScoped<ICalendarFeedTokenRepository, CalendarFeedTokenRepository>();
@@ -153,8 +152,11 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         services.AddScoped<IConflictService, ConflictService>();
         services.AddScoped<IResourceCustomFieldService, ResourceCustomFieldService>();
+        services.AddScoped<IListDefinitionService, ListDefinitionService>();
+        services.AddScoped<IListRowService, ListRowService>();
         services.AddScoped<IResourceService, ResourceService>();
         services.AddScoped<IResourceTypeService, ResourceTypeService>();
+        services.AddScoped<IResourceTypeCatalogService, ResourceTypeCatalogService>();
         services.AddScoped<ISchedulingService, SchedulingService>();
         services.AddScoped<ISessionService, SessionService>();
         services.AddScoped<IUserSessionService, UserSessionService>();
@@ -167,6 +169,15 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISignInAuditRecorder, SignInAuditRecorder>();
         services.AddScoped<IUserManagementService, UserManagementService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
+        // The conflict timeline is the same answer for every report on the page — it varies by
+        // window and site, never by resource type — so it is computed behind its own cache and
+        // shared, rather than recomputed inside each report.
+        services.AddScoped<Api.Services.Insights.ConflictTimelineProvider>();
+        services.AddScoped<Api.Services.Insights.IConflictTimelineProvider>(sp =>
+            new Api.Services.Insights.CachingConflictTimelineProvider(
+                sp.GetRequiredService<Api.Services.Insights.ConflictTimelineProvider>(),
+                sp.GetRequiredService<OrgContext>()));
+
         // Insights is wrapped in a short-TTL read-through cache (dashboard hot path).
         services.AddScoped<Api.Services.Insights.InsightsService>();
         services.AddScoped<Api.Services.Insights.IInsightsService>(sp =>

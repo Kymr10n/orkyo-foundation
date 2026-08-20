@@ -85,14 +85,24 @@ public static class CapabilityFactory
                 if (set.Add(criteria[skillKey])) rows.Add((pid, criteria[skillKey], ValueFor(skillKey, faker)));
             }
 
-            // 1) Coverage: assign every required skill to at least one person (works even when the
-            //    cohort has fewer people than skills — a person may hold several).
-            for (var k = 0; k < required.Count; k++)
-                AddPersonCap(cohort.People[k % cohort.People.Count].ResourceId, required[k]);
-
-            // 2) Richness: each person also holds a primary facility skill by index.
+            // 1) Personas: a person's skills come from the role they hold, so a QA Tech inspects
+            //    and a welder welds. The roster is what makes job title, department, team and
+            //    skills tell one story instead of four unrelated ones — see PersonaCatalog.
+            var roster = PersonaCatalog.Roster(cohort.Facility.SiteCode);
             for (var j = 0; j < cohort.People.Count; j++)
-                AddPersonCap(cohort.People[j].ResourceId, required[j % required.Count]);
+            {
+                foreach (var skill in roster[j % roster.Count].Skills)
+                    AddPersonCap(cohort.People[j].ResourceId, skill);
+            }
+
+            // 2) Coverage backstop: a cohort smaller than its roster can miss a required skill,
+            //    and a facility whose work nobody can do reads as broken rather than as a demo.
+            for (var k = 0; k < required.Count; k++)
+            {
+                var pid = cohort.People[k % cohort.People.Count].ResourceId;
+                if (!personSkills.TryGetValue(pid, out var held) || !held.Contains(criteria[required[k]]))
+                    AddPersonCap(pid, required[k]);
+            }
 
             // Tools: machines carry their operation skill; forklifts/cranes carry Max Load.
             foreach (var tool in cohort.Tools)
@@ -101,6 +111,22 @@ public static class CapabilityFactory
                     rows.Add((tool.Id, criteria[SkillCatalog.CncOperation], "true"));
                 if (tool.MaxLoadTons is { } load)
                     rows.Add((tool.Id, criteria[SkillCatalog.MaxLoadTons], load.ToString(CultureInfo.InvariantCulture)));
+            }
+
+            // Machines carry the skill their work needs, the same way the tools above do — a job
+            // requiring CNC operation is satisfiable by the mill it is booked onto.
+            foreach (var machine in cohort.Machines)
+            {
+                var skill = machine.Role switch
+                {
+                    MachineCatalog.MillRole or MachineCatalog.LatheRole or MachineCatalog.CncRole
+                        => SkillCatalog.CncOperation,
+                    MachineCatalog.DrillRole => SkillCatalog.Drilling,
+                    MachineCatalog.AssemblyRole => SkillCatalog.Assembly,
+                    MachineCatalog.TestRole => SkillCatalog.QaInspection,
+                    _ => null,
+                };
+                if (skill is not null) rows.Add((machine.Id, criteria[skill], "true"));
             }
 
             // Spaces: QC rooms are clean rooms; the paint booth is ventilated. Rooms carry only
@@ -144,9 +170,14 @@ public static class CapabilityFactory
 
     private static string[] TypesFor(string key) => key switch
     {
-        SkillCatalog.CncOperation => ["person", "tool"],
-        SkillCatalog.CleanRoom or SkillCatalog.Ventilated => ["space"],
-        SkillCatalog.MaxLoadTons => ["tool", "space"],
+        // A machining skill belongs to the people who hold it and to the machines that satisfy
+        // it, so a job requiring CNC operation is coverable by the mill, lathe or centre it books.
+        SkillCatalog.CncOperation => ["person", "tool", "mill", "lathe", "cnc"],
+        SkillCatalog.Drilling => ["person", "drill"],
+        SkillCatalog.Assembly => ["person", "assembly_station"],
+        SkillCatalog.QaInspection => ["person", "test_station"],
+        SkillCatalog.CleanRoom or SkillCatalog.Ventilated => ["room"],
+        SkillCatalog.MaxLoadTons => ["tool", "room"],
         _ => ["person"],
     };
 
@@ -154,7 +185,8 @@ public static class CapabilityFactory
     {
         var result = new Dictionary<string, Guid>();
         await using var cmd = new NpgsqlCommand(
-            "SELECT key, id FROM public.resource_types WHERE key IN ('space','person','tool')", conn);
+            "SELECT key, id FROM public.resource_types WHERE key IN " +
+            "('room','person','tool','mill','drill','lathe','cnc','assembly_station','test_station')", conn);
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync()) result[reader.GetString(0)] = reader.GetGuid(1);
         return result;

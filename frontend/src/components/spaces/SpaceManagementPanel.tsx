@@ -1,4 +1,5 @@
 import { CreateSpaceDialog } from "@foundation/src/components/requests/CreateSpaceDialog";
+import { PlaceDrawnShapeDialog } from "@foundation/src/components/spaces/PlaceDrawnShapeDialog";
 import { FloorplanUploadDialog } from "@foundation/src/components/requests/FloorplanUploadDialog";
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
 import { Button } from "@foundation/src/components/ui/button";
@@ -12,15 +13,25 @@ import {
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { cn } from "@foundation/src/lib/utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
+import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@foundation/src/components/ui/select";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import type {
-  CreateSpaceRequest,
-  DrawingMode,
-  SpaceGeometry,
-  Space as SpaceType,
-} from "@foundation/src/types/space";
+  CreateResourceRequest,
+  ResourceInfo,
+} from "@foundation/src/lib/api/resources-api";
+import type { DrawingMode, ResourceGeometry } from "@foundation/src/types/geometry";
 import {
   Check,
+  Circle,
+  Copy,
   MapPin,
   Pencil,
   Pentagon,
@@ -36,11 +47,19 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
 import {
-  useSpaces,
-  useCreateSpace,
-  useUpdateSpace,
-  useMoveSpace,
-} from "@foundation/src/hooks/useSpaces";
+  usePlaceableResources,
+  useCreatePlaceableResource,
+  useMovePlaceableResource,
+  useDeletePlaceableResource,
+} from "@foundation/src/hooks/usePlaceableResources";
+import { duplicateResourceRequest } from "@foundation/src/lib/utils/duplicate-resource";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@foundation/src/components/ui/dropdown-menu";
 import { useEditQueryParam } from "@foundation/src/hooks/useEditQueryParam";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -54,13 +73,26 @@ export function SpaceManagementPanel({
   className,
 }: SpaceManagementPanelProps) {
   // React Query hooks
-  const { data: spaces = [], isLoading: isLoadingSpaces } = useSpaces(siteId);
-  const createSpaceMutation = useCreateSpace(siteId);
-  const _updateSpaceMutation = useUpdateSpace(siteId);
-  const moveSpaceMutation = useMoveSpace(siteId);
-  const resizeSpaceMutation = useMoveSpace(siteId);
+  const { data: spaces = [], isLoading: isLoadingSpaces } = usePlaceableResources(siteId);
+  const createSpaceMutation = useCreatePlaceableResource(siteId);
+  // One mutation for both move and resize: a resize writes the same geometry through the same
+  // endpoint, so a second instance of it was two names for one call.
+  const moveSpaceMutation = useMovePlaceableResource(siteId);
+  const deleteSpaceMutation = useDeletePlaceableResource(siteId);
 
   const canEdit = useCanEdit();
+
+  // What the next drawn shape becomes. Chosen before drawing rather than after, so the shape
+  // means something the moment it exists. The resolution ladder is the one the create dialog used
+  // to own — prefer the historical `space` key where the tenant kept it, else whatever the
+  // tenant defined first.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const placeableTypes = resourceTypes.filter((t) => t.hasGeometry);
+  const [typeKey, setTypeKey] = useState<string | null>(null);
+  const activeType =
+    placeableTypes.find((t) => t.key === typeKey)
+    ?? placeableTypes.find((t) => t.key === RESOURCE_TYPE_KEY.SPACE)
+    ?? placeableTypes[0];
   // Phone is a read-only floorplan: editing tools (delete + drawing modes) are
   // hidden; pan/zoom navigation stays. Tablet keeps the full toolset.
   const { isPhone } = useBreakpoint();
@@ -71,17 +103,24 @@ export function SpaceManagementPanel({
   const [floorplanBlobUrl, setFloorplanBlobUrl] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [drawingMode, setDrawingMode] = useState<DrawingMode>("none");
-  const [drawnGeometry, setDrawnGeometry] = useState<SpaceGeometry | null>(
+  const [drawnGeometry, setDrawnGeometry] = useState<ResourceGeometry | null>(
     null,
   );
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [placeDialogOpen, setPlaceDialogOpen] = useState(false);
   const [deleteFloorplanOpen, setDeleteFloorplanOpen] = useState(false);
   const [isDeletingFloorplan, setIsDeletingFloorplan] = useState(false);
-  const [editingSpace, setEditingSpace] = useState<SpaceType | null>(null);
+  const [editingSpace, setEditingSpace] = useState<ResourceInfo | null>(null);
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   // Master edit switch — view mode (pan/zoom only) by default; protects against
   // accidental, un-undoable move/resize. Double-click-to-inspect ignores this.
   const [editEnabled, setEditEnabled] = useState(false);
+  // Right-click target and where to anchor its menu, in viewport coordinates.
+  const [contextMenu, setContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [deletingSpace, setDeletingSpace] = useState<ResourceInfo | null>(null);
+  // No placeable type means a drawn shape could only ever be rejected, so the tools stay off
+  // rather than letting someone do the work of drawing first.
+  const canDraw = canEdit && editEnabled && !!activeType;
 
   // Handle ?edit=<id> query param from global search. The shared hook reads and clears the
   // param itself and guards StrictMode's double-invoked mount, which this hand-rolled copy did not.
@@ -152,17 +191,54 @@ export function SpaceManagementPanel({
     setZoom(1);
   };
 
-  const handleDrawingComplete = (geometry: SpaceGeometry) => {
+  // Resources of the armed type that exist here but carry no shape — registered from an import
+  // or from their type's list page and never drawn. The floorplan query already reads them (it
+  // filters on the type's flag, not on the shape) and the canvas simply skips them, so this is a
+  // filter rather than a second fetch.
+  const unplacedOfActiveType = activeType
+    ? spaces.filter((s) => !s.geometry && s.resourceTypeKey === activeType.key)
+    : [];
+
+  const handleDrawingComplete = (geometry: ResourceGeometry) => {
     setDrawnGeometry(geometry);
+    // Asked only when there is something to ask about. With nothing waiting to be placed the
+    // choice has one real answer, so the shape goes straight to the create form as it always did.
+    if (unplacedOfActiveType.length > 0) {
+      setPlaceDialogOpen(true);
+    } else {
+      setCreateDialogOpen(true);
+    }
+    // The tool stays armed on purpose, so laying out a row of identical stations is
+    // draw-name-save repeated rather than re-arming between each. Escape disarms, as does
+    // clicking the active tool again; leaving edit mode forces it off.
+  };
+
+  /**
+   * Gives the drawn shape to a resource that had none.
+   *
+   * Geometry only, through the same mutation a drag uses: the candidates come from this site's
+   * own plan query, so their home site is already this one and there is nothing else to write.
+   * A resource belonging to another site is never offered — placing it here would move it, which
+   * is not what drawing a shape says.
+   */
+  const handleAssignDrawnShape = async (resourceId: string) => {
+    if (!drawnGeometry) return;
+    await moveSpaceMutation.mutateAsync({ resourceId, geometry: drawnGeometry });
+    setPlaceDialogOpen(false);
+    setDrawnGeometry(null);
+    setSelectedResourceId(resourceId);
+  };
+
+  const handleCreateNewInstead = () => {
+    setPlaceDialogOpen(false);
     setCreateDialogOpen(true);
-    setDrawingMode("none");
   };
 
   const handleCancelDrawing = () => {
     setDrawingMode("none");
   };
 
-  const handleCreateSpace = async (request: CreateSpaceRequest) => {
+  const handleCreateSpace = async (request: CreateResourceRequest) => {
     try {
       await createSpaceMutation.mutateAsync(request);
       setCreateDialogOpen(false);
@@ -178,7 +254,9 @@ export function SpaceManagementPanel({
   };
 
   const handleSetDrawingMode = (mode: DrawingMode) => {
-    setDrawingMode(mode);
+    // Clicking the armed tool disarms it — with the tool staying armed after a save, this is the
+    // affordance that stops it.
+    setDrawingMode((current) => (current === mode ? "none" : mode));
   };
 
   const handleToggleEdit = () =>
@@ -196,39 +274,59 @@ export function SpaceManagementPanel({
     if (space) setEditingSpace(space);
   };
 
+  const handleSpaceContextMenu = (resourceId: string, position: { x: number; y: number }) => {
+    setContextMenu({ id: resourceId, x: position.x, y: position.y });
+  };
+
+  const contextMenuSpace = spaces.find((s) => s.id === contextMenu?.id) ?? null;
+
+  const handleDuplicateSpace = async () => {
+    if (!contextMenuSpace) return;
+    setContextMenu(null);
+    try {
+      await createSpaceMutation.mutateAsync(duplicateResourceRequest(contextMenuSpace, siteId));
+    } catch (error) {
+      // Feedback owned by the create mutation's meta.errorMessage (central MutationCache).
+      logger.error("Failed to duplicate resource:", error);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingSpace) return;
+    try {
+      await deleteSpaceMutation.mutateAsync(deletingSpace.id);
+      setDeletingSpace(null);
+    } catch (error) {
+      // Feedback owned by the delete hook's own onError toast (optimistic-rollback hook).
+      logger.error("Failed to delete resource:", error);
+    }
+  };
+
   const handleMoveSpace = async (
     resourceId: string,
-    newGeometry: SpaceGeometry,
+    newGeometry: ResourceGeometry,
   ) => {
     try {
-      const space = spaces.find((s) => s.id === resourceId);
-      if (!space) return;
-
-      await moveSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
+      await moveSpaceMutation.mutateAsync({ resourceId, geometry: newGeometry });
     } catch (error) {
-      // Feedback owned by useMoveSpace's meta.errorMessage (central MutationCache).
-      logger.error("Failed to move space:", error);
+      // Feedback owned by the move mutation's meta.errorMessage (central MutationCache).
+      logger.error("Failed to move resource:", error);
     }
   };
 
   const handleResizeSpace = async (
     resourceId: string,
-    newGeometry: SpaceGeometry,
+    newGeometry: ResourceGeometry,
   ) => {
     try {
-      const space = spaces.find((s) => s.id === resourceId);
-      if (!space) return;
-
-      await resizeSpaceMutation.mutateAsync({ resourceId, space, newGeometry });
+      await moveSpaceMutation.mutateAsync({ resourceId, geometry: newGeometry });
     } catch (error) {
-      // Feedback owned by useMoveSpace's meta.errorMessage (central MutationCache).
-      logger.error("Failed to resize space:", error);
+      // Feedback owned by the move mutation's meta.errorMessage (central MutationCache).
+      logger.error("Failed to resize resource:", error);
     }
   };
 
   const floorplanUrl = floorplanMetadata ? floorplanBlobUrl : null;
-
-  const _selectedSpace = spaces.find((s) => s.id === selectedResourceId);
 
   return (
     <div className={cn("flex h-full", className)}>
@@ -273,12 +371,32 @@ export function SpaceManagementPanel({
                 >
                   <Trash2 className="h-4 w-4 text-destructive" />
                 </Button>
+                {/* One answer is not a question — the picker only appears when the tenant has
+                    defined more than one thing that can occupy area. */}
+                {placeableTypes.length > 1 && (
+                  <Select
+                    value={activeType?.key ?? ""}
+                    onValueChange={setTypeKey}
+                    disabled={!canEdit || !editEnabled}
+                  >
+                    <SelectTrigger className="h-9 w-40" aria-label="Station type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {placeableTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.key}>
+                          {type.displayName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="flex items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleSetDrawingMode("rectangle")}
-                    disabled={!canEdit || !editEnabled}
+                    disabled={!canDraw}
                     title="Draw Rectangle (R)"
                     aria-label="Draw rectangle"
                     aria-pressed={drawingMode === "rectangle"}
@@ -294,7 +412,7 @@ export function SpaceManagementPanel({
                     variant="ghost"
                     size="icon"
                     onClick={() => handleSetDrawingMode("polygon")}
-                    disabled={!canEdit || !editEnabled}
+                    disabled={!canDraw}
                     title="Draw Polygon (P)"
                     aria-label="Draw polygon"
                     aria-pressed={drawingMode === "polygon"}
@@ -303,6 +421,22 @@ export function SpaceManagementPanel({
                       className={cn(
                         "h-4 w-4",
                         drawingMode === "polygon" && "text-primary",
+                      )}
+                    />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleSetDrawingMode("circle")}
+                    disabled={!canDraw}
+                    title="Draw Circle (C)"
+                    aria-label="Draw circle"
+                    aria-pressed={drawingMode === "circle"}
+                  >
+                    <Circle
+                      className={cn(
+                        "h-4 w-4",
+                        drawingMode === "circle" && "text-primary",
                       )}
                     />
                   </Button>
@@ -372,6 +506,7 @@ export function SpaceManagementPanel({
               selectedResourceId={selectedResourceId || undefined}
               onSpaceClick={setSelectedResourceId}
               onSpaceDoubleClick={canEdit && !isPhone ? handleEditSpaceById : undefined}
+          onSpaceContextMenu={canEdit && !isPhone ? handleSpaceContextMenu : undefined}
               onSpaceMove={canEdit && !isPhone ? handleMoveSpace : undefined}
               onSpaceResize={canEdit && !isPhone ? handleResizeSpace : undefined}
             />
@@ -397,11 +532,78 @@ export function SpaceManagementPanel({
           onUploadComplete={handleUploadComplete}
         />
 
-        {drawnGeometry && (
+        {/* Anchored at the pointer via a zero-size fixed trigger. The canvas is an SVG overlay
+            with delegated hit-testing, so there is no per-shape element to hang a menu off — and a
+            context-menu primitive would mean a new peer dependency in three repos for two items. */}
+        {contextMenu && contextMenuSpace && (
+          <DropdownMenu open onOpenChange={(open) => !open && setContextMenu(null)}>
+            <DropdownMenuTrigger asChild>
+              <span
+                aria-hidden
+                style={{
+                  position: "fixed",
+                  left: contextMenu.x,
+                  top: contextMenu.y,
+                  width: 0,
+                  height: 0,
+                }}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={handleDuplicateSpace}>
+                <Copy className="mr-2 h-4 w-4" />
+                Duplicate
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => {
+                  setDeletingSpace(contextMenuSpace);
+                  setContextMenu(null);
+                }}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
+        <ConfirmDialog
+          open={!!deletingSpace}
+          onOpenChange={(open) => !open && setDeletingSpace(null)}
+          title="Delete station"
+          description={`Delete "${deletingSpace?.name ?? ""}"? It stops appearing on the floorplan and in the grid, but its assignment history is kept.`}
+          confirmLabel="Delete"
+          destructive
+          isPending={deleteSpaceMutation.isPending}
+          onConfirm={handleConfirmDelete}
+        />
+
+        {/* Both conditions hold by construction — drawing requires an armed type — and gating on
+            them here removes the dead space-key fallbacks the dialog used to carry. */}
+        {drawnGeometry && activeType && (
+          <PlaceDrawnShapeDialog
+            open={placeDialogOpen}
+            onOpenChange={(next) => {
+              setPlaceDialogOpen(next);
+              // Dismissing the choice discards the shape rather than leaving it half-committed.
+              if (!next) setDrawnGeometry(null);
+            }}
+            candidates={unplacedOfActiveType}
+            resourceTypeLabel={activeType.displayName}
+            onAssign={handleAssignDrawnShape}
+            onCreateNew={handleCreateNewInstead}
+          />
+        )}
+        {drawnGeometry && activeType && (
           <CreateSpaceDialog
             open={createDialogOpen}
             onOpenChange={setCreateDialogOpen}
             geometry={drawnGeometry}
+            resourceTypeKey={activeType.key}
+            resourceTypeId={activeType.id}
+            resourceTypeLabel={activeType.displayName}
             onSubmit={handleCreateSpace}
             siteId={siteId}
           />

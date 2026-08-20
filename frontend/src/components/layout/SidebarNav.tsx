@@ -2,39 +2,51 @@ import { Button } from "@foundation/src/components/ui/button";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
+import {
+  ROUTE_CONFIGURATION,
+  ROUTE_SETTINGS,
+  ROUTE_TENANT_ADMIN,
+} from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
-import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
-import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
-import { TYPES_WITH_DEDICATED_PAGES } from "@foundation/src/constants/resource-type-key";
 import {
   Box,
   ChevronLeft,
   ChevronRight,
   LayoutDashboard,
   LineChart,
+  Building2,
   Package,
   Settings,
+  Boxes,
   ShieldCheck,
   Users,
 } from "lucide-react";
 import { Link, useLocation } from "react-router";
 
 // Split so the per-type entries derived below can sit with the other resource entries,
-// beneath People, rather than trailing the whole core list.
+// beneath the class entries, rather than trailing the whole core list.
+// Two classes, never one entry per resource type: adding a type must not grow the sidebar.
 const resourceNavItems = [
   { to: "/", label: "Utilization", icon: LayoutDashboard },
-  { to: "/spaces", label: "Spaces", icon: Box },
-  { to: "/people", label: "People", icon: Users },
+  { to: "/stations", label: "Stations", icon: Box },
+  { to: "/assets", label: "Assets", icon: Users },
 ];
 
 const workNavItems = [
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/insights", label: "Insights", icon: LineChart },
+  // Organization master data — departments, job titles and whatever else the tenant models about
+  // its own structure. Editors maintain the values; the shapes are administration.
+  { to: "/organization", label: "Organization", icon: Building2 },
 ];
 
 // Settings visible to editors and admins; Administration to tenant admins only.
 const settingsNavItem = { to: ROUTE_SETTINGS, label: "Settings", icon: Settings };
+// Sits next to Administration and shares its gate: both are tenant-admin surfaces, but this one
+// shapes the data (resource types, list definitions) rather than governing the tenant. Labelled
+// "Configuration", not "Resources" — Stations and Assets are the resources now, and two entries
+// claiming the word would send a reader to the wrong one.
+const configurationNavItem = { to: ROUTE_CONFIGURATION, label: "Configuration", icon: Boxes };
 const adminNavItem = { to: ROUTE_TENANT_ADMIN, label: "Administration", icon: ShieldCheck };
 
 interface SidebarNavProps {
@@ -53,23 +65,13 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
   const { membership } = useAuth();
   const canEdit = useCanEdit();
   const isTenantAdmin = membership?.isTenantAdmin === true;
-  // One entry per active type that has no page of its own, in the order the API returns them.
-  // The test used to be `!isSystem`, which withheld a nav entry from `tool` — a built-in type
-  // that has never had a dedicated page, so it was reachable only by typing the URL.
-  const { data: resourceTypes = [] } = useResourceTypes(true);
-  const typeNavItems = resourceTypes
-    .filter((type) => !TYPES_WITH_DEDICATED_PAGES.has(type.key))
-    .map((type) => ({
-      to: `/resources/${type.key}`,
-      label: type.displayNamePlural,
-      icon: resourceTypeIcon(type.icon),
-    }));
+  // No per-type entries any more. A type is reached through its class page's selector, which is
+  // what keeps the sidebar the same size for a tenant with three types and one with three hundred.
   const navItems = [
     ...resourceNavItems,
-    ...typeNavItems,
     ...workNavItems,
     ...(canEdit ? [settingsNavItem] : []),
-    ...(isTenantAdmin ? [adminNavItem] : []),
+    ...(isTenantAdmin ? [adminNavItem, configurationNavItem] : []),
   ];
   const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
   const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);
@@ -89,7 +91,7 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
       <div className="flex-1 py-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // Sections with index-redirect sub-tabs (e.g. Spaces → /spaces/floorplan)
+          // Sections with index-redirect sub-tabs (e.g. Floorplan → /stations/mill/instances)
           // need a prefix match so the parent item stays highlighted. The root
           // item ('/') is special-cased to an exact match so it is not active
           // on every route.

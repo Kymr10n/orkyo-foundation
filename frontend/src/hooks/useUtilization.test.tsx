@@ -8,6 +8,17 @@ import type { Request } from "@foundation/src/types/requests";
 
 vi.mock("@foundation/src/lib/api/utilization-api");
 
+// usePlaceableTypeKeys derives the placeable set from the tenant's active types now —
+// nothing is built in, so the tests must provide the `space` type themselves.
+vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
+  useResourceTypes: () => ({
+    data: [{ key: "space", hasGeometry: true }],
+    isSuccess: true,
+  }),
+  RESOURCE_TYPE_INVALIDATES: [],
+  useDeleteResourceType: vi.fn(),
+}));
+
 import * as utilizationApi from "@foundation/src/lib/api/utilization-api";
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 

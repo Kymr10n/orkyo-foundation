@@ -48,4 +48,14 @@ describe('CanvasInstructions', () => {
     renderInstructions();
     expect(screen.getByText('Press ESC to cancel')).toBeInTheDocument();
   });
+
+  it('renders circle instruction — centre first', () => {
+    renderInstructions({ drawingMode: 'circle', drawingPoints: [] });
+    expect(screen.getByText('Click to place the centre')).toBeInTheDocument();
+  });
+
+  it('renders circle instruction — then the radius', () => {
+    renderInstructions({ drawingMode: 'circle', drawingPoints: [{ x: 10, y: 10 }] });
+    expect(screen.getByText('Click to set the radius')).toBeInTheDocument();
+  });
 });

@@ -2,7 +2,6 @@ import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request
 import type { Request } from "@foundation/src/types/requests";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { ResourceAssignmentInfo } from "@foundation/src/lib/api/resource-assignments-api";
-import type { Space } from "@foundation/src/types/space";
 import type { Site } from "@foundation/src/types/site";
 
 /**
@@ -166,10 +165,16 @@ export const sitesFixture: Site[] = [
   },
 ];
 
-export const spacesFixture: Space[] = [
+export const spacesFixture: ResourceInfo[] = [
   {
     id: SPACE_BAY3_ID,
-    siteId: SITE_ID,
+    resourceTypeId: "type-space",
+    resourceTypeKey: "space",
+    allocationMode: "Exclusive",
+    baseAvailabilityPercent: 100,
+    isActive: true,
+    homeSiteId: SITE_ID,
+    crossSiteAllowed: false,
     name: "Bay 3",
     isPhysical: true,
     capacity: 1,

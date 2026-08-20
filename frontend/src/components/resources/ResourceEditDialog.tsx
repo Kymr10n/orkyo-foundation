@@ -24,6 +24,8 @@ import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-f
 import { useResourceCustomFieldForm } from '@foundation/src/hooks/useResourceCustomFieldForm';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { CustomFieldInput } from './CustomFieldInput';
+import { ResourceDirectoryFields, type DirectoryFormValues } from './ResourceDirectoryFields';
+import { isValidEmail } from '@foundation/src/lib/utils/validation';
 
 interface ResourceEditDialogProps {
   resourceType: ResourceTypeInfo;
@@ -32,7 +34,7 @@ interface ResourceEditDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-interface FormState {
+interface FormState extends DirectoryFormValues {
   name: string;
   description: string;
   externalReference: string;
@@ -65,6 +67,9 @@ export function ResourceEditDialog({
   // "available for other sites" is not a choice for these types — the server rejects the
   // combination outright — and offering the checkbox only produces an unexplained 400.
   const isPlaceable = resourceType.hasGeometry;
+  // Directory types carry email, job title, department and notes. The backend holds them on the
+  // generic resource contract and rejects them for any other type, so the flag gates both.
+  const hasDirectory = resourceType.hasDirectoryProfile;
 
   const customFields = useResourceCustomFieldForm(resourceType.id, open);
 
@@ -86,6 +91,8 @@ export function ResourceEditDialog({
       homeSiteId: '',
       crossSiteAllowed: !isPlaceable,
       customFields: {},
+      email: '',
+      notes: '',
     }),
     toForm: (r) => ({
       name: r.name,
@@ -96,6 +103,8 @@ export function ResourceEditDialog({
       homeSiteId: r.homeSiteId ?? '',
       crossSiteAllowed: isPlaceable ? false : (r.crossSiteAllowed ?? true),
       customFields: { ...(r.customFields ?? {}) },
+      email: r.email ?? '',
+      notes: r.notes ?? '',
     }),
     save: (form, r) => {
       const fields = {
@@ -107,6 +116,14 @@ export function ResourceEditDialog({
         homeSiteId: form.homeSiteId || null,
         crossSiteAllowed: isPlaceable ? false : form.crossSiteAllowed,
         customFields: customFields.forSave(form.customFields),
+        // Sent only for a directory type. The backend rejects these fields on any other type,
+        // so a stray empty string would turn every save into a 400.
+        ...(hasDirectory
+          ? {
+              email: form.email || null,
+              notes: form.notes || null,
+            }
+          : {}),
       };
       return r
         ? updateResource(r.id, fields)
@@ -119,7 +136,9 @@ export function ResourceEditDialog({
   const setCustomField = (key: string, value: CustomFieldValue) =>
     set({ customFields: customFields.withValue(form.customFields, key, value) });
 
-  const canSubmit = form.name.trim().length > 0 && customFields.isSatisfied(form.customFields);
+  const emailInvalid = hasDirectory && !!form.email && !isValidEmail(form.email);
+  const canSubmit =
+    form.name.trim().length > 0 && customFields.isSatisfied(form.customFields) && !emailInvalid;
 
   return (
     <FormDialog
@@ -249,6 +268,12 @@ export function ResourceEditDialog({
         </>
       )}
 
+      {hasDirectory && (
+        <ResourceDirectoryFields value={form} onChange={(patch) => set(patch)} />
+      )}
+
+      {emailInvalid && <ErrorAlert message="Email address is not valid." />}
+
       {customFields.isError && (
         <ErrorAlert message="Could not load this type's custom fields. Close and reopen to try again — saving is blocked until they load, so nothing required is missed." />
       )}
@@ -261,6 +286,9 @@ export function ResourceEditDialog({
               field={field}
               value={customFields.valueOf(field, form.customFields)}
               onChange={(value) => setCustomField(field.key, value)}
+              // Null while creating: a list field's rows hang off the resource, so there is
+              // nowhere to put them until it exists.
+              resourceId={resource?.id ?? null}
             />
           ))}
         </div>

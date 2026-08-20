@@ -109,6 +109,12 @@ public record InsightsUtilization
     public required string ResourceType { get; init; }
     public required string Bucket { get; init; }
     public required IReadOnlyList<UtilizationSeriesPoint> Series { get; init; }
+    /// <summary>
+    /// How many active resources of this type the site holds over the window. Zero means the type
+    /// has nothing here — a different statement from "its capacity is zero", and the reason a
+    /// trend card for it is not worth drawing.
+    /// </summary>
+    public required int ResourceCount { get; init; }
     public required InsightsMetadata Metadata { get; init; }
 }
 

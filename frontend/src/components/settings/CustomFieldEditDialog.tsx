@@ -20,6 +20,11 @@ import {
   type CustomFieldDataType,
   type ResourceCustomField,
 } from '@foundation/src/lib/api/resource-custom-fields-api';
+import { keyFromLabel } from '@foundation/src/lib/key-from-label';
+import {
+  useAllSharedListInstances,
+  useListDefinitions,
+} from '@foundation/src/hooks/useListDefinitions';
 
 interface CustomFieldEditDialogProps {
   resourceTypeId: string;
@@ -34,6 +39,8 @@ interface FormState {
   label: string;
   description: string;
   dataType: CustomFieldDataType;
+  listDefinitionId: string;
+  listInstanceId: string;
   isRequired: boolean;
   /** Raw input text: an emptied box is '' while retyping, not 0. */
   sortOrder: string;
@@ -43,22 +50,17 @@ interface FormState {
 /** Stable identifier inside every stored value document; mirrors the server rule. */
 const KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/;
 
-/** Derives a starting key from the label so the admin rarely types one by hand. */
-function keyFromLabel(label: string): string {
-  return label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/^([^a-z])/, 'f_$1')
-    .slice(0, 50);
-}
-
 export function CustomFieldEditDialog({
   resourceTypeId,
   field,
   open,
   onOpenChange,
 }: CustomFieldEditDialogProps) {
+  // Only active definitions: an inactive one is out of circulation and the server refuses a
+  // new binding to it.
+  const { data: listDefinitions = [] } = useListDefinitions();
+  const sharedInstances = useAllSharedListInstances();
+
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ResourceCustomField,
     FormState,
@@ -72,6 +74,8 @@ export function CustomFieldEditDialog({
       label: '',
       description: '',
       dataType: 'text',
+      listDefinitionId: '',
+      listInstanceId: '',
       isRequired: false,
       sortOrder: '0',
       isActive: true,
@@ -81,6 +85,8 @@ export function CustomFieldEditDialog({
       label: f.label,
       description: f.description ?? '',
       dataType: f.dataType,
+      listDefinitionId: f.listDefinitionId ?? '',
+      listInstanceId: f.listInstanceId ?? '',
       isRequired: f.isRequired,
       sortOrder: String(f.sortOrder),
       isActive: f.isActive,
@@ -99,6 +105,9 @@ export function CustomFieldEditDialog({
             label: form.label,
             description: form.description || undefined,
             dataType: form.dataType,
+            // Only a list field carries a binding; the server rejects one on any other type.
+            ...(form.dataType === 'list' ? { listDefinitionId: form.listDefinitionId } : {}),
+            ...(form.dataType === 'list_lookup' ? { listInstanceId: form.listInstanceId } : {}),
             isRequired: form.isRequired,
             sortOrder: Number(form.sortOrder) || 0,
           }),
@@ -188,6 +197,62 @@ export function CustomFieldEditDialog({
               {CUSTOM_FIELD_DATA_TYPES.find((o) => o.value === form.dataType)?.hint}
             </p>
           </div>
+
+          {form.dataType === 'list_lookup' && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-field-list-instance">
+                Shared list<span className="text-destructive ml-1">*</span>
+              </Label>
+              <Select
+                value={form.listInstanceId || undefined}
+                onValueChange={(v) => set({ listInstanceId: v })}
+              >
+                <SelectTrigger id="custom-field-list-instance">
+                  <SelectValue placeholder="Choose a shared list…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sharedInstances.map((entry) => (
+                    <SelectItem key={entry.instance.id} value={entry.instance.id}>
+                      {entry.definitionName} — {entry.instance.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {sharedInstances.length === 0
+                  ? 'No shared lists yet — create one from a list definition under Resources first.'
+                  : 'The rows this field picks from. Fixed once the field exists.'}
+              </p>
+            </div>
+          )}
+
+          {form.dataType === 'list' && (
+            <div className="space-y-2">
+              <Label htmlFor="custom-field-list-definition">
+                List definition<span className="text-destructive ml-1">*</span>
+              </Label>
+              <Select
+                value={form.listDefinitionId || undefined}
+                onValueChange={(v) => set({ listDefinitionId: v })}
+              >
+                <SelectTrigger id="custom-field-list-definition">
+                  <SelectValue placeholder="Choose a list definition…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {listDefinitions.map((definition) => (
+                    <SelectItem key={definition.id} value={definition.id}>
+                      {definition.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">
+                {listDefinitions.length === 0
+                  ? 'No list definitions yet — create one under Resources first.'
+                  : 'The shape this list takes. Fixed once the field exists.'}
+              </p>
+            </div>
+          )}
         </>
       )}
 

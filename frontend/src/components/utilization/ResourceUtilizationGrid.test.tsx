@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { EMPTY_RESOURCE_GRID_FILTER, type ResourceGridFilter } from './resource-grid-filter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceUtilizationGrid } from './ResourceUtilizationGrid';
 import { useAppStore } from '@foundation/src/store/app-store';
@@ -13,9 +14,12 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
 vi.mock('@foundation/src/lib/api/resource-utilization-api', () => ({
   getUtilizationByResource: vi.fn(),
 }));
-vi.mock('@foundation/src/lib/api/person-profiles-api', () => ({
-  getPersonJobTitles: vi.fn().mockResolvedValue([]),
+vi.mock('@foundation/src/hooks/useLookupFieldLabels', () => ({
+  useLookupFieldLabels: (typeId: string | undefined) => (typeId === undefined ? {} : lookupLabels),
 }));
+
+// Mutable so a case decides what the resolver returns before rendering.
+let lookupLabels: Record<string, Record<string, string>> = {};
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn().mockResolvedValue([]),
   getResourceGroupMembers: vi.fn().mockResolvedValue({ groupId: '', members: [] }),
@@ -32,7 +36,6 @@ vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
 
 import { getResources } from '@foundation/src/lib/api/resources-api';
 import { getUtilizationByResource } from '@foundation/src/lib/api/resource-utilization-api';
-import { getPersonJobTitles } from '@foundation/src/lib/api/person-profiles-api';
 import { getResourceGroups, getResourceGroupMembers } from '@foundation/src/lib/api/resource-groups-api';
 import { getAssignmentsByResourceType, validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
 import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
@@ -50,6 +53,8 @@ const twoPeople: ResourcesResponse = {
       name: 'Alice Smith',
       allocationMode: 'Exclusive',
       baseAvailabilityPercent: 100,
+      isPhysical: false,
+      capacity: 1,
       isActive: true,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
@@ -61,6 +66,8 @@ const twoPeople: ResourcesResponse = {
       name: 'Bob Jones',
       allocationMode: 'Fractional',
       baseAvailabilityPercent: 80,
+      isPhysical: false,
+      capacity: 1,
       isActive: true,
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
@@ -115,20 +122,26 @@ function renderGrid(props?: Partial<React.ComponentProps<typeof ResourceUtilizat
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
+  return { queryClient, ...render(
     <QueryClientProvider client={queryClient}>
-      <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={ANCHOR} scale="month" {...props} />
+      <ResourceUtilizationGrid
+        resourceType={PERSON_TYPE}
+        anchorTs={ANCHOR}
+        scale="month"
+        filter={EMPTY_RESOURCE_GRID_FILTER}
+        {...props}
+      />
     </QueryClientProvider>,
-  );
+  ) };
 }
 
 describe('ResourceUtilizationGrid', () => {
   beforeEach(() => {
+    lookupLabels = {};
     vi.clearAllMocks();
     useAppStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
     vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableBuckets));
-    vi.mocked(getPersonJobTitles).mockResolvedValue([]);
     vi.mocked(getResourceGroups).mockResolvedValue([]);
     vi.mocked(getResourceGroupMembers).mockResolvedValue({ groupId: '', members: [] });
   });
@@ -171,19 +184,18 @@ describe('ResourceUtilizationGrid', () => {
     expect(useAppStore.getState().collapsedGroupIds).not.toContain('ungrouped');
   });
 
-  it('shows job title from the label projection when available', async () => {
-    vi.mocked(getPersonJobTitles).mockResolvedValue([
-      { resourceId: 'p-alice', jobTitleName: 'Senior Engineer' },
-    ]);
+  it('shows the job title resolved from the organization lookup', async () => {
+    lookupLabels = { 'p-alice': { job_title: 'Senior Engineer' } };
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     await waitFor(() => expect(screen.getAllByText('Senior Engineer').length).toBeGreaterThan(0));
   });
 
-  it('fetches job-title labels in a single bulk request (no per-resource fan-out)', async () => {
+  it('falls back to the description when a resource has no job title picked', async () => {
+    lookupLabels = {};
     renderGrid();
-    await waitFor(() => expect(getPersonJobTitles).toHaveBeenCalledTimes(1));
-    expect(getPersonJobTitles).toHaveBeenCalledWith(['p-alice', 'p-bob']);
+    await waitFor(() => screen.getByText('Alice Smith'));
+    expect(screen.queryByText('Senior Engineer')).not.toBeInTheDocument();
   });
 
   it('surfaces an explicit error state when a data query fails (no silent swallow)', async () => {
@@ -263,40 +275,32 @@ describe('ResourceUtilizationGrid', () => {
     expect(screen.getByText(/Assignments — Alice Smith/)).toBeInTheDocument();
   });
 
-  it('filters people by search input', async () => {
-    renderGrid();
+  it('filters people by the query it is handed', async () => {
+    const { rerender, queryClient } = renderGrid();
     await waitFor(() => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText(/search people/i), {
-      target: { value: 'Alice' },
-    });
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ResourceUtilizationGrid
+          resourceType={PERSON_TYPE}
+          anchorTs={ANCHOR}
+          scale="month"
+          filter={{ ...EMPTY_RESOURCE_GRID_FILTER, query: 'Alice' }}
+        />
+      </QueryClientProvider>,
+    );
 
+    await waitFor(() => expect(screen.queryByText('Bob Jones')).not.toBeInTheDocument());
     expect(screen.getByText('Alice Smith')).toBeInTheDocument();
-    expect(screen.queryByText('Bob Jones')).not.toBeInTheDocument();
   });
 
-  it('shows no-match message when search yields no results', async () => {
-    renderGrid();
-    await waitFor(() => screen.getByText('Alice Smith'));
+  it('shows the no-match message when the query matches nothing', async () => {
+    renderGrid({ filter: { ...EMPTY_RESOURCE_GRID_FILTER, query: 'xyz-no-match' } });
 
-    fireEvent.change(screen.getByPlaceholderText(/search people/i), {
-      target: { value: 'xyz-no-match' },
-    });
-
-    expect(screen.getByText(/no people match/i)).toBeInTheDocument();
-  });
-
-  it('renders the legend strip', async () => {
-    renderGrid();
-    await waitFor(() => screen.getByTestId('person-utilization-grid'));
-    // getAllByText because segment bars may also render the same status text
-    expect(screen.getAllByText('Available').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Booked').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Assigned').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Overbooked').length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getByText(/no people match/i)).toBeInTheDocument());
   });
 
   it('uses EEE dd column header format for day granularity (week scale)', async () => {
@@ -313,7 +317,9 @@ describe('ResourceUtilizationGrid', () => {
     await waitFor(() => screen.getByText('Alice Smith'));
     expect(screen.getByText('11 Mon')).toBeInTheDocument();
     expect(screen.getByText('17 Sun')).toBeInTheDocument();
-    expect(screen.getByText('Person')).toBeInTheDocument();
+    // The row-label column heads "Name"; the tab and the rows already say what kind of
+    // thing these are.
+    expect(screen.getByText('Name')).toBeInTheDocument();
   });
 
   it('renders 7 day-columns for week scale', async () => {
@@ -383,7 +389,7 @@ describe('ResourceUtilizationGrid', () => {
     });
     rerender(
       <QueryClientProvider client={queryClient}>
-        <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" />
+        <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" filter={EMPTY_RESOURCE_GRID_FILTER} />
       </QueryClientProvider>,
     );
 
@@ -398,38 +404,6 @@ describe('ResourceUtilizationGrid', () => {
   // LegendDot renders <span class="flex items-center gap-1"><span class="inline-block ..."/>{label}</span>.
   // The dot is the first-child span. Segment bars may also render the same label text, so we
   // locate the legend span by its unique gap-1 + items-center structure (first child = dot).
-  function getLegendDot(label: string): HTMLElement {
-    const candidates = screen.getAllByText(label);
-    const legendSpan = candidates.find(
-      (el) => el.tagName === 'SPAN' && el.firstElementChild?.tagName === 'SPAN',
-    );
-    return legendSpan!.firstElementChild as HTMLElement;
-  }
-
-  it('legend dot for "Available" uses the emerald palette', async () => {
-    renderGrid();
-    await waitFor(() => expect(screen.getAllByText('Available').length).toBeGreaterThan(0));
-    const dot = getLegendDot('Available');
-    expect(dot.className).toMatch(/bg-emerald-100/);
-    expect(dot.className).toMatch(/dark:bg-emerald-950/);
-  });
-
-  it('legend dot for "Assigned" uses the blue palette', async () => {
-    renderGrid();
-    await waitFor(() => screen.getByText('Assigned'));
-    const dot = getLegendDot('Assigned');
-    expect(dot.className).toMatch(/bg-blue-100/);
-    expect(dot.className).toMatch(/dark:bg-blue-950/);
-  });
-
-  it('legend dot for "Overbooked" uses the red palette', async () => {
-    renderGrid();
-    await waitFor(() => screen.getByText('Overbooked'));
-    const dot = getLegendDot('Overbooked');
-    expect(dot.className).toMatch(/bg-red-100/);
-    expect(dot.className).toMatch(/dark:bg-red-950/);
-  });
-
   // ── Conflict-check deferral tests ───────────────────────────────────────────
 
   const oneAssignment: ResourceAssignmentInfo = {
@@ -517,5 +491,40 @@ describe('ResourceUtilizationGrid', () => {
     await waitFor(() =>
       expect(screen.queryByTestId('person-assignment-dialog')).not.toBeInTheDocument(),
     );
+  });
+
+  describe('the filter it is handed', () => {
+    const withFilter = (filter: Partial<ResourceGridFilter>) =>
+      renderGrid({ filter: { ...EMPTY_RESOURCE_GRID_FILTER, ...filter } });
+
+    it('narrows the rows to the query', async () => {
+      withFilter({ query: 'bob' });
+
+      await waitFor(() => expect(screen.getByText('Bob Jones')).toBeInTheDocument());
+      expect(screen.queryByText('Alice Smith')).not.toBeInTheDocument();
+    });
+
+    it('reports how many rows survived', async () => {
+      withFilter({ query: 'bob' });
+
+      // "3 of 12" is a fact about this grid, so it stays over its own rows even though the
+      // search that caused it belongs to the tab.
+      await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/of \d+ people/));
+    });
+
+    it('says nothing while nothing is filtered', async () => {
+      renderGrid();
+
+      await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('carries no search box of its own', async () => {
+      // One tab, one search: a box per stacked grid could only ever be labelled after one type.
+      renderGrid();
+
+      await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+      expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    });
   });
 });

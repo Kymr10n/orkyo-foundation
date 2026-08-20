@@ -19,6 +19,7 @@ public class SchedulingService : ISchedulingService
 {
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IRequestRepository _requestRepository;
+    private readonly IResourceTypeRepository _resourceTypeRepository;
     private readonly IResourceRepository _resourceRepository;
     private readonly IAvailabilityResolver _resolver;
     private readonly ILogger<SchedulingService> _logger;
@@ -26,12 +27,14 @@ public class SchedulingService : ISchedulingService
     public SchedulingService(
         ISchedulingRepository schedulingRepository,
         IRequestRepository requestRepository,
+        IResourceTypeRepository resourceTypeRepository,
         IResourceRepository resourceRepository,
         IAvailabilityResolver resolver,
         ILogger<SchedulingService> logger)
     {
         _schedulingRepository = schedulingRepository;
         _requestRepository = requestRepository;
+        _resourceTypeRepository = resourceTypeRepository;
         _resourceRepository = resourceRepository;
         _resolver = resolver;
         _logger = logger;
@@ -73,20 +76,23 @@ public class SchedulingService : ISchedulingService
         _logger.LogInformation("Recalculating {Count} scheduled requests for site {SiteId}",
             toRecalculate.Count, siteId);
 
-        var spaceResourceIds = toRecalculate
-            .Select(r => r.GetResourceIdForType(ResourceTypeKeys.Space))
+        // The placement can be any placeable type, not only space — a request recalculated on a
+        // mill used to get an empty blocked-period set here and drift over its machine's off-time.
+        var placeableKeys = (await _resourceTypeRepository.GetPlaceableKeysAsync(ct)).ToHashSet();
+        var placementResourceIds = toRecalculate
+            .Select(r => r.GetPlacementResourceId(placeableKeys))
             .Where(id => id.HasValue)
             .Select(id => id!.Value)
             .Distinct()
             .ToList();
-        var blockedByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(spaceResourceIds, ct);
+        var blockedByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(placementResourceIds, ct);
 
         var updates = new List<(Guid Id, ScheduleRequestRequest Data)>();
         foreach (var request in toRecalculate)
         {
             try
             {
-                var resourceId = request.GetResourceIdForType(ResourceTypeKeys.Space);
+                var resourceId = request.GetPlacementResourceId(placeableKeys);
                 var blockedPeriods = resourceId.HasValue
                     ? blockedByResource[resourceId.Value]
                     : [];

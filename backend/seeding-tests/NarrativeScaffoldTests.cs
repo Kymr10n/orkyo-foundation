@@ -89,4 +89,58 @@ public class NarrativeScaffoldTests
             Assert.True(e > s);
         }
     }
+
+    [Fact]
+    public void EveryFacilityRoster_CoversTheWorkThatFacilityDoes()
+    {
+        // A persona is what makes a person's title, department, team and skills tell one story.
+        // The risk of deriving skills from a role is that a role nobody staffed leaves work with
+        // no qualified person — so the roster has to cover the archetypes before the seed runs.
+        foreach (var facility in FacilityModel.All)
+        {
+            var roster = PersonaCatalog.Roster(facility.SiteCode);
+            var held = roster.SelectMany(p => p.Skills).ToHashSet();
+
+            foreach (var arch in facility.Archetypes)
+            {
+                // A lead holds every skill of the job they lead, so at least one persona must hold
+                // the whole set rather than the set being covered between several people.
+                Assert.True(
+                    roster.Any(p => arch.RequiredSkills.All(p.Skills.Contains)),
+                    $"{facility.SiteCode} has no persona who can lead \"{arch.Verb} {arch.Noun}\" "
+                    + $"(needs {string.Join(" + ", arch.RequiredSkills)})");
+            }
+
+            foreach (var skill in FacilityModel.RequiredPersonSkills(facility))
+                Assert.Contains(skill, held);
+        }
+    }
+
+    [Fact]
+    public void EveryPersonaJobTitle_ExistsInTheProfilePool()
+    {
+        // The title is resolved against the seeded job-title list by name. One that is not in the
+        // pool would silently leave the person with no title at all.
+        var pool = new Profiles.Manufacturing().JobTitlePool.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var site in new[] { "PMF", "FWF", "PPF" })
+            foreach (var persona in PersonaCatalog.Roster(site))
+                Assert.Contains(persona.JobTitle, pool);
+    }
+
+    [Fact]
+    public void EveryPersonaDepartment_StartsWithAProfileRoot()
+    {
+        // Departments resolve child-then-root, so the first word has to be a root the profile
+        // seeds; otherwise the person ends up with no department rather than a coarse one.
+        var roots = new Profiles.Manufacturing().DepartmentRootPool.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var site in new[] { "PMF", "FWF", "PPF" })
+            foreach (var persona in PersonaCatalog.Roster(site))
+            {
+                var root = persona.Department.Split(' ')[0];
+                Assert.True(roots.Contains(root),
+                    $"'{persona.Department}' does not start with a seeded department root");
+            }
+    }
 }

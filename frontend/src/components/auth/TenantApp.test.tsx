@@ -32,8 +32,14 @@ vi.mock("@foundation/src/pages/AccountPage", () => ({
 vi.mock("@foundation/src/pages/UtilizationPage", () => ({
   UtilizationPage: () => <div data-testid="utilization-page">Utilization</div>,
 }));
-vi.mock("@foundation/src/pages/SpacesPage", () => ({
-  SpacesPage: () => <div data-testid="spaces-page">Spaces</div>,
+// The canvas is the whole body of the floorplan surface now — there is no page between them.
+// The class page around it is the shell this suite already stubs for every other station route.
+vi.mock("@foundation/src/pages/ResourceClassPage", async () => {
+  const { Outlet } = await import("react-router");
+  return { ResourceClassPage: () => <div data-testid="resource-class-page"><Outlet /></div> };
+});
+vi.mock("@foundation/src/components/spaces/FloorplanView", () => ({
+  FloorplanView: () => <div data-testid="floorplan-view">Floorplan</div>,
 }));
 vi.mock("@foundation/src/pages/InsightsPage", () => ({
   InsightsPage: () => <div data-testid="insights-page">Insights</div>,
@@ -113,7 +119,7 @@ describe("TenantApp", () => {
     ["/about",    "about-page"],
     ["/account",  "account-page"],
     ["/messages", "messages-page"],
-    ["/spaces",   "spaces-page"],
+    ["/floorplan", "floorplan-view"],
     ["/requests", "requests-page"],
     ["/insights", "insights-page"],
     ["/conflicts","insights-page"],

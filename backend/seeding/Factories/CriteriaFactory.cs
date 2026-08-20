@@ -19,16 +19,16 @@ public static class CriteriaFactory
     // The seeder picks a subset based on scale.Criteria.
     private static readonly IReadOnlyList<(string Name, string DataType, string? Unit, string? Description, string[] ResourceTypeKeys)> Pool =
     [
-        ("Capacity_persons",         "Number",  "persons",  "Maximum number of occupants.",                                      ["space"]),
-        ("AV_Equipment",             "Boolean", null,       "Room has audio/visual equipment.",                                   ["space"]),
-        ("Whiteboard",               "Boolean", null,       "Room has a whiteboard.",                                             ["space"]),
-        ("Standing_Desks",           "Boolean", null,       "Workstation has standing-desk capability.",                          ["space"]),
-        ("Natural_Light",            "Boolean", null,       "Space receives natural daylight.",                                   ["space"]),
-        ("Video_Conferencing",       "Boolean", null,       "Equipped for video conferencing.",                                   ["space"]),
-        ("Noise_Level",              "Enum",    null,       "Typical ambient noise level.",                                       ["space"]),
-        ("Floor_Area_m2",            "Number",  "m²",       "Usable floor area in square metres.",                               ["space"]),
-        ("Parking_Spaces",           "Number",  "spaces",   "Number of reserved parking spots.",                                  ["space"]),
-        ("Accessibility",            "Boolean", null,       "Fully accessible for mobility-impaired individuals.",                ["space"]),
+        ("Capacity_persons",         "Number",  "persons",  "Maximum number of occupants.",                                      ["room"]),
+        ("AV_Equipment",             "Boolean", null,       "Room has audio/visual equipment.",                                   ["room"]),
+        ("Whiteboard",               "Boolean", null,       "Room has a whiteboard.",                                             ["room"]),
+        ("Standing_Desks",           "Boolean", null,       "Workstation has standing-desk capability.",                          ["room"]),
+        ("Natural_Light",            "Boolean", null,       "Space receives natural daylight.",                                   ["room"]),
+        ("Video_Conferencing",       "Boolean", null,       "Equipped for video conferencing.",                                   ["room"]),
+        ("Noise_Level",              "Enum",    null,       "Typical ambient noise level.",                                       ["room"]),
+        ("Floor_Area_m2",            "Number",  "m²",       "Usable floor area in square metres.",                               ["room"]),
+        ("Parking_Spaces",           "Number",  "spaces",   "Number of reserved parking spots.",                                  ["room"]),
+        ("Accessibility",            "Boolean", null,       "Fully accessible for mobility-impaired individuals.",                ["room"]),
         ("Years_Experience",         "Number",  "years",    "Total professional experience.",                                     ["person"]),
         ("Certification_Level",      "Enum",    null,       "Professional certification tier.",                                   ["person"]),
         ("Remote_Work_Capable",      "Boolean", null,       "Person can work fully remotely.",                                    ["person"]),
@@ -38,8 +38,8 @@ public static class CriteriaFactory
         ("Drivers_Licence",          "Boolean", null,       "Holds a valid driver's licence.",                                    ["person"]),
         ("Security_Clearance",       "Enum",    null,       "Government security clearance level.",                               ["person"]),
         ("First_Aid_Certified",      "Boolean", null,       "Holds a current first-aid certificate.",                             ["person"]),
-        ("Min_Clearance_Height_m",   "Number",  "m",        "Minimum overhead clearance required.",                               ["space"]),
-        ("Power_Supply_kW",          "Number",  "kW",       "Electrical power draw or requirement.",                              ["space"]),
+        ("Min_Clearance_Height_m",   "Number",  "m",        "Minimum overhead clearance required.",                               ["room"]),
+        ("Power_Supply_kW",          "Number",  "kW",       "Electrical power draw or requirement.",                              ["room"]),
         ("Safety_Rating",            "Enum",    null,       "Regulatory safety rating.",                                          ["person"]),
         ("Project_Lead_Eligible",    "Boolean", null,       "May be assigned as project lead.",                                   ["person"]),
     ];
@@ -125,7 +125,7 @@ public static class CriteriaFactory
     {
         var result = new Dictionary<string, Guid>();
         await using var cmd = new NpgsqlCommand(
-            "SELECT key, id FROM public.resource_types WHERE key IN ('space', 'person')",
+            "SELECT key, id FROM public.resource_types WHERE key IN ('room', 'person')",
             conn, tx);
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())

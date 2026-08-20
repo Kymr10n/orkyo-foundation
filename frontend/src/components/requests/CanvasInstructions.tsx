@@ -1,4 +1,4 @@
-import type { Coordinate, DrawingMode } from "@foundation/src/types/space";
+import type { Coordinate, DrawingMode } from "@foundation/src/types/geometry";
 
 interface CanvasInstructionsProps {
   isPassiveMode: boolean;
@@ -29,6 +29,13 @@ export function CanvasInstructions({
           {drawingPoints.length < 3
             ? `Click to add points (${drawingPoints.length}/3 minimum)`
             : "Double-click to complete polygon"}
+        </p>
+      )}
+      {drawingMode === "circle" && (
+        <p>
+          {drawingPoints.length === 0
+            ? "Click to place the centre"
+            : "Click to set the radius"}
         </p>
       )}
       <p className="text-xs text-muted-foreground mt-1">

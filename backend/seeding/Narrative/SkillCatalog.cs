@@ -37,6 +37,14 @@ public static class SkillCatalog
     public const string Grinding = "grinding";
     public const string Maintenance = "maintenance";
     public const string WeldingCert = "welding_cert";
+    public const string Drilling = "drilling";
+    public const string MetalCutting = "metal_cutting";
+    /// <summary>
+    /// Held by nobody, on purpose. No archetype requires it and no persona carries it, so the two
+    /// backlog items that ask for it are the ones auto-scheduling reports as having no compatible
+    /// resource — the honest half of the solver demo.
+    /// </summary>
+    public const string WeldInspection = "weld_inspection";
 
     // ── Space / tool specs (display-only) ─────────────────────────────────────
     public const string CleanRoom = "clean_room";
@@ -49,7 +57,6 @@ public static class SkillCatalog
     [
         new(CncOperation,     "CNC Operation",         "Boolean", null, null, SkillKind.Person),
         new(Assembly,         "Assembly",              "Boolean", null, null, SkillKind.Person),
-        new(LineOperation,    "Line Operation",        "Boolean", null, null, SkillKind.Person),
         new(Packaging,        "Packaging",             "Boolean", null, null, SkillKind.Person),
         new(QaInspection,     "QA Inspection",         "Boolean", null, null, SkillKind.Person),
         new(ForkliftLicense,  "Forklift License",      "Boolean", null, null, SkillKind.Person),
@@ -58,6 +65,9 @@ public static class SkillCatalog
         new(Grinding,         "Grinding & Finishing",  "Boolean", null, null, SkillKind.Person),
         new(Maintenance,      "Maintenance",           "Boolean", null, null, SkillKind.Person),
         new(WeldingCert,      "Welding Certification", "Enum",    WeldingCertValues, null, SkillKind.Person),
+        new(Drilling,         "Drilling",              "Boolean", null, null, SkillKind.Person),
+        new(MetalCutting,     "Metal Cutting & Sawing","Boolean", null, null, SkillKind.Person),
+        new(WeldInspection,   "Certified Weld Inspector","Boolean",null, null, SkillKind.Person),
 
         new(CleanRoom,        "Clean Room",            "Boolean", null, null, SkillKind.SpaceSpec),
         new(Ventilated,       "Ventilated",            "Boolean", null, null, SkillKind.SpaceSpec),

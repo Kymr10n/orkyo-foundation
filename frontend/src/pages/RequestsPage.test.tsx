@@ -625,6 +625,8 @@ describe('RequestsPage', () => {
     expect(exportRequests).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ id: 'r1' })]),
       'csv',
+      // The placeable type set — the export resolves each request's placement against it.
+      expect.any(Set),
     );
   });
 

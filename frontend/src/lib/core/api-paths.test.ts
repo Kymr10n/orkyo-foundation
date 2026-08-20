@@ -40,26 +40,6 @@ describe('api-paths', () => {
     });
   });
 
-  describe('Spaces paths', () => {
-    it('generates correct spaces collection path', () => {
-      expect(API_PATHS.spaces('site-123')).toBe('/api/sites/site-123/spaces');
-    });
-
-    it('generates correct space path', () => {
-      expect(API_PATHS.space('site-123', 'space-456')).toBe('/api/sites/site-123/spaces/space-456');
-    });
-
-    it('generates correct space capabilities path', () => {
-      expect(API_PATHS.spaceCapabilities('site-123', 'space-456'))
-        .toBe('/api/sites/site-123/spaces/space-456/capabilities');
-    });
-
-    it('generates correct space capability path', () => {
-      expect(API_PATHS.spaceCapability('site-123', 'space-456', 'cap-789'))
-        .toBe('/api/sites/site-123/spaces/space-456/capabilities/cap-789');
-    });
-  });
-
   describe('Group capability paths', () => {
     // These pinned the /api/groups prefix for ten weeks after the backend renamed it to
     // /api/resource-groups, locking in a defect instead of catching it. The backend route

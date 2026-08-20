@@ -5,7 +5,12 @@ import {
     scheduleRequest,
     type ScheduleRequestData,
 } from "@foundation/src/lib/api/utilization-api";
-import { applySpaceAssignmentOptimistic, clearSpaceAssignmentOptimistic } from "@foundation/src/domain/scheduling/request-assignments";
+import {
+    applyPlacementAssignmentOptimistic,
+    clearPlacementAssignmentOptimistic,
+    getPlacementAssignment,
+} from "@foundation/src/domain/scheduling/request-assignments";
+import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
@@ -18,10 +23,10 @@ import { toast } from "sonner";
 // time-derived lifecycle live between fetches (each page applies withEffectiveStatus to its feed).
 const REQUESTS_REFETCH_MS = 30_000;
 
-// Canonical spaces hook lives in useSpaces.ts. Re-exported here (not redefined) so
-// existing `useUtilization` importers (e.g. UtilizationPage) keep resolving against
+// Canonical placeable-resource hook lives in usePlaceableResources.ts. Re-exported here (not
+// redefined) so existing `useUtilization` importers (e.g. UtilizationPage) keep resolving against
 // the single source of truth. See F051 dedup.
-export { useSpaces } from "@foundation/src/hooks/useSpaces";
+export { usePlaceableResources } from "@foundation/src/hooks/usePlaceableResources";
 
 // Fetch all requests (tenant-wide). Kept for non-grid callers; the utilization grid uses the
 // scoped hooks below so it never pulls the whole tenant.
@@ -57,30 +62,52 @@ export function useBacklogRequests() {
 // Mutation: Schedule/unschedule request
 export function useScheduleRequest() {
   const queryClient = useQueryClient();
+  const placeableKeys = usePlaceableTypeKeys();
 
   return useMutation({
+    // resourceTypeKey is client-side only — it never reaches the API, which resolves the type from
+    // the resource id. The optimistic assignment needs it so the synthetic entry carries the same
+    // type key the server will write back, otherwise the bar would jump on the next refetch.
     mutationFn: ({
       requestId,
       data,
     }: {
       requestId: string;
       data: ScheduleRequestData;
+      resourceTypeKey?: string;
     }) => scheduleRequest(requestId, data),
 
     // Optimistically update every cached scheduled-window so the bar moves immediately on
     // release. Requests now live under scoped keys (["requests","scheduled",site,from,to]), so we
     // update them all via setQueriesData rather than a single ["requests"] cache.
-    onMutate: async ({ requestId, data }) => {
+    onMutate: async ({ requestId, data, resourceTypeKey }) => {
+      // The type the optimistic assignment goes under: the one the caller named, else the one the
+      // request already sits on. Null when neither is known — the placeable types have not loaded
+      // yet — and the optimistic write is skipped rather than invented. An assignment written
+      // under an empty key matches no placeable filter, so nothing afterwards could clear it; the
+      // server response is what corrects the bar in that case.
+      const optimisticTypeKey = (r: Request) =>
+        resourceTypeKey ?? getPlacementAssignment(r, placeableKeys)?.resourceTypeKey ?? null;
+
       await queryClient.cancelQueries({ queryKey: qk.requests.all() });
       const previous = queryClient.getQueriesData<Request[]>({ queryKey: qk.requests.scheduledAll() });
 
       queryClient.setQueriesData<Request[]>({ queryKey: qk.requests.scheduledAll() }, (old) =>
         old?.map((r) =>
           r.id === requestId
-            ? (data.resourceId && data.startTs && data.endTs
-                ? applySpaceAssignmentOptimistic(r, data.resourceId, data.startTs, data.endTs)
+            ? (data.resourceId && data.startTs && data.endTs && optimisticTypeKey(r)
+                // A resize keeps the resource it is already on, so its type comes from the
+                // existing assignment when the caller did not name one.
+                ? applyPlacementAssignmentOptimistic(
+                    r,
+                    data.resourceId,
+                    optimisticTypeKey(r)!,
+                    data.startTs,
+                    data.endTs,
+                    placeableKeys,
+                  )
                 : (data.resourceId === null
-                    ? clearSpaceAssignmentOptimistic(r)
+                    ? clearPlacementAssignmentOptimistic(r, placeableKeys)
                     : { ...r, startTs: data.startTs ?? r.startTs, endTs: data.endTs ?? r.endTs }))
             : r
         ) ?? old

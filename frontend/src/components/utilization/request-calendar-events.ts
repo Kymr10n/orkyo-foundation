@@ -82,6 +82,20 @@ export const SEVERITY_EVENT_CLASS: Record<"error" | "warning", string[]> = {
   warning: ["bg-amber-500/15!", "dark:bg-amber-500/25!", "border-amber-500/60!", "text-foreground!"],
 };
 
+/**
+ * Legend swatch (bg + border only) per status — the same palette
+ * {@link getCalendarEventColor} paints events with, minus the `!important` those need to beat
+ * FullCalendar's unlayered rules. Exported so the legend and the status filter read from one
+ * place instead of restating the colours.
+ */
+export const STATUS_SWATCH: Record<RequestStatus, string> = {
+  new: "bg-blue-500/15 dark:bg-blue-500/25 border-blue-500/40",
+  in_progress: "bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/40",
+  done: "bg-emerald-500/15 dark:bg-emerald-500/25 border-emerald-500/40",
+  deferred: "bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40",
+  cancelled: "bg-muted border-muted-foreground/30",
+};
+
 /** Legend swatch (bg + border only) for the same severities. */
 export const SEVERITY_SWATCH: Record<"error" | "warning", string> = {
   error: "bg-red-500/15 dark:bg-red-500/25 border-red-500/60",

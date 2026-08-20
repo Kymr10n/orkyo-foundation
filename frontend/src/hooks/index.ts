@@ -33,12 +33,13 @@ export {
 } from "./useRequestForm";
 export { useSites, useCreateSite, useUpdateSite, useDeleteSite, useIsMultiSite } from "./useSites";
 export {
-  useSpaces,
-  useCreateSpace,
-  useUpdateSpace,
-  useDeleteSpace,
-  useMoveSpace,
-} from "./useSpaces";
+  usePlaceableResources,
+  usePlaceableTypeKeys,
+  useCreatePlaceableResource,
+  useUpdatePlaceableResource,
+  useDeletePlaceableResource,
+  useMovePlaceableResource,
+} from "./usePlaceableResources";
 export {
   useTemplateForm,
   templateFormReducer,

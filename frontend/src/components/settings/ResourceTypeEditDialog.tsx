@@ -120,15 +120,10 @@ export function ResourceTypeEditDialog({
             displayNamePlural: form.displayNamePlural,
             description: form.description || undefined,
             icon: form.icon || undefined,
-            // System types reject these outright, so do not send them at all.
-            ...(rt.isSystem
-              ? {}
-              : {
-                  hasGeometry: form.hasGeometry,
-                  hasDirectoryProfile: form.hasDirectoryProfile,
-                  singleGroupMembership: form.singleGroupMembership,
-                  isActive: form.isActive,
-                }),
+            hasGeometry: form.hasGeometry,
+            hasDirectoryProfile: form.hasDirectoryProfile,
+            singleGroupMembership: form.singleGroupMembership,
+            isActive: form.isActive,
           })
         : createResourceType({
             key: form.key,
@@ -146,7 +141,6 @@ export function ResourceTypeEditDialog({
   });
 
   const isEdit = resourceType !== null;
-  const isSystemType = resourceType?.isSystem === true;
   const keyValid = isEdit || KEY_PATTERN.test(form.key);
   const canSubmit =
     form.displayName.trim().length > 0 && form.displayNamePlural.trim().length > 0 && keyValid;
@@ -171,7 +165,7 @@ export function ResourceTypeEditDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? 'Edit Resource Type' : 'New Resource Type'}
-      description="Resource types define what your organization manages — spaces, people, tools, or anything you add. Describe each type with criteria."
+      description="Resource types define what your organization manages — machines, people, tools, or anything you add. Describe each type with criteria."
       onSubmit={() => {
         if (canSubmit) submit();
       }}
@@ -273,21 +267,14 @@ export function ResourceTypeEditDialog({
         />
       </div>
 
-      <fieldset className="space-y-3" disabled={isSystemType}>
+      <fieldset className="space-y-3">
         <legend className="text-sm font-medium">What these can do</legend>
-        {isSystemType && (
-          <p className="text-sm text-muted-foreground">
-            Built-in types have fixed behaviour — the Spaces and People pages are built on it.
-            You can still rename them and change their icon.
-          </p>
-        )}
         {BEHAVIOUR_FLAGS.map(({ field, label, hint }) => (
           <div key={field} className="flex items-start gap-2">
             <Checkbox
               id={`rt-${field}`}
               checked={form[field]}
               onCheckedChange={(checked) => set({ [field]: checked === true })}
-              disabled={isSystemType}
             />
             <div className="grid gap-1 leading-none">
               <Label htmlFor={`rt-${field}`} className="font-normal">{label}</Label>
@@ -297,10 +284,9 @@ export function ResourceTypeEditDialog({
         ))}
       </fieldset>
 
-      {/* Edit-only, custom-types-only: system types cannot be deactivated (the
-          server rejects it), and this is the only way to reactivate a type the
-          server auto-deactivated when it was deleted while still in use. */}
-      {isEdit && !isSystemType && (
+      {/* Edit-only: this is the only way here to reactivate a type the server
+          auto-deactivated when it was deleted while still in use. */}
+      {isEdit && (
         <div className="flex items-start gap-2">
           <Checkbox
             id="rt-is-active"

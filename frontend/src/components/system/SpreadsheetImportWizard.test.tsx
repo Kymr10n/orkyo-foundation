@@ -10,19 +10,25 @@ const getSpaces = vi.fn();
 const createSpace = vi.fn();
 const createRequest = vi.fn();
 let dataExportAvailable = true;
+// The wizard resolves its workstation type from the tenant's active types; nothing is built in.
+let activeTypes: { key: string; hasGeometry: boolean }[] = [];
 
 vi.mock('@foundation/src/lib/utils/spreadsheet-file', () => ({
   readWorkbook: (file: File) => readWorkbook(file),
 }));
-vi.mock('@foundation/src/lib/api/space-api', () => ({
-  getSpaces: (...args: unknown[]) => getSpaces(...args),
-  createSpace: (...args: unknown[]) => createSpace(...args),
+vi.mock('@foundation/src/lib/api/resources-api', () => ({
+  getResources: (...args: unknown[]) => getSpaces(...args),
+  createResource: (...args: unknown[]) => createSpace(...args),
 }));
 vi.mock('@foundation/src/lib/api/request-api', () => ({
   createRequest: (...args: unknown[]) => createRequest(...args),
 }));
 vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
   useDataExportAvailable: () => dataExportAvailable,
+}));
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({ data: activeTypes }),
+  RESOURCE_TYPE_INVALIDATES: [],
 }));
 vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: () => ({ data: [{ id: 'site-1', name: 'Main plant' }] }),
@@ -61,9 +67,10 @@ async function pickFileAndReview(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   dataExportAvailable = true;
+  activeTypes = [{ key: 'space', hasGeometry: true }];
   readWorkbook.mockReset().mockResolvedValue(TEMPLATE);
-  getSpaces.mockReset().mockResolvedValue([]);
-  createSpace.mockReset().mockImplementation((_siteId, req) =>
+  getSpaces.mockReset().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0 });
+  createSpace.mockReset().mockImplementation((req) =>
     Promise.resolve({ id: `space-${req.code}`, code: req.code, name: req.name }),
   );
   createRequest.mockReset().mockResolvedValue({ id: 'req-1' });
@@ -105,7 +112,7 @@ describe('SpreadsheetImportWizard', () => {
   });
 
   it('reuses a workstation whose code already exists on the site', async () => {
-    getSpaces.mockResolvedValue([{ id: 'existing-1', code: 'WS-01', name: 'Mill 1' }]);
+    getSpaces.mockResolvedValue({ data: [{ id: 'existing-1', code: 'WS-01', name: 'Mill 1' }], total: 1, page: 1, pageSize: 1 });
     const user = userEvent.setup();
     renderWizard();
     await pickFileAndReview(user);
@@ -120,7 +127,7 @@ describe('SpreadsheetImportWizard', () => {
 
   it('reports exactly what was created when a create fails mid-import', async () => {
     createSpace
-      .mockImplementationOnce((_s, req) => Promise.resolve({ id: 'space-1', code: req.code }))
+      .mockImplementationOnce((req) => Promise.resolve({ id: 'space-1', code: req.code }))
       .mockRejectedValueOnce(new Error('Quota exceeded'));
     const user = userEvent.setup();
     renderWizard();
@@ -130,6 +137,19 @@ describe('SpreadsheetImportWizard', () => {
     await waitFor(() => expect(screen.getByText(/Import stopped: Quota exceeded/)).toBeInTheDocument());
     expect(screen.getByText(/1 workstations and 0 jobs — they remain in place/)).toBeInTheDocument();
     expect(createRequest).not.toHaveBeenCalled();
+  });
+
+  it('blocks the import when no placeable type is active', async () => {
+    activeTypes = [{ key: 'person', hasGeometry: false }];
+    const user = userEvent.setup();
+    renderWizard();
+
+    expect(
+      screen.getByText(/No placeable resource type is active/),
+    ).toBeInTheDocument();
+    const file = new File(['x'], 'template.xlsx');
+    await user.upload(screen.getByLabelText('Template file'), file);
+    expect(screen.getByRole('button', { name: 'Review' })).toBeDisabled();
   });
 
   it('shows the upsell instead of the form when the plan lacks data import', async () => {

@@ -4,7 +4,7 @@ import { selectSpaceOverlapCount, isOutsideView } from "@foundation/src/domain/s
 import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
-import type { Space } from "@foundation/src/types/space";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
 import { TimelineRow } from "./TimelineRow";
 import type { TimeColumn } from "./scheduler-types";
@@ -25,12 +25,13 @@ export const SpaceRow = React.memo(function SpaceRow({
   validation,
   onRequestClick,
   onRequestDoubleClick,
+  onRequestContextMenu,
   onRequestResize,
   onEmptyCellClick,
   offTimeRanges = [],
   editable = true,
 }: {
-  space: Space;
+  space: ResourceInfo;
   columns: TimeColumn[];
   spaceRequests: Request[];
   /** This space's slice of the preview index — referentially stable while other spaces are dragged. */
@@ -39,9 +40,10 @@ export const SpaceRow = React.memo(function SpaceRow({
   validation: ValidationResult;
   onRequestClick: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
+  onRequestContextMenu?: (requestId: string, position: { x: number; y: number }) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
-  onEmptyCellClick?: (space: Space, col: TimeColumn) => void;
+  onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
   offTimeRanges?: readonly OffTimeRange[];
   /** Drag/resize bars (desktop/tablet). Phone is tap-to-open only. */
   editable?: boolean;
@@ -140,6 +142,7 @@ export const SpaceRow = React.memo(function SpaceRow({
             validation={validation}
             onRequestClick={onRequestClick}
             onRequestDoubleClick={onRequestDoubleClick}
+            onRequestContextMenu={onRequestContextMenu}
             onRequestResize={onRequestResize}
             editable={editable}
           />

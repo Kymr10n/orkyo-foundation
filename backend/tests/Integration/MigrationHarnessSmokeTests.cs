@@ -62,8 +62,10 @@ public sealed class MigrationHarnessSmokeTests
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
         foreach (var column in new[]
+                 // job_title_id and department_id were folded on by 1700 and dropped again by
+                 // 1830, which turned both into organization-list lookups.
                  { "code", "is_physical", "geometry", "properties", "capacity",
-                   "email", "notes", "linked_user_id", "job_title_id", "department_id" })
+                   "email", "notes", "linked_user_id" })
         {
             (await ColumnExistsAsync(conn, "resources", column)).Should().BeTrue(
                 $"migration 1700 should move {column} onto resources");
@@ -108,31 +110,135 @@ public sealed class MigrationHarnessSmokeTests
             "People Resources migration (1400) should add notes column to resource_assignments");
     }
 
-    // Departments + Job Titles schema validation (migration 1420)
+    // Unimplemented tables removal (migration 1860)
     [Fact]
-    public async Task TestTenant_ShouldContain_JobTitlesTable()
+    public async Task TestTenant_ShouldNotContain_TheUnimplementedTables()
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await TableExistsAsync(conn, "job_titles")).Should().BeTrue(
-            "Departments + Job Titles migration (1420) should create the job_titles table");
+        (await TableExistsAsync(conn, "invites")).Should().BeFalse(
+            "1860 dropped invites; invitations live in the control-plane invitations table");
+        (await TableExistsAsync(conn, "request_templates")).Should().BeFalse(
+            "1860 dropped request_templates; the feature was never implemented");
+        (await TableExistsAsync(conn, "request_template_requirements")).Should().BeFalse(
+            "1860 dropped request_template_requirements with its parent");
+    }
+
+    // Custom-fields GIN index (migration 1840)
+    [Fact]
+    public async Task TestTenant_Resources_ShouldHave_CustomFieldsGinIndex()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT count(*) FROM pg_indexes " +
+            "WHERE tablename = 'resources' AND indexname = 'idx_resources_custom_fields_gin'";
+        Convert.ToInt32(await cmd.ExecuteScalarAsync()).Should().Be(1,
+            "1840 indexes custom_fields for the list-lookup delete and search paths");
+    }
+
+    // Departments + Job Titles removal (migrations 1820/1830)
+    [Fact]
+    public async Task TestTenant_ShouldNotContain_JobTitlesTable()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        (await TableExistsAsync(conn, "job_titles")).Should().BeFalse(
+            "1830 dropped job_titles; job titles are an organization list now");
     }
 
     [Fact]
-    public async Task TestTenant_ShouldContain_DepartmentsTable()
+    public async Task TestTenant_ShouldNotContain_DepartmentsTable()
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await TableExistsAsync(conn, "departments")).Should().BeTrue(
-            "Departments + Job Titles migration (1420) should create the departments table");
+        (await TableExistsAsync(conn, "departments")).Should().BeFalse(
+            "1830 dropped departments; departments are an organization list now");
     }
 
     [Fact]
-    public async Task TestTenant_Resources_ShouldHave_JobTitleId_And_DepartmentId()
+    public async Task TestTenant_Resources_ShouldNotHave_JobTitleId_Or_DepartmentId()
     {
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
-        (await ColumnExistsAsync(conn, "resources", "job_title_id")).Should().BeTrue(
-            "job titles are FK-modelled (1420), and the column now lives on resources (1700)");
-        (await ColumnExistsAsync(conn, "resources", "department_id")).Should().BeTrue(
-            "departments are FK-modelled (1420), and the column now lives on resources (1700)");
+        (await ColumnExistsAsync(conn, "resources", "job_title_id")).Should().BeFalse(
+            "1830 dropped the column; the value is a list_lookup custom field now");
+        (await ColumnExistsAsync(conn, "resources", "department_id")).Should().BeFalse(
+            "1830 dropped the column; the value is a list_lookup custom field now");
+    }
+
+    [Fact]
+    public async Task TestTenant_ShouldCarry_TheOrganizationLists()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT count(*) FROM list_definitions " +
+            "WHERE scope = 'organization' AND name IN ('Departments', 'Job Titles')";
+        var found = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        found.Should().Be(2, "1820 seeds both as organization-scoped definitions");
+    }
+
+    [Fact]
+    public async Task TestTenant_OrganizationLookups_PointAtRealRows()
+    {
+        // The invariant 1820's copy establishes and the seed has to preserve: a person's
+        // department/job-title value is an array of ids that exist in the bound instance. Nothing
+        // enforces it at rest — the FKs went with the tables — so it is asserted here.
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT count(*)
+              FROM resources r
+              JOIN resource_custom_fields f
+                ON f.resource_type_id = r.resource_type_id
+               AND f.data_type = 'list_lookup'
+               AND f.key IN ('department', 'job_title')
+              CROSS JOIN LATERAL jsonb_array_elements_text(
+                  CASE WHEN jsonb_typeof(r.custom_fields -> f.key) = 'array'
+                       THEN r.custom_fields -> f.key ELSE '[]'::jsonb END) AS picked(row_id)
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM list_rows lr
+                  WHERE lr.id::text = picked.row_id
+                    AND lr.list_instance_id = f.list_instance_id)
+            """;
+        var dangling = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        dangling.Should().Be(0, "every organization lookup value must name a row of its own instance");
+    }
+
+    // The department tree, back as a row reference (migrations 1890/1900)
+    [Fact]
+    public async Task TestTenant_DepartmentParent_ShouldBe_ARowReference()
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT c.data_type
+              FROM list_columns c
+              JOIN list_definitions d ON d.id = c.list_definition_id
+             WHERE d.name = 'Departments' AND d.scope = 'organization' AND c.key = 'parent'
+            """;
+        (await cmd.ExecuteScalarAsync() as string).Should().Be("row_ref",
+            "1900 puts the parent back on a reference after 1820 held it as a name");
+    }
+
+    [Fact]
+    public async Task TestTenant_DepartmentParents_PointAtRealRows()
+    {
+        // What 1900 converts the names into, and what the service refuses to break afterwards: a
+        // parent names a row of the same instance. Nothing enforces it at rest.
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            SELECT count(*)
+              FROM list_rows r
+              JOIN list_instances i ON i.id = r.list_instance_id
+              JOIN list_definitions d ON d.id = i.list_definition_id
+             WHERE d.name = 'Departments' AND d.scope = 'organization'
+               AND r.values ? 'parent'
+               AND NOT EXISTS (
+                   SELECT 1 FROM list_rows p
+                    WHERE p.id::text = r.values ->> 'parent'
+                      AND p.list_instance_id = r.list_instance_id)
+            """;
+        var dangling = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        dangling.Should().Be(0, "1900 drops a parent it cannot resolve rather than leaving it dangling");
     }
 
     [Fact]

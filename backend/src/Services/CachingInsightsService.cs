@@ -1,35 +1,22 @@
-using System.Collections.Concurrent;
 using Api.Models.Insights;
 using Api.Services;
-using Microsoft.Extensions.Caching.Memory;
 
 namespace Api.Services.Insights;
 
 /// <summary>
 /// Short-TTL read-through cache over <see cref="IInsightsService"/>. The dashboard re-fetches the same
 /// bucketed series repeatedly and each call is pure read-aggregation, so a brief per-(org, query) cache
-/// cuts repeated recomputation at the cost of at most <see cref="Ttl"/> staleness — the same posture as
+/// cuts repeated recomputation at the cost of at most <see cref="ShortTtlCache.Ttl"/> staleness — the same posture as
 /// the <c>private, max-age=60</c> response header already applied to dashboard GETs. No explicit
 /// invalidation. Keyed by <see cref="OrgContext.OrgId"/> so tenants never share entries.
 ///
 /// The cache is process-wide; in a multi-instance deployment each instance keeps its own copy, so a
-/// given query can be up to <see cref="Ttl"/> stale per instance. Acceptable for a dashboard; if
+/// given query can be up to <see cref="ShortTtlCache.Ttl"/> stale per instance. Acceptable for a dashboard; if
 /// cross-instance consistency is ever needed, swap the backing store for the existing Valkey layer
 /// behind this same decorator.
 /// </summary>
 public sealed class CachingInsightsService(IInsightsService inner, OrgContext orgContext) : IInsightsService
 {
-    private static readonly TimeSpan Ttl = TimeSpan.FromSeconds(60);
-
-    // Process-wide, size-bounded. Shared across scopes; tenant isolation comes from OrgId in the key.
-    private static readonly MemoryCache Cache = new(new MemoryCacheOptions { SizeLimit = 10_000 });
-
-    // Single-flight map: concurrent misses for the same key await one computation instead of each
-    // recomputing. Values are Lazy<Task<T>> (object-typed because the helper is generic); entries
-    // are always removed on completion, so a faulted task is never cached and never poisons
-    // subsequent calls. IMemoryCache above remains the actual store.
-    private static readonly ConcurrentDictionary<string, object> InFlight = new();
-
     public Task<InsightsOverview> GetOverviewAsync(InsightsFilter filter, CancellationToken ct = default)
         => GetOrComputeAsync("overview", filter, () => inner.GetOverviewAsync(filter, ct));
 
@@ -42,34 +29,13 @@ public sealed class CachingInsightsService(IInsightsService inner, OrgContext or
     public Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default)
         => GetOrComputeAsync("requests", filter, () => inner.GetRequestTrendAsync(filter, ct));
 
-    private async Task<T> GetOrComputeAsync<T>(string op, InsightsFilter f, Func<Task<T>> compute)
+    private Task<T> GetOrComputeAsync<T>(string op, InsightsFilter f, Func<Task<T>> compute)
         where T : class
     {
         var key = string.Join('|',
             orgContext.OrgId, op, f.From.Ticks, f.To.Ticks,
             f.SiteId?.ToString() ?? "-", f.Bucket ?? "-", f.ResourceType ?? "-");
 
-        if (Cache.TryGetValue(key, out T? hit) && hit is not null)
-            return hit;
-
-        var lazy = (Lazy<Task<T>>)InFlight.GetOrAdd(key, _ => new Lazy<Task<T>>(async () =>
-        {
-            var value = await compute();
-            Cache.Set(key, value, new MemoryCacheEntryOptions
-            {
-                AbsoluteExpirationRelativeToNow = Ttl,
-                Size = 1,
-            });
-            return value;
-        }));
-
-        try
-        {
-            return await lazy.Value;
-        }
-        finally
-        {
-            InFlight.TryRemove(key, out _);
-        }
+        return ShortTtlCache.GetOrComputeAsync(key, compute);
     }
 }

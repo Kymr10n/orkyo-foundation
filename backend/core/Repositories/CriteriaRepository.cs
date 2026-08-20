@@ -10,20 +10,19 @@ namespace Api.Repositories;
 public class CriteriaRepository : ICriteriaRepository
 {
     // Single source of truth for "what makes a criterion in use": a value reference in any of the
-    // five value-bearing tables. {idExpr} is `c.id` for the correlated projection below and `@id`
+    // four value-bearing tables. {idExpr} is `c.id` for the correlated projection below and `@id`
     // for the standalone IsInUseAsync check — both are hardcoded literals, never user input.
     private static string InUseExists(string idExpr) =>
         "EXISTS (" +
         $"  SELECT 1 FROM resource_capabilities WHERE criterion_id = {idExpr} " +
         $"  UNION ALL SELECT 1 FROM resource_group_capabilities WHERE criterion_id = {idExpr} " +
         $"  UNION ALL SELECT 1 FROM request_requirements WHERE criterion_id = {idExpr} " +
-        $"  UNION ALL SELECT 1 FROM request_template_requirements WHERE criterion_id = {idExpr} " +
         $"  UNION ALL SELECT 1 FROM template_items WHERE criterion_id = {idExpr} " +
         ")";
 
     // Columns are always selected with the `c.` alias on `criteria c` so the
     // aggregate sub-selects can correlate. `resource_type_keys` is a text[]; `in_use`
-    // is a boolean computed from value references across five tables.
+    // is a boolean computed from value references across four tables.
     private static readonly string SelectColumns =
         "c.id, c.name, c.description, c.data_type, c.enum_values, c.unit, c.validation_json, " +
         "c.applicable_to_requests, c.created_at, c.updated_at, " +
@@ -309,12 +308,11 @@ public class CriteriaRepository : ICriteriaRepository
             "  (SELECT COUNT(*) FROM resource_capabilities       WHERE criterion_id = @id) AS resources, " +
             "  (SELECT COUNT(*) FROM resource_group_capabilities WHERE criterion_id = @id) AS groups, " +
             "  (SELECT COUNT(*) FROM request_requirements        WHERE criterion_id = @id) AS requests, " +
-            "  (SELECT COUNT(*) FROM request_template_requirements WHERE criterion_id = @id) AS request_templates, " +
             "  (SELECT COUNT(*) FROM template_items              WHERE criterion_id = @id) AS templates",
             db);
         checkCmd.Parameters.AddWithValue("id", id);
 
-        long resources, groups, requests, requestTemplates, templates;
+        long resources, groups, requests, templates;
         await using (var reader = await checkCmd.ExecuteReaderAsync(ct))
         {
             if (!await reader.ReadAsync(ct))
@@ -322,15 +320,13 @@ public class CriteriaRepository : ICriteriaRepository
             resources = reader.GetInt64(0);
             groups = reader.GetInt64(1);
             requests = reader.GetInt64(2);
-            requestTemplates = reader.GetInt64(3);
-            templates = reader.GetInt64(4);
+            templates = reader.GetInt64(3);
         }
 
         var parts = new List<string>();
         if (resources > 0) parts.Add($"{resources} resource assignment{(resources == 1 ? "" : "s")}");
         if (groups > 0) parts.Add($"{groups} group assignment{(groups == 1 ? "" : "s")}");
         if (requests > 0) parts.Add($"{requests} request requirement{(requests == 1 ? "" : "s")}");
-        if (requestTemplates > 0) parts.Add($"{requestTemplates} request template requirement{(requestTemplates == 1 ? "" : "s")}");
         if (templates > 0) parts.Add($"{templates} template item{(templates == 1 ? "" : "s")}");
 
         if (parts.Count > 0)

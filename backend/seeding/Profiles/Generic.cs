@@ -24,6 +24,11 @@ public sealed class Generic : IProfile
         "Operations", "Finance", "People", "Engineering", "Sales", "Support", "Strategy",
     };
 
+    public IReadOnlyList<string> DepartmentChildPool { get; } = new[]
+    {
+        "North", "South", "East", "West", "Central", "Alpha", "Beta", "Gamma"
+    };
+
     public IReadOnlyList<string> ResourceGroupPool { get; } = new[]
     {
         "Meeting Rooms", "Workstations", "Phone Booths", "Quiet Zones", "Lab Bays",

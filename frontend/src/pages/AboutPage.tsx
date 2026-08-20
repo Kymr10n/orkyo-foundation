@@ -69,11 +69,11 @@ export function AboutPage() {
             <div className="space-y-4">
               <h3 className="font-medium">Features</h3>
               <ul className="text-sm text-muted-foreground space-y-2">
-                <li>• Spaces — manage spaces and areas with custom criteria, templates, and floorplans</li>
+                <li>• Stations — manage spaces and areas with custom criteria, templates, and floorplans</li>
                 <li>• Utilization — visual drag-and-drop timeline for scheduling across all spaces</li>
                 <li>• Requests — structured request workflows with approval and template support</li>
                 <li>• Conflict detection — real-time overlap and constraint validation</li>
-                <li>• People — employee directory with teams, departments, and job titles</li>
+                <li>• Assets — people, tools and vehicles, with skills, availability and absences</li>
                 <li>• Reporting — usage analytics and capacity-vs-demand insights</li>
               </ul>
             </div>

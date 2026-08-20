@@ -116,11 +116,21 @@ describe('cellToIsoDate', () => {
 
 describe('workstationToCreateSpace', () => {
   it('maps name/code/description and never the hours-per-day capacity', () => {
-    const space = workstationToCreateSpace({ row: 6, code: 'WS-01', name: 'Mill 1', standsThere: 'Haas VF-2', notes: 'Service Fri' });
+    const space = workstationToCreateSpace(
+      { row: 6, code: 'WS-01', name: 'Mill 1', standsThere: 'Haas VF-2', notes: 'Service Fri' },
+      'site-1',
+      'space',
+    );
+    // The wizard now builds a generic create-request, so it supplies the placement defaults the
+    // site-scoped space route used to hardcode server-side.
     expect(space).toEqual({
+      resourceTypeKey: 'space',
       name: 'Mill 1',
       code: 'WS-01',
       description: 'Haas VF-2 — Service Fri',
+      allocationMode: 'Exclusive',
+      homeSiteId: 'site-1',
+      crossSiteAllowed: false,
       isPhysical: true,
     });
     expect('capacity' in space).toBe(false);

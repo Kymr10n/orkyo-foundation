@@ -315,7 +315,7 @@ describe("CollapsibleFloorplan", () => {
 
       expect(screen.getByText("No floorplan uploaded for this site")).toBeInTheDocument();
       const cta = screen.getByRole("link", { name: /upload floorplan/i });
-      expect(cta).toHaveAttribute("href", "/spaces");
+      expect(cta).toHaveAttribute("href", "/stations/floorplan");
       expect(
         screen.queryByText(/failed to load floorplan/i),
       ).not.toBeInTheDocument();

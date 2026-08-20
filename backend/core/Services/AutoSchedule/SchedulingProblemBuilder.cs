@@ -48,7 +48,11 @@ public class SchedulingProblemBuilder
         // One run solves one resource type: the pool is a single type, and the solver's
         // no-overlap-per-node model has nothing to say about matching a room to a van. A request
         // needing both is scheduled by two runs, one per type, each filling its own slot.
-        var targetTypeKey = request.ResourceTypeKey ?? ResourceTypeKeys.Space;
+        // The type is resolved by AutoScheduleService before this is called; a null here means a
+        // caller skipped that resolution, and guessing a default would hide it.
+        var targetTypeKey = request.ResourceTypeKey
+            ?? throw new ArgumentException(
+                "ResourceTypeKey must be resolved before building the problem.", nameof(request));
 
         var eligibleRequests = unscheduled
             .Concat(partiallyScheduled)
@@ -69,7 +73,9 @@ public class SchedulingProblemBuilder
         // resource's location as of now(), so solving three months out included or excluded
         // people and tools by where they happen to be today — and the same run tomorrow
         // produced a different pool, and a different fingerprint.
-        var candidates = await _resourceRepository.GetAllAsync(
+        // Every candidate: a pool silently cut at 1000 would make the solver produce a valid
+        // schedule over the wrong set, and change the run fingerprint for no visible reason.
+        var candidates = await _resourceRepository.GetEveryAsync(
             new ResourceListFilter
             {
                 ResourceTypeKey = targetTypeKey,

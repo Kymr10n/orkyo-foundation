@@ -65,6 +65,29 @@ export const SPACE_CANVAS_COLORS: Record<SpaceStatus, { fill: string; stroke: st
   conflict:  { fill: 'rgba(239, 68, 68, 0.35)',  stroke: '#ef4444' },
 };
 
+/**
+ * Floorplan shapes with no status of their own — the Floorplan management page draws every station
+ * without occupancy, so this is what most shapes on screen actually use.
+ *
+ * Follows the same recipe as a calendar event block (see getCalendarEventColor): a blue-500 tint
+ * with a blue-500 edge. The edge is full strength rather than /40, because a shape sits on a busy
+ * blueprint image instead of a plain surface — the earlier slate at 0.2 disappeared into the
+ * drawing entirely.
+ *
+ * Literal values rather than CSS variables on purpose: the floorplan image behind them is a light
+ * blueprint in both themes, so these track the image, not the surface.
+ */
+export const SPACE_CANVAS_DEFAULT = { fill: 'rgba(59, 130, 246, 0.15)', stroke: '#3b82f6' };
+
+/** Selected: the same hue, held brighter so the selection reads without a second colour. */
+export const SPACE_CANVAS_SELECTED = { fill: 'rgba(59, 130, 246, 0.30)', stroke: '#2563eb' };
+
+/** Mid-drag: brighter still, and dashed, so the ghost is obviously not committed. */
+export const SPACE_CANVAS_DRAGGING = { fill: 'rgba(59, 130, 246, 0.45)', stroke: '#2563eb' };
+
+/** Shape labels — slate-800, legible on the light blueprint the shapes sit on. */
+export const SPACE_CANVAS_LABEL = '#1e293b';
+
 // Legend dot component classes keyed by space status — maps space statuses onto
 // the bucket-status colour tokens so the two legends always look identical.
 export const SPACE_LEGEND_CELL_CLASS: Record<SpaceStatus, string> = {

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { CalendarOff, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
@@ -19,9 +19,18 @@ import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
+import { useLookupFieldLabels } from '@foundation/src/hooks/useLookupFieldLabels';
+import { CAPABILITY_LABELS } from '@foundation/src/constants/resource-type-key';
 
 /** Stable identity so the transfer hook's memo doesn't churn while loading. */
 const EMPTY_RESOURCES: ResourceInfo[] = [];
+
+/** A resource with its directory lookups resolved to names, so columns sort and filter on what
+ *  the reader sees rather than on a row id. */
+type ResourceRow = ResourceInfo & { jobTitle: string; department: string };
+
+/** The organization lookups a directory type gets columns for. Seeded by migration 1820. */
+const DIRECTORY_LOOKUP_KEYS = ['job_title', 'department'] as const;
 
 
 interface ResourceListProps {
@@ -52,6 +61,26 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     queryFn: () => getResources({ resourceTypeKey: resourceType.key }),
   });
 
+  // A directory type shows email beside the two organization lookups every person carries. Those
+  // two are custom fields since 1820, so their labels come from the shared resolver rather than
+  // from anything person-shaped here.
+  const hasDirectory = resourceType.hasDirectoryProfile;
+  const list = resources?.data ?? EMPTY_RESOURCES;
+  const lookupLabels = useLookupFieldLabels(
+    hasDirectory ? resourceType.id : undefined,
+    list,
+    DIRECTORY_LOOKUP_KEYS,
+  );
+
+  const rows = useMemo<ResourceRow[]>(() => {
+    if (!hasDirectory) return list as ResourceRow[];
+    return list.map((r) => ({
+      ...r,
+      jobTitle: lookupLabels[r.id]?.job_title ?? '',
+      department: lookupLabels[r.id]?.department ?? '',
+    }));
+  }, [list, hasDirectory, lookupLabels]);
+
   useResourceTransfer(resourceType, resources?.data ?? EMPTY_RESOURCES);
 
   const deleteMutation = useMutation({
@@ -65,6 +94,8 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   });
 
   const label = resourceType.displayName;
+  // People call their criterion values "skills"; every other type calls them capabilities.
+  const capabilityLabel = CAPABILITY_LABELS[resourceType.key];
 
   // Shared by the desktop table cell and the phone card, so both surfaces expose the same
   // reach — an action available on one but not the other is the bug this avoids.
@@ -74,7 +105,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
       actions={[
         { label: `Edit ${label}`, icon: Pencil, onSelect: () => setEditing(r), disabled: !canEdit },
         {
-          label: 'Manage Capabilities',
+          label: `Manage ${capabilityLabel?.plural ?? 'Capabilities'}`,
           icon: Sliders,
           onSelect: () => setCapabilitiesFor(r),
           disabled: !canEdit,
@@ -96,7 +127,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     />
   );
 
-  const columns: ColumnDef<ResourceInfo>[] = [
+  const columns: ColumnDef<ResourceRow>[] = [
     {
       accessorKey: 'name',
       header: 'Name',
@@ -108,6 +139,30 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         </div>
       ),
     },
+    ...(hasDirectory
+      ? ([
+          {
+            accessorKey: 'email',
+            header: 'Email',
+            meta: { filter: { type: 'text' } },
+            cell: ({ row }) => (
+              <span className="text-muted-foreground">{row.original.email || '-'}</span>
+            ),
+          },
+          {
+            accessorKey: 'jobTitle',
+            header: 'Job Title',
+            meta: { filter: { type: 'enum' } },
+            cell: ({ row }) => row.original.jobTitle || '-',
+          },
+          {
+            accessorKey: 'department',
+            header: 'Department',
+            meta: { filter: { type: 'enum' } },
+            cell: ({ row }) => row.original.department || '-',
+          },
+        ] as ColumnDef<ResourceRow>[])
+      : []),
     {
       id: 'actions',
       header: () => <span className="sr-only">Actions</span>,
@@ -116,17 +171,26 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     },
   ];
 
-  const renderCard = (r: ResourceInfo) => (
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0 space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{r.name}</span>
-          {!r.isActive && <StatusBadge status="inactive" label="Inactive" />}
+  const renderCard = (r: ResourceRow) => {
+    const subtitle = [r.jobTitle, r.department].filter(Boolean).join(' · ');
+    return (
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium">{r.name}</span>
+            {!r.isActive && <StatusBadge status="inactive" label="Inactive" />}
+          </div>
+          {hasDirectory && (
+            <>
+              <p className="truncate text-sm text-muted-foreground">{r.email || '-'}</p>
+              <p className="truncate text-xs text-muted-foreground">{subtitle || '-'}</p>
+            </>
+          )}
         </div>
+        {renderActions(r)}
       </div>
-      {renderActions(r)}
-    </div>
-  );
+    );
+  };
 
   const errorMsg =
     error instanceof Error
@@ -157,7 +221,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         // own items still win. Viewers get no row click — the dialog would be read-only.
         onRowClick={canEdit ? (r) => setEditing(r) : undefined}
         columns={columns}
-        data={resources?.data ?? []}
+        data={rows}
         isLoading={isLoading}
         error={errorMsg}
         onRetry={() => refetch()}
@@ -187,6 +251,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
           resourceId={capabilitiesFor.id}
           resourceName={capabilitiesFor.name}
           resourceTypeKey={resourceType.key}
+          valueLabel={capabilityLabel}
           entityLabel={label.toLowerCase()}
         />
       )}

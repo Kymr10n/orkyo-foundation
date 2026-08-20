@@ -27,7 +27,7 @@ public static class NpgsqlQueryExtensions
     private static readonly HashSet<string> AllowedExistsTables = new(StringComparer.Ordinal)
     {
         "sites", "resource_groups", "resources", "criteria", "requests",
-        "users", "tenants", "announcements", "presets", "templates"
+        "users", "tenants", "announcements", "templates"
     };
 
     private static async Task EnsureOpenAsync(NpgsqlConnection conn, CancellationToken ct)
@@ -197,6 +197,18 @@ public sealed class UpdateBuilder
     public UpdateBuilder SetIfNotNull(string column, object? value)
     {
         if (value is not null) Set(column, value);
+        return this;
+    }
+
+    /// <summary>
+    /// Apply a presence-aware field: absent leaves the column alone, present-and-null writes NULL.
+    /// This is the only way to erase a column whose type has no usable empty value, such as an id.
+    /// </summary>
+    public UpdateBuilder SetIfPresent<T>(string column, Optional<T> value)
+    {
+        if (!value.IsPresent) return this;
+        _sets.Add($"{column} = @{column}");
+        _params.Add((column, (object?)value.Value ?? DBNull.Value));
         return this;
     }
 

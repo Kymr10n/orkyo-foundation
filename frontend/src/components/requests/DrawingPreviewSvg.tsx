@@ -1,4 +1,4 @@
-import type { Coordinate, DrawingMode } from "@foundation/src/types/space";
+import type { Coordinate, DrawingMode } from "@foundation/src/types/geometry";
 
 interface DrawingPreviewSvgProps {
   drawingMode: DrawingMode;
@@ -73,10 +73,44 @@ export function DrawingPreviewSvg({
       );
     })() : null;
 
+  const circlePreview =
+    drawingMode === "circle" &&
+    drawingPoints.length === 1 &&
+    mousePosition ? (() => {
+      const [centre] = drawingPoints;
+      const radius = Math.hypot(mousePosition.x - centre.x, mousePosition.y - centre.y);
+      return (
+        <>
+          <circle
+            cx={centre.x}
+            cy={centre.y}
+            r={radius}
+            fill="rgba(59, 130, 246, 0.1)"
+            stroke="#3b82f6"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+          />
+          {/* The radius line is what says which point is anchored — without it a growing circle
+              reads as ambiguous about whether the centre or the edge is being placed. */}
+          <line
+            x1={centre.x}
+            y1={centre.y}
+            x2={mousePosition.x}
+            y2={mousePosition.y}
+            stroke="#3b82f6"
+            strokeWidth="1"
+            strokeDasharray="3,3"
+          />
+          <circle cx={centre.x} cy={centre.y} r="4" fill="#3b82f6" />
+        </>
+      );
+    })() : null;
+
   return (
     <>
       {rectanglePreview}
       {polygonPreview}
+      {circlePreview}
     </>
   );
 }

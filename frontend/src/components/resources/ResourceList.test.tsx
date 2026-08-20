@@ -5,11 +5,19 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceList } from './ResourceList';
 import { deleteResource, getResources } from '@foundation/src/lib/api/resources-api';
+
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
   deleteResource: vi.fn(),
+}));
+
+// The directory columns read organization lookups through the shared resolver; its own suite
+// covers the resolution, so here it is stubbed to whatever the case needs.
+vi.mock('@foundation/src/hooks/useLookupFieldLabels', () => ({
+  useLookupFieldLabels: (typeId: string | undefined) =>
+    typeId === undefined ? {} : lookupLabels,
 }));
 
 vi.mock('@foundation/src/hooks/usePermissions', () => ({
@@ -45,6 +53,9 @@ vi.mock('./ResourceAbsenceList', () => ({
   ResourceAbsenceList: ({ open, resourceId }: { open: boolean; resourceId: string }) =>
     open ? <div data-testid="absence-list" data-resource-id={resourceId} /> : null,
 }));
+
+// Mutable so a case can decide what the resolver returns before rendering.
+let lookupLabels: Record<string, Record<string, string>> = {};
 
 const carType: ResourceTypeInfo = {
   id: 'type-car',
@@ -82,10 +93,43 @@ async function chooseAction(resourceName: string, action: RegExp) {
   await userEvent.click(await screen.findByRole('menuitem', { name: action }));
 }
 
+const personType: ResourceTypeInfo = {
+  ...carType,
+  id: 'type-person',
+  key: 'person',
+  displayName: 'Person',
+  displayNamePlural: 'People',
+  hasDirectoryProfile: true,
+  isSystem: true,
+};
+
+const people = [
+  {
+    id: 'p-1',
+    name: 'Ada Heaney',
+    resourceTypeKey: 'person',
+    isActive: true,
+    email: 'ada@example.com',
+  },
+  { id: 'p-2', name: 'John Smith', resourceTypeKey: 'person', isActive: true },
+];
+
+function renderPeople() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <MemoryRouter>
+      <QueryClientProvider client={client}>
+        <ResourceList resourceType={personType} />
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   // getResources returns a paged envelope, not a bare array.
   (getResources as Mock).mockResolvedValue({ data: cars, total: cars.length });
+  lookupLabels = { 'p-1': { job_title: 'Machinist', department: 'Assembly' } };
 });
 
 describe('ResourceList', () => {
@@ -174,4 +218,50 @@ describe('ResourceList', () => {
     expect(screen.queryByTestId('resource-edit-dialog')).not.toBeInTheDocument();
   });
 
+});
+
+// The person merge: what used to be PersonList's job is the directory flag on the type.
+describe('ResourceList — directory types', () => {
+  it('shows no directory columns for a type without a directory profile', async () => {
+    renderList();
+
+    expect(await screen.findByText('Van 1')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /email/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /job title/i })).not.toBeInTheDocument();
+  });
+
+  it('shows email, job title and department for a directory type', async () => {
+    (getResources as Mock).mockResolvedValue({ data: people, total: people.length });
+    renderPeople();
+
+    expect(await screen.findByText('Ada Heaney')).toBeInTheDocument();
+    expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+    // Resolved from the id through the lookups, so the column reads as a name.
+    expect(await screen.findByText('Machinist')).toBeInTheDocument();
+    expect(screen.getByText('Assembly')).toBeInTheDocument();
+  });
+
+  it('renders a dash for a person with no directory values', async () => {
+    (getResources as Mock).mockResolvedValue({ data: [people[1]], total: 1 });
+    renderPeople();
+
+    expect(await screen.findByText('John Smith')).toBeInTheDocument();
+    // Email, job title and department all fall back rather than rendering an id.
+    expect(screen.getAllByText('-').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('calls criterion values "Skills" for people', async () => {
+    (getResources as Mock).mockResolvedValue({ data: people, total: people.length });
+    renderPeople();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Ada Heaney' }));
+    expect(await screen.findByRole('menuitem', { name: /Manage Skills/ })).toBeInTheDocument();
+  });
+
+  it('calls them "Capabilities" for every other type', async () => {
+    renderList();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Van 1' }));
+    expect(await screen.findByRole('menuitem', { name: /Manage Capabilities/ })).toBeInTheDocument();
+  });
 });

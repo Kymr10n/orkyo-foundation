@@ -37,20 +37,25 @@ export const qk = {
     list: () => ["requests", "list"] as const,
   },
 
-  spaces: {
-    /** Broad prefix — every site's spaces (use for cross-site invalidation). */
-    all: () => ["spaces"] as const,
-    list: (siteId: string | null) => ["spaces", siteId] as const,
-  },
-
   sites: {
     /** The tenant's site list (also its own invalidation prefix). */
     list: () => ["sites"] as const,
   },
 
   resources: {
+    /**
+     * Broad prefix over the `["resources", …]` namespace — reaches `byType` and
+     * `utilizationGrid`, so one invalidation refreshes every per-type list. Deliberately does NOT
+     * reach `allFlat`, which lives under its own root for the reason documented there.
+     */
+    all: () => ["resources"] as const,
     /** Resources of one type (e.g. the People list; also its own invalidation prefix). */
     byType: (resourceTypeKey: string) => ["resources", resourceTypeKey] as const,
+    /**
+     * Placeable resources at one site — everything the floorplan holds, across every type that
+     * declares geometry. Sits under the `["resources", …]` prefix so `all()` reaches it.
+     */
+    placeable: (siteId: string | null) => ["resources", "placeable", siteId] as const,
     /**
      * Resources of one type backing that type's utilization grid — name/metadata lookup.
      * Deliberately a distinct key from `byType(typeKey)` (different fetch scope/staleness); do
@@ -83,6 +88,25 @@ export const qk = {
      * into the `["resource-groups", …]` namespace (that would change invalidation semantics).
      */
     allFlat: () => ["resource-groups-all"] as const,
+  },
+
+  lists: {
+    /** Every list key hangs off this, so a column change can invalidate rows too. */
+    all: () => ["lists"] as const,
+    definitions: () => ["lists", "definitions"] as const,
+    definition: (definitionId: string) => ["lists", "definitions", definitionId] as const,
+    sharedInstances: (definitionId: string) =>
+      ["lists", "definitions", definitionId, "instances"] as const,
+    instance: (instanceId: string) => ["lists", "instances", instanceId] as const,
+    instanceRows: (instanceId: string) => ["lists", "instances", instanceId, "rows"] as const,
+    /** Keyed by the pair, not the instance: the caller has these before an instance exists. */
+    resourceInstance: (resourceId: string, fieldId: string) =>
+      ["lists", "resource-instance", resourceId, fieldId] as const,
+  },
+
+  resourceTypeCatalog: {
+    /** The catalog with each entry's tenant state (also its own invalidation prefix). */
+    all: () => ["resource-type-catalog"] as const,
   },
 
   resourceTypes: {
@@ -149,21 +173,6 @@ export const qk = {
     unread: () => ["unread-announcements"] as const,
   },
 
-  departments: {
-    /** Broad prefix — every department query (use for invalidation). */
-    all: () => ["departments"] as const,
-    /** Department tree, scoped by the include-inactive toggle. */
-    tree: (includeInactive: boolean) =>
-      ["departments", "tree", { includeInactive }] as const,
-  },
-
-  jobTitles: {
-    /** Broad prefix — every job-title query (use for invalidation). */
-    all: () => ["job-titles"] as const,
-    /** Job-title list, scoped by the include-inactive toggle. */
-    list: (includeInactive: boolean) => ["job-titles", { includeInactive }] as const,
-  },
-
   /**
    * Templates for one entity type (request/space/group). The single-element
    * `templates-${entityType}` shape is historical — a future improvement is
@@ -205,20 +214,6 @@ export const qk = {
   userProfile: {
     /** The current user's identity-provider profile (also its own invalidation prefix). */
     all: () => ["user-profile"] as const,
-  },
-
-  personProfiles: {
-    /** Batched person profiles for a set of resource ids (People list). */
-    byIds: (resourceIds: string[]) => ["person-profiles", resourceIds] as const,
-    /** Broad prefix — every single person-profile query (use for invalidation). */
-    all: () => ["person-profile"] as const,
-    /** One person's profile. */
-    single: (resourceId: string | undefined) => ["person-profile", resourceId] as const,
-  },
-
-  personJobTitles: {
-    /** Job-title labels for a set of person resource ids (utilization grid). */
-    byIds: (resourceIds: string[]) => ["person-job-titles", resourceIds] as const,
   },
 
   presetApplications: {

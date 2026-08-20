@@ -41,36 +41,91 @@ public interface IResourceCustomFieldService
 
 public class ResourceCustomFieldService(
     IResourceCustomFieldRepository repository,
-    IResourceTypeRepository resourceTypeRepository) : IResourceCustomFieldService
+    IResourceTypeRepository resourceTypeRepository,
+    IListDefinitionRepository listDefinitionRepository,
+    IListInstanceRepository listInstanceRepository) : IResourceCustomFieldService
 {
     /// <summary>
-    /// Rejects a required field on the one type whose resources cannot carry one: the built-in
-    /// space. Spaces are created by POST /api/sites/{id}/spaces, whose request has no
-    /// custom-field document at all, so a required field there would make every space
-    /// uncreatable through the only endpoint that creates one. Lifting this is tracked by
-    /// foundation#110, which teaches that endpoint to carry values.
+    /// How many rows one lookup value may pick. Bounds a payload that is otherwise unbounded — the
+    /// value rides inside the resource document and is read with every resource.
     /// </summary>
-    /// <remarks>
-    /// Scoped to the system space type on purpose, not to placeable types in general: a
-    /// tenant-defined placeable type is created through /api/resources like everything else,
-    /// and that carries values fine. Nor is it extended to a type some *dialog* happens not to
-    /// ask on — that is a gap in the client, and the API would be the wrong place to encode it.
-    ///
-    /// The check runs on create and update rather than being a true invariant, but the one type
-    /// it covers cannot escape it: a system type's behaviour flags are immutable
-    /// (<see cref="ResourceTypeService"/>), so `space` can never stop being placeable, and no
-    /// other type can become the space endpoint's target.
-    /// </remarks>
-    private static void EnsureRequirable(ResourceTypeInfo resourceType, bool isRequired)
-    {
-        if (!isRequired) return;
+    public const int MaxPickedRows = 100;
 
-        if (resourceType is { IsSystem: true, HasGeometry: true })
+    /// <summary>
+    /// A lookup value is the set of rows the resource picked out of one shared instance: an array
+    /// of row ids. Shape only — the ids' existence is checked in one batch by the caller.
+    /// </summary>
+    private static List<Guid> ParseLookupIds(ResourceCustomFieldInfo field, JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Array)
+            throw new ArgumentException($"Custom field '{field.Label}' expects a list of selected rows");
+
+        if (value.GetArrayLength() > MaxPickedRows)
+            throw new ArgumentException($"Custom field '{field.Label}' accepts at most {MaxPickedRows} selected rows");
+
+        var ids = new List<Guid>(value.GetArrayLength());
+        foreach (var element in value.EnumerateArray())
         {
-            throw new ArgumentException(
-                $"'{resourceType.DisplayName}' resources are created from the floorplan, on a form "
-                + "that does not ask for custom fields, so a field on this type cannot be required. "
-                + "Add it as optional instead.");
+            if (element.ValueKind != JsonValueKind.String || !Guid.TryParse(element.GetString(), out var id))
+                throw new ArgumentException($"Custom field '{field.Label}' expects row ids");
+
+            ids.Add(id);
+        }
+
+        if (ids.Distinct().Count() != ids.Count)
+            throw new ArgumentException($"Custom field '{field.Label}' has the same row selected twice");
+
+        return ids;
+    }
+
+    /// <summary>
+    /// A list field is defined by what it points at, so the binding is checked here rather than
+    /// left to the CHECK constraint: the constraint knows a binding is missing, this knows which
+    /// one and whether it names something that exists and is still open for use.
+    /// </summary>
+    private async Task EnsureBindingAsync(CreateResourceCustomFieldRequest request, CancellationToken ct)
+    {
+        switch (request.DataType)
+        {
+            case CustomFieldDataTypes.List:
+                // Rows attach after the resource exists, so there is no value for a create form to
+                // carry and nothing a required flag could demand. Rejected rather than ignored,
+                // because silently dropping it would look like it had been honoured.
+                if (request.IsRequired)
+                    throw new ArgumentException("A list field cannot be required — its rows are added after the resource is created");
+
+                if (request.ListInstanceId is not null)
+                    throw new ArgumentException("A list field binds a list definition, not an instance");
+
+                if (request.ListDefinitionId is not { } definitionId)
+                    throw new ArgumentException("A list field needs a list definition");
+
+                var definition = await listDefinitionRepository.GetByIdAsync(definitionId, ct)
+                    ?? throw new ArgumentException("The list definition does not exist");
+
+                if (!definition.IsActive)
+                    throw new ArgumentException($"List definition '{definition.Name}' is inactive, so no new field can bind it");
+                break;
+
+            case CustomFieldDataTypes.ListLookup:
+                if (request.ListDefinitionId is not null)
+                    throw new ArgumentException("A lookup field binds a shared list instance, not a definition");
+
+                if (request.ListInstanceId is not { } instanceId)
+                    throw new ArgumentException("A lookup field needs a shared list instance");
+
+                var instance = await listInstanceRepository.GetByIdAsync(instanceId, ct)
+                    ?? throw new ArgumentException("The list instance does not exist");
+
+                if (instance.Kind != ListInstanceKinds.Shared)
+                    throw new ArgumentException("A lookup field can only bind a shared list instance");
+                break;
+
+            default:
+                // A scalar field carrying a binding is a request that half-means something else.
+                if (request.ListDefinitionId is not null || request.ListInstanceId is not null)
+                    throw new ArgumentException($"A '{request.DataType}' field does not bind a list");
+                break;
         }
     }
 
@@ -94,7 +149,7 @@ public class ResourceCustomFieldService(
         var resourceType = await resourceTypeRepository.GetByIdAsync(resourceTypeId, ct);
         if (resourceType is null) return null;
 
-        EnsureRequirable(resourceType, request.IsRequired);
+        await EnsureBindingAsync(request, ct);
 
         // The duplicate key is caught by the unique constraint rather than a read-then-insert,
         // which two concurrent creates would slip through anyway.
@@ -107,11 +162,12 @@ public class ResourceCustomFieldService(
         var existing = await repository.GetByIdAsync(fieldId, ct);
         if (existing is null || existing.ResourceTypeId != resourceTypeId) return null;
 
-        if (request.IsRequired == true
-            && await resourceTypeRepository.GetByIdAsync(resourceTypeId, ct) is { } resourceType)
-        {
-            EnsureRequirable(resourceType, isRequired: true);
-        }
+        // Create rejects this for a list field, and an update that did not would leave a stored
+        // row contradicting the rule — the required sweep skips list fields precisely so the
+        // behaviour does not depend on a rule enforced somewhere else.
+        if (request.IsRequired == true && existing.DataType == CustomFieldDataTypes.List)
+            throw new ArgumentException(
+                "A list field cannot be required — its rows are added after the resource is created");
 
         return await repository.UpdateAsync(fieldId, request, ct);
     }
@@ -130,93 +186,63 @@ public class ResourceCustomFieldService(
         var definitions = await repository.GetByResourceTypeAsync(resourceTypeId, ct);
         var byKey = definitions.ToDictionary(f => f.Key, StringComparer.Ordinal);
 
+        // Existence checks are collected across the loop and run as one round trip below, so a
+        // save with several lookup fields pays one query instead of one per field. Shape errors
+        // therefore surface before existence errors — deliberate, and pinned by the tests.
+        var lookupChecks = new List<(ResourceCustomFieldInfo Field, List<Guid> Ids)>();
+
         foreach (var (key, value) in values)
         {
             if (!byKey.TryGetValue(key, out var field))
                 throw new ArgumentException($"'{key}' is not a custom field of this resource type");
 
+            // A list field's rows live in their own instance, addressed by (resource, field). It
+            // holds no value here at all, so a document carrying one is writing into a slot that
+            // does not exist — and a whole-document replace would then look like it had cleared
+            // rows it never touched.
+            if (field.DataType == CustomFieldDataTypes.List)
+                throw new ArgumentException($"Custom field '{field.Label}' holds its rows separately and takes no value here");
+
             // An empty value is an unfilled optional field, whatever its type. Whether it is
             // allowed to be empty is the required check below, not a type question.
-            if (IsEmpty(value)) continue;
+            if (CustomFieldValueRules.IsEmpty(value)) continue;
 
-            ValidateValue(field, value);
+            if (field.DataType == CustomFieldDataTypes.ListLookup)
+            {
+                lookupChecks.Add((field, ParseLookupIds(field, value)));
+                continue;
+            }
+
+            CustomFieldValueRules.Validate($"Custom field '{field.Label}'", field.DataType, value);
+        }
+
+        if (lookupChecks.Count > 0)
+        {
+            var found = await listInstanceRepository.CountExistingRowsBatchAsync(
+                lookupChecks.Select(c => (c.Field.ListInstanceId!.Value, (IReadOnlyList<Guid>)c.Ids)).ToList(), ct);
+            for (var i = 0; i < lookupChecks.Count; i++)
+            {
+                if (found[i] != lookupChecks[i].Ids.Count)
+                    throw new ArgumentException(
+                        $"Custom field '{lookupChecks[i].Field.Label}' selects a row that no longer exists");
+            }
         }
 
         // Only active fields can be required: a field retired while resources still lack a value
         // for it must not make those resources unsaveable.
-        foreach (var field in definitions.Where(f => f is { IsActive: true, IsRequired: true }))
+        // List fields are never required (EnsureBindingAsync rejects it), so they cannot appear
+        // here — but skipping them explicitly keeps that from depending on a rule enforced elsewhere.
+        foreach (var field in definitions.Where(f =>
+                     f is { IsActive: true, IsRequired: true } && f.DataType != CustomFieldDataTypes.List))
         {
-            if (!values.TryGetValue(field.Key, out var value) || IsEmpty(value))
-                throw new ArgumentException($"Custom field '{field.Label}' is required");
+            var present = values.TryGetValue(field.Key, out var value)
+                          && !CustomFieldValueRules.IsEmpty(value)
+                          // An empty array is an unfilled lookup, the same as an empty string is an
+                          // unfilled text field.
+                          && !(value.ValueKind == JsonValueKind.Array && value.GetArrayLength() == 0);
+
+            if (!present) throw new ArgumentException($"Custom field '{field.Label}' is required");
         }
     }
 
-    // Values are stored whole in the resource's jsonb document and shipped back with every
-    // list read, so they are bounded here — nothing else bounds them. Generous enough for a
-    // note, small enough that a resource row stays a row.
-    private const int MaxTextLength = 2000;
-    private const int MaxUrlLength = 2048;
-
-    /// <summary>Null, and the empty string a cleared text input sends, both mean "no value".</summary>
-    private static bool IsEmpty(JsonElement value) =>
-        value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined
-        || (value.ValueKind is JsonValueKind.String && string.IsNullOrWhiteSpace(value.GetString()));
-
-    private static void ValidateValue(ResourceCustomFieldInfo field, JsonElement value)
-    {
-        switch (field.DataType)
-        {
-            case CustomFieldDataTypes.Text:
-                Expect(field, value, JsonValueKind.String, "text");
-                if (value.GetString()!.Length > MaxTextLength)
-                    throw Mismatch(field, $"at most {MaxTextLength} characters");
-                break;
-
-            case CustomFieldDataTypes.Number:
-                if (value.ValueKind is not JsonValueKind.Number)
-                    throw Mismatch(field, "a number");
-                // A JSON number can carry an exponent Postgres numeric cannot hold, in either
-                // direction — 1e1000000 overflows a double, 1e-1000000 quietly becomes 0.0 while
-                // the raw token still reaches jsonb. Either way it is a 22003 nobody maps, which
-                // surfaces as a 500. TryGetDecimal accepts the range jsonb actually stores.
-                if (!value.TryGetDecimal(out _))
-                    throw Mismatch(field, "a number within the usual range");
-                break;
-
-            case CustomFieldDataTypes.Boolean:
-                if (value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
-                    throw Mismatch(field, "true or false");
-                break;
-
-            case CustomFieldDataTypes.Date:
-                Expect(field, value, JsonValueKind.String, "a date");
-                if (!DateOnly.TryParseExact(value.GetString(), "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                        DateTimeStyles.None, out _))
-                    throw Mismatch(field, "a date in yyyy-MM-dd format");
-                break;
-
-            case CustomFieldDataTypes.Url:
-                Expect(field, value, JsonValueKind.String, "a URL");
-                if (value.GetString()!.Length > MaxUrlLength)
-                    throw Mismatch(field, $"at most {MaxUrlLength} characters");
-                // Absolute and http(s) only: the value is rendered as a link, and a relative or
-                // javascript: URL there is a navigation the tenant did not intend.
-                if (!Uri.TryCreate(value.GetString(), UriKind.Absolute, out var uri)
-                    || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                    throw Mismatch(field, "an absolute http(s) URL");
-                break;
-
-            default:
-                // Unreachable while the CHECK constraint and the create validator agree on the set.
-                throw new InvalidOperationException($"Unknown custom field data type '{field.DataType}'");
-        }
-    }
-
-    private static void Expect(ResourceCustomFieldInfo field, JsonElement value, JsonValueKind kind, string expected)
-    {
-        if (value.ValueKind != kind) throw Mismatch(field, expected);
-    }
-
-    private static ArgumentException Mismatch(ResourceCustomFieldInfo field, string expected) =>
-        new($"Custom field '{field.Label}' expects {expected}");
 }

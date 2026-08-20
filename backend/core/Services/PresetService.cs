@@ -15,6 +15,7 @@ public class PresetService : IPresetService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly ICriteriaRepository _criteriaRepo;
     private readonly IResourceGroupRepository _resourceGroupRepo;
+    private readonly IResourceTypeRepository _resourceTypeRepo;
     private readonly ITemplateRepository _templateRepo;
     private readonly ILogger<PresetService> _logger;
 
@@ -23,6 +24,7 @@ public class PresetService : IPresetService
         IDbConnectionFactory connectionFactory,
         ICriteriaRepository criteriaRepo,
         IResourceGroupRepository resourceGroupRepo,
+        IResourceTypeRepository resourceTypeRepo,
         ITemplateRepository templateRepo,
         ILogger<PresetService> logger)
     {
@@ -30,6 +32,7 @@ public class PresetService : IPresetService
         _connectionFactory = connectionFactory;
         _criteriaRepo = criteriaRepo;
         _resourceGroupRepo = resourceGroupRepo;
+        _resourceTypeRepo = resourceTypeRepo;
         _templateRepo = templateRepo;
         _logger = logger;
     }
@@ -86,7 +89,10 @@ public class PresetService : IPresetService
         var criterionKeyMap = presetCriteria.ToDictionary(c => c.Name, c => c.Key);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => criterionKeyMap[c.Name]);
 
-        var groups = await _resourceGroupRepo.GetByTypeKeyAsync(ResourceTypeKeys.Space, ct);
+        // Export follows the same rule as apply: groups of every placeable type, since that is
+        // what the floorplan the preset captures actually holds.
+        var groups = await _resourceGroupRepo.GetByTypeKeysAsync(
+            await _resourceTypeRepo.GetPlaceableKeysAsync(ct), ct);
         var presetGroups = groups.Select(g => new PresetSpaceGroup
         {
             Key = GenerateKey(g.Name),

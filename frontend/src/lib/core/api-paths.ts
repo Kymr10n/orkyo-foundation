@@ -33,13 +33,7 @@ export const API_PATHS = {
   siteFloorplan: (siteId: string) => `/api/sites/${siteId}/floorplan`,
   siteFloorplanMetadata: (siteId: string) => `/api/sites/${siteId}/floorplan/metadata`,
 
-  // Spaces
-  spaces: (siteId: string) => `/api/sites/${siteId}/spaces`,
   siteRequests: (siteId: string) => `/api/sites/${siteId}/requests`,
-  space: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}`,
-  spaceCapabilities: (siteId: string, resourceId: string) => `/api/sites/${siteId}/spaces/${resourceId}/capabilities`,
-  spaceCapability: (siteId: string, resourceId: string, capabilityId: string) =>
-    `/api/sites/${siteId}/spaces/${resourceId}/capabilities/${capabilityId}`,
 
   // Group capabilities (the group itself is RESOURCE_GROUPS / resourceGroup below)
   groupCapabilities: (groupId: string) => `/api/resource-groups/${groupId}/capabilities`,
@@ -67,6 +61,27 @@ export const API_PATHS = {
   resourceCustomField: (resourceTypeId: string, fieldId: string) =>
     `/api/resource-types/${resourceTypeId}/custom-fields/${fieldId}`,
 
+  // Resource type catalog (pre-configured manufacturing types)
+  RESOURCE_TYPE_CATALOG: '/api/resource-type-catalog',
+  resourceTypeCatalogActivate: (key: string) => `/api/resource-type-catalog/${key}/activate`,
+  resourceTypeCatalogDeactivate: (key: string) => `/api/resource-type-catalog/${key}/deactivate`,
+  resourceTypeCatalogEntry: (key: string) => `/api/resource-type-catalog/${key}`,
+
+  LIST_DEFINITIONS: '/api/list-definitions',
+  listDefinition: (definitionId: string) => `/api/list-definitions/${definitionId}`,
+  listColumns: (definitionId: string) => `/api/list-definitions/${definitionId}/columns`,
+  listColumn: (definitionId: string, columnId: string) =>
+    `/api/list-definitions/${definitionId}/columns/${columnId}`,
+  sharedListInstances: (definitionId: string) => `/api/list-definitions/${definitionId}/instances`,
+  sharedListInstance: (definitionId: string, instanceId: string) =>
+    `/api/list-definitions/${definitionId}/instances/${instanceId}`,
+  listInstance: (instanceId: string) => `/api/list-instances/${instanceId}`,
+  listRows: (instanceId: string) => `/api/list-instances/${instanceId}/rows`,
+  listRow: (instanceId: string, rowId: string) => `/api/list-instances/${instanceId}/rows/${rowId}`,
+  /** The instance behind one resource's list field. GET resolves, POST get-or-creates. */
+  resourceListInstance: (resourceId: string, fieldId: string) =>
+    `/api/resources/${resourceId}/list-fields/${fieldId}/instance`,
+
   // Resources
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
@@ -79,21 +94,8 @@ export const API_PATHS = {
     `/api/resources/${resourceId}/capabilities/${capabilityId}`,
 
   // Person Profiles
-  PERSON_PROFILE_JOB_TITLES: '/api/person-profiles/job-titles',
-  PERSON_PROFILES_BATCH: '/api/person-profiles/batch',
-  personProfile: (resourceId: string) => `/api/person-profiles/${resourceId}`,
   calendarSubscriptions: '/api/calendar/subscriptions',
   calendarSubscription: (id: string) => `/api/calendar/subscriptions/${id}`,
-  personProfileLink: (resourceId: string) => `/api/person-profiles/${resourceId}/link`,
-
-  // Job Titles
-  JOB_TITLES: '/api/job-titles',
-  jobTitle: (id: string) => `/api/job-titles/${id}`,
-
-  // Departments
-  DEPARTMENTS: '/api/departments',
-  DEPARTMENTS_TREE: '/api/departments/tree',
-  department: (id: string) => `/api/departments/${id}`,
 
   // Templates
   TEMPLATES: '/api/templates',

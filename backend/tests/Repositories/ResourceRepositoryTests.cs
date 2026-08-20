@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
@@ -144,6 +145,120 @@ public class ResourceRepositoryTests
         Assert.Equal(siteA, resource.CurrentSiteId);
     }
 
+    [Fact]
+    public async Task GetById_ImmovableResourceAssignedElsewhere_CurrentSiteStaysHome()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var toolId = await CreateImmovableToolAsync(homeSiteId: siteA);
+        var requestId = await CreateRequestAsync(siteId: siteB);
+        await AssignAsync(toolId, requestId, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(1));
+
+        var tool = await _resources.GetByIdAsync(toolId);
+
+        // cross_site_allowed = false: the assignment says something about the request, not the
+        // resource's location.
+        Assert.Equal(siteA, tool!.CurrentSiteId);
+    }
+
+    [Fact]
+    public async Task GetById_TwoOverlappingAssignments_LatestStartWins()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var siteC = await CreateSiteAsync("C");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var earlier = await CreateRequestAsync(siteId: siteB);
+        var later = await CreateRequestAsync(siteId: siteC);
+        await AssignAsync(personId, earlier, DateTime.UtcNow.AddHours(-3), DateTime.UtcNow.AddHours(1));
+        await AssignAsync(personId, later, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(1));
+
+        var person = await _resources.GetByIdAsync(personId);
+
+        Assert.Equal(siteC, person!.CurrentSiteId);
+    }
+
+    [Fact]
+    public async Task GetAll_SiteFilterWithoutWindow_UsesAsOfNowCurrentSite()
+    {
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var requestId = await CreateRequestAsync(siteId: siteB);
+        await AssignAsync(personId, requestId, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(1));
+
+        var atB = await _repo.GetAllAsync(new ResourceListFilter
+        {
+            ResourceTypeKey = ResourceTypeKeys.Person,
+            IsActive = true,
+            SiteId = siteB,
+        });
+        var atA = await _repo.GetAllAsync(new ResourceListFilter
+        {
+            ResourceTypeKey = ResourceTypeKeys.Person,
+            IsActive = true,
+            SiteId = siteA,
+        });
+
+        // Currently working at B → listed under B; homed at A → still listed under A too.
+        Assert.Contains(atB, r => r.Id == personId);
+        Assert.Contains(atA, r => r.Id == personId);
+        Assert.Equal(siteB, atB.Single(r => r.Id == personId).CurrentSiteId);
+    }
+
+    // ── GetPageAsync ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetPage_ReturnsSliceAndUnpagedTotal()
+    {
+        var marker = $"Paged-{Guid.NewGuid():N}"[..18];
+        for (var i = 0; i < 5; i++)
+        {
+            await _resources.CreateAsync(new CreateResourceRequest
+            {
+                ResourceTypeKey = ResourceTypeKeys.Person,
+                Name = $"{marker}-{i}",
+                AllocationMode = AllocationModes.Exclusive,
+                BaseAvailabilityPercent = 100,
+            });
+        }
+        var filter = new ResourceListFilter { Search = marker };
+
+        var (pageOne, total) = await _repo.GetPageAsync(filter, limit: 2, offset: 0);
+        var (pageTwo, _) = await _repo.GetPageAsync(filter, limit: 2, offset: 2);
+        var (pastEnd, pastEndTotal) = await _repo.GetPageAsync(filter, limit: 2, offset: 10);
+
+        Assert.Equal(5, total);
+        Assert.Equal(2, pageOne.Count);
+        Assert.Equal(2, pageTwo.Count);
+        Assert.Empty(pastEnd);
+        Assert.Equal(5, pastEndTotal);
+        // Stable order (name, id): the pages do not overlap.
+        Assert.Empty(pageOne.Select(r => r.Id).Intersect(pageTwo.Select(r => r.Id)));
+    }
+
+    [Fact]
+    public async Task GetPage_SiteFilterWithoutWindow_CountMatchesItems()
+    {
+        // The site filter references the current-site lateral, so the COUNT must run over the
+        // same FROM — this pins the UsesCurrentSite branch of the count query.
+        var siteA = await CreateSiteAsync("A");
+        var siteB = await CreateSiteAsync("B");
+        var personId = await CreatePersonAsync(homeSiteId: siteA);
+        var requestId = await CreateRequestAsync(siteId: siteB);
+        await AssignAsync(personId, requestId, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(1));
+
+        var (items, total) = await _repo.GetPageAsync(new ResourceListFilter
+        {
+            ResourceTypeKey = ResourceTypeKeys.Person,
+            IsActive = true,
+            SiteId = siteB,
+        }, limit: 100, offset: 0);
+
+        Assert.Contains(items, r => r.Id == personId);
+        Assert.Equal(items.Count, total);
+    }
+
     // ── site-window membership filter (drives the People utilization grid) ──────
 
     [Fact]
@@ -224,6 +339,62 @@ public class ResourceRepositoryTests
         });
 
 
+    // ── code uniqueness ───────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Update_CannotTakeACodeAlreadyUsedAtTheSameSite()
+    {
+        // Create refuses a taken code. An update that did not would be the way around it, and the
+        // floorplan and import paths that key on (site, code) would then have two answers.
+        var site = await CreateSiteAsync("C");
+        var first = await CreateSpaceAsync(site, $"A-{Guid.NewGuid():N}"[..10]);
+        var second = await CreateSpaceAsync(site, $"B-{Guid.NewGuid():N}"[..10]);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _repo.UpdateAsync(second.Id, new UpdateResourceRequest { Code = first.Code! }));
+    }
+
+    [Fact]
+    public async Task Update_KeepingItsOwnCode_IsNotAClashWithItself()
+    {
+        var site = await CreateSiteAsync("D");
+        var space = await CreateSpaceAsync(site, $"K-{Guid.NewGuid():N}"[..10]);
+
+        var updated = await _repo.UpdateAsync(space.Id, new UpdateResourceRequest
+        {
+            Code = space.Code!,
+            Name = $"Renamed-{Guid.NewGuid():N}"[..16],
+        });
+
+        Assert.Equal(space.Code, updated!.Code);
+    }
+
+    [Fact]
+    public async Task Update_MovingToASiteWhereTheCodeIsTaken_IsRefused()
+    {
+        // The check is against the site the resource will have, not the one it has now.
+        var siteA = await CreateSiteAsync("E");
+        var siteB = await CreateSiteAsync("F");
+        var shared = $"MOVE-{Guid.NewGuid():N}"[..10];
+
+        await CreateSpaceAsync(siteB, shared);
+        var mover = await CreateSpaceAsync(siteA, shared);
+
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            _repo.UpdateAsync(mover.Id, new UpdateResourceRequest { HomeSiteId = siteB }));
+    }
+
+    private async Task<ResourceInfo> CreateSpaceAsync(Guid siteId, string code) =>
+        await _resources.CreateAsync(new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            Name = $"Space-{Guid.NewGuid():N}"[..20],
+            Code = code,
+            AllocationMode = AllocationModes.Exclusive,
+            HomeSiteId = siteId,
+            CrossSiteAllowed = false,
+        });
+
     private async Task<Guid> CreateSiteAsync(string label)
     {
         var suffix = Guid.NewGuid().ToString("N")[..10];
@@ -247,6 +418,20 @@ public class ResourceRepositoryTests
             HomeSiteId = homeSiteId,
         });
         return person.Id;
+    }
+
+    private async Task<Guid> CreateImmovableToolAsync(Guid? homeSiteId)
+    {
+        var tool = await _resources.CreateAsync(new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Tool,
+            Name = $"Tool-{Guid.NewGuid():N}"[..20],
+            AllocationMode = AllocationModes.Exclusive,
+            BaseAvailabilityPercent = 100,
+            HomeSiteId = homeSiteId,
+            CrossSiteAllowed = false,
+        });
+        return tool.Id;
     }
 
     private async Task<Guid> CreateRequestAsync(Guid? siteId)

@@ -11,6 +11,19 @@ import type { SearchResponse, SearchResult } from '@foundation/src/lib/api/searc
 // Mock the search API
 vi.mock('@foundation/src/lib/api/search-api');
 
+// The palette resolves a hit's class from the type list, so a hit lands on its page rather than
+// bouncing through the legacy route.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({
+    data: [
+      { key: 'space', displayNamePlural: 'Spaces', hasGeometry: true },
+      { key: 'person', displayNamePlural: 'People', hasGeometry: false },
+      { key: 'tool', displayNamePlural: 'Tools', hasGeometry: false },
+      { key: 'delivery_van', displayNamePlural: 'Vans', hasGeometry: false },
+    ],
+  }),
+}));
+
 // Mock the store
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
@@ -224,7 +237,7 @@ describe('CommandPalette', () => {
 
       expect(onOpenChange).toHaveBeenCalledWith(false);
       await waitFor(() => {
-        expect(mockNavigate).toHaveBeenCalledWith('/spaces/floorplan?edit=space-123');
+        expect(mockNavigate).toHaveBeenCalledWith('/stations/space/instances?edit=space-123');
       });
     });
   });
@@ -238,19 +251,19 @@ describe('CommandPalette', () => {
       path: string;
       extra?: Partial<SearchResult>;
     }[] = [
-      { type: 'resource', title: 'A Space', path: '/spaces/floorplan?edit=x-1', extra: { resourceTypeKey: 'space' } },
-      { type: 'resource', title: 'A Person', path: '/people/list?edit=x-1', extra: { resourceTypeKey: 'person' } },
-      { type: 'group', title: 'A Tool Group', path: '/resources/tool/groups?edit=x-1', extra: { resourceTypeKey: 'tool' } },
-      { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      { type: 'resource', title: 'A Space', path: '/stations/space/instances?edit=x-1', extra: { resourceTypeKey: 'space' } },
+      { type: 'resource', title: 'A Person', path: '/assets/person/instances?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      { type: 'group', title: 'A Tool Group', path: '/assets/tool/groups?edit=x-1', extra: { resourceTypeKey: 'tool' } },
+      { type: 'group', title: 'A Team', path: '/assets/person/groups?edit=x-1', extra: { resourceTypeKey: 'person' } },
       // Previously unreachable: tools and tenant-defined types were never indexed at all.
-      { type: 'resource', title: 'A Tool', path: '/resources/tool/list?edit=x-1', extra: { resourceTypeKey: 'tool' } },
-      { type: 'resource', title: 'A Van', path: '/resources/delivery_van/list?edit=x-1', extra: { resourceTypeKey: 'delivery_van' } },
+      { type: 'resource', title: 'A Tool', path: '/assets/tool/instances?edit=x-1', extra: { resourceTypeKey: 'tool' } },
+      { type: 'resource', title: 'A Van', path: '/assets/delivery_van/instances?edit=x-1', extra: { resourceTypeKey: 'delivery_van' } },
       { type: 'request', title: 'A Request', path: '/requests?edit=x-1' },
       { type: 'site', title: 'A Site', path: '/tenant-admin/sites?edit=x-1' },
       { type: 'template', title: 'A Template', path: '/settings/templates?edit=x-1' },
       { type: 'criterion', title: 'A Criterion', path: '/settings/criteria?edit=x-1' },
-      { type: 'group', title: 'A Team', path: '/people/teams?edit=x-1', extra: { resourceTypeKey: 'person' } },
-      { type: 'group', title: 'A Space Group', path: '/spaces/groups?edit=x-1', extra: { resourceTypeKey: 'space' } },
+      { type: 'group', title: 'A Team', path: '/assets/person/groups?edit=x-1', extra: { resourceTypeKey: 'person' } },
+      { type: 'group', title: 'A Space Group', path: '/stations/space/groups?edit=x-1', extra: { resourceTypeKey: 'space' } },
     ];
 
     it.each(cases)('routes a $type result to $path', async ({ type, title, path, extra }) => {

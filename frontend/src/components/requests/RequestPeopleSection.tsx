@@ -4,6 +4,7 @@ import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import { getResources, type ResourceInfo } from "@foundation/src/lib/api/resources-api";
+import { getResourceTypes } from "@foundation/src/lib/api/resource-types-api";
 import {
   getAssignmentsByRequest,
   createAssignment,
@@ -62,24 +63,38 @@ export function RequestPeopleSection({
 }: RequestPeopleSectionProps) {
   const [people, setPeople] = useState<ResourceInfo[]>([]);
   const [assignments, setAssignments] = useState<ResourceAssignmentInfo[]>([]);
+  // true until the type list proves otherwise, so the "activate a type" hint never flashes
+  // during the initial load.
+  const [hasDirectoryType, setHasDirectoryType] = useState(true);
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const queryClient = useQueryClient();
 
-  // Load available people and existing assignments
+  // Load available people and existing assignments. "People" means every active type with a
+  // directory profile — nothing is keyed to `person`, which is just a catalog entry a tenant
+  // may or may not have activated (or renamed).
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setIsLoading(true);
       try {
-        const [peopleRes, assignmentsRes] = await Promise.all([
-          getResources({ resourceTypeKey: 'person', isActive: true }),
+        const types = await getResourceTypes(true);
+        const directoryKeys = new Set(
+          types.filter((t) => t.hasDirectoryProfile).map((t) => t.key),
+        );
+        const [peopleLists, assignmentsRes] = await Promise.all([
+          Promise.all(
+            [...directoryKeys].map((key) =>
+              getResources({ resourceTypeKey: key, isActive: true }),
+            ),
+          ),
           requestId ? getAssignmentsByRequest(requestId) : Promise.resolve([]),
         ]);
         if (!cancelled) {
-          setPeople(peopleRes.data);
-          setAssignments(assignmentsRes.filter((a) => a.resourceTypeKey === 'person'));
+          setHasDirectoryType(directoryKeys.size > 0);
+          setPeople(peopleLists.flatMap((res) => res.data));
+          setAssignments(assignmentsRes.filter((a) => directoryKeys.has(a.resourceTypeKey)));
         }
       } catch {
         // Non-critical: section remains empty
@@ -90,6 +105,18 @@ export function RequestPeopleSection({
     load();
     return () => { cancelled = true; };
   }, [requestId]);
+
+  // Cancel every pending validation when the section goes away. Each row schedules a 400ms
+  // debounce, and without this they outlive the component: closing the dialog within that window
+  // still fires the request and then writes the result into a tree that is no longer mounted.
+  // The ref is the same Map the schedulers write to, so this cancels whatever is outstanding.
+  useEffect(() => {
+    const timers = debounceTimers.current;
+    return () => {
+      for (const timer of timers.values()) clearTimeout(timer);
+      timers.clear();
+    };
+  }, []);
 
   // Recompute blocker state whenever pending rows change. Only HARD blockers gate
   // saving — capability.missing / overbooked are soft (see SOFT_BLOCKER_CODES) and
@@ -372,7 +399,14 @@ export function RequestPeopleSection({
             );
           })}
 
-          {!readOnly && (
+          {!readOnly && !hasDirectoryType && !isLoading && (
+            <p className="text-xs text-muted-foreground">
+              No people-like resource type is active. Activate one under Configuration → Type
+              catalog to assign people.
+            </p>
+          )}
+
+          {!readOnly && hasDirectoryType && (
             <Button
               type="button"
               variant="outline"

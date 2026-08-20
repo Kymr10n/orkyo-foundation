@@ -260,6 +260,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
         builder.Services.AddScoped<ICalendarFeedTokenRepository, CalendarFeedTokenRepository>();
         builder.Services.AddScoped<IResourceCustomFieldRepository, ResourceCustomFieldRepository>();
+        builder.Services.AddScoped<IListDefinitionRepository, ListDefinitionRepository>();
+        builder.Services.AddScoped<IListInstanceRepository, ListInstanceRepository>();
         builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
         builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
         builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
@@ -335,13 +337,13 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
         builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
         builder.Services.AddScoped<IResourceCustomFieldService, ResourceCustomFieldService>();
+        builder.Services.AddScoped<IListDefinitionService, ListDefinitionService>();
+        builder.Services.AddScoped<IListRowService, ListRowService>();
         builder.Services.AddScoped<IResourceService, ResourceService>();
         builder.Services.AddScoped<IResourceTypeService, ResourceTypeService>();
+        builder.Services.AddScoped<IResourceTypeCatalogService, ResourceTypeCatalogService>();
         builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         builder.Services.AddScoped<IConflictService, ConflictService>();
-        builder.Services.AddScoped<IPersonProfileRepository, PersonProfileRepository>();
-        builder.Services.AddScoped<IJobTitleRepository, JobTitleRepository>();
-        builder.Services.AddScoped<IDepartmentRepository, DepartmentRepository>();
         builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         builder.Services.AddScoped<IUtilizationService, UtilizationService>();
         // NB: integration tests bind IInsightsService directly to the real service (no caching
@@ -349,6 +351,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // shared test OrgId would leak data between tests. The decorator is covered by its own unit
         // test (CachingInsightsServiceTests); production wiring lives in FoundationServiceExtensions.
         builder.Services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
+        // Uncached here too, for the same reason: an integration test asserting on freshly written
+        // data must not be answered from a 60-second-old timeline.
+        builder.Services.AddScoped<
+            Api.Services.Insights.IConflictTimelineProvider,
+            Api.Services.Insights.ConflictTimelineProvider>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
         builder.Services.AddScoped<ISessionService, SessionService>();
         builder.Services.AddScoped<IUserSessionService, UserSessionService>();

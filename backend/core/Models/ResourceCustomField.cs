@@ -13,7 +13,22 @@ public static class CustomFieldDataTypes
     public const string Date = "date";
     public const string Url = "url";
 
+    /// <summary>Rows of its own, one set per resource, shaped by a list definition. Holds no value.</summary>
+    public const string List = "list";
+
+    /// <summary>Row ids picked from one shared list instance. Value is a JSON array of ids.</summary>
+    public const string ListLookup = "list_lookup";
+
+    /// <summary>
+    /// What the API will create. Both list types are in: a `list` field owns its rows, a
+    /// `list_lookup` field picks them out of a shared instance, and each is refused unless its
+    /// binding names something that exists (see ResourceCustomFieldService.EnsureBindingAsync).
+    /// </summary>
     public static readonly IReadOnlySet<string> All =
+        new HashSet<string>(StringComparer.Ordinal) { Text, Number, Boolean, Date, Url, List, ListLookup };
+
+    /// <summary>The types whose values are validated as scalars against a jsonb document.</summary>
+    public static readonly IReadOnlySet<string> Scalar =
         new HashSet<string>(StringComparer.Ordinal) { Text, Number, Boolean, Date, Url };
 }
 
@@ -36,6 +51,10 @@ public record ResourceCustomFieldInfo
     public required int SortOrder { get; init; }
     /// <summary>Inactive fields disappear from the form but keep the values already captured.</summary>
     public required bool IsActive { get; init; }
+    /// <summary>For <see cref="CustomFieldDataTypes.List"/>: the shape this field's rows take.</summary>
+    public Guid? ListDefinitionId { get; init; }
+    /// <summary>For <see cref="CustomFieldDataTypes.ListLookup"/>: the shared instance rows are picked from.</summary>
+    public Guid? ListInstanceId { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }
@@ -48,6 +67,10 @@ public record CreateResourceCustomFieldRequest
     public required string DataType { get; init; }
     public bool IsRequired { get; init; }
     public int SortOrder { get; init; }
+    /// <summary>Required for <c>list</c>, rejected otherwise — the binding is part of the shape.</summary>
+    public Guid? ListDefinitionId { get; init; }
+    /// <summary>Required for <c>list_lookup</c>, rejected otherwise.</summary>
+    public Guid? ListInstanceId { get; init; }
 }
 
 /// <summary>

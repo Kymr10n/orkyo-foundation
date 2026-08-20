@@ -14,6 +14,18 @@ vi.mock("@foundation/src/lib/api/resource-groups-api", () => ({
   getResourceGroupMembers: vi.fn(),
   setResourceGroupMembers: vi.fn(),
 }));
+// The 1:1 gate reads the type's own flag now, not the space key — the dialog asks
+// useResourceTypes which types are single-group.
+vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
+  useResourceTypes: () => ({
+    data: [
+      { id: 'type-space', key: 'space', displayName: 'Space', displayNamePlural: 'Spaces', hasGeometry: true, singleGroupMembership: true, isActive: true },
+      { id: 'type-person', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, singleGroupMembership: false, isActive: true },
+    ],
+    isSuccess: true,
+  }),
+}));
+
 vi.mock("@foundation/src/lib/core/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
@@ -34,6 +46,8 @@ function makeResource(id: string, name: string, typeKey = "person"): ResourceInf
     name,
     allocationMode: "Fractional",
     baseAvailabilityPercent: 100,
+    isPhysical: false,
+    capacity: 1,
     isActive: true,
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",

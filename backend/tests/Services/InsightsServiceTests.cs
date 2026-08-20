@@ -21,6 +21,7 @@ public class InsightsServiceTests
     private readonly Mock<IOrgDbConnectionFactory> _db = new();
     private readonly Mock<IConflictService> _conflicts = new();
     private readonly Mock<IRequestRepository> _requests = new();
+    private readonly Mock<IConflictTimelineProvider> _timeline = new();
     private readonly Mock<IResourceRepository> _resources = new();
     private readonly Mock<IResourceAssignmentRepository> _assignments = new();
     private readonly Mock<IAvailabilityResolver> _availability = new();
@@ -31,7 +32,7 @@ public class InsightsServiceTests
     {
         var org = new OrgContext { OrgId = Guid.NewGuid(), OrgSlug = "test", DbConnectionString = "unused" };
         _service = new InsightsService(
-            org, _db.Object, _conflicts.Object, _requests.Object,
+            org, _db.Object, _timeline.Object,
             _resources.Object, _resourceTypes.Object, _assignments.Object, _availability.Object);
 
         // The overview now fans out over the tenant's active types instead of a fixed triple.
@@ -43,11 +44,16 @@ public class InsightsServiceTests
             ]);
 
         // Sensible empties — individual tests override.
+        _timeline.Setup(t => t.GetAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _assignments.Setup(a => a.GetByResourceAsync(It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
@@ -72,7 +78,7 @@ public class InsightsServiceTests
         SingleGroupMembership = key == ResourceTypeKeys.Space,
         DisplayName = displayName,
         DisplayNamePlural = displayName + "s",
-        IsSystem = true,
+        IsSystem = false,
         IsActive = true,
         CreatedAt = DateTime.UtcNow,
         UpdatedAt = DateTime.UtcNow,
@@ -131,6 +137,8 @@ public class InsightsServiceTests
     {
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([resource]);
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([resource]);
         _assignments.Setup(a => a.GetByResourceAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([.. assignments]);
         _assignments.Setup(a => a.GetActiveByResourcesAsync(
@@ -138,22 +146,27 @@ public class InsightsServiceTests
             .ReturnsAsync([.. assignments]);
     }
 
+    /// <summary>Stubs the shared conflict timeline. Site filtering is the provider's job now, so
+    /// these tests hand over the points it would have returned and assert what Insights does with
+    /// them — mapping kinds to categories and placing each in the right bucket.</summary>
+    private void Timeline(params ConflictPoint[] points) =>
+        _timeline.Setup(t => t.GetAsync(
+                It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([.. points]);
+
     // ── Conflict mapping + bucketing ──────────────────────────────────────────
 
     [Fact]
     public async Task ConflictTrend_MapsLiveKindsIntoStableCategoriesInTheRightBucket()
     {
-        var reqId = Guid.NewGuid();
         var febStart = new DateTime(2026, 2, 10, 9, 0, 0, DateTimeKind.Utc);
-        _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new RequestConflictInfo
-            {
-                RequestId = reqId,
-                Conflicts = [Conflict("overlap"), Conflict("capacity_exceeded"), Conflict("connector_mismatch"),
-                             Conflict("starts_in_off_time"), Conflict("site_mismatch"), Conflict("below_min_duration")],
-            }]);
-        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Scheduled(reqId, febStart, siteId: null)]);
+        Timeline(
+            new ConflictPoint(febStart, "overlap"),
+            new ConflictPoint(febStart, "capacity_exceeded"),
+            new ConflictPoint(febStart, "connector_mismatch"),
+            new ConflictPoint(febStart, "starts_in_off_time"),
+            new ConflictPoint(febStart, "site_mismatch"),
+            new ConflictPoint(febStart, "below_min_duration"));
 
         var result = await _service.GetConflictTrendAsync(
             new InsightsFilter { From = Jan, To = Mar, Bucket = "month" });
@@ -168,41 +181,6 @@ public class InsightsServiceTests
         Assert.Equal(1, feb.ScheduleOutsideAvailability); // below_min_duration
         Assert.Equal(0, feb.MissingResource);             // no live kind maps here — honest 0
     }
-
-    [Fact]
-    public async Task ConflictTrend_ExcludesConflictsFromOtherSites()
-    {
-        var reqId = Guid.NewGuid();
-        var siteA = Guid.NewGuid();
-        _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
-        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc), siteId: siteA)]);
-
-        // Filter to a different site → the siteA conflict is excluded.
-        var result = await _service.GetConflictTrendAsync(
-            new InsightsFilter { From = Jan, To = Mar, Bucket = "month", SiteId = Guid.NewGuid() });
-
-        Assert.All(result.Series, s => Assert.Equal(0, s.Total));
-    }
-
-    [Fact]
-    public async Task ConflictTrend_KeepsSiteNeutralConflictsUnderAnySite()
-    {
-        var reqId = Guid.NewGuid();
-        _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
-        // Site-neutral request (no site) is schedulable anywhere → kept under a specific site filter.
-        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc), siteId: null)]);
-
-        var result = await _service.GetConflictTrendAsync(
-            new InsightsFilter { From = Jan, To = Mar, Bucket = "month", SiteId = Guid.NewGuid() });
-
-        Assert.Equal(1, result.Series.Sum(s => s.Total));
-    }
-
-    // ── Utilization: time-based occupancy ─────────────────────────────────────
 
     [Fact]
     public async Task UtilizationTrend_PartialBooking_IsTimeBased_NotPinnedAt100()
@@ -251,6 +229,8 @@ public class InsightsServiceTests
         var room = Guid.NewGuid();
         _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([SpaceResource(room)]);
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SpaceResource(room)]);
         _availability.Setup(a => a.GetBlockedPeriodsForResourcesAsync(
                 It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(
@@ -282,11 +262,7 @@ public class InsightsServiceTests
     [Fact]
     public async Task UtilizationTrend_CountsConflictsPerBucket()
     {
-        var reqId = Guid.NewGuid();
-        _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([new RequestConflictInfo { RequestId = reqId, Conflicts = [Conflict("overlap")] }]);
-        _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Scheduled(reqId, new DateTime(2026, 1, 20, 9, 0, 0, DateTimeKind.Utc), siteId: null)]);
+        Timeline(new ConflictPoint(new DateTime(2026, 1, 20, 9, 0, 0, DateTimeKind.Utc), "overlap"));
 
         var result = await _service.GetUtilizationTrendAsync(
             new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "space" });
