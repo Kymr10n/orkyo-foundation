@@ -23,9 +23,9 @@ public static class AvailabilityFactory
         IReadOnlyList<Factories.PeopleFactories.SeededPerson> people,
         Faker faker)
     {
-        Guid toolTypeId;
-        await using (var cmd = new NpgsqlCommand("SELECT id FROM public.resource_types WHERE key='tool' LIMIT 1", conn))
-            toolTypeId = (Guid)(await cmd.ExecuteScalarAsync())!;
+        // The seed owns the tool type (built-ins are gone); ToolFactory has already run, so
+        // this is a no-op re-read of the same row.
+        var toolTypeId = await ToolFactory.EnsureToolTypeAsync(conn);
 
         var now = DateTime.UtcNow;
         var events = 0;

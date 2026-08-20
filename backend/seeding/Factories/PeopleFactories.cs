@@ -29,14 +29,29 @@ public static class PeopleFactories
     public sealed record SeededPerson(Guid ResourceId, string Name);
     public sealed record SeededPersonGroup(Guid Id, string Name);
 
+    /// <summary>
+    /// The type the seeded people belong to. The demo defines it for itself — the same pattern
+    /// as <see cref="SpaceFactories.ResolveSpaceResourceTypeIdAsync"/> — because `person` is no
+    /// longer seeded by migration: it is a catalog type a tenant activates, and a fresh DB has
+    /// no types at all. Values mirror the `person` entry of ResourceTypeCatalog (backend/core);
+    /// the seeding project deliberately has no reference to core, so they are duplicated here.
+    /// </summary>
     public static async Task<Guid> ResolvePersonResourceTypeIdAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx)
     {
+        var id = Guid.NewGuid();
         await using var cmd = new NpgsqlCommand(
-            "SELECT id FROM public.resource_types WHERE key = 'person' LIMIT 1", conn, tx);
-        var id = (Guid?)await cmd.ExecuteScalarAsync();
-        return id ?? throw new InvalidOperationException(
-            "resource_types row with key='person' not found. Has the tenant DB been migrated?");
+            "INSERT INTO public.resource_types " +
+            "(id, key, display_name, display_name_plural, description, icon, " +
+            " is_system, is_active, has_directory_profile, created_at, updated_at) " +
+            "VALUES (@id, 'person', 'Person', 'People', " +
+            "'Operators, fitters and everyone else who does the work.', " +
+            "'Users', false, true, true, @now, @now) " +
+            "ON CONFLICT (key) DO UPDATE SET updated_at = EXCLUDED.updated_at " +
+            "RETURNING id", conn, tx);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("now", DateTime.UtcNow);
+        return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
 
     /// <summary>

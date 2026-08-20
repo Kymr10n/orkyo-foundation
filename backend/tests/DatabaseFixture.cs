@@ -169,6 +169,24 @@ public class DatabaseFixture : IAsyncLifetime
         var tenantCs = $"Host=localhost;Port={DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
         await using var tenantSeedConn = new NpgsqlConnection(tenantCs);
         await tenantSeedConn.OpenAsync();
+
+        // The fixture owns the three classic types. Migrations no longer seed any resource
+        // type (built-ins are a catalog now), and most of the suite assumes space/person/tool
+        // exist — so the fixture creates them itself, with the flags migration 1300/1700 gave
+        // them and is_system=false (the only value that exists after 1870). On a database
+        // where the rows survive (pre-1880 state) the ON CONFLICT makes this a no-op.
+        await using var typesCmd = new NpgsqlCommand(@"
+            INSERT INTO resource_types
+                (key, display_name, display_name_plural, icon,
+                 is_system, is_active, has_geometry, has_directory_profile, single_group_membership)
+            VALUES
+                ('space',  'Space',  'Spaces', 'Box',    false, true, true,  false, true),
+                ('person', 'Person', 'People', 'Users',  false, true, false, true,  false),
+                ('tool',   'Tool',   'Tools',  'Wrench', false, true, false, false, false)
+            ON CONFLICT (key) DO NOTHING", tenantSeedConn);
+        await typesCmd.ExecuteNonQueryAsync();
+        Console.WriteLine("    ✓ Fixture resource types (space, person, tool) ensured");
+
         await using var criteriaCmd = new NpgsqlCommand(@"
             INSERT INTO criteria (name, description, data_type, enum_values, created_at, updated_at)
             VALUES

@@ -192,8 +192,10 @@ public static class TenantConfigFactory
             fields++;
         }
 
-        // Nothing here is required: the built-in space type refuses required fields (its create
-        // flow sends no values), and a required field on people would block the person dialog.
+        // Nothing here is required: a required field would block every create flow that sends
+        // no values. The person and tool fields mirror the ResourceTypeCatalog entries in
+        // backend/core (the seeding project carries no reference to core), so a seeded tenant
+        // and a catalog activation agree on the same field keys.
         await Field("person", "badge_number", "Badge number", "text", 0);
         await Field("person", "certified_until", "Certified until", "date", 1);
         await Field("person", "night_shift", "Night shift", "boolean", 2);
