@@ -17,8 +17,12 @@ on:
   repository_dispatch:
     types: [advance-classification-baseline]
 
-# Staging and production deploys can dispatch back-to-back — serialize the
-# commits instead of racing the push.
+# Only PRODUCTION deploys dispatch this (orkyo-infra#39). A staging deploy that
+# advanced the baseline would tell the migration gate that migrations production
+# has never run are settled history — which is how 0.18.1 carried 14 contract
+# migrations into production reporting rollback_safe=true. Consecutive
+# production deploys can still arrive back-to-back, so the commits are still
+# serialized rather than racing the push.
 concurrency:
   group: advance-classification-baseline
 
