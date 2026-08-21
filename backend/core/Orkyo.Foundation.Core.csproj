@@ -26,6 +26,7 @@
 
   <!-- No FrameworkReference — must remain ASP.NET-free -->
   <ItemGroup>
+    <PackageReference Include="Anthropic" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Npgsql" />

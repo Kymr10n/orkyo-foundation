@@ -34,6 +34,7 @@ public static class FoundationEndpointExtensions
         app.MapAiCredentialEndpoints();
         app.MapAiAllowanceEndpoints();
         app.MapAiStatusEndpoints();
+        app.MapAiChatEndpoints();
         app.MapAnnouncementEndpoints();
         app.MapTenantAuditEndpoints();
         app.MapAutoScheduleEndpoints();

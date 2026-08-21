@@ -37,6 +37,13 @@ public static class AiCredentialEndpoints
         group.MapDelete("/", DeleteCredential)
             .WithName("DeleteAiCredential")
             .WithSummary("Remove the workspace's AI key and switch the assistant off");
+
+        // Probing a key changes nothing, so it stays inside the admin area but is marked
+        // non-mutating — it exists so an admin can tell a wrong key from a wrong network.
+        group.MapPost("/test", TestCredential)
+            .AllowMemberWrite()
+            .WithName("TestAiCredential")
+            .WithSummary("Check the stored key against the provider without spending tokens");
     }
 
     private static async Task<IResult> GetCredential(
@@ -75,5 +82,19 @@ public static class AiCredentialEndpoints
     {
         await credentials.DeleteAsync(principal.UserId == Guid.Empty ? null : principal.UserId, ct);
         return Results.NoContent();
+    }
+
+    private static async Task<IResult> TestCredential(
+        IAiCredentialService credentials,
+        IAnthropicGateway gateway,
+        CancellationToken ct)
+    {
+        var apiKey = await credentials.GetApiKeyAsync(ct);
+        if (string.IsNullOrEmpty(apiKey))
+            return Results.Ok(new AiCredentialTestResult { Ok = false, Reason = "not_configured" });
+
+        var result = await gateway.TestAsync(apiKey, await credentials.GetModelAsync(ct), ct);
+        if (result.Ok) await credentials.MarkVerifiedAsync(ct);
+        return Results.Ok(result);
     }
 }
