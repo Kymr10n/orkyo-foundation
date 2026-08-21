@@ -26,6 +26,7 @@ export const FeatureKeys = {
   AuditLog: "audit_log_enabled",
   DataExport: "data_export_enabled",
   CalendarFeed: "calendar_feed_enabled",
+  AiAssistant: "ai_assistant_enabled",
 } as const;
 
 export type FeatureKey = (typeof FeatureKeys)[keyof typeof FeatureKeys];

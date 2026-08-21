@@ -20,6 +20,11 @@ import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TourDialog } from "@foundation/src/components/tour/TourDialog";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
+import { AssistantPanel } from "@foundation/src/components/assistant/AssistantPanel";
+import { updateRequest } from "@foundation/src/lib/api/request-api";
+import type { UpdateRequestRequest } from "@foundation/src/types/requests";
+import { qk } from "@foundation/src/lib/api/query-keys";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AppLayoutProps {
   /** Edition-supplied plans-page href for the tier-gated upsells (calendar subscription, data export / import). */
@@ -33,6 +38,7 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
 
   const { appUser } = useAuth();
   const [tourOpen, setTourOpen] = useState(false);
+  const queryClient = useQueryClient();
   const hasAutoShownTour = useRef(false);
 
   // Responsive shell: phone gets a drawer behind a hamburger; tablet an icon
@@ -60,8 +66,12 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   // a fresh trigger to consume.
   const commandPaletteTick = useUiActionsStore((s) => s.commandPaletteTick);
   const tourTick = useUiActionsStore((s) => s.tourTick);
+  const assistantTick = useUiActionsStore((s) => s.assistantTick);
+  const assistantContext = useUiActionsStore((s) => s.assistantContext);
   const lastCommandPaletteTick = useRef(commandPaletteTick);
   const lastTourTick = useRef(tourTick);
+  const lastAssistantTick = useRef(assistantTick);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   useEffect(() => {
     if (commandPaletteTick !== lastCommandPaletteTick.current) {
@@ -76,6 +86,13 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
       setTourOpen(true);
     }
   }, [tourTick]);
+
+  useEffect(() => {
+    if (assistantTick !== lastAssistantTick.current) {
+      lastAssistantTick.current = assistantTick;
+      setAssistantOpen(true);
+    }
+  }, [assistantTick]);
 
   // Load sites (shared React Query cache) and validate/set default selection.
   const { data: sites, isSuccess: sitesLoaded, isError: sitesError, error: sitesLoadError } = useSites();
@@ -151,6 +168,18 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
       <FeedbackButton />
       <CommandPalette open={isCommandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
       <TourDialog open={tourOpen} onClose={() => setTourOpen(false)} />
+      <AssistantPanel
+        open={assistantOpen}
+        onOpenChange={setAssistantOpen}
+        context={assistantContext}
+        // Applying goes through the ordinary request endpoint under this person's own
+        // session, so the same validation and permissions apply as to a manual edit.
+        onApplyProposal={async (requestId, changes) => {
+          await updateRequest(requestId, changes as UpdateRequestRequest);
+          await queryClient.invalidateQueries({ queryKey: qk.requests.all() });
+          await queryClient.invalidateQueries({ queryKey: qk.conflicts.all() });
+        }}
+      />
     </div>
   );
 }

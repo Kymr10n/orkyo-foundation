@@ -60,15 +60,28 @@ export interface CalendarFeedCapability {
   description: string;
 }
 
+/** What the assistant should look at when it opens. */
+export interface AssistantOpenContext {
+  type: "conflict";
+  requestId: string;
+  kind?: string;
+}
+
 interface UiActionsState {
   // Counters bumped on each trigger
   exportTick: number;
   importTick: number;
   commandPaletteTick: number;
   tourTick: number;
+  assistantTick: number;
   // Last payload for actions that carry data
   lastExport: ExportPayload | null;
   lastImport: ImportPayload | null;
+  /**
+   * What the assistant was opened from, when the caller had something specific in mind
+   * (a conflict entry). Null when opened from the toolbar with no subject.
+   */
+  assistantContext: AssistantOpenContext | null;
   /**
    * Live capabilities, keyed by context. Insertion-ordered (Map semantics), so
    * the most recently mounted registrant wins when a tab registers inside a
@@ -84,6 +97,8 @@ interface UiActionsState {
   triggerImport: (payload: ImportPayload) => void;
   openCommandPalette: () => void;
   openTour: () => void;
+  /** Opens the assistant panel, optionally about a specific conflict. */
+  openAssistant: (context?: AssistantOpenContext) => void;
 
   // Registration (called from the useExportHandler / useImportHandler effects)
   registerExport: (context: ExportContext, capability: ExportCapability) => void;
@@ -107,8 +122,10 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   importTick: 0,
   commandPaletteTick: 0,
   tourTick: 0,
+  assistantTick: 0,
   lastExport: null,
   lastImport: null,
+  assistantContext: null,
   exportRegistry: new Map(),
   importRegistry: new Map(),
   calendarFeedRegistry: new Map(),
@@ -120,6 +137,8 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   openCommandPalette: () =>
     set((s) => ({ commandPaletteTick: s.commandPaletteTick + 1 })),
   openTour: () => set((s) => ({ tourTick: s.tourTick + 1 })),
+  openAssistant: (context) =>
+    set((s) => ({ assistantTick: s.assistantTick + 1, assistantContext: context ?? null })),
 
   // Re-registering an existing context deletes first, so the re-inserted entry
   // moves to the end and stays the active one.
