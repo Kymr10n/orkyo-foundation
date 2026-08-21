@@ -24,4 +24,12 @@ public static class TenantAuditActions
 
     public const string SettingsUpdated = "settings.updated";
     public const string SettingsReset = "settings.reset";
+
+    // AI assistant administration. The credential events never carry the key or its
+    // ciphertext — only that a key was set, replaced, probed, or removed.
+    public const string AiCredentialSaved = "ai.credential_saved";
+    public const string AiCredentialDeleted = "ai.credential_deleted";
+    public const string AiCredentialTested = "ai.credential_tested";
+    public const string AiAllowanceGranted = "ai.allowance_granted";
+    public const string AiAllowanceRevoked = "ai.allowance_revoked";
 }
