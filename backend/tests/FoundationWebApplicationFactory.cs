@@ -279,6 +279,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IAiAllowanceRepository, AiAllowanceRepository>();
         builder.Services.AddScoped<Api.Services.Ai.IAiCredentialService, Api.Services.Ai.AiCredentialService>();
         builder.Services.AddScoped<Api.Services.Ai.IAiAccessService, Api.Services.Ai.AiAccessService>();
+        builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway, Api.Services.Ai.AnthropicGateway>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiChatService, Api.Services.Ai.AiChatService>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetConflictsTool>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestsTool>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestTool>();
 
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();

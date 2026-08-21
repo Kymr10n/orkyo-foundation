@@ -134,6 +134,13 @@ public static class FoundationServiceExtensions
         // ── Domain services ───────────────────────────────────────────────────
         services.AddScoped<IAiCredentialService, AiCredentialService>();
         services.AddScoped<IAiAccessService, AiAccessService>();
+        services.AddSingleton<IAnthropicGateway, AnthropicGateway>();
+        services.AddScoped<IAiChatService, AiChatService>();
+        // Tools are resolved as a set: the chat loop offers whatever is registered here,
+        // so adding a capability is one registration and no change to the loop.
+        services.AddScoped<IAiTool, GetConflictsTool>();
+        services.AddScoped<IAiTool, GetRequestsTool>();
+        services.AddScoped<IAiTool, GetRequestTool>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
