@@ -1,8 +1,9 @@
 # Cross-engine smoke suite (measure M7)
 
 A minimal Playwright suite that renders a slice of real foundation components
-(FormDialog, OrkyoDataTable, TimelineGridShell + off-time hatch, RequestCalendar,
-ScheduleToDialog) against fixture data, across **chromium / webkit / firefox**.
+(FormDialog, ResourceEditDialog, OrkyoDataTable, TimelineGridShell + off-time hatch,
+RequestCalendar, ScheduleSlotDialog) against fixture data, across
+**chromium / webkit / firefox**.
 Its job is narrow: catch parse errors from too-new syntax and gross cross-engine
 render breakage. Component *logic* is covered by the vitest suite.
 
@@ -23,8 +24,9 @@ add either lane to the PR CI gate.
   Pixel 7, `tablet-webkit` = iPad gen 7) — runs **only** `mobile.spec.ts`, which
   asserts the phone/tablet responsiveness behaviours that vitest can't see because
   they depend on a real viewport + `matchMedia`: OrkyoDataTable card mode vs table,
-  the dvh-capped FormDialog footer, the horizontally-scrollable wizard tab strip,
-  and the compressed month-grid calendar on phone. `npm run test:mobile`.
+  the dvh-capped FormDialog footer, the full-screen phone takeover and uniform control
+  heights of the resource form, the horizontally-scrollable wizard tab strip, and the
+  compressed month-grid calendar on phone. `npm run test:mobile`.
 
 `mobile.spec.ts` deliberately does **not** cover the TopBar phone-overflow menu:
 the fixture-only harness doesn't mount TopBar, and stubbing its AuthContext /

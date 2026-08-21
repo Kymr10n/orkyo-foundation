@@ -1,8 +1,25 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
+// Breakpoint is mocked so the phone presentation is deterministic (the real hook
+// reads matchMedia). Defaults to desktop; flip per-test.
+let mockIsPhone = false;
+vi.mock('@foundation/src/hooks/useBreakpoint', () => ({
+  useBreakpoint: () => ({
+    isPhone: mockIsPhone,
+    isTablet: false,
+    isDesktop: !mockIsPhone,
+    device: mockIsPhone ? 'phone' : 'desktop',
+  }),
+}));
+
 import { FormDialog } from './FormDialog';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+
+afterEach(() => {
+  mockIsPhone = false;
+});
 
 function renderDialog(props: Partial<React.ComponentProps<typeof FormDialog>> = {}) {
   const onSubmit = vi.fn();
@@ -171,5 +188,21 @@ describe('FormDialog', () => {
 
     expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('takes the default width token above the phone breakpoint', () => {
+    renderDialog();
+    expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-[500px]');
+  });
+
+  it('takes over the whole screen on a phone instead of floating as a card', () => {
+    mockIsPhone = true;
+    renderDialog();
+    const content = screen.getByRole('dialog');
+    // Edge-to-edge and full height — the same presentation ScaffoldDialog uses, so a
+    // tall form is not squeezed into a centred band with dead space above and below.
+    expect(content).toHaveClass('inset-0', 'h-[100dvh]', 'max-w-none');
+    // The width token must not survive alongside it, or the card comes back.
+    expect(content).not.toHaveClass('sm:max-w-[500px]');
   });
 });

@@ -217,6 +217,9 @@ export const leafViewRequestFixture: Request = makeRequest({
   planningMode: "leaf",
   status: "in_progress",
   siteId: SITE_ID,
+  // The request targets the station type, which is what puts a station picker on the
+  // Resources tab for its assignment to resolve into.
+  targetResourceTypeKeys: ["space"],
   startTs: "2026-04-22T08:00:00Z",
   endTs: "2026-04-22T10:00:00Z",
   minimalDurationValue: 2,

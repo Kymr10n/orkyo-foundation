@@ -191,7 +191,7 @@ export function ResourceEditDialog({
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="resource-allocation">Allocation Mode</Label>
           <Select
             value={form.allocationMode}
@@ -209,7 +209,7 @@ export function ResourceEditDialog({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="resource-availability">Base Availability (%)</Label>
           <Input
             id="resource-availability"

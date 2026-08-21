@@ -66,10 +66,12 @@ test("RequestCalendar renders its fixture event", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("ScheduleToDialog opens and lists the fixture spaces", async ({ page }) => {
+test("ScheduleSlotDialog opens and lists the fixture backlog", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("open-schedule").click();
   await page.getByRole("combobox").click();
-  await expect(page.getByRole("option", { name: "Room A" })).toBeVisible();
-  await expect(page.getByRole("option", { name: "Room B" })).toBeVisible();
+  await expect(page.getByRole("option", { name: "Backlog Task" })).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: "Spare Rigging Crew" }),
+  ).toBeVisible();
 });

@@ -1,6 +1,23 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+
+// Breakpoint is mocked so the phone presentation is deterministic (the real hook
+// reads matchMedia). Defaults to desktop; flip per-test.
+let mockIsPhone = false;
+vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
+  useBreakpoint: () => ({
+    isPhone: mockIsPhone,
+    isTablet: false,
+    isDesktop: !mockIsPhone,
+    device: mockIsPhone ? "phone" : "desktop",
+  }),
+}));
+
 import { ScaffoldDialog } from "./ScaffoldDialog";
+
+afterEach(() => {
+  mockIsPhone = false;
+});
 
 function renderScaffold(
   props: Partial<React.ComponentProps<typeof ScaffoldDialog>> = {},
@@ -41,5 +58,14 @@ describe("ScaffoldDialog", () => {
     const onOpenAutoFocus = vi.fn();
     renderScaffold({ contentProps: { onOpenAutoFocus } });
     expect(onOpenAutoFocus).toHaveBeenCalled();
+  });
+
+  it("takes over the whole screen on a phone instead of floating as a card", () => {
+    mockIsPhone = true;
+    renderScaffold();
+    const content = screen.getByRole("dialog");
+    expect(content).toHaveClass("inset-0", "h-[100dvh]", "max-w-none");
+    // The width token must not survive alongside it, or the card comes back.
+    expect(content).not.toHaveClass("max-w-2xl");
   });
 });

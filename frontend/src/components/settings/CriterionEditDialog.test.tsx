@@ -5,6 +5,8 @@ import type { ReactNode } from 'react';
 import { CriterionEditDialog } from './CriterionEditDialog';
 
 vi.mock('@foundation/src/components/ui/dialog', () => ({
+  // The scaffolds ask for the phone override; this stub is always above that breakpoint.
+  useFullScreenOnPhone: () => undefined,
   DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,

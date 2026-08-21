@@ -24,17 +24,17 @@ import { PROBLEM_HATCH_CLASS } from "@foundation/src/components/utilization/sche
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import type { CalendarEvent } from "@foundation/src/components/utilization/request-calendar-events";
-import { ScheduleToDialog } from "@foundation/src/components/utilization/ScheduleToDialog";
+import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
 import { makeRequest } from "@foundation/src/test-utils/request-fixtures";
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
 import { RequestFormDialog } from "@foundation/src/components/requests/RequestFormDialog";
+import { ResourceEditDialog } from "@foundation/src/components/resources/ResourceEditDialog";
 import { TooltipProvider } from "@foundation/src/components/ui/tooltip";
 import { buildRequestTree, flattenVisibleTree } from "@foundation/src/domain/request-tree";
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { Request } from "@foundation/src/types/requests";
 import {
   GROUP_A_ID,
@@ -45,6 +45,10 @@ import {
   groupEditAllRequests,
   leafViewRequestFixture,
 } from "./requests-fixtures";
+import {
+  personResourceFixture,
+  personTypeFixture,
+} from "./resource-fixtures";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -84,24 +88,12 @@ const calendarEvent: CalendarEvent = {
   extendedProps: { requestId: "r1", status: "new", conflictSeverity: null },
 };
 
-function makeSpace(id: string, name: string): ResourceInfo {
-  return {
-    id,
-    resourceTypeId: "type-space",
-    resourceTypeKey: "space",
-    allocationMode: "Exclusive",
-    baseAvailabilityPercent: 100,
-    isActive: true,
-    homeSiteId: "site-1",
-    crossSiteAllowed: false,
-    name,
-    isPhysical: true,
-    capacity: 1,
-    createdAt: "2026-01-01T00:00:00Z",
-    updatedAt: "2026-01-01T00:00:00Z",
-  };
-}
-const spaces = [makeSpace("space-1", "Room A"), makeSpace("space-2", "Room B")];
+// Unscheduled requests the slot chooser offers — the successor of the space
+// picker the old ScheduleToDialog fixture exercised.
+const backlog = [
+  makeRequest({ id: "u-1", name: "Backlog Task" }),
+  makeRequest({ id: "u-2", name: "Spare Rigging Crew" }),
+];
 
 // No-op handler shared by the Requests fixtures below — the harness has no
 // backend, so mutation/navigation callbacks just render the static fixture.
@@ -134,6 +126,8 @@ function Harness() {
     canEdit: boolean;
   } | null>(null);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+
+  const [resourceDialogOpen, setResourceDialogOpen] = useState(false);
 
   // Requests — seed the tree store so grp-conf renders expanded (its nested
   // subgroup and the other top-level group stay collapsed) on first paint.
@@ -326,19 +320,23 @@ function Harness() {
         </div>
       </section>
 
-      {/* ScheduleToDialog ------------------------------------------------------ */}
+      {/* ScheduleSlotDialog ----------------------------------------------------- */}
       <section className="space-y-2">
-        <h2 className="font-medium">ScheduleToDialog</h2>
+        <h2 className="font-medium">ScheduleSlotDialog</h2>
         <Button data-testid="open-schedule" onClick={() => setScheduleOpen(true)}>
           Open schedule
         </Button>
-        <ScheduleToDialog
+        <ScheduleSlotDialog
           open={scheduleOpen}
           onOpenChange={setScheduleOpen}
-          request={makeRequest({ id: "u-1", name: "Backlog Task" })}
-          spaces={spaces}
-          onSchedule={async () => {}}
-          defaultStart={new Date(2026, 3, 17, 9, 0)}
+          selection={{
+            start: new Date(2026, 3, 17, 9, 0),
+            end: new Date(2026, 3, 17, 11, 0),
+          }}
+          resourceName="Bay 3"
+          backlog={backlog}
+          onCreateNew={noop}
+          onScheduleExisting={noop}
         />
       </section>
 
@@ -437,6 +435,27 @@ function Harness() {
             onSave={async () => {}}
           />
         )}
+      </section>
+
+      {/* ResourceEditDialog ---------------------------------------------------- */}
+      <section className="space-y-2" data-testid="resource-dialog-section">
+        <h2 className="font-medium">Resource dialog</h2>
+        {/* The Person fixture: a directory profile plus one custom field of each
+            layout the form produces. mobile.spec.ts measures this one, because it
+            is the widest and tallest shape an asset/station/person form takes. */}
+        <Button
+          data-testid="open-resource"
+          variant="outline"
+          onClick={() => setResourceDialogOpen(true)}
+        >
+          Open resource (edit)
+        </Button>
+        <ResourceEditDialog
+          resourceType={personTypeFixture}
+          resource={personResourceFixture}
+          open={resourceDialogOpen}
+          onOpenChange={setResourceDialogOpen}
+        />
       </section>
     </div>
     </TooltipProvider>
