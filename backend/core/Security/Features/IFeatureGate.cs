@@ -24,6 +24,7 @@ public static class FeatureKeys
     public const string AuditLog = "audit_log_enabled";
     public const string DataExport = "data_export_enabled";
     public const string CalendarFeed = "calendar_feed_enabled";
+    public const string AiAssistant = "ai_assistant_enabled";
 
     /// <summary>
     /// The keys this application actually enforces server-side, and therefore the ones
@@ -40,6 +41,7 @@ public static class FeatureKeys
         AuditLog,
         DataExport,
         CalendarFeed,
+        AiAssistant,
     };
 }
 
