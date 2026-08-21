@@ -4,6 +4,7 @@ using Api.Models;
 using Api.Security;
 using Api.Security.Features;
 using Api.Services.Ai;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -53,6 +54,7 @@ public static class AiCredentialEndpoints
 
     private static async Task<IResult> SaveCredential(
         SaveAiCredentialRequest request,
+        IValidator<SaveAiCredentialRequest> validator,
         IAiCredentialService credentials,
         IFeatureGate featureGate,
         ICurrentPrincipal principal,
@@ -61,6 +63,12 @@ public static class AiCredentialEndpoints
         // Storing a key is only meaningful where the assistant can run. The gate throws
         // FeatureNotAvailableException, which AppExceptionHandler renders as 403.
         await featureGate.EnsureEnabledAsync(FeatureKeys.AiAssistant, ct);
+
+        var shape = await validator.ValidateAsync(request, ct);
+        if (!shape.IsValid)
+            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
+                Api.Constants.ErrorCodes.ValidationError,
+                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
 
         try
         {

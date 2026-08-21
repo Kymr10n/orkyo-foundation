@@ -3,6 +3,7 @@ using Api.Middleware;
 using Api.Models;
 using Api.Security;
 using Api.Services.Ai;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -45,10 +46,17 @@ public static class AiAllowanceEndpoints
     private static async Task<IResult> SaveAllowance(
         Guid userId,
         SaveAiAllowanceRequest request,
+        IValidator<SaveAiAllowanceRequest> validator,
         IAiAccessService access,
         ICurrentPrincipal principal,
         CancellationToken ct)
     {
+        var shape = await validator.ValidateAsync(request, ct);
+        if (!shape.IsValid)
+            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
+                Api.Constants.ErrorCodes.ValidationError,
+                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+
         try
         {
             await access.SetAllowanceAsync(
