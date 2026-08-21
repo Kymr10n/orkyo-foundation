@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
 import { cn } from "@foundation/src/lib/utils"
+import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint"
 
 /**
  * Shared dialog width vocabulary. Use the `size` prop on `FormDialog` /
@@ -15,6 +16,30 @@ export const DIALOG_SIZE: Record<DialogSize, string> = {
   md: "sm:max-w-[500px]", // default form width
   lg: "max-w-2xl", // tall / complex dialogs
   xl: "max-w-3xl",
+}
+
+/**
+ * Phone presentation for the form scaffolds: the dialog takes over the whole screen
+ * (edge-to-edge, no centered card) instead of floating as a fixed-width box. That both
+ * matches the native pattern and removes the "fixed box wider than the visual viewport"
+ * bleed class — `w-full` resolves against the *layout* viewport, which a page with
+ * horizontal overflow behind the dialog makes wider than the screen the user sees.
+ *
+ * Confirmation/alert dialogs deliberately keep the centered card. Desktop/tablet are
+ * unchanged. Lives here, once, because `FormDialog` and `ScaffoldDialog` must not drift
+ * apart on it.
+ */
+const PHONE_FULLSCREEN =
+  "inset-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0"
+
+/**
+ * The phone override for a form scaffold's `DialogContent`, or `undefined` above the
+ * phone breakpoint. Returns a class string so the caller can order it against its own
+ * width token.
+ */
+const useFullScreenOnPhone = (): string | undefined => {
+  const { isPhone } = useBreakpoint()
+  return isPhone ? PHONE_FULLSCREEN : undefined
 }
 
 const Dialog = DialogPrimitive.Root
@@ -52,7 +77,10 @@ const DialogContent = React.forwardRef<
         // pinned — wrap tall content in <ScrollableDialogBody>; that body absorbs the overflow via
         // `flex-1 min-h-0`, leaving this outer scroller nothing to do (no double scrollbar). Callers
         // may still override max-h / overflow / gap / padding. `dvh` keeps clear of mobile chrome.
-        "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:rounded-lg",
+        // `overflow-x-hidden` is not decoration: CSS computes a `visible` axis to `auto` when the
+        // other axis is not visible, so `overflow-y-auto` alone silently makes a dialog scroll
+        // sideways — which is how a stray wide child pushes labels off the left edge.
+        "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-x-hidden overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:rounded-lg",
         className
       )}
       {...props}
@@ -77,12 +105,22 @@ DialogContent.displayName = DialogPrimitive.Content.displayName
  * This replaces the three divergent per-dialog overflow recipes
  * (`overflow-y-auto` on content / nested `ScrollArea` / inner `overflow-y-auto`
  * div) with one consistent affordance.
+ *
+ * Vertical only: `overflow-x-hidden` is explicit because CSS computes a `visible`
+ * axis to `auto` whenever the other axis is not visible, so `overflow-y-auto` on its
+ * own turns a form body into a sideways scroller the moment one child is too wide —
+ * the labels then scroll out of view while the pinned footer stays put. Content that
+ * genuinely must scroll sideways (a wide table) brings its own `overflow-x-auto`
+ * container.
  */
 const ScrollableDialogBody = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex-1 min-h-0 overflow-y-auto", className)} {...props} />
+  <div
+    className={cn("flex-1 min-h-0 overflow-x-hidden overflow-y-auto", className)}
+    {...props}
+  />
 )
 ScrollableDialogBody.displayName = "ScrollableDialogBody"
 
@@ -142,6 +180,7 @@ const DialogDescription = React.forwardRef<
 DialogDescription.displayName = DialogPrimitive.Description.displayName
 
 export {
+  useFullScreenOnPhone,
   Dialog,
   DialogContent,
   DialogHeader,

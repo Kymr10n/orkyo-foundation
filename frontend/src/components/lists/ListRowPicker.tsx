@@ -68,7 +68,7 @@ export function ListRowPicker({
   }
 
   return (
-    <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border p-2">
+    <div className="max-h-64 space-y-1 overflow-x-hidden overflow-y-auto rounded-md border p-2">
       {rows.map((row) => {
         const inputId = `list-pick-${row.id}`;
         return (
@@ -80,7 +80,10 @@ export function ListRowPicker({
               disabled={disabled}
               className="mt-0.5"
             />
-            <Label htmlFor={inputId} className="cursor-pointer text-sm font-normal">
+            <Label
+              htmlFor={inputId}
+              className="min-w-0 cursor-pointer break-words text-sm font-normal"
+            >
               {describeRow(row, activeColumns, definition?.displayColumnId ?? null)}
             </Label>
           </div>

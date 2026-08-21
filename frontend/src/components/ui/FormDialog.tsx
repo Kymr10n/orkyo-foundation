@@ -7,6 +7,7 @@ import {
   DialogTitle,
   ScrollableDialogBody,
   DIALOG_SIZE,
+  useFullScreenOnPhone,
   type DialogSize,
 } from '@foundation/src/components/ui/dialog';
 import { DialogFormFooter } from '@foundation/src/components/ui/DialogFormFooter';
@@ -84,6 +85,11 @@ export function FormDialog({
     onOpenChange,
   });
 
+  // Phone: full screen, edge-to-edge — the same presentation ScaffoldDialog uses, so a
+  // form dialog and a request dialog behave alike on a phone. Above the phone breakpoint
+  // this is undefined and the size token below applies unchanged.
+  const phoneClass = useFullScreenOnPhone();
+
   return (
     <>
     <Dialog open={open} onOpenChange={guardedOnOpenChange}>
@@ -91,7 +97,7 @@ export function FormDialog({
           default gap so the body's ScrollableDialogBody owns the spacing, and set
           the form width. Tall forms scroll their body with header/footer pinned. */}
       <DialogContent
-        className={cn('gap-0', DIALOG_SIZE[size], contentClassName)}
+        className={cn('gap-0', phoneClass ?? DIALOG_SIZE[size], contentClassName)}
         // While there are unsaved changes, an outside interaction must not dismiss the
         // dialog. Guarding on `dirty` — stable across the whole interaction — rather than
         // only `confirmOpen`, which flips to false the instant "Keep editing" closes the

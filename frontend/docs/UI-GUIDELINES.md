@@ -95,6 +95,10 @@ need `min-h-0`.
   Dialogs that already self-guard via the hook simply don't pass `dirty`.
 - **`ScaffoldDialog`** is the shell for the tall / tabbed / multi-region dialogs that outgrow
   `FormDialog` (the caller owns its own `<form>` spanning the sticky + scrolling regions).
+- **Both form scaffolds take over the whole screen on a phone** — edge-to-edge, full height, no
+  centered card. The recipe is `useFullScreenOnPhone()` in `ui/dialog.tsx`; it lives there once so
+  the two scaffolds cannot drift apart, and it replaces the size token rather than joining it.
+  Confirmation and alert dialogs keep the card. Don't hand-roll a phone branch in a dialog.
 - For non-form dialogs that may get tall, build on `DialogContent` as a **height-bounded flex
   column** and put scrolling content in **`ScrollableDialogBody`** — the *one* sanctioned scroll
   region (pinned header/footer, scrolling body).
@@ -107,6 +111,13 @@ need `min-h-0`.
 - Use **`dvh`**, not `vh`, for dialog height caps (keeps clear of mobile browser chrome).
 - **Don't** invent a per-dialog `max-h-[..vh]`, and **don't** put `overflow` directly on
   `DialogContent` or nest a second `ScrollArea` inside it.
+- **A dialog scrolls vertically only.** `overflow-y-auto` on its own is not enough: CSS computes a
+  `visible` axis to `auto` whenever the other axis is not visible, so one over-wide child turns the
+  body into a sideways scroller and the field labels scroll out of view while the pinned footer
+  stays put. `DialogContent` and `ScrollableDialogBody` both pin `overflow-x-hidden` for that
+  reason. Content that genuinely scrolls sideways (a wide table) brings its own
+  `overflow-x-auto` container, and grid/flex children carry `min-w-0` so they clamp instead of
+  widening the dialog.
 
 ```tsx
 // ✅ Form dialog — no inner <form>; Enter submits; `dirty` guards unsaved edits.
@@ -128,6 +139,16 @@ need `min-h-0`.
 <DialogContent className="max-h-[90vh] overflow-y-auto">…</DialogContent>
 <DialogContent className="max-h-[80vh] overflow-hidden"><ScrollArea className="max-h-[55vh]">…</ScrollArea></DialogContent>
 ```
+
+## 3a. Form controls share one recipe
+
+`Input`, `Textarea` and `SelectTrigger` are the same control in three shapes, so they carry the
+same height (`h-9`, except the textarea's `min-h`), the same fill (`bg-input`), the same
+`shadow-xs`, and the same `ring-1` focus treatment. A form where one field is white and taller
+than the one above it reads as broken, and that is what a half-finished primitive update produces.
+
+When you update one of the three, update all three in the same change. Don't set a height or a
+fill at a call site to make two controls line up — fix the primitive.
 
 ## 4. Virtualized lists & `ScrollArea`
 

@@ -32,9 +32,14 @@ export default defineConfig({
       { find: /^@foundation\/src\/lib\/api\/criteria-api$/, replacement: `${apiStubsDir}/criteria-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/template-api$/, replacement: `${apiStubsDir}/template-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/site-api$/, replacement: `${apiStubsDir}/site-api.ts` },
-      { find: /^@foundation\/src\/lib\/api\/resources-api$/, replacement: `${apiStubsDir}/space-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/resources-api$/, replacement: `${apiStubsDir}/resources-api.ts` },
       { find: /^@foundation\/src\/lib\/api\/resource-assignments-api$/, replacement: `${apiStubsDir}/resource-assignments-api.ts` },
+      // ResourceEditDialog visual review: the custom-field definitions and the
+      // shared list its lookup field picks rows from.
+      { find: /^@foundation\/src\/lib\/api\/resource-custom-fields-api$/, replacement: `${apiStubsDir}/resource-custom-fields-api.ts` },
+      { find: /^@foundation\/src\/lib\/api\/lists-api$/, replacement: `${apiStubsDir}/lists-api.ts` },
+      // The Resources tab and the resource form both read the tenant's types.
+      { find: /^@foundation\/src\/lib\/api\/resource-types-api$/, replacement: `${apiStubsDir}/resource-types-api.ts` },
       { find: "@foundation/contracts", replacement: foundationContracts },
       { find: "@foundation/src", replacement: foundationSrc },
       { find: "@", replacement: foundationSrc },

@@ -19,4 +19,12 @@ describe('ScrollableDialogBody', () => {
     // instead of pushing the dialog past the viewport.
     expect(el).toHaveClass('flex-1', 'min-h-0', 'overflow-y-auto', 'py-4');
   });
+
+  it('scrolls vertically only', () => {
+    render(<ScrollableDialogBody data-testid="body">x</ScrollableDialogBody>);
+    // CSS computes a `visible` axis to `auto` whenever the other axis is not
+    // visible, so `overflow-y-auto` on its own would let one over-wide child turn
+    // the form body into a sideways scroller and push the labels out of view.
+    expect(screen.getByTestId('body')).toHaveClass('overflow-x-hidden');
+  });
 });

@@ -7,10 +7,10 @@ import {
   DialogHeader,
   DialogTitle,
   DIALOG_SIZE,
+  useFullScreenOnPhone,
   type DialogSize,
 } from "@foundation/src/components/ui/dialog";
 import { cn } from "@foundation/src/lib/utils";
-import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 
 export interface ScaffoldDialogProps {
   open: boolean;
@@ -53,20 +53,14 @@ export function ScaffoldDialog({
   contentClassName,
   contentProps,
 }: ScaffoldDialogProps) {
-  // Best-practice mobile presentation: these tall, multi-region forms take over the
-  // full screen on phones (edge-to-edge, no centered card), which both matches the
-  // native pattern and removes the "fixed box wider than the visual viewport" bleed
-  // class entirely. Confirmation/alert dialogs keep the centered card. Desktop/tablet
-  // are unchanged.
-  const { isPhone } = useBreakpoint();
+  // Phone: full screen, edge-to-edge — see useFullScreenOnPhone in dialog.tsx.
+  const phoneClass = useFullScreenOnPhone();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         {...contentProps}
         className={cn(
-          isPhone
-            ? "inset-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0"
-            : cn(DIALOG_SIZE[size], "h-[85dvh]"),
+          phoneClass ?? cn(DIALOG_SIZE[size], "h-[85dvh]"),
           "flex flex-col p-0",
           contentClassName,
         )}

@@ -11,6 +11,8 @@ import { test, expect } from "@playwright/test";
  *   2. FormDialog keeps its submit footer inside the viewport (dvh cap) and Enter submits.
  *   3. The wizard tab strip scrolls horizontally so the last tab is reachable + clickable.
  *   4. The page-chrome skeleton stays within the phone density budget (UI-GUIDELINES §16).
+ *   5. The resource form takes the whole phone screen, never scrolls sideways, and gives
+ *      every field the same control height.
  *
  * The TopBar phone-overflow check (plan WP6 item 4) is intentionally omitted here:
  * the fixture-only harness doesn't mount TopBar, and stubbing its AuthContext /
@@ -98,4 +100,56 @@ test("Wizard tab strip scrolls horizontally to reach the last tab", async ({ pag
   await lastTab.scrollIntoViewIfNeeded();
   await lastTab.click();
   await expect(page.getByTestId("wizard-content-last")).toBeVisible();
+});
+
+test("Resource form fills the phone screen and never scrolls sideways", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    isTablet(testInfo.project.name),
+    "full-screen takeover is phone-only; the tablet card is unchanged",
+  );
+
+  await page.goto("/");
+  // The section sits below tall fixtures, so the click can be intercepted mid-scroll.
+  await page.getByTestId("open-resource").click({ force: true });
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+
+  const viewport = page.viewportSize()!;
+  const box = (await dialog.boundingBox())!;
+  // Edge-to-edge and full height: the form used to float as an 85dvh band with dead
+  // space above and below, which is what "does not use the mobile screen" looked like.
+  expect(box.x).toBeLessThanOrEqual(1);
+  expect(box.width).toBeGreaterThanOrEqual(viewport.width - 1);
+  expect(box.height).toBeGreaterThanOrEqual(viewport.height - 1);
+
+  // No sideways scroll anywhere in the dialog — that is what pushed the field labels
+  // off the left edge while the pinned footer stayed put. Elements narrower than a few
+  // pixels are the sr-only clip boxes (the close button's label), not visible content.
+  const bleeding = await dialog.evaluate((el) =>
+    [el, ...el.querySelectorAll("*")]
+      .filter((n) => n.clientWidth > 4)
+      .filter((n) => n.scrollWidth > n.clientWidth + 1)
+      .map((n) => `${n.tagName.toLowerCase()}.${n.className}`),
+  );
+  expect(bleeding).toEqual([]);
+});
+
+test("Resource form gives every field the same control height", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("open-resource").click({ force: true });
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  // The select trigger used to be h-10 next to h-9 inputs, so the two controls in the
+  // Allocation Mode / Base Availability row did not line up.
+  const heights = await page
+    .getByRole("dialog")
+    .evaluate((el) =>
+      [...el.querySelectorAll('input:not([type=checkbox]), button[role="combobox"]')].map(
+        (n) => Math.round(n.getBoundingClientRect().height),
+      ),
+    );
+  expect(heights.length).toBeGreaterThan(2);
+  expect([...new Set(heights)]).toHaveLength(1);
 });
