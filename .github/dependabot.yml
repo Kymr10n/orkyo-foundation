@@ -3,18 +3,34 @@
 # @kymr10n/foundation package), the SHA-pinned GitHub Actions in workflows,
 # and the digest-pinned Keycloak base image.
 #
-# Each ecosystem raises at most two pull requests per run: one batching all
-# minor and patch updates, and one batching majors. Majors stay separate
+# Each ecosystem raises at most three pull requests per run: one batching all
+# minor and patch updates, one batching majors, and one batching the bumps that
+# carry no semver update-type at all (digests, SHA pins). Majors stay separate
 # because they need a deliberate review, not because they are unwelcome —
 # nothing is ignored, so a security fix that only ships in a new major still
 # reaches us. `applies-to: version-updates` keeps Dependabot security updates
 # out of the groups, so an advisory-driven fix arrives on its own, at once.
+#
+# GROUP ORDER MATTERS. A dependency joins the FIRST group it matches, so the
+# patterns-only catch-all must stay last — above it, the update-types filters
+# claim majors and minor/patch first.
+#
+# SCHEDULE IS STAGGERED across the four repos, one weekday each, two hours
+# between ecosystems: infra Monday, foundation Tuesday, saas Wednesday,
+# community Thursday. Six Dependabot runs starting in the same minute is what
+# rate-limited codeload and failed six saas pull requests at "Set up job" with
+# HTTP 429 on 2026-08-17.
+#
+# Minor, patch and digest updates merge themselves once the required checks
+# pass — see .github/workflows/dependabot-auto-merge.yml. Majors never do.
 version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
       interval: weekly
+      day: tuesday
+      time: "03:00"
 
     open-pull-requests-limit: 5
     groups:
@@ -31,6 +47,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+      day: tuesday
+      time: "05:00"
 
     open-pull-requests-limit: 5
     groups:
@@ -47,6 +65,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: tuesday
+      time: "07:00"
 
     open-pull-requests-limit: 5
     groups:
@@ -58,11 +78,21 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["major"]
+      actions-digest:
+        # Same failure mode the docker-digest group below fixes, for Actions.
+        # A SHA pin that resolves to no semver release — a reusable workflow
+        # referenced by commit, or an action whose tag did not move — carries no
+        # update-type, matches neither group above, and arrives as one pull
+        # request PER WORKFLOW FILE. Patterns-only batches them into one.
+        applies-to: version-updates
+        patterns: ["*"]
 
   - package-ecosystem: docker
     directory: /keycloak
     schedule:
       interval: weekly
+      day: tuesday
+      time: "09:00"
 
     open-pull-requests-limit: 5
     groups:
