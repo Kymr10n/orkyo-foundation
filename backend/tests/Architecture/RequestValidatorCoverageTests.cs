@@ -38,6 +38,16 @@ public class RequestValidatorCoverageTests
         // and its rules are settings-driven — size cap and MIME allowlist come from tenant
         // settings via FloorplanUploadValidationPolicy, which no static validator can express.
         "Api.Models.UploadFloorplanRequest",
+
+        // --- AI assistant: free-form or internal, with limits a static validator cannot hold ---
+        // A chat turn is prose plus an opaque transcript the server itself produced. What
+        // bounds it is size and conversation length, enforced in AiChatService against
+        // AiDefaults — a static rule cannot express "too long to keep paying for".
+        "Api.Endpoints.Ai.AiChatEndpointRequest",
+        // Internal service and gateway inputs, built in-process from the endpoint DTO above.
+        // They never cross the API boundary and are never model-bound.
+        "Api.Services.Ai.AiChatRequest",
+        "Api.Services.Ai.AiGatewayRequest",
     };
 
     [Fact]

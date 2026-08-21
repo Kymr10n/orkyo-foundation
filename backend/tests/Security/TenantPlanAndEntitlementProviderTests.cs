@@ -64,6 +64,9 @@ public class AllFeaturesEntitlementProviderTests
             FeatureKeys.AuditLog,
             FeatureKeys.DataExport,
             FeatureKeys.CalendarFeed,
+            // Gated on the credential endpoints and re-checked on every chat turn, so it
+            // reports a real entitlement rather than a default-denied false.
+            FeatureKeys.AiAssistant,
         });
     }
 }
