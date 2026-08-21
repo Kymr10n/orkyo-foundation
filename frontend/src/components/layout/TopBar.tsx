@@ -20,6 +20,8 @@ import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT } from "@foundation/src/constants/auth"
 import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useSites } from "@foundation/src/hooks/useSites";
+import { useAiAssistantAvailable } from "@foundation/src/hooks/useAiAssistantAvailable";
+import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
@@ -33,6 +35,7 @@ import {
 } from "@foundation/src/components/ui/select";
 import {
     ArrowLeftRight,
+    Bot,
     Building,
     Building2,
     CalendarPlus,
@@ -99,6 +102,14 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
   const uiTriggerExport = useUiActionsStore((s) => s.triggerExport);
   const uiTriggerImport = useUiActionsStore((s) => s.triggerImport);
   const uiOpenCommandPalette = useUiActionsStore((s) => s.openCommandPalette);
+  const openAssistant = useUiActionsStore((s) => s.openAssistant);
+
+  // Two conditions, deliberately: the workspace's plan has to include the assistant,
+  // and this person has to have a grant with budget left. Either one missing means no
+  // affordance rather than a button that always fails.
+  const assistantEntitled = useAiAssistantAvailable();
+  const { data: aiStatus } = useAiStatus(assistantEntitled);
+  const assistantAvailable = assistantEntitled && aiStatus?.available === true;
   const uiOpenTour = useUiActionsStore((s) => s.openTour);
 
   // Load sites with React Query
@@ -237,6 +248,21 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
           <Search className="h-4 w-4" />
         </Button>
 
+        {/* Assistant — only when the workspace is entitled AND this person has a
+            budget to spend, so a member without a grant sees no dead affordance. */}
+        {assistantAvailable && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden md:inline-flex"
+            onClick={() => openAssistant()}
+            title="Assistant"
+            aria-label="Assistant"
+          >
+            <Bot className="h-4 w-4" />
+          </Button>
+        )}
+
         {/* Contextual Import button — tablet+ (phone uses overflow menu) */}
         <Button
           variant="ghost"
@@ -338,6 +364,12 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
             )}
 
             <DropdownMenuSeparator />
+            {assistantAvailable && (
+              <DropdownMenuItem onSelect={() => openAssistant()}>
+                <Bot className="mr-2 h-4 w-4" />
+                Assistant
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               disabled={!canImport}
               onSelect={() => setImportDialogOpen(true)}

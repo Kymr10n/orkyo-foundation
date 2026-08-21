@@ -1,6 +1,6 @@
 import { useConflictRegistry, useConflictedRequests } from "@foundation/src/hooks/useConflictRegistry";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Bot } from "lucide-react";
 import { format } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { cn } from "@foundation/src/lib/utils";
@@ -17,6 +17,9 @@ import { Button } from "@foundation/src/components/ui/button";
 import { ConflictTrendChart } from "@foundation/src/components/insights/InsightsTrendCharts";
 import { useInsightsConflicts } from "@foundation/src/hooks/useInsights";
 import { useInsightsTabContext } from "@foundation/src/components/insights/insightsTabContext";
+import { useAiAssistantAvailable } from "@foundation/src/hooks/useAiAssistantAvailable";
+import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
+import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
 type ConflictWithRequest = Conflict & { request: Request };
 
@@ -25,12 +28,16 @@ const ConflictItem = React.memo(function ConflictItem({
   item,
   isHighlighted,
   onOpen,
+  onAskAssistant,
+  assistantAvailable,
   peerRequest,
   getConflictKindLabel,
 }: {
   item: ConflictWithRequest;
   isHighlighted: boolean;
   onOpen: (request: Request) => void;
+  onAskAssistant: (item: ConflictWithRequest) => void;
+  assistantAvailable: boolean;
   peerRequest?: Request;
   getConflictKindLabel: (kind: string) => string;
 }) {
@@ -76,8 +83,8 @@ const ConflictItem = React.memo(function ConflictItem({
               </span>
             </div>
           )}
-          {peerRequest && (
-            <div className="mt-3">
+          <div className="mt-3 flex flex-wrap items-center gap-4">
+            {peerRequest && (
               <button
                 className="text-xs text-primary underline-offset-2 hover:underline"
                 onClick={(e) => {
@@ -87,8 +94,23 @@ const ConflictItem = React.memo(function ConflictItem({
               >
                 View other request: {peerRequest.name}
               </button>
-            </div>
-          )}
+            )}
+            {assistantAvailable && (
+              // The card itself opens the request editor, so this has to stop the click
+              // from bubbling — same as the peer link above.
+              <button
+                className="text-xs text-primary underline-offset-2 hover:underline inline-flex items-center gap-1"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAskAssistant(item);
+                }}
+                aria-label={`Ask the assistant about the conflict on ${item.request.name}`}
+              >
+                <Bot className="h-3.5 w-3.5" />
+                Ask the assistant
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -100,6 +122,19 @@ export function ConflictsTab() {
   const conflictsTrend = useInsightsConflicts(siteId, from, to, bucket);
 
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
+
+  // The assistant opens with the conflict already in view, so the person does not have to
+  // restate what they are looking at. Guidance stays in the panel — the request editor
+  // remains the one place a request's details are edited (UI-GUIDELINES §15).
+  const assistantEntitled = useAiAssistantAvailable();
+  const { data: aiStatus } = useAiStatus(assistantEntitled);
+  const assistantAvailable = assistantEntitled && aiStatus?.available === true;
+  const openAssistant = useUiActionsStore((s) => s.openAssistant);
+  const askAssistant = React.useCallback(
+    (item: ConflictWithRequest) =>
+      openAssistant({ type: "conflict", requestId: item.request.id, kind: item.kind }),
+    [openAssistant]
+  );
   // Tenant-wide authoritative registry + just the conflicted requests (not the whole tenant).
   const {
     conflictsByRequest: conflicts,
@@ -264,6 +299,8 @@ export function ConflictsTab() {
                       item={item}
                       isHighlighted={targetConflictId === item.id}
                       onOpen={(request) => openRequestEditor(request, conflicts.get(request.id) ?? [])}
+                      onAskAssistant={askAssistant}
+                      assistantAvailable={assistantAvailable}
                       peerRequest={item.peerRequestId ? requestMap.get(item.peerRequestId) : undefined}
                       getConflictKindLabel={getConflictKindLabel}
                     />
