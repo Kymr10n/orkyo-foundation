@@ -143,7 +143,13 @@ export async function getAdminTenants(
   );
 }
 
-export async function createAdminTenant(data: { slug: string; displayName: string }): Promise<AdminTenant> {
+export async function createAdminTenant(data: {
+  slug: string;
+  displayName: string;
+  /** Who owns the new workspace — the backend requires it, and creates the account if it does not exist. */
+  ownerEmail: string;
+  starterTemplate?: string;
+}): Promise<AdminTenant> {
   return apiPost<AdminTenant>(API_PATHS.ADMIN.TENANTS, data);
 }
 
