@@ -6,7 +6,8 @@
 #   Destinations:
 #     1. ../orkyo-saas/frontend/public/           (favicon pack)
 #     2. keycloak/themes/orkyo/login/resources/img/orkyo-logo.png
-#     3. ../orkyo-community/frontend/public/      (favicon pack, when repo exists)
+#     3. keycloak/themes/orkyo/account/resources/img/orkyo-logo.png
+#     4. ../orkyo-community/frontend/public/      (favicon pack, when repo exists)
 #
 # Usage:
 #   ./scripts/sync-assets.sh [--check]
@@ -82,11 +83,18 @@ sync_file "$ASSET_DIR/orkyo-icon-master-transparent.png" \
           "keycloak/themes/orkyo/login/resources/img/orkyo-logo.png"
 
 echo ""
-echo "── 2. SaaS frontend public icons ───────────────────────────────────────────"
+echo "── 2. Keycloak account theme logo ──────────────────────────────────────────"
+# Keycloak resolves resources per theme type, so the account console cannot read
+# the login theme's copy — it needs its own, from the same source.
+sync_file "$ASSET_DIR/orkyo-icon-master-transparent.png" \
+          "keycloak/themes/orkyo/account/resources/img/orkyo-logo.png"
+
+echo ""
+echo "── 3. SaaS frontend public icons ───────────────────────────────────────────"
 sync_favicon_pack "../orkyo-saas/frontend/public"
 
 echo ""
-echo "── 3. Community frontend public icons ──────────────────────────────────────"
+echo "── 4. Community frontend public icons ──────────────────────────────────────"
 sync_favicon_pack "../orkyo-community/frontend/public"
 
 echo ""
