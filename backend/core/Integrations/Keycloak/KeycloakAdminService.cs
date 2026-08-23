@@ -698,7 +698,16 @@ public class KeycloakAdminService : IKeycloakAdminService
             return false;
         }
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/execute-actions-email";
+        // client_id and redirect_uri are what give the mail a way back. Without them
+        // Keycloak has no client to return to: it ends the flow on its own info page
+        // with no link, or leaves the person in the account console — which is not
+        // where someone who just set their first password expects to arrive.
+        // Same pair, same client, as SendVerificationEmailAsync above.
+        var clientId = _kc.BackendClientId;
+        var redirectUri = Uri.EscapeDataString(_configuration.GetRequired(ConfigKeys.AppBaseUrl));
+
+        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/execute-actions-email"
+                  + $"?client_id={clientId}&redirect_uri={redirectUri}";
         var request = CreateAdminRequest(HttpMethod.Put, url, token, actions);
 
         var response = await _httpClient.SendAsync(request, ct);
