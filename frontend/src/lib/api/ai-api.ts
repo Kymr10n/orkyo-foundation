@@ -8,8 +8,9 @@
  * admin surface sees a four-character hint and when it was last verified.
  */
 
-import { apiGet, apiPut, apiDelete, apiPost } from '../core/api-client';
-import { CSRF_HEADER_NAME, getCsrfToken } from '../core/csrf';
+import { apiGet, apiPut, apiDelete, apiPost, buildUrl } from '../core/api-client';
+import { logger } from '../core/logger';
+import { getApiHeaders } from '../core/api-utils';
 
 // ── Credentials ────────────────────────────────────────────────────────────────
 
@@ -151,13 +152,14 @@ export async function* streamAiChat(
   request: AiChatRequest,
   signal?: AbortSignal
 ): AsyncGenerator<AiChatEvent> {
-  const response = await fetch('/api/ai/chat', {
+  // The URL and headers come from the shared helpers even though the request does not:
+  // a relative path would be same-origin, which is wrong when API_BASE_URL points
+  // elsewhere, and getApiHeaders carries the tenant and CSRF headers the backend needs
+  // to resolve the workspace at all.
+  const response = await fetch(buildUrl('/api/ai/chat'), {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getCsrfHeader(),
-    },
+    headers: getApiHeaders('POST'),
     body: JSON.stringify(request),
     signal,
   });
@@ -228,16 +230,9 @@ function parseSseChunk(chunk: string): AiChatEvent | null {
         return null;
     }
   } catch {
-    // A malformed frame is not worth failing the whole turn over.
+    // A malformed frame is not worth failing the whole turn over — but a silent drop
+    // hides server-side framing bugs, so leave a trace with the frame's shape.
+    logger.warn("Dropped malformed SSE frame", { event: name, dataLength: data.length });
     return null;
   }
-}
-
-/**
- * The chat stream reads the response body itself, so it cannot go through the shared
- * client and has to attach CSRF the same way the client would.
- */
-function getCsrfHeader(): Record<string, string> {
-  const token = getCsrfToken();
-  return token ? { [CSRF_HEADER_NAME]: token } : {};
 }

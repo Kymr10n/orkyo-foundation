@@ -143,9 +143,14 @@ export async function apiRawFetch(
 }
 
 /**
- * Build full URL with base and optional query parameters
+ * Build full URL with base and optional query parameters.
+ *
+ * Exported for the one caller that cannot go through the wrappers above: the assistant's
+ * chat turn POSTs and reads a stream, so it owns its own `fetch`. It must still resolve
+ * its URL here — a bare relative path is same-origin, which is wrong whenever
+ * API_BASE_URL points the API at another origin.
  */
-function buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
+export function buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
   // When API_BASE_URL is empty (subdomain mode), use same-origin
   const base = API_BASE_URL || window.location.origin;
   const url = new URL(endpoint, base);

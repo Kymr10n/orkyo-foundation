@@ -12,13 +12,57 @@ import {
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
 import { streamAiChat, type AiMessage, type AiProposal } from "@foundation/src/lib/api/ai-api";
-import { ProposalCard, proposalToRequestUpdate } from "./ProposalCard";
+import { ProposalCard, proposalToAutoScheduleRequestIds, proposalToRequestUpdate } from "./ProposalCard";
+import { logger } from "@foundation/src/lib/core/logger";
 
 /** Where the assistant was opened from, when that should shape the first question. */
 export interface AssistantContext {
   type: "conflict";
   requestId: string;
   kind?: string;
+}
+
+/** The proposal kinds the panel knows how to accept, as the backend names them. */
+const PROPOSE_UPDATE_REQUEST = "propose_update_request";
+const PROPOSE_AUTO_SCHEDULE = "propose_auto_schedule";
+
+/** The host handlers a proposal can be routed to. */
+interface ProposalAcceptors {
+  onApplyProposal?: (requestId: string, changes: Record<string, unknown>) => Promise<void>;
+  onApplyAutoSchedule?: (requestIds: string[]) => Promise<void>;
+}
+
+/**
+ * The action that accepts this proposal, or null when there is none — either the host did
+ * not supply a handler, or the proposal's payload is not usable.
+ *
+ * Returning null is what the Apply button is gated on, so a kind that cannot be accepted
+ * never shows a button that does nothing.
+ */
+function acceptorFor(
+  proposal: { kind: string; input: string },
+  handlers: ProposalAcceptors,
+): (() => Promise<void>) | null {
+  if (proposal.kind === PROPOSE_UPDATE_REQUEST) {
+    const { requestId, changes } = proposalToRequestUpdate(proposal.input);
+    if (!requestId || !handlers.onApplyProposal) return null;
+    const apply = handlers.onApplyProposal;
+    return () => apply(requestId, changes);
+  }
+
+  if (proposal.kind === PROPOSE_AUTO_SCHEDULE) {
+    const requestIds = proposalToAutoScheduleRequestIds(proposal.input);
+    if (requestIds.length === 0 || !handlers.onApplyAutoSchedule) return null;
+    const apply = handlers.onApplyAutoSchedule;
+    return () => apply(requestIds);
+  }
+
+  return null;
+}
+
+/** Whether this proposal has a usable accept path — see {@link acceptorFor}. */
+function canApplyProposal(proposal: { kind: string; input: string }, handlers: ProposalAcceptors): boolean {
+  return acceptorFor(proposal, handlers) !== null;
 }
 
 export interface AssistantPanelProps {
@@ -31,6 +75,13 @@ export interface AssistantPanelProps {
    * keeps going through the endpoint the person's own role already governs.
    */
   onApplyProposal?: (requestId: string, changes: Record<string, unknown>) => Promise<void>;
+  /**
+   * Accepts an auto-scheduling proposal. Injected for the same reason as
+   * {@link onApplyProposal}: the panel knows a set of requests was approved, not how the
+   * scheduling page previews them. Accepting does not schedule anything — the host opens
+   * the ordinary preview, and the person applies from there.
+   */
+  onApplyAutoSchedule?: (requestIds: string[]) => Promise<void>;
 }
 
 /** One line in the panel's visible history. */
@@ -51,6 +102,7 @@ export function AssistantPanel({
   onOpenChange,
   context,
   onApplyProposal,
+  onApplyAutoSchedule,
 }: AssistantPanelProps) {
   const canEdit = useCanEdit();
   const { data: status } = useAiStatus(open);
@@ -117,9 +169,14 @@ export function AssistantPanel({
       } catch (err) {
         // An abort is the person closing the panel, not a failure worth reporting.
         if (!controller.signal.aborted) {
+          // The cause matters: a swallowed error here once cost a whole debugging
+          // session. Log it in full and name it in the visible entry.
+          logger.error("Assistant turn failed", err);
+          const reason =
+            err instanceof Error ? ` (${err.name}: ${err.message})`.slice(0, 140) : "";
           setEntries((prev) => [
             ...prev,
-            { kind: "error", text: "The assistant stopped unexpectedly. Try again." },
+            { kind: "error", text: `The assistant stopped unexpectedly${reason}. Try again.` },
           ]);
         }
       } finally {
@@ -158,16 +215,19 @@ export function AssistantPanel({
   };
 
   const handleApply = async () => {
-    if (!proposal || !onApplyProposal) return;
-    const { requestId, changes } = proposalToRequestUpdate(proposal.input);
-    if (!requestId) return;
+    if (!proposal) return;
+    // Each proposal kind has its own accept path, and a kind whose host handler is absent
+    // is not offered an Apply button at all — see canApplyProposal.
+    const accept = acceptorFor(proposal, { onApplyProposal, onApplyAutoSchedule });
+    if (!accept) return;
 
     setApplying(true);
     let outcome: { status: "applied" | "failed"; detail?: string };
     try {
-      await onApplyProposal(requestId, changes);
+      await accept();
       outcome = { status: "applied" };
     } catch (err) {
+      logger.error("Assistant proposal apply failed", err);
       outcome = { status: "failed", detail: err instanceof Error ? err.message : undefined };
     } finally {
       setApplying(false);
@@ -230,7 +290,7 @@ export function AssistantPanel({
           {proposal && (
             <ProposalCard
               proposal={proposal}
-              canApply={canEdit && !!onApplyProposal}
+              canApply={canEdit && canApplyProposal(proposal, { onApplyProposal, onApplyAutoSchedule })}
               isApplying={applying}
               onApply={handleApply}
               onDecline={handleDecline}

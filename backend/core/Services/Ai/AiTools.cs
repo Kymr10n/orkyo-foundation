@@ -146,14 +146,21 @@ public sealed class GetRequestsTool(IRequestService requests) : IAiTool
         Name = "get_requests",
         Description =
             "List this workspace's requests — the work to be scheduled. Use it to find a request the person " +
-            "named, or to see what is still unscheduled. Returns a summary per request; call get_request for detail.",
+            "named, to see what is still unscheduled, or to rank requests with the sort parameter. Ranking " +
+            "happens in the database over every match, so a sorted first page answers questions about the " +
+            "largest or earliest without reading everything. Returns a summary per request; call get_request for detail.",
         InputSchemaJson = """
         {
           "type": "object",
           "properties": {
             "query": { "type": "string", "description": "Case-insensitive match on the request name." },
             "scheduled": { "type": "boolean", "description": "True for scheduled only, false for unscheduled only." },
-            "limit": { "type": "integer", "description": "Maximum to return. Default 25." }
+            "sort": {
+              "type": "string",
+              "enum": ["default", "longest_duration", "earliest_start", "name"],
+              "description": "Result order. Use longest_duration to rank by how long a request is scheduled for — the database ranks every matching request, so the top of the list is the real longest, not the longest of this page. Requests with no scheduled window sort last."
+            },
+            "limit": { "type": "integer", "description": "Maximum to return. Default 25, maximum 100. Ask for a sort rather than a large limit when the question is about extremes." }
           }
         }
         """,
@@ -161,18 +168,19 @@ public sealed class GetRequestsTool(IRequestService requests) : IAiTool
 
     public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
     {
-        var limit = AiToolInput.Int(input, "limit") ?? 25;
+        // The model supplies this and it now reaches SQL, so clamp it at the boundary:
+        // a negative LIMIT is an error and an enormous one is the read we just removed.
+        var limit = Math.Clamp(AiToolInput.Int(input, "limit") ?? 25, 1, PageRequest.MaxPageSize);
         var query = AiToolInput.String(input, "query");
         var scheduled = AiToolInput.Bool(input, "scheduled");
+        var sort = ParseSort(AiToolInput.String(input, "sort"));
 
-        IEnumerable<RequestInfo> all = await requests.GetAllAsync(includeRequirements: false, ct);
+        // Filtered and capped in SQL. Reading the whole request table to return a page of
+        // 25 is affordable in a demo workspace and not in a real one, and the model may
+        // call this several times within a single turn.
+        var matches = await requests.SearchAsync(query, scheduled, limit, sort, ct);
 
-        if (!string.IsNullOrWhiteSpace(query))
-            all = all.Where(r => r.Name.Contains(query, StringComparison.OrdinalIgnoreCase));
-        if (scheduled is { } wantScheduled)
-            all = all.Where(r => r.IsScheduled == wantScheduled);
-
-        var page = all.Take(limit).Select(r => new
+        var page = matches.Select(r => new
         {
             id = r.Id,
             name = r.Name,
@@ -186,6 +194,19 @@ public sealed class GetRequestsTool(IRequestService requests) : IAiTool
 
         return page.Count == 0 ? "No requests match." : AiToolInput.Json(page);
     }
+
+    /// <summary>
+    /// Maps the model's sort name to the closed set the repository accepts. An unknown or
+    /// absent value is the default order rather than an error: a tool call is worth
+    /// answering imperfectly, not failing, and the model can see which order it got.
+    /// </summary>
+    private static RequestSort ParseSort(string? value) => value switch
+    {
+        "longest_duration" => RequestSort.LongestDuration,
+        "earliest_start" => RequestSort.EarliestStart,
+        "name" => RequestSort.Name,
+        _ => RequestSort.Default,
+    };
 }
 
 /// <summary>Full detail for one request, including its assignments and requirements.</summary>

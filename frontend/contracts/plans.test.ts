@@ -61,6 +61,7 @@ describe('feature keys', () => {
       AuditLog: 'audit_log_enabled',
       DataExport: 'data_export_enabled',
       CalendarFeed: 'calendar_feed_enabled',
+      AiAssistant: 'ai_assistant_enabled',
     });
   });
 });

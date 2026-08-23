@@ -69,7 +69,8 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { CalendarOff } from "lucide-react";
 import {
   DropdownMenu,
@@ -276,6 +277,12 @@ export function UtilizationPage() {
   const applyMutation = useApplyAutoSchedule();
   const [autoSchedulePreview, setAutoSchedulePreview] = useState<AutoSchedulePreviewResponse | null>(null);
   const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
+  /**
+   * Set when the run was scoped to specific requests (an accepted assistant proposal),
+   * null for the page's own whole-site run. Apply must repeat it, or the backend re-solves
+   * over a wider set than the preview showed.
+   */
+  const [autoScheduleRequestIds, setAutoScheduleRequestIds] = useState<string[] | null>(null);
   const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
 
 
@@ -460,12 +467,43 @@ export function UtilizationPage() {
         horizonEnd,
         resourceTypeKey: autoScheduleTypeKey ?? undefined,
       });
+      setAutoScheduleRequestIds(null);
       setAutoSchedulePreview(result);
       setIsPreviewDialogOpen(true);
     } catch {
       // Error handled by mutation state
     }
   }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
+
+  // An accepted auto-scheduling proposal lands here: preview exactly the requests the
+  // person approved and open the ordinary dialog. Keyed on the tick rather than the ids so
+  // accepting the same proposal twice still fires, and so a re-render never re-runs it.
+  const autoScheduleTick = useUiActionsStore((s) => s.autoScheduleTick);
+  const proposedRequestIds = useUiActionsStore((s) => s.autoScheduleRequestIds);
+  const handledAutoScheduleTick = useRef(0);
+
+  useEffect(() => {
+    if (autoScheduleTick === handledAutoScheduleTick.current) return;
+    if (!selectedSiteId || !proposedRequestIds?.length) return;
+    handledAutoScheduleTick.current = autoScheduleTick;
+
+    void (async () => {
+      try {
+        const result = await previewMutation.mutateAsync({
+          siteId: selectedSiteId,
+          horizonStart,
+          horizonEnd,
+          requestIds: proposedRequestIds,
+          resourceTypeKey: autoScheduleTypeKey ?? undefined,
+        });
+        setAutoScheduleRequestIds(proposedRequestIds);
+        setAutoSchedulePreview(result);
+        setIsPreviewDialogOpen(true);
+      } catch {
+        // Surfaced by the mutation's own error state, same as the toolbar run.
+      }
+    })();
+  }, [autoScheduleTick, proposedRequestIds, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
 
   // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
   // the success toast interpolates the preview's dynamic count, and the catch
@@ -480,6 +518,7 @@ export function UtilizationPage() {
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
+        requestIds: autoScheduleRequestIds ?? undefined,
         resourceTypeKey: autoScheduleTypeKey ?? undefined,
         previewFingerprint: autoSchedulePreview?.fingerprint,
       });
@@ -502,7 +541,7 @@ export function UtilizationPage() {
         setAutoScheduleError(message);
       }
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, applyMutation, autoSchedulePreview, queryClient]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKey, applyMutation, autoSchedulePreview, queryClient]);
 
   // The Calendar tab pages by whole periods (one click = one week/month); every timeline grid
   // pans by a sub-period. Same controls, tab-aware step.

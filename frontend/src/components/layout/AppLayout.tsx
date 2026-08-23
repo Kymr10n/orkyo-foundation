@@ -1,7 +1,7 @@
 import { useSites } from "@foundation/src/hooks/useSites";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { useEffect, useRef, useState } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useNavigate } from "react-router";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
 import { SidebarNav } from "./SidebarNav";
@@ -68,6 +68,8 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const tourTick = useUiActionsStore((s) => s.tourTick);
   const assistantTick = useUiActionsStore((s) => s.assistantTick);
   const assistantContext = useUiActionsStore((s) => s.assistantContext);
+  const requestAutoSchedule = useUiActionsStore((s) => s.requestAutoSchedule);
+  const navigate = useNavigate();
   const lastCommandPaletteTick = useRef(commandPaletteTick);
   const lastTourTick = useRef(tourTick);
   const lastAssistantTick = useRef(assistantTick);
@@ -174,6 +176,13 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
         context={assistantContext}
         // Applying goes through the ordinary request endpoint under this person's own
         // session, so the same validation and permissions apply as to a manual edit.
+        // Accepting an auto-schedule proposal does not schedule anything: it takes the
+        // person to the scheduling page and opens the ordinary preview for exactly the
+        // requests they approved, so the solver's plan is reviewed before it is written.
+        onApplyAutoSchedule={async (requestIds) => {
+          navigate("/");
+          requestAutoSchedule(requestIds);
+        }}
         onApplyProposal={async (requestId, changes) => {
           await updateRequest(requestId, changes as UpdateRequestRequest);
           await queryClient.invalidateQueries({ queryKey: qk.requests.all() });

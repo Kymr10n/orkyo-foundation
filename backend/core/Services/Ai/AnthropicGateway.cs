@@ -22,12 +22,31 @@ public interface IAnthropicGateway
 /// Anthropic implementation. The client is constructed per call from the workspace's own
 /// key — there is no shared authenticated client, because the credential differs per
 /// workspace and must never outlive the request that fetched it.
+/// <para>
+/// The <em>transport</em> is shared even though the client is not. Each call wraps the
+/// static handler in a throwaway <see cref="HttpClient"/> that does not own it, so every
+/// workspace draws from one connection pool instead of opening a fresh socket per turn.
+/// Wrapping rather than sharing the <see cref="HttpClient"/> itself keeps this correct
+/// whether or not the SDK disposes the instance it is handed.
+/// </para>
 /// </summary>
 public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthropicGateway
 {
+    /// <summary>
+    /// One connection pool for the process. <see cref="SocketsHttpHandler.PooledConnectionLifetime"/>
+    /// is set because a pool that never recycles keeps connections open across DNS changes.
+    /// </summary>
+    private static readonly SocketsHttpHandler SharedHandler = new()
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    };
+
+    /// <summary>A non-owning view over <see cref="SharedHandler"/>: disposing it leaves the pool intact.</summary>
+    private static HttpClient BorrowTransport() => new(SharedHandler, disposeHandler: false);
+
     public async Task<AiGatewayResponse> SendAsync(AiGatewayRequest request, CancellationToken ct = default)
     {
-        var client = new AnthropicClient { ApiKey = request.ApiKey };
+        var client = new AnthropicClient { ApiKey = request.ApiKey, HttpClient = BorrowTransport() };
 
         var parameters = new MessageCreateParams
         {
@@ -72,7 +91,7 @@ public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthro
     {
         try
         {
-            var client = new AnthropicClient { ApiKey = apiKey };
+            var client = new AnthropicClient { ApiKey = apiKey, HttpClient = BorrowTransport() };
             await client.Models.Retrieve(model, cancellationToken: ct);
             return new AiCredentialTestResult { Ok = true };
         }
@@ -183,8 +202,9 @@ public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthro
     private AiGatewayException TranslateFailure(Exception ex)
     {
         var code = ClassifyFailure(ex);
-        // Log the class, never the request: prompts and tool results carry workspace data.
-        logger.LogWarning("AI provider call failed with {Code}", code);
+        // Log the class and the exception, never the request: prompts and tool results
+        // carry workspace data, but the SDK's own error is diagnostic, not payload.
+        logger.LogWarning(ex, "AI provider call failed with {Code}", code);
 
         return code switch
         {
