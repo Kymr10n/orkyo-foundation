@@ -176,7 +176,7 @@ describe("admin-api — Tenant Management", () => {
   // --------------------------------------------------------------------------
 
   describe("createAdminTenant", () => {
-    const payload = { slug: "acme", displayName: "Acme Corp" };
+    const payload = { slug: "acme", displayName: "Acme Corp", ownerEmail: "owner@acme.test" };
 
     it("sends POST to /api/admin/tenants with body", async () => {
       mockFetch.mockResolvedValue({
