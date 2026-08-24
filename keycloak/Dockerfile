@@ -1,4 +1,4 @@
-FROM quay.io/keycloak/keycloak:26.7.1@sha256:f1f1f01e472c8a78df40d8f2a49a925274eda4d3d80d5f6edbb5c880ee3c01c6
+FROM quay.io/keycloak/keycloak:26.7.2-0@sha256:6efbadc00f0ed0237610becf11f4101b9c3ad8edf08a5b70c97aa4154ed436ec
 
 # Bake the complete Orkyo theme into the image.
 # All theme files (templates, CSS, messages, theme.properties) live here in foundation.
