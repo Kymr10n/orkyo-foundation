@@ -8,7 +8,9 @@
 export const QUOTA_LABELS: Record<string, string> = {
   active_seats: "Members",
   production_sites: "Sites",
-  spaces: "Spaces",
+  // The key predates the 0.18.0 rename and stays `spaces` in the database; only the
+  // word people see moved to the current vocabulary.
+  spaces: "Stations",
   storage_bytes: "Storage",
 };
 
@@ -18,6 +20,7 @@ export const ENTITLEMENT_LABELS: Record<string, string> = {
   audit_log_enabled: "Audit Log",
   data_export_enabled: "Data Export / Import",
   calendar_feed_enabled: "Calendar Subscriptions",
+  ai_assistant_enabled: "AI Assistant",
 };
 
 /** Human-readable byte size (B/KB/MB/GB/TB), one decimal above bytes. */

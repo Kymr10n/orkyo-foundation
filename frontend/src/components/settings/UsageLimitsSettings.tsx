@@ -90,7 +90,11 @@ export function UsageLimitsSettings() {
   }
 
   const storageQuota = data.quotas.find((q) => q.key === "storage_bytes");
-  const countQuotas = data.quotas.filter((q) => q.unit === "count");
+  // Only quotas with a tenant-facing label. The label map is the decision about what
+  // belongs on this page, so a key can never surface here as a raw snake_case string
+  // before somebody has named it — and a key that is deliberately internal stays off the
+  // page by simply not being named, with no second list to keep in step.
+  const countQuotas = data.quotas.filter((q) => q.unit === "count" && QUOTA_LABELS[q.key]);
 
   return (
     <div className="space-y-6">
