@@ -274,6 +274,20 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IResourceAbsenceRepository, ResourceAbsenceRepository>();
         builder.Services.AddScoped<IAvailabilityResolver, AvailabilityResolver>();
 
+        // ── AI assistant ──────────────────────────────────────────────────────
+        builder.Services.AddScoped<IAiCredentialRepository, AiCredentialRepository>();
+        builder.Services.AddScoped<IAiAllowanceRepository, AiAllowanceRepository>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiCredentialService, Api.Services.Ai.AiCredentialService>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiAccessService, Api.Services.Ai.AiAccessService>();
+        builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway, Api.Services.Ai.AnthropicGateway>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiChatService, Api.Services.Ai.AiChatService>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetConflictsTool>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestsTool>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestTool>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.SearchTool>();
+        builder.Services.AddScoped<Api.Repositories.IAiConversationRepository, Api.Repositories.AiConversationRepository>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiConversationService, Api.Services.Ai.AiConversationService>();
+
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaUsageRollup, Api.Security.Quotas.NoOpQuotaUsageRollup>();

@@ -102,6 +102,15 @@ export async function apiPut<TResponse>(
 ): Promise<TResponse> {
   const url = buildUrl(endpoint, options?.params);
   const response = await apiFetch(url, 'PUT', options, data);
+
+  // A 204 has no body, so parsing one throws and turns a successful write into a
+  // rejected promise — the caller's onSuccess never runs and the UI reports a failure
+  // for a save that happened. POST has always guarded this; PUT and PATCH did not, and
+  // every endpoint returning NoContent was affected.
+  if (options?.skipJsonParse || response.status === 204) {
+    return undefined as TResponse;
+  }
+
   return response.json();
 }
 
@@ -126,6 +135,11 @@ export async function apiPatch<TResponse>(
 ): Promise<TResponse> {
   const url = buildUrl(endpoint, options?.params);
   const response = await apiFetch(url, 'PATCH', options, data);
+
+  if (options?.skipJsonParse || response.status === 204) {
+    return undefined as TResponse;
+  }
+
   return response.json();
 }
 
@@ -143,9 +157,14 @@ export async function apiRawFetch(
 }
 
 /**
- * Build full URL with base and optional query parameters
+ * Build full URL with base and optional query parameters.
+ *
+ * Exported for the one caller that cannot go through the wrappers above: the assistant's
+ * chat turn POSTs and reads a stream, so it owns its own `fetch`. It must still resolve
+ * its URL here — a bare relative path is same-origin, which is wrong whenever
+ * API_BASE_URL points the API at another origin.
  */
-function buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
+export function buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
   // When API_BASE_URL is empty (subdomain mode), use same-origin
   const base = API_BASE_URL || window.location.origin;
   const url = new URL(endpoint, base);

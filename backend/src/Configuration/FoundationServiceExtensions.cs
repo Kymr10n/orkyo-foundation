@@ -7,6 +7,7 @@ using Api.Security.Encryption;
 using Api.Security.Features;
 using Api.Security.Quotas;
 using Api.Services;
+using Api.Services.Ai;
 using Api.Services.AutoSchedule;
 using Api.Services.Reporting;
 using Api.Validators;
@@ -127,8 +128,22 @@ public static class FoundationServiceExtensions
         services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
         services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
+        services.AddScoped<IAiCredentialRepository, AiCredentialRepository>();
+        services.AddScoped<IAiAllowanceRepository, AiAllowanceRepository>();
 
         // ── Domain services ───────────────────────────────────────────────────
+        services.AddScoped<IAiCredentialService, AiCredentialService>();
+        services.AddScoped<IAiAccessService, AiAccessService>();
+        services.AddSingleton<IAnthropicGateway, AnthropicGateway>();
+        services.AddScoped<IAiChatService, AiChatService>();
+        // Tools are resolved as a set: the chat loop offers whatever is registered here,
+        // so adding a capability is one registration and no change to the loop.
+        services.AddScoped<IAiTool, GetConflictsTool>();
+        services.AddScoped<IAiTool, GetRequestsTool>();
+        services.AddScoped<IAiTool, GetRequestTool>();
+        services.AddScoped<IAiTool, SearchTool>();
+        services.AddScoped<IAiConversationRepository, AiConversationRepository>();
+        services.AddScoped<IAiConversationService, AiConversationService>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();

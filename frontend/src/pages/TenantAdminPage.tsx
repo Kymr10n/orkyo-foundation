@@ -44,6 +44,7 @@ export function TenantAdminPage() {
       { value: 'organization', label: 'Organization' },
       { value: 'configuration', label: 'Configuration' },
       { value: 'integrations', label: 'Integrations' },
+      { value: 'ai-assistant', label: 'AI Assistant' },
       { value: 'audit-log', label: 'Audit Log' },
       { value: 'usage-limits', label: 'Usage & Limits' },
     ];

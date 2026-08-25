@@ -15,6 +15,9 @@ public interface IRequestService
     Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default);
     /// <summary>Returns a page of requests.</summary>
     Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
+
+    /// <summary>Name/scheduled filtering applied in SQL with a row cap.</summary>
+    Task<List<RequestInfo>> SearchAsync(string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default, CancellationToken ct = default);
     /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
     Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
     /// <summary>Bulk fetch by ids (used by the conflicted-requests filter).</summary>
@@ -67,6 +70,9 @@ public class RequestService : IRequestService
 
     public Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
         => _repository.GetAllAsync(page, includeRequirements, ct);
+
+    public Task<List<RequestInfo>> SearchAsync(string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default, CancellationToken ct = default)
+        => _repository.SearchAsync(nameContains, scheduled, limit, sort, ct);
 
     public Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
         => _repository.GetByIdAsync(id, includeRequirements, ct);

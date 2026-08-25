@@ -15,6 +15,12 @@ public interface IRequestRepository
     /// <summary>Returns a page of requests.</summary>
     Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
 
+    /// <summary>
+    /// Name/scheduled filtering applied in SQL with a row cap, for callers that want a few
+    /// matches rather than the whole table.
+    /// </summary>
+    Task<List<RequestInfo>> SearchAsync(string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default, CancellationToken ct = default);
+
     /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
     Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
 

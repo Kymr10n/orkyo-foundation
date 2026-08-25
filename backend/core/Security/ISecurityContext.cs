@@ -21,6 +21,13 @@ public interface ICurrentPrincipal
     /// <summary>Whether this user has the site-admin role (global admin across all tenants)</summary>
     bool IsSiteAdmin { get; }
 
+    /// <summary>
+    /// The identity provider's session id for this request, when there is one. Distinguishes
+    /// concurrent visitors sharing one account (the public demo); null when the request
+    /// carries no session claim.
+    /// </summary>
+    string? SessionId { get; }
+
     /// <summary>Get the full principal context</summary>
     PrincipalContext GetContext();
 

@@ -149,6 +149,21 @@ describe('api-client', () => {
       expect(result).toEqual(responseData);
     });
 
+    it('accepts a 204 without trying to parse a body', async () => {
+      // Endpoints that return NoContent used to reject here: response.json() throws on an
+      // empty body, so a successful write surfaced as a failure and the caller's
+      // invalidation never ran.
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 204,
+        json: async () => {
+          throw new SyntaxError('Unexpected end of JSON input');
+        },
+      } as unknown as Response);
+
+      await expect(apiPut('/items/1', { name: 'x' })).resolves.toBeUndefined();
+    });
+
     it('handles PUT errors', async () => {
       vi.mocked(apiUtils.handleApiError).mockRejectedValue(new Error('Update failed'));
       vi.mocked(fetch).mockResolvedValue({
@@ -190,6 +205,20 @@ describe('api-client', () => {
       } as Response);
 
       await expect(apiPatch('/items/1', {})).rejects.toThrow('Patch failed');
+    });
+  });
+
+  describe('apiPatch 204', () => {
+    it('accepts a 204 without trying to parse a body', async () => {
+      vi.mocked(fetch).mockResolvedValue({
+        ok: true,
+        status: 204,
+        json: async () => {
+          throw new SyntaxError('Unexpected end of JSON input');
+        },
+      } as unknown as Response);
+
+      await expect(apiPatch('/items/1', { name: 'x' })).resolves.toBeUndefined();
     });
   });
 

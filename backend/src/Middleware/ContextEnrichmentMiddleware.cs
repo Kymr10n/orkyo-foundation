@@ -163,6 +163,10 @@ public sealed class ContextEnrichmentMiddleware
                 DisplayName = cached.DisplayName,
                 AuthProvider = cached.AuthProvider,
                 ExternalSubject = cached.ExternalSubject,
+                // From the live token, never the cache: the cache is keyed by subject, and
+                // the demo's visitors all share one. A cached session id would hand one
+                // visitor another's identity.
+                SessionId = tokenProfile.SessionId,
                 IsSiteAdmin = tokenProfile.IsSiteAdmin
             };
         }
@@ -187,6 +191,7 @@ public sealed class ContextEnrichmentMiddleware
                 DisplayName = tokenProfile.DisplayName,
                 AuthProvider = AuthProvider.Keycloak,
                 ExternalSubject = subject,
+                SessionId = tokenProfile.SessionId,
                 IsSiteAdmin = tokenProfile.IsSiteAdmin
             };
         }
@@ -206,6 +211,8 @@ public sealed class ContextEnrichmentMiddleware
             DisplayName = principal.DisplayName,
             AuthProvider = principal.AuthProvider,
             ExternalSubject = principal.ExternalSubject,
+            // Carried so services can tell concurrent visitors apart on a shared account.
+            SessionId = tokenProfile.SessionId,
             IsSiteAdmin = tokenProfile.IsSiteAdmin
         };
     }

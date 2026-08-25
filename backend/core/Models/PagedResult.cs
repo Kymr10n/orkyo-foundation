@@ -51,3 +51,18 @@ public record PagedResult<T>
         };
     }
 }
+
+/// <summary>
+/// How a request search orders its results. A closed set rather than a free-text column,
+/// so an ordering can never be composed from caller input.
+/// </summary>
+public enum RequestSort
+{
+    /// <summary>Tree order — parents first, then each level's own sort order.</summary>
+    Default,
+    /// <summary>Longest scheduled window first; requests with no window come last.</summary>
+    LongestDuration,
+    /// <summary>Earliest start first; requests with no start come last.</summary>
+    EarliestStart,
+    Name,
+}

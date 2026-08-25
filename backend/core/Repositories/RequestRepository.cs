@@ -105,6 +105,63 @@ public class RequestRepository : IRequestRepository
         return result;
     }
 
+    public async Task<List<RequestInfo>> SearchAsync(
+        string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default,
+        CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        // Both filters are optional and applied in SQL, so a caller asking for a handful of
+        // rows reads a handful rather than the whole table. "Scheduled" reuses
+        // FullyAssignedSql deliberately: RequestInfo.IsScheduled is the same rule, and that
+        // rule is already written in three places — this must not become a fourth.
+        return await db.QueryListAsync($@"
+            SELECT {SelectFromView}
+            FROM v_requests_with_assignments
+            WHERE (@query::text IS NULL OR name ILIKE @query)
+              AND (@scheduled::boolean IS NULL
+                   OR (start_ts IS NOT NULL AND end_ts IS NOT NULL
+                       AND {FullyAssignedSql("v_requests_with_assignments.id")}) = @scheduled)
+            ORDER BY {OrderBySql(sort)}
+            LIMIT @limit",
+            p =>
+            {
+                p.AddWithValue("query", string.IsNullOrWhiteSpace(nameContains)
+                    ? DBNull.Value
+                    : $"%{EscapeLike(nameContains)}%");
+                p.AddWithValue("scheduled", scheduled.HasValue ? scheduled.Value : DBNull.Value);
+                p.AddWithValue("limit", limit);
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            RequestMapper.MapFromReader,
+            ct);
+    }
+
+    /// <summary>
+    /// The ORDER BY for a sort, chosen from a fixed set — the caller names a case, never
+    /// SQL, so no user or model input reaches the statement.
+    ///
+    /// <see cref="RequestSort.LongestDuration"/> ranks by the scheduled window, which the
+    /// database can measure directly. It deliberately does not rank unscheduled requests by
+    /// their minimal duration: that conversion is a business rule owned by
+    /// <see cref="SchedulingEngine.DurationToMinutes"/>, and re-expressing it in SQL would
+    /// make it two rules that can drift. Rows with no window sort last.
+    /// </summary>
+    private static string OrderBySql(RequestSort sort) => sort switch
+    {
+        RequestSort.LongestDuration => "(end_ts - start_ts) DESC NULLS LAST, created_at DESC",
+        RequestSort.EarliestStart => "start_ts ASC NULLS LAST, created_at DESC",
+        RequestSort.Name => "name ASC",
+        _ => "parent_request_id NULLS FIRST, sort_order, created_at DESC",
+    };
+
+    /// <summary>
+    /// Neutralises LIKE wildcards in user text so a name containing % or _ matches literally.
+    /// The backslash is the default ILIKE escape character in Postgres.
+    /// </summary>
+    private static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+
     public async Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);

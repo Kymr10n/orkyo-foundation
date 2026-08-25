@@ -60,15 +60,35 @@ export interface CalendarFeedCapability {
   description: string;
 }
 
+/** What the assistant should look at when it opens. */
+export interface AssistantOpenContext {
+  type: "conflict";
+  requestId: string;
+  kind?: string;
+}
+
 interface UiActionsState {
   // Counters bumped on each trigger
   exportTick: number;
   importTick: number;
   commandPaletteTick: number;
   tourTick: number;
+  assistantTick: number;
+  autoScheduleTick: number;
   // Last payload for actions that carry data
   lastExport: ExportPayload | null;
   lastImport: ImportPayload | null;
+  /**
+   * What the assistant was opened from, when the caller had something specific in mind
+   * (a conflict entry). Null when opened from the toolbar with no subject.
+   */
+  assistantContext: AssistantOpenContext | null;
+  /**
+   * The requests an accepted auto-schedule proposal named. The scheduling page previews
+   * exactly these rather than the whole site, so what the solver is asked to place is what
+   * the person approved.
+   */
+  autoScheduleRequestIds: string[] | null;
   /**
    * Live capabilities, keyed by context. Insertion-ordered (Map semantics), so
    * the most recently mounted registrant wins when a tab registers inside a
@@ -84,6 +104,21 @@ interface UiActionsState {
   triggerImport: (payload: ImportPayload) => void;
   openCommandPalette: () => void;
   openTour: () => void;
+  /** Opens the assistant panel, optionally about a specific conflict. */
+  openAssistant: (context?: AssistantOpenContext) => void;
+  /**
+   * Asks the scheduling page to preview auto-scheduling for these requests. It does not
+   * schedule anything: the page opens its ordinary preview dialog, and the person applies
+   * from there — the assistant proposes, the solver previews, the person decides.
+   */
+  requestAutoSchedule: (requestIds: string[]) => void;
+  /**
+   * Drops the pending request ids once the scheduling page has acted on them. Without
+   * this the payload outlives its moment: the page's "already handled" marker dies with
+   * the component, so every later visit would re-open the preview for requests the
+   * person approved long ago.
+   */
+  clearAutoSchedule: () => void;
 
   // Registration (called from the useExportHandler / useImportHandler effects)
   registerExport: (context: ExportContext, capability: ExportCapability) => void;
@@ -107,8 +142,12 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   importTick: 0,
   commandPaletteTick: 0,
   tourTick: 0,
+  assistantTick: 0,
+  autoScheduleTick: 0,
   lastExport: null,
   lastImport: null,
+  assistantContext: null,
+  autoScheduleRequestIds: null,
   exportRegistry: new Map(),
   importRegistry: new Map(),
   calendarFeedRegistry: new Map(),
@@ -120,6 +159,11 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   openCommandPalette: () =>
     set((s) => ({ commandPaletteTick: s.commandPaletteTick + 1 })),
   openTour: () => set((s) => ({ tourTick: s.tourTick + 1 })),
+  openAssistant: (context) =>
+    set((s) => ({ assistantTick: s.assistantTick + 1, assistantContext: context ?? null })),
+  requestAutoSchedule: (requestIds) =>
+    set((s) => ({ autoScheduleTick: s.autoScheduleTick + 1, autoScheduleRequestIds: requestIds })),
+  clearAutoSchedule: () => set({ autoScheduleRequestIds: null }),
 
   // Re-registering an existing context deletes first, so the re-inserted entry
   // moves to the end and stays the active one.

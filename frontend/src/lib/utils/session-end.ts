@@ -37,6 +37,22 @@ export function rememberSessionEndRedirect(authClient: string | null | undefined
 }
 
 /**
+ * Whether this session came through a secondary client and is therefore ephemeral — the
+ * public demo, today. Peeks without consuming, so it is safe to ask during render; use
+ * {@link takeSessionEndRedirect} when actually ending the session.
+ *
+ * Lets a surface offer an ephemeral visitor something an account holder would not want, such
+ * as a way to ask for a guided demonstration when a demo limit is reached.
+ */
+export function isEphemeralSession(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_END_REDIRECT_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Consumes the marker. Returns the URL to send the visitor to, or null when this session ends
  * the ordinary way. Single-use: reading it clears it, so a later real login is unaffected.
  */

@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Api.Endpoints;
 using Api.Endpoints.Admin;
+using Api.Endpoints.Ai;
 using Api.Endpoints.Reporting;
 using Microsoft.AspNetCore.Builder;
 
@@ -30,6 +31,11 @@ public static class FoundationEndpointExtensions
         app.MapUserAdminEndpoints();
 
         // Features
+        app.MapAiCredentialEndpoints();
+        app.MapAiAllowanceEndpoints();
+        app.MapAiStatusEndpoints();
+        app.MapAiChatEndpoints();
+        app.MapAiConversationEndpoints();
         app.MapAnnouncementEndpoints();
         app.MapTenantAuditEndpoints();
         app.MapAutoScheduleEndpoints();

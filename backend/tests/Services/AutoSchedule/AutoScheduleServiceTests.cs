@@ -140,7 +140,12 @@ public class AutoScheduleServiceTests
 
         var act = () => service.ApplyAsync(request, CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
+        // ConflictException specifically: it is what AppExceptionHandler turns into the 409
+        // the apply dialog branches on. A plain InvalidOperationException reached the client
+        // as a 500 and the "close and re-run" message never appeared. The mapping itself is
+        // covered by the endpoint tests that already assert 409 (criteria, person
+        // allocation), so pinning the type here is what keeps this path honest.
+        await act.Should().ThrowAsync<ConflictException>()
             .WithMessage("*changed since the preview*");
     }
 

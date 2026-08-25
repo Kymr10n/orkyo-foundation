@@ -21,6 +21,8 @@ public sealed class CurrentPrincipal : ICurrentPrincipal
     /// <summary>Whether this user has the site-admin role (global admin across all tenants)</summary>
     public bool IsSiteAdmin => _context?.IsSiteAdmin ?? false;
 
+    public string? SessionId => _context?.SessionId;
+
     public PrincipalContext GetContext() => _context ?? PrincipalContext.Anonymous;
 
     public Guid RequireUserId()

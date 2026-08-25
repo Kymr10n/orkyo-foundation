@@ -230,6 +230,14 @@ export function RequestCalendar({
         allDaySlot={false}
         nowIndicator
         firstDay={1}
+        // Overlapping events partition into side-by-side columns instead of the
+        // library default, which stretches each column across half its neighbour and
+        // paints the later event on top — at our 16px slot height that buried short
+        // events entirely.
+        slotEventOverlap={false}
+        // Deterministic column order (longest first at equal starts), so a re-render
+        // or refetch never shuffles events between columns under the pointer.
+        eventOrder="start,-duration,title"
         // Axis time labels share the grid's formatCompactTime so both read identically (24h default).
         slotLabelContent={(arg) => formatCompactTime(arg.date)}
         businessHours={businessHoursConfig}
@@ -268,12 +276,16 @@ export function RequestCalendar({
               {presentation && (
                 <presentation.icon className={cn("h-3 w-3 flex-shrink-0", presentation.iconClass)} />
               )}
+              {/* In a narrow overlap column something must give. The title is what
+                  identifies the event, so it keeps a readable floor and ellipsizes;
+                  the time label is the one that collapses to nothing (the row's
+                  vertical position already encodes it). */}
               {arg.event.start && (
-                <span className="text-[10px] flex-shrink-0 tabular-nums opacity-80 leading-4">
+                <span className="text-[10px] tabular-nums opacity-80 leading-4 truncate">
                   {formatCompactTime(arg.event.start)}
                 </span>
               )}
-              <span className="truncate text-xs font-medium">{arg.event.title}</span>
+              <span className="truncate text-xs font-medium min-w-[4ch]">{arg.event.title}</span>
             </div>
           );
         }}

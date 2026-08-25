@@ -1,0 +1,394 @@
+using System.Text.Json;
+using Api.Models;
+using Api.Repositories;
+
+namespace Api.Services.Ai;
+
+/// <summary>
+/// One thing the assistant can do. Every implementation is read-only and runs in-process
+/// under the caller's own workspace connection and role, so a tool call can never reach
+/// data the caller could not already open in the UI.
+/// </summary>
+public interface IAiTool
+{
+    AiToolDefinition Definition { get; }
+
+    /// <summary>Executes the tool and returns its result as text for the model to read.</summary>
+    Task<string> ExecuteAsync(JsonElement input, CancellationToken ct);
+}
+
+/// <summary>
+/// Tools whose call ends the turn instead of running anything. The model uses one to
+/// propose a change; the loop stops, the user sees the proposal with concrete before and
+/// after values, and the change only happens if they confirm it — through the ordinary
+/// write endpoint, under their own session. The assistant never writes.
+/// </summary>
+public static class AiProposalTools
+{
+    public const string ProposeUpdateRequest = "propose_update_request";
+    public const string ProposeAutoSchedule = "propose_auto_schedule";
+
+    public static bool IsProposal(string toolName) =>
+        toolName is ProposeUpdateRequest or ProposeAutoSchedule;
+
+    public static IReadOnlyList<AiToolDefinition> Definitions { get; } =
+    [
+        new AiToolDefinition
+        {
+            Name = ProposeUpdateRequest,
+            Description =
+                "Propose a change to one request — a new time window, different resources, or a different site. " +
+                "Call this when you have identified a concrete fix and can state every field that should change. " +
+                "This does NOT apply the change: the person reviews it and decides. Say so when you call it.",
+            InputSchemaJson = """
+            {
+              "type": "object",
+              "properties": {
+                "requestId": { "type": "string", "description": "The request to change." },
+                "changes": {
+                  "type": "object",
+                  "description": "Only the fields that should change.",
+                  "properties": {
+                    "startTs": { "type": "string", "description": "New start, ISO 8601 UTC." },
+                    "endTs": { "type": "string", "description": "New end, ISO 8601 UTC." },
+                    "resourceIds": { "type": "array", "items": { "type": "string" }, "description": "Resources to assign instead of the current ones." },
+                    "siteId": { "type": "string", "description": "New site." }
+                  }
+                },
+                "rationale": { "type": "string", "description": "One or two sentences on why this fixes the problem." }
+              },
+              "required": ["requestId", "changes", "rationale"]
+            }
+            """,
+        },
+        new AiToolDefinition
+        {
+            Name = ProposeAutoSchedule,
+            Description =
+                "Propose running auto-scheduling for specific requests, when placing them is better left to the solver " +
+                "than to a hand-picked slot. This does NOT run it: the person reviews the preview and decides.",
+            InputSchemaJson = """
+            {
+              "type": "object",
+              "properties": {
+                "requestIds": { "type": "array", "items": { "type": "string" }, "description": "The requests to schedule." },
+                "rationale": { "type": "string", "description": "One or two sentences on why the solver is the right tool here." }
+              },
+              "required": ["requestIds", "rationale"]
+            }
+            """,
+        },
+    ];
+}
+
+/// <summary>Reads the conflicts the workspace currently has.</summary>
+public sealed class GetConflictsTool(IConflictService conflicts, IRequestService requests) : IAiTool
+{
+    public AiToolDefinition Definition { get; } = new()
+    {
+        Name = "get_conflicts",
+        Description =
+            "List scheduling conflicts in this workspace: overlaps, capacity and load problems, capability " +
+            "mismatches, and placements outside their allowed window. Call this whenever the person asks what " +
+            "is wrong with the plan, or before proposing a fix, so the advice matches the current state.",
+        InputSchemaJson = """
+        {
+          "type": "object",
+          "properties": {
+            "requestId": { "type": "string", "description": "Limit to one request." },
+            "limit": { "type": "integer", "description": "Maximum requests to report. Default 25." }
+          }
+        }
+        """,
+    };
+
+    public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
+    {
+        var limit = AiToolInput.Int(input, "limit") ?? 25;
+        var requestFilter = AiToolInput.Guid(input, "requestId");
+
+        var all = await conflicts.GetAllAsync(ct: ct);
+        var scoped = requestFilter is { } id
+            ? all.Where(c => c.RequestId == id).ToList()
+            : all;
+
+        if (scoped.Count == 0) return "No conflicts. Every scheduled request currently meets its requirements.";
+
+        var trimmed = scoped.Take(limit).ToList();
+        var names = (await requests.GetByIdsAsync(trimmed.Select(c => c.RequestId).ToList(), includeRequirements: false, ct))
+            .ToDictionary(r => r.Id, r => r.Name);
+
+        // Compact projection: enough for the model to reason and cite, no more. Full
+        // entities would cost tokens and push workspace data to the provider needlessly.
+        var payload = trimmed.Select(c => new
+        {
+            requestId = c.RequestId,
+            requestName = names.GetValueOrDefault(c.RequestId, "(unknown)"),
+            conflicts = c.Conflicts.Select(x => new
+            {
+                x.Kind,
+                x.Severity,
+                x.Message,
+                peerRequestId = x.PeerRequestId,
+                resourceId = x.ResourceId,
+            }),
+        });
+
+        var truncated = scoped.Count > limit ? $"\n\n({scoped.Count - limit} more requests also have conflicts.)" : "";
+        return AiToolInput.Json(payload) + truncated;
+    }
+}
+
+/// <summary>Finds records by the name a person would use for them.</summary>
+public sealed class SearchTool(ISearchRepository search) : IAiTool
+{
+    /// <summary>What the search index actually holds. Anything else is refused.</summary>
+    private static readonly string[] KnownTypes =
+        ["resource", "request", "group", "site", "template", "criterion"];
+
+    private const int DefaultLimit = 10;
+    private const int MaxLimit = 25;
+
+    /// <summary>The enum the model sees, built from the list the filter enforces.</summary>
+    private static readonly string typesJson =
+        string.Join(", ", KnownTypes.Select(t => $"\"{t}\""));
+
+    public AiToolDefinition Definition { get; } = new()
+    {
+        Name = "search",
+        Description =
+            "Find records by name across the workspace — resources, requests, groups, sites, templates and " +
+            "criteria. Use it to turn what the person called something into the record they meant, before " +
+            "reading it, proposing a change to it, or opening it. Never invent an id: if you have not " +
+            "found a record here or in another tool result, you do not have its id. When several records " +
+            "match and the difference would change what you do, show the person what distinguishes them " +
+            "and ask which they mean.",
+        InputSchemaJson = $$"""
+        {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "The name, or part of it, as the person said it." },
+            "types": {
+              "type": "array",
+              "items": { "type": "string", "enum": [{{typesJson}}] },
+              "description": "Narrow to these kinds of record. Omit to search everything."
+            },
+            "limit": { "type": "integer", "description": "Maximum matches. Default {{DefaultLimit}}, maximum {{MaxLimit}}." }
+          },
+          "required": ["query"]
+        }
+        """,
+    };
+
+    public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
+    {
+        var query = AiToolInput.String(input, "query");
+        if (string.IsNullOrWhiteSpace(query))
+            return "A search needs something to search for.";
+
+        var limit = Math.Clamp(AiToolInput.Int(input, "limit") ?? DefaultLimit, 1, MaxLimit);
+
+        // Unknown type names are dropped rather than passed through: the index would return
+        // nothing for them, which reads to the model as "no such record" instead of "not a
+        // kind of record". An empty result after filtering means search everything.
+        // Matched case-insensitively but forwarded in the index's own casing: the column
+        // comparison is case-sensitive, so passing "Request" through would match nothing
+        // and read to the model as "no such record" rather than "not a kind of record".
+        var requested = AiToolInput.StringArray(input, "types")
+            .Select(t => KnownTypes.FirstOrDefault(k => k.Equals(t, StringComparison.OrdinalIgnoreCase)))
+            .Where(t => t is not null)
+            .Select(t => t!)
+            .ToArray();
+
+        // siteId stays null: the person may well be asking about another site, and the
+        // caller's own connection already bounds this to their workspace.
+        var matches = await search.SearchAsync(query, siteId: null, types: requested.Length > 0 ? requested : null, limit, ct);
+
+        if (matches.Count == 0)
+            return $"Nothing matches '{query}'.";
+
+        var rows = matches.Select(m => new
+        {
+            type = m.Type,
+            id = m.Id,
+            name = m.Title,
+            detail = m.Subtitle,
+            siteId = m.SiteId,
+            resourceType = m.ResourceTypeKey,
+        }).ToList();
+
+        return AiToolInput.Json(rows);
+    }
+}
+
+/// <summary>Lists requests, optionally narrowed by name or scheduled state.</summary>
+public sealed class GetRequestsTool(IRequestService requests) : IAiTool
+{
+    public AiToolDefinition Definition { get; } = new()
+    {
+        Name = "get_requests",
+        Description =
+            "List this workspace's requests — the work to be scheduled. Use it to find a request the person " +
+            "named, to see what is still unscheduled, or to rank requests with the sort parameter. Ranking " +
+            "happens in the database over every match, so a sorted first page answers questions about the " +
+            "largest or earliest without reading everything. Returns a summary per request; call get_request for detail.",
+        InputSchemaJson = """
+        {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "Case-insensitive match on the request name." },
+            "scheduled": { "type": "boolean", "description": "True for scheduled only, false for unscheduled only." },
+            "sort": {
+              "type": "string",
+              "enum": ["default", "longest_duration", "earliest_start", "name"],
+              "description": "Result order. Use longest_duration to rank by how long a request is scheduled for — the database ranks every matching request, so the top of the list is the real longest, not the longest of this page. Requests with no scheduled window sort last."
+            },
+            "limit": { "type": "integer", "description": "Maximum to return. Default 25, maximum 100. Ask for a sort rather than a large limit when the question is about extremes." }
+          }
+        }
+        """,
+    };
+
+    public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
+    {
+        // The model supplies this and it now reaches SQL, so clamp it at the boundary:
+        // a negative LIMIT is an error and an enormous one is the read we just removed.
+        var limit = Math.Clamp(AiToolInput.Int(input, "limit") ?? 25, 1, PageRequest.MaxPageSize);
+        var query = AiToolInput.String(input, "query");
+        var scheduled = AiToolInput.Bool(input, "scheduled");
+        var sort = ParseSort(AiToolInput.String(input, "sort"));
+
+        // Filtered and capped in SQL. Reading the whole request table to return a page of
+        // 25 is affordable in a demo workspace and not in a real one, and the model may
+        // call this several times within a single turn.
+        var matches = await requests.SearchAsync(query, scheduled, limit, sort, ct);
+
+        var page = matches.Select(r => new
+        {
+            id = r.Id,
+            name = r.Name,
+            status = r.Status.ToString(),
+            scheduled = r.IsScheduled,
+            startTs = r.StartTs,
+            endTs = r.EndTs,
+            siteId = r.SiteId,
+            needs = r.TargetResourceTypeKeys,
+        }).ToList();
+
+        return page.Count == 0 ? "No requests match." : AiToolInput.Json(page);
+    }
+
+    /// <summary>
+    /// Maps the model's sort name to the closed set the repository accepts. An unknown or
+    /// absent value is the default order rather than an error: a tool call is worth
+    /// answering imperfectly, not failing, and the model can see which order it got.
+    /// </summary>
+    private static RequestSort ParseSort(string? value) => value switch
+    {
+        "longest_duration" => RequestSort.LongestDuration,
+        "earliest_start" => RequestSort.EarliestStart,
+        "name" => RequestSort.Name,
+        _ => RequestSort.Default,
+    };
+}
+
+/// <summary>Full detail for one request, including its assignments and requirements.</summary>
+public sealed class GetRequestTool(IRequestService requests) : IAiTool
+{
+    public AiToolDefinition Definition { get; } = new()
+    {
+        Name = "get_request",
+        Description =
+            "Read one request in full: its time window, scheduling constraints, assigned resources, and " +
+            "requirements. Call this before proposing any change, so the proposal is based on current values.",
+        InputSchemaJson = """
+        {
+          "type": "object",
+          "properties": {
+            "requestId": { "type": "string", "description": "The request to read." }
+          },
+          "required": ["requestId"]
+        }
+        """,
+    };
+
+    public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
+    {
+        if (AiToolInput.Guid(input, "requestId") is not { } id)
+            return "requestId is required and must be a UUID.";
+
+        var request = await requests.GetByIdAsync(id, includeRequirements: true, ct);
+        if (request is null) return "No request with that id exists in this workspace.";
+
+        return AiToolInput.Json(new
+        {
+            id = request.Id,
+            name = request.Name,
+            status = request.Status.ToString(),
+            scheduled = request.IsScheduled,
+            startTs = request.StartTs,
+            endTs = request.EndTs,
+            earliestStartTs = request.EarliestStartTs,
+            latestEndTs = request.LatestEndTs,
+            minimalDuration = $"{request.MinimalDurationValue} {request.MinimalDurationUnit}",
+            siteId = request.SiteId,
+            needs = request.TargetResourceTypeKeys,
+            assignments = request.Assignments.Select(a => new
+            {
+                a.ResourceId,
+                a.ResourceTypeKey,
+                a.StartUtc,
+                a.EndUtc,
+                a.AllocationPercent,
+            }),
+            requirements = request.Requirements?.Select(r => new { r.CriterionId, r.Operator, r.Value }),
+        });
+    }
+}
+
+/// <summary>Small helpers so each tool reads its input the same way.</summary>
+internal static class AiToolInput
+{
+    private static readonly JsonSerializerOptions Options = new() { WriteIndented = false };
+
+    public static string Json(object value) => JsonSerializer.Serialize(value, Options);
+
+    public static string? String(JsonElement input, string name) =>
+        input.ValueKind == JsonValueKind.Object
+        && input.TryGetProperty(name, out var v)
+        && v.ValueKind == JsonValueKind.String
+            ? v.GetString()
+            : null;
+
+    /// <summary>A string array, or empty when absent or the wrong shape. Non-strings are skipped.</summary>
+    public static IReadOnlyList<string> StringArray(JsonElement input, string name)
+    {
+        if (input.ValueKind != JsonValueKind.Object
+            || !input.TryGetProperty(name, out var value)
+            || value.ValueKind != JsonValueKind.Array)
+            return [];
+
+        return value.EnumerateArray()
+            .Where(e => e.ValueKind == JsonValueKind.String)
+            .Select(e => e.GetString()!)
+            .ToList();
+    }
+
+    public static int? Int(JsonElement input, string name) =>
+        input.ValueKind == JsonValueKind.Object
+        && input.TryGetProperty(name, out var v)
+        && v.ValueKind == JsonValueKind.Number
+        && v.TryGetInt32(out var i)
+            ? i
+            : null;
+
+    public static bool? Bool(JsonElement input, string name) =>
+        input.ValueKind == JsonValueKind.Object
+        && input.TryGetProperty(name, out var v)
+        && v.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? v.GetBoolean()
+            : null;
+
+    public static Guid? Guid(JsonElement input, string name) =>
+        System.Guid.TryParse(String(input, name), out var id) ? id : null;
+}

@@ -211,6 +211,21 @@ export const qk = {
     all: () => ["reporting-tokens"] as const,
   },
 
+  ai: {
+    /** Everything AI-assistant related — the shared invalidation prefix. */
+    all: () => ["ai"] as const,
+    /** Whether a key is configured, and its display hint. */
+    credential: () => ["ai", "credential"] as const,
+    /** Per-user grants and this month's usage. */
+    allowances: () => ["ai", "allowances"] as const,
+    /** The workspace's daily interaction limits. */
+    dailyLimits: () => ["ai", "daily-limits"] as const,
+    /** Whether the current user can use the assistant right now. */
+    status: () => ["ai", "status"] as const,
+    /** The caller's saved conversations (titles only — bodies are fetched on demand). */
+    conversations: () => ["ai", "conversations"] as const,
+  },
+
   userProfile: {
     /** The current user's identity-provider profile (also its own invalidation prefix). */
     all: () => ["user-profile"] as const,

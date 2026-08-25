@@ -66,6 +66,7 @@ const OrganizationSettings = lazy(() => import('@foundation/src/components/setti
 const TenantConfigSettings = lazy(() => import('@foundation/src/components/settings/TenantConfigSettings').then(m => ({ default: m.TenantConfigSettings })));
 const SchedulingSettings = lazy(() => import('@foundation/src/components/settings/SchedulingSettings').then(m => ({ default: m.SchedulingSettings })));
 const ReportingApiSettings = lazy(() => import('@foundation/src/components/settings/ReportingApiSettings').then(m => ({ default: m.ReportingApiSettings })));
+const AiAssistantSettings = lazy(() => import('@foundation/src/components/settings/AiAssistantSettings').then(m => ({ default: m.AiAssistantSettings })));
 const AuditLogTab = lazy(() => import('@foundation/src/components/admin/AuditLogTab').then(m => ({ default: m.AuditLogTab })));
 const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
 const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
@@ -94,9 +95,20 @@ export interface TenantAppProps {
    * by product apps via the published package.
    */
   reportingApiUnavailableRedirectTo?: string;
+
+  /**
+   * Where to send someone whose plan does not include the AI assistant. Optional and
+   * separate from the reporting prop so an edition can point the two at different pages;
+   * falls back to it when omitted.
+   */
+  aiAssistantUnavailableRedirectTo?: string;
 }
 
-export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: TenantAppProps = {}) {
+export function TenantApp({
+  accountTabs,
+  reportingApiUnavailableRedirectTo,
+  aiAssistantUnavailableRedirectTo,
+}: TenantAppProps = {}) {
   const { authStage, membership, sessionData, send } = useAuth();
 
   // Session expiry on a tenant subdomain — trigger the BFF login redirect.
@@ -227,6 +239,7 @@ export function TenantApp({ accountTabs, reportingApiUnavailableRedirectTo }: Te
             <Route path="organization" element={<OrganizationSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
             <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path="ai-assistant" element={<AiAssistantSettings upgradeHref={aiAssistantUnavailableRedirectTo ?? reportingApiUnavailableRedirectTo} />} />
             <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path="usage-limits" element={<UsageLimitsSettings />} />
           </Route>

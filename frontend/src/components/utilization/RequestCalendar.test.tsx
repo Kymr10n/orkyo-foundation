@@ -85,6 +85,15 @@ describe("RequestCalendar", () => {
     expect(capturedProps.initialView).toBe("timeGridWeek");
   });
 
+  it("partitions overlapping events side by side, in a stable column order", () => {
+    // slotEventOverlap: FullCalendar's default stretches overlap columns across half
+    // their neighbour and paints the later event on top — at 16px slots that buried
+    // short events entirely. eventOrder keeps columns from shuffling on re-render.
+    renderCalendar();
+    expect(capturedProps.slotEventOverlap).toBe(false);
+    expect(capturedProps.eventOrder).toBe("start,-duration,title");
+  });
+
   it("is page-controlled: forwards the resolved view and disables FC's toolbar", () => {
     // The view is resolved upstream (scaleToCalendarView + breakpoint) and passed
     // in; the component forwards it verbatim and turns off FullCalendar's own

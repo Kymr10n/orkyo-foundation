@@ -97,7 +97,10 @@ public sealed class AutoScheduleService : IAutoScheduleService
         if (!string.IsNullOrEmpty(request.PreviewFingerprint) &&
             preview.Fingerprint != request.PreviewFingerprint)
         {
-            throw new InvalidOperationException(
+            // ConflictException, not InvalidOperationException: the latter maps to no arm
+            // in AppExceptionHandler, so a stale preview surfaced as a 500 and the dialog's
+            // "close and re-run" branch — which keys on 409 — never showed.
+            throw new ConflictException(
                 "The scheduling data has changed since the preview was generated. " +
                 "Please re-run the preview to get an up-to-date proposal.");
         }
