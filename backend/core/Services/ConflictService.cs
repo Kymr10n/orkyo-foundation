@@ -174,9 +174,15 @@ public class ConflictService(
             case ValidationReasonCode.OffTimeOverlap:
             case ValidationReasonCode.NonWorkingHoliday:
             case ValidationReasonCode.NonWorkingWeekend:
+                // The blocked period belongs in the id. One assignment can overlap several
+                // — two closures, a holiday and a shutdown — and the validator raises one
+                // issue per period, all with the same code and resource. Without the
+                // period, those conflicts shared an id and React rendered only one of
+                // them. The overlap branch above already keys on its peer for exactly
+                // this reason.
                 return new ConflictInfo
                 {
-                    Id = $"{requestId}-{issue.ResourceId}-{issue.Code}-offtime",
+                    Id = $"{requestId}-{issue.ResourceId}-{issue.Code}-{issue.ConflictingAvailabilityId}-offtime",
                     Kind = ConflictKinds.StartsInOffTime,
                     Severity = "warning",
                     Message = issue.Message,
