@@ -220,6 +220,8 @@ export const qk = {
     allowances: () => ["ai", "allowances"] as const,
     /** Whether the current user can use the assistant right now. */
     status: () => ["ai", "status"] as const,
+    /** The caller's saved conversations (titles only — bodies are fetched on demand). */
+    conversations: () => ["ai", "conversations"] as const,
   },
 
   userProfile: {

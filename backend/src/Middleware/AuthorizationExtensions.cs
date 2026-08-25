@@ -18,8 +18,15 @@ namespace Api.Middleware;
 public sealed class AuthorizationGoverned;
 
 /// <summary>
-/// Build-time marker opting a single non-mutating POST (e.g. /validate, /preview) out of the
-/// editor/admin write gate its group otherwise applies, keeping it readable by any member.
+/// Build-time marker opting a single route out of the editor/admin write gate its group
+/// otherwise applies, keeping it usable by any member.
+///
+/// Two shapes qualify. A <em>non-mutating</em> POST (/validate, /preview) computes but
+/// persists nothing. A <em>caller-owned</em> write touches only rows that belong to the
+/// person making the request and nothing anyone else can see — saved assistant
+/// conversations, for example, where a viewer may keep their own notes without being able
+/// to change the workspace. Anything that writes shared state does not qualify, whatever
+/// it is called.
 /// </summary>
 public sealed class AllowMemberWriteMarker;
 

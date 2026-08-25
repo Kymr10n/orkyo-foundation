@@ -87,3 +87,18 @@ public sealed record AiStatus
     public long? MonthlyTokenLimit { get; init; }
     public long UsedTotalTokens { get; init; }
 }
+
+/// <summary>
+/// A conversation as the client keeps it.
+///
+/// <see cref="Entries"/> and <see cref="Transcript"/> are stored as given and never
+/// interpreted by the server, so the panel can change what it records without a
+/// migration. Their size is capped in the service — the shape is the client's, the
+/// ceiling is not.
+/// </summary>
+public sealed record SaveAiConversationRequest
+{
+    public required string Title { get; init; }
+    public required System.Text.Json.JsonElement Entries { get; init; }
+    public required System.Text.Json.JsonElement Transcript { get; init; }
+}

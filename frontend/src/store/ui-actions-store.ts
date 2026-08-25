@@ -112,6 +112,13 @@ interface UiActionsState {
    * from there — the assistant proposes, the solver previews, the person decides.
    */
   requestAutoSchedule: (requestIds: string[]) => void;
+  /**
+   * Drops the pending request ids once the scheduling page has acted on them. Without
+   * this the payload outlives its moment: the page's "already handled" marker dies with
+   * the component, so every later visit would re-open the preview for requests the
+   * person approved long ago.
+   */
+  clearAutoSchedule: () => void;
 
   // Registration (called from the useExportHandler / useImportHandler effects)
   registerExport: (context: ExportContext, capability: ExportCapability) => void;
@@ -156,6 +163,7 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
     set((s) => ({ assistantTick: s.assistantTick + 1, assistantContext: context ?? null })),
   requestAutoSchedule: (requestIds) =>
     set((s) => ({ autoScheduleTick: s.autoScheduleTick + 1, autoScheduleRequestIds: requestIds })),
+  clearAutoSchedule: () => set({ autoScheduleRequestIds: null }),
 
   // Re-registering an existing context deletes first, so the re-inserted entry
   // moves to the end and stays the active one.

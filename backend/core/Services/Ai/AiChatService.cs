@@ -18,6 +18,12 @@ public sealed record AiChatRequest
 
     /// <summary>Set when the person accepted or declined a proposal from the previous turn.</summary>
     public AiProposalOutcome? PendingToolResult { get; init; }
+
+    /// <summary>
+    /// The site the person is looking at, when they are looking at one. Carries the zone
+    /// their "tomorrow" is measured in — see <see cref="AiSystemPrompt.Dynamic"/>.
+    /// </summary>
+    public Guid? SiteId { get; init; }
 }
 
 /// <summary>What became of a proposal after the person decided.</summary>
@@ -52,6 +58,12 @@ public abstract record AiChatEvent
     /// <summary>The conversation state to send back next turn.</summary>
     public sealed record Transcript(IReadOnlyList<AiMessage> Messages) : AiChatEvent;
 
+    /// <summary>
+    /// Take the person somewhere in the app. Unlike a proposal this is not a request for
+    /// permission — opening a view touches no workspace data — so the turn continues.
+    /// </summary>
+    public sealed record UiAction(string View, string? EntityId, string? SiteId) : AiChatEvent;
+
     /// <summary>The turn failed. <paramref name="Code"/> is stable; the UI branches on it.</summary>
     public sealed record Error(string Code, string Detail) : AiChatEvent;
 
@@ -82,6 +94,7 @@ public sealed class AiChatService(
     IEnumerable<IAiTool> tools,
     IAuthorizationContext authorization,
     ICurrentPrincipal principal,
+    ISchedulingService scheduling,
     ILogger<AiChatService> logger) : IAiChatService
 {
     public async IAsyncEnumerable<AiChatEvent> RunTurnAsync(
@@ -102,7 +115,12 @@ public sealed class AiChatService(
             yield break;
         }
 
-        if (request.Transcript.Count > AiDefaults.MaxTranscriptMessages)
+        // Both ceilings, not just the count. A conversation can reach the byte limit long
+        // before the message limit — a few tool results carrying dozens of records will do
+        // it — and MaxTranscriptBytes went unenforced until conversations became
+        // persistent, when an oversized one would have survived every reload.
+        if (request.Transcript.Count > AiDefaults.MaxTranscriptMessages
+            || TranscriptBytes(request.Transcript) > AiDefaults.MaxTranscriptBytes)
         {
             yield return new AiChatEvent.Error("conversation_too_long",
                 "This conversation has grown too long. Start a new one to continue.");
@@ -120,6 +138,23 @@ public sealed class AiChatService(
         }
 
         var model = await credentials.GetModelAsync(token);
+
+        // Sites own their working hours and the zone those hours are written in, so a
+        // person's "tomorrow morning" is their site's, not UTC's. Best-effort: a turn is
+        // still worth having without it, just less precise about time.
+        string? siteTimeZone = null;
+        if (request.SiteId is { } siteId)
+        {
+            try
+            {
+                siteTimeZone = (await scheduling.GetSettingsAsync(siteId, token))?.TimeZone;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Could not read the time zone for site {SiteId}", siteId);
+            }
+        }
+
         var toolset = tools.ToDictionary(t => t.Definition.Name, StringComparer.Ordinal);
         var definitions = BuildToolDefinitions(toolset);
         var messages = BuildOpeningMessages(request);
@@ -140,7 +175,7 @@ public sealed class AiChatService(
                     ApiKey = apiKey,
                     Model = model,
                     StaticSystemPrompt = AiSystemPrompt.Static(),
-                    DynamicSystemPrompt = AiSystemPrompt.Dynamic(authorization.CanEdit),
+                    DynamicSystemPrompt = AiSystemPrompt.Dynamic(authorization.CanEdit, siteTimeZone: siteTimeZone),
                     Messages = messages,
                     Tools = definitions,
                 }, token);
@@ -200,6 +235,18 @@ public sealed class AiChatService(
                 var results = new List<AiBlock>(toolCalls.Count);
                 foreach (var call in toolCalls)
                 {
+                    // Opening a view happens in the browser, so there is nothing to run
+                    // here. Emit the event, answer the model, and carry on — the assistant
+                    // can show something and keep talking within the same turn.
+                    if (AiUiTools.IsUiAction(call.Name ?? ""))
+                    {
+                        var (uiEvent, resultText) = ResolveUiAction(call);
+                        if (uiEvent is not null) yield return uiEvent;
+                        results.Add(AiBlock.ToolResult(
+                            call.ToolUseId ?? "", resultText, isError: uiEvent is null));
+                        continue;
+                    }
+
                     yield return new AiChatEvent.Status("tool", call.Name);
                     results.Add(await RunToolAsync(toolset, call, token));
                 }
@@ -221,7 +268,7 @@ public sealed class AiChatService(
             {
                 try
                 {
-                    await access.RecordUsageAsync(principal.UserId, inputTokens, outputTokens, CancellationToken.None);
+                    await access.RecordUsageAsync(inputTokens, outputTokens, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {
@@ -254,6 +301,64 @@ public sealed class AiChatService(
         {
             return (null, ex);
         }
+    }
+
+    /// <summary>
+    /// What the transcript will weigh on the wire. Measured on the serialized form
+    /// because that is what the ceiling is about — the payload, not the object graph.
+    /// </summary>
+    private static int TranscriptBytes(IReadOnlyList<AiMessage> transcript)
+    {
+        try
+        {
+            return System.Text.Encoding.UTF8.GetByteCount(JsonSerializer.Serialize(transcript));
+        }
+        catch (NotSupportedException)
+        {
+            // Unserializable means unsendable; let the turn refuse it as oversized rather
+            // than fail later inside the provider call.
+            return int.MaxValue;
+        }
+    }
+
+    /// <summary>
+    /// Checks an <c>open_view</c> call against the catalog and this person's role, and says
+    /// what the model should be told. Returns a null event when the call is refused — the
+    /// model still gets an answer, so the turn continues instead of stalling.
+    ///
+    /// Validation repeats here rather than trusting the enum in the tool definition: the
+    /// definition is guidance to a model, not a guarantee about what arrives.
+    /// </summary>
+    private (AiChatEvent.UiAction? Event, string Result) ResolveUiAction(AiBlock call)
+    {
+        string? viewId, entityId, siteId;
+        try
+        {
+            using var document = JsonDocument.Parse(call.InputJson ?? "{}");
+            viewId = AiToolInput.String(document.RootElement, "view");
+            entityId = AiToolInput.String(document.RootElement, "entityId");
+            siteId = AiToolInput.String(document.RootElement, "siteId");
+        }
+        catch (JsonException)
+        {
+            return (null, "That call was not valid JSON, so nothing opened.");
+        }
+
+        if (AiViewCatalog.Find(viewId) is not { } view)
+            return (null, $"There is no view called '{viewId}'. Nothing opened. Pick one from the list in the tool description.");
+
+        if (!AiViewCatalog.IsAllowed(view, authorization.CanEdit, authorization.IsAdmin))
+            return (null, $"This person's role does not include '{view.Id}', so it did not open. Do not offer it to them.");
+
+        if (view.NeedsEntityId && !Guid.TryParse(entityId, out _))
+            return (null, $"'{view.Id}' opens one record and needs its id, which was missing or not an id. Nothing opened.");
+
+        // The client persists this as the selected site, so an invented value would strand
+        // the person on a site that does not exist. entityId is already parsed; this was not.
+        var checkedSiteId = Guid.TryParse(siteId, out var parsedSite) ? parsedSite.ToString() : null;
+
+        var opened = new AiChatEvent.UiAction(view.Id, view.NeedsEntityId ? entityId : null, checkedSiteId);
+        return (opened, $"The app is opening '{view.Id}' for the person now. Tell them what they are looking at.");
     }
 
     private async Task<AiBlock> RunToolAsync(
@@ -293,6 +398,8 @@ public sealed class AiChatService(
     {
         var definitions = toolset.Values.Select(t => t.Definition).ToList();
         if (authorization.CanEdit) definitions.AddRange(AiProposalTools.Definitions);
+        // Everyone may be shown around; the enum inside the definition is what varies by role.
+        definitions.Add(AiUiTools.DefinitionFor(authorization.CanEdit, authorization.IsAdmin));
         return definitions;
     }
 

@@ -43,3 +43,31 @@ public class SaveAiAllowanceRequestValidator : AbstractValidator<SaveAiAllowance
             .When(x => x.MonthlyTokenLimit.HasValue);
     }
 }
+
+/// <summary>
+/// Shape guard for a saved conversation. The two payloads are the client's own shape and
+/// are not inspected here — only their type and the title are. Size is checked in
+/// <c>AiConversationService</c>, where the transcript ceiling already lives, so the limit
+/// is stated once.
+/// </summary>
+public class SaveAiConversationRequestValidator : AbstractValidator<SaveAiConversationRequest>
+{
+    public SaveAiConversationRequestValidator()
+    {
+        // Title length and emptiness are deliberately NOT checked here. The client derives
+        // the title from the first message, so rejecting a long or blank one would fail a
+        // save the person did nothing wrong to cause. The service normalises instead —
+        // one rule, in one place.
+
+
+        // An array is what the panel keeps and what a restore expects; anything else
+        // would restore into a broken conversation rather than fail here.
+        RuleFor(x => x.Entries)
+            .Must(e => e.ValueKind == System.Text.Json.JsonValueKind.Array)
+            .WithMessage("Entries must be a list.");
+
+        RuleFor(x => x.Transcript)
+            .Must(t => t.ValueKind == System.Text.Json.JsonValueKind.Array)
+            .WithMessage("The transcript must be a list.");
+    }
+}

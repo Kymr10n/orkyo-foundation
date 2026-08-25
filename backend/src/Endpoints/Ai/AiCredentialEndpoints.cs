@@ -42,7 +42,6 @@ public static class AiCredentialEndpoints
         // Probing a key changes nothing, so it stays inside the admin area but is marked
         // non-mutating — it exists so an admin can tell a wrong key from a wrong network.
         group.MapPost("/test", TestCredential)
-            .AllowMemberWrite()
             .WithName("TestAiCredential")
             .WithSummary("Check the stored key against the provider without spending tokens");
     }

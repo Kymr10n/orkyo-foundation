@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Api.Models;
 using Api.Security;
+using Api.Services;
 using Api.Services.Ai;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -22,6 +23,7 @@ public class AiChatServiceTests
     private readonly Mock<IAuthorizationContext> _authorization = new();
     private readonly Mock<ICurrentPrincipal> _principal = new();
     private readonly FakeTool _tool = new();
+    private readonly Mock<ISchedulingService> _scheduling = new();
 
     public AiChatServiceTests()
     {
@@ -35,7 +37,8 @@ public class AiChatServiceTests
 
     private AiChatService CreateSut() => new(
         _gateway, _credentials.Object, _access.Object, [_tool],
-        _authorization.Object, _principal.Object, NullLogger<AiChatService>.Instance);
+        _authorization.Object, _principal.Object, _scheduling.Object,
+        NullLogger<AiChatService>.Instance);
 
     private async Task<List<AiChatEvent>> RunAsync(AiChatRequest? request = null)
     {
@@ -68,6 +71,172 @@ public class AiChatServiceTests
         _tool.Executions.Should().Be(1);
         events.OfType<AiChatEvent.Status>().Should().Contain(s => s.Tool == _tool.Definition.Name);
         _gateway.CallCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task ASiteOnScreenPutsItsZoneInTheTurn()
+    {
+        _scheduling
+            .Setup(s => s.GetSettingsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SchedulingSettingsInfo.Default(Guid.NewGuid()) with { TimeZone = "Europe/Berlin" });
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("ok")));
+
+        await RunAsync(new AiChatRequest { Message = "tomorrow morning?", SiteId = Guid.NewGuid() });
+
+        _gateway.LastRequest!.DynamicSystemPrompt.Should().Contain("Europe/Berlin");
+    }
+
+    [Fact]
+    public async Task NoSiteMeansTheTurnStaysOnUtc()
+    {
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("ok")));
+
+        await RunAsync(new AiChatRequest { Message = "hello" });
+
+        _gateway.LastRequest!.DynamicSystemPrompt.Should().NotContain("keeps time in");
+        _scheduling.Verify(s => s.GetSettingsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AnUnreadableZoneDoesNotCostThePersonTheirAnswer()
+    {
+        // Time precision is worth less than the turn itself.
+        _scheduling
+            .Setup(s => s.GetSettingsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("settings unavailable"));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("still answered")));
+
+        var events = await RunAsync(new AiChatRequest { Message = "hi", SiteId = Guid.NewGuid() });
+
+        events.OfType<AiChatEvent.Message>().Single().Text.Should().Contain("still answered");
+    }
+
+    [Fact]
+    public async Task AnOversizedTranscriptIsRefusedOnBytesNotJustCount()
+    {
+        // A handful of tool results carrying dozens of records reaches the byte ceiling
+        // long before the forty-message one. MaxTranscriptBytes existed but was enforced
+        // nowhere until conversations became persistent.
+        var bulky = new AiMessage
+        {
+            Role = AiMessage.Roles.User,
+            Blocks = [AiBlock.TextBlock(new string('x', AiDefaults.MaxTranscriptBytes))],
+        };
+
+        var events = await RunAsync(new AiChatRequest { Message = "and now?", Transcript = [bulky] });
+
+        var error = events.OfType<AiChatEvent.Error>().Single();
+        error.Code.Should().Be("conversation_too_long");
+        _gateway.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task OpenView_EmitsTheActionAndKeepsTalking()
+    {
+        // Unlike a proposal, opening a view is not a request for permission — it touches no
+        // workspace data — so the turn must continue and let the model explain what the
+        // person is now looking at.
+        _gateway.Enqueue(Reply(ToolUse("toolu_v", AiUiTools.OpenView, """{"view":"insights_conflicts"}""")));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("The red bars are the overbooked weeks.")));
+
+        var events = await RunAsync();
+
+        var opened = events.OfType<AiChatEvent.UiAction>().Single();
+        opened.View.Should().Be("insights_conflicts");
+        opened.EntityId.Should().BeNull();
+        events.OfType<AiChatEvent.Message>().Single().Text.Should().Contain("red bars");
+        _gateway.CallCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task OpenView_AnswersTheModelSoTheConversationCanContinue()
+    {
+        _gateway.Enqueue(Reply(ToolUse("toolu_v", AiUiTools.OpenView, """{"view":"requests"}""")));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("done")));
+
+        await RunAsync();
+
+        // Every tool_use needs its tool_result, or the next call is malformed.
+        var results = _gateway.LastRequest!.Messages
+            .SelectMany(m => m.Blocks)
+            .Where(b => b.Type == AiBlock.BlockTypes.ToolResult)
+            .ToList();
+        results.Should().ContainSingle(b => b.ToolUseId == "toolu_v");
+    }
+
+    [Fact]
+    public async Task OpenView_RefusesAnInventedViewWithoutMovingAnyone()
+    {
+        _gateway.Enqueue(Reply(ToolUse("toolu_v", AiUiTools.OpenView, """{"view":"/etc/passwd"}""")));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("sorry")));
+
+        var events = await RunAsync();
+
+        events.OfType<AiChatEvent.UiAction>().Should().BeEmpty();
+        // The model is still told, so it can apologise rather than hang.
+        _gateway.LastRequest!.Messages
+            .SelectMany(m => m.Blocks)
+            .Should().Contain(b => b.ToolUseId == "toolu_v" && b.Content != null && b.Content.Contains("no view called"));
+    }
+
+    [Fact]
+    public async Task OpenView_RefusesARecordViewWithNoRecord()
+    {
+        _gateway.Enqueue(Reply(ToolUse("toolu_v", AiUiTools.OpenView, """{"view":"request"}""")));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("sorry")));
+
+        var events = await RunAsync();
+
+        events.OfType<AiChatEvent.UiAction>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OpenView_CarriesTheRecordId()
+    {
+        var id = Guid.NewGuid();
+        _gateway.Enqueue(Reply(ToolUse("toolu_v", AiUiTools.OpenView, $$"""{"view":"request","entityId":"{{id}}"}""")));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("opened")));
+
+        var events = await RunAsync();
+
+        events.OfType<AiChatEvent.UiAction>().Single().EntityId.Should().Be(id.ToString());
+    }
+
+    [Fact]
+    public async Task OpenView_RefusesAViewTheRoleDoesNotCover()
+    {
+        // A viewer is never offered admin ids in the enum, but the enum is guidance to a
+        // model, not a guarantee about what arrives.
+        _authorization.SetupGet(a => a.CanEdit).Returns(false);
+        _authorization.SetupGet(a => a.IsAdmin).Returns(false);
+        _gateway.Enqueue(Reply(ToolUse("toolu_v", AiUiTools.OpenView, """{"view":"admin_users"}""")));
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("sorry")));
+
+        var events = await RunAsync();
+
+        events.OfType<AiChatEvent.UiAction>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OpenView_DoesNotSwallowASiblingRead()
+    {
+        // The proposal branch takes the first proposal and drops its siblings. A view must
+        // not behave that way: the read the model asked for in the same block still runs.
+        _gateway.Enqueue(new AiGatewayResponse
+        {
+            Blocks =
+            [
+                ToolUse("toolu_v", AiUiTools.OpenView, """{"view":"requests"}"""),
+                ToolUse("toolu_t", _tool.Definition.Name, "{}"),
+            ],
+            StopReason = "tool_use",
+        });
+        _gateway.Enqueue(Reply(AiBlock.TextBlock("both done")));
+
+        var events = await RunAsync();
+
+        events.OfType<AiChatEvent.UiAction>().Should().ContainSingle();
+        _tool.Executions.Should().Be(1);
     }
 
     [Fact]
@@ -160,7 +329,7 @@ public class AiChatServiceTests
 
         await RunAsync();
 
-        _access.Verify(a => a.RecordUsageAsync(UserId, 120, 34, It.IsAny<CancellationToken>()), Times.Once);
+        _access.Verify(a => a.RecordUsageAsync(120, 34, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

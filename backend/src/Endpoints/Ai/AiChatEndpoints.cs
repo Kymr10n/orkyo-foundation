@@ -4,6 +4,7 @@ using Api.Services.Ai;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Logging;
 
 namespace Api.Endpoints.Ai;
 
@@ -14,6 +15,9 @@ public sealed record AiChatEndpointRequest
     public List<AiMessage>? Transcript { get; init; }
     public AiChatContext? Context { get; init; }
     public AiProposalOutcome? PendingToolResult { get; init; }
+
+    /// <summary>The site the person has selected, when they have one.</summary>
+    public Guid? SiteId { get; init; }
 }
 
 /// <summary>Where the person opened the assistant from, when that matters.</summary>
@@ -59,8 +63,11 @@ public static class AiChatEndpoints
         HttpContext http,
         AiChatEndpointRequest request,
         IAiChatService chat,
+        ILoggerFactory loggerFactory,
         CancellationToken ct)
     {
+        var logger = loggerFactory.CreateLogger(typeof(AiChatEndpoints));
+
         http.Response.ContentType = "text/event-stream";
         http.Response.Headers.CacheControl = "no-cache";
         // Ask any reverse proxy in front of us not to buffer, so the stream stays a stream
@@ -74,6 +81,7 @@ public static class AiChatEndpoints
             ContextRequestId = request.Context?.RequestId,
             ContextConflictKind = request.Context?.Kind,
             PendingToolResult = request.PendingToolResult,
+            SiteId = request.SiteId,
         };
 
         try
@@ -84,6 +92,18 @@ public static class AiChatEndpoints
         {
             // The person closed the panel or navigated away mid-turn. The service has
             // already recorded the tokens spent; there is nobody left to write to.
+        }
+        catch (Exception ex)
+        {
+            // Anything else — most often the turn's own five-minute deadline, which is a
+            // linked token and so does NOT set ct.IsCancellationRequested. Letting it
+            // escape here ends the response mid-stream with no terminating event, and the
+            // panel reports a broken stream instead of what happened.
+            //
+            // Headers are long gone by this point, so the only way to say anything is to
+            // write it into the stream that is already open.
+            logger.LogWarning(ex, "AI turn ended abnormally");
+            await WriteTurnFailureAsync(http.Response, ex, logger);
         }
     }
 
@@ -163,10 +183,44 @@ public static class AiChatEndpoints
             kind = p.Value.Kind,
             input = p.Value.InputJson,
         }),
+        AiChatEvent.UiAction u => ("ui", new { view = u.View, entityId = u.EntityId, siteId = u.SiteId }),
         AiChatEvent.Transcript t => ("transcript", t.Messages),
         AiChatEvent.Error e => ("error", new { code = e.Code, message = e.Detail }),
         _ => ("done", new { }),
     };
+
+    /// <summary>
+    /// Closes a broken turn from inside the stream that is already open.
+    ///
+    /// A turn that dies after the headers are sent has no status code left to use, so the
+    /// only way to say anything is an error event followed by done — which is what the
+    /// panel waits for. Failing to write that leaves it reading a truncated stream.
+    /// </summary>
+    /// <remarks>Internal so the recovery can be tested without an HTTP stack.</remarks>
+    internal static async Task WriteTurnFailureAsync(HttpResponse response, Exception ex, ILogger logger)
+    {
+        // The turn's own deadline is a linked token, so it arrives here rather than in the
+        // caller's cancellation filter — and it is the one failure worth naming precisely,
+        // because the person can act on it by asking something narrower.
+        var timedOut = ex is OperationCanceledException;
+
+        try
+        {
+            await WriteEventAsync(response, "error", new
+            {
+                code = timedOut ? "turn_timeout" : "turn_failed",
+                message = timedOut
+                    ? "That took longer than the assistant is allowed to spend. Try a narrower question."
+                    : "The assistant stopped before it finished. Try again.",
+            }, CancellationToken.None);
+            await WriteEventAsync(response, "done", new { }, CancellationToken.None);
+        }
+        catch (Exception writeFailure)
+        {
+            // The connection is gone too. Nothing left to tell anyone.
+            logger.LogDebug(writeFailure, "Could not report the turn failure to the client");
+        }
+    }
 
     /// <summary>An SSE comment: ignored by the client, but traffic as far as the network is concerned.</summary>
     private static async Task WriteHeartbeatAsync(HttpResponse response, CancellationToken ct)

@@ -24,8 +24,25 @@ public static class AiSystemPrompt
     public static string Static() => $"""
         You are the scheduling assistant inside Orkyo, a production-scheduling application.
         You are talking to someone who is looking at their own workspace: the requests
-        (work to be done), the resources that do it (spaces, people, tools), and the
-        schedule that places one on the other.
+        (work to be done), the resources that do it, and the schedule that places one on
+        the other.
+
+        # The model
+
+        A workspace defines its own resource types — it activates them from a catalog or
+        creates its own — so the types here are whatever this workspace chose. Ask a tool
+        rather than assuming a type exists.
+
+        Resources fall in two classes. Stations are placed: they hold a position on a
+        floorplan, and a request placed on one occupies that place. Assets are not placed.
+
+        A request is demand: work to be done, with a duration and often a time window. An
+        assignment is what places a request on a resource — the request and its assignment
+        are not the same thing, and a request can exist with none.
+
+        Requirements on a request say what it needs; criteria are the capabilities a
+        resource offers. A resource satisfies a requirement when it carries the criterion.
+        Sites group resources and own the working hours a placement has to fall inside.
 
         # What you can and cannot do
 
@@ -56,7 +73,8 @@ public static class AiSystemPrompt
 
         - {ConflictKinds.Overlap}: two exclusive bookings collide on one resource.
           Move one of them, or split the work.
-        - {ConflictKinds.CapacityExceeded}: a space holds more than its capacity allows.
+        - {ConflictKinds.CapacityExceeded}: a resource holds more work than its capacity
+          allows.
           Move some work out, or correct the capacity if the number is wrong.
         - {ConflictKinds.ConnectorMismatch}: the resource no longer satisfies a
           requirement. Restore the capability, drop the requirement, or move the request
@@ -86,25 +104,39 @@ public static class AiSystemPrompt
         the person does next, rather than compressing sentences into fragments.
 
         Write "workspace", never "tenant". Use the words the application uses: requests,
-        resources, spaces, people, sites, criteria, conflicts.
+        resources, stations, assets, sites, criteria, conflicts — and the type names this
+        workspace defined for itself.
+
+        When a name the person used matches more than one record and the difference would
+        change what you do, ask which they mean and show enough to tell them apart. When it
+        would not, get on with it: do not ask for something you can look up.
         """;
 
     /// <summary>
     /// Per-turn context. Small on purpose: anything larger belongs behind a tool, where
     /// it is fetched only when it is actually needed.
     /// </summary>
-    public static string Dynamic(bool callerCanEdit, string? conflictContext = null)
+    /// <param name="siteTimeZone">
+    /// The IANA zone of the site the person is looking at, when one is known. Sites own
+    /// their working hours, so "tomorrow morning" means the site's morning — not UTC's.
+    /// </param>
+    public static string Dynamic(bool callerCanEdit, string? siteTimeZone = null)
     {
         var builder = new StringBuilder();
         builder.AppendLine($"Today is {DateTime.UtcNow:yyyy-MM-dd} (UTC). Times are UTC unless stated otherwise.");
+
+        if (!string.IsNullOrWhiteSpace(siteTimeZone) && siteTimeZone != "UTC")
+        {
+            builder.AppendLine(
+                $"The site on screen keeps time in {siteTimeZone}, and its working hours are set in that "
+                + "zone. Read \"tomorrow\", \"the morning\" and the like as that site means them, and say "
+                + "which zone you mean when you give a time back.");
+        }
 
         builder.AppendLine(callerCanEdit
             ? "The person you are talking to can edit the schedule, so proposing a change is useful to them."
             : "The person you are talking to has read-only access. Explain what should change and why, "
               + "but do not call a propose tool — they cannot apply it. Suggest they ask someone who can edit.");
-
-        if (!string.IsNullOrWhiteSpace(conflictContext))
-            builder.AppendLine(conflictContext);
 
         return builder.ToString().TrimEnd();
     }
@@ -138,5 +170,19 @@ public static class AiPromptInvariants
         "they decide",
         "Never claim a fact about the workspace",
         "workspace\", never \"tenant",
+    ];
+
+    /// <summary>
+    /// Vocabulary the product has retired. The prompt taught "spaces, people, tools" for a
+    /// release after 0.18.0 renamed them, so the assistant said "spaces" to people whose
+    /// screen said "Stations" — a rename that landed everywhere user-visible and missed the
+    /// one place only a careful reader would check. A rename that reaches the UI must reach
+    /// this prompt, and this list is what says so out loud.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RetiredPhrases =
+    [
+        "spaces, people, tools",
+        "a space holds more",
+        "resources, spaces, people",
     ];
 }

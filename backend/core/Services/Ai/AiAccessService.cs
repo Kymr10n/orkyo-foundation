@@ -26,7 +26,7 @@ public interface IAiAccessService
     Task<bool> RevokeAllowanceAsync(Guid userId, Guid? actorUserId, CancellationToken ct = default);
 
     /// <summary>Adds one turn's token spend to the caller's month.</summary>
-    Task RecordUsageAsync(Guid userId, long inputTokens, long outputTokens, CancellationToken ct = default);
+    Task RecordUsageAsync(long inputTokens, long outputTokens, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -128,8 +128,10 @@ public sealed class AiAccessService(
         return true;
     }
 
-    public Task RecordUsageAsync(Guid userId, long inputTokens, long outputTokens, CancellationToken ct = default) =>
-        allowances.RecordUsageAsync(userId, CurrentMonth(), inputTokens, outputTokens, ct);
+    public Task RecordUsageAsync(long inputTokens, long outputTokens, CancellationToken ct = default) =>
+        // The subject comes from the principal, like every other method here. It used to
+        // be a parameter, which made billing the wrong person's allowance a typo away.
+        allowances.RecordUsageAsync(principal.UserId, CurrentMonth(), inputTokens, outputTokens, ct);
 
     /// <summary>
     /// The first day of the current UTC month. This value is the reset: a new month lands

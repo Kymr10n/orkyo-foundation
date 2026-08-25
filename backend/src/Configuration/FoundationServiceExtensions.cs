@@ -141,6 +141,9 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAiTool, GetConflictsTool>();
         services.AddScoped<IAiTool, GetRequestsTool>();
         services.AddScoped<IAiTool, GetRequestTool>();
+        services.AddScoped<IAiTool, SearchTool>();
+        services.AddScoped<IAiConversationRepository, AiConversationRepository>();
+        services.AddScoped<IAiConversationService, AiConversationService>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();

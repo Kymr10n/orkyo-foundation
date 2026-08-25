@@ -69,7 +69,7 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { CalendarOff } from "lucide-react";
 import {
@@ -478,14 +478,15 @@ export function UtilizationPage() {
   // An accepted auto-scheduling proposal lands here: preview exactly the requests the
   // person approved and open the ordinary dialog. Keyed on the tick rather than the ids so
   // accepting the same proposal twice still fires, and so a re-render never re-runs it.
-  const autoScheduleTick = useUiActionsStore((s) => s.autoScheduleTick);
   const proposedRequestIds = useUiActionsStore((s) => s.autoScheduleRequestIds);
-  const handledAutoScheduleTick = useRef(0);
+  const clearAutoSchedule = useUiActionsStore((s) => s.clearAutoSchedule);
 
   useEffect(() => {
-    if (autoScheduleTick === handledAutoScheduleTick.current) return;
     if (!selectedSiteId || !proposedRequestIds?.length) return;
-    handledAutoScheduleTick.current = autoScheduleTick;
+    // Consumed here rather than remembered in a ref: a ref dies with the page, so coming
+    // back to the scheduler later would re-open the preview for requests already dealt
+    // with. Clearing the payload makes the request single-use wherever it is read.
+    clearAutoSchedule();
 
     void (async () => {
       try {
@@ -503,7 +504,7 @@ export function UtilizationPage() {
         // Surfaced by the mutation's own error state, same as the toolbar run.
       }
     })();
-  }, [autoScheduleTick, proposedRequestIds, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
+  }, [proposedRequestIds, clearAutoSchedule, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
 
   // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
   // the success toast interpolates the preview's dynamic count, and the catch

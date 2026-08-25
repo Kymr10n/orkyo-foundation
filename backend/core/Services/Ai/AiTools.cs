@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Models;
+using Api.Repositories;
 
 namespace Api.Services.Ai;
 
@@ -135,6 +136,88 @@ public sealed class GetConflictsTool(IConflictService conflicts, IRequestService
 
         var truncated = scoped.Count > limit ? $"\n\n({scoped.Count - limit} more requests also have conflicts.)" : "";
         return AiToolInput.Json(payload) + truncated;
+    }
+}
+
+/// <summary>Finds records by the name a person would use for them.</summary>
+public sealed class SearchTool(ISearchRepository search) : IAiTool
+{
+    /// <summary>What the search index actually holds. Anything else is refused.</summary>
+    private static readonly string[] KnownTypes =
+        ["resource", "request", "group", "site", "template", "criterion"];
+
+    private const int DefaultLimit = 10;
+    private const int MaxLimit = 25;
+
+    /// <summary>The enum the model sees, built from the list the filter enforces.</summary>
+    private static readonly string typesJson =
+        string.Join(", ", KnownTypes.Select(t => $"\"{t}\""));
+
+    public AiToolDefinition Definition { get; } = new()
+    {
+        Name = "search",
+        Description =
+            "Find records by name across the workspace — resources, requests, groups, sites, templates and " +
+            "criteria. Use it to turn what the person called something into the record they meant, before " +
+            "reading it, proposing a change to it, or opening it. Never invent an id: if you have not " +
+            "found a record here or in another tool result, you do not have its id. When several records " +
+            "match and the difference would change what you do, show the person what distinguishes them " +
+            "and ask which they mean.",
+        InputSchemaJson = $$"""
+        {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string", "description": "The name, or part of it, as the person said it." },
+            "types": {
+              "type": "array",
+              "items": { "type": "string", "enum": [{{typesJson}}] },
+              "description": "Narrow to these kinds of record. Omit to search everything."
+            },
+            "limit": { "type": "integer", "description": "Maximum matches. Default {{DefaultLimit}}, maximum {{MaxLimit}}." }
+          },
+          "required": ["query"]
+        }
+        """,
+    };
+
+    public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
+    {
+        var query = AiToolInput.String(input, "query");
+        if (string.IsNullOrWhiteSpace(query))
+            return "A search needs something to search for.";
+
+        var limit = Math.Clamp(AiToolInput.Int(input, "limit") ?? DefaultLimit, 1, MaxLimit);
+
+        // Unknown type names are dropped rather than passed through: the index would return
+        // nothing for them, which reads to the model as "no such record" instead of "not a
+        // kind of record". An empty result after filtering means search everything.
+        // Matched case-insensitively but forwarded in the index's own casing: the column
+        // comparison is case-sensitive, so passing "Request" through would match nothing
+        // and read to the model as "no such record" rather than "not a kind of record".
+        var requested = AiToolInput.StringArray(input, "types")
+            .Select(t => KnownTypes.FirstOrDefault(k => k.Equals(t, StringComparison.OrdinalIgnoreCase)))
+            .Where(t => t is not null)
+            .Select(t => t!)
+            .ToArray();
+
+        // siteId stays null: the person may well be asking about another site, and the
+        // caller's own connection already bounds this to their workspace.
+        var matches = await search.SearchAsync(query, siteId: null, types: requested.Length > 0 ? requested : null, limit, ct);
+
+        if (matches.Count == 0)
+            return $"Nothing matches '{query}'.";
+
+        var rows = matches.Select(m => new
+        {
+            type = m.Type,
+            id = m.Id,
+            name = m.Title,
+            detail = m.Subtitle,
+            siteId = m.SiteId,
+            resourceType = m.ResourceTypeKey,
+        }).ToList();
+
+        return AiToolInput.Json(rows);
     }
 }
 
@@ -276,6 +359,20 @@ internal static class AiToolInput
         && v.ValueKind == JsonValueKind.String
             ? v.GetString()
             : null;
+
+    /// <summary>A string array, or empty when absent or the wrong shape. Non-strings are skipped.</summary>
+    public static IReadOnlyList<string> StringArray(JsonElement input, string name)
+    {
+        if (input.ValueKind != JsonValueKind.Object
+            || !input.TryGetProperty(name, out var value)
+            || value.ValueKind != JsonValueKind.Array)
+            return [];
+
+        return value.EnumerateArray()
+            .Where(e => e.ValueKind == JsonValueKind.String)
+            .Select(e => e.GetString()!)
+            .ToList();
+    }
 
     public static int? Int(JsonElement input, string name) =>
         input.ValueKind == JsonValueKind.Object

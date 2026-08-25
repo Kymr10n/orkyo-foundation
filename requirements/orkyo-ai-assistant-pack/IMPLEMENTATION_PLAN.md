@@ -121,3 +121,101 @@ fixed in the working tree but **not yet committed**:
 - No server-side conversation persistence.
 - Foundation package pin bumps in saas/community are a **release-time** step, deliberately
   not on this branch — local dev consumes the sibling checkout.
+
+---
+
+# Review 2026-08-25 — external verification spec
+
+An external architecture spec (ChatGPT-authored, "Implementation Verification Specification")
+was reviewed against the implementation. Verdict: **the architecture meets or exceeds it
+where it matters most.** The spec's §12-13 imagine the AI executing writes after
+conversational confirmation; this implementation is stricter — the AI never writes at all.
+A proposal ends the turn and the change happens through the person's own session and the
+ordinary endpoint. That satisfies "the AI interprets, Orkyo decides" more completely than
+the spec's own target architecture.
+
+PASS: authorization and tenant isolation (tools run in-process under the caller's OrgContext
+and role), untrusted-model-output handling (closed catalogs, Guid checks, clamped limits),
+model independence (`IAnthropicGateway` is exactly the adapter the spec draws), business
+rules outside the prompt, structured results, context-by-tool rather than data dumps.
+
+**Note the spec itself is stale**: it is written in pre-0.18 vocabulary (Space, Allocation,
+built-in types) and some of its capability inventory describes a product shape that no
+longer exists. Read it for principles, not for its nouns.
+
+## Fixed in this pass
+
+- **Stale-preview apply returned 500, not 409.** `AutoScheduleService` threw
+  `InvalidOperationException`, which matches no arm in `AppExceptionHandler`; the apply
+  dialog branches on 409, so its "close and re-run" message never appeared. Now
+  `ConflictException`. (Found by the spec's idempotency question.)
+- **The prompt taught retired vocabulary** — "spaces, people, tools" — a release after
+  0.18.0 renamed them. Rewritten, plus a new `# The model` section explaining
+  tenant-defined resource types, Stations vs Assets, and request-vs-assignment, and a
+  clarification policy. `AiPromptInvariants.RetiredPhrases` + a test now fail loudly if the
+  old words return.
+- **Entity resolution was missing** — the model could only search requests. New `search`
+  tool wrapping the existing `ISearchRepository` (the same index the command palette uses),
+  covering resource/request/group/site/template/criterion.
+- **Timezone**: per-site IANA zones existed and drove `SchedulingEngine`, but the assistant
+  lived in UTC. The chat request now carries the selected site and `Dynamic()` names its
+  zone.
+
+## Open decisions (not gaps to patch in the AI layer)
+
+- **Request auditing.** `PUT /api/requests/{id}` writes no audit event — for the assistant
+  *or* the UI; `TenantAuditActions` has no `request.*` action at all, and `audit_events` has
+  no origin column (only free-form `metadata`). Distinguishing "changed via assistant" is
+  worth having, but it starts as a product decision about auditing request changes at all.
+  Adding it only for the assistant would put a domain concern in the AI layer.
+- **Stateless conversation.** The spec §16 wants structured multi-turn state. The transcript
+  echo is a recorded decision (no tables, no GC, no affinity) and stands.
+- **AI-executed writes** (§7.4/7.5) would be a stance change, not a gap.
+- **`resource` in the open_view catalog** — its route needs the client's resource-type list.
+
+---
+
+# Conversations and panel width — 2026-08-25
+
+## Server-side conversations supersede the "no tables" decision
+
+The original decision (§Decisions taken: *Conversation state — stateless; client echoes an
+opaque transcript*) is superseded **for storage only**. What made it right still holds and
+is preserved:
+
+- **The turn is still stateless.** The chat endpoint neither reads nor writes a
+  conversation, and the client still echoes the transcript on every turn. Storage is a
+  notebook beside the conversation, never a dependency of it — if every conversation call
+  failed, the assistant would still answer.
+- **No GC job.** The objection to tables was the cleanup that comes with them. The cap
+  enforces itself on write: `AiConversationService.KeepPerUser` (20) trims the owner's
+  older rows in the same call that adds one, so there is no schedule to run or to fail.
+- **No affinity.** Rows are read by id, so nothing pins a person to an instance.
+
+New surface: `ai_conversations` (migration `1930`, expand), repository, service, and
+`/api/ai/conversations` CRUD. Both blobs are stored opaquely — the server never
+interprets `entries` or `transcript` — so the panel can change what it records without a
+migration.
+
+**Ownership is the security property.** The service takes the owner from
+`ICurrentPrincipal`, never from the request, so no payload can select someone else's rows;
+the repository filters on `user_id` in every statement, including the upsert's WHERE, so a
+guessed id cannot hijack a row. Tested from both sides.
+
+## MaxTranscriptBytes is now enforced
+
+It was declared and referenced nowhere. The chat turn checks both ceilings, and the save
+path refuses what could never be sent — otherwise persistence would have made an unusable
+conversation permanent, restoring on every reload and failing on every send.
+
+`conversation_too_long` also became actionable: the panel branches on the code and offers
+"Start a new conversation" instead of printing advice it gave no way to follow.
+
+## Panel width
+
+`orkyo.assistant.width` in localStorage via `usePanelWidth`. Width belongs to the screen
+someone is sitting at, not to their account, so it does not travel with them the way
+conversations do. Clamped to the viewport on read, so a width saved on a large monitor
+cannot cover a laptop. Phone keeps the full-bleed panel and shows no handle; the panel's
+breakpoint moved from `sm:` to `md:` to match `useBreakpoint`, which they had disagreed on
+by 128px.

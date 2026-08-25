@@ -284,6 +284,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetConflictsTool>();
         builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestsTool>();
         builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestTool>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.SearchTool>();
+        builder.Services.AddScoped<Api.Repositories.IAiConversationRepository, Api.Repositories.AiConversationRepository>();
+        builder.Services.AddScoped<Api.Services.Ai.IAiConversationService, Api.Services.Ai.AiConversationService>();
 
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();

@@ -2,6 +2,7 @@ using System.Text;
 using Api.Endpoints.Ai;
 using Api.Services.Ai;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -140,6 +141,52 @@ public class AiChatStreamTests
         var thrown = await Assert.ThrowsAnyAsync<Exception>(() => streaming);
 
         Assert.IsType<IOException>(thrown);
+    }
+
+    [Fact]
+    public async Task ATurnKilledByItsDeadlineStillEndsTheStream()
+    {
+        // The five-minute deadline is a linked token, so it does not set the request's
+        // cancellation and escapes the caller's filter. Escaping here would end the
+        // response mid-stream with no terminating event, and the panel would report a
+        // broken stream rather than what happened.
+        var (response, body) = CreateResponse();
+
+        await AiChatEndpoints.WriteTurnFailureAsync(
+            response, new OperationCanceledException(), NullLogger.Instance);
+
+        var written = ReadBody(body);
+        Assert.Contains("event: error", written);
+        Assert.Contains("turn_timeout", written);
+        // done is what the client waits for; without it the panel stays "thinking".
+        Assert.Contains("event: done", written);
+    }
+
+    [Fact]
+    public async Task AnyOtherMidStreamFailureIsAlsoReported()
+    {
+        var (response, body) = CreateResponse();
+
+        await AiChatEndpoints.WriteTurnFailureAsync(
+            response, new InvalidOperationException("provider exploded"), NullLogger.Instance);
+
+        var written = ReadBody(body);
+        Assert.Contains("turn_failed", written);
+        Assert.Contains("event: done", written);
+        // The provider's own words are not the person's business.
+        Assert.DoesNotContain("exploded", written);
+    }
+
+    [Fact]
+    public async Task AFailureReportOnADeadConnectionIsSwallowed()
+    {
+        // The connection is already gone; there is nobody left to tell, and throwing here
+        // would replace the original failure with a less useful one.
+        var context = new DefaultHttpContext();
+        context.Response.Body = new BrokenStream();
+
+        await AiChatEndpoints.WriteTurnFailureAsync(
+            context.Response, new OperationCanceledException(), NullLogger.Instance);
     }
 
     [Fact]

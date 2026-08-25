@@ -163,7 +163,8 @@ public class AiAccessServiceTests
     {
         var expectedMonth = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1);
 
-        await CreateSut().RecordUsageAsync(UserId, inputTokens: 120, outputTokens: 340);
+        // The subject is the principal, not an argument — that is the point of the change.
+        await CreateSut().RecordUsageAsync(inputTokens: 120, outputTokens: 340);
 
         _allowances.Verify(a => a.RecordUsageAsync(
             UserId, expectedMonth, 120, 340, It.IsAny<CancellationToken>()), Times.Once);

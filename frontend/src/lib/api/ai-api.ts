@@ -127,6 +127,55 @@ export interface AiChatRequest {
     status: 'applied' | 'declined' | 'failed';
     detail?: string;
   };
+  /** The site on screen. Carries the zone the person's "tomorrow" is measured in. */
+  siteId?: string;
+}
+
+// ── Saved conversations ────────────────────────────────────────────────────────
+
+/** A conversation in the list: enough to choose one, without carrying its body. */
+export interface AiConversationSummary {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+/** A conversation in full, as stored. */
+export interface AiConversation extends AiConversationSummary {
+  entries: AiEntry[];
+  transcript: AiMessage[];
+}
+
+/**
+ * One line of the rendered log. The server stores these without interpreting them, so
+ * this shape is owned here.
+ */
+export interface AiEntry {
+  kind: 'user' | 'assistant' | 'action' | 'error';
+  text: string;
+}
+
+export async function listAiConversations(): Promise<AiConversationSummary[]> {
+  return apiGet<AiConversationSummary[]>('/api/ai/conversations');
+}
+
+export async function getAiConversation(id: string): Promise<AiConversation> {
+  return apiGet<AiConversation>(`/api/ai/conversations/${id}`);
+}
+
+/**
+ * Creates or replaces a conversation. The client owns the id, so a retry after a failed
+ * save writes the same row rather than a duplicate.
+ */
+export async function saveAiConversation(
+  id: string,
+  body: { title: string; entries: AiEntry[]; transcript: AiMessage[] },
+): Promise<void> {
+  await apiPut(`/api/ai/conversations/${id}`, body);
+}
+
+export async function deleteAiConversation(id: string): Promise<void> {
+  await apiDelete(`/api/ai/conversations/${id}`);
 }
 
 /** Everything a turn can emit. The panel renders these as they arrive. */
@@ -134,6 +183,7 @@ export type AiChatEvent =
   | { type: 'status'; phase: string; tool: string | null }
   | { type: 'message'; text: string }
   | { type: 'proposal'; proposal: AiProposal }
+  | { type: 'ui'; view: string; entityId: string | null; siteId: string | null }
   | { type: 'transcript'; messages: AiMessage[] }
   | { type: 'error'; code: string; message: string }
   | { type: 'done' };
@@ -220,6 +270,13 @@ function parseSseChunk(chunk: string): AiChatEvent | null {
         return { type: 'message', text: payload.text };
       case 'proposal':
         return { type: 'proposal', proposal: payload as AiProposal };
+      case 'ui':
+        return {
+          type: 'ui',
+          view: payload.view,
+          entityId: payload.entityId ?? null,
+          siteId: payload.siteId ?? null,
+        };
       case 'transcript':
         return { type: 'transcript', messages: payload as AiMessage[] };
       case 'error':
