@@ -66,6 +66,26 @@ test("RequestCalendar renders its fixture event", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("RequestCalendar partitions overlapping events side by side", async ({ page }) => {
+  // The two fixture events overlap 10:00-11:00. With slotEventOverlap off, the real
+  // layout engine must give them disjoint horizontal ranges — the old default
+  // stretched them across each other, burying whichever painted first.
+  await page.goto("/");
+  const calendar = page.getByTestId("calendar");
+  await expect(calendar.getByText("Fixture Event")).toBeVisible();
+  await expect(calendar.getByText("Overlapping Event")).toBeVisible();
+
+  // Measure the positioned harness elements — the layout engine's own output —
+  // not the inner text spans, whose rects can exceed their clipped container.
+  const harnesses = calendar.locator(".fc-timegrid-event-harness");
+  await expect(harnesses).toHaveCount(2);
+  const a = await harnesses.nth(0).boundingBox();
+  const b = await harnesses.nth(1).boundingBox();
+  if (!a || !b) throw new Error("both events must have a bounding box");
+  const disjoint = a.x + a.width <= b.x + 1 || b.x + b.width <= a.x + 1;
+  expect(disjoint, "overlapping events must occupy disjoint columns").toBe(true);
+});
+
 test("ScheduleSlotDialog opens and lists the fixture backlog", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("open-schedule").click();

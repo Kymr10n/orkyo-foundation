@@ -88,6 +88,18 @@ const calendarEvent: CalendarEvent = {
   extendedProps: { requestId: "r1", status: "new", conflictSeverity: null },
 };
 
+// Overlaps calendarEvent so the smoke test can assert the real layout engine
+// partitions concurrent events side by side instead of stacking them.
+const overlappingEvent: CalendarEvent = {
+  id: "r2",
+  title: "Overlapping Event",
+  start: "2026-04-17T10:00:00Z",
+  end: "2026-04-17T12:00:00Z",
+  classNames: [],
+  editable: true,
+  extendedProps: { requestId: "r2", status: "new", conflictSeverity: null },
+};
+
 // Unscheduled requests the slot chooser offers — the successor of the space
 // picker the old ScheduleToDialog fixture exercised.
 const backlog = [
@@ -307,7 +319,7 @@ function Harness() {
         <h2 className="font-medium">RequestCalendar</h2>
         <div className="h-96 border rounded-lg overflow-hidden" data-testid="calendar">
           <RequestCalendar
-            events={[calendarEvent]}
+            events={[calendarEvent, overlappingEvent]}
             editable
             initialView="timeGridWeek"
             initialDate={new Date("2026-04-17T00:00:00Z")}
