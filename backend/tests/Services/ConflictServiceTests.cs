@@ -176,6 +176,45 @@ public class ConflictServiceTests
     }
 
     [Fact]
+    public async Task TwoOffTimePeriodsOnOneAssignmentGetDistinctConflictIds()
+    {
+        // One assignment can overlap several blocked periods — two closures, or a holiday
+        // and a shutdown — and the validator raises one issue per period, all with the same
+        // code and resource. The conflict id has to tell them apart: React keys on it, and
+        // duplicates meant one of the two conflicts was silently dropped from the list.
+        var requestId = Guid.NewGuid();
+        var spaceId = Guid.NewGuid();
+        var assignment = SpaceAssignment(Guid.NewGuid(), requestId, spaceId, Start, Start.AddHours(8));
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(requestId, [assignment], Start, Start.AddHours(8))]);
+
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Batch(requestId, spaceId,
+                new ValidationIssue
+                {
+                    Code = ValidationReasonCode.OffTimeOverlap,
+                    Message = "Resource has off-time during this period",
+                    ResourceId = spaceId,
+                    ConflictingAvailabilityId = Guid.NewGuid(),
+                },
+                new ValidationIssue
+                {
+                    Code = ValidationReasonCode.OffTimeOverlap,
+                    Message = "Resource has off-time during this period",
+                    ResourceId = spaceId,
+                    ConflictingAvailabilityId = Guid.NewGuid(),
+                })]);
+
+        var result = await _service.GetAllAsync();
+
+        var entry = Assert.Single(result, e => e.RequestId == requestId);
+        var offTime = entry.Conflicts.Where(c => c.Id.EndsWith("-offtime", StringComparison.Ordinal)).ToList();
+        Assert.Equal(2, offTime.Count);
+        Assert.Equal(2, offTime.Select(c => c.Id).Distinct().Count());
+    }
+
+    [Fact]
     public async Task SurfacesOverbookForNonSpaceAssignment()
     {
         // A double-booked person (not the room) must now surface — the registry evaluates the whole
