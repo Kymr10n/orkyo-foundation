@@ -102,6 +102,15 @@ export async function apiPut<TResponse>(
 ): Promise<TResponse> {
   const url = buildUrl(endpoint, options?.params);
   const response = await apiFetch(url, 'PUT', options, data);
+
+  // A 204 has no body, so parsing one throws and turns a successful write into a
+  // rejected promise — the caller's onSuccess never runs and the UI reports a failure
+  // for a save that happened. POST has always guarded this; PUT and PATCH did not, and
+  // every endpoint returning NoContent was affected.
+  if (options?.skipJsonParse || response.status === 204) {
+    return undefined as TResponse;
+  }
+
   return response.json();
 }
 
@@ -126,6 +135,11 @@ export async function apiPatch<TResponse>(
 ): Promise<TResponse> {
   const url = buildUrl(endpoint, options?.params);
   const response = await apiFetch(url, 'PATCH', options, data);
+
+  if (options?.skipJsonParse || response.status === 204) {
+    return undefined as TResponse;
+  }
+
   return response.json();
 }
 
