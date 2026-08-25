@@ -2,13 +2,16 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   deleteAiCredential,
   getAiCredential,
+  getAiDailyLimits,
   getAiStatus,
   listAiAllowances,
   revokeAiAllowance,
   saveAiAllowance,
   saveAiCredential,
+  saveAiDailyLimits,
   testAiCredential,
 } from "@foundation/src/lib/api/ai-api";
+import type { AiDailyLimits } from "@foundation/src/lib/api/ai-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
@@ -51,6 +54,24 @@ export function useAiAllowances(enabled = true) {
     queryFn: listAiAllowances,
     staleTime: STALE.OPERATIONAL,
     enabled,
+  });
+}
+
+export function useAiDailyLimits(enabled = true) {
+  return useQuery({
+    queryKey: qk.ai.dailyLimits(),
+    queryFn: getAiDailyLimits,
+    staleTime: STALE.OPERATIONAL,
+    enabled,
+  });
+}
+
+export function useSaveAiDailyLimits() {
+  return useMutation({
+    mutationFn: (limits: AiDailyLimits) => saveAiDailyLimits(limits),
+    // Invalidates the whole AI prefix: changing a limit changes what the member-facing
+    // status endpoint reports, not only this admin screen.
+    meta: { invalidates: [qk.ai.all()] },
   });
 }
 

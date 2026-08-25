@@ -35,6 +35,32 @@ public interface IAiAllowanceRepository
     Task<IReadOnlyList<AiUserAllowance>> ListMemberAllowancesAsync(DateOnly month, CancellationToken ct = default);
 
     Task<AiUsageRow?> GetUsageAsync(Guid userId, DateOnly month, CancellationToken ct = default);
+
+    /// <summary>
+    /// Turns this subject has taken today. The subject is a session id for shared logins
+    /// and a user id otherwise — see the ai_daily_usage migration.
+    /// </summary>
+    Task<int> GetDailyTurnsAsync(string subject, DateOnly day, CancellationToken ct = default);
+
+    /// <summary>Turns the whole workspace has taken today, across every subject.</summary>
+    Task<int> GetTenantDailyTurnsAsync(DateOnly day, CancellationToken ct = default);
+
+    /// <summary>The workspace's daily interaction limits. Null fields mean no limit.</summary>
+    Task<AiDailyLimits> GetDailyLimitsAsync(CancellationToken ct = default);
+
+    /// <summary>Replaces the workspace's daily interaction limits. Null clears a limit.</summary>
+    Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, Guid? actorUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Counts one attempt. Called before the provider, so a turn that fails still counts —
+    /// the limit is on interactions the workspace allows, not on ones that happened to work.
+    ///
+    /// The read in <c>AiAccessService</c> and this increment are not one transaction, so
+    /// turns already in flight can carry the total past the limit. The overshoot is the
+    /// number of concurrent turns, and the ceiling is a damper on spend rather than an
+    /// exact quota — worth knowing before anyone reads the count as authoritative.
+    /// </summary>
+    Task RecordDailyTurnAsync(string subject, DateOnly day, CancellationToken ct = default);
     Task RecordUsageAsync(Guid userId, DateOnly month, long inputTokens, long outputTokens, CancellationToken ct = default);
 }
 
@@ -131,6 +157,74 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
                 InputTokens = r.GetInt64(1),
                 OutputTokens = r.GetInt64(2),
                 Turns = r.GetInt32(3),
+            }, ct);
+    }
+
+    public async Task<int> GetTenantDailyTurnsAsync(DateOnly day, CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COALESCE(SUM(turns), 0)::int FROM ai_daily_usage WHERE day = @day",
+            p => p.AddWithValue("day", day), ct);
+    }
+
+    public async Task<AiDailyLimits> GetDailyLimitsAsync(CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        var row = await conn.QuerySingleOrDefaultAsync(
+            "SELECT user_daily_turns, tenant_daily_turns FROM ai_daily_limits",
+            p => { },
+            r => new AiDailyLimits
+            {
+                UserDailyTurns = r.IsDBNull(0) ? null : r.GetInt32(0),
+                TenantDailyTurns = r.IsDBNull(1) ? null : r.GetInt32(1),
+            }, ct);
+        // No row yet means nothing was ever configured — the same as both limits cleared.
+        return row ?? new AiDailyLimits();
+    }
+
+    public async Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, Guid? actorUserId, CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.ExecuteAsync(@"
+            INSERT INTO ai_daily_limits (singleton, user_daily_turns, tenant_daily_turns, updated_at, updated_by_user_id)
+            VALUES (true, @user, @tenant, NOW(), @actor)
+            ON CONFLICT (singleton) DO UPDATE SET
+                user_daily_turns   = @user,
+                tenant_daily_turns = @tenant,
+                updated_at         = NOW(),
+                updated_by_user_id = @actor",
+            p =>
+            {
+                p.AddWithValue("user", userDailyTurns.HasValue ? userDailyTurns.Value : DBNull.Value);
+                p.AddWithValue("tenant", tenantDailyTurns.HasValue ? tenantDailyTurns.Value : DBNull.Value);
+                p.AddWithValue("actor", actorUserId.HasValue ? actorUserId.Value : DBNull.Value);
+            }, ct);
+    }
+
+    public async Task<int> GetDailyTurnsAsync(string subject, DateOnly day, CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COALESCE((SELECT turns FROM ai_daily_usage WHERE subject = @subject AND day = @day), 0)",
+            p =>
+            {
+                p.AddWithValue("subject", subject);
+                p.AddWithValue("day", day);
+            }, ct);
+    }
+
+    public async Task RecordDailyTurnAsync(string subject, DateOnly day, CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.ExecuteAsync(
+            @"INSERT INTO ai_daily_usage (subject, day, turns)
+              VALUES (@subject, @day, 1)
+              ON CONFLICT (subject, day) DO UPDATE SET turns = ai_daily_usage.turns + 1",
+            p =>
+            {
+                p.AddWithValue("subject", subject);
+                p.AddWithValue("day", day);
             }, ct);
     }
 

@@ -45,6 +45,32 @@ public class SaveAiAllowanceRequestValidator : AbstractValidator<SaveAiAllowance
 }
 
 /// <summary>
+/// Shape guard for the workspace's daily interaction limits. Null is meaningful — it means
+/// no limit — so only present values are checked. Zero is rejected rather than treated as a
+/// block: removing a person's access is what the allowance table is for, and a workspace-wide
+/// zero would strand everyone with no way to tell why.
+/// </summary>
+public class SaveAiDailyLimitsRequestValidator : AbstractValidator<SaveAiDailyLimitsRequest>
+{
+    private const int MaxPlausibleDailyTurns = 10_000;
+
+    public SaveAiDailyLimitsRequestValidator()
+    {
+        RuleFor(x => x.UserDailyTurns)
+            .GreaterThan(0).WithMessage("A daily limit must be at least 1. Leave it empty for no limit.")
+            .LessThanOrEqualTo(MaxPlausibleDailyTurns)
+            .WithMessage("That daily limit looks like a mistake. Leave it empty for no limit.")
+            .When(x => x.UserDailyTurns.HasValue);
+
+        RuleFor(x => x.TenantDailyTurns)
+            .GreaterThan(0).WithMessage("A daily limit must be at least 1. Leave it empty for no limit.")
+            .LessThanOrEqualTo(MaxPlausibleDailyTurns)
+            .WithMessage("That daily limit looks like a mistake. Leave it empty for no limit.")
+            .When(x => x.TenantDailyTurns.HasValue);
+    }
+}
+
+/// <summary>
 /// Shape guard for a saved conversation. The two payloads are the client's own shape and
 /// are not inspected here — only their type and the title are. Size is checked in
 /// <c>AiConversationService</c>, where the transcript ceiling already lives, so the limit

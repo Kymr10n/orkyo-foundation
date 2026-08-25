@@ -21,8 +21,20 @@ vi.mock('@foundation/src/lib/api/ai-api', () => ({
   deleteAiConversation: vi.fn(async () => undefined),
 }));
 
+const aiStatus = vi.hoisted(() => ({
+  value: {
+    available: true,
+    reason: null,
+    monthlyTokenLimit: null,
+    usedTotalTokens: 0,
+    dailyTurnLimit: null as number | null,
+    usedTurnsToday: 0,
+    dailyLimitIsWorkspaceWide: false,
+  },
+}));
+
 vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
-  useAiStatus: () => ({ data: { enabled: true, remainingTokens: 1000 } }),
+  useAiStatus: () => ({ data: aiStatus.value }),
 }));
 
 import { AssistantPanel } from './AssistantPanel';
@@ -37,7 +49,13 @@ import {
 /** The panel reads its conversation list through react-query. */
 function renderPanel(ui: ReactElement) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  const result = render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  return {
+    ...result,
+    /** Re-renders inside the same provider — the plain `rerender` would drop it. */
+    rerenderPanel: (next: ReactElement) =>
+      result.rerender(<QueryClientProvider client={queryClient}>{next}</QueryClientProvider>),
+  };
 }
 
 async function openPanelAndPropose() {
@@ -339,5 +357,159 @@ describe('AssistantPanel conversation persistence', () => {
 
     await waitFor(() => expect(deleteAiConversation).toHaveBeenCalledWith('conv-1'));
     await waitFor(() => expect(screen.queryByText('Restored text.')).not.toBeInTheDocument());
+  });
+});
+
+describe('AssistantPanel daily interaction limit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(listAiConversations).mockResolvedValue([]);
+    sessionStorage.clear();
+    aiStatus.value = {
+      available: true,
+      reason: null,
+      monthlyTokenLimit: null,
+      usedTotalTokens: 0,
+      dailyTurnLimit: null,
+      usedTurnsToday: 0,
+      dailyLimitIsWorkspaceWide: false,
+    };
+  });
+
+  it('counts down the interactions that are left', () => {
+    aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 15, usedTurnsToday: 8 };
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByText(/AI interactions remaining: 7/)).toBeInTheDocument();
+  });
+
+  it('never shows a negative remaining count', () => {
+    // The count can overshoot: a turn is counted when it starts, and the limit can be
+    // lowered while somebody is mid-conversation.
+    aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 5, usedTurnsToday: 9 };
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByText(/AI interactions remaining: 0/)).toBeInTheDocument();
+  });
+
+  it('leaves the header alone for workspaces with no daily limit', () => {
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+
+    expect(screen.queryByText(/interactions remaining/i)).not.toBeInTheDocument();
+  });
+
+  it('says when the countdown belongs to the whole workspace', () => {
+    // The same number means something different then: everyone shares it, and it can fall
+    // while this person is not using the assistant at all.
+    aiStatus.value = {
+      ...aiStatus.value,
+      dailyTurnLimit: 50,
+      usedTurnsToday: 30,
+      dailyLimitIsWorkspaceWide: true,
+    };
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByText(/AI interactions remaining: 20 \(whole workspace\)/)).toBeInTheDocument();
+  });
+
+  it('does not label a personal countdown', () => {
+    aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 15, usedTurnsToday: 8 };
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByText(/AI interactions remaining: 7$/)).toBeInTheDocument();
+  });
+
+  it('stops the composer once the limit is reached', async () => {
+    // Leaving the box live invited another send that could only fail again.
+    vi.mocked(streamAiChat).mockImplementationOnce(async function* () {
+      yield {
+        type: 'error' as const,
+        code: 'workspace_daily_limit_reached',
+        message: 'This workspace has used its AI interactions for today.',
+      };
+      yield { type: 'done' as const };
+    });
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    const user = userEvent.setup();
+    const box = screen.getByPlaceholderText(/ask about your schedule/i);
+    await user.type(box, 'one more');
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText(/used its AI interactions for today/i)).toBeInTheDocument();
+    expect(box).toBeDisabled();
+  });
+
+  it('lets the composer come back when the server reports headroom again', async () => {
+    // After midnight UTC, or after an administrator raises the ceiling, a status refetch
+    // says there are turns again. Leaving the box locked would put a dead input beside a
+    // header reading "remaining: 40".
+    aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 5, usedTurnsToday: 5 };
+    vi.mocked(streamAiChat).mockImplementationOnce(async function* () {
+      yield {
+        type: 'error' as const,
+        code: 'daily_limit_reached',
+        message: 'You have used your AI interactions for today.',
+      };
+      yield { type: 'done' as const };
+    });
+
+    const { rerenderPanel } = renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    const user = userEvent.setup();
+    const box = screen.getByPlaceholderText(/ask about your schedule/i);
+    await user.type(box, 'one more');
+    await user.keyboard('{Enter}');
+    expect(await screen.findByText(/used your AI interactions/i)).toBeInTheDocument();
+    expect(box).toBeDisabled();
+
+    // The next status refetch reports a fresh day.
+    aiStatus.value = { ...aiStatus.value, usedTurnsToday: 0 };
+    rerenderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+
+    expect(screen.getByPlaceholderText(/ask about your schedule/i)).not.toBeDisabled();
+  });
+
+  it('offers a guided demonstration when a demo visitor runs out', async () => {
+    // Only an ephemeral visitor can act on this; an account holder would read it as noise.
+    sessionStorage.setItem('orkyo:session-end-redirect', 'https://orkyo.com/');
+    vi.mocked(streamAiChat).mockImplementationOnce(async function* () {
+      yield {
+        type: 'error' as const,
+        code: 'daily_limit_reached',
+        message: 'The daily limit for AI interactions here has been reached. It resets tomorrow.',
+      };
+      yield { type: 'done' as const };
+    });
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'one more');
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText(/Demo AI limit reached/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /request a guided demonstration/i })).toBeInTheDocument();
+  });
+
+  it('tells an ordinary member the limit was reached without the demo pitch', async () => {
+    vi.mocked(streamAiChat).mockImplementationOnce(async function* () {
+      yield {
+        type: 'error' as const,
+        code: 'daily_limit_reached',
+        message: 'The daily limit for AI interactions here has been reached. It resets tomorrow.',
+      };
+      yield { type: 'done' as const };
+    });
+
+    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'one more');
+    await user.keyboard('{Enter}');
+
+    expect(await screen.findByText(/resets tomorrow/i)).toBeInTheDocument();
+    expect(screen.queryByText(/guided demonstration/i)).not.toBeInTheDocument();
   });
 });

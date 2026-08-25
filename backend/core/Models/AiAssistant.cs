@@ -63,6 +63,23 @@ public sealed record SaveAiAllowanceRequest
     public long? MonthlyTokenLimit { get; init; }
 }
 
+/// <summary>The workspace's daily interaction limits, as stored and as returned. Null means no limit.</summary>
+public sealed record AiDailyLimits
+{
+    public int? UserDailyTurns { get; init; }
+    public int? TenantDailyTurns { get; init; }
+}
+
+/// <summary>Request body for the workspace's daily interaction limits. Null clears a limit.</summary>
+public sealed record SaveAiDailyLimitsRequest
+{
+    /// <summary>Interactions one person may make each day. Null means no limit.</summary>
+    public int? UserDailyTurns { get; init; }
+
+    /// <summary>Interactions the whole workspace may make each day. Null means no limit.</summary>
+    public int? TenantDailyTurns { get; init; }
+}
+
 /// <summary>
 /// Why a user may or may not run an assistant turn right now. Computed per request from
 /// the entitlement, the stored credential, the caller's role, and this month's usage.
@@ -70,11 +87,27 @@ public sealed record SaveAiAllowanceRequest
 public sealed record AiAccessDecision
 {
     public bool Allowed { get; init; }
-    /// <summary>One of: <c>not_entitled</c>, <c>not_configured</c>, <c>not_allowed</c>, <c>allowance_exhausted</c>. Null when allowed.</summary>
+    /// <summary>One of: <c>not_entitled</c>, <c>not_configured</c>, <c>not_allowed</c>, <c>allowance_exhausted</c>, <c>daily_limit_reached</c>, <c>workspace_daily_limit_reached</c>. Null when allowed.</summary>
     public string? Reason { get; init; }
     /// <summary>Null means unlimited (admins, or an explicit unlimited grant).</summary>
     public long? MonthlyTokenLimit { get; init; }
     public long UsedTotalTokens { get; init; }
+
+    /// <summary>
+    /// Interactions allowed per day, when a daily limit applies here. Null when none does,
+    /// which is every workspace whose plan leaves it unlimited.
+    /// </summary>
+    public int? DailyTurnLimit { get; init; }
+
+    /// <summary>Interactions already taken today against <see cref="DailyTurnLimit"/>.</summary>
+    public int UsedTurnsToday { get; init; }
+
+    /// <summary>
+    /// True when <see cref="DailyTurnLimit"/> is the whole workspace's ceiling rather than
+    /// this person's own. The two need different words: one waits until tomorrow, the other
+    /// is everybody at once and an administrator can raise it.
+    /// </summary>
+    public bool DailyLimitIsWorkspaceWide { get; init; }
 
     public static AiAccessDecision Deny(string reason) => new() { Allowed = false, Reason = reason };
 }
@@ -86,6 +119,22 @@ public sealed record AiStatus
     public string? Reason { get; init; }
     public long? MonthlyTokenLimit { get; init; }
     public long UsedTotalTokens { get; init; }
+
+    /// <summary>
+    /// Interactions allowed per day, when a daily limit applies here. Null when none does,
+    /// which is every workspace whose plan leaves it unlimited.
+    /// </summary>
+    public int? DailyTurnLimit { get; init; }
+
+    /// <summary>Interactions already taken today against <see cref="DailyTurnLimit"/>.</summary>
+    public int UsedTurnsToday { get; init; }
+
+    /// <summary>
+    /// True when <see cref="DailyTurnLimit"/> is the whole workspace's ceiling rather than
+    /// this person's own. The two need different words: one waits until tomorrow, the other
+    /// is everybody at once and an administrator can raise it.
+    /// </summary>
+    public bool DailyLimitIsWorkspaceWide { get; init; }
 }
 
 /// <summary>

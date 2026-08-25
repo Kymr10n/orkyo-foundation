@@ -218,6 +218,8 @@ export const qk = {
     credential: () => ["ai", "credential"] as const,
     /** Per-user grants and this month's usage. */
     allowances: () => ["ai", "allowances"] as const,
+    /** The workspace's daily interaction limits. */
+    dailyLimits: () => ["ai", "daily-limits"] as const,
     /** Whether the current user can use the assistant right now. */
     status: () => ["ai", "status"] as const,
     /** The caller's saved conversations (titles only — bodies are fetched on demand). */

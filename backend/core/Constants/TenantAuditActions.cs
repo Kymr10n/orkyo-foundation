@@ -32,4 +32,5 @@ public static class TenantAuditActions
     public const string AiCredentialTested = "ai.credential_tested";
     public const string AiAllowanceGranted = "ai.allowance_granted";
     public const string AiAllowanceRevoked = "ai.allowance_revoked";
+    public const string AiDailyLimitsChanged = "ai.daily_limits_changed";
 }

@@ -34,6 +34,8 @@ import { randomId } from "@foundation/src/lib/core/ids";
 import { ProposalCard, proposalToAutoScheduleRequestIds, proposalToRequestUpdate } from "./ProposalCard";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useAppStore } from "@foundation/src/store/app-store";
+import { isEphemeralSession } from "@foundation/src/lib/utils/session-end";
+import { getApexOrigin } from "@foundation/src/lib/utils/tenant-navigation";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import {
   usePanelWidth,
@@ -162,10 +164,22 @@ export function AssistantPanel({
   const [tooLong, setTooLong] = useState(false);
   /** A transient panel-level message. Never part of the conversation, so never saved. */
   const [notice, setNotice] = useState<string | null>(null);
+  /** Set when the workspace's daily interaction limit stopped this turn. */
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
 
   // On a phone the panel is the whole screen, so there is nothing to drag it against.
   const { isPhone } = useBreakpoint();
   const { width, isDragging, onPointerDown, onKeyDown } = usePanelWidth("orkyo.assistant.width");
+
+  /**
+   * Whether the limit still holds. The local flag is what a refused turn sets, but the
+   * server is the authority: after midnight UTC, or after an administrator raises the
+   * ceiling, a status refetch reports headroom again and the composer has to come back.
+   * Without this the header could read "remaining: 40" beside an input nobody can type in.
+   */
+  const outOfInteractions =
+    dailyLimitReached &&
+    !(status?.dailyTurnLimit != null && status.usedTurnsToday < status.dailyTurnLimit);
 
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -198,6 +212,8 @@ export function AssistantPanel({
     setProposal(null);
     setTooLong(false);
     setNotice(null);
+    // Deliberately NOT clearing dailyLimitReached: a new conversation does not grant new
+    // interactions, and hiding the message would invite a send that fails again.
     // A fresh conversation has nothing stored yet, and seeding belongs to the context
     // that opened the panel, not to whatever was on screen before.
     saved.current = { id, entries: [], transcript: [] };
@@ -294,6 +310,8 @@ export function AssistantPanel({
               // panel had no way to offer one, and the oversized transcript stayed in
               // state so every later send failed the same way.
               if (event.code === "conversation_too_long") setTooLong(true);
+              if (event.code === "daily_limit_reached" || event.code === "workspace_daily_limit_reached")
+                setDailyLimitReached(true);
               setEntries((prev) => [...prev, { kind: "error", text: event.message }]);
               break;
             case "done":
@@ -329,6 +347,13 @@ export function AssistantPanel({
   // Saving follows a finished turn rather than each event: mid-turn state is not worth
   // storing, and a turn writes its conversation once. Failures are logged and dropped —
   // storage is a notebook beside the conversation, never a condition of having one.
+  // The header counts interactions down, so it has to be re-read once a turn has used one.
+  // Nothing needed this before: the token figure it used to show moved too slowly to notice.
+  useEffect(() => {
+    if (busy || entries.length === 0) return;
+    void queryClient.invalidateQueries({ queryKey: qk.ai.status() });
+  }, [busy, entries.length, queryClient]);
+
   useEffect(() => {
     if (busy || entries.length === 0) return;
 
@@ -469,7 +494,9 @@ export function AssistantPanel({
           </div>
         )}
         <SheetHeader className="border-b p-4">
-          <SheetTitle className="flex items-center gap-2">
+          {/* pr-6 keeps the actions clear of the sheet's own close button, which Radix
+              positions absolutely at right-4 and is therefore not in this flex row. */}
+          <SheetTitle className="flex items-center gap-2 pr-6">
             <Bot className="h-4 w-4" />
             <span className="flex-1">Assistant</span>
 
@@ -527,7 +554,14 @@ export function AssistantPanel({
             </DropdownMenu>
           </SheetTitle>
           <SheetDescription>
-            {status?.monthlyTokenLimit != null
+            {status?.dailyTurnLimit != null
+              ? // Names the limit when it is the workspace's, because the same number means
+                // something different then: everyone shares it, and it can fall while you
+                // are not using the assistant at all.
+                `AI interactions remaining: ${Math.max(0, status.dailyTurnLimit - status.usedTurnsToday)}${
+                  status.dailyLimitIsWorkspaceWide ? " (whole workspace)" : ""
+                }`
+              : status?.monthlyTokenLimit != null
               ? `${status.usedTotalTokens.toLocaleString()} of ${status.monthlyTokenLimit.toLocaleString()} tokens used this month.`
               : "Ask about your schedule, resources, and conflicts."}
           </SheetDescription>
@@ -563,6 +597,23 @@ export function AssistantPanel({
           ))}
 
           {notice && <p className="text-sm text-destructive">{notice}</p>}
+
+          {dailyLimitReached && isEphemeralSession() && (
+            // Only for a visitor who never had an account: an account holder cannot act on
+            // "request a guided demonstration", and telling them to would be noise.
+            <p className="text-sm">
+              Demo AI limit reached. Try again tomorrow or{" "}
+              <a
+                className="underline"
+                href={`${getApexOrigin()}/contact`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                request a guided demonstration
+              </a>
+              .
+            </p>
+          )}
 
           {tooLong && (
             <Button variant="outline" size="sm" onClick={startNewConversation}>
@@ -601,9 +652,13 @@ export function AssistantPanel({
             }}
             placeholder="Ask about your schedule"
             aria-label="Message the assistant"
-            disabled={busy}
+            disabled={busy || outOfInteractions}
           />
-          <Button onClick={() => void handleSend()} disabled={busy || !input.trim()} size="icon">
+          <Button
+            onClick={() => void handleSend()}
+            disabled={busy || outOfInteractions || !input.trim()}
+            size="icon"
+          >
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
           </Button>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bot, Check, KeyRound, Loader2, Trash2, X } from "lucide-react";
+import { Bot, Check, Gauge, KeyRound, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
@@ -13,13 +13,15 @@ import { useAiAssistantAvailable } from "@foundation/src/hooks/useAiAssistantAva
 import {
   useAiAllowances,
   useAiCredential,
+  useAiDailyLimits,
   useDeleteAiCredential,
   useRevokeAiAllowance,
   useSaveAiAllowance,
   useSaveAiCredential,
+  useSaveAiDailyLimits,
   useTestAiCredential,
 } from "@foundation/src/hooks/useAiAssistant";
-import type { AiUserAllowance } from "@foundation/src/lib/api/ai-api";
+import type { AiDailyLimits, AiUserAllowance } from "@foundation/src/lib/api/ai-api";
 
 export interface AiAssistantSettingsProps {
   /** Where to send someone whose plan does not include the assistant. Omitted in Community. */
@@ -40,6 +42,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
 
   const { data: credential, isLoading: credentialLoading } = useAiCredential(entitled);
   const { data: allowances, isLoading: allowancesLoading } = useAiAllowances(entitled);
+  const { data: limits, isLoading: limitsLoading, isError: limitsError } = useAiDailyLimits(entitled);
 
   const saveCredential = useSaveAiCredential();
   const deleteCredential = useDeleteAiCredential();
@@ -220,6 +223,35 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
         )}
       </section>
 
+      <section className="space-y-4">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Gauge className="h-4 w-4" />
+          Daily limits
+        </div>
+        <p className="text-sm text-muted-foreground">
+          A ceiling on interactions rather than tokens, useful when many people share one
+          login. Both counts reset at the start of each day, in UTC. Leave a field empty
+          for no limit — most workspaces need neither.
+        </p>
+
+        {limitsLoading ? (
+          <div className="py-8">
+            <LoadingSpinner fullScreen={false} />
+          </div>
+        ) : limitsError || !limits ? (
+          // Never fall back to empty fields here. Empty means "no limit", so a form that
+          // rendered blank after a failed read would look exactly like a workspace that
+          // has none — and one Save would then clear the limits that are really set.
+          <Alert>
+            <AlertDescription>
+              The daily limits could not be loaded. Reload the page to try again.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <DailyLimitsForm limits={limits} />
+        )}
+      </section>
+
       <ConfirmDialog
         open={removeOpen}
         onOpenChange={setRemoveOpen}
@@ -229,6 +261,102 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
         destructive
         onConfirm={handleRemove}
       />
+    </div>
+  );
+}
+
+/**
+ * The workspace's two daily interaction ceilings.
+ *
+ * An empty field means no limit, which is what every workspace starts with — the same
+ * convention the token allowance above uses, so the two read alike. The fields are only
+ * submitted together: they are one row on the server, and saving one while showing a
+ * stale value for the other would silently overwrite it.
+ */
+/** Matches SaveAiDailyLimitsRequestValidator, so the two cannot drift apart silently. */
+const MAX_DAILY_TURNS = 10_000;
+
+function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
+  const save = useSaveAiDailyLimits();
+  const [perUser, setPerUser] = useState(limits.userDailyTurns?.toString() ?? "");
+  const [perWorkspace, setPerWorkspace] = useState(limits.tenantDailyTurns?.toString() ?? "");
+
+  /**
+   * An empty field means no limit. Anything else has to be a whole number in range —
+   * returning null for garbage would read as "clear the limit", which is the one outcome
+   * nobody types by accident. Bounds match the server's validator so a mistake is caught
+   * here with a useful message rather than coming back as a generic 400.
+   */
+  const parse = (value: string): { ok: true; value: number | null } | { ok: false } => {
+    const trimmed = value.trim();
+    if (trimmed === "") return { ok: true, value: null };
+    const n = Number(trimmed);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_DAILY_TURNS) return { ok: false };
+    return { ok: true, value: n };
+  };
+
+  const handleSave = async () => {
+    const user = parse(perUser);
+    const workspace = parse(perWorkspace);
+    if (!user.ok || !workspace.ok) {
+      toast.error(`A daily limit must be a whole number from 1 to ${MAX_DAILY_TURNS}. Leave it empty for no limit.`);
+      return;
+    }
+
+    try {
+      // Both fields go together: they are one row on the server, so sending one while
+      // showing a stale value for the other would overwrite it silently.
+      await save.mutateAsync({ userDailyTurns: user.value, tenantDailyTurns: workspace.value });
+      toast.success("Daily limits saved");
+    } catch {
+      toast.error("Could not save the daily limits");
+    }
+  };
+
+  return (
+    <div className="rounded-lg border p-4 space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="ai-per-user">Interactions per person each day</Label>
+          <Input
+            id="ai-per-user"
+            type="number"
+            min={1}
+            max={MAX_DAILY_TURNS}
+            inputMode="numeric"
+            placeholder="No limit"
+            value={perUser}
+            onChange={(e) => setPerUser(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Counted for each person separately. On a shared login, each visitor gets their
+            own count.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="ai-per-workspace">Interactions for the whole workspace each day</Label>
+          <Input
+            id="ai-per-workspace"
+            type="number"
+            min={1}
+            max={MAX_DAILY_TURNS}
+            inputMode="numeric"
+            placeholder="No limit"
+            value={perWorkspace}
+            onChange={(e) => setPerWorkspace(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Everyone's interactions together. Reached first, it stops the assistant for
+            everyone until tomorrow.
+          </p>
+        </div>
+      </div>
+
+      <Button onClick={handleSave} disabled={save.isPending}>
+        {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+        Save limits
+      </Button>
     </div>
   );
 }

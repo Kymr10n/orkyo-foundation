@@ -40,6 +40,13 @@ public sealed class PrincipalContext
     /// <summary>External subject identifier (e.g., Keycloak sub)</summary>
     public string? ExternalSubject { get; init; }
 
+    /// <summary>
+    /// The identity provider's session id (Keycloak's <c>sid</c>), when the request carries
+    /// one. It tells two visitors apart where the account cannot: the public demo shares a
+    /// single user, so this is the only per-visitor handle that exists.
+    /// </summary>
+    public string? SessionId { get; init; }
+
     /// <summary>Whether this user has the site-admin role (global admin across all tenants)</summary>
     public bool IsSiteAdmin { get; init; }
 

@@ -36,6 +36,49 @@ public static class AiAllowanceEndpoints
         group.MapDelete("/{userId:guid}", RevokeAllowance)
             .WithName("RevokeAiAllowance")
             .WithSummary("Revoke a user's assistant access entirely");
+
+        // Daily limits sit beside the allowances rather than under their own route: they
+        // are the same admin screen and the same authorization, and a separate group would
+        // duplicate both.
+        group.MapGet("/daily-limits", GetDailyLimits)
+            .WithName("GetAiDailyLimits")
+            .WithSummary("Read the workspace's daily interaction limits");
+
+        group.MapPut("/daily-limits", SaveDailyLimits)
+            .WithName("SaveAiDailyLimits")
+            .WithSummary("Set the workspace's daily interaction limits");
+    }
+
+    private static async Task<IResult> GetDailyLimits(
+        IAiAccessService access,
+        CancellationToken ct)
+        => Results.Ok(await access.GetDailyLimitsAsync(ct));
+
+    private static async Task<IResult> SaveDailyLimits(
+        SaveAiDailyLimitsRequest request,
+        IValidator<SaveAiDailyLimitsRequest> validator,
+        IAiAccessService access,
+        ICurrentPrincipal principal,
+        CancellationToken ct)
+    {
+        var shape = await validator.ValidateAsync(request, ct);
+        if (!shape.IsValid)
+            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
+                Api.Constants.ErrorCodes.ValidationError,
+                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+
+        try
+        {
+            await access.SetDailyLimitsAsync(
+                request.UserDailyTurns, request.TenantDailyTurns,
+                principal.UserId == Guid.Empty ? null : principal.UserId, ct);
+            return Results.NoContent();
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
+                Api.Constants.ErrorCodes.ValidationError, detail: ex.Message);
+        }
     }
 
     private static async Task<IResult> ListAllowances(

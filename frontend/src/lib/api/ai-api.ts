@@ -76,14 +76,36 @@ export async function revokeAiAllowance(userId: string): Promise<void> {
   return apiDelete(`/api/ai/allowances/${userId}`);
 }
 
+// ── Daily interaction limits ───────────────────────────────────────────────────
+
+/** The workspace's daily interaction limits. Null means no limit. */
+export interface AiDailyLimits {
+  userDailyTurns: number | null;
+  tenantDailyTurns: number | null;
+}
+
+export async function getAiDailyLimits(): Promise<AiDailyLimits> {
+  return apiGet<AiDailyLimits>('/api/ai/allowances/daily-limits');
+}
+
+export async function saveAiDailyLimits(limits: AiDailyLimits): Promise<void> {
+  return apiPut('/api/ai/allowances/daily-limits', limits);
+}
+
 // ── Status ─────────────────────────────────────────────────────────────────────
 
 export interface AiStatus {
   available: boolean;
-  /** Why not, when unavailable: `not_entitled` | `not_configured` | `not_allowed` | `allowance_exhausted`. */
+  /** Why not, when unavailable: `not_entitled` | `not_configured` | `not_allowed` | `allowance_exhausted` | `daily_limit_reached` | `workspace_daily_limit_reached`. */
   reason: string | null;
   monthlyTokenLimit: number | null;
   usedTotalTokens: number;
+  /** Interactions allowed per day, when a daily limit applies here. Null when none does. */
+  dailyTurnLimit: number | null;
+  /** Interactions already taken today against dailyTurnLimit. */
+  usedTurnsToday: number;
+  /** True when dailyTurnLimit is the whole workspace's ceiling rather than the caller's own. */
+  dailyLimitIsWorkspaceWide: boolean;
 }
 
 export async function getAiStatus(): Promise<AiStatus> {

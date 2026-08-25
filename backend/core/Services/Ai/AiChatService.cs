@@ -128,6 +128,17 @@ public sealed class AiChatService(
             yield break;
         }
 
+        // Counted once the turn can actually reach the provider, and before anything is
+        // spent: a turn that fails on the way still used one, and counting on success
+        // would let a failing turn be retried without end. Deliberately below the
+        // transcript check — a conversation refused for its size never reaches Anthropic,
+        // so charging for it would take a daily interaction and give nothing back.
+        //
+        // The count is not atomic with the check in EvaluateAsync above. Turns already in
+        // flight can push it past the limit, so treat the ceiling as a damper on spend
+        // rather than an exact quota.
+        await access.RecordDailyTurnAsync(token);
+
         var apiKey = await credentials.GetApiKeyAsync(token);
         if (string.IsNullOrEmpty(apiKey))
         {
@@ -447,6 +458,8 @@ public sealed class AiChatService(
         "not_configured" => "This workspace has no AI key configured. An administrator can add one in Administration.",
         "not_allowed" => "You do not have access to the AI assistant. An administrator can grant it in Administration.",
         "allowance_exhausted" => "You have used your AI token allowance for this month.",
+        "daily_limit_reached" => "You have used your AI interactions for today. Your allowance returns tomorrow.",
+        "workspace_daily_limit_reached" => "This workspace has used its AI interactions for today. The allowance returns tomorrow, or an administrator can raise the daily limit.",
         _ => "The AI assistant is not available.",
     };
 }
