@@ -34,75 +34,6 @@ public class SessionService : ISessionService
         _logger = logger;
     }
 
-    public async Task<SessionBootstrapResponse> BootstrapSessionAsync(string keycloakSub, string? email, string? displayName, CancellationToken ct = default)
-    {
-        await using var db = _connectionFactory.CreateControlPlaneConnection();
-        await db.OpenAsync(ct);
-
-        var existingIdentity = await FindIdentityByKeycloakSubAsync(db, keycloakSub, ct);
-
-        Guid userId;
-
-        if (existingIdentity != null)
-        {
-            userId = existingIdentity.UserId;
-            _logger.LogInformation("Found existing identity for Keycloak sub={Sub}, user_id={UserId}", keycloakSub, userId);
-            await UpdateLastLoginAsync(db, userId, ct);
-        }
-        else
-        {
-            _logger.LogInformation("First login for Keycloak sub={Sub}, email={Email}", keycloakSub, email);
-
-            var existingUser = await FindUserByEmailAsync(db, email ?? "", ct);
-
-            if (existingUser != null)
-            {
-                userId = existingUser.Id;
-                _logger.LogInformation("Linking Keycloak identity to existing user email={Email}, user_id={UserId}", email, userId);
-            }
-            else
-            {
-                userId = await CreateUserAsync(db, email ?? keycloakSub, displayName ?? email ?? "User", ct);
-                _logger.LogInformation("Created new user for Keycloak sub={Sub}, user_id={UserId}", keycloakSub, userId);
-            }
-
-            await CreateIdentityLinkAsync(db, userId, keycloakSub, email, ct);
-            await UpdateLastLoginAsync(db, userId, ct);
-        }
-
-        var userInfo = await GetUserByIdInternalAsync(db, userId, ct);
-        if (userInfo == null)
-            throw new InvalidOperationException($"User {userId} not found after bootstrap");
-
-        var memberships = await GetTenantMembershipsAsync(db, userId, ct);
-        var requiredTosVersion = GetRequiredTosVersion();
-        var tosRequired = false;
-
-        if (!string.IsNullOrEmpty(requiredTosVersion))
-            tosRequired = !await HasAcceptedTosInternalAsync(db, userId, requiredTosVersion, ct);
-
-        return new SessionBootstrapResponse
-        {
-            User = userInfo,
-            TosRequired = tosRequired,
-            RequiredTosVersion = requiredTosVersion,
-            TosText = await GetTosTextIfRequiredAsync(tosRequired, ct),
-            Tenants = memberships,
-            SuggestedTenantSlug = memberships.FirstOrDefault(m => m.State == MembershipStatusConstants.Active)?.Slug
-        };
-    }
-
-    public async Task<SessionBootstrapResponse?> GetSessionByKeycloakSubAsync(string keycloakSub, CancellationToken ct = default)
-    {
-        await using var db = _connectionFactory.CreateControlPlaneConnection();
-        await db.OpenAsync(ct);
-
-        var identity = await FindIdentityByKeycloakSubAsync(db, keycloakSub, ct);
-        if (identity == null) return null;
-
-        return await BuildSessionResponseAsync(db, identity.UserId, ct);
-    }
-
     public async Task<SessionBootstrapResponse?> GetSessionByUserIdAsync(Guid userId, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateControlPlaneConnection();
@@ -177,13 +108,6 @@ public class SessionService : ISessionService
 
     public string? GetRequiredTosVersion() => _configuration[ConfigKeys.TosRequiredVersion];
 
-    public async Task<bool> HasAcceptedTosAsync(Guid userId, string requiredVersion, CancellationToken ct = default)
-    {
-        await using var db = _connectionFactory.CreateControlPlaneConnection();
-        await db.OpenAsync(ct);
-        return await HasAcceptedTosInternalAsync(db, userId, requiredVersion, ct);
-    }
-
     public async Task AcceptTosAsync(Guid userId, string tosVersion, string? ipAddress, string? userAgent, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateControlPlaneConnection();
@@ -204,100 +128,6 @@ public class SessionService : ISessionService
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private async Task<UserIdentity?> FindIdentityByKeycloakSubAsync(NpgsqlConnection db, string keycloakSub, CancellationToken ct = default)
-    {
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT id, user_id, provider, provider_subject, provider_email, created_at
-            FROM user_identities
-            WHERE provider = 'keycloak' AND provider_subject = @sub
-        ", db);
-        cmd.Parameters.AddWithValue("sub", keycloakSub);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-
-        return new UserIdentity
-        {
-            Id = reader.GetGuid(0),
-            UserId = reader.GetGuid(1),
-            Provider = reader.GetString(2),
-            ProviderSubject = reader.GetString(3),
-            ProviderEmail = reader.IsDBNull(4) ? null : reader.GetString(4),
-            CreatedAt = reader.GetDateTime(5)
-        };
-    }
-
-    private async Task<User?> FindUserByEmailAsync(NpgsqlConnection db, string email, CancellationToken ct = default)
-    {
-        if (string.IsNullOrEmpty(email)) return null;
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT id, email, display_name, status, created_at, updated_at, last_login_at
-            FROM users WHERE LOWER(email) = LOWER(@email)
-        ", db);
-        cmd.Parameters.AddWithValue("email", email);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-
-        return new User
-        {
-            Id = reader.GetGuid(0),
-            Email = reader.GetString(1),
-            DisplayName = reader.GetString(2),
-            Status = Enum.Parse<UserStatus>(reader.GetString(3), true),
-            CreatedAt = reader.GetDateTime(4),
-            UpdatedAt = reader.GetDateTime(5),
-            LastLoginAt = reader.IsDBNull(6) ? null : reader.GetDateTime(6)
-        };
-    }
-
-    private async Task<Guid> CreateUserAsync(NpgsqlConnection db, string email, string displayName, CancellationToken ct = default)
-    {
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO users (email, display_name, status, created_at, updated_at)
-            VALUES (@email, @displayName, 'active', NOW(), NOW())
-            RETURNING id
-        ", db);
-        cmd.Parameters.AddWithValue("email", email);
-        cmd.Parameters.AddWithValue("displayName", displayName);
-
-        return (Guid)(await cmd.ExecuteScalarAsync(ct))!;
-    }
-
-    private async Task CreateIdentityLinkAsync(NpgsqlConnection db, Guid userId, string keycloakSub, string? email, CancellationToken ct = default)
-    {
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO user_identities (user_id, provider, provider_subject, provider_email, created_at)
-            VALUES (@userId, 'keycloak', @sub, @email, NOW())
-            ON CONFLICT (provider, provider_subject) DO NOTHING
-        ", db);
-        cmd.Parameters.AddWithValue("userId", userId);
-        cmd.Parameters.AddWithValue("sub", keycloakSub);
-        cmd.Parameters.AddWithValue("email", (object?)email ?? DBNull.Value);
-
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
-
-    private async Task UpdateLastLoginAsync(NpgsqlConnection db, Guid userId, CancellationToken ct = default)
-    {
-        // Clears any lifecycle warning/dormancy state — a successful login is proof of activity.
-        await using var cmd = new NpgsqlCommand(@"
-            UPDATE users
-            SET last_login_at = NOW(),
-                updated_at = NOW(),
-                lifecycle_status = NULL,
-                lifecycle_warning_count = 0,
-                lifecycle_last_warned_at = NULL,
-                lifecycle_dormant_since = NULL,
-                lifecycle_confirm_token = NULL,
-                lifecycle_confirm_token_expires_at = NULL
-            WHERE id = @id
-        ", db);
-        cmd.Parameters.AddWithValue("id", userId);
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
 
     private async Task<UserInfo?> GetUserByIdInternalAsync(NpgsqlConnection db, Guid userId, CancellationToken ct = default)
     {

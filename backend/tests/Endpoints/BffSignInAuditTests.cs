@@ -99,4 +99,32 @@ public class BffSignInAuditTests
         await Invoke();
         VerifyNoAudit();
     }
+    [Fact]
+    public async Task SignOut_RecordsTheSignedOutAction_WithTheUserAsActor()
+    {
+        var tenantId = Guid.NewGuid();
+        SetupTenants(tenantId);
+        SetupResolver(tenantId);
+
+        await Recorder().RecordSignOutAsync(_userId);
+
+        _tenantUsers.Verify(t => t.RecordAuditEventAsync(
+            It.IsAny<OrgContext>(), SecurityAuditActions.SessionSignedOut, _userId,
+            "tenant", tenantId.ToString(), It.IsAny<object?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SignOut_MultiTenantUser_IsSkippedLikeSignIn()
+    {
+        // Same attribution rule as sign-in: with more than one tenant there is no single
+        // workspace to write the event into.
+        SetupTenants(Guid.NewGuid(), Guid.NewGuid());
+
+        await Recorder().RecordSignOutAsync(_userId);
+
+        _tenantUsers.Verify(t => t.RecordAuditEventAsync(
+            It.IsAny<OrgContext>(), It.IsAny<string>(), It.IsAny<Guid?>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
 }

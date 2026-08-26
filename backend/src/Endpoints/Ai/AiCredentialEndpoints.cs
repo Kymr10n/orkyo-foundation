@@ -94,6 +94,7 @@ public static class AiCredentialEndpoints
     private static async Task<IResult> TestCredential(
         IAiCredentialService credentials,
         IAnthropicGateway gateway,
+        ICurrentPrincipal principal,
         CancellationToken ct)
     {
         var apiKey = await credentials.GetApiKeyAsync(ct);
@@ -102,6 +103,10 @@ public static class AiCredentialEndpoints
 
         var result = await gateway.TestAsync(apiKey, await credentials.GetModelAsync(ct), ct);
         if (result.Ok) await credentials.MarkVerifiedAsync(ct);
+
+        // Key saves and removals were audited; tests were not, though the constant existed.
+        await credentials.RecordTestedAsync(result.Ok, result.Reason,
+            principal.UserId == Guid.Empty ? null : principal.UserId, ct);
         return Results.Ok(result);
     }
 }

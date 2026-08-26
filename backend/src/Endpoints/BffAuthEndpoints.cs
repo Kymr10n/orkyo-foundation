@@ -230,6 +230,7 @@ public static class BffAuthEndpoints
         IBffSessionStore sessionStore,
         IBffAuthClientRegistry authClientRegistry,
         IDataProtectionProvider dataProtection,
+        ISignInAuditRecorder auditRecorder,
         ILogger<Log> logger)
     {
         var bffOptions = bffOpts.Value;
@@ -249,6 +250,13 @@ public static class BffAuthEndpoints
                     idToken = session.IdToken;
                     authClient = session.AuthClient;
                     await sessionStore.RemoveAsync(sessionId);
+
+                    // The other half of the session story: sign-ins were audited, sign-outs
+                    // were not. Best-effort inside the recorder, and CancellationToken.None
+                    // because the browser is about to navigate away — an aborted request
+                    // must not lose the event.
+                    if (Guid.TryParse(session.UserId, out var signedOutUser))
+                        await auditRecorder.RecordSignOutAsync(signedOutUser, CancellationToken.None);
                 }
             }
             catch (Exception ex)
