@@ -12,7 +12,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// <summary>
 /// Verifies floorplan/asset blobs are encrypted at rest (the bytes in
 /// <c>assets.data</c> are an Orkyo envelope, never plaintext) and decrypt
-/// byte-identically on read, plus the in-place backfill.
+/// byte-identically on read.
 /// </summary>
 [Collection("Database collection")]
 public class AssetRepositoryEncryptionTests
@@ -85,54 +85,5 @@ public class AssetRepositoryEncryptionTests
 
         download.Should().NotBeNull();
         download!.Data.Should().Equal(plaintext);
-    }
-
-    [Fact]
-    public async Task Backfill_EncryptsLegacyPlaintextRow_AndIsIdempotent()
-    {
-        // Insert a legacy plaintext row directly (enc_algorithm NULL).
-        var plaintext = FakePng("LEGACY_PLAINTEXT");
-        var ownerId = Guid.NewGuid();
-        var legacyId = Guid.NewGuid();
-        await using (var conn = _connFactory.CreateOrgConnection(_orgContext))
-        {
-            await conn.OpenAsync();
-            await using var insert = new NpgsqlCommand(
-                @"INSERT INTO assets (id, tenant_id, owner_type, owner_id, asset_type, file_name,
-                     content_type, size_bytes, checksum_sha256, storage_kind, data)
-                  VALUES (@id, @tid, 'site', @owner, 'floorplan', 'legacy.png', 'image/png',
-                     @size, @sum, 'postgres', @data)", conn);
-            insert.Parameters.AddWithValue("id", legacyId);
-            insert.Parameters.AddWithValue("tid", _orgContext.OrgId);
-            insert.Parameters.AddWithValue("owner", ownerId);
-            insert.Parameters.AddWithValue("size", (long)plaintext.Length);
-            insert.Parameters.AddWithValue("sum", Sha256Hex(plaintext));
-            insert.Parameters.AddWithValue("data", plaintext);
-            await insert.ExecuteNonQueryAsync();
-        }
-
-        // Backfill encrypts it.
-        var encrypted = await _repo.EncryptUnencryptedBlobsAsync();
-        encrypted.Should().BeGreaterThanOrEqualTo(1);
-
-        var (raw, encAlgorithm, _) = await ReadRawAsync(legacyId);
-        Encoding.ASCII.GetString(raw, 0, 4).Should().Be("ORK1");
-        encAlgorithm.Should().Be("aesgcm256");
-
-        // Still downloadable as the original plaintext.
-        var download = await _repo.GetDownloadForOwnerAsync(
-            _orgContext.OrgId, AssetOwnerTypes.Site, ownerId, AssetTypes.Floorplan);
-        download!.Data.Should().Equal(plaintext);
-
-        // Second run is a no-op for this row (idempotent).
-        var before = await CountEncryptedAsync(legacyId);
-        await _repo.EncryptUnencryptedBlobsAsync();
-        (await CountEncryptedAsync(legacyId)).Should().Be(before);
-    }
-
-    private async Task<int> CountEncryptedAsync(Guid assetId)
-    {
-        var (_, encAlgorithm, _) = await ReadRawAsync(assetId);
-        return encAlgorithm is null ? 0 : 1;
     }
 }

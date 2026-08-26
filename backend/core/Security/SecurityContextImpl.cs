@@ -23,8 +23,6 @@ public sealed class CurrentPrincipal : ICurrentPrincipal
 
     public string? SessionId => _context?.SessionId;
 
-    public PrincipalContext GetContext() => _context ?? PrincipalContext.Anonymous;
-
     public Guid RequireUserId()
     {
         if (!IsAuthenticated)
@@ -91,14 +89,6 @@ public sealed class CurrentAuthorizationContext : IAuthorizationContext
     public bool CanEdit => _context?.CanEdit ?? false;
 
     public bool CanView => _context?.CanView ?? false;
-
-    public AuthorizationContext GetContext() => _context ?? throw new InvalidOperationException("Authorization context not set");
-
-    public void RequireMembership()
-    {
-        if (!IsMember)
-            throw new UnauthorizedAccessException("Tenant membership required");
-    }
 
     public void RequireRole(TenantRole minimumRole)
     {

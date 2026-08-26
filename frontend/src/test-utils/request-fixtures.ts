@@ -61,22 +61,6 @@ export function makeScheduledRequest(
 }
 
 /**
- * Create a request with multiple assignments (space + person + tool).
- */
-export function makeMultiResourceRequest(
-  assignments: { resourceId: string; resourceTypeKey: string }[],
-  overrides: Partial<Request> = {}
-): Request {
-  return makeRequest({
-    assignments: assignments.map(a => makeAssignment(a.resourceId, a.resourceTypeKey)),
-    startTs: '2026-01-01T08:00:00Z',
-    endTs: '2026-01-01T10:00:00Z',
-    isScheduled: true,
-    ...overrides,
-  });
-}
-
-/**
  * Create a ResourceAssignment fixture.
  */
 export function makeAssignment(

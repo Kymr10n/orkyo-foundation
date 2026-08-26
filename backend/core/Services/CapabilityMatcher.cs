@@ -6,10 +6,6 @@ namespace Api.Services;
 
 public interface ICapabilityMatcher
 {
-    Task<bool> ResourceSatisfiesRequirementsAsync(
-        Guid resourceId,
-        IReadOnlyList<Guid> requiredCriterionIds, CancellationToken ct = default);
-
     // Phase 3: Typed operator matching
     Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,
@@ -24,20 +20,6 @@ public interface ICapabilityMatcher
 
 public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepository) : ICapabilityMatcher
 {
-    public async Task<bool> ResourceSatisfiesRequirementsAsync(
-        Guid resourceId,
-        IReadOnlyList<Guid> requiredCriterionIds, CancellationToken ct = default)
-    {
-        if (requiredCriterionIds.Count == 0)
-            return true;
-
-        var capabilities = await capabilityRepository.GetByResourceAsync(resourceId, ct);
-        var presentIds = capabilities.Select(c => c.CriterionId).ToHashSet();
-
-        // Fallback to presence match for backwards compatibility
-        return requiredCriterionIds.All(presentIds.Contains);
-    }
-
     // Phase 3: Typed operator matching (≥/≤/= for Number, Enum membership, String equality, Boolean)
     public async Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,

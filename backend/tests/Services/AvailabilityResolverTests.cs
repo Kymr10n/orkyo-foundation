@@ -23,9 +23,6 @@ public class AvailabilityResolverTests
             .Setup(r => r.GetEnabledBySiteWithScopesAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<AvailabilityEventInfo>());
         _groupRepo
-            .Setup(r => r.GetGroupIdsForResourceAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Array.Empty<Guid>());
-        _groupRepo
             .Setup(r => r.GetGroupIdsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new Dictionary<Guid, IReadOnlyList<Guid>>());
         _schedulingRepo

@@ -83,20 +83,6 @@ public static class RequestMapper
         };
     }
 
-    public static CriterionBasicInfo MapCriterionFromReader(NpgsqlDataReader reader)
-    {
-        return new CriterionBasicInfo
-        {
-            Id = reader.GetGuid("id"),
-            Name = reader.GetString("name"),
-            DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString("data_type")),
-            Unit = reader.GetNullableString("unit"),
-            EnumValues = reader.GetNullableString("enum_values") is { } enumJson
-                ? JsonSerializer.Deserialize<List<string>>(enumJson)
-                : null,
-        };
-    }
-
     private static readonly JsonSerializerOptions AssignmentOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,

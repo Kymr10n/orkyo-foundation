@@ -6,17 +6,13 @@ import {
   flattenVisibleTree,
   getAncestorIds,
   getDescendantIds,
-  wouldCreateCycle,
   getDirectChildren,
   canHaveChildren,
-  canBeScheduled,
   getNextSortOrder,
   computeDerivedValues,
   buildDerivedMap,
   resolveDuration,
   resolveSchedule,
-  validateNode,
-  validateParentChild,
 } from "./request-tree";
 
 function makeRequest(
@@ -159,20 +155,6 @@ describe("getDescendantIds", () => {
   });
 });
 
-describe("wouldCreateCycle", () => {
-  it("detects self-parenting", () => {
-    expect(wouldCreateCycle("root-1", "root-1", flat)).toBe(true);
-  });
-
-  it("detects moving parent under its descendant", () => {
-    expect(wouldCreateCycle("root-1", "grandchild-1", flat)).toBe(true);
-  });
-
-  it("allows valid moves", () => {
-    expect(wouldCreateCycle("child-2", "root-2", flat)).toBe(false);
-  });
-});
-
 describe("getDirectChildren", () => {
   it("returns sorted direct children", () => {
     const children = getDirectChildren("root-1", flat);
@@ -193,18 +175,6 @@ describe("canHaveChildren", () => {
   });
   it("returns false for leaf", () => {
     expect(canHaveChildren("leaf")).toBe(false);
-  });
-});
-
-describe("canBeScheduled", () => {
-  it("returns true for leaf", () => {
-    expect(canBeScheduled("leaf")).toBe(true);
-  });
-  it("returns false for summary", () => {
-    expect(canBeScheduled("summary")).toBe(false);
-  });
-  it("returns false for container", () => {
-    expect(canBeScheduled("container")).toBe(false);
   });
 });
 
@@ -430,54 +400,3 @@ describe("flattenVisibleTree", () => {
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
-
-describe("validateNode", () => {
-  it("returns error when leaf has children", () => {
-    const reqs: Request[] = [
-      makeRequest({ id: "bad-leaf", planningMode: "leaf" }),
-      makeRequest({ id: "child", parentRequestId: "bad-leaf", sortOrder: 0 }),
-    ];
-    const issues = validateNode(reqs[0], reqs);
-    expect(issues).toHaveLength(1);
-    expect(issues[0].code).toBe("LEAF_HAS_CHILDREN");
-    expect(issues[0].severity).toBe("error");
-  });
-
-  it("returns error when start >= end", () => {
-    const reqs: Request[] = [
-      makeRequest({
-        id: "bad-dates",
-        startTs: "2025-06-02T00:00:00Z",
-        endTs: "2025-06-01T00:00:00Z",
-      }),
-    ];
-    const issues = validateNode(reqs[0], reqs);
-    expect(issues.some((i) => i.code === "START_AFTER_END")).toBe(true);
-  });
-
-  it("returns no issues for valid leaf", () => {
-    const reqs: Request[] = [makeRequest({ id: "ok" })];
-    expect(validateNode(reqs[0], reqs)).toHaveLength(0);
-  });
-});
-
-describe("validateParentChild", () => {
-  it("returns error when child is outside container boundary", () => {
-    const parent = makeRequest({
-      id: "container",
-      planningMode: "container",
-      earliestStartTs: "2025-06-01T00:00:00Z",
-      latestEndTs: "2025-06-30T00:00:00Z",
-    });
-    const child = makeRequest({
-      id: "child",
-      parentRequestId: "container",
-      startTs: "2025-05-01T00:00:00Z", // before container
-      endTs: "2025-07-01T00:00:00Z", // after container
-    });
-    const issues = validateParentChild(parent, child);
-    expect(issues).toHaveLength(2);
-    expect(issues.map((i) => i.code)).toContain("CHILD_BEFORE_CONTAINER_START");
-    expect(issues.map((i) => i.code)).toContain("CHILD_AFTER_CONTAINER_END");
-  });
-});

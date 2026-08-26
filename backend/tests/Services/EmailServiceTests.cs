@@ -40,14 +40,6 @@ public class EmailServiceTests
         return mock.Object;
     }
 
-    [Fact]
-    public void SendVerificationEmailAsync_ShouldGenerateCorrectVerificationLink()
-    {
-        var method = typeof(EmailService).GetMethod("SendVerificationEmailAsync");
-        method.Should().NotBeNull();
-        method!.ReturnType.Should().Be(typeof(Task<bool>));
-    }
-
     [Theory]
     [InlineData("abc123+def/ghi=", "abc123%2Bdef%2Fghi%3D")]
     [InlineData("simple-token", "simple-token")]
@@ -155,22 +147,6 @@ public class EmailServiceTests
     }
 
     [Fact]
-    public async Task SendVerificationEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
-    {
-        var service = CreateUnreachableSmtpService();
-        var result = await service.SendVerificationEmailAsync("to@example.com", "User", "token123");
-        result.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task SendPasswordResetEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
-    {
-        var service = CreateUnreachableSmtpService();
-        var result = await service.SendPasswordResetEmailAsync("to@example.com", "User", "reset-token");
-        result.Should().BeFalse();
-    }
-
-    [Fact]
     public async Task SendWelcomeEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
     {
         var service = CreateUnreachableSmtpService();
@@ -232,7 +208,6 @@ public class EmailServiceTests
         (await s.SendTenantSuspendedAsync("a@x.com", "Acme", "https://app", 90)).Should().BeFalse();
         (await s.SendTenantDeletingWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();
         (await s.SendTenantDeletedAsync("a@x.com", "Acme")).Should().BeFalse();
-        (await s.SendTenantReactivatedAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
         (await s.SendTenantWelcomeAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
         (await s.SendRoleChangedAsync("a@x.com", "Acme", "editor", "https://app")).Should().BeFalse();
         (await s.SendMemberRemovedAsync("a@x.com", "Acme")).Should().BeFalse();

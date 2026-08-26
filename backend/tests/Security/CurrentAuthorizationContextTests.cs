@@ -13,37 +13,6 @@ public class CurrentAuthorizationContextTests
         new CurrentAuthorizationContext().Role.Should().Be(TenantRole.None);
 
     [Fact]
-    public void GetContext_WhenNoContextSet_ThrowsInvalidOperationException()
-    {
-        ((Action)(() => new CurrentAuthorizationContext().GetContext()))
-            .Should().Throw<InvalidOperationException>().WithMessage("Authorization context not set");
-    }
-
-    [Fact]
-    public void GetContext_WhenContextSet_ReturnsContext()
-    {
-        var ctx = new CurrentAuthorizationContext();
-        var authCtx = new AuthorizationContext { TenantId = Guid.NewGuid(), TenantSlug = "acme", Role = TenantRole.Editor };
-        ctx.SetContext(authCtx);
-        ctx.GetContext().Should().BeSameAs(authCtx);
-    }
-
-    [Fact]
-    public void RequireMembership_WhenNotMember_ThrowsUnauthorizedAccess()
-    {
-        ((Action)(() => new CurrentAuthorizationContext().RequireMembership()))
-            .Should().Throw<UnauthorizedAccessException>().WithMessage("Tenant membership required");
-    }
-
-    [Fact]
-    public void RequireMembership_WhenMember_DoesNotThrow()
-    {
-        var ctx = new CurrentAuthorizationContext();
-        ctx.SetContext(new AuthorizationContext { TenantId = Guid.NewGuid(), TenantSlug = "acme", Role = TenantRole.Viewer });
-        ((Action)(() => ctx.RequireMembership())).Should().NotThrow();
-    }
-
-    [Fact]
     public void RequireRole_WhenRoleSufficient_DoesNotThrow()
     {
         var ctx = new CurrentAuthorizationContext();

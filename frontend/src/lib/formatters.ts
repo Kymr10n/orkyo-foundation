@@ -32,8 +32,6 @@ export const DATE_FORMATS = {
   YEAR: "yyyy",
 } as const;
 
-export type DateFormatKey = keyof typeof DATE_FORMATS;
-
 /**
  * The user's locale, resolved from the browser. The single source of truth for
  * locale-aware date/time formatting ({@link formatLocalized}) and for any library
@@ -89,13 +87,4 @@ export const GRID_WEEK_HEADER_OPTS: Intl.DateTimeFormatOptions = { month: "short
 export function formatDateDisplay(dateStr?: string | null): string {
   if (!dateStr) return "-";
   return formatLocalized(new Date(dateStr), { dateStyle: "medium" });
-}
-
-/**
- * Format an ISO date string as a time-only display, 24h house style.
- * Returns "" for missing values. e.g. "2026-04-02T10:30:00Z" → "10:30"
- */
-export function formatTimeDisplay(dateStr?: string | null): string {
-  if (!dateStr) return "";
-  return formatCompactTime(new Date(dateStr));
 }

@@ -53,26 +53,6 @@ public static class DatabaseTestUtils
         }
     }
 
-    public static async Task ActivateUserByEmail(string email)
-    {
-        await using var conn = new NpgsqlConnection(TestControlPlaneConnectionString);
-        await conn.OpenAsync();
-
-        await using var updateUserCmd = new NpgsqlCommand(
-            "UPDATE users SET status = 'active', updated_at = NOW() WHERE email = @email", conn);
-        updateUserCmd.Parameters.AddWithValue("email", email.ToLowerInvariant());
-        var userUpdateCount = await updateUserCmd.ExecuteNonQueryAsync();
-
-        await using var updateMembershipCmd = new NpgsqlCommand(
-            @"UPDATE tenant_memberships tm SET status = 'active', updated_at = NOW()
-              FROM users u WHERE tm.user_id = u.id AND u.email = @email", conn);
-        updateMembershipCmd.Parameters.AddWithValue("email", email.ToLowerInvariant());
-        await updateMembershipCmd.ExecuteNonQueryAsync();
-
-        if (userUpdateCount == 0)
-            throw new InvalidOperationException($"Failed to activate user {email}. User not found.");
-    }
-
     public static async Task<Guid> CreateTestUserAsync(
         string email,
         string displayName = "Test User",
@@ -133,33 +113,4 @@ public static class DatabaseTestUtils
         return userId;
     }
 
-    public static async Task<Guid> GetUserIdByEmail(string email)
-    {
-        await using var conn = new NpgsqlConnection(TestControlPlaneConnectionString);
-        await conn.OpenAsync();
-
-        await using var cmd = new NpgsqlCommand("SELECT id FROM users WHERE email = @email", conn);
-        cmd.Parameters.AddWithValue("email", email.ToLowerInvariant());
-        var result = await cmd.ExecuteScalarAsync();
-
-        if (result == null)
-            throw new InvalidOperationException($"User with email {email} not found");
-
-        return (Guid)result;
-    }
-
-    public static async Task MakeUserAdminByEmail(string email)
-    {
-        await using var conn = new NpgsqlConnection(TestControlPlaneConnectionString);
-        await conn.OpenAsync();
-
-        await using var cmd = new NpgsqlCommand(
-            @"UPDATE tenant_memberships tm SET role = 'admin', updated_at = NOW()
-              FROM users u WHERE tm.user_id = u.id AND u.email = @email", conn);
-        cmd.Parameters.AddWithValue("email", email.ToLowerInvariant());
-
-        var updateCount = await cmd.ExecuteNonQueryAsync();
-        if (updateCount == 0)
-            throw new InvalidOperationException($"Failed to make user {email} an admin.");
-    }
 }

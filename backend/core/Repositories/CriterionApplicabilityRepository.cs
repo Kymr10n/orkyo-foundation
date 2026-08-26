@@ -8,8 +8,6 @@ namespace Api.Repositories;
 public interface ICriterionApplicabilityRepository
 {
     Task<CriterionApplicabilityInfo?> GetByCriterionAsync(Guid criterionId, CancellationToken ct = default);
-    Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId, CancellationToken ct = default);
-    Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId, CancellationToken ct = default);
     Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable, CancellationToken ct = default);
     Task SetResourceTypeApplicabilityAsync(Guid criterionId, IEnumerable<Guid> resourceTypeIds, CancellationToken ct = default);
 }
@@ -42,23 +40,6 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         };
     }
 
-    public async Task<List<Guid>> GetApplicableResourceTypeIdsAsync(Guid criterionId, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QueryListAsync(
-            "SELECT resource_type_id FROM criterion_resource_types WHERE criterion_id = @id",
-            p => p.AddWithValue("id", criterionId),
-            r => r.GetGuid(0), ct);
-    }
-
-    public async Task<bool> IsCriterionApplicableToTypeAsync(Guid criterionId, Guid resourceTypeId, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.ExecuteScalarAsync<object>(
-            "SELECT 1 FROM criterion_resource_types WHERE criterion_id = @criterionId AND resource_type_id = @typeId",
-            p => { p.AddWithValue("criterionId", criterionId); p.AddWithValue("typeId", resourceTypeId); }, ct) is not null;
-    }
-
     public async Task SetApplicableToRequestsAsync(Guid criterionId, bool applicable, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
@@ -78,8 +59,8 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
         // that type still reference this criterion. Without this guard, the
         // criterion could be silently rendered non-applicable to existing
         // assignments, leaving the system in an inconsistent state.
-        // Read the current ids on this transaction's connection — going through
-        // GetApplicableResourceTypeIdsAsync would open a second connection outside the tx.
+        // Read the current ids on this transaction's connection so the check
+        // participates in the tx rather than using a second connection.
         var currentTypeIds = new List<Guid>();
         await using (var currentCmd = new NpgsqlCommand(
             "SELECT resource_type_id FROM criterion_resource_types WHERE criterion_id = @id", db, tx))

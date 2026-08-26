@@ -34,10 +34,6 @@ export function mismatchCount(option: ResourceAssignmentOption): number {
 }
 
 /** Whether the person satisfies every requirement of the request. */
-export function matchesAllRequirements(option: ResourceAssignmentOption): boolean {
-  return mismatchCount(option) === 0;
-}
-
 export async function getResourceAssignmentOptions(
   personId: string,
   start: string,

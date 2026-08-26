@@ -8,5 +8,3 @@ export const ALLOCATION_MODE = {
   FRACTIONAL: "Fractional",
   CONCURRENT_CAPACITY: "ConcurrentCapacity",
 } as const;
-
-export type AllocationMode = typeof ALLOCATION_MODE[keyof typeof ALLOCATION_MODE];

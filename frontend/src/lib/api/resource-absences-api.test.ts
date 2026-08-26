@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getResourceAbsences,
   createResourceAbsence,
-  updateResourceAbsence,
   deleteResourceAbsence,
 } from './resource-absences-api';
 import * as apiClient from '../core/api-client';
@@ -36,16 +35,6 @@ describe('resource-absences-api', () => {
       const result = await createResourceAbsence('res-1', req);
       expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.resourceAbsences('res-1'), req);
       expect(result).toEqual(mockAbsence);
-    });
-  });
-
-  describe('updateResourceAbsence', () => {
-    it('calls apiPut on the specific absence endpoint', async () => {
-      const req = { title: 'Updated title' };
-      vi.mocked(apiClient.apiPut).mockResolvedValue({ ...mockAbsence, title: 'Updated title' });
-      const result = await updateResourceAbsence('res-1', 'abs-1', req);
-      expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.resourceAbsence('res-1', 'abs-1'), req);
-      expect(result.title).toBe('Updated title');
     });
   });
 

@@ -39,12 +39,6 @@ public sealed class SiteSettingsService : ISiteSettingsService
     private static (RuntimeConfig Config, DateTime ExpiresAt)? _cache;
     private static readonly TimeSpan CacheTtl = TimePolicyConstants.CacheTtl;
 
-    /// <summary>Clear the cache (for integration tests after direct DB cleanup).</summary>
-    internal static void ClearCache()
-    {
-        lock (_cacheLock) { _cache = null; }
-    }
-
     public SiteSettingsService(
         ISiteSettingsRepository repo,
         ILogger<SiteSettingsService> logger)

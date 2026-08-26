@@ -19,7 +19,6 @@ vi.mock('../core/api-client', () => ({
 import {
   hardBlockers,
   softBlockers,
-  getAssignmentsByResource,
   getAssignmentsByResourceType,
   getAssignmentsByRequest,
   validateAssignment,
@@ -74,16 +73,6 @@ describe('hardBlockers / softBlockers', () => {
 });
 
 describe('assignment queries', () => {
-  it('builds a windowed query for a single resource', async () => {
-    await getAssignmentsByResource(
-      'res-1',
-      new Date('2024-01-01T00:00:00Z'),
-      new Date('2024-01-02T00:00:00Z'),
-    );
-    const url = apiMocks.apiGet.mock.calls[0][0] as string;
-    expect(url).toContain('from=2024-01-01T00%3A00%3A00.000Z');
-    expect(url).toContain('to=2024-01-02T00%3A00%3A00.000Z');
-  });
 
   it('queries all resources of a type in one round-trip', async () => {
     await getAssignmentsByResourceType(

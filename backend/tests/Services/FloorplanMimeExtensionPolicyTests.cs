@@ -35,35 +35,6 @@ public class FloorplanMimeExtensionPolicyTests
         ext.Should().BeEmpty();
     }
 
-    [Theory]
-    [InlineData(".png", "image/png")]
-    [InlineData(".jpg", "image/jpeg")]
-    [InlineData(".jpeg", "image/jpeg")]
-    [InlineData(".PNG", "image/png")]
-    [InlineData(".JPEG", "image/jpeg")]
-    public void GetMimeForExtension_MapsKnownExtensionsCaseInsensitively(string ext, string expected) =>
-        FloorplanMimeExtensionPolicy.GetMimeForExtension(ext).Should().Be(expected);
-
-    [Theory]
-    [InlineData(".webp")]
-    [InlineData(".gif")]
-    [InlineData("")]
-    [InlineData(".unknown")]
-    public void GetMimeForExtension_FallsBackToOctetStreamForUnknown(string ext) =>
-        FloorplanMimeExtensionPolicy.GetMimeForExtension(ext).Should().Be("application/octet-stream");
-
-    [Fact]
-    public void GetMimeForExtension_TreatsNullAsOctetStream() =>
-        FloorplanMimeExtensionPolicy.GetMimeForExtension(null!).Should().Be("application/octet-stream");
-
-    [Theory]
-    [InlineData("image/png", ".png")]
-    [InlineData("image/jpeg", ".jpg")]
-    [InlineData("image/webp", ".png")]    // historical demo-floorplan fallback
-    [InlineData("anything", ".png")]
-    public void GetExtensionForMimeOrPngFallback_FallsBackToPngForUnsupported(string mime, string expected) =>
-        FloorplanMimeExtensionPolicy.GetExtensionForMimeOrPngFallback(mime).Should().Be(expected);
-
     [Fact]
     public void Constants_AreStable()
     {

@@ -79,10 +79,3 @@ export function hasConflicts(result: ValidationResult, requestId: string): boole
 }
 
 /** Convenience: get all conflicts across all requests (flat list). */
-export function getAllConflicts(result: ValidationResult): Conflict[] {
-  const all: Conflict[] = [];
-  for (const conflicts of result.values()) {
-    all.push(...conflicts);
-  }
-  return all;
-}

@@ -10,9 +10,8 @@ namespace Orkyo.Foundation.TestSupport;
 /// All methods throw <see cref="KeycloakAdminException"/> with the configured
 /// error message when their *Success flag is false.
 ///
-/// Byte-identical across orkyo-foundation, orkyo-saas and orkyo-community
-/// (G4 synced-files manifest; source: orkyo-foundation). The shared
-/// Orkyo.Tests.Mocks namespace exists so the three copies stay identical.
+/// One copy, here in the TestSupport package; orkyo-saas and orkyo-community consume it
+/// rather than keeping synced duplicates, which is what the old G4 manifest managed.
 /// </summary>
 public class MockKeycloakAdminService : IKeycloakAdminService
 {

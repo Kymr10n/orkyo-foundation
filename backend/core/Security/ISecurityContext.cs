@@ -28,9 +28,6 @@ public interface ICurrentPrincipal
     /// </summary>
     string? SessionId { get; }
 
-    /// <summary>Get the full principal context</summary>
-    PrincipalContext GetContext();
-
     /// <summary>Get user ID or throw if not authenticated</summary>
     Guid RequireUserId();
 
@@ -80,12 +77,6 @@ public interface IAuthorizationContext
 
     /// <summary>Whether the user can view content</summary>
     bool CanView { get; }
-
-    /// <summary>Get the full authorization context</summary>
-    AuthorizationContext GetContext();
-
-    /// <summary>Require the user to be a member, throw 403 if not</summary>
-    void RequireMembership();
 
     /// <summary>Require a specific role, throw 403 if not met</summary>
     void RequireRole(TenantRole minimumRole);

@@ -17,12 +17,6 @@ export interface SchedulingSettings {
 
 export type OffTimeType = "holiday" | "maintenance" | "custom";
 
-export const OFF_TIME_TYPE_LABELS: Record<OffTimeType, string> = {
-  holiday: "Holiday",
-  maintenance: "Maintenance",
-  custom: "Custom",
-};
-
 /** Persistent off-time definition (may be recurring). */
 export interface OffTimeDefinition {
   id: string;

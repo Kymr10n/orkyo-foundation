@@ -91,8 +91,6 @@ export const REQUEST_ICONS: readonly RequestIconDefinition[] = [
   { id: "sparkles", label: "Highlight", group: "Status", component: Sparkles },
 ];
 
-export type RequestIconId = (typeof REQUEST_ICONS)[number]["id"];
-
 /**
  * Resolve a stored icon ID to its lucide-react component.
  * Returns undefined when the value is missing or unknown so callers can fall back.

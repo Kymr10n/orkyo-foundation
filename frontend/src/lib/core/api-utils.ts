@@ -87,12 +87,6 @@ export function getTenantSlug(): string {
  */
 export const API_BASE_URL = runtimeConfig.apiBaseUrl;
 
-/**
- * Get the API base URL
- */
-export function getApiUrl(): string {
-  return runtimeConfig.apiBaseUrl;
-}
 
 /**
  * Clear locally cached tenant identity. Used when session/break-glass ends.

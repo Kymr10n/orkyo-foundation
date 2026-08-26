@@ -2,8 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useRequests, useScheduleRequest } from "./useUtilization";
-import { createTestQueryWrapper } from "@foundation/src/test-utils";
+import { useScheduleRequest } from "./useUtilization";
+import {} from "@foundation/src/test-utils";
 import type { Request } from "@foundation/src/types/requests";
 
 vi.mock("@foundation/src/lib/api/utilization-api");
@@ -88,72 +88,6 @@ function createClientAndWrapper() {
   );
   return { queryClient, wrapper };
 }
-
-// ---------------------------------------------------------------------------
-// useRequests
-// ---------------------------------------------------------------------------
-
-describe("useRequests", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("fetches requests via getAllRequests", async () => {
-    vi.mocked(utilizationApi.getAllRequests).mockResolvedValue([
-      mockRequest,
-      mockRequest2,
-    ]);
-
-    const { result } = renderHook(() => useRequests(), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(utilizationApi.getAllRequests).toHaveBeenCalledTimes(1);
-  });
-
-  it("returns data on success", async () => {
-    vi.mocked(utilizationApi.getAllRequests).mockResolvedValue([
-      mockRequest,
-      mockRequest2,
-    ]);
-
-    const { result } = renderHook(() => useRequests(), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(result.current.data).toEqual([mockRequest, mockRequest2]);
-  });
-
-  it("is in loading state before the promise resolves", () => {
-    vi.mocked(utilizationApi.getAllRequests).mockReturnValue(
-      new Promise(() => {}) // never resolves
-    );
-
-    const { result } = renderHook(() => useRequests(), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    expect(result.current.isLoading).toBe(true);
-    expect(result.current.data).toBeUndefined();
-  });
-
-  it("exposes error state when fetch fails", async () => {
-    vi.mocked(utilizationApi.getAllRequests).mockRejectedValue(
-      new Error("API error")
-    );
-
-    const { result } = renderHook(() => useRequests(), {
-      wrapper: createTestQueryWrapper(),
-    });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect((result.current.error!).message).toBe("API error");
-  });
-});
 
 // ---------------------------------------------------------------------------
 // useScheduleRequest

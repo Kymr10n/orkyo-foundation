@@ -10,11 +10,3 @@ public sealed class OrgContext
     public required string OrgSlug { get; init; }
     public required string DbConnectionString { get; init; }
 }
-
-/// <summary>
-/// Accessor interface for retrieving the current <see cref="OrgContext"/>.
-/// </summary>
-public interface IOrgContextAccessor
-{
-    OrgContext Current { get; }
-}

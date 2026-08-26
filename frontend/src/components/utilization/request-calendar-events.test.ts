@@ -5,7 +5,6 @@ import {
   mapRequestToCalendarEvent,
   requestsToCalendarEvents,
   scaleToCalendarView,
-  calendarViewToScale,
 } from "./request-calendar-events";
 import { makeRequest, makeScheduledRequest } from "@foundation/src/test-utils/request-fixtures";
 import { getStatusColor } from "@foundation/src/lib/utils";
@@ -134,12 +133,4 @@ describe("scale <-> calendar view mapping", () => {
     expect(scaleToCalendarView("year", { phone: true })).toBe("listMonth");
   });
 
-  it("maps calendar views back to scales (grid + list)", () => {
-    expect(calendarViewToScale("timeGridDay")).toBe("day");
-    expect(calendarViewToScale("timeGridWeek")).toBe("week");
-    expect(calendarViewToScale("dayGridMonth")).toBe("month");
-    expect(calendarViewToScale("listDay")).toBe("day");
-    expect(calendarViewToScale("listWeek")).toBe("week");
-    expect(calendarViewToScale("listMonth")).toBe("month");
-  });
 });

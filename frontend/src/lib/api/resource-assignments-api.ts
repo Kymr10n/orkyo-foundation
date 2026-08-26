@@ -107,18 +107,6 @@ export function softBlockers(result: ValidationResult): ValidationIssue[] {
 /**
  * List all non-cancelled assignments for a resource within a time window.
  */
-export async function getAssignmentsByResource(
-  resourceId: string,
-  from: Date,
-  to: Date,
-): Promise<ResourceAssignmentInfo[]> {
-  const params = new URLSearchParams({
-    from: from.toISOString(),
-    to: to.toISOString(),
-  });
-  return apiGet<ResourceAssignmentInfo[]>(`${API_PATHS.resourceAssignments(resourceId)}?${params}`);
-}
-
 /**
  * List all non-cancelled assignments for every resource of a type within a time
  * window, in one request. Replaces the per-person assignment fan-out in the

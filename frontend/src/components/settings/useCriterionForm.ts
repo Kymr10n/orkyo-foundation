@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import type { CriterionDataType } from '@foundation/src/types/criterion';
 
 export interface CriterionFormState {
@@ -83,29 +83,4 @@ export function useCriterionForm(initial?: Partial<CriterionFormState>): UseCrit
     validate,
     reset,
   };
-}
-
-/**
- * Edit-dialog convenience: seed the form from the criterion on mount/change.
- */
-export function useSeedCriterionForm(
-  form: UseCriterionFormResult,
-  source: {
-    description?: string | null;
-    unit?: string | null;
-    enumValues?: string[] | null;
-    resourceTypeKeys?: string[] | null;
-  } | undefined,
-) {
-  // We deliberately depend on the source object identity to seed on prop change.
-  useEffect(() => {
-    if (!source) return;
-    form.reset({
-      description: source.description ?? '',
-      unit: source.unit ?? '',
-      enumValues: source.enumValues ?? [],
-      resourceTypeKeys: [...(source.resourceTypeKeys ?? [])],
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source]);
 }

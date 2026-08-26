@@ -152,9 +152,6 @@ export const qk = {
       ["resource-assignments-by-type", resourceTypeKey, iso(from), iso(to)] as const,
     /** Prefix matching every assignments-by-type variant (invalidation). */
     assignmentsByTypeAll: () => ["resource-assignments-by-type"] as const,
-    /** Capability-conflict check for a set of assignment ids (utilization grid badges). */
-    capabilityConflicts: (assignmentIds: string[]) =>
-      ["assignment-capability-conflicts", assignmentIds] as const,
   },
 
   scheduling: {
@@ -165,9 +162,7 @@ export const qk = {
   },
 
   announcements: {
-    /** Broad prefix — every announcements query (use for invalidation). */
-    all: () => ["announcements"] as const,
-    /** Active announcements (with read state) for the current user. */
+    /** Active announcements (with read state) for the current user. Returns the bare ["announcements"] key, so it doubles as the family's invalidation prefix. */
     active: () => ["announcements"] as const,
     /** Unread-count badge in the top bar. */
     unread: () => ["unread-announcements"] as const,

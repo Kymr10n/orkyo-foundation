@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     API_BASE_URL,
     getApiHeaders,
-    getApiUrl,
     getTenantSlug,
     handleApiError,
 } from './api-utils';
@@ -145,18 +144,7 @@ describe('api-utils', () => {
     });
   });
 
-  describe('getApiUrl', () => {
-    it('returns the configured API base URL as a string', () => {
-      const url = getApiUrl();
-      expect(typeof url).toBe('string');
-      // apiBaseUrl may be empty (same-origin / subdomain mode) or a full URL
-      expect(url).toBe(runtimeConfig.apiBaseUrl);
-    });
-
-    it('returns same value as API_BASE_URL', () => {
-      expect(getApiUrl()).toBe(API_BASE_URL);
-    });
-
+  describe('API_BASE_URL', () => {
     it('API_BASE_URL matches runtimeConfig.apiBaseUrl', () => {
       // Guards against drift — the re-export must always track the config value
       expect(API_BASE_URL).toBe(runtimeConfig.apiBaseUrl);

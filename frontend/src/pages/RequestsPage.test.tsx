@@ -108,13 +108,7 @@ vi.mock('@foundation/src/lib/api/request-api', () => ({
   moveRequest: vi.fn(),
 }));
 
-// Mock the useRequests hook
 vi.mock('@foundation/src/hooks/useUtilization', () => ({
-  useRequests: vi.fn(() => ({
-    data: [],
-    isLoading: false,
-    error: null,
-  })),
   useSpaces: vi.fn(() => ({
     data: [],
     isLoading: false,

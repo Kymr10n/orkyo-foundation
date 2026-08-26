@@ -185,38 +185,6 @@ public class AssetRepository(
         return result is DBNull or null ? 0L : Convert.ToInt64(result);
     }
 
-    public async Task<int> EncryptUnencryptedBlobsAsync(CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        await conn.OpenAsync(ct);
-
-        // Read legacy plaintext rows.
-        var rows = new List<(Guid id, Guid tenantId, byte[] data)>();
-        await using (var select = new NpgsqlCommand(
-            "SELECT id, tenant_id, data FROM assets WHERE enc_algorithm IS NULL AND data IS NOT NULL", conn))
-        await using (var reader = await select.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-                rows.Add((reader.GetGuid(0), reader.GetGuid(1), (byte[])reader.GetValue(2)));
-        }
-
-        var count = 0;
-        foreach (var (id, tenantId, data) in rows)
-        {
-            var encrypted = encryption.ProtectBytes(data, tenantId);
-            await using var update = new NpgsqlCommand(
-                @"UPDATE assets
-                  SET data = @data, enc_algorithm = @encAlgorithm, enc_key_version = @encKeyVersion
-                  WHERE id = @id AND enc_algorithm IS NULL", conn);
-            update.Parameters.AddWithValue("data", encrypted);
-            update.Parameters.AddWithValue("encAlgorithm", encryption.Algorithm);
-            update.Parameters.AddWithValue("encKeyVersion", encryption.KeyVersion);
-            update.Parameters.AddWithValue("id", id);
-            count += await update.ExecuteNonQueryAsync(ct);
-        }
-        return count;
-    }
-
     private static NpgsqlCommand BuildOwnerAssetCommand(
         string selectClause,
         NpgsqlConnection conn,

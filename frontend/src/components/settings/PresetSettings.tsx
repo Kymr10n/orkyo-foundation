@@ -49,7 +49,6 @@ export function PresetSettings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // State for dialogs
-  const [_importDialogOpen, _setImportDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
 

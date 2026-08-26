@@ -35,11 +35,11 @@ public sealed class ResourceGroupMemberRepositoryIntegrationTests
         try
         {
             await members.SetMembersAsync(groupA.Id, new[] { space });
-            (await members.GetGroupIdsForResourceAsync(space)).Should().BeEquivalentTo(new[] { groupA.Id });
+            (await members.GetGroupIdsForResourcesAsync(new[] { space }))[space].Should().BeEquivalentTo(new[] { groupA.Id });
 
             // Assigning to B must move it (1:1), not duplicate.
             await members.SetMembersAsync(groupB.Id, new[] { space });
-            (await members.GetGroupIdsForResourceAsync(space)).Should().BeEquivalentTo(new[] { groupB.Id });
+            (await members.GetGroupIdsForResourcesAsync(new[] { space }))[space].Should().BeEquivalentTo(new[] { groupB.Id });
         }
         finally
         {

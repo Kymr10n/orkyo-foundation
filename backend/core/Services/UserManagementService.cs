@@ -11,7 +11,6 @@ public interface IUserManagementService
     Task<List<User>> GetAllUsersAsync(OrgContext org, CancellationToken ct = default);
     Task<Result> UpdateUserRoleAsync(OrgContext org, Guid userId, UserRole role, Guid updatedBy, CancellationToken ct = default);
     Task<Result> DeleteUserAsync(OrgContext org, Guid userId, Guid deletedBy, CancellationToken ct = default);
-    Task EnsureInitialAdminAsync(OrgContext org, string adminEmail, CancellationToken ct = default);
 
     /// <summary>Updates users.status globally. Accepts only <see cref="UserStatusConstants"/> values.</summary>
     Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default);
@@ -130,40 +129,6 @@ public class UserManagementService : IUserManagementService
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString(), ct: ct);
 
         return new Result(rowsAffected > 0, null);
-    }
-
-    /// <summary>
-    /// Ensure an initial admin exists for a tenant. Creates user and membership if needed.
-    /// </summary>
-    public async Task EnsureInitialAdminAsync(OrgContext org, string adminEmail, CancellationToken ct = default)
-    {
-        await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var checkCmd = new NpgsqlCommand("SELECT id FROM users WHERE email = @email", conn);
-        checkCmd.Parameters.AddWithValue("email", adminEmail);
-        var existingUserId = (await checkCmd.ExecuteScalarAsync(ct)) is Guid id ? id : (Guid?)null;
-
-        if (!existingUserId.HasValue)
-        {
-            _logger.LogWarning("Initial admin {Email} not found — they must log in via Keycloak first", adminEmail);
-            return;
-        }
-
-        var userId = existingUserId.Value;
-
-        await using var membershipCmd = new NpgsqlCommand(@"
-            INSERT INTO tenant_memberships (user_id, tenant_id, role, status, created_at, updated_at)
-            VALUES (@userId, @tenantId, 'admin', 'active', NOW(), NOW())
-            ON CONFLICT (user_id, tenant_id)
-            DO UPDATE SET role = 'admin', updated_at = NOW()", conn);
-        membershipCmd.Parameters.AddWithValue("userId", userId);
-        membershipCmd.Parameters.AddWithValue("tenantId", org.OrgId);
-        await membershipCmd.ExecuteNonQueryAsync(ct);
-
-        _logger.LogInformation("Ensured admin membership for user {Email} in tenant {TenantId}", adminEmail, org.OrgId);
-
-        await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, userId, adminEmail, ct);
     }
 
     public async Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default)

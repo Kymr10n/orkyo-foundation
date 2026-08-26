@@ -18,26 +18,6 @@ public class MockEmailService : IEmailService
         return Task.FromResult(true);
     }
 
-    // ── Verification ──────────────────────────────────────────────────────────
-    public int SendVerificationCallCount { get; private set; }
-
-    public Task<bool> SendVerificationEmailAsync(string toEmail, string displayName,
-        string verificationToken, CancellationToken ct = default)
-    {
-        SendVerificationCallCount++;
-        return Task.FromResult(true);
-    }
-
-    // ── Password reset ────────────────────────────────────────────────────────
-    public int SendPasswordResetCallCount { get; private set; }
-
-    public Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName,
-        string resetToken, CancellationToken ct = default)
-    {
-        SendPasswordResetCallCount++;
-        return Task.FromResult(true);
-    }
-
     // ── Welcome ───────────────────────────────────────────────────────────────
     public int SendWelcomeCallCount { get; private set; }
 
@@ -121,7 +101,6 @@ public class MockEmailService : IEmailService
     public int SendTenantSuspendedCallCount { get; private set; }
     public int SendTenantDeletingWarningCallCount { get; private set; }
     public int SendTenantDeletedCallCount { get; private set; }
-    public int SendTenantReactivatedCallCount { get; private set; }
     public int SendTenantWelcomeCallCount { get; private set; }
     public int SendRoleChangedCallCount { get; private set; }
     public int SendMemberRemovedCallCount { get; private set; }
@@ -144,8 +123,6 @@ public class MockEmailService : IEmailService
     { SendTenantDeletingWarningCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
     public Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default)
     { SendTenantDeletedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
-    public Task<bool> SendTenantReactivatedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
-    { SendTenantReactivatedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
     public Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
     { SendTenantWelcomeCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
     public Task<bool> SendRoleChangedAsync(string toEmail, string tenantName, string newRole, string appUrl, CancellationToken ct = default)
@@ -189,8 +166,6 @@ public class MockEmailService : IEmailService
     public void Reset()
     {
         SendEmailCallCount = 0;
-        SendVerificationCallCount = 0;
-        SendPasswordResetCallCount = 0;
         SendWelcomeCallCount = 0;
         SendInvitationCallCount = 0;
         SendLifecycleWarningCallCount = 0;
@@ -204,7 +179,6 @@ public class MockEmailService : IEmailService
         SendTenantSuspendedCallCount = 0;
         SendTenantDeletingWarningCallCount = 0;
         SendTenantDeletedCallCount = 0;
-        SendTenantReactivatedCallCount = 0;
         SendTenantWelcomeCallCount = 0;
         SendRoleChangedCallCount = 0;
         SendMemberRemovedCallCount = 0;

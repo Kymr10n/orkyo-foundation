@@ -48,28 +48,3 @@ export const TrackingProvider: React.FC<TrackingProviderProps> = ({
   // MVP: Simply render children with no tracking active
   return <>{children}</>;
 };
-
-/**
- * Hook for accessing tracking functionality (future implementation)
- *
- * This hook will provide:
- * - trackEvent() - Send tracking events
- * - setConsent() - Update user consent preferences
- * - getConsent() - Get current consent state
- */
-
-export function useTracking() {
-  // TODO: Implement tracking context consumer
-  // TODO: Return tracking API methods
-
-  // MVP: Return no-op implementation
-  return {
-    trackEvent: () => {
-      // No-op: tracking not implemented yet
-    },
-    setConsent: () => {
-      // No-op: consent management not implemented yet
-    },
-    getConsent: () => "unknown" as const,
-  };
-}
