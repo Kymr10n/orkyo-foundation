@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Api.Models;
 using Api.Repositories;
+using Api.Security;
 
 namespace Api.Services;
 
@@ -32,13 +33,14 @@ public class CalendarFeedService(
     private const int MonthsBack = 3;
     private const int MonthsForward = 12;
 
+    /// <summary>
+    /// Lowercase hex, and it has to stay hex: live subscriptions are looked up by this value.
+    /// Invitations hash the same way into base64 for the same reason.
+    /// </summary>
     public string HashToken(string token) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
 
-    public string GenerateToken() =>
-        // 256 bits, base64url — unguessable, and safe in a URL path segment.
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
-            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    public string GenerateToken() => SecureTokens.Generate();
 
     public async Task<List<CalendarFeedEvent>> GetEventsAsync(
         Guid? siteId, DateTime nowUtc, CancellationToken ct = default)

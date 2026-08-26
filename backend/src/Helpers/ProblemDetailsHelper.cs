@@ -33,37 +33,8 @@ public static class ProblemDetailsHelper
         string title,
         string? detail = null,
         int statusCode = 400)
-    {
-        var problem = new AuthProblemDetails
-        {
-            Type = $"https://orkyo.app/problems/{code}",
-            Title = title,
-            Detail = detail,
-            Status = statusCode,
-            Code = code
-        };
-
-        return Results.Json(problem, statusCode: statusCode);
-    }
-
-    /// <summary>
-    /// Extended problem details with error code.
-    /// </summary>
-    public class AuthProblemDetails
-    {
-        /// <summary>URI reference identifying the problem type</summary>
-        public string? Type { get; init; }
-
-        /// <summary>Short human-readable summary</summary>
-        public required string Title { get; init; }
-
-        /// <summary>Human-readable explanation</summary>
-        public string? Detail { get; init; }
-
-        /// <summary>HTTP status code</summary>
-        public int Status { get; init; }
-
-        /// <summary>Machine-readable error code for frontend mapping</summary>
-        public required string Code { get; init; }
-    }
+        // Routed through the canonical builder: AuthProblemDetails carried the same five
+        // fields and the same type URI, and was the last shape still emitted without the
+        // application/problem+json content type. Same JSON out, correct content type in.
+        => ProblemResults.Problem(statusCode, code, detail: detail, title: title);
 }

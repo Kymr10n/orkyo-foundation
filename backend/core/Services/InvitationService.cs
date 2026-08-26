@@ -3,10 +3,13 @@ using System.Text;
 using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
+using Api.Security;
 using Api.Security.Quotas;
 using Npgsql;
 
 namespace Api.Services;
+
+
 
 public sealed class InvitationService : IInvitationService
 {
@@ -331,13 +334,12 @@ public sealed class InvitationService : IInvitationService
         CreatedAt = reader.GetDateTime(7)
     };
 
-    private static string GenerateSecureToken()
-    {
-        var bytes = new byte[32];
-        RandomNumberGenerator.Fill(bytes);
-        return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").TrimEnd('=');
-    }
+    private static string GenerateSecureToken() => SecureTokens.Generate();
 
+    /// <summary>
+    /// Base64, and it has to stay base64: these hashes are compared against rows written by
+    /// earlier releases. Calendar feeds hash the same way into hex for the same reason.
+    /// </summary>
     private static string HashToken(string token)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
