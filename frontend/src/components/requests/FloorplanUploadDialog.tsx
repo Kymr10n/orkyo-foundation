@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Upload, X, FileImage } from 'lucide-react';
@@ -8,6 +8,7 @@ import { cn } from '@foundation/src/lib/utils';
 import { uploadFloorplan, type FloorplanMetadata } from '@foundation/src/lib/api/floorplan-api';
 import { formatBytes } from '@foundation/src/lib/quotas/quota-display';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 interface FloorplanUploadDialogProps {
   siteId: string;
@@ -22,6 +23,7 @@ export function FloorplanUploadDialog({
   onOpenChange,
   onUploadComplete,
 }: FloorplanUploadDialogProps) {
+  const canEdit = useCanEdit();
   const queryClient = useQueryClient();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -213,16 +215,17 @@ export function FloorplanUploadDialog({
           {/* Error message */}
           <ErrorAlert message={error ?? null} />
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2">
+          {/* Actions. A plain div, not DialogFooter, and the submit was enabled for
+              viewers — the backend 403s them, but the button said otherwise. */}
+          <DialogFooter>
             <Button variant="outline" onClick={handleCancel} disabled={uploading}>
               Cancel
             </Button>
-            <Button onClick={handleUpload} disabled={!selectedFile || uploading}>
+            <Button onClick={handleUpload} disabled={!selectedFile || uploading || !canEdit}>
               <Upload className="h-4 w-4 mr-2" />
               {uploading ? 'Uploading...' : 'Upload'}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>

@@ -24,6 +24,7 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 interface ResourceGroupMembersEditorProps {
   open: boolean;
@@ -42,6 +43,8 @@ export function ResourceGroupMembersEditor({
   resourceTypeKey,
   onSuccess,
 }: ResourceGroupMembersEditorProps) {
+  // Viewers see the roster read-only: the backend 403s the save either way.
+  const canEdit = useCanEdit();
   const [allResources, setAllResources] = useState<ResourceInfo[]>([]);
   const [selectedResourceIds, setSelectedResourceIds] = useState<Set<string>>(new Set());
   // For spaces only: resourceId → the OTHER group it currently belongs to (1:1 rule).
@@ -294,7 +297,7 @@ export function ResourceGroupMembersEditor({
               >
                 Back
               </Button>
-              <Button onClick={() => commit()} disabled={isSubmitting}>
+              <Button onClick={() => commit()} disabled={isSubmitting || !canEdit}>
                 {isSubmitting ? "Saving..." : `Move & Save`}
               </Button>
             </>
@@ -308,7 +311,7 @@ export function ResourceGroupMembersEditor({
               >
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={isSubmitting || isLoading}>
+              <Button onClick={handleSave} disabled={isSubmitting || isLoading || !canEdit}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </>
