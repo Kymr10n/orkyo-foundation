@@ -86,9 +86,10 @@ This runs the Foundation, Community, and SaaS test suites in sequence. Foundatio
 ## What to read first
 
 1. `README.md` — the public-facing structure
-2. `frontend/ARCHITECTURE.md` — rendering split + multi-product routing
-3. `.github/workflows/release-ci.yml` — release & dispatch model
-4. `orkyo-infra/docs/structural-hardening-2026-05.md` — current cross-repo hardening plan
+2. `docs/conventions.md` — which way wins when the repo solves one problem two ways
+3. `frontend/ARCHITECTURE.md` — rendering split + multi-product routing
+4. `.github/workflows/release-ci.yml` — release & dispatch model
+5. `orkyo-infra/docs/structural-hardening-2026-05.md` — current cross-repo hardening plan
 
 ## Releasing
 
