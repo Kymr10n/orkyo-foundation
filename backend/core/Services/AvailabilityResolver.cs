@@ -69,14 +69,9 @@ public class AvailabilityResolver(
 
         foreach (var resourceId in resourceIds)
         {
-            var groupIds = groupMembershipMap.GetValueOrDefault(resourceId, []);
-            var resourceTypeId = resourceTypeMap.GetValueOrDefault(resourceId);
-            foreach (var ev in events)
-            {
-                var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
-                if (ShouldBlock(ev, effect, holidaysEnabled))
-                    result[resourceId].Add(EventToBlockedPeriod(ev));
-            }
+            AddBlockingEvents(result[resourceId], resourceId, events, holidaysEnabled,
+                groupMembershipMap.GetValueOrDefault(resourceId, []),
+                resourceTypeMap.GetValueOrDefault(resourceId));
         }
 
         return result;
@@ -116,17 +111,37 @@ public class AvailabilityResolver(
             if (events.Count == 0) continue;
 
             var holidaysEnabled = holidaysEnabledBySite[siteId];
-            var groupIds = groupMembershipMap.GetValueOrDefault(resourceId, []);
-            var resourceTypeId = resourceTypeMap.GetValueOrDefault(resourceId);
-            foreach (var ev in events)
-            {
-                var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
-                if (ShouldBlock(ev, effect, holidaysEnabled))
-                    result[resourceId].Add(EventToBlockedPeriod(ev));
-            }
+            AddBlockingEvents(result[resourceId], resourceId, events, holidaysEnabled,
+                groupMembershipMap.GetValueOrDefault(resourceId, []),
+                resourceTypeMap.GetValueOrDefault(resourceId));
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The events-to-blocked-periods step, shared by the two resolver overloads.
+    ///
+    /// Only this inner loop is shared. The overloads themselves are NOT interchangeable:
+    /// the site-scoped one applies the caller's site to every resource, including resources
+    /// with no home site of their own, while the site-resolving one omits unsited resources
+    /// so they end up governed by absences alone. Collapsing them would silently change
+    /// which resources see a site's closures.
+    /// </summary>
+    private static void AddBlockingEvents(
+        List<BlockedPeriod> into,
+        Guid resourceId,
+        IReadOnlyList<AvailabilityEventInfo> events,
+        bool holidaysEnabled,
+        IReadOnlyList<Guid> groupIds,
+        Guid resourceTypeId)
+    {
+        foreach (var ev in events)
+        {
+            var effect = ResolveEffect(ev, resourceId, groupIds, resourceTypeId == Guid.Empty ? null : resourceTypeId);
+            if (ShouldBlock(ev, effect, holidaysEnabled))
+                into.Add(EventToBlockedPeriod(ev));
+        }
     }
 
     private async Task<bool> HolidaysEnabledAsync(Guid siteId, CancellationToken ct)

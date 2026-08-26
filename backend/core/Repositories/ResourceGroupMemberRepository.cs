@@ -136,6 +136,14 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         return map.ToDictionary(kvp => kvp.Key, kvp => (IReadOnlyList<Guid>)kvp.Value);
     }
 
+    /// <summary>
+    /// Deliberately narrower than <c>ResourceRepository.Map</c>, and matched to
+    /// <see cref="ResourceSelectColumns"/>: a group-membership list needs identity and
+    /// status, not geometry, custom fields or notes. The canonical mapper is an instance
+    /// method that decrypts notes and parses three jsonb columns, so reusing it here would
+    /// mean widening this query and paying decryption per row for fields the response
+    /// never carries. The fields this leaves unset are unset on purpose.
+    /// </summary>
     private static ResourceInfo MapResource(NpgsqlDataReader r) => new()
     {
         Id = r.GetGuid(r.GetOrdinal("id")),
