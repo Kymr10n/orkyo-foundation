@@ -108,7 +108,7 @@ public class ConflictService(
                 {
                     Id = $"{request.Id}-{requirement.CriterionId}-capability",
                     Kind = ConflictKinds.ConnectorMismatch,
-                    Severity = "error",
+                    Severity = ConflictSeverities.Error,
                     Message = $"No assigned resource provides '{requirement.Criterion?.Name ?? "a required capability"}'",
                     CriterionId = requirement.CriterionId,
                 };
@@ -156,7 +156,7 @@ public class ConflictService(
                     {
                         Id = $"{requestId}-overlap-{caId}",
                         Kind = ConflictKinds.Overlap,
-                        Severity = "error",
+                        Severity = ConflictSeverities.Error,
                         Message = issue.Message,
                         PeerRequestId = peer == Guid.Empty ? null : peer,
                         ResourceId = issue.ResourceId,
@@ -166,7 +166,7 @@ public class ConflictService(
                 {
                     Id = $"{requestId}-{issue.ResourceId}-capacity-exceeded",
                     Kind = ConflictKinds.CapacityExceeded,
-                    Severity = "error",
+                    Severity = ConflictSeverities.Error,
                     Message = issue.Message,
                     ResourceId = issue.ResourceId,
                 };
@@ -184,7 +184,7 @@ public class ConflictService(
                 {
                     Id = $"{requestId}-{issue.ResourceId}-{issue.Code}-{issue.ConflictingAvailabilityId}-offtime",
                     Kind = ConflictKinds.StartsInOffTime,
-                    Severity = "warning",
+                    Severity = ConflictSeverities.Warning,
                     Message = issue.Message,
                     ResourceId = issue.ResourceId,
                 };
@@ -221,7 +221,7 @@ public class ConflictService(
             {
                 Id = $"{request.Id}-below-min-duration",
                 Kind = ConflictKinds.BelowMinDuration,
-                Severity = "error",
+                Severity = ConflictSeverities.Error,
                 Message = "Duration is below the required minimum",
             };
 
@@ -230,7 +230,7 @@ public class ConflictService(
             {
                 Id = $"{request.Id}-before-earliest-start",
                 Kind = ConflictKinds.BeforeEarliestStart,
-                Severity = "error",
+                Severity = ConflictSeverities.Error,
                 Message = "Starts before the earliest allowed start",
             };
 
@@ -239,7 +239,7 @@ public class ConflictService(
             {
                 Id = $"{request.Id}-after-latest-end",
                 Kind = ConflictKinds.AfterLatestEnd,
-                Severity = "error",
+                Severity = ConflictSeverities.Error,
                 Message = "Ends after the latest allowed end",
             };
     }
