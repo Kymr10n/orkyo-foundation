@@ -95,15 +95,20 @@ public class ScopedGridEndpointsTests
     }
 
     [Fact]
-    public async Task SiteWindow_IncludesBarTouchingTheWindowStart_AndExcludesOtherSites()
+    public async Task SiteWindow_ExcludesBarTouchingTheWindowStart_AndExcludesOtherSites()
     {
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
         var spaceId = await TestHelpers.CreateUniqueTestSpace(_client);
 
-        // A bar ending exactly at `from` overlaps (predicate is end_ts >= from).
+        // Windows are half-open [from, to): a bar ending exactly at `from` belongs to the
+        // previous window. This query used to be the codebase's one closed-interval outlier.
         var touchesStart = await CreateRequestAsync();
         var windowStart = BaseDay.AddDays(100);
         await ScheduleAsync(touchesStart, spaceId, windowStart.AddHours(-2), windowStart);
+
+        // A bar genuinely inside the window, to prove the feed itself works.
+        var inWindow = await CreateRequestAsync();
+        await ScheduleAsync(inWindow, spaceId, windowStart.AddHours(2), windowStart.AddHours(4));
 
         // A bar on a different site within the same window must be excluded by the site join.
         var otherSiteResp = await _client.PostAsJsonAsync(
@@ -116,7 +121,8 @@ public class ScopedGridEndpointsTests
 
         var ids = await GetSiteWindowIdsAsync(siteId, windowStart, windowStart.AddDays(1));
 
-        Assert.Contains(touchesStart, ids);
+        Assert.DoesNotContain(touchesStart, ids);
+        Assert.Contains(inWindow, ids);
         Assert.DoesNotContain(otherSiteRequest, ids);
     }
 

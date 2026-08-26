@@ -61,9 +61,7 @@ public static class ReportingTokenEndpoints
         // Reporting API keys require the API-access entitlement. The edition decides:
         // SaaS grants it on paid tiers; Community allows everything.
         if (!await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct))
-            return Results.Json(
-                new { error = "upgrade_required", message = "Reporting API access requires a paid plan." },
-                statusCode: StatusCodes.Status402PaymentRequired);
+            return ErrorResponses.UpgradeRequired("Reporting API access requires a paid plan.");
 
         // The name/expiry shape guards live in CreateReportingTokenRequestValidator; the
         // entitlement check above stays here because it is authorization, not shape.

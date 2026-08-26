@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Lock, Shield, ExternalLink, AlertCircle } from "lucide-react";
+import { Lock, Shield, AlertCircle } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import {
   Card,
@@ -101,17 +101,11 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
           ) : isFederated ? (
             <Alert>
               <Shield className="h-4 w-4" />
-              <AlertDescription className="flex items-center justify-between">
-                <span>
-                  Password changes must be made through your organization's
-                  identity provider ({identityProvider}).
-                </span>
-                <Button variant="outline" size="sm" className="ml-4" asChild>
-                  <a href="#" target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Go to {identityProvider}
-                  </a>
-                </Button>
+              {/* No button: the API knows the provider's name but not a URL for it,
+                  and a link to nowhere is worse than a sentence. */}
+              <AlertDescription>
+                Password changes must be made through your organization's
+                identity provider ({identityProvider}).
               </AlertDescription>
             </Alert>
           ) : (

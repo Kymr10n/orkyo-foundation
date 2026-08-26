@@ -197,7 +197,7 @@ public class RequestRepository : IRequestRepository
         // without one (Conflicts page) the registry is all-time. No scheduling_settings_apply filter
         // — the registry mirrors what the grid surfaces for every scheduled bar.
         var windowed = from.HasValue && to.HasValue;
-        var windowClause = windowed ? " AND start_ts <= @to AND end_ts >= @from" : "";
+        var windowClause = windowed ? " AND start_ts < @to AND end_ts > @from" : "";
         var requests = await db.QueryListAsync($@"
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
@@ -231,7 +231,7 @@ public class RequestRepository : IRequestRepository
         return await db.QueryListAsync($@"
             SELECT id, start_ts, site_id
             FROM requests r
-            WHERE start_ts IS NOT NULL AND start_ts <= @to AND end_ts >= @from
+            WHERE start_ts IS NOT NULL AND start_ts < @to AND end_ts > @from
               AND {FullyAssignedSql("r.id")}",
             p =>
             {
@@ -251,7 +251,9 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // Scheduled requests for this site whose bar overlaps [from,to]: start_ts <= to AND end_ts >= from.
+        // Scheduled requests for this site whose bar overlaps the half-open window [from,to):
+        // start_ts < to AND end_ts > from — the same convention every other window query and
+        // AssignmentOverlapIndex use, so a bar touching a boundary is in exactly one window.
         // A request belongs to the site if it is scoped to it (site_id) OR holds a resource that
         // lives there. The site_id arm makes a scheduled, unassigned request appear on its site's
         // calendar.
@@ -259,7 +261,7 @@ public class RequestRepository : IRequestRepository
             SELECT {SelectFromView}
             FROM v_requests_with_assignments
             WHERE start_ts IS NOT NULL
-              AND start_ts <= @to AND end_ts >= @from
+              AND start_ts < @to AND end_ts > @from
               AND (
                 site_id = @siteId
                 OR {AssignedAtSiteSql("v_requests_with_assignments.id")}

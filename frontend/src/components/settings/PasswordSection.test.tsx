@@ -118,7 +118,9 @@ describe('PasswordSection', () => {
   it('shows identity provider name in federated description', () => {
     renderPassword({ isFederated: true, identityProvider: 'Azure AD' });
     expect(screen.getByText(/managed by Azure AD/)).toBeInTheDocument();
-    expect(screen.getByText(/Go to Azure AD/)).toBeInTheDocument();
+    // No "Go to" button: the API knows the provider's name but no URL for it, and the
+    // old button linked to href="#" — a new tab to nowhere.
+    expect(screen.queryByRole('link', { name: /go to/i })).not.toBeInTheDocument();
   });
 
   it('closes dialog on cancel', () => {
