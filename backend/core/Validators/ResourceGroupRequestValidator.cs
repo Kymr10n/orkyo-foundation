@@ -15,8 +15,8 @@ public class CreateResourceGroupRequestValidator : AbstractValidator<CreateResou
         RuleFor(x => x.DefaultAvailabilityPercent).InclusiveBetween(0, 100);
         When(x => !string.IsNullOrWhiteSpace(x.Color), () =>
             RuleFor(x => x.Color!)
-                .Matches(@"^#[0-9A-Fa-f]{6}$")
-                .WithMessage("Color must be a valid hex color (#RRGGBB)"));
+                .Matches(ValidationPatterns.HexColor)
+                .WithMessage(ValidationPatterns.HexColorMessage));
         When(x => x.DisplayOrder.HasValue, () =>
             RuleFor(x => x.DisplayOrder!.Value).GreaterThanOrEqualTo(0));
     }
@@ -34,8 +34,8 @@ public class UpdateResourceGroupRequestValidator : AbstractValidator<UpdateResou
             RuleFor(x => x.DefaultAvailabilityPercent!.Value).InclusiveBetween(0, 100));
         When(x => !string.IsNullOrWhiteSpace(x.Color), () =>
             RuleFor(x => x.Color!)
-                .Matches(@"^#[0-9A-Fa-f]{6}$")
-                .WithMessage("Color must be a valid hex color (#RRGGBB)"));
+                .Matches(ValidationPatterns.HexColor)
+                .WithMessage(ValidationPatterns.HexColorMessage));
         When(x => x.DisplayOrder.HasValue, () =>
             RuleFor(x => x.DisplayOrder!.Value).GreaterThanOrEqualTo(0));
     }

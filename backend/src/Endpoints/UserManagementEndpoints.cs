@@ -131,7 +131,7 @@ public static class UserManagementEndpoints
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
                 var result = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
                 if (result.Error != null) return ErrorResponses.BadRequest(result.Error);
-                if (!result.Success) throw new KeyNotFoundException("User not found");
+                if (!result.Success) throw new NotFoundException("User not found");
                 return Results.Ok(new { message = "User role updated successfully" });
             }, logger, "UpdateUserRole");
 
@@ -146,7 +146,7 @@ public static class UserManagementEndpoints
         if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
         var result = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);
         if (result.Error != null) return ErrorResponses.BadRequest(result.Error);
-        if (!result.Success) throw new KeyNotFoundException("User not found");
+        if (!result.Success) throw new NotFoundException("User not found");
         return Results.Ok(new { message = "User deleted successfully" });
     }
 
@@ -175,7 +175,7 @@ public static class UserManagementEndpoints
         var tc = context.GetTenantContext();
         var userId = currentPrincipal.RequireUserId();
         var success = await invitationService.RevokeInvitationAsync(tc, invitationId, userId, ct);
-        if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
+        if (!success) throw new NotFoundException("Invitation not found or already accepted");
         return Results.Ok(new { message = "Invitation revoked successfully" });
     }
 
@@ -187,7 +187,7 @@ public static class UserManagementEndpoints
         var tc = context.GetTenantContext();
         var userId = currentPrincipal.RequireUserId();
         var success = await invitationService.ResendInvitationAsync(tc, invitationId, userId, ct);
-        if (!success) throw new KeyNotFoundException("Invitation not found or already accepted");
+        if (!success) throw new NotFoundException("Invitation not found or already accepted");
         return Results.Ok(new { message = "Invitation resent successfully" });
     }
 }

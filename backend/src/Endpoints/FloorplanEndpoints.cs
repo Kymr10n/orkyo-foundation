@@ -51,7 +51,7 @@ public static class FloorplanEndpoints
 
                 return Results.Ok(new { success = true, metadata });
             }
-            catch (KeyNotFoundException)
+            catch (NotFoundException)
             {
                 return ErrorResponses.NotFound("Site", siteId);
             }
@@ -107,7 +107,7 @@ public static class FloorplanEndpoints
 
                 return Results.Bytes(download.Data, asset.ContentType, asset.FileName);
             }
-            catch (KeyNotFoundException)
+            catch (NotFoundException)
             {
                 return ErrorResponses.NotFound("Site", siteId);
             }
@@ -131,7 +131,7 @@ public static class FloorplanEndpoints
                     ? Results.Content("null", "application/json")
                     : Results.Ok(metadata);
             }
-            catch (KeyNotFoundException)
+            catch (NotFoundException)
             {
                 return ErrorResponses.NotFound("Site", siteId);
             }
@@ -164,7 +164,7 @@ public static class FloorplanEndpoints
                 logger.LogInformation("Deleted floorplan asset for site {SiteId}", siteId);
                 return Results.NoContent();
             }
-            catch (KeyNotFoundException)
+            catch (NotFoundException)
             {
                 return ErrorResponses.NotFound("Site", siteId);
             }

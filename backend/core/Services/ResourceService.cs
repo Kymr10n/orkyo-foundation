@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Api.Security.Quotas;
@@ -24,7 +25,7 @@ public interface IResourceService
     Task<ResourceInfo> CreateAsync(CreateResourceRequest request, CancellationToken ct = default);
     /// <summary>
     /// Updates a resource. Returns <c>null</c> if not found.
-    /// Throws <see cref="System.Collections.Generic.KeyNotFoundException"/> if the resource was deleted between the existence check and the update.
+    /// Throws <see cref="Api.Helpers.NotFoundException"/> if the resource was deleted between the existence check and the update.
     /// </summary>
     Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
     /// <summary>Deactivates a resource. Returns <c>false</c> if not found.</summary>
@@ -97,7 +98,7 @@ public class ResourceService(
             throw new ArgumentException("Name cannot be blank");
 
         var existing = await resourceRepository.GetByIdAsync(id, ct)
-            ?? throw new KeyNotFoundException($"Resource {id} not found");
+            ?? throw new NotFoundException("Resource", id);
 
         if (request.Code is not null || request.Geometry is not null || request.Properties is not null || request.Capacity.HasValue)
         {

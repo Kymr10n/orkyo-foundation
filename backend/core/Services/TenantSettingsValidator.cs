@@ -19,7 +19,7 @@ public static class TenantSettingsValidator
     /// <summary>Length cap for multiline settings (e.g. legal text).</summary>
     public const int MaxMultilineLength = 10000;
 
-    private static readonly Regex _hexColorPattern = new(@"^#[0-9a-fA-F]{6}$", RegexOptions.Compiled);
+    private static readonly Regex _hexColorPattern = new(Api.Validators.ValidationPatterns.HexColor, RegexOptions.Compiled);
     private static readonly Regex _mimeTypePattern = new(@"^[a-z]+/[a-z0-9\.\-\+]+$", RegexOptions.Compiled);
     private static readonly Regex _htmlTagPattern = new(@"<[^>]+>", RegexOptions.Compiled);
 

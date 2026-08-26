@@ -26,8 +26,6 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.NotFound(nfe.ResourceType.Length > 0 ? nfe.ResourceType : nfe.Message, nfe.ResourceId),
             ConflictException ce
                 => ErrorResponses.Conflict(ce.Message),
-            KeyNotFoundException knf
-                => ErrorResponses.NotFound(knf.Message, Guid.Empty),
             CapabilityNotApplicableException cna
                 => ErrorResponses.BadRequest(cna.Message),
             // Guard-clause failures (ThrowIfNull etc.) are programming errors, not

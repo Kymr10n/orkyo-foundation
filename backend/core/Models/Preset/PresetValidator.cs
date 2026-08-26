@@ -309,7 +309,7 @@ public static partial class PresetValidator
     [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]
     private static partial Regex KeyPattern();
 
-    [GeneratedRegex(@"^#[0-9A-Fa-f]{6}$")]
+    [GeneratedRegex(Api.Validators.ValidationPatterns.HexColor)]
     private static partial Regex HexColorPattern();
 }
 
