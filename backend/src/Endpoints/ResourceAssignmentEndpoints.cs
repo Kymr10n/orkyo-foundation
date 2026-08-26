@@ -77,7 +77,7 @@ public static class ResourceAssignmentEndpoints
             CancellationToken ct) =>
         {
             var cancelled = await service.CancelAsync(id, ct);
-            return cancelled ? Results.NoContent() : ErrorResponses.NotFound("ResourceAssignment", id);
+            return EndpointHelpers.NoContentOrNotFound(cancelled, "ResourceAssignment", id);
         })
             .WithName("CancelResourceAssignment")
             .WithSummary("Cancel a resource assignment");

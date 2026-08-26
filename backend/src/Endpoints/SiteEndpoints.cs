@@ -83,7 +83,7 @@ public static class SiteEndpoints
             if (deleted)
                 await tenantAudit.RecordAuditEventAsync(
                     ctx.GetOrgContext(), TenantAuditActions.SiteDeleted, principal.UserId, "site", siteId.ToString(), null, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Site", siteId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Site", siteId);
         })
         .WithName("DeleteSite")
         .WithDescription("Deletes a site; its resources survive with their home site cleared")

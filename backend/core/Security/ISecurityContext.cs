@@ -12,6 +12,12 @@ public interface ICurrentPrincipal
     /// <summary>The current user's internal ID</summary>
     Guid UserId { get; }
 
+    /// <summary>
+    /// The current user's id, or null when the request has no user behind it — the shape
+    /// an audit actor column wants. Endpoints wrote this ternary out by hand eight times.
+    /// </summary>
+    Guid? UserIdOrNull => UserId == Guid.Empty ? null : UserId;
+
     /// <summary>The current user's email</summary>
     string Email { get; }
 

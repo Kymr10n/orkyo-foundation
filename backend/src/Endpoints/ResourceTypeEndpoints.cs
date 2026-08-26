@@ -65,7 +65,7 @@ public static class ResourceTypeEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, IResourceTypeService service, CancellationToken ct) =>
         {
             var removed = await service.DeleteAsync(id, ct);
-            return removed ? Results.NoContent() : ErrorResponses.NotFound("ResourceType", id);
+            return EndpointHelpers.NoContentOrNotFound(removed, "ResourceType", id);
         })
             .WithName("DeleteResourceType")
             .WithSummary("Delete a resource type, or deactivate it when resources still reference it");

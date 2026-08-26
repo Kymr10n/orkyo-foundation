@@ -75,7 +75,7 @@ public static class CriteriaEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, ICriteriaService criteriaService, CancellationToken ct) =>
         {
             var deleted = await criteriaService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Criterion", id);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Criterion", id);
         })
         .WithName("DeleteCriterion")
         .WithSummary("Delete a criterion");

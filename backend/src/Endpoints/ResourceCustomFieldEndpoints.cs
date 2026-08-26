@@ -90,7 +90,7 @@ public static class ResourceCustomFieldEndpoints
             CancellationToken ct) =>
         {
             var removed = await service.DeleteAsync(resourceTypeId, fieldId, ct);
-            return removed ? Results.NoContent() : ErrorResponses.NotFound("ResourceCustomField", fieldId);
+            return EndpointHelpers.NoContentOrNotFound(removed, "ResourceCustomField", fieldId);
         })
             .WithName("DeleteResourceCustomField")
             .WithSummary("Delete a custom field and discard the values resources hold for it");

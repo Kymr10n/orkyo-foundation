@@ -40,7 +40,7 @@ public static class TemplateEndpoints
         group.MapDelete("{id:guid}", async (ITemplateRepository templateRepo, Guid id) =>
         {
             var deleted = await templateRepo.DeleteAsync(id);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template", id);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Template", id);
         });
 
         group.MapPut("{id:guid}", async (ITemplateRepository templateRepo, Guid id, UpdateTemplateRequest request,
@@ -70,7 +70,7 @@ public static class TemplateEndpoints
         group.MapDelete("{templateId:guid}/items/{itemId:guid}", async (ITemplateRepository templateRepo, Guid templateId, Guid itemId) =>
         {
             var deleted = await templateRepo.DeleteTemplateItemAsync(itemId);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Template item", itemId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Template item", itemId);
         });
     }
 }

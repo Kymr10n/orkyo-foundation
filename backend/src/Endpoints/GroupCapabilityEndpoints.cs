@@ -39,7 +39,7 @@ public static class GroupCapabilityEndpoints
         capabilities.MapDelete("/{capabilityId:guid}", async (Guid groupId, Guid capabilityId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
         {
             var deleted = await groupCapabilityRepository.DeleteAsync(groupId, capabilityId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Group capability", capabilityId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Group capability", capabilityId);
         })
         .WithName("DeleteGroupCapability")
         .WithSummary("Remove a capability from a space group");

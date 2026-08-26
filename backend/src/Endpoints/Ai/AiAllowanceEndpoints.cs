@@ -63,15 +63,13 @@ public static class AiAllowanceEndpoints
     {
         var shape = await validator.ValidateAsync(request, ct);
         if (!shape.IsValid)
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError,
-                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+            return EndpointHelpers.ValidationFailed(shape);
 
         try
         {
             await access.SetDailyLimitsAsync(
                 request.UserDailyTurns, request.TenantDailyTurns,
-                principal.UserId == Guid.Empty ? null : principal.UserId, ct);
+                principal.UserIdOrNull, ct);
             return Results.NoContent();
         }
         catch (ArgumentOutOfRangeException ex)
@@ -96,15 +94,13 @@ public static class AiAllowanceEndpoints
     {
         var shape = await validator.ValidateAsync(request, ct);
         if (!shape.IsValid)
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError,
-                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+            return EndpointHelpers.ValidationFailed(shape);
 
         try
         {
             await access.SetAllowanceAsync(
                 userId, request.MonthlyTokenLimit,
-                principal.UserId == Guid.Empty ? null : principal.UserId, ct);
+                principal.UserIdOrNull, ct);
             return Results.NoContent();
         }
         catch (ArgumentOutOfRangeException ex)
@@ -121,7 +117,7 @@ public static class AiAllowanceEndpoints
         CancellationToken ct)
     {
         var revoked = await access.RevokeAllowanceAsync(
-            userId, principal.UserId == Guid.Empty ? null : principal.UserId, ct);
+            userId, principal.UserIdOrNull, ct);
         return revoked ? Results.NoContent() : Results.NotFound();
     }
 }

@@ -87,6 +87,6 @@ public static class AnnouncementEndpoints
     private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)
     {
         var deleted = await service.DeleteAsync(id, ct);
-        return deleted ? Results.NoContent() : ErrorResponses.NotFound("Announcement", id);
+        return EndpointHelpers.NoContentOrNotFound(deleted, "Announcement", id);
     }
 }

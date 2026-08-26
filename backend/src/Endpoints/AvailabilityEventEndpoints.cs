@@ -83,7 +83,7 @@ public static class AvailabilityEventEndpoints
             if (existing is null || existing.SiteId != siteId)
                 return ErrorResponses.NotFound("AvailabilityEvent", eventId);
             var deleted = await repo.DeleteAsync(eventId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("AvailabilityEvent", eventId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "AvailabilityEvent", eventId);
         })
             .WithName("DeleteAvailabilityEvent")
             .WithSummary("Delete an availability event");
@@ -119,7 +119,7 @@ public static class AvailabilityEventEndpoints
             if (existing is null || existing.SiteId != siteId)
                 return ErrorResponses.NotFound("AvailabilityEvent", eventId);
             var deleted = await repo.DeleteScopeAsync(eventId, scopeId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Scope", scopeId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Scope", scopeId);
         })
             .WithName("DeleteAvailabilityEventScope")
             .WithSummary("Remove a scoped override");
