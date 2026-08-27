@@ -82,11 +82,6 @@ import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
-/**
- * The scheduler tab holds one floorplan shared by every placeable type, so it is identified by
- * the surface rather than by a resource type key — `space` would be wrong the moment a tenant
- * defines a second type that occupies area.
- */
 /** "Mills", "Mills and Drills", "Mills, Drills and Presses". */
 function joinNames(names: string[]): string {
   if (names.length === 0) return 'resources';
@@ -104,7 +99,6 @@ export function UtilizationPage() {
     anchorTs, setAnchorTs,
     timeCursorTs, setTimeCursorTs,
     isFloorplanCollapsed, setIsFloorplanCollapsed,
-    setSelectedRequestId,
     selectedSiteId,
   } = useAppStore(useShallow((state) => ({
     scale: state.scale,
@@ -115,7 +109,6 @@ export function UtilizationPage() {
     setTimeCursorTs: state.setTimeCursorTs,
     isFloorplanCollapsed: state.isFloorplanCollapsed,
     setIsFloorplanCollapsed: state.setIsFloorplanCollapsed,
-    setSelectedRequestId: state.setSelectedRequestId,
     selectedSiteId: state.selectedSiteId,
   })));
 
@@ -252,8 +245,7 @@ export function UtilizationPage() {
     [isCalendarTab, orderedTypes, selectedKeys],
   );
   // Names what the PDF will contain. The scheduler tab can span several placeable types, and
-  // naming only the first would misdescribe the file.
-  // Names what the PDF will contain. A filter that admits everything says so rather than
+  // naming only the first would misdescribe the file. A filter that admits everything says so rather than
   // enumerating the whole catalogue, and three or more types read as a list, not as a chain of
   // "and"s.
   const exportScopeLabel =
@@ -588,9 +580,8 @@ export function UtilizationPage() {
       requestId: request.id,
       data: { resourceId: null, startTs: null, endTs: null },
     });
-    setSelectedRequestId(null);
     // Conflicts refresh via the registry (invalidated on the schedule mutation) when the request loses its space assignment
-  }, [scheduleMutation, setSelectedRequestId]);
+  }, [scheduleMutation]);
 
   const handleScheduleToGrid = useCallback(async (
     draggedData: Request & { isScheduled?: boolean },
@@ -616,9 +607,7 @@ export function UtilizationPage() {
     });
 
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to resource "${resourceId}"`);
-
-    setSelectedRequestId(draggedData.id);
-  }, [scheduleMutation, setSelectedRequestId, spaces]);
+  }, [scheduleMutation, spaces]);
 
   // Non-drag scheduling: reuse the exact drag-drop handler (duration → endTs,
   // schedule mutation, conflict feedback) so the dialog and the drag path submit
@@ -794,13 +783,11 @@ export function UtilizationPage() {
   const schedulingControls = (
     <>
       {autoScheduleAvailable && canEdit && !isCalendarTab && (
-        <>
-          <AutoScheduleButton
-            onClick={handleAutoScheduleClick}
-            loading={previewMutation.isPending}
-            disabled={!selectedSiteId || !autoScheduleTypeKey}
-          />
-        </>
+        <AutoScheduleButton
+          onClick={handleAutoScheduleClick}
+          loading={previewMutation.isPending}
+          disabled={!selectedSiteId || !autoScheduleTypeKey}
+        />
       )}
       <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
       <TimeNavigator
@@ -917,11 +904,11 @@ export function UtilizationPage() {
                     timeCursorTs={timeCursorTs}
                     nowMs={nowMs}
                     // Phone has no hover/double-click, so a single tap opens the
-                    // editor; desktop keeps single-click-selects / double-opens.
+                    // editor; desktop opens on double-click only.
                     // Drag-to-reschedule works on both (mouse-move / touch long-
                     // press via the sensors above). Precise duration edits happen
                     // in the dialog's Timing tab — better on touch than 2px handles.
-                    onRequestClick={isPhone ? handleRequestDoubleClick : setSelectedRequestId}
+                    onRequestClick={isPhone ? handleRequestDoubleClick : undefined}
                     onRequestDoubleClick={handleRequestDoubleClick}
                     onRequestContextMenu={canEdit && !isPhone ? handleRequestContextMenu : undefined}
                     onRequestResize={handleResizeRequest}

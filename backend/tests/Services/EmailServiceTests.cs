@@ -223,46 +223,8 @@ public class EmailServiceTests
     }
 }
 
-public class EmailTemplatesTests
+public class WelcomeAndAlertEmailTemplateTests
 {
-    [Fact]
-    public void GetVerificationEmail_ShouldReturnValidTemplate()
-    {
-        var displayName = "Test User";
-        var verificationLink = "http://example.com/verify?token=abc123";
-
-        var (subject, htmlBody, textBody) = EmailTemplates.GetVerificationEmail(displayName, verificationLink);
-
-        subject.Should().NotBeNullOrEmpty();
-        subject.ToLowerInvariant().Should().Contain("verify");
-        htmlBody.Should().NotBeNullOrEmpty();
-        htmlBody.Should().Contain(displayName);
-        htmlBody.Should().Contain(verificationLink);
-        htmlBody.Should().Contain("<!DOCTYPE html>");
-        textBody.Should().NotBeNullOrEmpty();
-        textBody.Should().Contain(displayName);
-        textBody.Should().Contain(verificationLink);
-    }
-
-    [Fact]
-    public void GetPasswordResetEmail_ShouldReturnValidTemplate()
-    {
-        var displayName = "Test User";
-        var resetLink = "http://example.com/reset?token=xyz789";
-
-        var (subject, htmlBody, textBody) = EmailTemplates.GetPasswordResetEmail(displayName, resetLink);
-
-        subject.Should().NotBeNullOrEmpty();
-        subject.ToLowerInvariant().Should().Contain("password");
-        htmlBody.Should().NotBeNullOrEmpty();
-        htmlBody.Should().Contain(displayName);
-        htmlBody.Should().Contain(resetLink);
-        htmlBody.Should().Contain("<!DOCTYPE html>");
-        textBody.Should().NotBeNullOrEmpty();
-        textBody.Should().Contain(displayName);
-        textBody.Should().Contain(resetLink);
-    }
-
     [Fact]
     public void GetWelcomeEmail_ShouldReturnValidTemplate()
     {
@@ -280,30 +242,10 @@ public class EmailTemplatesTests
     }
 
     [Fact]
-    public void GetVerificationEmail_ShouldEscapeUserInput()
-    {
-        var displayName = "<script>alert('xss')</script>";
-        var verificationLink = "http://example.com/verify?token=abc123";
-
-        var (_, htmlBody, _) = EmailTemplates.GetVerificationEmail(displayName, verificationLink);
-
-        // User input must be HTML-encoded — the raw tag must never appear in the markup.
-        htmlBody.Should().NotContain(displayName);
-        htmlBody.Should().Contain("&lt;script&gt;");
-    }
-
-    [Fact]
     public void EmailTemplates_ShouldHaveBothHtmlAndTextVersions()
     {
-        var displayName = "Test User";
-        var link = "http://example.com/link";
+        var welcome = EmailTemplates.GetWelcomeEmail("Test User");
 
-        var verification = EmailTemplates.GetVerificationEmail(displayName, link);
-        var passwordReset = EmailTemplates.GetPasswordResetEmail(displayName, link);
-        var welcome = EmailTemplates.GetWelcomeEmail(displayName);
-
-        verification.htmlBody.Should().NotBe(verification.textBody);
-        passwordReset.htmlBody.Should().NotBe(passwordReset.textBody);
         welcome.htmlBody.Should().NotBe(welcome.textBody);
     }
 

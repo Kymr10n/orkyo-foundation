@@ -586,14 +586,34 @@ public class KeycloakAdminServiceTests
     // ── EnableMfaAsync ─────────────────────────────────────────────────────
 
     [Fact]
-    public async Task EnableMfaAsync_Succeeds_On204()
+    public async Task EnableMfaAsync_AppendsConfigureTotp_PreservingExistingActions()
     {
-        var svc = Build(TokenAndUser(new[]
+        // Keycloak's user PUT replaces any field in the body, so the service must merge
+        // CONFIGURE_TOTP into the user's current requiredActions rather than overwrite them.
+        var userJson = JsonSerializer.Serialize(new
         {
-            ("/users/kc-user-id", HttpStatusCode.NoContent, "")
-        }));
+            id = "kc-user-id",
+            username = "user@example.com",
+            email = "user@example.com",
+            requiredActions = new[] { "VERIFY_EMAIL" },
+        });
+
+        var (svc, handler) = BuildCapturing(req =>
+        {
+            var url = req.RequestUri!.ToString();
+            if (url.Contains("openid-connect/token", StringComparison.OrdinalIgnoreCase))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(TokenJson()) };
+            if (req.Method == HttpMethod.Get)
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(userJson) };
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        });
 
         await svc.EnableMfaAsync("kc-user-id");
+
+        var putIndex = handler.Requests.FindIndex(r => r.Method == HttpMethod.Put);
+        putIndex.Should().BeGreaterThan(-1);
+        handler.Bodies[putIndex].Should().Contain("VERIFY_EMAIL");
+        handler.Bodies[putIndex].Should().Contain("CONFIGURE_TOTP");
     }
 
     // ── HasRealmRoleAsync ──────────────────────────────────────────────────

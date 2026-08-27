@@ -11,7 +11,7 @@ namespace Orkyo.Migrator;
 /// </summary>
 internal sealed class MigrationHistory
 {
-    public const string TableName = "orkyo_schema_migrations";
+    public const string TableName = MigrationSchema.TableName;
 
     private readonly NpgsqlConnection _connection;
 
@@ -22,27 +22,7 @@ internal sealed class MigrationHistory
 
     public async Task EnsureTableExistsAsync(CancellationToken ct = default)
     {
-        const string ddl = $@"
-            CREATE TABLE IF NOT EXISTS {TableName} (
-                id                 text        PRIMARY KEY,
-                module             text        NOT NULL,
-                target_database    text        NOT NULL,
-                checksum           text        NOT NULL,
-                script_hash_algo   text        NOT NULL DEFAULT 'SHA256',
-                applied_at         timestamptz NOT NULL DEFAULT now(),
-                applied_by_version text        NULL,
-                execution_ms       integer     NULL,
-                success            boolean     NOT NULL DEFAULT true,
-                error_message      text        NULL
-            );
-            -- Also added by OrkyoDbUpJournal's upgrade, but that runs later in the pipeline
-            -- than RefreshChecksumAsync, which writes these columns. Both creators must agree.
-            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_checksum text NULL;
-            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_at timestamptz NULL;
-            CREATE INDEX IF NOT EXISTS idx_{TableName}_target_database
-                ON {TableName} (target_database);
-        ";
-        await using var cmd = new NpgsqlCommand(ddl, _connection);
+        await using var cmd = new NpgsqlCommand(MigrationSchema.EnsureTableSql, _connection);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

@@ -18,11 +18,8 @@ public static class EndpointHelpers
     /// The single rendering of a FluentValidation failure: the canonical problem body with the
     /// per-field messages in <c>errors</c>. Framework <c>Results.ValidationProblem</c> emits a
     /// ProblemDetails without our <c>code</c> extension, which would leave the frontend unable to
-    /// switch on it — the whole reason #96 consolidated the shapes.
-    /// </summary>
-    /// <summary>
-    /// The canonical validation-problem body. Public because handlers that validate outside
-    /// <see cref="ExecuteAsync"/> were re-implementing it inline rather than reaching for it.
+    /// switch on it — the whole reason #96 consolidated the shapes. Public because handlers that
+    /// validate outside <see cref="ExecuteAsync"/> were re-implementing it inline.
     /// </summary>
     public static IResult ValidationFailed(FluentValidation.Results.ValidationResult result)
         => ProblemResults.Problem(

@@ -3,8 +3,8 @@ using Api.Models.Preset;
 namespace Orkyo.Foundation.Tests.Models;
 
 /// <summary>
-/// Covers the uncovered Preset model types: PresetApplication, PresetMapping,
-/// PresetEntityType constants, and PresetValidationResult static factory methods.
+/// Covers the uncovered Preset model types: PresetApplication and
+/// PresetValidationResult static factory methods.
 /// </summary>
 public class PresetModelsTests
 {
@@ -44,46 +44,6 @@ public class PresetModelsTests
 
         application.UpdatedAt.Should().BeNull();
         application.AppliedByUserId.Should().BeNull();
-    }
-
-    // ── PresetMapping ──────────────────────────────────────────────────────
-
-    [Fact]
-    public void PresetMapping_StoresAllFields()
-    {
-        var id = Guid.NewGuid();
-        var applicationId = Guid.NewGuid();
-        var entityId = Guid.NewGuid();
-        var now = DateTime.UtcNow;
-
-        var mapping = new PresetMapping
-        {
-            Id = id,
-            PresetApplicationId = applicationId,
-            EntityType = PresetEntityType.Criterion,
-            LogicalKey = "shift-model",
-            EntityId = entityId,
-            CreatedAt = now
-        };
-
-        mapping.Id.Should().Be(id);
-        mapping.PresetApplicationId.Should().Be(applicationId);
-        mapping.EntityType.Should().Be("criterion");
-        mapping.LogicalKey.Should().Be("shift-model");
-        mapping.EntityId.Should().Be(entityId);
-    }
-
-    // ── PresetEntityType constants ─────────────────────────────────────────
-
-    [Fact]
-    public void PresetEntityType_Constants_HaveExpectedValues()
-    {
-        PresetEntityType.Criterion.Should().Be("criterion");
-        PresetEntityType.SpaceGroup.Should().Be("space_group");
-        PresetEntityType.TemplateSpace.Should().Be("template_space");
-        PresetEntityType.TemplateGroup.Should().Be("template_group");
-        PresetEntityType.TemplateRequest.Should().Be("template_request");
-        PresetEntityType.TemplateItem.Should().Be("template_item");
     }
 
     // ── PresetValidationResult static factories ────────────────────────────

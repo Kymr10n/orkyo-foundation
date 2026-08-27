@@ -77,5 +77,3 @@ export function hasConflicts(result: ValidationResult, requestId: string): boole
   const conflicts = result.get(requestId);
   return conflicts !== undefined && conflicts.length > 0;
 }
-
-/** Convenience: get all conflicts across all requests (flat list). */

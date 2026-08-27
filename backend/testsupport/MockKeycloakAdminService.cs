@@ -365,6 +365,10 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         EnableMfaError = null;
         EnableMfaCallCount = 0;
 
+        ExecuteActionsEmailCallCount = 0;
+        LastExecuteActionsEmailCall = null;
+        ExecuteActionsEmailResult = true;
+
         MockRealmRoles = new HashSet<string>();
         HasRealmRoleError_ = false;
         HasRealmRoleErrorStatusCode = null;

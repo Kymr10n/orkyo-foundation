@@ -1,4 +1,5 @@
 using Api.Configuration;
+using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Security;
@@ -75,7 +76,7 @@ public class KeycloakIdentityLinkServiceTests
         var result = await svc.LinkIdentityAsync(token);
 
         result.Success.Should().BeFalse();
-        result.ErrorCode.Should().Be(ProblemDetailsHelper.AuthCodes.InvalidToken);
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.InvalidToken);
     }
 
     [Fact]
@@ -93,7 +94,7 @@ public class KeycloakIdentityLinkServiceTests
         var result = await svc.LinkIdentityAsync(token);
 
         result.Success.Should().BeFalse();
-        result.ErrorCode.Should().Be(ProblemDetailsHelper.AuthCodes.InvalidToken);
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.InvalidToken);
     }
 
     // ── LinkIdentityAsync — full flows ────────────────────────────────────
@@ -195,7 +196,7 @@ public class KeycloakIdentityLinkServiceTests
         var result = await svc.LinkIdentityAsync(token);
 
         result.Success.Should().BeFalse();
-        result.ErrorCode.Should().Be(ProblemDetailsHelper.AuthCodes.AccountInactive);
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.AccountInactive);
 
         // Cleanup
         await using var cleanupUser = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);

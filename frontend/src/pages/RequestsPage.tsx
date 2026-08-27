@@ -23,6 +23,7 @@ import {
 import {
     createRequest,
     deleteRequest,
+    deleteRequestSubtree,
     getRequests,
     moveRequest,
     updateRequest,
@@ -66,7 +67,6 @@ import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImp
 import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
-import { deleteRequestSubtree } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { invalidateRequestData, REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import { errorMessage as toErrorMessage } from "@foundation/src/hooks/mutation-utils";

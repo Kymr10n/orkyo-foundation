@@ -17,7 +17,7 @@ namespace Orkyo.Migrator;
 /// </remarks>
 internal sealed class OrkyoDbUpJournal : IJournal
 {
-    public const string TableName = "orkyo_schema_migrations";
+    public const string TableName = MigrationSchema.TableName;
 
     private readonly Func<IConnectionManager> _connectionManager;
     private readonly Func<IUpgradeLog> _log;
@@ -52,27 +52,7 @@ internal sealed class OrkyoDbUpJournal : IJournal
     public void EnsureTableExistsAndIsLatestVersion(Func<IDbCommand> dbCommandFactory)
     {
         using var cmd = dbCommandFactory();
-        cmd.CommandText = $@"
-            CREATE TABLE IF NOT EXISTS {TableName} (
-                id                 text        PRIMARY KEY,
-                module             text        NOT NULL,
-                target_database    text        NOT NULL,
-                checksum           text        NOT NULL,
-                script_hash_algo   text        NOT NULL DEFAULT 'SHA256',
-                applied_at         timestamptz NOT NULL DEFAULT now(),
-                applied_by_version text        NULL,
-                execution_ms       integer     NULL,
-                success            boolean     NOT NULL DEFAULT true,
-                error_message      text        NULL
-            );
-            -- Provenance for a migration whose text was deliberately replaced after it ran
-            -- (see the @supersedes-checksum directive). Added after the table shipped, so the
-            -- ALTERs carry their own guards rather than living in the CREATE above.
-            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_checksum text NULL;
-            ALTER TABLE {TableName} ADD COLUMN IF NOT EXISTS superseded_at timestamptz NULL;
-            CREATE INDEX IF NOT EXISTS idx_{TableName}_target_database
-                ON {TableName} (target_database);
-        ";
+        cmd.CommandText = MigrationSchema.EnsureTableSql;
         cmd.ExecuteNonQuery();
     }
 

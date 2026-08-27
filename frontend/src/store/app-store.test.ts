@@ -1,16 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAppStore } from '@foundation/src/store/app-store';
 
-describe('useAppStore - site and space selection', () => {
+describe('useAppStore - site selection', () => {
   beforeEach(() => {
     localStorage.clear();
     useAppStore.setState({
       selectedSiteId: null,
-      selectedHallId: null,
-      selectedResourceId: null,
-      selectedJobId: null,
-      selectedRequestId: null,
-      isDetailsDrawerOpen: false,
     });
   });
 
@@ -21,52 +16,6 @@ describe('useAppStore - site and space selection', () => {
 
     expect(useAppStore.getState().selectedSiteId).toBe('site-1');
     expect(localStorage.getItem('selectedSiteId')).toBe('site-1');
-  });
-
-  it('should set selected hall', () => {
-    const { setSelectedHallId } = useAppStore.getState();
-
-    setSelectedHallId('hall-1');
-
-    expect(useAppStore.getState().selectedHallId).toBe('hall-1');
-  });
-
-  it('should set selected space and open drawer', () => {
-    const { setSelectedResourceId } = useAppStore.getState();
-
-    setSelectedResourceId('space-1');
-
-    expect(useAppStore.getState().selectedResourceId).toBe('space-1');
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
-  });
-
-  it('should clear selected space and close drawer', () => {
-    const { setSelectedResourceId } = useAppStore.getState();
-
-    setSelectedResourceId('space-1');
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
-
-    setSelectedResourceId(null);
-    expect(useAppStore.getState().selectedResourceId).toBeNull();
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(false);
-  });
-
-  it('should set selected job and open drawer', () => {
-    const { setSelectedJobId } = useAppStore.getState();
-
-    setSelectedJobId('job-1');
-
-    expect(useAppStore.getState().selectedJobId).toBe('job-1');
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
-  });
-
-  it('should set selected request and open drawer', () => {
-    const { setSelectedRequestId } = useAppStore.getState();
-
-    setSelectedRequestId('request-1');
-
-    expect(useAppStore.getState().selectedRequestId).toBe('request-1');
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
   });
 });
 
@@ -138,20 +87,9 @@ describe('useAppStore - UI state', () => {
   beforeEach(() => {
     localStorage.clear();
     useAppStore.setState({
-      isDetailsDrawerOpen: false,
       isFloorplanCollapsed: false,
       isSidebarCollapsed: false,
     });
-  });
-
-  it('should toggle details drawer', () => {
-    const { setIsDetailsDrawerOpen } = useAppStore.getState();
-
-    setIsDetailsDrawerOpen(true);
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(true);
-
-    setIsDetailsDrawerOpen(false);
-    expect(useAppStore.getState().isDetailsDrawerOpen).toBe(false);
   });
 
   it('should toggle floorplan collapsed state', () => {

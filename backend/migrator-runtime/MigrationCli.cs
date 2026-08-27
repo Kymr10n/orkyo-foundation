@@ -129,12 +129,10 @@ public static class MigrationCli
                 }
             }
 
-            // ValidateOnly: surface failures via exit code even though no exception was thrown.
             if (baseOptions.Mode == MigrationExecutionMode.ValidateOnly)
             {
-                // The runner returned Failed entries for pending-but-not-applied scripts.
-                // Treat any Failed in the aggregate as a validation failure → non-zero exit.
-                // (We don't aggregate across calls here; per-call ReportRun logs the failures.)
+                // Failures already produced a non-zero exit: ReportRun throws on any Failed
+                // entry per call. Reaching this line means every call validated clean.
                 logger.LogInformation("Validate completed. Inspect logs for any 'pending' rows.");
             }
             else
@@ -302,7 +300,7 @@ internal static class CliUsage
         migration-spec-for-copilot.md for the baseline.json shape.
 
         Required env:
-          CONTROL_PLANE_CONNECTION_STRING
+          ConnectionStrings__ControlPlane (legacy alias: CONTROL_PLANE_CONNECTION_STRING)
 
         Optional env:
           APP_VERSION                       recorded as applied_by_version

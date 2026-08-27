@@ -100,11 +100,6 @@ public sealed class ContextEnrichmentMiddleware
                     var stubKey = $"{principal.UserId}:{tenantContext.TenantId}";
                     if (_stubsCreated.Get(stubKey) == null)
                     {
-                        _stubsCreated.Set(stubKey, true, new MemoryCacheEntryOptions
-                        {
-                            AbsoluteExpirationRelativeToNow = CacheTtl,
-                            Size = 1
-                        });
                         var orgContext = new OrgContext
                         {
                             OrgId = tenantContext.TenantId,
@@ -113,6 +108,14 @@ public sealed class ContextEnrichmentMiddleware
                         };
                         await tenantUserService.CreateUserStubInTenantDatabaseAsync(
                             orgContext, principal.UserId, principal.Email);
+                        // Cache only after the INSERT succeeds: a positive entry written
+                        // before a failed insert would suppress retries for the whole TTL,
+                        // turning one transient DB error into 5 minutes of FK failures.
+                        _stubsCreated.Set(stubKey, true, new MemoryCacheEntryOptions
+                        {
+                            AbsoluteExpirationRelativeToNow = CacheTtl,
+                            Size = 1
+                        });
                     }
                 }
 

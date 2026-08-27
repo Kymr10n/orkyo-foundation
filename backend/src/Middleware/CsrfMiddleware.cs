@@ -56,16 +56,11 @@ public sealed class CsrfMiddleware
             !string.Equals(csrfCookie, csrfHeader, StringComparison.Ordinal))
         {
             _logger.LogWarning("CSRF validation failed for {Method} {Path}", context.Request.Method, context.Request.Path);
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            context.Response.ContentType = "application/problem+json";
-            await context.Response.WriteAsJsonAsync(new OrkyoProblemDetails
-            {
-                Type = OrkyoProblemDetails.TypeFor(ApiErrorCodes.CsrfTokenMismatch),
-                Title = "Forbidden",
-                Detail = "CSRF token mismatch",
-                Status = StatusCodes.Status403Forbidden,
-                Code = ApiErrorCodes.CsrfTokenMismatch,
-            });
+            await ProblemResults.Problem(
+                StatusCodes.Status403Forbidden,
+                ApiErrorCodes.CsrfTokenMismatch,
+                detail: "CSRF token mismatch",
+                title: "Forbidden").ExecuteAsync(context);
             return;
         }
 

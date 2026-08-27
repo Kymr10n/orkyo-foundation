@@ -39,10 +39,11 @@ public static class SessionEndpoints
             if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
             {
                 logger.LogWarning("Bootstrap called without valid Keycloak token");
-                return ProblemDetailsHelper.AuthProblem(
-                    ProblemDetailsHelper.AuthCodes.InvalidToken,
-                    "Invalid authentication token",
-                    "Missing 'sub' claim in token");
+                return ProblemResults.Problem(
+                    StatusCodes.Status400BadRequest,
+                    ApiErrorCodes.Auth.InvalidToken,
+                    detail: "Missing 'sub' claim in token",
+                    title: "Invalid authentication token");
             }
 
             logger.LogInformation(
@@ -54,10 +55,11 @@ public static class SessionEndpoints
             var externalToken = tokenProfile.ToExternalIdentityToken();
             if (externalToken == null)
             {
-                return ProblemDetailsHelper.AuthProblem(
-                    ProblemDetailsHelper.AuthCodes.InvalidToken,
-                    "Invalid authentication token",
-                    "Could not extract identity from token");
+                return ProblemResults.Problem(
+                    StatusCodes.Status400BadRequest,
+                    ApiErrorCodes.Auth.InvalidToken,
+                    detail: "Could not extract identity from token",
+                    title: "Invalid authentication token");
             }
 
             var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
@@ -65,10 +67,11 @@ public static class SessionEndpoints
             if (!linkResult.Success || !linkResult.UserId.HasValue)
             {
                 logger.LogWarning("Identity link failed: {Error}", linkResult.Error);
-                return ProblemDetailsHelper.AuthProblem(
-                    linkResult.ErrorCode ?? ProblemDetailsHelper.AuthCodes.IdentityNotLinked,
-                    "Authentication failed",
-                    linkResult.Error);
+                return ProblemResults.Problem(
+                    StatusCodes.Status400BadRequest,
+                    linkResult.ErrorCode ?? ApiErrorCodes.Auth.IdentityNotLinked,
+                    detail: linkResult.Error,
+                    title: "Authentication failed");
             }
 
             // Sync display name from Keycloak token if it changed since last login
@@ -215,11 +218,11 @@ public static class SessionEndpoints
             if (!identityProvisioning.Value.AllowSelfRegistration)
             {
                 logger.LogInformation("Rejected create-account for {Email}: access is by invitation only", request.Email);
-                return ProblemDetailsHelper.AuthProblem(
-                    ProblemDetailsHelper.AuthCodes.NotInvited,
-                    "Invitation required",
-                    AccessMessages.InvitationOnly,
-                    StatusCodes.Status403Forbidden);
+                return ProblemResults.Problem(
+                    StatusCodes.Status403Forbidden,
+                    ApiErrorCodes.Auth.NotInvited,
+                    detail: AccessMessages.InvitationOnly,
+                    title: "Invitation required");
             }
 
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>

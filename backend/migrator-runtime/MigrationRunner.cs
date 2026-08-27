@@ -169,21 +169,25 @@ public sealed class MigrationRunner
         MigrationOptions options,
         CancellationToken ct)
     {
-        // The AdoptIds set may contain ids for either target — we filter to scripts that
-        // match the current run. Ids that don't match any script for this target are
-        // unknown to us *for this run*; they're not necessarily errors (they may match
-        // the other target's run), so we silently skip them here.
+        // AdoptIds is per target (the CLI splits the baseline's ControlPlaneIds/TenantIds
+        // before each run), so an id that matches no script for this target is a typo in
+        // the baseline file. Fail here, at parse-adjacent time, rather than letting the
+        // id stay pending and re-execute its SQL against a legacy database mid-deploy.
         var byId = ordered.ToDictionary(s => s.Id, StringComparer.Ordinal);
+        var unknown = options.AdoptIds.Where(id => !byId.ContainsKey(id)).ToList();
+        if (unknown.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Legacy-adoption baseline contains ids that match no known migration for " +
+                $"target '{ordered[0].TargetDatabase}': {string.Join(", ", unknown)}");
+        }
+
         var version = options.AppliedByVersion ?? "legacy-adoption";
         var inserted = 0;
         var skipped = 0;
         foreach (var id in options.AdoptIds)
         {
-            if (!byId.TryGetValue(id, out var script))
-            {
-                // Not a script for this target — leave to a different RunAsync call.
-                continue;
-            }
+            var script = byId[id];
             if (await history.AdoptAppliedAsync(script, version, ct))
             {
                 inserted++;

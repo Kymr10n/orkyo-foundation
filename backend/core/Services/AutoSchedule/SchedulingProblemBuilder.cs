@@ -150,7 +150,14 @@ public class SchedulingProblemBuilder
         if (settings is { WorkingHoursEnabled: true })
         {
             minutesPerDay = (int)(settings.WorkingDayEnd - settings.WorkingDayStart).TotalMinutes;
-            if (minutesPerDay <= 0) minutesPerDay = 8 * 60;
+            if (minutesPerDay <= 0)
+            {
+                // SchedulingValidators rejects end <= start at the boundary, so this is
+                // corrupt stored data — fail rather than silently invent an 8-hour day.
+                throw new InvalidOperationException(
+                    $"Working hours are enabled but WorkingDayEnd ({settings.WorkingDayEnd}) "
+                    + $"is not after WorkingDayStart ({settings.WorkingDayStart}).");
+            }
         }
         var totalMinutes = SchedulingEngine.DurationToMinutes(value, unit);
         return Math.Max(1, (int)Math.Ceiling((double)totalMinutes / minutesPerDay));

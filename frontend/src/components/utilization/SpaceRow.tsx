@@ -38,7 +38,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   spaceEntries: readonly PreviewEntry[];
   /** This space's slice of the validation result. */
   validation: ValidationResult;
-  onRequestClick: (requestId: string) => void;
+  onRequestClick?: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestContextMenu?: (requestId: string, position: { x: number; y: number }) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;

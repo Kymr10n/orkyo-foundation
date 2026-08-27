@@ -2,17 +2,18 @@ namespace Api.Integrations.Keycloak;
 
 // Models are in KeycloakModels.cs
 
-/// <summary>
-/// Keycloak Admin API client. All methods throw <see cref="KeycloakAdminException"/>
-/// on failure; the exception carries a caller-safe message and a suggested HTTP status.
-/// </summary>
 /// <summary>Keycloak required-action ids, as the admin API spells them.</summary>
 public static class KeycloakRequiredActions
 {
     public const string UpdatePassword = "UPDATE_PASSWORD";
     public const string VerifyEmail = "VERIFY_EMAIL";
+    public const string ConfigureTotp = "CONFIGURE_TOTP";
 }
 
+/// <summary>
+/// Keycloak Admin API client. All methods throw <see cref="KeycloakAdminException"/>
+/// on failure; the exception carries a caller-safe message and a suggested HTTP status.
+/// </summary>
 public interface IKeycloakAdminService
 {
     /// <summary>
