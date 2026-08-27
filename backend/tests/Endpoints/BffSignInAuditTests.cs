@@ -114,6 +114,39 @@ public class BffSignInAuditTests
     }
 
     [Fact]
+    public async Task SignOut_WhenTheBootstrapLookupThrows_StillRecordsWithoutAnEmail()
+    {
+        // The sign-out path reads the email through the bootstrap only to build the user
+        // stub. Losing that lookup must not take the logout with it, so the recorder swallows
+        // the failure and carries on with a null email.
+        _session.Setup(s => s.BuildSessionResponseAsync(_userId, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("control plane unreachable"));
+
+        var thrown = await Record.ExceptionAsync(() => Recorder().RecordSignOutAsync(_userId));
+
+        Assert.Null(thrown);
+    }
+
+    [Fact]
+    public async Task WhenWritingTheAuditEventFails_TheSignInIsNotBlocked()
+    {
+        // Best-effort by design: auditing must never fail a login. The write throwing is the
+        // one failure the recorder cannot see coming, so it is caught and logged, not raised.
+        var tenantId = Guid.NewGuid();
+        SetupTenants(tenantId);
+        SetupResolver(tenantId);
+        _tenantUsers.Setup(t => t.RecordAuditEventAsync(
+                It.IsAny<OrgContext>(), It.IsAny<string>(), It.IsAny<Guid?>(),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<object?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TimeoutException("tenant database unreachable"));
+
+        var thrown = await Record.ExceptionAsync(
+            () => Recorder().RecordAsync(_userId, "u@test.com"));
+
+        Assert.Null(thrown);
+    }
+
+    [Fact]
     public async Task SignOut_MultiTenantUser_IsSkippedLikeSignIn()
     {
         // Same attribution rule as sign-in: with more than one tenant there is no single

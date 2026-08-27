@@ -109,17 +109,30 @@ nightly channel.
 ## Test coverage (every code change)
 
 **Every change ships at or above 80% patch coverage.** Measure locally before opening a PR —
-codecov reporting it afterwards means a review round trip that a two-minute local run avoids:
+codecov reporting it afterwards means a review round trip that a local run avoids:
 
 ```bash
-dotnet test backend/tests/Orkyo.Foundation.Tests.csproj --collect:"XPlat Code Coverage"
-# then read the cobertura report for the files you touched
-npx vitest run --coverage        # frontend
+scripts/ci/patch-coverage.sh                # run both suites, then report
+scripts/ci/patch-coverage.sh --report-only  # reuse the last run's reports
+scripts/ci/patch-coverage.sh --backend      # one stack only (--frontend likewise)
 ```
+
+The script runs the suites, intersects the cobertura reports both already emit with the lines
+this branch adds, and prints per-file coverage with the uncovered line numbers named. It honours
+the `ignore:` list in `codecov.yml`, so the total it prints is the number codecov will report.
+It exits non-zero below 80%.
 
 Cover the paths that carry risk first: rejection and error branches, authorization decisions,
 and anything a security control depends on. A happy path with no failure case tested is the
 usual reason a patch lands under 80%.
+
+When a branch is unreachable because the test host pins a dependency, fix the host rather than
+accepting the gap. `FoundationWebApplicationFactory` keeps programmable stubs for exactly this:
+`StubFeatureGate` (disable one entitlement to reach an "upgrade required" refusal),
+`StubIdentityLinkService` (drive the /api/session/bootstrap branches), `StubAnthropicGateway`
+(no outbound HTTPS), and a mutable `IdentityProvisioningOptions` (reach the invitation-only
+refusal). Each defaults to the permissive behaviour, so a test that does not touch them sees
+the host it always saw.
 
 Three exemptions, and nothing else. State the reason in the PR:
 

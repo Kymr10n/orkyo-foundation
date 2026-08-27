@@ -344,6 +344,19 @@ public class UserManagementEndpointsTests
     }
 
     [Fact]
+    public async Task UpdateUserRole_ForAUserWhoIsNotAMember_Returns404()
+    {
+        // Not a validation refusal and not a last-admin refusal: the service reports no
+        // such membership, and NotFoundException is what the handler turns that into.
+        var request = new UpdateUserRoleRequest(UserRole.Editor);
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{Guid.NewGuid()}/role", request, _jsonOptions);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task UpdateUserRole_WhenTargetIsLastAdmin_Returns400()
     {
         // Regression: demoting the sole active admin surfaced as 500.

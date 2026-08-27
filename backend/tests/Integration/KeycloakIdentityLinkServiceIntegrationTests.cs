@@ -153,6 +153,35 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Two sign-ins for one brand-new address, racing. Both pass the by-email lookup before
+    /// either commits, so one INSERT wins and the other hits ON CONFLICT DO NOTHING and
+    /// re-reads the winner's row. Before that, the loser died on the unique index.
+    /// </summary>
+    /// <remarks>
+    /// The interleaving decides which path each call takes, so this asserts the guarantee
+    /// rather than the branch: whoever wins, both identities end up on ONE user, and neither
+    /// call fails. If the race does not materialise, both simply resolve the same way.
+    /// </remarks>
+    [Fact]
+    public async Task LinkIdentity_TwoConcurrentSignInsForOneNewAddress_ShareOneUser()
+    {
+        var service = BuildService(new Mock<IEmailService>(MockBehavior.Loose).Object);
+        var email = UniqueEmail();
+        var first = UniqueSubject();
+        var second = UniqueSubject();
+
+        var results = await Task.WhenAll(
+            Task.Run(() => service.LinkIdentityAsync(BuildToken(first, email, "Racer One"))),
+            Task.Run(() => service.LinkIdentityAsync(BuildToken(second, email, "Racer Two"))));
+
+        results.Should().AllSatisfy(r => r.Success.Should().BeTrue());
+        results[0].UserId.Should().Be(results[1].UserId);
+        (await UserExistsWithEmailAsync(email)).Should().BeTrue();
+        (await IdentityLinkExistsAsync(first)).Should().BeTrue();
+        (await IdentityLinkExistsAsync(second)).Should().BeTrue();
+    }
+
     // ── invitation-only mode (AllowSelfRegistration = false) ─────────────────
     // The interim early-access stance. Only the auto-provision branch may change;
     // invited users and the shared demo identity must keep signing in.

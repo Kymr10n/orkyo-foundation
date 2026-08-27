@@ -310,6 +310,123 @@ public class SessionEndpointsTests
         version.GetString().Should().Be(requiredVersion);
     }
 
+    // ─── GET /api/session/bootstrap ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Bootstrap answers the canonical problem shape on every rejection. The route reaches
+    /// IIdentityLinkService, which the factory fills with StubIdentityLinkService — set its
+    /// LinkResult to choose which branch the endpoint takes.
+    /// </summary>
+    private static string MakeKeycloakToken(
+        Guid userId, string email, string? sub, string[]? realmRoles = null)
+    {
+        var tokenData = new
+        {
+            UserId = userId.ToString(),
+            Email = email,
+            DisplayName = "Bootstrap Test",
+            TenantId = "00000000-0000-0000-0000-000000000001",
+            TenantSlug = TestConstants.TenantSlug,
+            IsTenantAdmin = false,
+            Role = "user",
+            Sub = sub,
+            RealmRoles = realmRoles
+        };
+
+        var json = JsonSerializer.Serialize(tokenData);
+        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+    }
+
+    private async Task<HttpResponseMessage> BootstrapAsync(string token)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, "/api/session/bootstrap");
+        request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        return await _client.SendAsync(request);
+    }
+
+    [Fact]
+    public async Task Bootstrap_TokenWithoutSubClaim_Returns400InvalidToken()
+    {
+        var token = MakeKeycloakToken(Guid.NewGuid(), "nosub@example.com", sub: null);
+
+        var response = await BootstrapAsync(token);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        problem.GetProperty("code").GetString()
+            .Should().Be(Api.Constants.ApiErrorCodes.Auth.InvalidToken);
+        problem.GetProperty("detail").GetString().Should().Be("Missing 'sub' claim in token");
+        problem.GetProperty("title").GetString().Should().Be("Invalid authentication token");
+    }
+
+    [Fact]
+    public async Task Bootstrap_WhenIdentityLinkFails_ReturnsTheServicesErrorCode()
+    {
+        var stub = _factory.Services.GetRequiredService<Mocks.StubIdentityLinkService>();
+        stub.LinkResult = Api.Security.IdentityLinkResult.Failed(
+            Api.Constants.AccessMessages.InvitationOnly,
+            Api.Constants.ApiErrorCodes.Auth.NotInvited);
+
+        var response = await BootstrapAsync(
+            MakeKeycloakToken(Guid.NewGuid(), "notinvited@example.com", sub: Guid.NewGuid().ToString()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        // The endpoint forwards the service's code rather than flattening every failure
+        // into identity_not_linked — the frontend routes invitation refusals differently.
+        problem.GetProperty("code").GetString()
+            .Should().Be(Api.Constants.ApiErrorCodes.Auth.NotInvited);
+        problem.GetProperty("detail").GetString()
+            .Should().Be(Api.Constants.AccessMessages.InvitationOnly);
+        problem.GetProperty("title").GetString().Should().Be("Authentication failed");
+    }
+
+    [Fact]
+    public async Task Bootstrap_WhenLinkFailsWithoutACode_FallsBackToIdentityNotLinked()
+    {
+        var stub = _factory.Services.GetRequiredService<Mocks.StubIdentityLinkService>();
+        stub.LinkResult = new Api.Security.IdentityLinkResult
+        {
+            Success = false,
+            Error = "Keycloak unreachable",
+            ErrorCode = null
+        };
+
+        var response = await BootstrapAsync(
+            MakeKeycloakToken(Guid.NewGuid(), "nocode@example.com", sub: Guid.NewGuid().ToString()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        problem.GetProperty("code").GetString()
+            .Should().Be(Api.Constants.ApiErrorCodes.Auth.IdentityNotLinked);
+    }
+
+    [Fact]
+    public async Task Bootstrap_WhenLinked_ReturnsSessionWithSiteAdminFlagFromToken()
+    {
+        var email = $"bootstrap_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(
+            email, displayName: "Bootstrap Test", tenantSlug: null, active: true);
+
+        var stub = _factory.Services.GetRequiredService<Mocks.StubIdentityLinkService>();
+        stub.LinkResult = Api.Security.IdentityLinkResult.Linked(userId, email, "Bootstrap Test");
+
+        var response = await BootstrapAsync(
+            MakeKeycloakToken(userId, email, sub: Guid.NewGuid().ToString(),
+                realmRoles: [Api.Integrations.Keycloak.KeycloakClaims.SiteAdminRole]));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        // IsSiteAdmin comes from the realm role in the token, never from the database.
+        body.GetProperty("isSiteAdmin").GetBoolean().Should().BeTrue();
+        stub.LastToken.Should().NotBeNull();
+        stub.LastToken!.Email.Should().Be(email);
+    }
+
     // ─── Session bootstrap response — ToS text contract ──────────────────────────
 
     /// <summary>
@@ -350,6 +467,38 @@ public class SessionEndpointsTests
     }
 
     // ─── POST /api/auth/create-account ───────────────────────────────────────────
+
+    [Fact]
+    public async Task CreateAccount_WhenSelfRegistrationClosed_Returns403()
+    {
+        var options = _factory.Services
+            .GetRequiredService<Api.Configuration.IdentityProvisioningOptions>();
+        options.AllowSelfRegistration = false;
+        try
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
+            request.Content = new StringContent(
+                JsonSerializer.Serialize(new
+                {
+                    email = $"invite-only-{Guid.NewGuid():N}@example.com",
+                    password = "SecurePass123!"
+                }),
+                System.Text.Encoding.UTF8, "application/json");
+
+            var response = await _client.SendAsync(request);
+            response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+            var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            problem.GetProperty("code").GetString()
+                .Should().Be(Api.Constants.ApiErrorCodes.Auth.NotInvited);
+            problem.GetProperty("detail").GetString()
+                .Should().Be(Api.Constants.AccessMessages.InvitationOnly);
+        }
+        finally
+        {
+            options.AllowSelfRegistration = true;
+        }
+    }
 
     [Fact]
     public async Task CreateAccount_MissingEmail_Returns400()

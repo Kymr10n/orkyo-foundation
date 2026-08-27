@@ -69,13 +69,15 @@ interface RenderOptions {
   request?: Request;
   entry?: PreviewEntry;
   onRequestResize?: (id: string, startTs: string, endTs: string) => void;
+  /** Pass null to render without the callback at all — the read-only case. */
+  onRequestClick?: ((id: string) => void) | null;
 }
 
 function renderOverlay(opts: RenderOptions = {}) {
   const request = opts.request ?? makeRequest();
   const entry = opts.entry ?? makeEntry(request);
   const index = makeScheduleAndIndex([entry]);
-  const onRequestClick = vi.fn();
+  const onRequestClick = opts.onRequestClick === undefined ? vi.fn() : opts.onRequestClick;
   const onRequestResize = opts.onRequestResize ?? vi.fn();
 
   const utils = render(
@@ -87,7 +89,7 @@ function renderOverlay(opts: RenderOptions = {}) {
           columns={COLUMNS}
           scheduleIndex={index}
           validation={EMPTY_VALIDATION}
-          onRequestClick={onRequestClick}
+          onRequestClick={onRequestClick ?? undefined}
           onRequestResize={onRequestResize}
         />
       </div>
@@ -325,5 +327,74 @@ describe("ScheduledRequestOverlay resize", () => {
 
     addSpy.mockRestore();
     removeSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Opening the request
+//
+// onRequestClick is optional: a viewer gets the bar without a way to open the
+// editor. Every entry point must therefore tolerate its absence rather than
+// throwing on an undefined call.
+// ---------------------------------------------------------------------------
+
+describe("ScheduledRequestOverlay open", () => {
+  beforeEach(() => {
+    useSchedulerStore.setState({ draft: null });
+  });
+
+  function bar() {
+    return screen.getByTitle(/Test Request/);
+  }
+
+  function touchTap(target: Element) {
+    const point = { clientX: 10, clientY: 10 } as Touch;
+    target.dispatchEvent(Object.assign(
+      new Event("touchstart", { bubbles: true, cancelable: true }),
+      { touches: [point], changedTouches: [point] },
+    ));
+    target.dispatchEvent(Object.assign(
+      new Event("touchend", { bubbles: true, cancelable: true }),
+      { touches: [], changedTouches: [point] },
+    ));
+  }
+
+  it("opens the request on click", () => {
+    const { onRequestClick } = renderOverlay();
+
+    act(() => { bar().dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+
+    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+  });
+
+  it("opens the request on Enter", () => {
+    const { onRequestClick } = renderOverlay();
+
+    act(() => {
+      bar().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+  });
+
+  it("opens the request on a touch tap", () => {
+    const { onRequestClick } = renderOverlay();
+
+    act(() => touchTap(bar()));
+
+    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+  });
+
+  it("does nothing on click, Enter, or tap when no click handler is given", () => {
+    renderOverlay({ onRequestClick: null });
+    const target = bar();
+
+    expect(() => {
+      act(() => { target.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+      act(() => {
+        target.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      });
+      act(() => touchTap(target));
+    }).not.toThrow();
   });
 });

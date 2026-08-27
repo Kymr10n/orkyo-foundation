@@ -51,16 +51,11 @@ public static class SessionEndpoints
                 tokenProfile.Subject,
                 tokenProfile.Email);
 
-            // Link identity (idempotent - will return existing user if already linked)
-            var externalToken = tokenProfile.ToExternalIdentityToken();
-            if (externalToken == null)
-            {
-                return ProblemResults.Problem(
-                    StatusCodes.Status400BadRequest,
-                    ApiErrorCodes.Auth.InvalidToken,
-                    detail: "Could not extract identity from token",
-                    title: "Invalid authentication token");
-            }
+            // Link identity (idempotent - will return existing user if already linked).
+            // ToExternalIdentityToken returns null on exactly the condition the guard
+            // above already rejected — a missing or empty Subject — so past this point
+            // it cannot be null.
+            var externalToken = tokenProfile.ToExternalIdentityToken()!;
 
             var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
 

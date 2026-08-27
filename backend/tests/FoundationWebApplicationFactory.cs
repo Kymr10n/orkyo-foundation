@@ -25,6 +25,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 using Orkyo.Shared;
@@ -283,7 +284,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IAiAllowanceRepository, AiAllowanceRepository>();
         builder.Services.AddScoped<Api.Services.Ai.IAiCredentialService, Api.Services.Ai.AiCredentialService>();
         builder.Services.AddScoped<Api.Services.Ai.IAiAccessService, Api.Services.Ai.AiAccessService>();
-        builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway, Api.Services.Ai.AnthropicGateway>();
+        // Stubbed, not real: the Anthropic gateway makes an outbound HTTPS call.
+        builder.Services.AddSingleton<StubAnthropicGateway>();
+        builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway>(
+            sp => sp.GetRequiredService<StubAnthropicGateway>());
         builder.Services.AddScoped<Api.Services.Ai.IAiChatService, Api.Services.Ai.AiChatService>();
         builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetConflictsTool>();
         builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestsTool>();
@@ -295,7 +299,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // ── Security + quota ─────────────────────────────────────────────────
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaUsageRollup, Api.Security.Quotas.NoOpQuotaUsageRollup>();
-        builder.Services.AddScoped<Api.Security.Features.IFeatureGate, Api.Security.Features.AllFeaturesEnabledGate>();
+        // Same all-enabled behaviour as AllFeaturesEnabledGate, but a test can disable one
+        // key to reach an entitlement refusal that only SaaS would otherwise produce.
+        builder.Services.AddSingleton<StubFeatureGate>();
+        builder.Services.AddSingleton<Api.Security.Features.IFeatureGate>(
+            sp => sp.GetRequiredService<StubFeatureGate>());
         builder.Services.AddScoped<Api.Security.Features.ITenantPlanInfoProvider, Api.Security.Features.SinglePlanInfoProvider>();
         builder.Services.AddScoped<Api.Security.Features.ITenantEntitlementProvider, Api.Security.Features.AllFeaturesEntitlementProvider>();
         builder.Services.AddScoped<Api.Security.Features.ITenantMembershipEnricher, Api.Security.Features.PassThroughTenantMembershipEnricher>();
@@ -409,7 +417,20 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IInvitationService>(sp => Mock.Of<IInvitationService>());
         builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
         builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());
-        builder.Services.AddScoped<IIdentityLinkService>(sp => Mock.Of<IIdentityLinkService>());
+        // Singleton, not Mock.Of: tests drive the /api/session/bootstrap branches by
+        // setting LinkResult on the instance they resolve from the factory.
+        builder.Services.AddSingleton<StubIdentityLinkService>();
+        builder.Services.AddSingleton<IIdentityLinkService>(
+            sp => sp.GetRequiredService<StubIdentityLinkService>());
+
+        // Editions set this in their own composition root, so the test host keeps the
+        // permissive default. The options object is a mutable singleton, resolved per
+        // scope, so a test can flip AllowSelfRegistration to reach the invitation-only
+        // branch of /api/auth/create-account and restore it afterwards.
+        builder.Services.AddSingleton<IdentityProvisioningOptions>();
+        builder.Services.AddScoped<IOptions<IdentityProvisioningOptions>>(
+            sp => Microsoft.Extensions.Options.Options.Create(
+                sp.GetRequiredService<IdentityProvisioningOptions>()));
 
         // Validators — register all from the foundation assemblies (Core + Web; validators for
         // request types declared alongside their endpoints live in the Web assembly).
