@@ -169,17 +169,23 @@ public sealed class MigrationRunner
         MigrationOptions options,
         CancellationToken ct)
     {
-        // AdoptIds is per target (the CLI splits the baseline's ControlPlaneIds/TenantIds
-        // before each run), so an id that matches no script for this target is a typo in
-        // the baseline file. Fail here, at parse-adjacent time, rather than letting the
-        // id stay pending and re-execute its SQL against a legacy database mid-deploy.
+        // An id here that matches no script for this target is NOT an error. The baseline
+        // records what a legacy database had already run before the migrator existed, so it
+        // carries ids from before scripts were renamed or dropped — 2010.saas.tenants is in
+        // the deployed file and ships today as 2010.saas.tenants_extensions. Adopting a
+        // script that no longer exists is a no-op by definition, so skip it and say so.
+        //
+        // This was briefly a hard failure. It is not: the throw broke every deploy at the
+        // adopt step, because the assumption behind it — that the per-target split leaves
+        // only typos — ignores the legacy history the baseline exists to record.
         var byId = ordered.ToDictionary(s => s.Id, StringComparer.Ordinal);
         var unknown = options.AdoptIds.Where(id => !byId.ContainsKey(id)).ToList();
         if (unknown.Count > 0)
         {
-            throw new InvalidOperationException(
-                $"Legacy-adoption baseline contains ids that match no known migration for " +
-                $"target '{ordered[0].TargetDatabase}': {string.Join(", ", unknown)}");
+            _logger.LogInformation(
+                "Legacy-adoption baseline lists {Count} id(s) with no matching script for target "
+                + "'{Target}'; nothing to adopt for them: {Ids}",
+                unknown.Count, ordered[0].TargetDatabase, string.Join(", ", unknown));
         }
 
         var version = options.AppliedByVersion ?? "legacy-adoption";
@@ -187,7 +193,7 @@ public sealed class MigrationRunner
         var skipped = 0;
         foreach (var id in options.AdoptIds)
         {
-            var script = byId[id];
+            if (!byId.TryGetValue(id, out var script)) continue;
             if (await history.AdoptAppliedAsync(script, version, ct))
             {
                 inserted++;
