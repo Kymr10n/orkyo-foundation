@@ -119,8 +119,15 @@ scripts/ci/patch-coverage.sh --backend      # one stack only (--frontend likewis
 
 The script runs the suites, intersects the cobertura reports both already emit with the lines
 this branch adds, and prints per-file coverage with the uncovered line numbers named. It honours
-the `ignore:` list in `codecov.yml`, so the total it prints is the number codecov will report.
-It exits non-zero below 80%.
+the `ignore:` list in `codecov.yml` and scores lines the way codecov does, so the total it prints
+is the number codecov will report. It exits non-zero below 80%.
+
+It separates two kinds of gap, because they need different fixes:
+
+- **uncovered** — the line never ran. It needs a test that reaches it.
+- **partial (one branch only)** — the line ran, but only one side of its `if` or ternary was
+  taken. Usually an `if (x) throw …` one-liner whose refusal is tested and whose success is not.
+  Codecov scores these as misses, so they pull the number down without appearing as missing lines.
 
 Cover the paths that carry risk first: rejection and error branches, authorization decisions,
 and anything a security control depends on. A happy path with no failure case tested is the

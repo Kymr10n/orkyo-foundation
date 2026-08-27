@@ -100,8 +100,29 @@ def coverage_by_file(reports, root):
             for ln in cls.iter("line"):
                 number = int(ln.get("number", 0))
                 hits = int(ln.get("hits", 0))
-                lines[number] = lines.get(number, 0) + hits
+                taken, total = branch_counts(ln)
+                before = lines.get(number, (0, 0, 0))
+                lines[number] = (
+                    before[0] + hits,
+                    max(before[1], taken),
+                    max(before[2], total),
+                )
     return covered
+
+
+def branch_counts(line):
+    """(branches taken, branches total) for one cobertura <line>, or (0, 0) if not a branch.
+
+    Codecov counts a line whose branches are only half taken as a PARTIAL, not a hit —
+    an `if (x) throw` one-liner where only one side ever runs. Reading it here is what
+    makes this script's total match the number codecov reports.
+    """
+    if line.get("branch") != "true":
+        return 0, 0
+    match = re.search(r"\((\d+)/(\d+)\)", line.get("condition-coverage") or "")
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return 0, 0
 
 
 def main():
@@ -127,23 +148,30 @@ def main():
         measurable = sorted(added[path] & lines.keys())
         if not measurable:
             continue
-        missing = [n for n in measurable if lines[n] == 0]
-        hit = len(measurable) - len(missing)
+        # Codecov's arithmetic: a line counts fully only when it ran AND every branch on
+        # it was taken. A half-taken branch is a partial and scores nothing.
+        missing = [n for n in measurable if lines[n][0] == 0]
+        partial = [n for n in measurable
+                   if lines[n][0] > 0 and lines[n][2] > 0 and lines[n][1] < lines[n][2]]
+        hit = len(measurable) - len(missing) - len(partial)
         total_hit += hit
         total_measured += len(measurable)
-        rows.append((path, hit, len(measurable), missing))
+        rows.append((path, hit, len(measurable), missing, partial))
 
     if not total_measured:
         print("patch coverage: no measured source lines changed against %s" % args.base)
         return 0
 
     print("Patch coverage against %s\n" % args.base)
-    for path, hit, measured, missing in sorted(rows, key=lambda r: r[1] / r[2]):
+    for path, hit, measured, missing, partial in sorted(rows, key=lambda r: r[1] / r[2]):
         pct = 100.0 * hit / measured
         flag = "  " if pct >= args.target else "!!"
         print("%s %6.2f%%  %3d/%-3d  %s" % (flag, pct, hit, measured, path))
         if missing:
             print("      uncovered: %s" % ", ".join(str(n) for n in missing))
+        if partial:
+            print("      partial (one branch only): %s"
+                  % ", ".join(str(n) for n in partial))
 
     pct = 100.0 * total_hit / total_measured
     print("\nTOTAL %.2f%% (%d/%d lines) — target %.0f%%" % (pct, total_hit, total_measured, args.target))

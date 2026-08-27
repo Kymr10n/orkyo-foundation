@@ -414,7 +414,12 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // Services backed by external systems → mock
         builder.Services.AddSingleton<IKeycloakAdminService>(mockKeycloak);
         builder.Services.AddSingleton<IEmailService>(mockEmail);
-        builder.Services.AddScoped<IInvitationService>(sp => Mock.Of<IInvitationService>());
+        // Programmable, not Mock.Of: with every call returning default, the revoke and resend
+        // SUCCESS paths were unreachable and only their not-found halves could be tested.
+        // Tests resolve this Mock from the factory, Setup the call, and Reset afterwards.
+        var invitations = new Mock<IInvitationService>();
+        builder.Services.AddSingleton(invitations);
+        builder.Services.AddScoped<IInvitationService>(sp => invitations.Object);
         builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
         builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());
         // Singleton, not Mock.Of: tests drive the /api/session/bootstrap branches by
