@@ -1,3 +1,4 @@
+using Api.Models;
 namespace Api.Services;
 
 /// <summary>
@@ -15,6 +16,12 @@ namespace Api.Services;
 public interface ISignInAuditRecorder
 {
     Task RecordAsync(Guid userId, string? email, CancellationToken ct = default);
+
+    /// <summary>
+    /// The sign-out counterpart, from the BFF logout handler. Same single-tenant
+    /// attribution rule as sign-in, so the audit log tells both halves of the story.
+    /// </summary>
+    Task RecordSignOutAsync(Guid userId, CancellationToken ct = default);
 }
 
 public sealed class SignInAuditRecorder : ISignInAuditRecorder
@@ -36,7 +43,24 @@ public sealed class SignInAuditRecorder : ISignInAuditRecorder
         _logger = logger;
     }
 
-    public async Task RecordAsync(Guid userId, string? email, CancellationToken ct = default)
+    public Task RecordAsync(Guid userId, string? email, CancellationToken ct = default) =>
+        RecordCoreAsync(userId, email, Api.Constants.SecurityAuditActions.SessionSignedIn, ct);
+
+    public async Task RecordSignOutAsync(Guid userId, CancellationToken ct = default)
+    {
+        // The logout handler holds only the user id; the email the stub needs comes from
+        // the same bootstrap lookup the core makes anyway.
+        var bootstrap = await SafeBuildAsync(userId, ct);
+        await RecordCoreAsync(userId, bootstrap?.User.Email, Api.Constants.SecurityAuditActions.SessionSignedOut, ct);
+    }
+
+    private async Task<SessionBootstrapResponse?> SafeBuildAsync(Guid userId, CancellationToken ct)
+    {
+        try { return await _sessionService.BuildSessionResponseAsync(userId, ct); }
+        catch { return null; }
+    }
+
+    private async Task RecordCoreAsync(Guid userId, string? email, string action, CancellationToken ct)
     {
         try
         {
@@ -62,13 +86,13 @@ public sealed class SignInAuditRecorder : ISignInAuditRecorder
             }
 
             await _tenantUserService.RecordAuditEventAsync(
-                org, Api.Constants.SecurityAuditActions.SessionSignedIn, actorUserId,
+                org, action, actorUserId,
                 targetType: "tenant", targetId: tenant.TenantId.ToString(), metadata: new { email }, ct: ct);
         }
         catch (Exception ex)
         {
-            // Best-effort: auditing must never block or fail a login.
-            _logger.LogWarning(ex, "Failed to record sign-in audit event for user {UserId}", userId);
+            // Best-effort: auditing must never block or fail a login or logout.
+            _logger.LogWarning(ex, "Failed to record {Action} audit event for user {UserId}", action, userId);
         }
     }
 }

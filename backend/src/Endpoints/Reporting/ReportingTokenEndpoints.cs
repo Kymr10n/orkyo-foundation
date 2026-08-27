@@ -61,23 +61,19 @@ public static class ReportingTokenEndpoints
         // Reporting API keys require the API-access entitlement. The edition decides:
         // SaaS grants it on paid tiers; Community allows everything.
         if (!await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct))
-            return Results.Json(
-                new { error = "upgrade_required", message = "Reporting API access requires a paid plan." },
-                statusCode: StatusCodes.Status402PaymentRequired);
+            return ErrorResponses.UpgradeRequired("Reporting API access requires a paid plan.");
 
         // The name/expiry shape guards live in CreateReportingTokenRequestValidator; the
         // entitlement check above stays here because it is authorization, not shape.
         var shape = await validator.ValidateAsync(request, ct);
         if (!shape.IsValid)
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError,
-                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+            return EndpointHelpers.ValidationFailed(shape);
 
         var created = await tokenService.CreateAsync(
             tenant.TenantId,
             request.Name.Trim(),
             request.ExpiresAt,
-            principal.UserId == Guid.Empty ? null : principal.UserId,
+            principal.UserIdOrNull,
             ct);
 
         return Results.Created($"/api/reporting/v1/tokens/{created.Summary.Id}", created);
@@ -92,12 +88,10 @@ public static class ReportingTokenEndpoints
     {
         var revoked = await tokenService.RevokeAsync(
             id, tenant.TenantId,
-            principal.UserId == Guid.Empty ? null : principal.UserId,
+            principal.UserIdOrNull,
             ct);
 
-        return revoked
-            ? Results.NoContent()
-            : ErrorResponses.NotFound("ReportingToken", id);
+        return EndpointHelpers.NoContentOrNotFound(revoked, "ReportingToken", id);
     }
 }
 

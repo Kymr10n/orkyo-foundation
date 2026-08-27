@@ -10,9 +10,6 @@ public interface IResourceGroupMemberRepository
     Task<ResourceGroupMembersResponse> GetMembersAsync(Guid groupId, CancellationToken ct = default);
     Task SetMembersAsync(Guid groupId, IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 
-    /// <summary>Returns the IDs of all resource groups that contain the given resource.</summary>
-    Task<IReadOnlyList<Guid>> GetGroupIdsForResourceAsync(Guid resourceId, CancellationToken ct = default);
-
     /// <summary>Returns group IDs keyed by resource ID for a batch of resources.</summary>
     Task<Dictionary<Guid, IReadOnlyList<Guid>>> GetGroupIdsForResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 }
@@ -119,15 +116,6 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         await tx.CommitAsync(ct);
     }
 
-    public async Task<IReadOnlyList<Guid>> GetGroupIdsForResourceAsync(Guid resourceId, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QueryListAsync(
-            "SELECT resource_group_id FROM resource_group_members WHERE resource_id = @resourceId",
-            p => p.AddWithValue("resourceId", resourceId),
-            r => r.GetGuid(0), ct);
-    }
-
     public async Task<Dictionary<Guid, IReadOnlyList<Guid>>> GetGroupIdsForResourcesAsync(
         IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
     {
@@ -148,6 +136,14 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         return map.ToDictionary(kvp => kvp.Key, kvp => (IReadOnlyList<Guid>)kvp.Value);
     }
 
+    /// <summary>
+    /// Deliberately narrower than <c>ResourceRepository.Map</c>, and matched to
+    /// <see cref="ResourceSelectColumns"/>: a group-membership list needs identity and
+    /// status, not geometry, custom fields or notes. The canonical mapper is an instance
+    /// method that decrypts notes and parses three jsonb columns, so reusing it here would
+    /// mean widening this query and paying decryption per row for fields the response
+    /// never carries. The fields this leaves unset are unset on purpose.
+    /// </summary>
     private static ResourceInfo MapResource(NpgsqlDataReader r) => new()
     {
         Id = r.GetGuid(r.GetOrdinal("id")),

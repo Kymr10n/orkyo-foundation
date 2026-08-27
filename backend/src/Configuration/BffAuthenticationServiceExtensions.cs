@@ -44,23 +44,23 @@ public static class BffAuthenticationServiceExtensions
                 else
                     opts.CookieSecure = !env.IsDevelopment();
 
-                opts.RedirectUri = config[ConfigKeys.BffRedirectUri] ?? string.Empty;
+                opts.RedirectUri = config.GetOptionalString(ConfigKeys.BffRedirectUri);
 
                 // Canonical public app origin (carries the port) — the preferred base for
                 // default/error redirects so they don't fall back to the port-less host list.
-                opts.AppBaseUrl = config[ConfigKeys.AppBaseUrl] ?? string.Empty;
+                opts.AppBaseUrl = config.GetOptionalString(ConfigKeys.AppBaseUrl);
 
                 var allowedHosts = config[ConfigKeys.BffAllowedHosts];
                 if (!string.IsNullOrEmpty(allowedHosts))
                     opts.AllowedReturnToHosts = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-                var idleDuration = config[ConfigKeys.BffSessionIdleDuration];
-                if (TimeSpan.TryParse(idleDuration, out var idle))
-                    opts.SessionIdleDuration = idle;
-
-                var maxDuration = config[ConfigKeys.BffSessionMaxDuration];
-                if (TimeSpan.TryParse(maxDuration, out var max))
-                    opts.SessionMaxDuration = max;
+                // A set-but-unparseable duration refuses startup rather than silently
+                // keeping the compiled-in default: a typo in prod would otherwise change
+                // session length with nothing in any log to say so.
+                opts.SessionIdleDuration = ParseDurationOrThrow(
+                    config[ConfigKeys.BffSessionIdleDuration], ConfigKeys.BffSessionIdleDuration, opts.SessionIdleDuration);
+                opts.SessionMaxDuration = ParseDurationOrThrow(
+                    config[ConfigKeys.BffSessionMaxDuration], ConfigKeys.BffSessionMaxDuration, opts.SessionMaxDuration);
 
                 var scopes = config[ConfigKeys.BffScopes];
                 if (!string.IsNullOrEmpty(scopes))
@@ -110,4 +110,14 @@ public static class BffAuthenticationServiceExtensions
 
         return services;
     }
+
+    /// <summary>Unset keeps the default; set-but-invalid is a startup error, never a silent fallback.</summary>
+    private static TimeSpan ParseDurationOrThrow(string? raw, string key, TimeSpan defaultValue)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return defaultValue;
+        if (TimeSpan.TryParse(raw, out var parsed)) return parsed;
+        throw new InvalidOperationException(
+            $"{key} is set to '{raw}', which is not a valid TimeSpan (use e.g. '00:45:00').");
+    }
+
 }

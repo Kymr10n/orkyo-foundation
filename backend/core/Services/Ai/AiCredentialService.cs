@@ -28,6 +28,9 @@ public interface IAiCredentialService
     Task<string> GetModelAsync(CancellationToken ct = default);
 
     Task MarkVerifiedAsync(CancellationToken ct = default);
+
+    /// <summary>Audits a Test-connection attempt — outcome only, never the key.</summary>
+    Task RecordTestedAsync(bool ok, string? reason, Guid? actorUserId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -124,6 +127,12 @@ public sealed class AiCredentialService(
     }
 
     public Task MarkVerifiedAsync(CancellationToken ct = default) => repository.MarkVerifiedAsync(ct);
+
+    public Task RecordTestedAsync(bool ok, string? reason, Guid? actorUserId, CancellationToken ct = default) =>
+        tenantUserService.RecordAuditEventAsync(
+            orgContext, TenantAuditActions.AiCredentialTested, actorUserId,
+            targetType: "workspace", targetId: null,
+            metadata: new { ok, reason }, ct: ct);
 
     /// <summary>Ellipsis plus the last four characters — enough to recognize a key, useless to an attacker.</summary>
     private static string BuildHint(string apiKey) => "…" + apiKey[^4..];

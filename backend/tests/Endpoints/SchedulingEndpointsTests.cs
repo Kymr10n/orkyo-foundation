@@ -249,6 +249,30 @@ public class SchedulingEndpointsTests
     }
 
     [Fact]
+    public async Task DeleteAvailabilityEventScope_ForAScopeTheEventDoesNotHave_Returns404()
+    {
+        var siteId = await GetOrCreateSiteId();
+
+        var created = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
+            new CreateAvailabilityEventRequest
+            {
+                Title = $"Scope 404 {Guid.NewGuid():N}"[..30],
+                StartTs = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),
+                EndTs = new DateTime(2026, 9, 2, 0, 0, 0, DateTimeKind.Utc)
+            }, TestHelpers.JsonOpts);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var ev = await created.Content.ReadFromJsonAsync<AvailabilityEventInfo>(TestHelpers.JsonOpts);
+        Assert.NotNull(ev);
+
+        // The event resolves, so this is the scope-level not-found — a different answer
+        // from the event-level one above it, and the reason the two are separate branches.
+        var response = await _client.DeleteAsync(
+            $"/api/sites/{siteId}/availability-events/{ev!.Id}/scopes/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetAvailabilityEventById_AfterCreate_ReturnsEvent()
     {
         var siteId = await GetOrCreateSiteId();

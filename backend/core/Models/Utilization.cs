@@ -1,12 +1,5 @@
 namespace Api.Models;
 
-public enum UtilizationGranularity
-{
-    Day,
-    Week,
-    Month,
-}
-
 public record UtilizationBucket
 {
     public required DateTime Start { get; init; }

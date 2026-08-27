@@ -21,21 +21,12 @@ public static class ToolFactory
     /// `tool` entry of ResourceTypeCatalog (backend/core; no project reference from seeding).
     /// Also used by <see cref="AvailabilityFactory"/>, which runs later and shares the row.
     /// </summary>
-    public static async Task<Guid> EnsureToolTypeAsync(NpgsqlConnection conn)
+    public static Task<Guid> EnsureToolTypeAsync(NpgsqlConnection conn)
     {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.resource_types " +
-            "(id, key, display_name, display_name_plural, description, icon, " +
-            " is_system, is_active, created_at, updated_at) " +
-            "VALUES (@id, 'tool', 'Tool', 'Tools', " +
-            "'Mobile equipment: hand tools, forklifts, cranes and the like.', " +
-            "'Wrench', false, true, @now, @now) " +
-            "ON CONFLICT (key) DO UPDATE SET updated_at = EXCLUDED.updated_at " +
-            "RETURNING id", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("now", DateTime.UtcNow);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
+        return ResourceTypeSeedHelpers.UpsertResourceTypeAsync(
+            conn, tx: null, "tool", "Tool", "Tools",
+            "Mobile equipment: hand tools, forklifts, cranes and the like.",
+            "Wrench");
     }
 
     public static async Task<IReadOnlyList<SeededTool>> SeedAsync(

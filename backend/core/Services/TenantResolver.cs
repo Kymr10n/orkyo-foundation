@@ -13,9 +13,6 @@ public class TenantResolver : ITenantResolver
     // In-memory cache: slug → (TenantContext?, expiry). Singleton-friendly.
     private static readonly ConcurrentDictionary<string, TenantResolverCacheEntry> _cache = new(TenantCacheKeyPolicy.Comparer);
 
-    /// <summary>Clear all cached tenants (used by integration tests).</summary>
-    internal static void ClearCache() => _cache.Clear();
-
     public TenantResolver(IConfiguration configuration)
     {
         _controlPlaneConnectionString = TenantResolverPolicy.ResolveControlPlaneConnectionString(configuration);

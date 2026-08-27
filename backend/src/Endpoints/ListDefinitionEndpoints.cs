@@ -87,7 +87,7 @@ public static class ListDefinitionEndpoints
             CancellationToken ct) =>
         {
             var removed = await service.DeleteAsync(definitionId, ct);
-            return removed ? Results.NoContent() : ErrorResponses.NotFound("ListDefinition", definitionId);
+            return EndpointHelpers.NoContentOrNotFound(removed, "ListDefinition", definitionId);
         })
             .WithName("DeleteListDefinition")
             .WithSummary("Delete a list definition that nothing references");
@@ -131,7 +131,7 @@ public static class ListDefinitionEndpoints
             CancellationToken ct) =>
         {
             var removed = await service.DeleteColumnAsync(definitionId, columnId, ct);
-            return removed ? Results.NoContent() : ErrorResponses.NotFound("ListColumn", columnId);
+            return EndpointHelpers.NoContentOrNotFound(removed, "ListColumn", columnId);
         })
             .WithName("DeleteListColumn")
             .WithSummary("Delete a column and discard the cells rows hold for it");
@@ -186,7 +186,7 @@ public static class ListDefinitionEndpoints
             CancellationToken ct) =>
         {
             var removed = await service.DeleteSharedInstanceAsync(definitionId, instanceId, ct);
-            return removed ? Results.NoContent() : ErrorResponses.NotFound("ListInstance", instanceId);
+            return EndpointHelpers.NoContentOrNotFound(removed, "ListInstance", instanceId);
         })
             .WithName("DeleteSharedListInstance")
             .WithSummary("Delete a shared list instance that no field references");

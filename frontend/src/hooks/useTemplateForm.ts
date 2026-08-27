@@ -72,13 +72,8 @@ export function templateFormReducer(
     }
 
     case "RESET":
-      return {
-        name: "",
-        description: "",
-        durationValue: "1",
-        durationUnit: "days",
-        requirements: new Map(),
-      };
+      // Fresh Map so the reset state never shares the module-level instance.
+      return { ...initialState, requirements: new Map() };
 
     default:
       return state;

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Api.Security.Quotas;
@@ -43,7 +44,7 @@ public class AssetStorageService(
         CancellationToken ct = default)
     {
         if (!await assetRepository.OwnerExistsAsync(AssetOwnerTypes.Site, siteId, ct))
-            throw new KeyNotFoundException($"Site {siteId} not found");
+            throw new NotFoundException("Site", siteId);
 
         var asset = await assetRepository.GetForOwnerAsync(
             tenantId, AssetOwnerTypes.Site, siteId, AssetTypes.Floorplan, ct);
@@ -56,7 +57,7 @@ public class AssetStorageService(
         CancellationToken ct = default)
     {
         if (!await assetRepository.OwnerExistsAsync(AssetOwnerTypes.Site, siteId, ct))
-            throw new KeyNotFoundException($"Site {siteId} not found");
+            throw new NotFoundException("Site", siteId);
 
         return await assetRepository.GetDownloadForOwnerAsync(
             tenantId, AssetOwnerTypes.Site, siteId, AssetTypes.Floorplan, ct);
@@ -70,7 +71,7 @@ public class AssetStorageService(
         CancellationToken ct = default)
     {
         if (!await assetRepository.OwnerExistsAsync(AssetOwnerTypes.Site, siteId, ct))
-            throw new KeyNotFoundException($"Site {siteId} not found");
+            throw new NotFoundException("Site", siteId);
 
         var settings = await settingsService.GetSettingsAsync(ct);
         var validated = await ValidateFloorplanAsync(request, settings, ct);
@@ -116,7 +117,7 @@ public class AssetStorageService(
         CancellationToken ct = default)
     {
         if (!await assetRepository.OwnerExistsAsync(AssetOwnerTypes.Site, siteId, ct))
-            throw new KeyNotFoundException($"Site {siteId} not found");
+            throw new NotFoundException("Site", siteId);
 
         var existingAsset = await assetRepository.GetForOwnerAsync(
             tenantId, AssetOwnerTypes.Site, siteId, AssetTypes.Floorplan, ct);

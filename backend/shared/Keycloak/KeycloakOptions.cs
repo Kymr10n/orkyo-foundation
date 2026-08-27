@@ -47,11 +47,6 @@ public sealed class KeycloakOptions
     /// <summary>Client secret for <see cref="BackendClientId"/>.</summary>
     public required string BackendClientSecret { get; init; }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
-
-    /// <summary>Whether Keycloak is configured at all.</summary>
-    public bool IsEnabled => !string.IsNullOrEmpty(BaseUrl);
-
     /// <summary>
     /// Build a <see cref="KeycloakOptions"/> from flat environment variables.
     /// </summary>

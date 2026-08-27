@@ -65,14 +65,12 @@ public static class AiCredentialEndpoints
 
         var shape = await validator.ValidateAsync(request, ct);
         if (!shape.IsValid)
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError,
-                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+            return EndpointHelpers.ValidationFailed(shape);
 
         try
         {
             var status = await credentials.SaveAsync(
-                request.ApiKey, principal.UserId == Guid.Empty ? null : principal.UserId, ct);
+                request.ApiKey, principal.UserIdOrNull, ct);
             return Results.Ok(status);
         }
         catch (ArgumentException ex)
@@ -87,13 +85,14 @@ public static class AiCredentialEndpoints
         ICurrentPrincipal principal,
         CancellationToken ct)
     {
-        await credentials.DeleteAsync(principal.UserId == Guid.Empty ? null : principal.UserId, ct);
+        await credentials.DeleteAsync(principal.UserIdOrNull, ct);
         return Results.NoContent();
     }
 
     private static async Task<IResult> TestCredential(
         IAiCredentialService credentials,
         IAnthropicGateway gateway,
+        ICurrentPrincipal principal,
         CancellationToken ct)
     {
         var apiKey = await credentials.GetApiKeyAsync(ct);
@@ -102,6 +101,10 @@ public static class AiCredentialEndpoints
 
         var result = await gateway.TestAsync(apiKey, await credentials.GetModelAsync(ct), ct);
         if (result.Ok) await credentials.MarkVerifiedAsync(ct);
+
+        // Key saves and removals were audited; tests were not, though the constant existed.
+        await credentials.RecordTestedAsync(result.Ok, result.Reason,
+            principal.UserIdOrNull, ct);
         return Results.Ok(result);
     }
 }

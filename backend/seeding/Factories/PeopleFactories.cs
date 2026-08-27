@@ -36,23 +36,12 @@ public static class PeopleFactories
     /// no types at all. Values mirror the `person` entry of ResourceTypeCatalog (backend/core);
     /// the seeding project deliberately has no reference to core, so they are duplicated here.
     /// </summary>
-    public static async Task<Guid> ResolvePersonResourceTypeIdAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx)
-    {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.resource_types " +
-            "(id, key, display_name, display_name_plural, description, icon, " +
-            " is_system, is_active, has_directory_profile, created_at, updated_at) " +
-            "VALUES (@id, 'person', 'Person', 'People', " +
-            "'Operators, fitters and everyone else who does the work.', " +
-            "'Users', false, true, true, @now, @now) " +
-            "ON CONFLICT (key) DO UPDATE SET updated_at = EXCLUDED.updated_at " +
-            "RETURNING id", conn, tx);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("now", DateTime.UtcNow);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
-    }
+    public static Task<Guid> ResolvePersonResourceTypeIdAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx) =>
+        ResourceTypeSeedHelpers.UpsertResourceTypeAsync(
+            conn, tx, "person", "Person", "People",
+            "Operators, fitters and everyone else who does the work.",
+            "Users", hasDirectoryProfile: true);
 
     /// <summary>
     /// Job titles and departments, seeded as the two organization lists migration 1820 defines.

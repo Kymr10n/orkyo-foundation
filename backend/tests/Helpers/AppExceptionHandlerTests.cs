@@ -65,15 +65,18 @@ public class AppExceptionHandlerTests
     }
 
     [Fact]
-    public async Task KeyNotFoundException_Maps_To404()
+    public async Task KeyNotFoundException_FallsThrough_AsAProgrammingError()
     {
+        // NotFoundException is how this codebase says "no such resource"; nothing throws
+        // KeyNotFoundException deliberately in any repo. What remains is the BCL's own
+        // throw from a missing dictionary key — a bug, and mapping it to 404 dressed that
+        // bug up as a client error. Same reasoning the guard-clause exceptions already
+        // follow: let the framework log it and 500 it.
         var ctx = CreateHttpContext();
         var handled = await Handler.TryHandleAsync(ctx, new KeyNotFoundException("resource missing"), default);
 
-        handled.Should().BeTrue();
-        ctx.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-        var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
+        handled.Should().BeFalse();
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status200OK); // nothing written
     }
 
     [Fact]

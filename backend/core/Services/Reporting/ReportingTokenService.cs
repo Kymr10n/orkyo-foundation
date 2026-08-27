@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Api.Configuration;
 using Api.Models;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
@@ -98,9 +99,17 @@ public sealed class ReportingTokenService : IReportingTokenService
     {
         _db = db;
         _logger = logger;
-        var pepperValue = configuration[ConfigKeys.ReportingTokenPepper]
-            ?? configuration[ConfigKeys.KeycloakBackendClientSecret]
-            ?? "dev-only-insecure-pepper-change-in-prod";
+        // Fail early, never fall back: the pepper keys token hashes, and the old chain
+        // ended in a literal from this file — a publicly known pepper. An empty value
+        // counts as absent (the deploy pipeline writes KEY= for unset keys).
+        var pepperValue = configuration.IsSet(ConfigKeys.ReportingTokenPepper)
+            ? configuration[ConfigKeys.ReportingTokenPepper]!
+            : configuration[ConfigKeys.KeycloakBackendClientSecret];
+        if (string.IsNullOrEmpty(pepperValue))
+            throw new InvalidOperationException(
+                $"ReportingTokenService: neither '{ConfigKeys.ReportingTokenPepper}' nor "
+                + $"'{ConfigKeys.KeycloakBackendClientSecret}' is set; refusing to hash "
+                + "reporting tokens with a known pepper.");
         _pepper = Encoding.UTF8.GetBytes(pepperValue);
     }
 

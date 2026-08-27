@@ -91,7 +91,7 @@ public static class ListInstanceEndpoints
             CancellationToken ct) =>
         {
             var removed = await service.DeleteRowAsync(instanceId, rowId, ct);
-            return removed ? Results.NoContent() : ErrorResponses.NotFound("ListRow", rowId);
+            return EndpointHelpers.NoContentOrNotFound(removed, "ListRow", rowId);
         })
             .WithName("DeleteListRow")
             .WithSummary("Delete a row, and drop it from any resource that selected it");

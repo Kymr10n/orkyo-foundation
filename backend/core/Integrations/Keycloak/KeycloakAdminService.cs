@@ -155,7 +155,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             lastName = lastName ?? "",
             enabled = true,
             emailVerified,
-            requiredActions = emailVerified ? Array.Empty<string>() : new[] { "VERIFY_EMAIL" }
+            requiredActions = emailVerified ? Array.Empty<string>() : new[] { KeycloakRequiredActions.VerifyEmail }
         };
 
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users";
@@ -361,9 +361,26 @@ public class KeycloakAdminService : IKeycloakAdminService
         var (token, userId) = await ResolveUserAsync(keycloakSub);
 
         var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
+
+        // Keycloak's user PUT replaces any field present in the body, so writing just
+        // [CONFIGURE_TOTP] would drop pending actions like VERIFY_EMAIL or
+        // UPDATE_PASSWORD. Read the current list and append instead.
+        var getRequest = CreateAdminRequest(HttpMethod.Get, url, token);
+        var getResponse = await _httpClient.SendAsync(getRequest, ct);
+        await EnsureSuccessAsync(getResponse, "Failed to read user before enabling MFA");
+        var json = await getResponse.Content.ReadAsStringAsync(ct);
+        var userData = JsonSerializer.Deserialize<KeycloakUserFull>(json)
+            ?? throw new KeycloakAdminException("Failed to parse user while enabling MFA");
+
+        var actions = userData.RequiredActions ?? new List<string>();
+        if (!actions.Contains(KeycloakRequiredActions.ConfigureTotp))
+        {
+            actions.Add(KeycloakRequiredActions.ConfigureTotp);
+        }
+
         var request = CreateAdminRequest(HttpMethod.Put, url, token, new
         {
-            requiredActions = new[] { "CONFIGURE_TOTP" }
+            requiredActions = actions
         });
 
         var response = await _httpClient.SendAsync(request, ct);
@@ -771,6 +788,9 @@ public class KeycloakAdminService : IKeycloakAdminService
 
         [JsonPropertyName("emailVerified")]
         public bool EmailVerified { get; set; }
+
+        [JsonPropertyName("requiredActions")]
+        public List<string>? RequiredActions { get; set; }
     }
 
     private class KeycloakCredential

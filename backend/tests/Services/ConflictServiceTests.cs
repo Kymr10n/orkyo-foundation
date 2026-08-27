@@ -70,7 +70,8 @@ public class ConflictServiceTests
 
     private static RequestInfo ScheduledRequest(
         Guid id, IReadOnlyList<ResourceAssignmentInfo> assignments, DateTime start, DateTime end,
-        int minMinutes = 60, List<RequestRequirementInfo>? requirements = null) => new()
+        int minMinutes = 60, List<RequestRequirementInfo>? requirements = null,
+        DateTime? earliestStart = null, DateTime? latestEnd = null) => new()
         {
             Id = id,
             Name = "R",
@@ -83,6 +84,8 @@ public class ConflictServiceTests
             EndTs = end,
             MinimalDurationValue = minMinutes,
             MinimalDurationUnit = DurationUnit.Minutes,
+            EarliestStartTs = earliestStart,
+            LatestEndTs = latestEnd,
             Requirements = requirements,
             CreatedAt = Start,
             UpdatedAt = Start,
@@ -266,6 +269,39 @@ public class ConflictServiceTests
 
         var entry = Assert.Single(result);
         Assert.Contains(entry.Conflicts, c => c.Kind == "below_min_duration");
+    }
+
+    [Fact]
+    public async Task SurfacesIntrinsicBeforeEarliestStart()
+    {
+        var reqId = Guid.NewGuid();
+        var space = SpaceAssignment(Guid.NewGuid(), reqId, Guid.NewGuid(), Start, Start.AddHours(1));
+        // Scheduled an hour before the window the request itself declares.
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddHours(1),
+                minMinutes: 30, earliestStart: Start.AddHours(1))]);
+
+        var result = await _service.GetAllAsync();
+
+        var conflict = Assert.Single(Assert.Single(result).Conflicts,
+            c => c.Kind == "before_earliest_start");
+        Assert.Equal("error", conflict.Severity);
+    }
+
+    [Fact]
+    public async Task SurfacesIntrinsicAfterLatestEnd()
+    {
+        var reqId = Guid.NewGuid();
+        var space = SpaceAssignment(Guid.NewGuid(), reqId, Guid.NewGuid(), Start, Start.AddHours(2));
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddHours(2),
+                minMinutes: 30, latestEnd: Start.AddHours(1))]);
+
+        var result = await _service.GetAllAsync();
+
+        var conflict = Assert.Single(Assert.Single(result).Conflicts,
+            c => c.Kind == "after_latest_end");
+        Assert.Equal("error", conflict.Severity);
     }
 
     [Fact]

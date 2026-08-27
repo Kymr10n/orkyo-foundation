@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
+import { apiGet, apiPost, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
 export type AbsenceType = 'vacation' | 'sickness' | 'unavailable' | 'training' | 'maintenance' | 'custom';
@@ -49,14 +49,6 @@ export async function createResourceAbsence(
   request: CreateResourceAbsenceRequest,
 ): Promise<ResourceAbsenceInfo> {
   return apiPost<ResourceAbsenceInfo>(API_PATHS.resourceAbsences(resourceId), request);
-}
-
-export async function updateResourceAbsence(
-  resourceId: string,
-  absenceId: string,
-  request: UpdateResourceAbsenceRequest,
-): Promise<ResourceAbsenceInfo> {
-  return apiPut<ResourceAbsenceInfo>(API_PATHS.resourceAbsence(resourceId, absenceId), request);
 }
 
 export async function deleteResourceAbsence(resourceId: string, absenceId: string): Promise<void> {

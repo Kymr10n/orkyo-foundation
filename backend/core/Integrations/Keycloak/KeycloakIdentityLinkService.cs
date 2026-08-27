@@ -173,19 +173,41 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             var userId = Guid.NewGuid();
             var displayName = token.DisplayName ?? token.Email?.Split('@')[0] ?? "User";
 
-            // Create user in control plane
+            // Create user in control plane. ON CONFLICT + re-read rather than a bare INSERT:
+            // two sign-ins for the same new address can race here, and the loser used to die
+            // on the unique index. This mirrors UserProvisioningService, which is where the
+            // idiom is spelled out.
             await using var createUserCmd = new NpgsqlCommand(@"
                 INSERT INTO users (id, email, display_name, status, last_login_at, created_at, updated_at)
-                VALUES (@id, @email, @displayName, 'active', NOW(), NOW(), NOW())",
+                VALUES (@id, @email, @displayName, 'active', NOW(), NOW(), NOW())
+                ON CONFLICT (email) DO NOTHING
+                RETURNING id",
                 conn, transaction);
             createUserCmd.Parameters.AddWithValue("id", userId);
             createUserCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
             createUserCmd.Parameters.AddWithValue("displayName", displayName);
-            await createUserCmd.ExecuteNonQueryAsync(ct);
+
+            if (await createUserCmd.ExecuteScalarAsync(ct) is Guid insertedId)
+            {
+                userId = insertedId;
+            }
+            else
+            {
+                // A concurrent sign-in created the same address between our lookup and our
+                // write. Theirs is as good as ours — link this identity to their row.
+                await using var findCmd = new NpgsqlCommand(
+                    "SELECT id FROM users WHERE LOWER(email) = LOWER(@email)", conn, transaction);
+                findCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+                userId = await findCmd.ExecuteScalarAsync(ct) is Guid winner
+                    ? winner
+                    : throw new InvalidOperationException(
+                        $"users row for {token.Email} vanished between insert conflict and re-read");
+            }
 
             await using var linkCmd = new NpgsqlCommand(@"
                 INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email, created_at)
-                VALUES (@id, @userId, 'keycloak', @subject, @email, NOW())",
+                VALUES (@id, @userId, 'keycloak', @subject, @email, NOW())
+                ON CONFLICT (provider, provider_subject) DO NOTHING",
                 conn, transaction);
             linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
             linkCmd.Parameters.AddWithValue("userId", userId);

@@ -3,11 +3,9 @@ import { writeThemeCookie } from "@foundation/src/lib/core/theme";
 import { create } from "zustand";
 
 interface AppState {
-  // Site and hall selection
+  // Site selection
   selectedSiteId: string | null;
-  selectedHallId: string | null;
   setSelectedSiteId: (siteId: string | null) => void;
-  setSelectedHallId: (hallId: string | null) => void;
 
   // Scheduler time controls (v3)
   scale: "year" | "month" | "week" | "day" | "hour";
@@ -19,21 +17,9 @@ interface AppState {
   timeCursorTs: Date;
   setTimeCursorTs: (ts: Date) => void;
 
-  // Selection state for utilization
-  selectedResourceId: string | null;
-  selectedJobId: string | null;
-  selectedRequestId: string | null;
-  setSelectedResourceId: (id: string | null) => void;
-  setSelectedJobId: (id: string | null) => void;
-  setSelectedRequestId: (id: string | null) => void;
-
   // Space row ordering
   spaceOrder: string[];
   setSpaceOrder: (order: string[]) => void;
-
-  // Drawer state
-  isDetailsDrawerOpen: boolean;
-  setIsDetailsDrawerOpen: (open: boolean) => void;
 
   // Floorplan collapse state (v3)
   isFloorplanCollapsed: boolean;
@@ -53,20 +39,22 @@ interface AppState {
   setTheme: (theme: "dark" | "light" | "system") => void;
 }
 
+const initialTheme: "dark" | "light" | "system" =
+  (typeof localStorage !== "undefined" &&
+    (localStorage.getItem(STORAGE_KEYS.THEME) as "dark" | "light" | "system")) ||
+  "system";
+
 export const useAppStore = create<AppState>((set) => ({
   selectedSiteId:
     typeof localStorage !== "undefined"
       ? localStorage.getItem(STORAGE_KEYS.SELECTED_SITE_ID)
       : null,
-  selectedHallId: null,
   setSelectedSiteId: (siteId) => {
     set({ selectedSiteId: siteId });
     if (typeof localStorage !== "undefined" && siteId) {
       localStorage.setItem(STORAGE_KEYS.SELECTED_SITE_ID, siteId);
     }
   },
-  setSelectedHallId: (hallId) => set({ selectedHallId: hallId }),
-
   scale: "week",
   anchorTs: new Date(),
   setScale: (scale) => set({ scale }),
@@ -75,21 +63,8 @@ export const useAppStore = create<AppState>((set) => ({
   timeCursorTs: new Date(),
   setTimeCursorTs: (ts) => set({ timeCursorTs: ts }),
 
-  selectedResourceId: null,
-  selectedJobId: null,
-  selectedRequestId: null,
-  setSelectedResourceId: (id) =>
-    set({ selectedResourceId: id, isDetailsDrawerOpen: !!id }),
-  setSelectedJobId: (id) =>
-    set({ selectedJobId: id, isDetailsDrawerOpen: !!id }),
-  setSelectedRequestId: (id) =>
-    set({ selectedRequestId: id, isDetailsDrawerOpen: !!id }),
-
   spaceOrder: [],
   setSpaceOrder: (order) => set({ spaceOrder: order }),
-
-  isDetailsDrawerOpen: false,
-  setIsDetailsDrawerOpen: (open) => set({ isDetailsDrawerOpen: open }),
 
   isFloorplanCollapsed: false,
   setIsFloorplanCollapsed: (collapsed) => set({ isFloorplanCollapsed: collapsed }),
@@ -113,22 +88,8 @@ export const useAppStore = create<AppState>((set) => ({
       return { collapsedGroupIds: collapsed };
     }),
 
-  theme:
-    (typeof localStorage !== "undefined" &&
-      (localStorage.getItem(STORAGE_KEYS.THEME) as "dark" | "light" | "system")) ||
-    "system",
-  resolvedTheme: (() => {
-    if (typeof localStorage !== "undefined") {
-      const stored = localStorage.getItem(STORAGE_KEYS.THEME) as "dark" | "light" | "system" | null;
-      if (stored === "dark") return "dark";
-      if (stored === "light") return "light";
-    }
-    // For "system" or no stored value, check OS preference
-    if (typeof window !== "undefined" && window.matchMedia) {
-      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-    return "dark";
-  })(),
+  theme: initialTheme,
+  resolvedTheme: resolveTheme(initialTheme),
   setTheme: (theme) =>
     set(() => {
       if (typeof localStorage !== "undefined") {

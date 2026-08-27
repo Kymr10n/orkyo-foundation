@@ -178,16 +178,3 @@ export function scaleToCalendarView(scale: string, opts?: { phone?: boolean }): 
       return phone ? "listMonth" : "dayGridMonth"; // month / year → month overview
   }
 }
-
-export function calendarViewToScale(view: string): "day" | "week" | "month" {
-  switch (view) {
-    case "timeGridDay":
-    case "listDay":
-      return "day";
-    case "timeGridWeek":
-    case "listWeek":
-      return "week";
-    default:
-      return "month";
-  }
-}

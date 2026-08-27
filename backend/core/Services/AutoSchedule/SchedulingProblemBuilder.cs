@@ -149,8 +149,18 @@ public class SchedulingProblemBuilder
         var minutesPerDay = 24 * 60;
         if (settings is { WorkingHoursEnabled: true })
         {
+            // Compare before subtracting: TimeOnly subtraction is elapsed time and wraps at
+            // midnight, so 09:00 - 17:00 is 16 hours, not -8. Subtracting first would let an
+            // end-before-start setting through as a plausible-looking positive day length.
+            if (settings.WorkingDayEnd <= settings.WorkingDayStart)
+            {
+                // SchedulingValidators rejects end <= start at the boundary, so this is
+                // corrupt stored data — fail rather than silently invent an 8-hour day.
+                throw new InvalidOperationException(
+                    $"Working hours are enabled but WorkingDayEnd ({settings.WorkingDayEnd}) "
+                    + $"is not after WorkingDayStart ({settings.WorkingDayStart}).");
+            }
             minutesPerDay = (int)(settings.WorkingDayEnd - settings.WorkingDayStart).TotalMinutes;
-            if (minutesPerDay <= 0) minutesPerDay = 8 * 60;
         }
         var totalMinutes = SchedulingEngine.DurationToMinutes(value, unit);
         return Math.Max(1, (int)Math.Ceiling((double)totalMinutes / minutesPerDay));

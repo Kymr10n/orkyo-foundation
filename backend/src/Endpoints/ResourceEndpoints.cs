@@ -105,7 +105,7 @@ public static class ResourceEndpoints
             CancellationToken ct) =>
         {
             var deactivated = await service.DeactivateAsync(id, ct);
-            return deactivated ? Results.NoContent() : ErrorResponses.NotFound("Resource", id);
+            return EndpointHelpers.NoContentOrNotFound(deactivated, "Resource", id);
         })
             .WithName("DeactivateResource")
             .WithSummary("Deactivate (soft-delete) a resource");
@@ -209,7 +209,7 @@ public static class ResourceEndpoints
             CancellationToken ct) =>
         {
             var deleted = await repository.DeleteAsync(id, capabilityId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Capability", capabilityId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Capability", capabilityId);
         })
             .WithName("DeleteResourceCapability")
             .WithSummary("Remove a capability from a resource");
@@ -269,7 +269,7 @@ public static class ResourceEndpoints
             if (existing is null || existing.ResourceId != id)
                 return ErrorResponses.NotFound("Absence", absenceId);
             var deleted = await absenceRepo.DeleteAsync(absenceId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Absence", absenceId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Absence", absenceId);
         })
             .WithName("DeleteResourceAbsence")
             .WithSummary("Delete an absence for a resource");

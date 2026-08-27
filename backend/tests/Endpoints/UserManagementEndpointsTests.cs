@@ -5,6 +5,10 @@ using System.Text.Json.Serialization;
 using Api.Constants;
 using Api.Endpoints;
 using Api.Models;
+using Api.Security;
+using Api.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using Npgsql;
 using Xunit;
 
@@ -19,6 +23,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class UserManagementEndpointsTests
 {
+    private readonly FoundationWebApplicationFactory _factory;
     private readonly HttpClient _client;
     private readonly HttpClient _unauthenticatedClient;
     private readonly JsonSerializerOptions _jsonOptions;
@@ -27,6 +32,7 @@ public class UserManagementEndpointsTests
     public UserManagementEndpointsTests(DatabaseFixture databaseFixture)
     {
         // The seeded test user has admin role in DatabaseFixture
+        _factory = databaseFixture.Factory;
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
         _connString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres;Include Error Detail=true";
@@ -218,6 +224,27 @@ public class UserManagementEndpointsTests
             $"Expected 404 or 500, got {response.StatusCode}");
     }
 
+    [Fact]
+    public async Task RevokeInvitation_WhenTheServiceRevokesIt_Returns200()
+    {
+        var invitationId = Guid.NewGuid();
+        var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
+        invitations.Setup(i => i.RevokeInvitationAsync(
+                It.IsAny<TenantContext>(), invitationId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        try
+        {
+            var response = await _client.DeleteAsync($"/api/users/invitations/{invitationId}");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("revoked successfully", await response.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            invitations.Reset();
+        }
+    }
+
     #endregion
 
     #region POST /api/users/invitations/{invitationId}/resend (Admin only)
@@ -225,10 +252,10 @@ public class UserManagementEndpointsTests
     // This route did not exist at all until 2026-07-28: the Settings → Users "Resend" button had
     // always 404'd, invisibly, because every test that touched it mocked the API module.
     //
-    // Scope note: this factory registers Mock.Of<IInvitationService>(), so these tests can only
-    // prove the route is registered and correctly auth-gated — the mock always returns false.
-    // The behaviour itself (token rotation, expiry reset, accepted guard, tenant scoping) is
-    // covered against a real database in Services/InvitationResendServiceTests.
+    // Scope note: the factory's IInvitationService is a programmable Moq instance, so these tests
+    // prove the route is registered, correctly auth-gated, and that the handler maps both the
+    // service's answers. The behaviour itself (token rotation, expiry reset, accepted guard,
+    // tenant scoping) is covered against a real database in Services/InvitationResendServiceTests.
 
     [Fact]
     public async Task ResendInvitation_NoAuth_Returns401()
@@ -250,6 +277,28 @@ public class UserManagementEndpointsTests
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.NotEqual(HttpStatusCode.MethodNotAllowed, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ResendInvitation_WhenTheServiceResendsIt_Returns200()
+    {
+        var invitationId = Guid.NewGuid();
+        var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
+        invitations.Setup(i => i.ResendInvitationAsync(
+                It.IsAny<TenantContext>(), invitationId, It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        try
+        {
+            var response = await _client.PostAsync(
+                $"/api/users/invitations/{invitationId}/resend", content: null);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains("resent successfully", await response.Content.ReadAsStringAsync());
+        }
+        finally
+        {
+            invitations.Reset();
+        }
     }
 
     #endregion
@@ -341,6 +390,40 @@ public class UserManagementEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("last admin", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_ForAMember_UpdatesTheRole()
+    {
+        // The success half of the same handler: the refusals were covered, the change taking
+        // effect was not. Read the role back rather than trusting the message.
+        var targetId = await SeedSecondTenantMemberAsync(role: RoleConstants.Viewer);
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetId}/role", new UpdateUserRoleRequest(UserRole.Editor), _jsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var read = new NpgsqlCommand(
+            "SELECT role FROM tenant_memberships WHERE user_id = @uid AND tenant_id = @tid", conn);
+        read.Parameters.AddWithValue("uid", targetId);
+        read.Parameters.AddWithValue("tid", TestTenantId);
+        Assert.Equal(RoleConstants.Editor, (string?)await read.ExecuteScalarAsync());
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_ForAUserWhoIsNotAMember_Returns404()
+    {
+        // Not a validation refusal and not a last-admin refusal: the service reports no
+        // such membership, and NotFoundException is what the handler turns that into.
+        var request = new UpdateUserRoleRequest(UserRole.Editor);
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{Guid.NewGuid()}/role", request, _jsonOptions);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

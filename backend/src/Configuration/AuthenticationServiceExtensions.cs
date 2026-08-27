@@ -45,7 +45,15 @@ public static class AuthenticationServiceExtensions
             : $"{internalAuthority.TrimEnd('/')}/.well-known/openid-configuration";
 
         var bffEnabled = string.Equals(configuration[ConfigKeys.BffEnabled], "true", StringComparison.OrdinalIgnoreCase);
-        var bffCookieName = configuration[ConfigKeys.BffCookieName] ?? BffOptions.DefaultCookieName;
+        // Empty counts as absent, matching how AddBffAuthentication resolves the same key.
+        // `?? Default` did not: an unset BFF_COOKIE_NAME writes an EMPTY value into the
+        // deployed .env, and this selector would then look for a cookie named "" — never
+        // present — while the BFF handler used the real default. Cookie sessions would
+        // silently fall through to bearer.
+        var configuredCookieName = configuration[ConfigKeys.BffCookieName];
+        var bffCookieName = string.IsNullOrEmpty(configuredCookieName)
+            ? BffOptions.DefaultCookieName
+            : configuredCookieName;
 
         services.AddAuthentication(options =>
         {

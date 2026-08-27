@@ -46,14 +46,6 @@ public sealed class AuthorizationContext
     /// <summary>Whether the user can view content</summary>
     public bool CanView => Role >= TenantRole.Viewer;
 
-    /// <summary>Creates a context for a non-member</summary>
-    public static AuthorizationContext NoAccess(Guid tenantId, string tenantSlug) => new()
-    {
-        TenantId = tenantId,
-        TenantSlug = tenantSlug,
-        Role = TenantRole.None
-    };
-
     /// <summary>Role as string (for compatibility with existing code)</summary>
     public string RoleString => Role.ToString().ToLowerInvariant();
 }

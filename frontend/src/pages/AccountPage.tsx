@@ -150,7 +150,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     isSiteAdmin,
     setAppUser,
     send,
-    refresh,
   } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, handleTabChange] = useTabParam("profile");
@@ -245,7 +244,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     // Land on the profile tab so the refreshed email is visible.
     next.set("tab", "profile");
     setSearchParams(next, { replace: true });
-  }, [queryClient, refresh, searchParams, setSearchParams]);
+  }, [queryClient, searchParams, setSearchParams]);
 
   const handleStartEditName = () => {
     setNameForm({

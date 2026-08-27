@@ -56,7 +56,7 @@ public static class FoundationApiHostExtensions
         {
             options.AddDefaultPolicy(policy =>
             {
-                var rawOrigins = configuration[ConfigKeys.CorsAllowedOrigins] ?? "";
+                var rawOrigins = configuration.GetOptionalString(ConfigKeys.CorsAllowedOrigins);
                 var allowedOrigins = rawOrigins
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);

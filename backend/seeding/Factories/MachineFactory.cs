@@ -25,31 +25,15 @@ public static class MachineFactory
     /// </summary>
     public static async Task<IReadOnlyDictionary<string, Guid>> SeedTypesAsync(NpgsqlConnection conn)
     {
-        var now = DateTime.UtcNow;
         var ids = new Dictionary<string, Guid>();
 
+        // Adopt a type the workspace already has rather than failing on its key — the
+        // reactivation semantics live in ResourceTypeSeedHelpers, shared by every factory.
         foreach (var spec in MachineCatalog.Types)
         {
-            var id = Guid.NewGuid();
-            // Adopt a type the workspace already has rather than failing on its key. Append mode
-            // runs over a database that may hold these already — and so does any workspace that
-            // activated one of them from the type catalog first. Adoption reactivates and changes
-            // nothing else, which is the rule catalog activation follows: the row is the tenant's,
-            // renames and edits included.
-            await using var cmd = new NpgsqlCommand(
-                "INSERT INTO public.resource_types " +
-                "(id, key, display_name, display_name_plural, description, icon, is_system, is_active, has_geometry, created_at, updated_at) " +
-                "VALUES (@id, @key, @name, @plural, @description, @icon, false, true, true, @now, @now) " +
-                "ON CONFLICT (key) DO UPDATE SET is_active = true, updated_at = @now " +
-                "RETURNING id", conn);
-            cmd.Parameters.AddWithValue("id", id);
-            cmd.Parameters.AddWithValue("key", spec.Key);
-            cmd.Parameters.AddWithValue("name", spec.DisplayName);
-            cmd.Parameters.AddWithValue("plural", spec.DisplayNamePlural);
-            cmd.Parameters.AddWithValue("description", spec.Description);
-            cmd.Parameters.AddWithValue("icon", spec.Icon);
-            cmd.Parameters.AddWithValue("now", now);
-            ids[spec.Key] = (Guid)(await cmd.ExecuteScalarAsync())!;
+            ids[spec.Key] = await ResourceTypeSeedHelpers.UpsertResourceTypeAsync(
+                conn, tx: null, spec.Key, spec.DisplayName, spec.DisplayNamePlural,
+                spec.Description, spec.Icon, hasGeometry: true);
         }
 
         return ids;

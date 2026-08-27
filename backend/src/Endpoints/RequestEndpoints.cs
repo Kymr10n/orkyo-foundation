@@ -76,7 +76,7 @@ public static class RequestEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, IRequestService requestService, CancellationToken ct) =>
         {
             var deleted = await requestService.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Request", id);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Request", id);
         })
         .WithName("DeleteRequest")
         .WithSummary("Delete a request");
@@ -106,7 +106,7 @@ public static class RequestEndpoints
         group.MapDelete("/{id:guid}/requirements/{requirementId:guid}", async (Guid id, Guid requirementId, IRequestService requestService, CancellationToken ct) =>
         {
             var deleted = await requestService.DeleteRequirementAsync(id, requirementId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Requirement", requirementId);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Requirement", requirementId);
         })
         .WithName("DeleteRequestRequirement")
         .WithSummary("Remove a requirement from a request");

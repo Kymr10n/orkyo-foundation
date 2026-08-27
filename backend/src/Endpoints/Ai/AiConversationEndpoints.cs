@@ -80,9 +80,7 @@ public static class AiConversationEndpoints
     {
         var shape = await validator.ValidateAsync(request, ct);
         if (!shape.IsValid)
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError,
-                detail: "One or more fields failed validation.", errors: shape.ToDictionary());
+            return EndpointHelpers.ValidationFailed(shape);
 
         await conversations.SaveAsync(
             id,

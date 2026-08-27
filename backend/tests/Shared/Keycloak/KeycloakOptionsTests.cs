@@ -44,20 +44,6 @@ public class KeycloakOptionsTests
     }
 
     [Fact]
-    public void IsEnabled_FollowsBaseUrlPresence()
-    {
-        BuildOptions().IsEnabled.Should().BeTrue();
-        var disabled = new KeycloakOptions
-        {
-            BaseUrl = "",
-            Realm = "orkyo",
-            BackendClientId = "backend",
-            BackendClientSecret = "secret",
-        };
-        disabled.IsEnabled.Should().BeFalse();
-    }
-
-    [Fact]
     public void FromConfiguration_ReadsAllConfigKeys()
     {
         var config = BuildConfig(new()

@@ -239,6 +239,46 @@ public class RequestRepositoryTests
     }
 
     [Fact]
+    public async Task GetScheduled_BarTouchingTheWindowBoundary_IsInExactlyOneWindow()
+    {
+        // Windows are half-open [from, to): a bar that ENDS exactly where a window starts
+        // belongs to the previous window, not this one. These three request queries used
+        // closed intervals while every other window query was half-open, so boundary bars
+        // appeared in two windows at once.
+        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var start = DateTime.UtcNow.Date.AddDays(5).AddHours(8);
+        var end = start.AddHours(2);
+
+        var createResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"Bound-{Guid.NewGuid():N}"[..20],
+            SiteId = siteId,
+            StartTs = start,
+            EndTs = end,
+            MinimalDurationValue = 2,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = false,
+        });
+        createResp.EnsureSuccessStatusCode();
+        var created = (await createResp.Content.ReadFromJsonAsync<RequestInfo>())!;
+
+        // Window starting exactly at the bar's end: excluded.
+        var after = await _client.GetFromJsonAsync<List<RequestInfo>>(
+            $"/api/sites/{siteId}/requests?from={end:o}&to={end.AddHours(4):o}");
+        Assert.DoesNotContain(after!, r => r.Id == created.Id);
+
+        // Window ending exactly at the bar's start: excluded.
+        var before = await _client.GetFromJsonAsync<List<RequestInfo>>(
+            $"/api/sites/{siteId}/requests?from={start.AddHours(-4):o}&to={start:o}");
+        Assert.DoesNotContain(before!, r => r.Id == created.Id);
+
+        // Window genuinely overlapping: included.
+        var overlapping = await _client.GetFromJsonAsync<List<RequestInfo>>(
+            $"/api/sites/{siteId}/requests?from={start.AddHours(1):o}&to={end.AddHours(1):o}");
+        Assert.Contains(overlapping!, r => r.Id == created.Id);
+    }
+
+    [Fact]
     public async Task Schedule_SiteNeutralRequestIntoSpace_AdoptsSpaceSite()
     {
         // Implicit site-on-schedule: a site-neutral (NULL) request adopts the space's site when placed.

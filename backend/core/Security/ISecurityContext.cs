@@ -12,6 +12,12 @@ public interface ICurrentPrincipal
     /// <summary>The current user's internal ID</summary>
     Guid UserId { get; }
 
+    /// <summary>
+    /// The current user's id, or null when the request has no user behind it — the shape
+    /// an audit actor column wants. Endpoints wrote this ternary out by hand eight times.
+    /// </summary>
+    Guid? UserIdOrNull => UserId == Guid.Empty ? null : UserId;
+
     /// <summary>The current user's email</summary>
     string Email { get; }
 
@@ -27,9 +33,6 @@ public interface ICurrentPrincipal
     /// carries no session claim.
     /// </summary>
     string? SessionId { get; }
-
-    /// <summary>Get the full principal context</summary>
-    PrincipalContext GetContext();
 
     /// <summary>Get user ID or throw if not authenticated</summary>
     Guid RequireUserId();
@@ -80,12 +83,6 @@ public interface IAuthorizationContext
 
     /// <summary>Whether the user can view content</summary>
     bool CanView { get; }
-
-    /// <summary>Get the full authorization context</summary>
-    AuthorizationContext GetContext();
-
-    /// <summary>Require the user to be a member, throw 403 if not</summary>
-    void RequireMembership();
 
     /// <summary>Require a specific role, throw 403 if not met</summary>
     void RequireRole(TenantRole minimumRole);

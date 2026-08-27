@@ -9,8 +9,6 @@ namespace Api.Services;
 public interface IEmailService
 {
     Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default);
-    Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken, CancellationToken ct = default);
-    Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken, CancellationToken ct = default);
     Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
     Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default);
     Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default);
@@ -24,7 +22,6 @@ public interface IEmailService
     Task<bool> SendTenantSuspendedAsync(string toEmail, string tenantName, string reactivateUrl, int deleteAfterDays, CancellationToken ct = default);
     Task<bool> SendTenantDeletingWarningAsync(string toEmail, string tenantName, string restoreUrl, int daysUntilDelete, CancellationToken ct = default);
     Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default);
-    Task<bool> SendTenantReactivatedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default);
     Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default);
 
     // Membership / role / ownership / quota / tier
@@ -197,20 +194,6 @@ public class EmailService : IEmailService
         EmailTokenLinkBuilder.Build(
             _configuration.GetRequired(ConfigKeys.AppBaseUrl), path, queryParam, token);
 
-    public async Task<bool> SendVerificationEmailAsync(string toEmail, string displayName, string verificationToken, CancellationToken ct = default)
-    {
-        var verificationLink = BuildTokenLink("verify-email", "token", verificationToken);
-        return await SendTemplatedAsync(toEmail, displayName,
-            b => EmailTemplates.GetVerificationEmail(displayName, verificationLink, b), ct);
-    }
-
-    public async Task<bool> SendPasswordResetEmailAsync(string toEmail, string displayName, string resetToken, CancellationToken ct = default)
-    {
-        var resetLink = BuildTokenLink("reset-password", "token", resetToken);
-        return await SendTemplatedAsync(toEmail, displayName,
-            b => EmailTemplates.GetPasswordResetEmail(displayName, resetLink, b), ct);
-    }
-
     public async Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
     {
         return await SendTemplatedAsync(toEmail, displayName,
@@ -279,10 +262,6 @@ public class EmailService : IEmailService
     public Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default) =>
         SendTemplatedAsync(toEmail, toEmail,
             b => EmailTemplates.GetTenantDeletedEmail(tenantName, b), ct);
-
-    public Task<bool> SendTenantReactivatedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default) =>
-        SendTemplatedAsync(toEmail, toEmail,
-            b => EmailTemplates.GetTenantReactivatedEmail(tenantName, appUrl, b), ct);
 
     public Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default) =>
         SendTemplatedAsync(toEmail, toEmail,

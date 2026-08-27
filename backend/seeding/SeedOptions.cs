@@ -25,9 +25,6 @@ public sealed record SeedOptions
     /// <summary>If true, the SafetyGuard refusal is bypassed. Off by default.</summary>
     public bool ForceNonLocal { get; init; }
 
-    /// <summary>If true, the conflict injector is skipped.</summary>
-    public bool NoConflicts { get; init; }
-
     /// <summary>
     /// If true, sites and spaces come from the curated <see cref="Floorplans.FloorplanCatalog"/>
     /// for the profile (fixed floorplan-backed sites with geometry-bearing physical spaces) instead

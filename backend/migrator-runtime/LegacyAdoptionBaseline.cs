@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Orkyo.Migrations.Abstractions;
 
 namespace Orkyo.Migrator;
 
@@ -55,13 +54,6 @@ public sealed class LegacyAdoptionBaseline
             TenantIds = new HashSet<string>(dto.Tenant ?? Array.Empty<string>(), StringComparer.Ordinal),
         };
     }
-
-    public IReadOnlySet<string> IdsFor(MigrationTargetDatabase target) => target switch
-    {
-        MigrationTargetDatabase.ControlPlane => ControlPlaneIds,
-        MigrationTargetDatabase.Tenant => TenantIds,
-        _ => throw new ArgumentOutOfRangeException(nameof(target), target, "Unknown migration target."),
-    };
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {

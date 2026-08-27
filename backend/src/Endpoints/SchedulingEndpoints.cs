@@ -45,7 +45,7 @@ public static class SchedulingEndpoints
         settings.MapDelete("/", async (Guid siteId, ISchedulingService schedulingService, CancellationToken ct) =>
         {
             var deleted = await schedulingService.DeleteSettingsAsync(siteId, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("SchedulingSettings");
+            return EndpointHelpers.NoContentOrNotFound(deleted, "SchedulingSettings");
         })
         .WithName("DeleteSchedulingSettings")
         .WithDescription("Reset scheduling settings for a site to defaults");

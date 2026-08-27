@@ -69,13 +69,16 @@ interface RenderOptions {
   request?: Request;
   entry?: PreviewEntry;
   onRequestResize?: (id: string, startTs: string, endTs: string) => void;
+  /** Pass null to render without the callback at all — the read-only case. */
+  onRequestClick?: ((id: string) => void) | null;
+  onRequestDoubleClick?: (id: string) => void;
 }
 
 function renderOverlay(opts: RenderOptions = {}) {
   const request = opts.request ?? makeRequest();
   const entry = opts.entry ?? makeEntry(request);
   const index = makeScheduleAndIndex([entry]);
-  const onRequestClick = vi.fn();
+  const onRequestClick = opts.onRequestClick === undefined ? vi.fn() : opts.onRequestClick;
   const onRequestResize = opts.onRequestResize ?? vi.fn();
 
   const utils = render(
@@ -87,7 +90,8 @@ function renderOverlay(opts: RenderOptions = {}) {
           columns={COLUMNS}
           scheduleIndex={index}
           validation={EMPTY_VALIDATION}
-          onRequestClick={onRequestClick}
+          onRequestClick={onRequestClick ?? undefined}
+          onRequestDoubleClick={opts.onRequestDoubleClick}
           onRequestResize={onRequestResize}
         />
       </div>
@@ -325,5 +329,126 @@ describe("ScheduledRequestOverlay resize", () => {
 
     addSpy.mockRestore();
     removeSpy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Opening the request
+//
+// onRequestClick is optional: a viewer gets the bar without a way to open the
+// editor. Every entry point must therefore tolerate its absence rather than
+// throwing on an undefined call.
+// ---------------------------------------------------------------------------
+
+describe("ScheduledRequestOverlay open", () => {
+  beforeEach(() => {
+    useSchedulerStore.setState({ draft: null });
+  });
+
+  function bar() {
+    return screen.getByTitle(/Test Request/);
+  }
+
+  function touchTap(target: Element) {
+    const point = { clientX: 10, clientY: 10 } as Touch;
+    target.dispatchEvent(Object.assign(
+      new Event("touchstart", { bubbles: true, cancelable: true }),
+      { touches: [point], changedTouches: [point] },
+    ));
+    target.dispatchEvent(Object.assign(
+      new Event("touchend", { bubbles: true, cancelable: true }),
+      { touches: [], changedTouches: [point] },
+    ));
+  }
+
+  it("opens the request on click", () => {
+    const { onRequestClick } = renderOverlay();
+
+    act(() => { bar().dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+
+    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+  });
+
+  it("opens the request on Enter", () => {
+    const { onRequestClick } = renderOverlay();
+
+    act(() => {
+      bar().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+  });
+
+  it("opens the request on a touch tap", () => {
+    const { onRequestClick } = renderOverlay();
+
+    act(() => touchTap(bar()));
+
+    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+  });
+
+  it("does nothing on click, Enter, or tap when no click handler is given", () => {
+    renderOverlay({ onRequestClick: null });
+    const target = bar();
+
+    expect(() => {
+      act(() => { target.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+      act(() => {
+        target.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+      });
+      act(() => touchTap(target));
+    }).not.toThrow();
+  });
+
+  it("also notifies the double-click handler when one is given", () => {
+    // The two callbacks share a line in the click and keydown handlers, so a render that
+    // never passes this one leaves half of each branch untaken.
+    const onRequestDoubleClick = vi.fn();
+    const { onRequestClick } = renderOverlay({ onRequestDoubleClick });
+    const target = bar();
+
+    act(() => { target.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    expect(onRequestDoubleClick).toHaveBeenCalledWith("req-1");
+
+    act(() => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    expect(onRequestDoubleClick).toHaveBeenCalledTimes(2);
+    expect(onRequestClick).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores the click that follows a resize", () => {
+    // A resize ends with a synthesized click on the bar. Without the 300ms guard, finishing
+    // a drag would open the request editor every time — so this half of the guard is the
+    // one that carries the behaviour.
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => { cb(0); return 1; });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    const { onRequestClick } = renderOverlay();
+    const overlay = screen.getByTitle(/Test Request/);
+    const right = Array.from(overlay.children).find((el) => el.classList.contains("right-0"))!;
+
+    act(() => pointerDown(right, 100));
+    act(() => pointerMove(100 + RESIZE_MOVE_THRESHOLD_PX + 30));
+    act(() => pointerUp());
+
+    act(() => { overlay.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+
+    expect(onRequestClick).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it("ignores click and Enter while the bar is a resize draft", () => {
+    // isResizing is entry.isDraft — the bar is mid-gesture, showing an uncommitted time.
+    // Opening the editor from under a gesture would discard what the person is doing.
+    const request = makeRequest();
+    const { onRequestClick } = renderOverlay({ request, entry: makeEntry(request, true) });
+    const target = bar();
+
+    act(() => { target.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+
+    expect(onRequestClick).not.toHaveBeenCalled();
   });
 });

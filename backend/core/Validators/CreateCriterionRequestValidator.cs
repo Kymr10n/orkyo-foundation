@@ -11,8 +11,8 @@ public class CreateCriterionRequestValidator : AbstractValidator<CreateCriterion
         RuleFor(x => x.Name)
             .NotEmpty()
             .MaximumLength(DomainLimits.CriterionNameMaxLength)
-            .Matches(@"^[a-zA-Z][a-zA-Z0-9_-]*$")
-            .WithMessage("Name must start with a letter and contain only letters, numbers, underscores, and hyphens");
+            .Matches(ValidationPatterns.Identifier)
+            .WithMessage(ValidationPatterns.IdentifierMessage);
 
         When(x => x.DataType == CriterionDataType.Enum, () =>
         {

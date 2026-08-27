@@ -28,36 +28,6 @@ public static class EmailTemplates
     /// <summary>HTML-encode a user-supplied value before interpolating it into email markup.</summary>
     private static string E(string? s) => WebUtility.HtmlEncode(s ?? "");
 
-    public static (string subject, string htmlBody, string textBody) GetVerificationEmail(
-        string displayName, string verificationLink, EmailBranding? branding = null)
-    {
-        var b = Resolve(branding);
-        var (html, text) = Layout(b,
-            $"Welcome to {b.ProductName}!",
-            [
-                $"Hi {E(displayName)},",
-                $"Thank you for registering with {b.ProductName}. To complete your registration and activate your account, please verify your email address by clicking the button below.",
-            ],
-            cta: ("Verify Email Address", verificationLink),
-            footerNote: "This verification link will expire in 7 days. If you didn't create an account with us, you can safely ignore this email.");
-        return ("Verify your email address", html, text);
-    }
-
-    public static (string subject, string htmlBody, string textBody) GetPasswordResetEmail(
-        string displayName, string resetLink, EmailBranding? branding = null)
-    {
-        var b = Resolve(branding);
-        var (html, text) = Layout(b,
-            "Password Reset Request",
-            [
-                $"Hi {E(displayName)},",
-                $"We received a request to reset your password for your {b.ProductName} account. Click the button below to create a new password.",
-            ],
-            cta: ("Reset Password", resetLink),
-            footerNote: "This password reset link will expire in 1 hour. If you didn't request a password reset, you can safely ignore this email. Your password will remain unchanged.");
-        return ("Reset your password", html, text);
-    }
-
     public static (string subject, string htmlBody, string textBody) GetWelcomeEmail(
         string displayName, EmailBranding? branding = null)
     {
@@ -308,17 +278,6 @@ public static class EmailTemplates
                 "If you believe this was a mistake, please contact us as soon as possible.",
             ]);
         return ($"Your {tenantName} workspace has been deleted", html, text);
-    }
-
-    public static (string subject, string htmlBody, string textBody) GetTenantReactivatedEmail(
-        string tenantName, string appUrl, EmailBranding? branding = null)
-    {
-        var b = Resolve(branding);
-        var (html, text) = Layout(b,
-            $"{E(tenantName)} is active again",
-            [$"Welcome back — your <strong>{E(tenantName)}</strong> workspace has been reactivated and is ready to use."],
-            cta: ("Open " + E(tenantName), appUrl));
-        return ($"Your {tenantName} workspace is active again", html, text);
     }
 
     // ── Owner welcome (W2) ────────────────────────────────────────────────────────

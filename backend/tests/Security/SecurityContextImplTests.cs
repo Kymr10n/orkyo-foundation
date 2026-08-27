@@ -14,7 +14,6 @@ public class SecurityContextImplTests
         principal.IsAuthenticated.Should().BeFalse();
         principal.UserId.Should().Be(Guid.Empty);
         principal.Email.Should().BeEmpty();
-        principal.GetContext().Should().BeEquivalentTo(PrincipalContext.Anonymous);
     }
 
     [Fact]
@@ -60,17 +59,6 @@ public class SecurityContextImplTests
         principal.IsSiteAdmin.Should().BeTrue();
         principal.RequireUserId().Should().Be(userId);
         principal.RequireExternalSubject().Should().Be("kc-sub-1");
-    }
-
-    [Fact]
-    public void CurrentAuthorizationContext_ShouldThrow_WhenMembershipRequiredButMissing()
-    {
-        var context = new CurrentAuthorizationContext();
-
-        var act = () => context.RequireMembership();
-
-        act.Should().Throw<UnauthorizedAccessException>()
-            .WithMessage("Tenant membership required");
     }
 
     [Fact]

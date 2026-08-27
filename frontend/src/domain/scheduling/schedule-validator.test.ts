@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateSchedule, hasConflicts, getAllConflicts } from './schedule-validator';
+import { evaluateSchedule, hasConflicts } from './schedule-validator';
 import type { PreviewEntry, PreviewSchedule } from './schedule-model';
 import * as scheduleIndex from './schedule-index';
 
@@ -196,17 +196,3 @@ describe('hasConflicts', () => {
 // ---------------------------------------------------------------------------
 // getAllConflicts
 // ---------------------------------------------------------------------------
-
-describe('getAllConflicts', () => {
-  it('returns empty array for no conflicts', () => {
-    expect(getAllConflicts(new Map())).toHaveLength(0);
-  });
-
-  it('flattens conflicts from all requests', () => {
-    const a = makeEntry('a', 's1', '2024-01-01T08:00Z', '2024-01-01T10:00Z');
-    const b = makeEntry('b', 's1', '2024-01-01T09:00Z', '2024-01-01T11:00Z');
-    const result = evaluateSchedule(makeSchedule(a, b));
-    // Each of a and b gets one overlap conflict against the other
-    expect(getAllConflicts(result).length).toBeGreaterThanOrEqual(2);
-  });
-});

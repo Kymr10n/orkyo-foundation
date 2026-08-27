@@ -61,9 +61,6 @@ public interface IListInstanceRepository
     /// </summary>
     Task<bool> DeleteRowAsync(Guid rowId, CancellationToken ct = default);
 
-    /// <summary>How many of <paramref name="rowIds"/> exist in one instance. Batched: one round trip.</summary>
-    Task<int> CountExistingRowsAsync(Guid instanceId, IReadOnlyList<Guid> rowIds, CancellationToken ct = default);
-
     /// <summary>Found-row count per check, one round trip for all of them. <c>checks[i]</c> pairs an
     /// instance with the row ids picked from it; the result is index-aligned with the input, so two
     /// checks against the same instance stay distinct.</summary>
@@ -378,21 +375,6 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
 
         await tx.CommitAsync(ct);
         return true;
-    }
-
-    public async Task<int> CountExistingRowsAsync(
-        Guid instanceId, IReadOnlyList<Guid> rowIds, CancellationToken ct = default)
-    {
-        if (rowIds.Count == 0) return 0;
-
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QuerySingleOrDefaultAsync(
-            "SELECT count(*)::int AS n FROM list_rows WHERE list_instance_id = @instanceId AND id = ANY(@ids)",
-            p =>
-            {
-                p.AddWithValue("instanceId", instanceId);
-                p.AddWithValue("ids", rowIds.ToArray());
-            }, r => r.GetInt32("n"), ct);
     }
 
     public async Task<IReadOnlyList<int>> CountExistingRowsBatchAsync(

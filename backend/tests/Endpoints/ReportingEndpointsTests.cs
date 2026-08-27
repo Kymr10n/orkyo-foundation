@@ -2,9 +2,14 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
+using Api.Constants;
+using Api.Security.Features;
 using Api.Services.Reporting;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
+using Orkyo.Foundation.Tests.Mocks;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -57,10 +62,30 @@ public class ReportingEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
-    // NOTE: the Free-tier 402 path (CreateToken tier gate) is not integration-tested here.
-    // FoundationWebApplicationFactory pins a fixed TenantContext at ServiceTier.Enterprise in DI,
-    // so every request in this harness resolves as Enterprise and the gate never fires. The gate
-    // is exercised in real deployments where TenantContext is resolved from the tenant's DB tier.
+    [Fact]
+    public async Task CreateToken_WithoutTheApiAccessEntitlement_Returns402()
+    {
+        // The edition decides this: SaaS grants api_access on paid tiers, Community allows
+        // everything, and the foundation host enables every feature. Disabling the one key
+        // is what makes the refusal reachable without a SaaS tier table.
+        var gate = _fixture.Factory.Services.GetRequiredService<StubFeatureGate>();
+        gate.Disable(FeatureKeys.ApiAccess);
+        try
+        {
+            var response = await _adminClient.PostAsJsonAsync(
+                "/api/reporting/v1/tokens", new { name = "Needs-A-Paid-Plan" });
+
+            response.StatusCode.Should().Be(HttpStatusCode.PaymentRequired);
+
+            var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            problem.GetProperty("code").GetString().Should().Be(ApiErrorCodes.UpgradeRequired);
+        }
+        finally
+        {
+            gate.Enable(FeatureKeys.ApiAccess);
+        }
+    }
+
 
     [Fact]
     public async Task ListTokens_AsAdmin_ReturnsList()

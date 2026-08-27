@@ -18,9 +18,10 @@ public static class EndpointHelpers
     /// The single rendering of a FluentValidation failure: the canonical problem body with the
     /// per-field messages in <c>errors</c>. Framework <c>Results.ValidationProblem</c> emits a
     /// ProblemDetails without our <c>code</c> extension, which would leave the frontend unable to
-    /// switch on it — the whole reason #96 consolidated the shapes.
+    /// switch on it — the whole reason #96 consolidated the shapes. Public because handlers that
+    /// validate outside <see cref="ExecuteAsync"/> were re-implementing it inline.
     /// </summary>
-    private static IResult ValidationFailed(FluentValidation.Results.ValidationResult result)
+    public static IResult ValidationFailed(FluentValidation.Results.ValidationResult result)
         => ProblemResults.Problem(
             StatusCodes.Status400BadRequest,
             Api.Constants.ErrorCodes.ValidationError,
@@ -34,6 +35,13 @@ public static class EndpointHelpers
     /// </summary>
     public static IResult OkOrNotFound<T>(T? value, string resourceType, Guid? id = null) where T : class
         => value is null ? ErrorResponses.NotFound(resourceType, id) : Results.Ok(value);
+
+    /// <summary>
+    /// The delete/update counterpart of <see cref="OkOrNotFound"/>: 204 when the row was
+    /// there, a canonical 404 when it was not. Twenty-two handlers wrote this ternary out.
+    /// </summary>
+    public static IResult NoContentOrNotFound(bool found, string resourceType, Guid? id = null)
+        => found ? Results.NoContent() : ErrorResponses.NotFound(resourceType, id);
 
     /// <summary>
     /// Validate request with FluentValidation and execute handler, logging rejected

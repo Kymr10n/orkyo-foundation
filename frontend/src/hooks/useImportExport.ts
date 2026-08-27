@@ -8,16 +8,14 @@ import { useEffect, useEffectEvent, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
-import { useUiActionsStore, type CalendarFeedCapability } from '@foundation/src/store/ui-actions-store';
+import { useUiActionsStore, type CalendarFeedCapability, type ExportCapability } from '@foundation/src/store/ui-actions-store';
 
-/** What the page tells the TopBar about itself when it registers. */
-export interface ExportOffer {
-  /** Human name shown in the button tooltip and dialog title, e.g. "People". */
-  label: string;
-  /** One line describing what the file contains, shown in the dialog. */
-  description: string;
-  formats: ExportFormat[];
-}
+/**
+ * What the page tells the TopBar about itself when it registers — the store's
+ * capability shape, reused rather than declaring a field-for-field twin (the
+ * same treatment {@link useCalendarFeedHandler} already gives its type).
+ */
+export type ExportOffer = ExportCapability;
 
 export function useExportHandler(
   context: ExportContext,

@@ -59,11 +59,6 @@ export interface UpdateAvailabilityEventRequest {
 export async function getAvailabilityEvents(siteId: string): Promise<AvailabilityEventInfo[]> {
   return apiGet<AvailabilityEventInfo[]>(API_PATHS.availabilityEvents(siteId));
 }
-
-export async function getAvailabilityEventById(siteId: string, eventId: string): Promise<AvailabilityEventInfo> {
-  return apiGet<AvailabilityEventInfo>(API_PATHS.availabilityEvent(siteId, eventId));
-}
-
 export async function createAvailabilityEvent(
   siteId: string,
   request: CreateAvailabilityEventRequest,

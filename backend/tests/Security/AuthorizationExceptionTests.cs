@@ -38,27 +38,11 @@ public class AuthorizationExceptionTests
     // ── Factory methods ────────────────────────────────────────────────────
 
     [Fact]
-    public void NotAuthenticated_Returns401WithExpectedMessage()
-    {
-        var ex = AuthorizationException.NotAuthenticated();
-        ex.StatusCode.Should().Be(401);
-        ex.Message.Should().Be("Authentication required");
-    }
-
-    [Fact]
     public void NotMember_Returns403WithExpectedMessage()
     {
         var ex = AuthorizationException.NotMember();
         ex.StatusCode.Should().Be(403);
         ex.Message.Should().Be("You are not a member of this tenant");
-    }
-
-    [Fact]
-    public void InsufficientRole_Returns403WithFormattedMessage()
-    {
-        var ex = AuthorizationException.InsufficientRole(TenantRole.Admin, TenantRole.Viewer);
-        ex.StatusCode.Should().Be(403);
-        ex.Message.Should().Contain("Admin").And.Contain("Viewer");
     }
 
     [Fact]

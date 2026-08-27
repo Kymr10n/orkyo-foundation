@@ -3,7 +3,6 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createTestQueryWrapper } from "@foundation/src/test-utils";
 import {
   useInsightsOverview,
-  useInsightsUtilization,
   useInsightsConflicts,
   useInsightsRequests,
 } from "./useInsights";
@@ -28,15 +27,6 @@ describe("useInsights hooks", () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(api.getInsightsOverview).toHaveBeenCalledWith(from, to, "site-1");
-  });
-
-  it("useInsightsUtilization passes resourceType + bucket through", async () => {
-    const { result } = renderHook(
-      () => useInsightsUtilization("space", "site-1", from, to, "month"),
-      { wrapper: createTestQueryWrapper() },
-    );
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(api.getInsightsUtilization).toHaveBeenCalledWith("space", from, to, "month", "site-1");
   });
 
   it("useInsightsConflicts calls the API with the bucket", async () => {

@@ -6,7 +6,6 @@
  */
 
 export * from "./apiHeaders";
-export * from "./autoSchedule";
 export * from "./claims";
 export * from "./errorCodes";
 export * from "./plans";

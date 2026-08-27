@@ -33,7 +33,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   columns: TimeColumn[];
   scheduleIndex: ScheduleIndex;
   validation: ValidationResult;
-  onRequestClick: (requestId: string) => void;
+  onRequestClick?: (requestId: string) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   /** Right-click on the bar. Mouse-only by nature — clearing the dates in the request
    *  editor is the keyboard path to the same result. */
@@ -185,7 +185,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
           ? 'cursor-pointer'
           : isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
       }`}
-      onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); } }}
+      onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick?.(request.id); onRequestDoubleClick?.(request.id); } }}
       onContextMenu={onRequestContextMenu ? (e) => {
         e.preventDefault();
         onRequestContextMenu(request.id, { x: e.clientX, y: e.clientY });
@@ -212,7 +212,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         const moved = Math.hypot(c.clientX - s.x, c.clientY - s.y);
         if (Date.now() - s.t < 250 && moved < 8 && Date.now() - lastCommitMsRef.current > 300) {
           e.preventDefault(); // suppress any follow-up synthesized click (no double-open)
-          onRequestClick(request.id);
+          onRequestClick?.(request.id);
           onRequestDoubleClick?.(request.id);
         }
       } : undefined}
@@ -224,7 +224,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (!isResizing) { onRequestClick(request.id); onRequestDoubleClick?.(request.id); }
+          if (!isResizing) { onRequestClick?.(request.id); onRequestDoubleClick?.(request.id); }
         }
       }}
     >

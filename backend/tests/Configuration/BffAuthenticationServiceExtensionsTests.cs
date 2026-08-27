@@ -310,6 +310,38 @@ public class BffAuthenticationServiceExtensionsTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // ── Session-duration parsing ──────────────────────────────────────────────
+
+    [Fact]
+    public void AddBffAuthentication_ValidSessionDurations_AreApplied()
+    {
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
+        {
+            [ConfigKeys.BffSessionIdleDuration] = "00:45:00",
+            [ConfigKeys.BffSessionMaxDuration] = "08:00:00",
+        });
+
+        var opts = provider.GetRequiredService<IOptions<BffOptions>>().Value;
+        opts.SessionIdleDuration.Should().Be(TimeSpan.FromMinutes(45));
+        opts.SessionMaxDuration.Should().Be(TimeSpan.FromHours(8));
+    }
+
+    [Fact]
+    public void AddBffAuthentication_MalformedSessionDuration_RefusesStartup()
+    {
+        // A typo in prod must not silently keep the compiled-in default — that would
+        // change session length with nothing anywhere saying so.
+        var provider = BuildProvider(valkeyConnection: null, extra: new()
+        {
+            [ConfigKeys.BffSessionIdleDuration] = "45 minutes",
+        });
+
+        var act = () => provider.GetRequiredService<IOptions<BffOptions>>().Value;
+
+        act.Should().Throw<Exception>()
+            .Where(e => e.Message.Contains(ConfigKeys.BffSessionIdleDuration) || (e.InnerException != null && e.InnerException.Message.Contains(ConfigKeys.BffSessionIdleDuration)));
+    }
+
     private static ServiceProvider BuildProvider(
         string? valkeyConnection,
         Dictionary<string, string?>? extra = null,

@@ -64,23 +64,12 @@ public static class SpaceFactories
     /// also what lets a reset sweep everything the seed made: TenantReset deletes non-system
     /// types, so the demo carries no leftovers between runs.
     /// </summary>
-    public static async Task<Guid> ResolveSpaceResourceTypeIdAsync(
-        NpgsqlConnection conn, NpgsqlTransaction? tx)
-    {
-        var id = Guid.NewGuid();
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO public.resource_types " +
-            "(id, key, display_name, display_name_plural, description, icon, " +
-            " is_system, is_active, has_geometry, single_group_membership, created_at, updated_at) " +
-            "VALUES (@id, 'room', 'Room', 'Rooms', " +
-            "'A room on the floorplan. Work happens in it, and it holds one group at a time.', " +
-            "'Box', false, true, true, true, @now, @now) " +
-            "ON CONFLICT (key) DO UPDATE SET updated_at = EXCLUDED.updated_at " +
-            "RETURNING id", conn, tx);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("now", DateTime.UtcNow);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
-    }
+    public static Task<Guid> ResolveSpaceResourceTypeIdAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx) =>
+        ResourceTypeSeedHelpers.UpsertResourceTypeAsync(
+            conn, tx, "room", "Room", "Rooms",
+            "A room on the floorplan. Work happens in it, and it holds one group at a time.",
+            "Box", hasGeometry: true, singleGroupMembership: true);
 
     public static async Task<IReadOnlyList<SeededSpace>> SeedSpacesAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx,

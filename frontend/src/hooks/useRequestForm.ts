@@ -125,7 +125,6 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
         ...state,
         durationValue: action.template.durationValue || 1,
         durationUnit: (action.template.durationUnit || 'hours') as DurationUnit,
-        schedulingSettingsApply: state.schedulingSettingsApply,
         requirements: reqMap,
       };
     }

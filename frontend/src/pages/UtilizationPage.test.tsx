@@ -64,7 +64,6 @@ const mockSetScale = vi.fn();
 const mockSetAnchorTs = vi.fn();
 const mockSetTimeCursorTs = vi.fn();
 const mockSetIsFloorplanCollapsed = vi.fn();
-const mockSetSelectedRequestId = vi.fn();
 const mockSetConflicts = vi.fn();
 
 // Single source of truth for the mocked store state, shared by the hook selector and getState()
@@ -80,8 +79,6 @@ const buildMockState = (): any => ({
   setTimeCursorTs: mockSetTimeCursorTs,
   isFloorplanCollapsed: false,
   setIsFloorplanCollapsed: mockSetIsFloorplanCollapsed,
-  selectedRequestId: null,
-  setSelectedRequestId: mockSetSelectedRequestId,
   setConflicts: mockSetConflicts,
   spaceOrder: [],
   setSpaceOrder: mockSetSpaceOrder,

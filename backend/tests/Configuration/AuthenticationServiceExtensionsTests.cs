@@ -1,5 +1,8 @@
 using Api.Configuration;
+using Api.Security;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -165,6 +168,81 @@ public class AuthenticationServiceExtensionsTests
         var scheme = await schemeProvider.GetSchemeAsync(JwtBearerDefaults.AuthenticationScheme);
 
         scheme.Should().NotBeNull();
+    }
+
+    // ── BFF cookie name — which cookie the dual-mode selector looks for ───────
+    //
+    // The selector and the BFF handler must agree on the name. They did not: an unset
+    // BFF_COOKIE_NAME is written into the deployed .env as an EMPTY value, and `?? Default`
+    // treats empty as set — so the selector looked for a cookie named "" (never present)
+    // while the handler used the real default, and every cookie session fell through to
+    // bearer. Empty must resolve to the default, exactly as a missing key does.
+
+    [Theory]
+    [InlineData(null)]  // key absent
+    [InlineData("")]    // key present but empty — the deployed shape
+    public void ForwardDefaultSelector_WithNoConfiguredCookieName_MatchesTheDefaultCookie(
+        string? configured)
+    {
+        var selector = BuildForwardSelector(configured);
+
+        selector(ContextWithCookie(BffOptions.DefaultCookieName))
+            .Should().Be(BffCookieAuthenticationHandler.SchemeName);
+    }
+
+    [Fact]
+    public void ForwardDefaultSelector_WithAConfiguredCookieName_MatchesThatCookie()
+    {
+        var selector = BuildForwardSelector("orkyo-custom-session");
+
+        selector(ContextWithCookie("orkyo-custom-session"))
+            .Should().Be(BffCookieAuthenticationHandler.SchemeName);
+        // The default name is no longer what the selector is looking for.
+        selector(ContextWithCookie(BffOptions.DefaultCookieName))
+            .Should().Be(JwtBearerDefaults.AuthenticationScheme);
+    }
+
+    [Fact]
+    public void ForwardDefaultSelector_PrefersTheAuthorizationHeaderOverAnyCookie()
+    {
+        var selector = BuildForwardSelector(configuredCookieName: null);
+        var context = ContextWithCookie(BffOptions.DefaultCookieName);
+        context.Request.Headers.Authorization = "Bearer a-token";
+
+        selector(context).Should().Be(JwtBearerDefaults.AuthenticationScheme);
+    }
+
+    private static HttpContext ContextWithCookie(string cookieName)
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Headers.Cookie = $"{cookieName}=value";
+        return context;
+    }
+
+    private static Func<HttpContext, string?> BuildForwardSelector(string? configuredCookieName)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            [ConfigKeys.OidcAuthority] = "https://auth.example.com/realms/orkyo",
+            [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
+            [ConfigKeys.BffEnabled] = "true",
+        };
+        if (configuredCookieName != null)
+            values[ConfigKeys.BffCookieName] = configuredCookieName;
+
+        var config = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
+
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IConfiguration>(config);
+        services.AddOrkyoAuthentication(config);
+
+        var options = services.BuildServiceProvider()
+            .GetRequiredService<IOptionsMonitor<PolicySchemeOptions>>()
+            .Get("OrkYoPolicy");
+
+        options.ForwardDefaultSelector.Should().NotBeNull();
+        return options.ForwardDefaultSelector!;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

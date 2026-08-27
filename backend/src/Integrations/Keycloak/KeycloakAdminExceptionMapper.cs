@@ -6,7 +6,7 @@ namespace Api.Integrations.Keycloak;
 
 /// <summary>
 /// Maps a <see cref="KeycloakAdminException"/> onto the canonical platform
-/// <see cref="ErrorResponse"/> contract used by both products' endpoint pipelines.
+/// <see cref="Helpers.OrkyoProblemDetails"/> contract used by both products' endpoint pipelines.
 ///
 /// Lives in <c>orkyo-foundation</c> because the failure-to-HTTP shape is
 /// identical across multi-tenant SaaS and single-tenant Community deployments;

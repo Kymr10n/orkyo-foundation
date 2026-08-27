@@ -4,24 +4,6 @@ namespace Orkyo.Foundation.Tests.Security;
 
 public class AuthorizationContextTests
 {
-    [Fact]
-    public void NoAccess_ShouldCreateNonMemberContext()
-    {
-        var tenantId = Guid.NewGuid();
-        const string slug = "acme";
-
-        var context = AuthorizationContext.NoAccess(tenantId, slug);
-
-        context.TenantId.Should().Be(tenantId);
-        context.TenantSlug.Should().Be(slug);
-        context.Role.Should().Be(TenantRole.None);
-        context.IsMember.Should().BeFalse();
-        context.IsAdmin.Should().BeFalse();
-        context.CanEdit.Should().BeFalse();
-        context.CanView.Should().BeFalse();
-        context.RoleString.Should().Be("none");
-    }
-
     [Theory]
     [InlineData(TenantRole.None, false, false, false)]
     [InlineData(TenantRole.Viewer, true, false, true)]

@@ -338,6 +338,25 @@ public class ListDefinitionEndpointsTests
     // ── delete semantics ──────────────────────────────────────────────────────
 
     [Fact]
+    public async Task DeleteDefinition_ThatDoesNotExist_Returns404()
+    {
+        var response = await _client.DeleteAsync($"/api/list-definitions/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task DeleteSharedInstance_ThatDoesNotExist_Returns404()
+    {
+        var definition = await CreateDefinitionAsync();
+
+        var response = await _client.DeleteAsync(
+            $"/api/list-definitions/{definition.Id}/instances/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task DeleteDefinition_WhileAFieldBindsIt_IsAConflict()
     {
         var definition = await CreateDefinitionAsync();

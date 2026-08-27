@@ -65,6 +65,41 @@ public partial class ErrorShapeContractTests
             + string.Join("\n  ", offenders));
     }
 
+    /// <summary>
+    /// Files allowed to call <c>Results.Json</c> directly. This list is separate from
+    /// <see cref="ExemptFiles"/> so a success-payload exemption here does not also exempt
+    /// the file from the error-shape facts above.
+    /// </summary>
+    private static readonly HashSet<string> JsonExemptFiles = new(StringComparer.Ordinal)
+    {
+        // The canonical problem-shape helper itself: ProblemResults bottoms out here.
+        "Helpers/OrkyoProblemDetails.cs",
+        // Success payloads exported for humans: WriteIndented + camelCase download bodies,
+        // not error responses — Results.Ok would lose the formatting.
+        "Endpoints/PresetEndpoints.cs",
+        "Endpoints/ExportEndpoints.cs",
+    };
+
+    // Raw Results.Json: the escape hatch every one of the five historical shapes used.
+    [GeneratedRegex(@"Results\.Json\s*\(")]
+    private static partial Regex RawResultsJsonRegex();
+
+    [Fact]
+    public void NoSourceFile_CallsResultsJsonDirectly()
+    {
+        RawResultsJsonRegex().IsMatch("return Results.Json(new[] { conflict });")
+            .Should().BeTrue("the guard regex must match its own exemplar");
+
+        var offenders = ScanSources((rel, text) =>
+            RawResultsJsonRegex().IsMatch(text) && !JsonExemptFiles.Contains(rel) ? rel : null);
+
+        offenders.Should().BeEmpty(
+            "these files call Results.Json directly — error bodies go through ErrorResponses.* / "
+            + "ProblemResults.Problem, success bodies through Results.Ok. A deliberate exception "
+            + "(formatted download payloads, the problem helper itself) needs a JsonExemptFiles "
+            + "entry with its reason:\n  " + string.Join("\n  ", offenders));
+    }
+
     private static List<string> ScanSources(Func<string, string, string?> inspect)
     {
         var srcDir = TestRepoPaths.FindDirectory("backend", "src");

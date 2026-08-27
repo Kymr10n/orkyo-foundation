@@ -1,10 +1,8 @@
 import {
   getInsightsOverview,
-  getInsightsUtilization,
   getInsightsConflicts,
   getInsightsRequests,
   type InsightsBucket,
-  type InsightsResourceType,
 } from "@foundation/src/lib/api/insights-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
@@ -17,16 +15,6 @@ export function useInsightsOverview(siteId: string | null, from: Date, to: Date)
   return useQuery({
     queryKey: qk.insights.overview(siteId, from, to),
     queryFn: () => getInsightsOverview(from, to, siteId),
-    staleTime: STALE.ANALYTICS,
-  });
-}
-
-export function useInsightsUtilization(
-  resourceType: InsightsResourceType, siteId: string | null, from: Date, to: Date, bucket: InsightsBucket,
-) {
-  return useQuery({
-    queryKey: qk.insights.utilization(resourceType, siteId, from, to, bucket),
-    queryFn: () => getInsightsUtilization(resourceType, from, to, bucket, siteId),
     staleTime: STALE.ANALYTICS,
   });
 }

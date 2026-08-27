@@ -8,7 +8,12 @@ public static class ConfigurationValidator
     {
         var errors = new List<string>();
 
-        var env = environmentName ?? configuration[ConfigKeys.AspNetCoreEnvironment] ?? EnvironmentNames.Production;
+        // No fallback: an unknown environment must be an error, not a silent assumption.
+        // Every deployment surface sets ASPNETCORE_ENVIRONMENT (both infra templates,
+        // community release and local compose), so an empty value here is a broken config.
+        var env = environmentName ?? configuration[ConfigKeys.AspNetCoreEnvironment];
+        if (string.IsNullOrEmpty(env))
+            errors.Add($"Required configuration '{ConfigKeys.AspNetCoreEnvironment}' is not set and no environment name was supplied");
         var allowTenantHeader = configuration.GetValue<bool>(ConfigKeys.TenantResolutionAllowTenantHeader);
         if (allowTenantHeader && string.Equals(env, EnvironmentNames.Production, StringComparison.OrdinalIgnoreCase))
             errors.Add("TenantResolution:AllowTenantHeader must NOT be true in Production (tenant impersonation risk)");
@@ -38,7 +43,7 @@ public static class ConfigurationValidator
 
     public static void LogConfigurationStatus(IConfiguration configuration, ILogger logger)
     {
-        var environment = configuration[ConfigKeys.AspNetCoreEnvironment] ?? EnvironmentNames.Production;
+        var environment = configuration.GetOptionalString(ConfigKeys.AspNetCoreEnvironment);
         logger.LogInformation("Configuration Status (Environment: {Environment})", environment);
 
         foreach (var key in DeploymentConfig.RequiredKeys)

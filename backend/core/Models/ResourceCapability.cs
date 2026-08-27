@@ -27,20 +27,6 @@ public record CriterionApplicabilityInfo
     public required List<string> ResourceTypeKeys { get; init; }
 }
 
-/// <summary>
-/// How a criterion presents for ONE resource type. Per-type rather than per-criterion because
-/// the same attribute can be mandatory for one type and optional for another — a serial number
-/// is required on a tool but meaningless on a space.
-/// </summary>
-public record CriterionTypeDisplay
-{
-    public required string ResourceTypeKey { get; init; }
-    public required bool IsRequired { get; init; }
-    public required int SortOrder { get; init; }
-    /// <summary>Render on the resource create/edit form. False = assignable, but not on the form.</summary>
-    public required bool ShowOnForm { get; init; }
-}
-
 public record UpdateCriterionApplicabilityRequest
 {
     public bool? ApplicableToRequests { get; init; }

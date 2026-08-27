@@ -11,7 +11,6 @@ public interface IResourceCapabilityRepository
     Task<List<ResourceCapabilityInfo>> GetByResourceAsync(Guid resourceId, CancellationToken ct = default);
     /// <summary>Bulk fetch capabilities for many resources in one query — for batch validation.</summary>
     Task<List<ResourceCapabilityInfo>> GetByResourcesAsync(IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
-    Task<List<ResourceCapabilityInfo>> GetByResourceGroupAsync(Guid resourceGroupId, CancellationToken ct = default);
     Task<ResourceCapabilityInfo> UpsertAsync(Guid resourceId, Guid criterionId, JsonElement value, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId, CancellationToken ct = default);
 }
@@ -45,23 +44,6 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
             "JOIN criteria c ON rc.criterion_id = c.id " +
             "WHERE rc.resource_id = ANY(@ids) ORDER BY rc.resource_id, c.name",
             p => p.AddWithValue("ids", resourceIds.ToArray()), Map, ct);
-    }
-
-    public async Task<List<ResourceCapabilityInfo>> GetByResourceGroupAsync(Guid resourceGroupId, CancellationToken ct = default)
-    {
-        // Group capabilities live in resource_group_capabilities (renamed in Phase 2).
-        // In Phase 2, groups are in resource_groups.
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return await db.QueryListAsync(@"
-            SELECT gc.id, sg.id as resource_id, gc.criterion_id, gc.value,
-                   gc.created_at, gc.updated_at,
-                   c.name as criterion_name, c.data_type as criterion_type, c.unit as criterion_unit
-            FROM resource_group_capabilities gc
-            JOIN resource_groups sg ON sg.id = gc.resource_group_id
-            JOIN criteria c ON gc.criterion_id = c.id
-            WHERE gc.resource_group_id = @groupId
-            ORDER BY c.name",
-            p => p.AddWithValue("groupId", resourceGroupId), Map, ct);
     }
 
     public async Task<ResourceCapabilityInfo> UpsertAsync(Guid resourceId, Guid criterionId, JsonElement value, CancellationToken ct = default)

@@ -1,6 +1,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
-import { useCriterionForm, useSeedCriterionForm } from './useCriterionForm';
+import { useCriterionForm } from './useCriterionForm';
 
 describe('useCriterionForm', () => {
   describe('initial state', () => {
@@ -104,43 +104,5 @@ describe('useCriterionForm', () => {
       expect(result.current.unit).toBe('');
       expect(result.current.resourceTypeKeys).toEqual(['tool']);
     });
-  });
-});
-
-describe('useSeedCriterionForm', () => {
-  it('seeds form when source is provided', () => {
-    const source = { description: 'Load', unit: 'kg', enumValues: [], resourceTypeKeys: ['space'] };
-    const { result } = renderHook(() => {
-      const form = useCriterionForm();
-      useSeedCriterionForm(form, source);
-      return form;
-    });
-    expect(result.current.description).toBe('Load');
-    expect(result.current.unit).toBe('kg');
-    expect(result.current.resourceTypeKeys).toEqual(['space']);
-  });
-
-  it('does not crash when source is undefined', () => {
-    expect(() =>
-      renderHook(() => {
-        const form = useCriterionForm();
-        useSeedCriterionForm(form, undefined);
-        return form;
-      }),
-    ).not.toThrow();
-  });
-
-  it('re-seeds when source identity changes', () => {
-    let source = { description: 'First', unit: '', enumValues: [], resourceTypeKeys: [] };
-    const { result, rerender } = renderHook(() => {
-      const form = useCriterionForm();
-      useSeedCriterionForm(form, source);
-      return form;
-    });
-    expect(result.current.description).toBe('First');
-
-    source = { description: 'Second', unit: '', enumValues: [], resourceTypeKeys: [] };
-    rerender();
-    expect(result.current.description).toBe('Second');
   });
 });

@@ -91,7 +91,6 @@ public class ContextEnrichmentMiddlewareTests
         await InvokeMiddleware(CreateHttpContext(user: CreateLegacyUser(userId)));
         _currentPrincipal.IsAuthenticated.Should().BeTrue();
         _currentPrincipal.UserId.Should().Be(userId);
-        _currentPrincipal.GetContext().AuthProvider.Should().Be(AuthProvider.Local);
     }
 
     [Fact]
@@ -149,7 +148,6 @@ public class ContextEnrichmentMiddlewareTests
         await InvokeMiddleware(CreateHttpContext(user: CreateKeycloakUser(subject)));
 
         _currentPrincipal.UserId.Should().Be(internalUserId);
-        _currentPrincipal.GetContext().AuthProvider.Should().Be(AuthProvider.Keycloak);
     }
 
     [Fact]
@@ -161,7 +159,6 @@ public class ContextEnrichmentMiddlewareTests
         await InvokeMiddleware(CreateHttpContext(user: CreateKeycloakUser(subject, email: "unlinked@example.com")));
 
         _currentPrincipal.UserId.Should().Be(Guid.Empty);
-        _currentPrincipal.GetContext().AuthProvider.Should().Be(AuthProvider.Keycloak);
     }
 
     [Fact]

@@ -12,55 +12,6 @@ public class EmailTemplatesTests
         "#222222");
 
     [Fact]
-    public void GetVerificationEmail_ShouldUseDefaultBranding_WhenBrandingNotProvided()
-    {
-        var (subject, htmlBody, textBody) = EmailTemplates.GetVerificationEmail("Alex", "https://app.test/verify");
-
-        subject.Should().Be("Verify your email address");
-        htmlBody.Should().Contain("Welcome to Orkyo!");
-        htmlBody.Should().Contain(BrandTokens.GradientFrom);
-        htmlBody.Should().Contain(BrandTokens.GradientTo);
-        htmlBody.Should().Contain("https://app.test/verify");
-        textBody.Should().Contain("Welcome to Orkyo!");
-        textBody.Should().Contain("https://app.test/verify");
-    }
-
-    [Fact]
-    public void GetVerificationEmail_ShouldApplyCustomBrandingAndGreeting()
-    {
-        var (_, htmlBody, textBody) = EmailTemplates.GetVerificationEmail("Alex", "https://app.test/verify", CustomBranding);
-
-        htmlBody.Should().Contain("Welcome to Acme!");
-        htmlBody.Should().Contain("Hi Alex,");
-        htmlBody.Should().Contain("#111111");
-        htmlBody.Should().Contain("#222222");
-        textBody.Should().Contain("Thank you for registering with Acme.");
-        textBody.Should().Contain("Best regards,\nAcme");
-    }
-
-    [Fact]
-    public void GetPasswordResetEmail_ShouldReturnExpectedSubjectAndLinkInBothBodies()
-    {
-        var (subject, htmlBody, textBody) = EmailTemplates.GetPasswordResetEmail("Alex", "https://app.test/reset", CustomBranding);
-
-        subject.Should().Be("Reset your password");
-        htmlBody.Should().Contain("Password Reset Request");
-        htmlBody.Should().Contain("https://app.test/reset");
-        htmlBody.Should().Contain("Acme");
-        textBody.Should().Contain("https://app.test/reset");
-        textBody.Should().Contain("Acme account");
-    }
-
-    [Fact]
-    public void GetPasswordResetEmail_ShouldMentionOneHourExpiry()
-    {
-        var (_, htmlBody, textBody) = EmailTemplates.GetPasswordResetEmail("Alex", "https://app.test/reset");
-
-        htmlBody.Should().Contain("expire in 1 hour");
-        textBody.Should().Contain("expire in 1 hour");
-    }
-
-    [Fact]
     public void GetWelcomeEmail_ShouldUseCustomBrandingInSubjectAndBodies()
     {
         var (subject, htmlBody, textBody) = EmailTemplates.GetWelcomeEmail("Alex", CustomBranding);
@@ -158,15 +109,6 @@ public class EmailTemplatesTests
         var (s, h, t) = EmailTemplates.GetTenantDeletedEmail("Acme HQ", CustomBranding);
         s.Should().Contain("deleted");
         h.Should().Contain("contact us");
-        AssertBranded(s, h, t);
-    }
-
-    [Fact]
-    public void TenantReactivated_hasOpenCta()
-    {
-        var (s, h, t) = EmailTemplates.GetTenantReactivatedEmail("Acme HQ", "https://app", CustomBranding);
-        s.Should().Contain("active again");
-        h.Should().Contain("https://app");
         AssertBranded(s, h, t);
     }
 

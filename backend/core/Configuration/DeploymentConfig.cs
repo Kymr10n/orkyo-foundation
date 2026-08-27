@@ -42,7 +42,7 @@ public sealed record DeploymentConfig
     public required string MasterEncryptionKey { get; init; }
 
     // ── Logging ──────────────────────────────────────────────────────────
-    public string LogLevel { get; init; } = "Information";
+    public string LogLevel { get; init; } = "";
 
     // ── Internal identity ────────────────────────────────────────────────
     /// <summary>
@@ -97,15 +97,18 @@ public sealed record DeploymentConfig
     public static DeploymentConfig FromConfiguration(IConfiguration configuration)
     {
         string Require(string key) =>
-            configuration[key]
-            ?? throw new InvalidOperationException($"DeploymentConfig: required key '{key}' is not set");
+            // Empty counts as absent: the deploy pipeline writes `KEY=` for every unset
+            // key, and `?? throw` let those through as "". Fail at startup, not later.
+            configuration[key] is { Length: > 0 } value
+                ? value
+                : throw new InvalidOperationException($"DeploymentConfig: required key '{key}' is not set");
 
         var config = new DeploymentConfig
         {
             PublicUrl = Require(ConfigKeys.AppBaseUrl),
-            AuthPublicUrl = configuration[ConfigKeys.OidcAuthority] ?? Require(ConfigKeys.KeycloakUrl),
+            AuthPublicUrl = Require(ConfigKeys.OidcAuthority),
             AppBaseUrl = Require(ConfigKeys.AppBaseUrl),
-            CorsAllowedOrigins = configuration[ConfigKeys.CorsAllowedOrigins] ?? "",
+            CorsAllowedOrigins = configuration.GetOptionalString(ConfigKeys.CorsAllowedOrigins),
 
             SmtpHost = Require(ConfigKeys.SmtpHost),
             SmtpPort = int.Parse(Require(ConfigKeys.SmtpPort)),
@@ -126,7 +129,10 @@ public sealed record DeploymentConfig
 
             MasterEncryptionKey = Require(ConfigKeys.MasterEncryptionKey),
 
-            LogLevel = configuration[ConfigKeys.LoggingLevelDefault] ?? "Information",
+            // Display-only (two admin diagnostics panels). No deployment sets this key and
+            // nothing reads the property to configure logging, so no default: an unset key
+            // reports as unset instead of claiming a level nobody chose.
+            LogLevel = configuration.GetOptionalString(ConfigKeys.LoggingLevelDefault),
             Version = configuration[ConfigKeys.OrkyoVersion],
         };
 

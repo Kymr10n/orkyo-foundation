@@ -23,9 +23,8 @@ import {
   getBreakGlassSessionStatus,
   SERVICE_TIER,
   TIER_DISPLAY_NAMES,
-  isProfessionalOrAbove,
 } from "./admin-api";
-import { PlanCodes, planIncludesPremiumFeatures } from "@foundation/contracts/plans";
+import { PlanCodes } from "@foundation/contracts/plans";
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
   getAuthTokenSync: () => null,
@@ -1204,10 +1203,5 @@ describe("tier catalog", () => {
       PROFESSIONAL: "professional",
       ENTERPRISE: "enterprise",
     });
-  });
-
-  it("keeps the deprecated isProfessionalOrAbove alias pointing at the renamed gate", () => {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- asserting the alias itself
-    expect(isProfessionalOrAbove).toBe(planIncludesPremiumFeatures);
   });
 });

@@ -47,7 +47,8 @@ public class SchedulingProblemBuilderTypeTests
 
     /// <summary>Wires the builder with the given backlog and candidate pool; captures the filter.</summary>
     private static (SchedulingProblemBuilder Builder, List<ResourceListFilter> Filters) Build(
-        List<RequestInfo> backlog, List<ResourceInfo> candidates)
+        List<RequestInfo> backlog, List<ResourceInfo> candidates,
+        SchedulingSettingsInfo? settings = null)
     {
         var filters = new List<ResourceListFilter>();
 
@@ -76,7 +77,7 @@ public class SchedulingProblemBuilderTypeTests
 
         var scheduling = new Mock<ISchedulingRepository>();
         scheduling.Setup(s => s.GetSettingsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((SchedulingSettingsInfo?)null);
+            .ReturnsAsync(settings);
 
         var resolver = new Mock<IAvailabilityResolver>();
         resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(
@@ -119,6 +120,36 @@ public class SchedulingProblemBuilderTypeTests
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => builder.BuildAsync(Preview(null), CancellationToken.None));
+    }
+
+    /// <summary>
+    /// SchedulingValidators rejects end &lt;= start when the settings are written, so a site
+    /// that reaches the builder in this state has corrupt stored data. Inventing a working
+    /// day would silently schedule against a length nobody configured.
+    /// </summary>
+    /// <remarks>
+    /// Both cases matter because TimeOnly subtraction is elapsed time and wraps at midnight:
+    /// 09:00 - 17:00 is 16 hours, not -8. A guard that subtracted first would catch only the
+    /// equal case and let the reversed one through as a plausible day length.
+    /// </remarks>
+    [Theory]
+    [InlineData(17, 9)]  // end before start — wraps to a positive span
+    [InlineData(9, 9)]   // end equal to start — a zero-length day
+    public async Task WorkingHoursThatDoNotEndAfterTheyStart_Throws(int startHour, int endHour)
+    {
+        var settings = SchedulingSettingsInfo.Default(SiteId) with
+        {
+            WorkingHoursEnabled = true,
+            WorkingDayStart = new TimeOnly(startHour, 0),
+            WorkingDayEnd = new TimeOnly(endHour, 0),
+        };
+        var (builder, _) = Build(
+            [Leaf([ResourceTypeKeys.Space])], [Resource(ResourceTypeKeys.Space, "Room")], settings);
+
+        var thrown = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => builder.BuildAsync(Preview(ResourceTypeKeys.Space), CancellationToken.None));
+
+        thrown.Message.Should().Contain("Working hours are enabled");
     }
 
     [Fact]

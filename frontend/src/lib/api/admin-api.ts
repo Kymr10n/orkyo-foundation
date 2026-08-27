@@ -7,7 +7,7 @@
 
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
-import { PlanCodes, planIncludesPremiumFeatures, type PlanCode } from '@foundation/contracts/plans';
+import { PlanCodes, type PlanCode } from '@foundation/contracts/plans';
 
 // ============================================================================
 // Types
@@ -44,14 +44,6 @@ export const TIER_DISPLAY_NAMES: Record<ServiceTier, string> = {
   professional: 'Professional',
   enterprise: 'Enterprise',
 };
-
-/**
- * @deprecated Renamed: Community also passes this gate, so the old name was a lie.
- * Use `planIncludesPremiumFeatures` from `@foundation/contracts/plans` — and for anything
- * the server enforces, use `useFeatureEnabled` instead of any plan-derived check.
- * Removed at the next major.
- */
-export const isProfessionalOrAbove = planIncludesPremiumFeatures;
 
 export interface AdminTenant {
   id: string;

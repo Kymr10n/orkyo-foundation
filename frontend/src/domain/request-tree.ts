@@ -13,7 +13,6 @@ import {
   DURATION_TO_MINUTES,
   MS_PER_MINUTE,
   DISPLAY_PRECISION,
-  ValidationCode,
 } from "./constants";
 
 // ---------------------------------------------------------------------------
@@ -185,16 +184,6 @@ export function getDescendantIds(
 /**
  * Check if moving `requestId` under `newParentId` would create a cycle.
  */
-export function wouldCreateCycle(
-  requestId: string,
-  newParentId: string,
-  requests: Request[],
-): boolean {
-  if (requestId === newParentId) return true;
-  const descendants = getDescendantIds(requestId, requests);
-  return descendants.includes(newParentId);
-}
-
 /**
  * Get direct children of a request from a flat list.
  */
@@ -217,10 +206,6 @@ export function canHaveChildren(planningMode: PlanningMode): boolean {
 /**
  * Determine if a request can be scheduled (placed on the calendar).
  */
-export function canBeScheduled(planningMode: PlanningMode): boolean {
-  return planningMode === PLANNING_MODE.LEAF;
-}
-
 /**
  * Compute the next sort_order for adding a child to a parent request.
  */
@@ -430,106 +415,6 @@ export function resolveSchedule(
     };
   }
   return { text: null, isDerived: false };
-}
-
-// ---------------------------------------------------------------------------
-// Validation model (per spec: structured, not ad-hoc booleans)
-// ---------------------------------------------------------------------------
-
-type ValidationSeverity = "info" | "warning" | "error";
-
-interface ValidationIssue {
-  code: string;
-  severity: ValidationSeverity;
-  requestId: string;
-  message: string;
-  path?: string[];
-}
-
-/**
- * Validate a single node: required fields, planning mode consistency, date order.
- */
-export function validateNode(request: Request, requests: Request[]): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  const id = request.id;
-
-  // Leaf must not have children
-  if (request.planningMode === PLANNING_MODE.LEAF) {
-    const children = getDirectChildren(id, requests);
-    if (children.length > 0) {
-      issues.push({
-        code: ValidationCode.LEAF_HAS_CHILDREN,
-        severity: "error",
-        requestId: id,
-        message: "Leaf request must not have children",
-      });
-    }
-  }
-
-  // start <= end
-  if (request.startTs && request.endTs && request.startTs >= request.endTs) {
-    issues.push({
-      code: ValidationCode.START_AFTER_END,
-      severity: "error",
-      requestId: id,
-      message: "Start must be before end",
-    });
-  }
-
-  // Actual duration >= min duration
-  if (
-    request.actualDurationValue != null &&
-    request.actualDurationUnit != null
-  ) {
-    const actualMin =
-      request.actualDurationValue * (DURATION_TO_MINUTES[request.actualDurationUnit] ?? 1);
-    const minMin =
-      request.minimalDurationValue * (DURATION_TO_MINUTES[request.minimalDurationUnit] ?? 1);
-    if (actualMin < minMin) {
-      issues.push({
-        code: ValidationCode.BELOW_MIN_DURATION,
-        severity: "warning",
-        requestId: id,
-        message: "Actual duration is below minimum duration",
-      });
-    }
-  }
-
-  return issues;
-}
-
-/**
- * Validate parent-child relationships: container boundary enforcement.
- */
-export function validateParentChild(
-  parent: Request,
-  child: Request,
-): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-
-  // Container boundary enforcement
-  if (parent.planningMode === PLANNING_MODE.CONTAINER) {
-    if (parent.earliestStartTs && child.startTs && child.startTs < parent.earliestStartTs) {
-      issues.push({
-        code: ValidationCode.CHILD_BEFORE_CONTAINER_START,
-        severity: "error",
-        requestId: child.id,
-        message: `Child starts before container boundary (${parent.name})`,
-        path: ["startTs"],
-      });
-    }
-    if (parent.latestEndTs && child.endTs && child.endTs > parent.latestEndTs) {
-      issues.push({
-        code: ValidationCode.CHILD_AFTER_CONTAINER_END,
-        severity: "error",
-        requestId: child.id,
-        message: `Child ends after container boundary (${parent.name})`,
-        path: ["endTs"],
-      });
-    }
-  }
-
-  return issues;
 }
 
 // ---------------------------------------------------------------------------

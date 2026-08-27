@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router';
 import { AboutPage } from './AboutPage';
-import { formatBuildTime } from '@foundation/src/lib/utils/formatBuildTime';
 
 // Mock navigate
 const mockNavigate = vi.fn();
@@ -107,28 +106,5 @@ describe('AboutPage', () => {
   it('shows privacy note in footer', () => {
     renderAboutPage();
     expect(screen.getByText(/not shared with third parties/)).toBeInTheDocument();
-  });
-});
-
-describe('formatBuildTime', () => {
-  it('formats a UTC ISO string into a readable locale string', () => {
-    const iso = '2026-03-08T14:30:00.000Z';
-    const result = formatBuildTime(iso);
-    // Should include the year and not be empty
-    expect(result).toMatch(/2026/);
-    expect(result.length).toBeGreaterThan(0);
-  });
-
-  it('includes hour and minute components', () => {
-    const iso = '2026-03-08T09:05:00.000Z';
-    const result = formatBuildTime(iso);
-    // toLocaleString with hour/minute options always produces a colon-separated time
-    expect(result).toMatch(/\d+:\d+/);
-  });
-
-  it('returns a different string for a different timestamp', () => {
-    const a = formatBuildTime('2026-01-01T00:00:00.000Z');
-    const b = formatBuildTime('2026-06-15T12:00:00.000Z');
-    expect(a).not.toBe(b);
   });
 });

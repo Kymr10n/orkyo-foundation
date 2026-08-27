@@ -1,5 +1,4 @@
 import {
-    getAllRequests,
     getScheduledRequests,
     getBacklogRequests,
     scheduleRequest,
@@ -27,18 +26,6 @@ const REQUESTS_REFETCH_MS = 30_000;
 // redefined) so existing `useUtilization` importers (e.g. UtilizationPage) keep resolving against
 // the single source of truth. See F051 dedup.
 export { usePlaceableResources } from "@foundation/src/hooks/usePlaceableResources";
-
-// Fetch all requests (tenant-wide). Kept for non-grid callers; the utilization grid uses the
-// scoped hooks below so it never pulls the whole tenant.
-// (Standard 5-minute freshness + no focus-refetch are inherited from the global defaults;
-// mutations update the cache directly via onSuccess.)
-export function useRequests() {
-  return useQuery({
-    queryKey: qk.requests.all(),
-    queryFn: getAllRequests,
-    refetchInterval: REQUESTS_REFETCH_MS,
-  });
-}
 
 // Scheduled requests for the selected site within a buffered window — the grid's bar feed.
 export function useScheduledRequests(siteId: string | null, from: Date, to: Date) {

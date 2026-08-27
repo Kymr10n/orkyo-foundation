@@ -39,6 +39,8 @@ public class CsrfMiddlewareTests
             context.Request.Headers[_options.CsrfHeaderName] = csrfHeader;
 
         var services = new ServiceCollection();
+        // ProblemResults bottoms out in Results.Json, which resolves ILoggerFactory.
+        services.AddLogging();
         services.AddSingleton(Options.Create(_options));
         context.RequestServices = services.BuildServiceProvider();
 

@@ -58,7 +58,7 @@ public static class ResourceGroupEndpoints
         group.MapDelete("/{id:guid}", async (Guid id, IResourceGroupRepository repo, CancellationToken ct) =>
         {
             var deleted = await repo.DeleteAsync(id, ct);
-            return deleted ? Results.NoContent() : ErrorResponses.NotFound("Resource group", id);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Resource group", id);
         })
         .WithName("DeleteResourceGroup")
         .WithSummary("Delete a resource group");
