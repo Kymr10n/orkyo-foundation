@@ -60,3 +60,52 @@ jobs:
 
       - name: Check frontend path collisions (G8)
         run: bash orkyo-foundation/scripts/ci/check-frontend-path-collisions.sh "$GITHUB_WORKSPACE"
+
+  # Compiles the consumers' backends against THIS checkout of foundation, not the
+  # published packages: side-by-side checkouts reproduce the local sibling layout, so
+  # the consumers' conditional ProjectReferences bind to the checked-out code. This is
+  # the mechanical answer to "an export with no callers in foundation may still be
+  # load-bearing downstream" — a deletion that breaks a consumer surfaces here on
+  # Monday instead of at the consumer's next pin bump. Frontend is deliberately not
+  # covered: npm resolves the published @kymr10n/foundation package regardless of
+  # siblings, so a tsc run here would not exercise local changes.
+  downstream-compile:
+    name: downstream-compile
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout orkyo-foundation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: orkyo-foundation
+
+      - name: Checkout orkyo-saas
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kymr10n/orkyo-saas
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: orkyo-saas
+
+      - name: Checkout orkyo-community
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kymr10n/orkyo-community
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: orkyo-community
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: orkyo-foundation/global.json
+          # The consumers' nuget.config maps Orkyo.* to nuget.pkg.github.com. In the
+          # sibling layout those resolve as ProjectReferences, but restore still needs
+          # the source to authenticate if anything falls through to the feed.
+          source-url: https://nuget.pkg.github.com/Kymr10n/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build orkyo-saas backend against local foundation
+        run: dotnet build orkyo-saas/backend/tests/Orkyo.Saas.Tests.csproj -v q
+
+      - name: Build orkyo-community backend against local foundation
+        run: dotnet build orkyo-community/backend/tests/Orkyo.Community.Tests.csproj -v q

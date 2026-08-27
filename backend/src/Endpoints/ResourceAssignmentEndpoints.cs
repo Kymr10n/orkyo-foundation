@@ -65,7 +65,10 @@ public static class ResourceAssignmentEndpoints
             {
                 var (assignment, conflict) = await service.CreateAsync(request, ct);
                 if (conflict is not null)
-                    return Results.Json(new[] { conflict }, statusCode: StatusCodes.Status409Conflict);
+                    // Canonical conflict shape, not a bare JSON array: the old body carried
+                    // structured conflict data that no client ever read — the frontend lands
+                    // in a generic catch — while lacking the `code` every other error has.
+                    return ErrorResponses.Conflict(conflict.Message);
                 return Results.Created($"/api/resource-assignments/{assignment!.Id}", assignment);
             }))
             .WithName("CreateResourceAssignment")

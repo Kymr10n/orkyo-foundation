@@ -76,5 +76,7 @@ public static class SkillCatalog
 
     public static Skill ByKey(string key) =>
         All.FirstOrDefault(s => s.Key == key)
-        ?? throw new KeyNotFoundException($"Unknown skill '{key}'.");
+        // A miss here is a seeding-profile programming error, not a lookup that can
+        // legitimately fail — the keys are compile-time constants in this file.
+        ?? throw new InvalidOperationException($"Unknown skill '{key}'.");
 }

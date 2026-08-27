@@ -156,6 +156,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["SMTP_FROM_EMAIL"] = "test@test.local",
             ["SMTP_FROM_NAME"] = "Test",
             ["FEEDBACK_NOTIFICATION_EMAIL"] = "feedback@test.local",
+            // ReportingTokenService refuses to start without a pepper source (no compiled
+            // fallback — fail-early rule); tests use the same stand-in secret as the
+            // DeploymentConfig singleton below.
+            ["KEYCLOAK_BACKEND_CLIENT_SECRET"] = "test-secret",
             // BFF auth — enabled with test-friendly settings so BFF endpoints register.
             ["BFF_ENABLED"] = "true",
             ["BFF_COOKIE_SECURE"] = "false",

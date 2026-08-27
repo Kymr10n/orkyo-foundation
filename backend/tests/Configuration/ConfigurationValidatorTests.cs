@@ -20,6 +20,21 @@ public class ConfigurationValidatorTests
     }
 
     [Fact]
+    public void Validate_ReturnsError_WhenEnvironmentIsUnset()
+    {
+        // The validator used to assume Production when ASPNETCORE_ENVIRONMENT was unset.
+        // Every deployment surface sets it, so an empty value is a broken config and must
+        // say so instead of being silently classified.
+        var values = ValidConfigValues();
+        values.Remove(ConfigKeys.AspNetCoreEnvironment);
+        var config = BuildConfig(values);
+
+        var errors = ConfigurationValidator.Validate(config);
+
+        errors.Should().ContainSingle(e => e.Contains(ConfigKeys.AspNetCoreEnvironment));
+    }
+
+    [Fact]
     public void Validate_ReturnsError_WhenRequiredKeyMissing()
     {
         var values = ValidConfigValues();
@@ -159,6 +174,9 @@ public class ConfigurationValidatorTests
 
     private static Dictionary<string, string?> ValidConfigValues() => new()
     {
+        // Required since the silent Production fallback was removed: an unknown
+        // environment is an error, not an assumption.
+        [ConfigKeys.AspNetCoreEnvironment] = EnvironmentNames.Development,
         [ConfigKeys.OidcAuthority] = "http://localhost:8180/realms/orkyo",
         [ConfigKeys.KeycloakUrl] = "http://localhost:8180",
         [ConfigKeys.KeycloakRealm] = "orkyo",

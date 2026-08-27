@@ -60,7 +60,9 @@ public static class SettingsAdminEndpoints
                 SmtpHost = deployment.GetValueOrDefault(nameof(DeploymentConfig.SmtpHost)) ?? "",
                 SmtpPort = deploymentConfig.SmtpPort,
                 KeycloakRealm = deployment.GetValueOrDefault(nameof(DeploymentConfig.KeycloakRealm)) ?? "",
-                LogLevel = deployment.GetValueOrDefault(nameof(DeploymentConfig.LogLevel)) ?? "Information",
+                // No "Information" stand-in: the panel reports what is configured, and an
+                // unset level shows as unset rather than as a value nobody chose.
+                LogLevel = deployment.GetValueOrDefault(nameof(DeploymentConfig.LogLevel)) ?? "",
             },
             SystemInfo = new SystemInfo
             {

@@ -112,6 +112,26 @@ patterns.
 still hardcode `'active'` and `'admin'`, nine hardcode `'keycloak'`, and conflict severity
 is written as bare `"error"`/`"warning"` beside a `Kind` that correctly uses constants.
 
+## Configuration
+
+**No fallback values — fail early.** Required config goes through
+`ConfigurationExtensions.GetRequired*` (or `DeploymentConfig`'s `Require`), which throws
+at startup; optional config through `GetOptionalString`/`IsSet`. There is deliberately no
+`GetValueOrDefault(key, fallback)` helper: `configuration[key] ?? fallback` substitutes
+only for *null*, and the deploy pipeline writes `KEY=` for every unset key, so an empty
+string sails past `??` and silently replaces the intended value — the BFF cookie-name
+bug. Defaults live in env templates, never in compiled code.
+`ConventionContractTests.NoSourceFile_FallsBackOnARawConfigRead` enforces this.
+
+## Frontend dialogs
+
+**Viewer gating has no mechanical guard.** Editing controls inside a dialog are gated on
+`canEdit` (or the equivalent permission flag); two dialogs shipped without it in 2026-08.
+eslint cannot express "a `DialogFooter` whose actions lack a `canEdit` gate", so there is
+no lint rule — the protection is that the raw dialog-shell import ban pushes new dialogs
+through `FormDialog`/`ScaffoldDialog`, which embed the gate. When you write a dialog that
+bypasses those shells, checking the gate is on you.
+
 ## Types
 
 **A patch field that can be cleared uses `Optional<T>`.** Plain `T?` plus `SetIfNotNull`
@@ -136,4 +156,8 @@ next touch it.
 orkyo-saas and orkyo-community consume this repo as NuGet and npm packages. Anything
 `public` is API: an export with no callers *here* may still be load-bearing there, and
 deleting it breaks the consumer at its next pin bump rather than in this repo's CI. Grep
-all three trees before removing a public symbol.
+all three trees before removing a public symbol. The `downstream-compile` job in
+`template-sync-check.yml` builds both consumers' backends against the current foundation
+checkout weekly, so a backend break surfaces the following Monday at the latest; the npm
+side has no equivalent (consumers resolve the published package), so frontend exports
+still rely on the grep.
