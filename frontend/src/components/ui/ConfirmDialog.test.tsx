@@ -72,3 +72,13 @@ describe('ConfirmDialog', () => {
     });
   });
 });
+
+describe('ConfirmDialog layout', () => {
+  it('stays a centered card with a gutter on narrow screens', () => {
+    renderDialog();
+    // A confirm never goes fullscreen the way FormDialog does — that is deliberate — so the
+    // gutter is the only thing keeping it off both screen edges on a phone.
+    const content = screen.getByRole('alertdialog');
+    expect(content).toHaveClass('max-w-[calc(100%-2rem)]', 'sm:max-w-lg', 'rounded-lg');
+  });
+});

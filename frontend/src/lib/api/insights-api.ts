@@ -164,10 +164,15 @@ export interface InsightsBottlenecks {
  * a coarser bucket averages away.
  */
 export function getInsightsBottlenecks(
-  from: Date, to: Date, siteId?: string | null,
+  from: Date, to: Date, siteId?: string | null, resourceType?: InsightsResourceType,
 ): Promise<InsightsBottlenecks> {
   return apiGet<InsightsBottlenecks>(API_PATHS.INSIGHTS.BOTTLENECKS, {
-    params: periodParams(from, to, siteId),
+    params: {
+      ...periodParams(from, to, siteId),
+      // Omitted means every type, which ranks them against each other — one busy type then
+      // fills the whole list. The tab asks per type so each gets its own ranking.
+      ...(resourceType ? { resourceType } : {}),
+    },
   });
 }
 

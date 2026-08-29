@@ -81,7 +81,11 @@ export function DataTableColumnHeader<TData extends RowData>({
           variant="ghost"
           size="sm"
           aria-label={`${label} — sort and filter`}
-          className="group -ml-2 h-7 gap-1.5 px-2 font-medium text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+          // `whitespace-normal` overrides the button default: a header that cannot wrap sets the
+          // table's minimum width, so one long label like "Downtime (h)" forces the whole grid
+          // into horizontal scroll inside a narrow container. With room the label still sits on
+          // one line — this only lets it wrap when the alternative is a scrollbar.
+          className="group -ml-2 h-auto min-h-7 gap-1.5 whitespace-normal px-2 py-1 text-left font-medium text-muted-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
         >
           {title}
           {sorted === 'asc' ? (

@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@foun
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -43,6 +44,7 @@ import {
 } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
+import { cn } from "@foundation/src/lib/utils";
 import { useRef, useState } from "react";
 
 export function PresetSettings() {
@@ -246,7 +248,7 @@ export function PresetSettings() {
 
       {/* Preview/Apply Dialog */}
       <Dialog open={previewDialogOpen} onOpenChange={(open) => !open && resetImportState()}>
-        <DialogContent className="max-w-2xl max-h-[85dvh] flex flex-col p-0">
+        <DialogContent className={cn(DIALOG_SIZE.lg, "flex flex-col p-0")}>
           <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
             <DialogTitle>
               {applicationResult?.success ? "Preset Applied" : "Preview Preset"}

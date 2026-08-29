@@ -4,6 +4,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogHeader,
   DialogTitle,
 } from '@foundation/src/components/ui/dialog';
@@ -74,7 +75,7 @@ export function ResourceAbsenceList({ open, onOpenChange, resourceId, resourceNa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[640px]">
+      <DialogContent className={DIALOG_SIZE.lg}>
         <DialogHeader>
           <DialogTitle>Absences — {resourceName}</DialogTitle>
         </DialogHeader>

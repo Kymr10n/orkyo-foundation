@@ -25,6 +25,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -301,7 +302,7 @@ function FeedbackDetailDialog({
 
   return (
     <Dialog open={!!feedback} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className={DIALOG_SIZE.lg}>
         <DialogHeader>
           <DialogTitle className="capitalize">{feedback.feedbackType}: {feedback.title}</DialogTitle>
           <DialogDescription>

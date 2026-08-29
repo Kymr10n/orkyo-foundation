@@ -8,6 +8,7 @@ import { Input } from "@foundation/src/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -178,7 +179,7 @@ export function ResourceGroupMembersEditor({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+      <DialogContent className={DIALOG_SIZE.lg}>
         <DialogHeader>
           <DialogTitle>Manage Members in &quot;{groupName}&quot;</DialogTitle>
           <DialogDescription className="sr-only">

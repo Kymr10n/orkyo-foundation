@@ -144,6 +144,11 @@ export function ResourceEditDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
+      // A list field renders a full data table, which does not fit the default form width and
+      // ends up scrolling sideways inside the dialog. Widen only for the types that have one:
+      // most resource types do not, and a permanently wide dialog leaves single-column inputs
+      // stranded across 720px. `xl` matches ResourceTypeCustomFieldsDialog, the other table.
+      size={customFields.fields.some((f) => f.dataType === 'list') ? 'xl' : 'md'}
       title={resource ? `Edit ${resourceType.displayName}` : `New ${resourceType.displayName}`}
       description={resourceType.description || undefined}
       srOnlyDescription={!resourceType.description}

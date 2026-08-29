@@ -314,57 +314,59 @@ export function OrkyoDataTable<TData extends RowData>({
           ))}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <Table className="border-separate border-spacing-y-1.5">
-            <TableHeader>
-              {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id}>
-                  {hg.headers.map((header) => {
-                    const column = header.column;
-                    const interactive = !header.isPlaceholder
-                      && (column.getCanSort() || column.columnDef.meta?.filter !== undefined);
-                    return (
-                      <TableHead
-                        key={header.id}
-                        aria-sort={ariaSort(column)}
-                        style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
-                      >
-                        {header.isPlaceholder ? null : interactive ? (
-                          <DataTableColumnHeader
-                            column={column}
-                            title={flexRender(column.columnDef.header, header.getContext())}
-                            label={columnLabel(column)}
-                            facetsUnavailable={isManualTable}
-                          />
-                        ) : (
-                          flexRender(column.columnDef.header, header.getContext())
-                        )}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                  className={
-                    'bg-card shadow-xs hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
-                    (onRowClick ? ' cursor-pointer' : '')
-                  }
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        // No wrapper here: `Table` already brings its own scroll container. A second one
+        // around it also computes `overflow-y` to `auto` (a `visible` axis does that whenever
+        // the other axis is not visible), so it reserved vertical-scrollbar width and squeezed
+        // the inner container into a horizontal scrollbar with nothing to scroll to.
+        <Table className="border-separate border-spacing-y-1.5">
+          <TableHeader>
+            {table.getHeaderGroups().map((hg) => (
+              <TableRow key={hg.id}>
+                {hg.headers.map((header) => {
+                  const column = header.column;
+                  const interactive = !header.isPlaceholder
+                    && (column.getCanSort() || column.columnDef.meta?.filter !== undefined);
+                  return (
+                    <TableHead
+                      key={header.id}
+                      aria-sort={ariaSort(column)}
+                      style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
+                    >
+                      {header.isPlaceholder ? null : interactive ? (
+                        <DataTableColumnHeader
+                          column={column}
+                          title={flexRender(column.columnDef.header, header.getContext())}
+                          label={columnLabel(column)}
+                          facetsUnavailable={isManualTable}
+                        />
+                      ) : (
+                        flexRender(column.columnDef.header, header.getContext())
+                      )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                className={
+                  'bg-card shadow-xs hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
+                  (onRowClick ? ' cursor-pointer' : '')
+                }
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
 
       {pageSize && !isLoading && !error && table.getRowModel().rows.length > 0 && (

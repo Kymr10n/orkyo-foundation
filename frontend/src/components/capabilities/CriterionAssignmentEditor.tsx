@@ -6,6 +6,7 @@ import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -21,7 +22,7 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { getDataTypeColor } from '@foundation/src/lib/utils';
+import { cn, getDataTypeColor } from '@foundation/src/lib/utils';
 import type { Criterion, CriterionValue } from '@foundation/src/types/criterion';
 import { Plus, Trash2 } from 'lucide-react';
 import { CriterionRequirementInput } from '../requests/CriterionRequirementInput';
@@ -143,7 +144,7 @@ export function CriterionAssignmentEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Height comes from DialogContent's default max-h-[85dvh] flex column (UI-GUIDELINES §3);
           `dvh` keeps the footer reachable on mobile. Only width + padding are overridden here. */}
-      <DialogContent className="max-w-2xl p-0">
+      <DialogContent className={cn(DIALOG_SIZE.lg, "p-0")}>
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{labels.title}</DialogTitle>
           <DialogDescription className="sr-only">{labels.srDescription}</DialogDescription>

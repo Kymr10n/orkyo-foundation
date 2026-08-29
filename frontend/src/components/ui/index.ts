@@ -67,8 +67,10 @@ export {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DIALOG_SIZE,
   ScrollableDialogBody,
 } from "./dialog";
+export type { DialogSize } from "./dialog";
 
 // Input
 export { Input } from "./input";

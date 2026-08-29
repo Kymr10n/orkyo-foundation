@@ -4,6 +4,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -72,7 +73,7 @@ export function ScheduleSlotDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={DIALOG_SIZE.sm}>
         <DialogHeader>
           <DialogTitle>Schedule Request</DialogTitle>
           <DialogDescription>{rangeLabel}</DialogDescription>

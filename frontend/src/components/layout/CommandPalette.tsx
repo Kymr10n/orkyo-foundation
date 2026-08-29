@@ -262,6 +262,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* The one sanctioned exception to DIALOG_SIZE: a command palette is a search surface,
+          not a form, and its width follows the cmdk convention rather than the form scale. */}
       <DialogContent
         className="overflow-hidden p-0 shadow-lg sm:max-w-[550px]"
         onKeyDown={handleKeyDown}

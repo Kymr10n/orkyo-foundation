@@ -2,6 +2,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -138,7 +139,7 @@ export function ImportExportDialog({
   if (!available) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className={DIALOG_SIZE.md}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {mode === 'export' ? (
@@ -163,7 +164,7 @@ export function ImportExportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className={DIALOG_SIZE.md}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {mode === 'export' ? (

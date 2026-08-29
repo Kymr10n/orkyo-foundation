@@ -5,6 +5,7 @@ import { Button } from '@foundation/src/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -112,7 +113,7 @@ export function FeedbackButton() {
       </TooltipProvider>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className={DIALOG_SIZE.sm}>
           <DialogHeader>
             <DialogTitle>Send Feedback</DialogTitle>
             <DialogDescription>

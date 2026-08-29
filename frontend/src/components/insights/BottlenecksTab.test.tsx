@@ -27,6 +27,19 @@ vi.mock("recharts", () => {
 });
 
 vi.mock("@foundation/src/lib/api/insights-api", () => ({ getInsightsBottlenecks: vi.fn() }));
+
+// Two types is the point of the tab: one ranking each, so a busy type cannot crowd out the other.
+vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
+  useResourceTypes: () => ({
+    data: [
+      // hasGeometry is what splits the classes: a station has a fixed location, an asset moves.
+      { id: "rt-mill", key: "mill", displayName: "Mill", displayNamePlural: "Mills", hasGeometry: true, isSystem: false, isActive: true },
+      { id: "rt-lathe", key: "lathe", displayName: "Lathe", displayNamePlural: "CNC Lathes", hasGeometry: true, isSystem: false, isActive: true },
+      { id: "rt-person", key: "person", displayName: "Person", displayNamePlural: "People", hasGeometry: false, isSystem: true, isActive: true },
+      { id: "rt-tool", key: "tool", displayName: "Tool", displayNamePlural: "Tools", hasGeometry: false, isSystem: false, isActive: true },
+    ],
+  }),
+}));
 vi.mock("@foundation/src/lib/api/request-dependency-api", () => ({ getCriticalPath: vi.fn() }));
 vi.mock("@foundation/src/lib/api/request-api", () => ({ getRequest: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -85,31 +98,44 @@ beforeEach(() => {
 });
 
 describe("BottlenecksTab", () => {
-  it("says plainly when nothing was overbooked", async () => {
+  it("charts stations and assets separately so one class cannot swamp the other", async () => {
+    // The reported gap: ranked together, people filled all ten slots and the stations a planner
+    // needs to see never appeared.
+    const item = (name: string, key: string, minutes: number) => ({
+      resourceId: name, name, resourceTypeKey: key,
+      resourceTypeDisplayName: key, overbookedMinutes: minutes,
+      capacityMinutes: 44640, peakUtilizationPercent: 150,
+    });
+    (getInsightsBottlenecks as Mock).mockImplementation((_f, _t, _s, type) =>
+      Promise.resolve({
+        ...emptyBottlenecks,
+        items: type === "person" ? [item("Justine", "person", 2160)]
+          : type === "mill" ? [item("Mill 1", "mill", 120)]
+          : [],
+      }),
+    );
+
     renderTab();
 
-    // An empty ranking is the healthy state, not missing data.
-    await waitFor(() =>
-      expect(screen.getByText(/no resource was booked beyond its capacity/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText("Most overloaded stations")).toBeInTheDocument());
+    expect(screen.getByText("Most overloaded assets")).toBeInTheDocument();
+    // Every type is fetched, so narrowing later reads from cache.
+    const asked = (getInsightsBottlenecks as Mock).mock.calls.map((c) => c[3]);
+    expect(asked).toEqual(expect.arrayContaining(["mill", "lathe", "person", "tool"]));
   });
 
-  it("ranks overloaded resources", async () => {
-    (getInsightsBottlenecks as Mock).mockResolvedValue({
-      ...emptyBottlenecks,
-      items: [
-        {
-          resourceId: "res1", name: "Mill 1", resourceTypeKey: "space",
-          resourceTypeDisplayName: "Space",
-          overbookedMinutes: 1440, capacityMinutes: 44640, peakUtilizationPercent: 200,
-        },
-      ],
-    });
-
+  it("narrows a class to one of its resource types, named as the workspace wrote it", async () => {
+    (getInsightsBottlenecks as Mock).mockResolvedValue(emptyBottlenecks);
     renderTab();
 
-    await waitFor(() => expect(screen.getByText("Most overloaded resources")).toBeInTheDocument());
-    expect(screen.queryByText(/no resource was booked beyond/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Most overloaded stations")).toBeInTheDocument());
+    await userEvent.click(screen.getByRole("combobox", { name: /filter stations/i }));
+    await userEvent.click(await screen.findByRole("option", { name: "CNC Lathes" }));
+
+    // Verbatim: lowercasing a tenant-authored name turns "CNC Lathes" into "cnc lathes".
+    await waitFor(() =>
+      expect(screen.getByText("Most overloaded CNC Lathes")).toBeInTheDocument(),
+    );
   });
 
   it("points at the Dependencies tab when no request depends on another", async () => {

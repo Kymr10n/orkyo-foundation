@@ -424,7 +424,7 @@ export function ResourceAssignmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" data-testid="person-assignment-dialog">
+      <DialogContent data-testid="person-assignment-dialog">
         <DialogHeader className="shrink-0">
           <DialogTitle>Assignments — {resourceName}</DialogTitle>
           <DialogDescription>{formatPeriod(start, end)}</DialogDescription>

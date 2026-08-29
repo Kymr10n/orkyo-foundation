@@ -21,6 +21,7 @@ import { DateTimePicker } from '@foundation/src/components/ui/date-time-picker';
 import {
   Dialog,
   DialogContent,
+  DIALOG_SIZE,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -415,7 +416,7 @@ function AnnouncementFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px]">
+      <DialogContent className={DIALOG_SIZE.md}>
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Edit Announcement' : 'New Announcement'}</DialogTitle>
           <DialogDescription>

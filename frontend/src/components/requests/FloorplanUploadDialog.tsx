@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
+import { Dialog, DialogContent, DIALOG_SIZE, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Upload, X, FileImage } from 'lucide-react';
@@ -125,7 +125,7 @@ export function FloorplanUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className={DIALOG_SIZE.md}>
         <DialogHeader>
           <DialogTitle>Upload Floorplan Image</DialogTitle>
           <DialogDescription>

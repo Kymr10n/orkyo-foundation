@@ -328,3 +328,29 @@ describe('ResourceEditDialog custom fields', () => {
     expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
   });
 });
+
+describe('ResourceEditDialog width', () => {
+  it('widens to fit a list field, which renders a whole data table', async () => {
+    // The reported bug: a maintenance-log list inside the default form width scrolled sideways.
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      field({ key: 'maintenance', label: 'Maintenance log', dataType: 'list' }),
+    ]);
+    renderDialog();
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-3xl'),
+    );
+  });
+
+  it('keeps the default form width when every field is a plain input', async () => {
+    // Widening unconditionally would strand single-column inputs across 720px.
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      field({ key: 'serial', label: 'Serial', dataType: 'text' }),
+    ]);
+    renderDialog();
+
+    await waitFor(() => expect(screen.getByLabelText(/Serial/)).toBeInTheDocument());
+    expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-[500px]');
+    expect(screen.getByRole('dialog')).not.toHaveClass('sm:max-w-3xl');
+  });
+});

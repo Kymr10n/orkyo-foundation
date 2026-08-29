@@ -89,15 +89,20 @@ interface ChartCardProps {
   error: unknown;
   isEmpty: boolean;
   emptyMessage: string;
+  /** Rendered opposite the title — a filter that narrows this chart. */
+  action?: React.ReactNode;
   children: React.ReactElement;
 }
 
 /** Shared chart frame: title + the loading→error→empty→content state ladder. */
-function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, children, heightClass = "h-64" }: ChartCardProps) {
+function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, action, children, heightClass = "h-64" }: ChartCardProps) {
   return (
     <Card>
       <CardHeader className="pb-2 md:pb-2">
-        <CardTitle className="text-sm">{title}</CardTitle>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm">{title}</CardTitle>
+          {action}
+        </div>
       </CardHeader>
       <CardContent className={heightClass}>
         {isLoading ? (
@@ -130,11 +135,15 @@ function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, children, h
  * reader should not have to do.
  */
 export function BottleneckChart({
-  data, isLoading, error,
+  data, isLoading, error, title = "Most overloaded resources", action,
 }: {
   data?: InsightsBottlenecks;
   isLoading: boolean;
   error?: unknown;
+  /** Names the class, or the single resource type the chart is narrowed to. */
+  title?: string;
+  /** The resource-type filter for this chart. */
+  action?: React.ReactNode;
 }) {
   const r = useChartResponsive();
   const items = data?.items ?? [];
@@ -152,7 +161,8 @@ export function BottleneckChart({
 
   return (
     <ChartCard
-      title="Most overloaded resources"
+      title={title}
+      action={action}
       isLoading={isLoading}
       error={error}
       // ~34px a row plus axis: enough that every name has somewhere to sit.

@@ -94,6 +94,15 @@ describe("BottleneckChart", () => {
     expect(formatter(2.5, "hours", { payload: { peak: null } })[0]).toBe("2.5 h over capacity");
   });
 
+  it("takes a per-type title, and keeps the generic one when none is given", () => {
+    const { unmount } = render(<BottleneckChart data={bottlenecks()} isLoading={false} error={null} />);
+    expect(screen.getByText("Most overloaded resources")).toBeInTheDocument();
+    unmount();
+
+    render(<BottleneckChart title="Most overloaded machines" data={bottlenecks()} isLoading={false} error={null} />);
+    expect(screen.getByText("Most overloaded machines")).toBeInTheDocument();
+  });
+
   it("labels the axis by resource id so two resources sharing a name stay separate bars", () => {
     render(<BottleneckChart data={bottlenecks()} isLoading={false} error={null} />);
     const axis = yAxisProps[0] as { dataKey: string; tickFormatter: (id: string) => string };

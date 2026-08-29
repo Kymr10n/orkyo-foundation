@@ -41,12 +41,12 @@ describe("ScaffoldDialog", () => {
 
   it("defaults to the lg width token", () => {
     renderScaffold();
-    expect(screen.getByRole("dialog")).toHaveClass("max-w-2xl");
+    expect(screen.getByRole("dialog")).toHaveClass("sm:max-w-2xl");
   });
 
   it("applies the requested size token", () => {
     renderScaffold({ size: "xl" });
-    expect(screen.getByRole("dialog")).toHaveClass("max-w-3xl");
+    expect(screen.getByRole("dialog")).toHaveClass("sm:max-w-3xl");
   });
 
   it("renders the description visually hidden when srOnlyDescription is set", () => {
@@ -66,6 +66,6 @@ describe("ScaffoldDialog", () => {
     const content = screen.getByRole("dialog");
     expect(content).toHaveClass("inset-0", "h-[100dvh]", "max-w-none");
     // The width token must not survive alongside it, or the card comes back.
-    expect(content).not.toHaveClass("max-w-2xl");
+    expect(content).not.toHaveClass("sm:max-w-2xl");
   });
 });

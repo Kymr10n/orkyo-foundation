@@ -1,6 +1,5 @@
 import {
   getInsightsOverview,
-  getInsightsBottlenecks,
   getInsightsConflicts,
   getInsightsRequests,
   type InsightsBucket,
@@ -25,14 +24,6 @@ export function useInsightsConflicts(siteId: string | null, from: Date, to: Date
   return useQuery({
     queryKey: qk.insights.conflicts(siteId, from, to, bucket),
     queryFn: () => getInsightsConflicts(from, to, bucket, siteId),
-    staleTime: STALE.ANALYTICS,
-  });
-}
-
-export function useInsightsBottlenecks(siteId: string | null, from: Date, to: Date) {
-  return useQuery({
-    queryKey: qk.insights.bottlenecks(siteId, from, to),
-    queryFn: () => getInsightsBottlenecks(from, to, siteId),
     staleTime: STALE.ANALYTICS,
   });
 }

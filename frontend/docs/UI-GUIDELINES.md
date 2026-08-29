@@ -184,6 +184,13 @@ component that owns it** so there's a single source of truth — e.g. `max-h-[85
 `DialogContent`, and the form-dialog width once on `FormDialog`. Don't copy such literals into
 call sites.
 
+**Dialog widths come from `DIALOG_SIZE`.** Pass `size` on `FormDialog` / `ScaffoldDialog`, or
+`className={DIALOG_SIZE.lg}` on a raw `DialogContent` — never a `max-w-*` literal. Widths had
+drifted to eighteen hand-written values, so `dialog-width-convention.test.ts` now fails on a new
+one. `CommandPalette` is the single allowlisted exception: a search surface, not a form. Pick the
+size from the content — `xl` is the table width (`ResourceTypeCustomFieldsDialog`, and
+`ResourceEditDialog` when a list field puts a table in the form).
+
 > Note: `orkyo-foundation` ships source + `index.css` with raw `@tailwind` directives and has **no
 > Tailwind build of its own** — the consuming products (saas/community) run Tailwind. So a shared
 > Tailwind *theme* extension (custom spacing/radius scales) is a downstream concern, not something

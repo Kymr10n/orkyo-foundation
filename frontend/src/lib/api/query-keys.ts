@@ -271,8 +271,8 @@ export const qk = {
     requests: (siteId: string | null, from: Date, to: Date, bucket: string) =>
       ["insights", "requests", siteId, iso(from), iso(to), bucket] as const,
     /** No bucket in the key: the ranking is measured per day whatever period is asked for. */
-    bottlenecks: (siteId: string | null, from: Date, to: Date) =>
-      ["insights", "bottlenecks", siteId, iso(from), iso(to)] as const,
+    bottlenecks: (siteId: string | null, from: Date, to: Date, resourceType: string) =>
+      ["insights", "bottlenecks", siteId, iso(from), iso(to), resourceType] as const,
   },
 
   // Platform-admin surfaces (saas). Listed here because the admin-api they query

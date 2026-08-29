@@ -9,13 +9,17 @@ import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint"
  * Shared dialog width vocabulary. Use the `size` prop on `FormDialog` /
  * `ScaffoldDialog` instead of hardcoding `max-w-*` strings,
  * so the handful of dialog widths stay consistent across the app.
+ *
+ * Every entry is `sm:`-prefixed on purpose. Below that breakpoint the phone gutter on
+ * `DialogContent` owns the width, and an unprefixed token here would out-specify it —
+ * twMerge only collapses `max-w-*` against another `max-w-*` in the same modifier group.
  */
 export type DialogSize = "sm" | "md" | "lg" | "xl"
 export const DIALOG_SIZE: Record<DialogSize, string> = {
   sm: "sm:max-w-[440px]", // narrow forms
   md: "sm:max-w-[500px]", // default form width
-  lg: "max-w-2xl", // tall / complex dialogs
-  xl: "max-w-3xl",
+  lg: "sm:max-w-2xl", // tall / complex dialogs
+  xl: "sm:max-w-3xl", // wide enough for a data table
 }
 
 /**
@@ -80,7 +84,10 @@ const DialogContent = React.forwardRef<
         // `overflow-x-hidden` is not decoration: CSS computes a `visible` axis to `auto` when the
         // other axis is not visible, so `overflow-y-auto` alone silently makes a dialog scroll
         // sideways — which is how a stray wide child pushes labels off the left edge.
-        "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-x-hidden overflow-y-auto border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:rounded-lg",
+        // The phone gutter (`max-w-[calc(100%-2rem)]`) keeps a raw dialog off both screen
+        // edges. FormDialog and ScaffoldDialog never see it — their PHONE_FULLSCREEN sets
+        // `max-w-none rounded-none` — so it is what a bare DialogContent or a confirm gets.
+        "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-x-hidden overflow-y-auto rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:max-w-lg",
         className
       )}
       {...props}
