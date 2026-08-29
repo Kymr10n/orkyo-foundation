@@ -29,6 +29,15 @@ export async function getRequests(
 }
 
 /**
+ * Get one request by id. For surfaces that hold only an id and need the whole request on
+ * demand — the Bottlenecks critical path lists nodes by id, and opening one must not cost a
+ * tenant-wide list read.
+ */
+export async function getRequest(id: string): Promise<Request> {
+  return apiGet<Request>(`${API_PATHS.REQUESTS}/${id}`);
+}
+
+/**
  * Get only requests that currently have ≥1 conflict (tenant-wide). Backs the Conflicts page so it
  * loads just the conflicted rows rather than the whole tenant.
  */

@@ -81,6 +81,60 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
             model.Add(LinearExpr.Sum(vars) <= 1);
         }
 
+        // Constraint: precedence. A successor may not start until its predecessor has finished
+        // plus the lag. Conditional on both candidates being chosen, because either may go
+        // unscheduled — an unconditional bound would force both in or make the model infeasible.
+        //
+        // Pairwise over candidate resources: the start variables are per (request, resource), so
+        // the bound has to hold for whichever pair the solver picks.
+        // Successors the precedence block forces out. Without this the reason falls through to
+        // the generic capacity default below, and the same input reports "insufficient capacity"
+        // here while the greedy fallback reports "predecessor unscheduled".
+        var precedenceBlocked = new HashSet<Guid>();
+
+        if (problem.Problem.Dependencies is { Count: > 0 } dependencies)
+        {
+            var candidatesByRequestId = problem.Candidates
+                .GroupBy(c => c.RequestId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            foreach (var edge in dependencies)
+            {
+                // No successor candidates means nothing to constrain.
+                if (!candidatesByRequestId.TryGetValue(edge.SuccessorRequestId, out var succs)) continue;
+
+                var succPresences = succs.Select(c => candidateVars[(c.RequestId, c.ResourceId)]).ToArray();
+
+                if (!candidatesByRequestId.TryGetValue(edge.PredecessorRequestId, out var preds))
+                {
+                    // The predecessor has no feasible resource at all, so it cannot be placed in
+                    // this run. Skipping the edge here would leave the successor free to schedule
+                    // ahead of work that never happens — forbid it instead, matching what the
+                    // greedy solver does with the same situation.
+                    model.Add(LinearExpr.Sum(succPresences) == 0);
+                    precedenceBlocked.Add(edge.SuccessorRequestId);
+                    continue;
+                }
+
+                foreach (var pred in preds)
+                {
+                    var predKey = (pred.RequestId, pred.ResourceId);
+                    foreach (var succ in succs)
+                    {
+                        var succKey = (succ.RequestId, succ.ResourceId);
+                        model.Add(candidateStarts[succKey]
+                                  >= candidateStarts[predKey] + pred.DurationDays + edge.LagDays)
+                             .OnlyEnforceIf([candidateVars[predKey], candidateVars[succKey]]);
+                    }
+                }
+
+                // A successor cannot be scheduled while its predecessor is not: otherwise the
+                // conditional bound above is vacuously satisfied by leaving the predecessor out.
+                var predPresences = preds.Select(c => candidateVars[(c.RequestId, c.ResourceId)]).ToArray();
+                model.Add(LinearExpr.Sum(predPresences) >= LinearExpr.Sum(succPresences));
+            }
+        }
+
         // Constraint: no-overlap per resource (including fixed occupancy)
         foreach (var resourceGroup in candidatesBySpace)
         {
@@ -208,6 +262,9 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
                 .Select(r => r.ReasonCode)
                 .Distinct()
                 .ToList();
+
+            if (reasons.Count == 0 && precedenceBlocked.Contains(requestId))
+                reasons.Add(SchedulingReasonCode.PredecessorUnscheduled);
 
             if (reasons.Count == 0)
                 reasons.Add(SchedulingReasonCode.InsufficientCapacity);

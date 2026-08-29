@@ -44,10 +44,14 @@ export interface Conflict {
     | "after_latest_end"
     | "starts_in_off_time"
     | "insufficient_working_time"
-    | "capacity_exceeded";
+    | "capacity_exceeded"
+    | "dependency_violation";
   severity: "warning" | "error";
   message: string;
-  /** For `overlap` conflicts: the id of the other request that this one overlaps with. */
+  /**
+   * For `overlap` conflicts: the id of the other request that this one overlaps with.
+   * For `dependency_violation`: the predecessor this request waits for.
+   */
   peerRequestId?: string;
   /** The assigned resource (space/person/tool) this conflict is about, when it maps to one —
    *  lets the editor flag the specific row. Absent for request-level conflicts (e.g. timing). */

@@ -289,7 +289,69 @@ public class NarrativeYearSeederTests
         crossSiteReqs.Should().BeGreaterThan(0,
             "a couple of jobs are staffed from another site, so site mismatch has an example");
 
+        // ── Dependencies: a critical path the demo can actually show ──────────────
+        // Scoped to this seed's own requests: sibling suites commit their own edges into the
+        // shared database, so an unfiltered COUNT(*) would measure them too.
+        var seeded = ("ids", (object)year.RequestIds.ToArray());
+
+        var depCount = await ScalarInt(conn, tx,
+            "SELECT COUNT(*) FROM request_dependencies WHERE successor_request_id = ANY(@ids)", seeded);
+        depCount.Should().Be(year.Dependencies,
+            "the demo needs a dependency network, and the reported count must match what was written");
+
+        // Every edge must join two schedulable leaves: an edge on a summary row could not be
+        // enforced, and the service refuses to create one.
+        var nonLeafEdges = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+             WHERE d.successor_request_id = ANY(@ids)
+               AND EXISTS (SELECT 1 FROM requests r
+                            WHERE r.id IN (d.predecessor_request_id, d.successor_request_id)
+                              AND r.planning_mode <> 'leaf')", seeded);
+        nonLeafEdges.Should().Be(0, "dependencies bind leaves only");
+
+        // Seeded edges must agree with the placements they were derived from, or the demo opens
+        // with a conflicts list full of noise nobody chose.
+        var violated = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+              JOIN requests p ON p.id = d.predecessor_request_id
+              JOIN requests s ON s.id = d.successor_request_id
+             WHERE d.successor_request_id = ANY(@ids)
+               AND p.end_ts IS NOT NULL AND s.start_ts IS NOT NULL AND s.start_ts < p.end_ts", seeded);
+        violated.Should().Be(0, "a seeded edge must not contradict the schedule it was built from");
+
+        // Chained within one facility, and never repeating a kind of work. Campaign parents were
+        // the obvious grouping and the wrong one: a campaign is one archetype repeated, so its
+        // children all share a name and the chain read as six identical rows.
+        var crossFacility = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+              JOIN requests p ON p.id = d.predecessor_request_id
+              JOIN requests s ON s.id = d.successor_request_id
+             WHERE d.successor_request_id = ANY(@ids)
+               AND btrim(substring(p.name from '([^—]*)$'))
+                   IS DISTINCT FROM btrim(substring(s.name from '([^—]*)$'))",
+            seeded);
+        // Site code is the text after the LAST em-dash: a rush-order job reads
+        // "Rush order — Pack customer orders — PPF", so matching the first one compares the
+        // wrong halves and reports facilities that are in fact the same.
+        crossFacility.Should().Be(0, "a chain sequences work inside one facility");
+
+        var sameName = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+              JOIN requests p ON p.id = d.predecessor_request_id
+              JOIN requests s ON s.id = d.successor_request_id
+             WHERE d.successor_request_id = ANY(@ids) AND p.name = s.name", seeded);
+        sameName.Should().Be(0, "each step is a different kind of work, or the path is unreadable");
+
         await tx.RollbackAsync();
+    }
+
+    private static async Task<long> ScalarInt(NpgsqlConnection conn, NpgsqlTransaction tx, string sql,
+        params (string Name, object Value)[] parameters)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        foreach (var (name, value) in parameters)
+            cmd.Parameters.AddWithValue(name, value);
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync());
     }
 
     private static async Task<Guid> ScalarGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)

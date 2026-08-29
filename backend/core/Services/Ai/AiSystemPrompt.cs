@@ -88,6 +88,9 @@ public static class AiSystemPrompt
           Move it into working time, or adjust the site's hours.
         - {ConflictKinds.SiteMismatch}: the resource belongs to a different site than the
           request. Pick a resource at the right site, or move the request.
+        - {ConflictKinds.DependencyViolation}: the request is placed before the one it waits
+          for has finished, or that predecessor is not scheduled at all. Move the successor
+          later, schedule the predecessor, or remove the dependency if it no longer holds.
 
         A conflict that keeps coming back is feedback about the model, not the schedule. A
         space that is permanently over capacity has a capacity problem. Say so when you

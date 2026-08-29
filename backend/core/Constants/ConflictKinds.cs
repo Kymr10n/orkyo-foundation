@@ -16,4 +16,11 @@ public static class ConflictKinds
     public const string BelowMinDuration = "below_min_duration";
     public const string BeforeEarliestStart = "before_earliest_start";
     public const string AfterLatestEnd = "after_latest_end";
+
+    /// <summary>
+    /// The request is placed before the predecessor it waits for has finished, or its
+    /// predecessor is not scheduled at all. Emitted on the successor, naming the predecessor
+    /// as the peer.
+    /// </summary>
+    public const string DependencyViolation = "dependency_violation";
 }

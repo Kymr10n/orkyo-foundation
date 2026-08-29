@@ -17,6 +17,7 @@ const REASON_LABELS: Record<string, string> = {
   BlockedByFixedAssignments: "Blocked by existing assignments",
   InvalidDuration: "Invalid duration",
   InternalSolverLimit: "Solver limit reached",
+  PredecessorUnscheduled: "Waiting on an unscheduled predecessor",
 };
 
 export function AutoSchedulePreviewDialog({

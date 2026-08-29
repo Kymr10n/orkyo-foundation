@@ -35,6 +35,12 @@ export const qk = {
     conflicted: () => ["requests", "conflicted"] as const,
     /** Full request list incl. hierarchy — the Requests page. */
     list: () => ["requests", "list"] as const,
+    /** One request, fetched by id on demand. */
+    detail: (requestId: string) => ["requests", "detail", requestId] as const,
+    /** Precedence edges touching one request. */
+    dependencies: (requestId: string) => ["requests", "dependencies", requestId] as const,
+    /** The critical path over the dependency network. */
+    criticalPath: (siteId: string | null) => ["requests", "critical-path", siteId] as const,
   },
 
   sites: {
@@ -264,6 +270,9 @@ export const qk = {
       ["insights", "conflicts", siteId, iso(from), iso(to), bucket] as const,
     requests: (siteId: string | null, from: Date, to: Date, bucket: string) =>
       ["insights", "requests", siteId, iso(from), iso(to), bucket] as const,
+    /** No bucket in the key: the ranking is measured per day whatever period is asked for. */
+    bottlenecks: (siteId: string | null, from: Date, to: Date) =>
+      ["insights", "bottlenecks", siteId, iso(from), iso(to)] as const,
   },
 
   // Platform-admin surfaces (saas). Listed here because the admin-api they query

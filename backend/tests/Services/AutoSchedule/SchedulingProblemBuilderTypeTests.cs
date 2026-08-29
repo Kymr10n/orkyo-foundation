@@ -84,9 +84,14 @@ public class SchedulingProblemBuilderTypeTests
                 It.IsAny<Guid>(), It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
+        var dependencies = new Mock<IRequestDependencyRepository>();
+        dependencies.Setup(d => d.GetBySuccessorsAsync(
+                It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
         return (new SchedulingProblemBuilder(
             requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object), filters);
+            scheduling.Object, resolver.Object, dependencies.Object), filters);
     }
 
     private static AutoSchedulePreviewRequest Preview(string? typeKey) => new(

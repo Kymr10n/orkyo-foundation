@@ -47,7 +47,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 const EMPTY_CRITERIA: Criterion[] = [];
 const EMPTY_TEMPLATES: Template[] = [];
 
-type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources' | 'children';
+type RequestFormTab = 'details' | 'timing' | 'requirements' | 'resources' | 'children' | 'dependencies';
 
 /** Sentinel for the "Any site" (site-neutral) option — Radix Select disallows empty values. */
 const ANY_SITE = '__any_site__';
@@ -59,6 +59,7 @@ import { RequestConstraintsSection } from "./RequestConstraintsSection";
 import { RequestRequirementsSection } from "./RequestRequirementsSection";
 import { RequestResourcesSection } from "./RequestResourcesSection";
 import { RequestChildrenSection } from "./RequestChildrenSection";
+import { RequestDependenciesSection } from "./RequestDependenciesSection";
 import { logger } from "@foundation/src/lib/core/logger";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
@@ -288,6 +289,21 @@ export function RequestFormDialog({
   // Leaf: fully editable schedule.
   // Summary/Container: structural nodes; schedule is derived from children and not editable.
   const isLeaf = state.planningMode === 'leaf';
+
+  // Gated on the SAVED request, not the form: an edge points at a persisted row, and the backend
+  // decides leaf-ness from the database. Reading `state.planningMode` here would offer the tab the
+  // moment somebody picked "Task" in the form, and every write would 409 until they saved.
+  //
+  // `allRequests` is required for the same reason the Children tab requires it: without it the
+  // picker has nothing to offer and the peer names are unclickable, which reads as a broken tab
+  // rather than a missing prop.
+  const showDependenciesTab = request?.planningMode === 'leaf' && !!allRequests;
+
+  // Only leaves can be linked, and a request never waits for itself.
+  const dependencyCandidates = useMemo(
+    () => (allRequests ?? []).filter((r) => r.planningMode === 'leaf' && r.id !== request?.id),
+    [allRequests, request?.id],
+  );
   const isContainer = state.planningMode === 'container';
   const isGroup = !isLeaf;
   const hasEditableSchedule = isLeaf;
@@ -782,6 +798,9 @@ export function RequestFormDialog({
               {showChildrenTab && (
                 <TabsTrigger value="children">Children</TabsTrigger>
               )}
+              {showDependenciesTab && (
+                <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
+              )}
             </TabsList>
 
             <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
@@ -1144,6 +1163,18 @@ export function RequestFormDialog({
                   onNavigate={onNavigate}
                   handleRemoveChild={handleRemoveChild}
                 />
+              )}
+
+              {/* DEPENDENCIES — leaves only: an edge on a group cannot be enforced. */}
+              {showDependenciesTab && (
+                <TabsContent value="dependencies" className="mt-0">
+                  <RequestDependenciesSection
+                    request={request}
+                    readOnly={readOnly}
+                    candidates={dependencyCandidates}
+                    onNavigate={onNavigate}
+                  />
+                </TabsContent>
               )}
             </div>
           </Tabs>

@@ -109,6 +109,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IRequestDependencyRepository, RequestDependencyRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
         services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
@@ -163,6 +164,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAvailabilityResolver, AvailabilityResolver>();
         services.AddScoped<IPresetService, PresetService>();
         services.AddScoped<IRequestService, RequestService>();
+        services.AddScoped<IRequestDependencyService, RequestDependencyService>();
+        services.AddScoped<ICriticalPathService, CriticalPathService>();
         services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
         services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         services.AddScoped<IConflictService, ConflictService>();

@@ -31,7 +31,7 @@ function overviewData(overrides?: Partial<InsightsOverview>): InsightsOverview {
     period: { from: "2026-01-01T00:00:00Z", to: "2026-12-31T00:00:00Z" },
     siteId: null,
     requests: { total: 120, scheduled: 80, unscheduled: 30, completed: 50, cancelled: 10 },
-    conflicts: { total: 7, overbooking: 3, criteriaMismatch: 2, resourceUnavailable: 2, scheduleOutsideAvailability: 0, missingResource: 0 },
+    conflicts: { total: 7, overbooking: 3, criteriaMismatch: 2, resourceUnavailable: 2, scheduleOutsideAvailability: 0, missingResource: 0, sequenceViolation: 0 },
     utilization: {
       byResourceType: [
         { resourceTypeKey: "space", displayName: "Space", displayNamePlural: "Spaces", percent: 74.2 },

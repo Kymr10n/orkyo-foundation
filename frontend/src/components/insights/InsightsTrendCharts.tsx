@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@foundation/src/compon
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import type {
+  InsightsBottlenecks,
   InsightsBucket,
   InsightsConflicts,
   InsightsRequests,
@@ -30,6 +31,9 @@ const COLORS = {
   criteriaMismatch: "#f59e0b",
   resourceUnavailable: "#8b5cf6",
   scheduleOutsideAvailability: "#0ea5e9",
+  missingResource: "#14b8a6",
+  sequenceViolation: "#ec4899",
+  overbooked: "#ef4444",
   new: "#2563eb",
   inProgress: "#0ea5e9",
   done: "#10b981",
@@ -75,6 +79,11 @@ function useChartResponsive() {
 }
 
 interface ChartCardProps {
+  /**
+   * Height of the plot area. Trends read fine at a fixed height; a ranking has to grow with its
+   * rows, or the axis silently drops labels to make them fit and names go missing.
+   */
+  heightClass?: string;
   title: string;
   isLoading: boolean;
   error: unknown;
@@ -84,13 +93,13 @@ interface ChartCardProps {
 }
 
 /** Shared chart frame: title + the loading→error→empty→content state ladder. */
-function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, children }: ChartCardProps) {
+function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, children, heightClass = "h-64" }: ChartCardProps) {
   return (
     <Card>
       <CardHeader className="pb-2 md:pb-2">
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="h-64">
+      <CardContent className={heightClass}>
         {isLoading ? (
           <LoadingSpinner fullScreen={false} message="Loading…" />
         ) : error ? (
@@ -106,6 +115,88 @@ function ChartCard({ title, isLoading, error, isEmpty, emptyMessage, children }:
         )}
       </CardContent>
     </Card>
+  );
+}
+
+// ── Bottlenecks (most overloaded resources) ──────────────────────────────────
+
+/**
+ * The resources booked past their capacity, worst first.
+ *
+ * A horizontal bar chart because the ranking is the message: names sit on the axis where they
+ * are readable at any length, and the eye reads the order down the column without a legend.
+ *
+ * Hours, not minutes — a planner talks in hours, and "1440 minutes overbooked" is arithmetic the
+ * reader should not have to do.
+ */
+export function BottleneckChart({
+  data, isLoading, error,
+}: {
+  data?: InsightsBottlenecks;
+  isLoading: boolean;
+  error?: unknown;
+}) {
+  const r = useChartResponsive();
+  const items = data?.items ?? [];
+
+  // Keyed by id, not name: two resources can share a display name, and recharts merges
+  // categories that compare equal — which silently collapses two bars into one.
+  const rows = items.map((item) => ({
+    id: item.resourceId,
+    name: item.name,
+    hours: Math.round((item.overbookedMinutes / 60) * 10) / 10,
+    peak: item.peakUtilizationPercent == null ? null : Math.round(item.peakUtilizationPercent),
+    type: item.resourceTypeDisplayName,
+  }));
+  const nameById = new Map(rows.map((row) => [row.id, row.name]));
+
+  return (
+    <ChartCard
+      title="Most overloaded resources"
+      isLoading={isLoading}
+      error={error}
+      // ~34px a row plus axis: enough that every name has somewhere to sit.
+      heightClass={rows.length > 6 ? "h-96" : "h-64"}
+      isEmpty={rows.length === 0}
+      // An empty list is the healthy answer here, so it says so rather than reading as a gap
+      // in the data.
+      emptyMessage="No resource was booked beyond its capacity in this period."
+    >
+      <BarChart data={rows} layout="vertical" margin={{ top: 8, right: 16, bottom: 16, left: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+        <XAxis
+          type="number"
+          tick={{ fontSize: r.axisFontSize }}
+          label={r.isPhone ? undefined : { value: "Hours overbooked", position: "insideBottom", offset: -4, fontSize: 11 }}
+        />
+        <YAxis
+          type="category"
+          dataKey="id"
+          tickFormatter={(id: string) => nameById.get(id) ?? ""}
+          width={r.isPhone ? 80 : 140}
+          tick={{ fontSize: r.axisFontSize }}
+          // Every bar is a resource somebody has to act on; letting recharts thin the labels
+          // leaves bars with no name against them.
+          interval={0}
+        />
+        <Tooltip
+          formatter={(value, _name, entry) => {
+            const row = entry?.payload as { peak?: number | null } | undefined;
+            // No capacity published means no percentage to quote, so the peak clause drops out
+            // rather than claiming 0%.
+            const peak = row?.peak == null ? "" : ` (peak ${row.peak}%)`;
+            return [`${value} h over capacity${peak}`, "Overbooked"];
+          }}
+          labelFormatter={(_label, payload) => {
+            // Read the name off the row rather than the label: recharts types the label as
+            // ReactNode, and stringifying that is how "[object Object]" reaches a tooltip.
+            const row = payload?.[0]?.payload as { name?: string; type?: string } | undefined;
+            return row?.type ? `${row.name ?? ""} — ${row.type}` : (row?.name ?? "");
+          }}
+        />
+        <Bar dataKey="hours" fill={COLORS.overbooked} radius={[0, 4, 4, 0]} />
+      </BarChart>
+    </ChartCard>
   );
 }
 
@@ -175,6 +266,10 @@ export function ConflictTrendChart({
     "Criteria mismatch": p.criteriaMismatch,
     "Resource unavailable": p.resourceUnavailable,
     "Outside availability": p.scheduleOutsideAvailability,
+    // Every counted kind gets a bar: the stack is read as a breakdown of `total`, so an
+    // omitted kind silently shortens the column.
+    "Missing resource": p.missingResource,
+    "Sequence violation": p.sequenceViolation,
   }));
 
   return (
@@ -195,6 +290,8 @@ export function ConflictTrendChart({
         <Bar dataKey="Criteria mismatch" stackId="c" fill={COLORS.criteriaMismatch} />
         <Bar dataKey="Resource unavailable" stackId="c" fill={COLORS.resourceUnavailable} />
         <Bar dataKey="Outside availability" stackId="c" fill={COLORS.scheduleOutsideAvailability} />
+        <Bar dataKey="Missing resource" stackId="c" fill={COLORS.missingResource} />
+        <Bar dataKey="Sequence violation" stackId="c" fill={COLORS.sequenceViolation} />
       </BarChart>
     </ChartCard>
   );

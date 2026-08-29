@@ -39,6 +39,7 @@ const InsightsPage = lazy(() => import('@foundation/src/pages/InsightsPage').the
 const OverviewTab = lazy(() => import('@foundation/src/components/insights/OverviewTab').then(m => ({ default: m.OverviewTab })));
 const UtilizationTab = lazy(() => import('@foundation/src/components/insights/UtilizationTab').then(m => ({ default: m.UtilizationTab })));
 const ConflictsTab = lazy(() => import('@foundation/src/components/insights/ConflictsTab').then(m => ({ default: m.ConflictsTab })));
+const BottlenecksTab = lazy(() => import('@foundation/src/components/insights/BottlenecksTab').then(m => ({ default: m.BottlenecksTab })));
 const RequestsPage = lazy(() => import('@foundation/src/pages/RequestsPage').then(m => ({ default: m.RequestsPage })));
 const SettingsPage = lazy(() => import('@foundation/src/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const TenantAdminPage = lazy(() => import('@foundation/src/pages/TenantAdminPage').then(m => ({ default: m.TenantAdminPage })));
@@ -186,6 +187,7 @@ export function TenantApp({
             <Route path="overview" element={<OverviewTab />} />
             <Route path="utilization" element={<UtilizationTab />} />
             <Route path="conflicts" element={<ConflictsTab />} />
+            <Route path="bottlenecks" element={<BottlenecksTab />} />
           </Route>
           {/* Back-compat: the old top-level Conflicts page is now the Insights → Conflicts tab. */}
           <Route path="conflicts" element={<Navigate to="/insights/conflicts" replace />} />

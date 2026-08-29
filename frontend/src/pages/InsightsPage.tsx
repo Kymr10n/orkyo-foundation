@@ -12,10 +12,11 @@ const TABS: PageTab[] = [
   { value: 'overview', label: 'Overview' },
   { value: 'utilization', label: 'Utilization' },
   { value: 'conflicts', label: 'Conflicts' },
+  { value: 'bottlenecks', label: 'Bottlenecks' },
 ];
 
 /**
- * Insights — Overview / Utilization / Conflicts. A thin shell that owns the shared range/bucket
+ * Insights — Overview / Utilization / Conflicts / Bottlenecks. A thin shell that owns the shared range/bucket
  * filter and hands it to the active tab via <Outlet context>. Each tab is its own route, so only
  * the active tab's /api/insights/* queries run (no 5-call burst on load).
  */
@@ -30,7 +31,12 @@ export function InsightsPage() {
   // Anchor the window when the preset changes — not on every render, so query keys stay stable.
   const { from, to } = useMemo(() => resolveRange(range), [range]);
 
-  const ctx: InsightsTabContext = { from, to, bucket, siteId };
+  // Memoized for the same reason the window is: a new object each render pushes a new context
+  // value into whichever tab is mounted, re-rendering its charts for nothing.
+  const ctx: InsightsTabContext = useMemo(
+    () => ({ from, to, bucket, siteId }),
+    [from, to, bucket, siteId],
+  );
 
   return (
     <PageLayout>

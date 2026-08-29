@@ -103,6 +103,7 @@ public static class SeedCliSupport
             Console.WriteLine($"  Availability events:{report.AvailabilityEvents,8}");
             Console.WriteLine($"  Absences:           {report.Absences,8}");
             Console.WriteLine($"  Conflicts (seeded): {report.Conflicts,8}");
+            Console.WriteLine($"  Dependencies:       {report.Dependencies,8}");
         }
     }
 }

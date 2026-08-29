@@ -59,10 +59,12 @@ public interface IRequestService
 public class RequestService : IRequestService
 {
     private readonly IRequestRepository _repository;
+    private readonly IRequestDependencyRepository _dependencies;
 
-    public RequestService(IRequestRepository repository)
+    public RequestService(IRequestRepository repository, IRequestDependencyRepository dependencies)
     {
         _repository = repository;
+        _dependencies = dependencies;
     }
 
     public Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default)
@@ -121,6 +123,12 @@ public class RequestService : IRequestService
         if (effectiveMode != PlanningMode.Leaf
             && (request.ResourceIds is { Count: > 0 } || request.StartTs.HasValue || request.EndTs.HasValue))
             throw new ArgumentException("Only leaf requests can be directly scheduled to a resource");
+
+        // Dependencies bind leaves. Turning one into a group would leave edges that nothing
+        // can enforce, so the user removes them first rather than losing them silently.
+        if (existingMode == PlanningMode.Leaf && effectiveMode != PlanningMode.Leaf
+            && await _dependencies.HasAnyForRequestAsync(id, ct))
+            throw new ConflictException("Remove this request's dependencies before turning it into a group");
 
         return await _repository.UpdateAsync(id, request, ct);
     }

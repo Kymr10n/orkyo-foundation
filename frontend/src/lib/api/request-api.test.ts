@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  getRequest,
   getRequests,
   createRequest,
   updateRequest,
@@ -56,6 +57,17 @@ describe('request-api', () => {
       const result = await getRequests();
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('getRequest', () => {
+    it('fetches one request by id', async () => {
+      vi.mocked(apiClient.apiGet).mockResolvedValue(mockRequest);
+
+      const result = await getRequest('req-1');
+
+      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.REQUESTS}/req-1`);
+      expect(result).toEqual(mockRequest);
     });
   });
 

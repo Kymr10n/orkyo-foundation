@@ -11,7 +11,8 @@ export type SchedulingReasonCode =
   | "InsufficientCapacity"
   | "BlockedByFixedAssignments"
   | "InvalidDuration"
-  | "InternalSolverLimit";
+  | "InternalSolverLimit"
+  | "PredecessorUnscheduled";
 
 export interface AutoSchedulePreviewRequest {
   siteId: string;

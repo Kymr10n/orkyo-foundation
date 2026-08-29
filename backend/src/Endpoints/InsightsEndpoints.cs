@@ -21,6 +21,17 @@ public static class InsightsEndpoints
     // Overview has no bucket; cap its scan to keep it bounded (UI default is last 12 months).
     private const int OverviewMaxRangeDays = 5 * 366;
 
+    /// <summary>
+    /// Bottlenecks measure per day, so they get a tighter cap than the overview's five years —
+    /// the finest granularity on the widest window is the scan InsightsBuckets.MaxRangeDays
+    /// exists to prevent.
+    ///
+    /// Two years, matching the week bucket (the finest the trends offer). It has to clear the
+    /// dashboard's own default filter, "Last 6 / next 12 months", which is roughly 550 days: a
+    /// cap that rejects the range the page opens on is not a guard, it is a broken tab.
+    /// </summary>
+    private static int BottlenecksMaxRangeDays => InsightsBuckets.MaxRangeDays("week");
+
     public static void MapInsightsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/insights")
@@ -43,6 +54,36 @@ public static class InsightsEndpoints
         group.MapGet("/requests", GetRequests)
             .WithName("GetInsightsRequests")
             .WithSummary("Request status trend and totals by bucket");
+
+        group.MapGet("/bottlenecks", GetBottlenecks)
+            .WithName("GetInsightsBottlenecks")
+            .WithSummary("Resources booked beyond their capacity, worst first");
+    }
+
+    private static async Task<IResult> GetBottlenecks(
+        DateTime? from, DateTime? to, Guid? siteId, string? resourceType,
+        IInsightsService svc, ISiteRepository sites, IResourceTypeService resourceTypes,
+        CancellationToken ct)
+    {
+        // An all-whitespace value is not a filter. Left as-is it slips past the validator below
+        // and then matches no resource type at all, answering 200 with an empty ranking where the
+        // sibling endpoints answer 400.
+        resourceType = string.IsNullOrWhiteSpace(resourceType) ? null : resourceType;
+
+        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
+
+        // resourceType narrows the ranking here; it does not choose a series as it does for the
+        // utilization trend, so omitting it means "every type" rather than an incomplete request.
+        // ValidateResourceTypeAsync rejects a blank one, so it only runs when there is one to check.
+        if (resourceType is not null
+            && await ValidateResourceTypeAsync(resourceType, resourceTypes, ct) is { } rErr) return rErr;
+
+        if ((t - f).TotalDays > BottlenecksMaxRangeDays)
+            return ErrorResponses.BadRequest("Date range too large.");
+        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+
+        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, ResourceType = resourceType };
+        return Results.Ok(await svc.GetBottlenecksAsync(filter, ct));
     }
 
     private static async Task<IResult> GetOverview(

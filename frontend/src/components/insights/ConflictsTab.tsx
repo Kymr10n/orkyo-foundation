@@ -214,6 +214,8 @@ export function ConflictsTab() {
         return "Size Mismatch";
       case "capacity_exceeded":
         return "Capacity Exceeded";
+      case "dependency_violation":
+        return "Dependency Violation";
       default:
         return kind;
     }

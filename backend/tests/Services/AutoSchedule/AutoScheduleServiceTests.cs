@@ -17,20 +17,22 @@ public class AutoScheduleServiceTests
         IFeatureGate? featureGate = null,
         TenantSettings? settings = null,
         IEnumerable<ISchedulingSolver>? solvers = null,
-        IReadOnlyList<string>? placeableKeys = null)
+        IReadOnlyList<string>? placeableKeys = null,
+        IReadOnlyList<WithheldRequestNode>? withheld = null)
     {
         var mockProblemBuilder = new Mock<SchedulingProblemBuilder>(
             Mock.Of<IRequestRepository>(),
             Mock.Of<IResourceRepository>(),
             Mock.Of<IResourceCapabilityRepository>(),
             Mock.Of<ISchedulingRepository>(),
-            Mock.Of<IAvailabilityResolver>());
+            Mock.Of<IAvailabilityResolver>(),
+            Mock.Of<IRequestDependencyRepository>());
 
         var problem = new SchedulingProblem(
             Guid.NewGuid(),
             new DateOnly(2026, 4, 14),
             new DateOnly(2026, 7, 14),
-            [], [], [], null, null);
+            [], [], [], null, null, null, withheld);
 
         mockProblemBuilder
             .Setup(x => x.BuildAsync(It.IsAny<AutoSchedulePreviewRequest>(), It.IsAny<CancellationToken>()))
@@ -73,6 +75,25 @@ public class AutoScheduleServiceTests
         var result = await service.PreviewAsync(request, CancellationToken.None);
 
         result.Fingerprint.Should().NotBeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task PreviewAsync_ReportsWithheldRequestsAsUnscheduled()
+    {
+        // The builder keeps dependency-blocked requests out of the solve set, so no solver can
+        // report them. Without this the run answers with fewer requests than it was given and
+        // says nothing about the difference.
+        var blockedId = Guid.NewGuid();
+        var service = CreateService(withheld: [new WithheldRequestNode(blockedId, "Grind")]);
+        var request = new AutoSchedulePreviewRequest(
+            Guid.NewGuid(), new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14),
+            ResourceTypeKey: ResourceTypeKeys.Space);
+
+        var result = await service.PreviewAsync(request, CancellationToken.None);
+
+        var entry = result.Unscheduled.Should().ContainSingle(u => u.RequestId == blockedId).Subject;
+        entry.RequestName.Should().Be("Grind");
+        entry.ReasonCodes.Should().Contain(SchedulingReasonCode.PredecessorUnscheduled);
     }
 
     [Fact]

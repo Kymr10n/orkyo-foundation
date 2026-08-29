@@ -16,7 +16,7 @@ public sealed record SeedReport(
     int Tools = 0, int Capabilities = 0, int Requirements = 0,
     int AvailabilityEvents = 0, int Absences = 0, int Conflicts = 0,
     int Machines = 0, int MachineTypes = 0, int ListRows = 0, int CustomFields = 0,
-    int MachineGroups = 0);
+    int MachineGroups = 0, int Dependencies = 0);
 
 /// <summary>
 /// Orchestrates an end-to-end seed run against an open Npgsql connection.
@@ -117,6 +117,7 @@ public static class SeedRunner
 
         int criteriaCount, requestCount, assignmentCount;
         int tools = 0, capabilities = 0, requirements = 0, events = 0, absences = 0, conflicts = 0;
+        var dependencies = 0;
         int machines = 0, machineTypes = 0, listRows = 0, customFields = 0, machineGroups = 0;
 
         if (opts.UseFloorplans)
@@ -180,6 +181,7 @@ public static class SeedRunner
             requirements = year.Requirements;
             assignmentCount = year.Assignments;
             conflicts = year.Conflicts;
+            dependencies = year.Dependencies;
         }
         else
         {
@@ -228,6 +230,7 @@ public static class SeedRunner
             MachineTypes: machineTypes,
             ListRows: listRows,
             CustomFields: customFields,
-            MachineGroups: machineGroups);
+            MachineGroups: machineGroups,
+            Dependencies: dependencies);
     }
 }

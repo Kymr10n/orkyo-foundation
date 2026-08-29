@@ -25,6 +25,12 @@ public interface IInsightsService
     Task<InsightsUtilization> GetUtilizationTrendAsync(InsightsFilter filter, CancellationToken ct = default);
     Task<InsightsConflicts> GetConflictTrendAsync(InsightsFilter filter, CancellationToken ct = default);
     Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default);
+
+    /// <summary>
+    /// The most overloaded resources in the period, worst first. See the implementation for why
+    /// this is measured over days regardless of the caller's bucket.
+    /// </summary>
+    Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default);
 }
 
 public class InsightsService(
@@ -59,6 +65,103 @@ public class InsightsService(
             Utilization = await SummarizeUtilizationAsync(filter, ct),
             Metadata = Metadata(),
         };
+    }
+
+    /// <summary>
+    /// Ranks resources by how far past their capacity they were booked.
+    ///
+    /// Measured over DAY buckets whatever bucket the caller asked for, and that is the whole
+    /// point: overbooking is a spike. A machine slammed on nine days of a month and idle for the
+    /// rest reads as comfortable at month granularity, and the days that hurt disappear into the
+    /// average. Days are also what the scheduler plans in, so a day is the unit a planner can
+    /// actually act on.
+    ///
+    /// Only resources with overspill are returned — an empty list is the healthy answer, not a
+    /// missing one.
+    /// </summary>
+    public async Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default)
+    {
+        // Never empty: every caller validates from < to first (InsightsEndpoints.ValidatePeriod),
+        // and any such range covers at least one day. The indexing below relies on that.
+        var buckets = DaySlices(filter.From, filter.To);
+        var period = new InsightsPeriod { From = filter.From, To = filter.To };
+
+        var types = await resourceTypeService.GetAllAsync(isActive: true, ct: ct);
+        var typeNames = types.ToDictionary(t => t.Key, t => t.DisplayName, StringComparer.Ordinal);
+
+        var data = await LoadUtilizationInputsAsync(
+            filter.ResourceType, buckets[0].Start, buckets[^1].End, filter.SiteId, ct);
+
+        var items = new List<BottleneckResource>();
+        foreach (var resource in data.Resources)
+        {
+            var (capacity, occupied) = AccumulateOne(resource, buckets, data);
+
+            var overbooked = 0.0;
+            var totalCapacity = 0.0;
+            double? peakPercent = null;
+            for (var i = 0; i < buckets.Count; i++)
+            {
+                overbooked += Math.Max(0, occupied[i] - capacity[i]);
+                totalCapacity += capacity[i];
+
+                if (capacity[i] > 0)
+                    peakPercent = Math.Max(peakPercent ?? 0, occupied[i] / capacity[i] * 100.0);
+            }
+
+            if (overbooked <= 0) continue;
+
+            items.Add(new BottleneckResource
+            {
+                ResourceId = resource.Id,
+                Name = resource.Name,
+                ResourceTypeKey = resource.ResourceTypeKey,
+                ResourceTypeDisplayName = typeNames.GetValueOrDefault(resource.ResourceTypeKey, resource.ResourceTypeKey),
+                OverbookedMinutes = overbooked,
+                CapacityMinutes = totalCapacity,
+                PeakUtilizationPercent = peakPercent,
+            });
+        }
+
+        return new InsightsBottlenecks
+        {
+            Period = period,
+            SiteId = filter.SiteId,
+            Items = items
+                .OrderByDescending(i => i.OverbookedMinutes)
+                .ThenBy(i => i.Name, StringComparer.Ordinal)
+                .Take(BottleneckLimit)
+                .ToList(),
+            Metadata = Metadata(),
+        };
+    }
+
+    /// <summary>
+    /// How many resources the ranking returns. A shortlist is the product: a planner fixes the
+    /// worst few, and a list of everything overbooked is a report nobody reads.
+    /// </summary>
+    private const int BottleneckLimit = 10;
+
+    /// <summary>
+    /// Calendar days covering [from, to), half-open like every other bucket here.
+    ///
+    /// Not added to <see cref="InsightsBuckets"/>: that type's ValidBuckets is the vocabulary
+    /// the trend endpoints accept from callers, and "day" is an internal measurement choice of
+    /// this ranking rather than a new option on the API.
+    /// </summary>
+    private static List<(DateTime Start, DateTime End)> DaySlices(DateTime from, DateTime to)
+    {
+        var cursor = DateTime.SpecifyKind(from.ToUniversalTime().Date, DateTimeKind.Utc);
+        var end = DateTime.SpecifyKind(to.ToUniversalTime().Date, DateTimeKind.Utc);
+        if (end < to.ToUniversalTime()) end = end.AddDays(1);
+
+        var slices = new List<(DateTime, DateTime)>();
+        while (cursor < end)
+        {
+            slices.Add((cursor, cursor.AddDays(1)));
+            cursor = cursor.AddDays(1);
+        }
+        return slices;
     }
 
     /// <summary>
@@ -164,6 +267,7 @@ public class InsightsService(
                 ResourceUnavailable = counts.ResourceUnavailable,
                 ScheduleOutsideAvailability = counts.ScheduleOutsideAvailability,
                 MissingResource = counts.MissingResource,
+                SequenceViolation = counts.SequenceViolation,
             };
         }).ToList();
 
@@ -274,7 +378,7 @@ public class InsightsService(
     /// <summary>Maps live <c>ConflictInfo.Kind</c> values into the stable analytics categories.</summary>
     private static ConflictCounts CountConflicts(IEnumerable<string> kinds)
     {
-        int total = 0, overbooking = 0, criteria = 0, unavailable = 0, outside = 0;
+        int total = 0, overbooking = 0, criteria = 0, unavailable = 0, outside = 0, sequence = 0;
         foreach (var kind in kinds)
         {
             total++;
@@ -292,6 +396,8 @@ public class InsightsService(
                 case ConflictKinds.BeforeEarliestStart:
                 case ConflictKinds.AfterLatestEnd:
                     outside++; break;
+                case ConflictKinds.DependencyViolation:
+                    sequence++; break;
             }
         }
         return new ConflictCounts
@@ -302,6 +408,7 @@ public class InsightsService(
             ResourceUnavailable = unavailable,
             ScheduleOutsideAvailability = outside,
             MissingResource = 0, // no live kind maps here yet — honest 0, not faked
+            SequenceViolation = sequence,
         };
     }
 
@@ -382,29 +489,16 @@ public class InsightsService(
 
         foreach (var resource in resources)
         {
-            var assignments = data.AssignmentsByResource.GetValueOrDefault(resource.Id, []);
-            var blocked = data.BlockedByResource.GetValueOrDefault(resource.Id, []);
+            var (capacityR, occupiedR) = AccumulateOne(resource, buckets, data);
 
             for (var i = 0; i < buckets.Count; i++)
             {
-                var (bs, be) = buckets[i];
-                var span = (be - bs).TotalMinutes;
+                cap[i] += capacityR[i];
 
-                var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be));
-                var openMin = Math.Max(0, span - blockedMin);
-                var capacityR = resource.BaseAvailabilityPercent / 100.0 * openMin;
-
-                var occupied = 0.0;
-                foreach (var a in assignments)
-                {
-                    if (a.AssignmentStatus == AssignmentStatuses.Cancelled) continue;
-                    var overlap = OverlapMinutes(a.StartUtc, a.EndUtc, bs, be);
-                    if (overlap <= 0) continue;
-                    occupied += (double)(a.AllocationPercent ?? 100m) / 100.0 * overlap;
-                }
-
-                cap[i] += capacityR;
-                used[i] += Math.Min(occupied, capacityR);
+                // Capped deliberately: utilization is "how much of the capacity was used", and
+                // a resource booked beyond its capacity has still only got the capacity it has.
+                // The overspill is a conflict, and the bottleneck ranking is where it is read.
+                used[i] += Math.Min(occupiedR[i], capacityR[i]);
             }
         }
 
@@ -412,6 +506,47 @@ public class InsightsService(
         for (var i = 0; i < buckets.Count; i++)
             result.Add(new UtilBucket(buckets[i].Start, buckets[i].End, cap[i], used[i]));
         return result;
+    }
+
+    /// <summary>
+    /// One resource's capacity and occupied minutes per bucket, both uncapped.
+    ///
+    /// This is the arithmetic core: <see cref="Accumulate"/> sums and caps it for the trend,
+    /// and the bottleneck ranking keeps the resource identity and reads the uncapped overspill.
+    /// Two consumers, one definition of what occupancy means.
+    /// </summary>
+    private static (double[] Capacity, double[] Occupied) AccumulateOne(
+        ResourceInfo resource,
+        IReadOnlyList<(DateTime Start, DateTime End)> buckets,
+        UtilizationInputs data)
+    {
+        var assignments = data.AssignmentsByResource.GetValueOrDefault(resource.Id, []);
+        var blocked = data.BlockedByResource.GetValueOrDefault(resource.Id, []);
+
+        var capacity = new double[buckets.Count];
+        var occupied = new double[buckets.Count];
+
+        for (var i = 0; i < buckets.Count; i++)
+        {
+            var (bs, be) = buckets[i];
+            var span = (be - bs).TotalMinutes;
+
+            var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be));
+            var openMin = Math.Max(0, span - blockedMin);
+            capacity[i] = resource.BaseAvailabilityPercent / 100.0 * openMin;
+
+            var total = 0.0;
+            foreach (var a in assignments)
+            {
+                if (a.AssignmentStatus == AssignmentStatuses.Cancelled) continue;
+                var overlap = OverlapMinutes(a.StartUtc, a.EndUtc, bs, be);
+                if (overlap <= 0) continue;
+                total += (double)(a.AllocationPercent ?? 100m) / 100.0 * overlap;
+            }
+            occupied[i] = total;
+        }
+
+        return (capacity, occupied);
     }
 
     private async Task<UtilSeries> ComputeUtilizationSeriesAsync(
