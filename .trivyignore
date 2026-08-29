@@ -35,3 +35,4 @@ CVE-2026-54513 # HIGH | jackson-databind: array-subtype allowlist bypass in Basi
 
 # ── Trivy false positive ───────────────────────────────────────────────────────
 CVE-2025-59250 # HIGH | mssql-jdbc: improper input validation — Trivy lists fix as 12.6.5 but KC ships 13.2.1.jre11 (newer); false positive | Added: 2026-04-28 | Review: 2026-06-23
+CVE-2026-22020  # HIGH | java-21-openjdk-headless in the Keycloak 26.7.2 base image | no fixed package published upstream (Trivy reports no fix); arrived with the 26.7.2 bump that closes CVE-2026-18963 (CRITICAL account takeover) | Added: 2026-08-29 | Review: 2026-09-26
