@@ -48,4 +48,8 @@ CREATE TABLE public.request_dependencies (
 -- Only the successor side needs its own index: request_dependencies_edge_unique already gives a
 -- btree led by predecessor_request_id, which serves the forward walks. GetBySuccessorsAsync is the
 -- read that has nothing to lean on.
-CREATE INDEX idx_request_dependencies_successor ON public.request_dependencies (successor_request_id);
+--
+-- CONCURRENTLY cannot run inside a transaction. This script opens none, so the runner executes it
+-- in autocommit and the index builds without holding a write lock.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_request_dependencies_successor
+    ON public.request_dependencies (successor_request_id);
