@@ -14,6 +14,7 @@ public class ConflictServiceTests
     private readonly Mock<IResourceAssignmentValidator> _validator = new();
     private readonly Mock<ICapabilityMatcher> _matcher = new();
     private readonly Mock<IResourceCapabilityRepository> _capRepo = new();
+    private readonly Mock<IRequestDependencyRepository> _dependencyRepo = new();
     private readonly ConflictService _service;
 
     public ConflictServiceTests()
@@ -30,7 +31,18 @@ public class ConflictServiceTests
             .Setup(m => m.Satisfies(It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), It.IsAny<RequestRequirementInfo>()))
             .Returns((IReadOnlyList<ResourceCapabilityInfo> caps, RequestRequirementInfo _) => caps.Count > 0);
 
-        _service = new ConflictService(_requestRepo.Object, _validator.Object, _matcher.Object, _capRepo.Object);
+        // No precedence edges unless a test adds them; the dependency tests below install their own.
+        // GetByIdsAsync resolves predecessors that sit outside the scheduled batch — it is reached
+        // whenever an edge points off-batch, so it needs a default even for tests that add no edges.
+        _requestRepo
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+        _dependencyRepo
+            .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        _service = new ConflictService(
+            _requestRepo.Object, _validator.Object, _matcher.Object, _capRepo.Object, _dependencyRepo.Object);
     }
 
     private static readonly DateTime Start = new(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc);
@@ -402,6 +414,172 @@ public class ConflictServiceTests
         _requestRepo.Verify(
             r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
             Times.Never);
+    }
+
+    // ── Precedence (dependency) conflicts ──────────────────────────────────────
+
+    private static RequestDependencyInfo Edge(Guid predecessorId, Guid successorId, int lagMinutes = 0) => new()
+    {
+        Id = Guid.NewGuid(),
+        PredecessorRequestId = predecessorId,
+        SuccessorRequestId = successorId,
+        PredecessorName = "Cut steel",
+        SuccessorName = "Weld frame",
+        DependencyType = DependencyTypes.FinishToStart,
+        LagMinutes = lagMinutes,
+        CreatedAt = Start,
+    };
+
+    /// <summary>
+    /// Schedules a predecessor ending on <paramref name="predecessorEnd"/> and a successor starting
+    /// on <paramref name="successorStart"/>, linked by one edge, and returns the successor's conflicts.
+    /// </summary>
+    private async Task<IReadOnlyList<ConflictInfo>> DependencyConflictsAsync(
+        DateTime predecessorEnd, DateTime successorStart, int lagMinutes = 0)
+    {
+        var predecessorId = Guid.NewGuid();
+        var successorId = Guid.NewGuid();
+
+        var predecessor = ScheduledRequest(
+            predecessorId, [], predecessorEnd.AddHours(-1), predecessorEnd);
+        var successor = ScheduledRequest(
+            successorId, [], successorStart, successorStart.AddHours(1));
+
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([predecessor, successor]);
+        _dependencyRepo
+            .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Edge(predecessorId, successorId, lagMinutes)]);
+
+        var result = await _service.GetAllAsync();
+        var entry = result.SingleOrDefault(e => e.RequestId == successorId);
+        return entry?.Conflicts ?? [];
+    }
+
+    [Fact]
+    public async Task ASuccessorStartingBeforeItsPredecessorFinishesIsAnError()
+    {
+        var conflicts = await DependencyConflictsAsync(
+            predecessorEnd: Start.AddDays(2), successorStart: Start.AddDays(1));
+
+        var conflict = Assert.Single(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+        Assert.Equal(ConflictSeverities.Error, conflict.Severity);
+        Assert.Contains("Cut steel", conflict.Message);
+        Assert.DoesNotContain("gap", conflict.Message);
+    }
+
+    [Fact]
+    public async Task ASuccessorStartingTheSameDayItsPredecessorEndsIsAViolation()
+    {
+        // The whole point of the calendar-day rule: raw timestamps would call 09:00-after-08:00
+        // clean, while the scheduler and the critical path both treat the day as taken. A green
+        // Conflicts page contradicting a red critical path is the bug this guards.
+        var conflicts = await DependencyConflictsAsync(
+            predecessorEnd: Start.AddHours(1), successorStart: Start.AddHours(6));
+
+        Assert.Contains(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+    }
+
+    [Fact]
+    public async Task ASuccessorStartingTheNextDayIsClean()
+    {
+        var conflicts = await DependencyConflictsAsync(
+            predecessorEnd: Start, successorStart: Start.AddDays(1));
+
+        Assert.DoesNotContain(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+    }
+
+    [Fact]
+    public async Task LagIsCeilingedToWholeDaysSoItNeverLetsASuccessorStartEarly()
+    {
+        // 90 minutes of lag ceilings to one whole day, so the next day is still too early.
+        var tooEarly = await DependencyConflictsAsync(
+            predecessorEnd: Start, successorStart: Start.AddDays(1), lagMinutes: 90);
+        Assert.Contains(tooEarly, c => c.Kind == ConflictKinds.DependencyViolation);
+        Assert.Contains("gap", Assert.Single(tooEarly, c => c.Kind == ConflictKinds.DependencyViolation).Message);
+
+        var clean = await DependencyConflictsAsync(
+            predecessorEnd: Start, successorStart: Start.AddDays(2), lagMinutes: 90);
+        Assert.DoesNotContain(clean, c => c.Kind == ConflictKinds.DependencyViolation);
+    }
+
+    [Fact]
+    public async Task AnUnscheduledPredecessorIsAWarningRatherThanAnError()
+    {
+        // An unscheduled predecessor is never in the scheduled batch, so it has to be resolved
+        // off-batch. Nothing is wrong yet — there is simply no date to compare against, so it
+        // must not read as a violation the planner has to fix.
+        var predecessorId = Guid.NewGuid();
+        var successorId = Guid.NewGuid();
+        var successor = ScheduledRequest(successorId, [], Start.AddDays(5), Start.AddDays(5).AddHours(1));
+
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([successor]);
+        _requestRepo
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(predecessorId, [], Start, Start.AddHours(1)) with
+            {
+                StartTs = null,
+                EndTs = null,
+            }]);
+        _dependencyRepo
+            .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Edge(predecessorId, successorId)]);
+
+        var result = await _service.GetAllAsync();
+
+        var conflict = Assert.Single(
+            result.Single(e => e.RequestId == successorId).Conflicts,
+            c => c.Kind == ConflictKinds.DependencyViolation);
+        Assert.Equal(ConflictSeverities.Warning, conflict.Severity);
+        Assert.Contains("not scheduled", conflict.Message);
+    }
+
+    [Fact]
+    public async Task APredecessorThatCannotBeResolvedAtAllIsStillReported()
+    {
+        // The edge outlives visibility of its endpoint. Reporting it as unscheduled beats
+        // silently dropping the only signal that something upstream is missing.
+        var predecessorId = Guid.NewGuid();
+        var successorId = Guid.NewGuid();
+
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(successorId, [], Start, Start.AddHours(1))]);
+        _dependencyRepo
+            .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Edge(predecessorId, successorId)]);
+
+        var result = await _service.GetAllAsync();
+
+        var conflict = Assert.Single(
+            result.Single(e => e.RequestId == successorId).Conflicts,
+            c => c.Kind == ConflictKinds.DependencyViolation);
+        Assert.Equal(ConflictSeverities.Warning, conflict.Severity);
+    }
+
+    [Fact]
+    public async Task AnUnscheduledSuccessorHasNoPrecedenceConflictToReport()
+    {
+        // No start date means nothing to compare; the edge is not yet violated.
+        var predecessorId = Guid.NewGuid();
+        var successorId = Guid.NewGuid();
+        var successor = ScheduledRequest(successorId, [], Start, Start.AddHours(1)) with
+        {
+            StartTs = null,
+            EndTs = null,
+        };
+
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([successor]);
+        _dependencyRepo
+            .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Edge(predecessorId, successorId)]);
+
+        var result = await _service.GetAllAsync();
+
+        Assert.DoesNotContain(
+            result.SelectMany(e => e.Conflicts),
+            c => c.Kind == ConflictKinds.DependencyViolation);
     }
 
     private static AssignmentValidationBatchItem BatchWarn(Guid requestId, Guid resourceId, params ValidationIssue[] warnings) => new()

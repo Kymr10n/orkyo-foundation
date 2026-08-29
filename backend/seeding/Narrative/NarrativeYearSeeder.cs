@@ -17,7 +17,7 @@ namespace Orkyo.Foundation.Seed.Narrative;
 public static class NarrativeYearSeeder
 {
     public sealed record Result(int Requests, int Requirements, int Assignments, int Conflicts,
-        IReadOnlyList<Guid> RequestIds);
+        IReadOnlyList<Guid> RequestIds, int Dependencies);
 
     private sealed record Job(
         Guid Id, string Name, Guid? ParentId, DateTime Start, DateTime End, string Status,
@@ -235,7 +235,9 @@ public static class NarrativeYearSeeder
             .ToList();
         await RequestTargetFactory.WriteAsync(conn, targets);
 
-        return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds);
+        var depCount = await WriteDependenciesAsync(conn, jobs);
+
+        return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds, depCount);
     }
 
     /// <summary>
@@ -572,6 +574,94 @@ public static class NarrativeYearSeeder
     }
 
     // ── Bulk writers ──────────────────────────────────────────────────────────
+
+    private const string DependencyCopy =
+        "COPY public.request_dependencies (id, predecessor_request_id, successor_request_id, " +
+        "dependency_type, lag_minutes, created_at) FROM STDIN (FORMAT BINARY)";
+
+    /// <summary>
+    /// Links per campaign. Long chains make an unreadable critical path and couple a whole
+    /// campaign into one sequence; a handful of phases is what a planner actually draws.
+    /// </summary>
+    private const int MaxChainedPhases = 6;
+
+    /// <summary>
+    /// Chains each facility's jobs into a sequence, so the demo has a critical path to show and
+    /// the scheduler has precedence to respect.
+    ///
+    /// A campaign is the one place in this data where sequence is real: its jobs are phases of the
+    /// same piece of work, where the routine and recurring jobs are independent by nature. Chaining
+    /// anything else would assert an order the narrative does not have.
+    ///
+    /// Ordered by the dates the jobs already hold, and an edge is written only where the
+    /// predecessor genuinely finishes before the successor starts. Seeding an edge the placement
+    /// already violates would fill the conflicts list with noise on first load — the deliberate
+    /// conflicts this seeder injects are chosen, not accidental.
+    /// </summary>
+    private static async Task<int> WriteDependenciesAsync(NpgsqlConnection conn, IReadOnlyList<Job> jobs)
+    {
+        var now = DateTime.UtcNow;
+        var edges = new List<(Guid Pred, Guid Succ)>();
+
+        // Grouped by facility rather than by campaign parent. A campaign turned out to be one
+        // archetype repeated a few hundred times — its children all share a name — so chaining
+        // within one produces a "critical path" of six identical rows. A facility runs six to ten
+        // distinct kinds of work, which is what makes a chain readable and plausible: machine,
+        // then inspect, then pack.
+        foreach (var facility in jobs.GroupBy(j => j.Name[(j.Name.LastIndexOf('—') + 1)..].Trim()))
+        {
+            var phases = facility.OrderBy(j => j.Start).ThenBy(j => j.Id).ToList();
+            if (phases.Count < 2) continue;
+
+            // Greedy walk: from each phase, jump to the soonest job of a kind not used yet that
+            // starts after this one finishes. "Starts after" keeps the seeded edge consistent with
+            // the placement it came from; "a kind not used yet" keeps the chain legible.
+            var current = phases[0];
+            var used = new HashSet<string>(StringComparer.Ordinal) { current.Name };
+            var linked = 0;
+
+            while (linked < MaxChainedPhases)
+            {
+                var next = phases
+                    // Calendar days, not timestamps. Shift slots put several jobs in one day, so
+                    // a timestamp comparison happily chains 14:00→15:00 — which every reader of
+                    // these edges (solver, conflicts, critical path) then treats as a violation,
+                    // because they all work in whole days.
+                    .Where(p => p.Start.Date > current.End.Date && !used.Contains(p.Name))
+                    .OrderBy(p => p.Start)
+                    .ThenBy(p => p.Id)
+                    .FirstOrDefault();
+
+                if (next is null) break;
+
+                edges.Add((current.Id, next.Id));
+                used.Add(next.Name);
+                current = next;
+                linked++;
+            }
+        }
+
+        if (edges.Count == 0) return 0;
+
+        using var w = await conn.BeginBinaryImportAsync(DependencyCopy);
+        foreach (var (pred, succ) in edges)
+        {
+            await w.StartRowAsync();
+            await w.WriteAsync(Guid.NewGuid(), NpgsqlDbType.Uuid);
+            await w.WriteAsync(pred, NpgsqlDbType.Uuid);
+            await w.WriteAsync(succ, NpgsqlDbType.Uuid);
+            // Literal rather than DependencyTypes.FinishToStart: this project references only
+            // Bogus/CommandLineParser/Npgsql by design, and taking a dependency on the core
+            // assembly for one string would couple the seeder to the domain model. The value is
+            // pinned by the CHECK constraint in migration 1950.
+            await w.WriteAsync("finish_to_start", NpgsqlDbType.Varchar);
+            await w.WriteAsync(0, NpgsqlDbType.Integer);
+            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+        }
+        await w.CompleteAsync();
+        return edges.Count;
+    }
+
     private const string RequestCopy =
         "COPY public.requests (id, name, description, start_ts, end_ts, minimal_duration_value, " +
         "minimal_duration_unit, status, created_at, updated_at, scheduling_settings_apply, planning_mode, " +

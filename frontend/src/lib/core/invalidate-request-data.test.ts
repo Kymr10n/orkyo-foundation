@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { invalidateRequestData, REQUEST_DERIVED_QUERY_KEYS } from './invalidate-request-data';
+import { qk } from '@foundation/src/lib/api/query-keys';
 
 describe('invalidateRequestData', () => {
   it('invalidates every request-derived query namespace', () => {
@@ -31,5 +32,17 @@ describe('invalidateRequestData', () => {
         'insights',
       ]),
     );
+  });
+
+  it('covers the critical path, which a dependency edit changes', () => {
+    // The critical path lives under the 'requests' prefix rather than its own namespace, so the
+    // existing entry already invalidates it. Pinned here because moving the key out of that
+    // prefix would break the refresh silently — the tab would just keep showing the old path.
+    const criticalPath = qk.requests.criticalPath('site-1');
+    expect(
+      REQUEST_DERIVED_QUERY_KEYS.some((key) =>
+        key.every((part, i) => part === criticalPath[i]),
+      ),
+    ).toBe(true);
   });
 });

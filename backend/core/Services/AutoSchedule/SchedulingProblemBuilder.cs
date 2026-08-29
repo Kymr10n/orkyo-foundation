@@ -11,18 +11,21 @@ public class SchedulingProblemBuilder
     private readonly IResourceCapabilityRepository _capabilityRepository;
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IAvailabilityResolver _resolver;
+    private readonly IRequestDependencyRepository _dependencyRepository;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
         IResourceRepository resourceRepository,
         IResourceCapabilityRepository capabilityRepository,
         ISchedulingRepository schedulingRepository,
-        IAvailabilityResolver resolver)
+        IAvailabilityResolver resolver,
+        IRequestDependencyRepository dependencyRepository)
     {
         _requestRepository = requestRepository;
         _resourceRepository = resourceRepository;
         _capabilityRepository = capabilityRepository;
         _schedulingRepository = schedulingRepository;
+        _dependencyRepository = dependencyRepository;
         _resolver = resolver;
     }
 
@@ -138,31 +141,167 @@ public class SchedulingProblemBuilder
                 DateOnly.FromDateTime(x.Request.EndTs!.Value)))
             .ToList();
 
+        // Precedence edges pointing at anything this run might place. One read for the whole
+        // solve set — asking per request would be an N+1 over the backlog.
+        var solveSet = requestNodes.Select(n => n.RequestId).ToHashSet();
+        var edges = solveSet.Count == 0
+            ? []
+            : await _dependencyRepository.GetBySuccessorsAsync(solveSet, cancellationToken);
+
+        // A predecessor already placed is a fixed date, not a variable: fold it into the
+        // successor's earliest start rather than handing the solver a constraint over something
+        // it cannot move. Requires an end date, which is what "placed" means here.
+        //
+        // `scheduled` only covers this site and this horizon, so it misses the commonest case of
+        // all: a predecessor that finished last month. Resolving those separately is what stops
+        // the run from refusing to place work whose prerequisite is already done.
+        var placedEnds = scheduled
+            .Where(r => r.EndTs.HasValue)
+            .ToDictionary(r => r.Id, r => DateOnly.FromDateTime(r.EndTs!.Value));
+
+        var unresolved = edges
+            .Select(e => e.PredecessorRequestId)
+            .Where(id => !solveSet.Contains(id) && !placedEnds.ContainsKey(id))
+            .Distinct()
+            .ToList();
+
+        if (unresolved.Count > 0)
+            foreach (var predecessor in await _requestRepository.GetByIdsAsync(
+                         unresolved, includeRequirements: false, cancellationToken))
+                if (predecessor.EndTs is { } end)
+                    placedEnds[predecessor.Id] = DateOnly.FromDateTime(end);
+
+        var solverEdges = new List<DependencyEdge>();
+        var earliestFromPredecessor = new Dictionary<Guid, DateOnly>();
+        var blockedBySet = new HashSet<Guid>();
+
+        foreach (var edge in edges)
+        {
+            var lagDays = LagToDays(edge.LagMinutes, settings);
+
+            if (solveSet.Contains(edge.PredecessorRequestId))
+            {
+                // Both ends move together in this run: a real constraint for the solver.
+                solverEdges.Add(new DependencyEdge(
+                    edge.PredecessorRequestId, edge.SuccessorRequestId, lagDays));
+            }
+            else if (placedEnds.TryGetValue(edge.PredecessorRequestId, out var predEnd))
+            {
+                // Finish-to-start: the successor may start the day after the predecessor ends,
+                // plus lag. Keep the latest such bound when several predecessors are placed.
+                var bound = predEnd.AddDays(1 + lagDays);
+                if (!earliestFromPredecessor.TryGetValue(edge.SuccessorRequestId, out var existing)
+                    || bound > existing)
+                    earliestFromPredecessor[edge.SuccessorRequestId] = bound;
+            }
+            else
+            {
+                // Genuinely unplaceable: not in this run, and with no end date to bound against.
+                // Scheduling the successor would knowingly create a violation, so it stays in
+                // the backlog with a reason.
+                blockedBySet.Add(edge.SuccessorRequestId);
+            }
+        }
+
+        // A folded bound that leaves no room is a dependency problem, not a capacity one.
+        // Setting the impossible window anyway makes the feasibility analyzer drop every
+        // candidate and report "no feasible start day", sending the planner to look at
+        // resource load for something the predecessor's finish date caused.
+        var nodesById = requestNodes.ToDictionary(n => n.RequestId);
+        foreach (var (requestId, bound) in earliestFromPredecessor)
+        {
+            if (!nodesById.TryGetValue(requestId, out var node)) continue;
+
+            var lastStart = (node.LatestEnd ?? request.HorizonEnd).AddDays(-(node.DurationDays - 1));
+            if (bound > lastStart) blockedBySet.Add(requestId);
+        }
+
+        // Blocking travels downstream. If S cannot be placed then anything waiting on S cannot
+        // either — and dropping the S→T edge without dropping T would leave T scheduled with
+        // nothing holding it back, which is the violation this whole branch exists to avoid.
+        if (blockedBySet.Count > 0)
+        {
+            var successorsOf = solverEdges
+                .GroupBy(e => e.PredecessorRequestId)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.SuccessorRequestId).ToList());
+
+            var pending = new Queue<Guid>(blockedBySet);
+            while (pending.Count > 0)
+            {
+                if (!successorsOf.TryGetValue(pending.Dequeue(), out var downstream)) continue;
+                foreach (var successor in downstream)
+                    if (blockedBySet.Add(successor)) pending.Enqueue(successor);
+            }
+        }
+
+        // Withheld requests leave the solve set, so no solver can report them. Carry them out
+        // separately, with their names, or the caller sees a run that quietly returned fewer
+        // requests than it was given and no reason for any of them.
+        var withheld = blockedBySet.Count == 0
+            ? []
+            : requestNodes
+                .Where(n => blockedBySet.Contains(n.RequestId))
+                .Select(n => new WithheldRequestNode(n.RequestId, n.DisplayName))
+                .ToList();
+
+        if (earliestFromPredecessor.Count > 0 || blockedBySet.Count > 0)
+        {
+            requestNodes = requestNodes
+                .Where(n => !blockedBySet.Contains(n.RequestId))
+                .Select(n => earliestFromPredecessor.TryGetValue(n.RequestId, out var bound)
+                    && (n.EarliestStart is null || bound > n.EarliestStart.Value)
+                        ? n with { EarliestStart = bound }
+                        : n)
+                .ToList();
+
+            // Edges with an endpoint outside the solve set have nothing left to constrain.
+            solverEdges.RemoveAll(e => blockedBySet.Contains(e.SuccessorRequestId)
+                                    || blockedBySet.Contains(e.PredecessorRequestId));
+        }
+
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd,
             requestNodes, resourceNodes, fixedAssignments,
-            settings, blockedPeriodsByResource);
+            settings, blockedPeriodsByResource, solverEdges, withheld);
+    }
+
+    /// <summary>
+    /// Lag in whole days, ceilinged. Rounding down would let a successor start before the gap
+    /// the user asked for has elapsed; a lag can only ever push work later.
+    /// </summary>
+    private static int LagToDays(int lagMinutes, SchedulingSettingsInfo? settings)
+    {
+        if (lagMinutes <= 0) return 0;
+        var minutesPerDay = MinutesPerDay(settings);
+        return (int)Math.Ceiling(lagMinutes / (double)minutesPerDay);
+    }
+
+    /// <summary>
+    /// How many minutes one planning day holds — the whole day, or the working window when
+    /// working hours are on. Shared by duration and lag conversion so the two can never
+    /// disagree about how long a day is.
+    /// </summary>
+    private static int MinutesPerDay(SchedulingSettingsInfo? settings)
+    {
+        if (settings is not { WorkingHoursEnabled: true }) return 24 * 60;
+
+        // Compare before subtracting: TimeOnly subtraction is elapsed time and wraps at
+        // midnight, so 09:00 - 17:00 is 16 hours, not -8. Subtracting first would let an
+        // end-before-start setting through as a plausible-looking positive day length.
+        if (settings.WorkingDayEnd <= settings.WorkingDayStart)
+        {
+            // SchedulingValidators rejects end <= start at the boundary, so this is
+            // corrupt stored data — fail rather than silently invent an 8-hour day.
+            throw new InvalidOperationException(
+                $"Working hours are enabled but WorkingDayEnd ({settings.WorkingDayEnd}) "
+                + $"is not after WorkingDayStart ({settings.WorkingDayStart}).");
+        }
+        return (int)(settings.WorkingDayEnd - settings.WorkingDayStart).TotalMinutes;
     }
 
     private static int DurationToDays(int value, DurationUnit unit, SchedulingSettingsInfo? settings)
     {
-        var minutesPerDay = 24 * 60;
-        if (settings is { WorkingHoursEnabled: true })
-        {
-            // Compare before subtracting: TimeOnly subtraction is elapsed time and wraps at
-            // midnight, so 09:00 - 17:00 is 16 hours, not -8. Subtracting first would let an
-            // end-before-start setting through as a plausible-looking positive day length.
-            if (settings.WorkingDayEnd <= settings.WorkingDayStart)
-            {
-                // SchedulingValidators rejects end <= start at the boundary, so this is
-                // corrupt stored data — fail rather than silently invent an 8-hour day.
-                throw new InvalidOperationException(
-                    $"Working hours are enabled but WorkingDayEnd ({settings.WorkingDayEnd}) "
-                    + $"is not after WorkingDayStart ({settings.WorkingDayStart}).");
-            }
-            minutesPerDay = (int)(settings.WorkingDayEnd - settings.WorkingDayStart).TotalMinutes;
-        }
         var totalMinutes = SchedulingEngine.DurationToMinutes(value, unit);
-        return Math.Max(1, (int)Math.Ceiling((double)totalMinutes / minutesPerDay));
+        return Math.Max(1, (int)Math.Ceiling((double)totalMinutes / MinutesPerDay(settings)));
     }
 }

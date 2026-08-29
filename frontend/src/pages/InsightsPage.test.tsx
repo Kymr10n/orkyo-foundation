@@ -24,11 +24,12 @@ function renderAt(path: string) {
 }
 
 describe('InsightsPage', () => {
-  it('renders the three tab triggers', () => {
+  it('renders the four tab triggers', () => {
     renderAt('/insights/overview');
     expect(screen.getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Utilization' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Conflicts' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Bottlenecks' })).toBeInTheDocument();
   });
 
   it('defaults to the Overview tab', () => {

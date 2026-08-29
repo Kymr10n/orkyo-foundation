@@ -36,7 +36,14 @@ public enum SchedulingReasonCode
     InsufficientCapacity = 3,
     BlockedByFixedAssignments = 4,
     InvalidDuration = 5,
-    InternalSolverLimit = 7
+    InternalSolverLimit = 7,
+
+    /// <summary>
+    /// The request waits for a predecessor that this run cannot place: it is unscheduled and
+    /// outside the solve set, or its finish leaves the successor no feasible day. Scheduling
+    /// it anyway would knowingly produce a dependency violation.
+    /// </summary>
+    PredecessorUnscheduled = 8
 }
 
 // ── Request / Response DTOs ────────────────────────────────────────
@@ -108,7 +115,31 @@ public sealed record SchedulingProblem(
     IReadOnlyList<ResourceNode> Resources,
     IReadOnlyList<FixedOccupancy> FixedAssignments,
     SchedulingSettingsInfo? Settings,
-    Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource);
+    Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource,
+    IReadOnlyList<DependencyEdge>? Dependencies = null,
+    IReadOnlyList<WithheldRequestNode>? Withheld = null);
+
+/// <summary>
+/// A request kept out of the solve set because a dependency makes it unplaceable in this run:
+/// its predecessor is neither scheduled nor part of the run, or that predecessor's finish leaves
+/// no room inside the request's own window.
+///
+/// Carried separately because it never reaches a solver — the name travels with it so the caller
+/// can say which request and why, rather than silently returning fewer than it was asked for.
+/// </summary>
+public sealed record WithheldRequestNode(Guid RequestId, string DisplayName);
+
+/// <summary>
+/// A precedence edge the solver must honour: the successor may not start until the
+/// predecessor has finished, plus the lag. Both endpoints are in this run's solve set —
+/// an edge whose predecessor is already placed is folded into the successor's feasible
+/// days instead, and one whose predecessor is absent rejects the successor outright.
+/// Lag is in whole days here, ceilinged from minutes exactly as durations are.
+/// </summary>
+public sealed record DependencyEdge(
+    Guid PredecessorRequestId,
+    Guid SuccessorRequestId,
+    int LagDays);
 
 public sealed record RequestNode(
     Guid RequestId,
@@ -179,12 +210,25 @@ public sealed record SchedulingSolution(
     /// solutions produce the same fingerprint regardless of solver non-determinism in ordering.
     /// Used for stale-preview detection on apply.
     /// </summary>
-    public string ComputeFingerprint(string resourceTypeKey)
+    /// <param name="edges">
+    /// The precedence edges the preview was computed under. They are part of the identity
+    /// because they change what a valid plan is: without them, adding a dependency between
+    /// preview and apply would leave the fingerprint matching, and the apply would commit a
+    /// plan that violates the edge the user just drew.
+    /// </param>
+    public string ComputeFingerprint(string resourceTypeKey, IEnumerable<DependencyEdge> edges)
     {
         // The type is part of the identity, not just the assignments: an empty solution hashes
         // the same for every type, so without it a preview that proposed nothing would match
         // an apply for any type.
         var sb = new StringBuilder(resourceTypeKey).Append('#');
+        foreach (var e in edges.OrderBy(e => e.PredecessorRequestId).ThenBy(e => e.SuccessorRequestId))
+        {
+            sb.Append(e.PredecessorRequestId).Append('>')
+              .Append(e.SuccessorRequestId).Append('+')
+              .Append(e.LagDays).Append(';');
+        }
+        sb.Append('#');
         foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))
         {
             sb.Append(a.RequestId).Append('|')

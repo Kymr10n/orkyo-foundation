@@ -31,7 +31,9 @@ interface UseRequestEditorResult {
  * view), save handler, and React Query invalidation. Always opens
  * `RequestFormDialog` — `canEdit` decides edit vs. view mode. These callers
  * open a single request by id (no tree), so `allRequests`/`onNavigate` are
- * omitted and the dialog's breadcrumb/Children tab/derived rollups hide.
+ * omitted and the dialog's breadcrumb, Children tab, Dependencies tab, and derived
+ * rollups hide. The Dependencies tab needs `allRequests` to offer predecessors, so it
+ * stays hidden here rather than opening onto an empty picker.
  */
 export function useRequestEditor(): UseRequestEditorResult {
   const queryClient = useQueryClient();

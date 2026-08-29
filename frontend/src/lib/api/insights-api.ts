@@ -45,6 +45,8 @@ export interface InsightsOverview {
     resourceUnavailable: number;
     scheduleOutsideAvailability: number;
     missingResource: number;
+    /** Successor starting before its predecessor finishes (plus lag). */
+    sequenceViolation: number;
   };
   utilization: {
     /** One entry per active resource type, ordered as the API returns them. */
@@ -85,6 +87,8 @@ export interface ConflictSeriesPoint {
   resourceUnavailable: number;
   scheduleOutsideAvailability: number;
   missingResource: number;
+  /** Successor starting before its predecessor finishes (plus lag). */
+  sequenceViolation: number;
 }
 
 export interface InsightsConflicts {
@@ -127,6 +131,43 @@ export function getInsightsUtilization(
 ): Promise<InsightsUtilization> {
   return apiGet<InsightsUtilization>(API_PATHS.INSIGHTS.UTILIZATION, {
     params: { ...periodParams(from, to, siteId), bucket, resourceType },
+  });
+}
+
+/** One overloaded resource — work booked past what its capacity absorbs. */
+export interface BottleneckResource {
+  resourceId: string;
+  name: string;
+  resourceTypeKey: string;
+  resourceTypeDisplayName: string;
+  /** Minutes booked beyond capacity, summed over the period's days. */
+  overbookedMinutes: number;
+  capacityMinutes: number;
+  /** The worst single day, uncapped — a day at 200% is the point of the list. */
+  /**
+   * Null when the resource published no capacity at all in the period — a percentage of zero
+   * capacity has no meaning, and reporting 0 would read as "not busy".
+   */
+  peakUtilizationPercent: number | null;
+}
+
+export interface InsightsBottlenecks {
+  period: { from: string; to: string };
+  siteId: string | null;
+  items: BottleneckResource[];
+  metadata: InsightsMetadata;
+}
+
+/**
+ * The most overloaded resources in the period, worst first. No bucket parameter: the ranking is
+ * measured per day server-side whatever period is asked for, because overbooking is a spike that
+ * a coarser bucket averages away.
+ */
+export function getInsightsBottlenecks(
+  from: Date, to: Date, siteId?: string | null,
+): Promise<InsightsBottlenecks> {
+  return apiGet<InsightsBottlenecks>(API_PATHS.INSIGHTS.BOTTLENECKS, {
+    params: periodParams(from, to, siteId),
   });
 }
 

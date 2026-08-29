@@ -125,6 +125,11 @@ vi.mock("./RequestRequirementsSection", () => ({
 vi.mock("./RequestPeopleSection", () => ({
   RequestPeopleSection: () => <div data-testid="people" />,
 }));
+vi.mock("./RequestDependenciesSection", () => ({
+  RequestDependenciesSection: ({ candidates }: { candidates: { id: string }[] }) => (
+    <div data-testid="dependencies">{candidates.length} candidates</div>
+  ),
+}));
 vi.mock("@foundation/src/components/requests/RequestIconSelector", () => ({
   RequestIconSelector: ({
     onChange,
@@ -871,6 +876,41 @@ describe("RequestFormDialog", () => {
     expect(
       screen.getByText(/automatically calculated from child requests/),
     ).toBeInTheDocument();
+  });
+
+  // ── Dependencies tab gating ────────────────────────────────────────────────
+  // The tab needs the tree to offer predecessors, and precedence is only meaningful on a
+  // leaf — a summary row's dates are rolled up from its children. Callers that open a single
+  // request by id (ConflictsTab, UtilizationPage via useRequestEditor) pass no tree, and
+  // must not land on an empty picker.
+
+  it("shows the Dependencies tab for a saved leaf when the tree is provided", async () => {
+    renderDialog({ request: EXISTING, allRequests: TREE });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Dependencies" }));
+
+    expect(screen.getByTestId("dependencies")).toBeInTheDocument();
+  });
+
+  it("hides the Dependencies tab when the tree is not provided", () => {
+    renderDialog({ request: EXISTING });
+    expect(
+      screen.queryByRole("tab", { name: "Dependencies" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Dependencies tab for a group", () => {
+    renderDialog({ request: GROUP, allRequests: TREE });
+    expect(
+      screen.queryByRole("tab", { name: "Dependencies" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the Dependencies tab while creating, before the request exists", () => {
+    renderDialog({ allRequests: TREE });
+    expect(
+      screen.queryByRole("tab", { name: "Dependencies" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the Children tab when creating a Task", () => {

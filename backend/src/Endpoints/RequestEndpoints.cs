@@ -111,6 +111,50 @@ public static class RequestEndpoints
         .WithName("DeleteRequestRequirement")
         .WithSummary("Remove a requirement from a request");
 
+        // ── Dependencies ──────────────────────────────────────────────────────────────
+        // Precedence edges, not tree edges. The literal "dependencies" and "critical-path"
+        // segments never collide with /{id:guid} because the guid constraint rejects them —
+        // route selection is by precedence, not declaration order.
+
+        group.MapGet("/dependencies", async (IRequestDependencyService dependencyService, CancellationToken ct, Guid? siteId = null) =>
+            Results.Ok(await dependencyService.GetAllAsync(siteId, ct)))
+        .WithName("GetRequestDependencies")
+        .WithSummary("Get every precedence edge, optionally scoped to a site");
+
+        group.MapGet("/critical-path", async (ICriticalPathService criticalPathService, CancellationToken ct, Guid? siteId = null) =>
+            Results.Ok(await criticalPathService.ComputeAsync(siteId, ct)))
+        .WithName("GetCriticalPath")
+        .WithSummary("Compute the critical path over the dependency network");
+
+        group.MapGet("/{id:guid}/dependencies", async (Guid id, IRequestService requestService, IRequestDependencyService dependencyService, CancellationToken ct) =>
+        {
+            if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);
+            return Results.Ok(await dependencyService.GetForRequestAsync(id, ct));
+        })
+        .WithName("GetDependenciesForRequest")
+        .WithSummary("Get the predecessors and successors of a request");
+
+        group.MapPost("/{id:guid}/dependencies", async (Guid id, CreateDependencyRequest request,
+            IRequestDependencyService dependencyService, IValidator<CreateDependencyRequest> validator,
+            ILogger<EndpointLoggerCategory> logger, CancellationToken ct) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var created = await dependencyService.CreateAsync(id, request, ct);
+                logger.LogInformation("Added dependency {DependencyId}: {Predecessor} precedes {Successor}",
+                    created.Id, created.PredecessorRequestId, created.SuccessorRequestId);
+                return Results.Created($"/requests/{id}/dependencies/{created.Id}", created);
+            }, logger, "add request dependency", new { id }))
+        .WithName("AddRequestDependency")
+        .WithSummary("Make a request wait for another to finish");
+
+        group.MapDelete("/{id:guid}/dependencies/{dependencyId:guid}", async (Guid id, Guid dependencyId, IRequestDependencyService dependencyService, CancellationToken ct) =>
+        {
+            var deleted = await dependencyService.DeleteAsync(id, dependencyId, ct);
+            return EndpointHelpers.NoContentOrNotFound(deleted, "Dependency", dependencyId);
+        })
+        .WithName("DeleteRequestDependency")
+        .WithSummary("Remove a precedence edge");
+
         group.MapGet("/{id:guid}/children", async (Guid id, IRequestService requestService, CancellationToken ct) =>
         {
             if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);

@@ -29,6 +29,9 @@ public sealed class CachingInsightsService(IInsightsService inner, OrgContext or
     public Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default)
         => GetOrComputeAsync("requests", filter, () => inner.GetRequestTrendAsync(filter, ct));
 
+    public Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default)
+        => GetOrComputeAsync("bottlenecks", filter, () => inner.GetBottlenecksAsync(filter, ct));
+
     private Task<T> GetOrComputeAsync<T>(string op, InsightsFilter f, Func<Task<T>> compute)
         where T : class
     {

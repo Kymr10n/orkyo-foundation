@@ -1,9 +1,11 @@
 import {
   getInsightsOverview,
+  getInsightsBottlenecks,
   getInsightsConflicts,
   getInsightsRequests,
   type InsightsBucket,
 } from "@foundation/src/lib/api/insights-api";
+import { getCriticalPath } from "@foundation/src/lib/api/request-dependency-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +25,26 @@ export function useInsightsConflicts(siteId: string | null, from: Date, to: Date
   return useQuery({
     queryKey: qk.insights.conflicts(siteId, from, to, bucket),
     queryFn: () => getInsightsConflicts(from, to, bucket, siteId),
+    staleTime: STALE.ANALYTICS,
+  });
+}
+
+export function useInsightsBottlenecks(siteId: string | null, from: Date, to: Date) {
+  return useQuery({
+    queryKey: qk.insights.bottlenecks(siteId, from, to),
+    queryFn: () => getInsightsBottlenecks(from, to, siteId),
+    staleTime: STALE.ANALYTICS,
+  });
+}
+
+/**
+ * The critical path is a property of the dependency network, not of the selected period, so it
+ * takes no from/to — only the site narrows it.
+ */
+export function useCriticalPath(siteId: string | null) {
+  return useQuery({
+    queryKey: qk.requests.criticalPath(siteId),
+    queryFn: () => getCriticalPath(siteId),
     staleTime: STALE.ANALYTICS,
   });
 }

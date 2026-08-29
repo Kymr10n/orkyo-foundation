@@ -183,6 +183,96 @@ public class InsightsServiceTests
     }
 
     [Fact]
+    public async Task ConflictTrend_CountsDependencyViolationsInTheirOwnBucket()
+    {
+        // A sequence problem is fixed by moving work or dropping the edge — a different action
+        // from resolving an overbooking, so it gets its own count rather than being folded in.
+        var febStart = new DateTime(2026, 2, 10, 9, 0, 0, DateTimeKind.Utc);
+        Timeline(
+            new ConflictPoint(febStart, ConflictKinds.DependencyViolation),
+            new ConflictPoint(febStart, ConflictKinds.DependencyViolation),
+            new ConflictPoint(febStart, ConflictKinds.Overlap));
+
+        var result = await _service.GetConflictTrendAsync(
+            new InsightsFilter { From = Jan, To = Mar, Bucket = "month" });
+
+        var feb = result.Series[1];
+        Assert.Equal(3, feb.Total);
+        Assert.Equal(2, feb.SequenceViolation);
+        Assert.Equal(1, feb.Overbooking);
+        Assert.Equal(0, feb.ScheduleOutsideAvailability);
+    }
+
+    // ── Bottlenecks ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Bottlenecks_ASingleOverbookedDaySurvivesAMonthLongPeriod()
+    {
+        // The reason the ranking measures days regardless of the caller's period: this room is
+        // idle all January except one day when it is booked twice over. Averaged across the
+        // month it looks comfortable, and the day that hurt disappears.
+        var room = Guid.NewGuid();
+        var day = new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc);
+        SetupResource(SpaceResource(room),
+            Assignment(room, day, day.AddDays(1)),
+            Assignment(room, day, day.AddDays(1)));
+
+        var result = await _service.GetBottlenecksAsync(new InsightsFilter { From = Jan, To = Feb });
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(room, item.ResourceId);
+
+        // Two full-day bookings against one day of capacity: one day overbooked.
+        Assert.Equal(24 * 60, item.OverbookedMinutes, precision: 0);
+
+        // The peak, not the month's average: averaged over January this room is nearly idle,
+        // and reporting that beside "one day overbooked" would contradict the row it sits in.
+        Assert.Equal(200, item.PeakUtilizationPercent!.Value, precision: 0);
+    }
+
+    [Fact]
+    public async Task Bottlenecks_AResourceWithinCapacityIsNotListed()
+    {
+        var room = Guid.NewGuid();
+        SetupResource(SpaceResource(room),
+            Assignment(room, new DateTime(2026, 1, 10, 9, 0, 0, DateTimeKind.Utc),
+                             new DateTime(2026, 1, 10, 13, 0, 0, DateTimeKind.Utc)));
+
+        var result = await _service.GetBottlenecksAsync(new InsightsFilter { From = Jan, To = Feb });
+
+        // An empty list is the healthy answer, not missing data.
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task Bottlenecks_RanksTheWorstFirst()
+    {
+        var mild = Guid.NewGuid();
+        var severe = Guid.NewGuid();
+        var day = new DateTime(2026, 1, 10, 0, 0, 0, DateTimeKind.Utc);
+
+        var resources = new List<ResourceInfo> { SpaceResource(mild), SpaceResource(severe) };
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(resources);
+        _assignments.Setup(a => a.GetActiveByResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(
+            [
+                Assignment(mild, day, day.AddDays(1)),
+                Assignment(mild, day, day.AddDays(1)),
+                Assignment(severe, day, day.AddDays(1)),
+                Assignment(severe, day, day.AddDays(1)),
+                Assignment(severe, day, day.AddDays(1)),
+            ]);
+
+        var result = await _service.GetBottlenecksAsync(new InsightsFilter { From = Jan, To = Feb });
+
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(severe, result.Items[0].ResourceId);
+        Assert.True(result.Items[0].OverbookedMinutes > result.Items[1].OverbookedMinutes);
+    }
+
+    [Fact]
     public async Task UtilizationTrend_PartialBooking_IsTimeBased_NotPinnedAt100()
     {
         // The regression: an Exclusive room booked for just 4 hours in a month must read ~0.5%,

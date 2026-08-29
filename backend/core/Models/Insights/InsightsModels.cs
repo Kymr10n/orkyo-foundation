@@ -55,6 +55,13 @@ public record ConflictCounts
     public required int ResourceUnavailable { get; init; }
     public required int ScheduleOutsideAvailability { get; init; }
     public required int MissingResource { get; init; }
+
+    /// <summary>
+    /// Precedence violations: a request placed before the one it waits for, or waiting on
+    /// something unscheduled. Its own bucket rather than folded into another — the fix is a
+    /// different action from resolving an overbooking.
+    /// </summary>
+    public required int SequenceViolation { get; init; }
 }
 
 /// <summary>
@@ -104,6 +111,51 @@ public record UtilizationSeriesPoint
     public required int ConflictCount { get; init; }
 }
 
+/// <summary>
+/// One overloaded resource: work booked onto it beyond what its capacity absorbs, over the
+/// period. Ranked by <see cref="OverbookedMinutes"/> — the direct measure of severity, and the
+/// figure a planner can act on.
+/// </summary>
+public record BottleneckResource
+{
+    public required Guid ResourceId { get; init; }
+    public required string Name { get; init; }
+    public required string ResourceTypeKey { get; init; }
+    public required string ResourceTypeDisplayName { get; init; }
+
+    /// <summary>Minutes booked beyond capacity, summed over the period's days.</summary>
+    public required double OverbookedMinutes { get; init; }
+
+    /// <summary>Capacity available over the period, after blocked time.</summary>
+    public required double CapacityMinutes { get; init; }
+
+    /// <summary>
+    /// The worst single day: booked against capacity on the most loaded day of the period,
+    /// NOT capped at 100 — a day at 200% is the point of this list.
+    ///
+    /// Deliberately the peak rather than the period average. A machine idle all month except
+    /// one doubly-booked day averages out to something comfortable, and printing that beside
+    /// "one day overbooked" would contradict the row it sits in.
+    ///
+    /// Null when the resource had no capacity on any day of the period — blocked throughout, or
+    /// configured at zero availability. Work booked onto it is still overbooked, but there is no
+    /// ratio to state, and reporting 0% beside those overbooked minutes would contradict itself.
+    /// </summary>
+    public required double? PeakUtilizationPercent { get; init; }
+}
+
+/// <summary>
+/// The most overloaded resources in the period. Empty means nothing was overbooked, which is
+/// the healthy state rather than missing data.
+/// </summary>
+public record InsightsBottlenecks
+{
+    public required InsightsPeriod Period { get; init; }
+    public Guid? SiteId { get; init; }
+    public required IReadOnlyList<BottleneckResource> Items { get; init; }
+    public required InsightsMetadata Metadata { get; init; }
+}
+
 public record InsightsUtilization
 {
     public required string ResourceType { get; init; }
@@ -128,6 +180,9 @@ public record ConflictSeriesPoint
     public required int ResourceUnavailable { get; init; }
     public required int ScheduleOutsideAvailability { get; init; }
     public required int MissingResource { get; init; }
+
+    /// <summary>Precedence violations in this bucket — see <see cref="ConflictCounts"/>.</summary>
+    public required int SequenceViolation { get; init; }
 }
 
 public record InsightsConflicts

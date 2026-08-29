@@ -119,6 +119,54 @@ public class InsightsEndpointsTests
     }
 
     [Fact]
+    public async Task Bottlenecks_AcceptsTheDashboardsDefaultRange()
+    {
+        // The Insights page opens on "Last 6 / next 12 months" — about 550 days. A cap that
+        // rejects the range the page itself requests makes the tab 400 on arrival, which is
+        // exactly what happened when this cap was first set to one year.
+        var from = DateTime.UtcNow.AddMonths(-6).ToString("yyyy-MM-dd");
+        var to = DateTime.UtcNow.AddMonths(12).ToString("yyyy-MM-dd");
+
+        var response = await _client.GetAsync($"/api/insights/bottlenecks?from={from}&to={to}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Bottlenecks_WithoutAResourceType_RanksEveryType()
+    {
+        // Unlike the utilization trend, resourceType only narrows this ranking. Requiring it
+        // rejected every call the dashboard makes, because the page does not send one.
+        var response = await _client.GetAsync("/api/insights/bottlenecks?from=2099-01-01&to=2099-03-01");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Bottlenecks_WithAnUnknownResourceType_Returns400()
+    {
+        // Optional, but not unchecked: a typo is still a bad request rather than a silent
+        // tenant-wide answer.
+        var response = await _client.GetAsync(
+            "/api/insights/bottlenecks?from=2099-01-01&to=2099-03-01&resourceType=not-a-type");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Bottlenecks_RangeBeyondTheDayCap_Returns400()
+    {
+        // Measured per day, so the widest windows still have to be refused.
+        var response = await _client.GetAsync("/api/insights/bottlenecks?from=2000-01-01&to=2050-01-01");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Bottlenecks_MissingDates_Returns400()
+    {
+        var response = await _client.GetAsync("/api/insights/bottlenecks");
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Conflicts_RangeTooLargeForBucket_Returns400()
     {
         // Weekly bucket caps at ~2 years; 50 years must be rejected.

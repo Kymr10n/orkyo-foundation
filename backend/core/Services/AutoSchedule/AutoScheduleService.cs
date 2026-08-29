@@ -73,9 +73,16 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 .Select(x => new UnscheduledRequestDto(
                     x.RequestId, requestNames.GetValueOrDefault(x.RequestId, "Unknown"),
                     x.ReasonCodes))
+                // Requests the builder withheld never reached a solver, so they are absent from
+                // its Unscheduled list. Reporting only what the solver saw would return fewer
+                // requests than the caller selected, with nothing said about the difference.
+                .Concat((problem.Withheld ?? [])
+                    .Select(w => new UnscheduledRequestDto(
+                        w.RequestId, w.DisplayName,
+                        [SchedulingReasonCode.PredecessorUnscheduled])))
                 .ToList(),
             solution.Diagnostics,
-            solution.ComputeFingerprint(request.ResourceTypeKey!));
+            solution.ComputeFingerprint(request.ResourceTypeKey!, problem.Dependencies ?? []));
     }
 
     public async Task<AutoScheduleApplyResponse> ApplyAsync(

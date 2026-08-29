@@ -11,8 +11,9 @@ namespace Api.Services;
 /// <see cref="IResourceAssignmentValidator.ValidateBatchAsync"/> (overbook / capacity / off-time /
 /// weekend / site), checking capability at the request level (a requirement is satisfied iff ANY
 /// assigned resource satisfies it, so each capability lands on the resources whose type can carry
-/// it), and adding the cheap request-intrinsic checks (below-min-duration,
-/// before-earliest-start, after-latest-end). Computed on demand (no DB materialization).
+/// it), adding the cheap request-intrinsic checks (below-min-duration, before-earliest-start,
+/// after-latest-end), and checking precedence against the request-dependency graph. Computed on
+/// demand (no DB materialization).
 /// </summary>
 public interface IConflictService
 {
@@ -29,7 +30,8 @@ public class ConflictService(
     IRequestRepository requestRepository,
     IResourceAssignmentValidator validator,
     ICapabilityMatcher capabilityMatcher,
-    IResourceCapabilityRepository capabilityRepository) : IConflictService
+    IResourceCapabilityRepository capabilityRepository,
+    IRequestDependencyRepository dependencyRepository) : IConflictService
 {
     public async Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
@@ -66,6 +68,24 @@ public class ConflictService(
 
         var capsByResource = await LoadCapabilitiesAsync(requests, ct);
 
+        // Precedence edges pointing at anything in this batch — one read, never per request.
+        var edgesBySuccessor = (await dependencyRepository.GetBySuccessorsAsync(
+                requests.Select(r => r.Id).ToList(), ct))
+            .GroupBy(e => e.SuccessorRequestId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        // Predecessor placements are needed even when the predecessor itself is outside the
+        // window being examined, so resolve any that the batch does not already carry.
+        var byId = requests.ToDictionary(r => r.Id);
+        var missingPredecessors = edgesBySuccessor.Values
+            .SelectMany(list => list.Select(e => e.PredecessorRequestId))
+            .Where(id => !byId.ContainsKey(id))
+            .Distinct()
+            .ToList();
+        if (missingPredecessors.Count > 0)
+            foreach (var p in await requestRepository.GetByIdsAsync(missingPredecessors, includeRequirements: false, ct))
+                byId[p.Id] = p;
+
         var result = new List<RequestConflictInfo>();
         foreach (var request in requests)
         {
@@ -81,6 +101,7 @@ public class ConflictService(
 
             conflicts.AddRange(CapabilityConflicts(request, capsByResource));
             conflicts.AddRange(IntrinsicConflicts(request));
+            conflicts.AddRange(DependencyConflicts(request, edgesBySuccessor, byId));
 
             if (conflicts.Count > 0)
                 result.Add(new RequestConflictInfo { RequestId = request.Id, Conflicts = conflicts });
@@ -206,6 +227,60 @@ public class ConflictService(
             // not schedule conflicts surfaced on the grid/page.
             default:
                 return null;
+        }
+    }
+
+    /// <summary>
+    /// Precedence violations on a scheduled request: it starts before the predecessor it waits
+    /// for has finished (error), or that predecessor is not scheduled at all (warning — the plan
+    /// is incomplete rather than wrong). Nothing is reported while the successor itself is
+    /// unscheduled: a backlog item breaks no promise.
+    /// </summary>
+    private static IEnumerable<ConflictInfo> DependencyConflicts(
+        RequestInfo request,
+        IReadOnlyDictionary<Guid, List<RequestDependencyInfo>> edgesBySuccessor,
+        IReadOnlyDictionary<Guid, RequestInfo> byId)
+    {
+        if (request.StartTs is not { } start) yield break;
+        if (!edgesBySuccessor.TryGetValue(request.Id, out var edges)) yield break;
+
+        foreach (var edge in edges)
+        {
+            var name = edge.PredecessorName;
+
+            if (!byId.TryGetValue(edge.PredecessorRequestId, out var predecessor)
+                || predecessor.EndTs is not { } predecessorEnd)
+            {
+                yield return new ConflictInfo
+                {
+                    Id = $"{request.Id}-{edge.PredecessorRequestId}-dependency-unscheduled",
+                    Kind = ConflictKinds.DependencyViolation,
+                    Severity = ConflictSeverities.Warning,
+                    Message = $"Its predecessor '{name}' is not scheduled",
+                    PeerRequestId = edge.PredecessorRequestId,
+                };
+                continue;
+            }
+
+            // Whole days, matching the critical path. The scheduler and the CPM pass both work
+            // in day buckets, so a successor starting the same calendar day its predecessor ends
+            // is a violation to them; comparing raw timestamps here would report it clean and
+            // leave the Conflicts page contradicting the critical-path view.
+            var earliest = DateOnly.FromDateTime(predecessorEnd)
+                .AddDays(1 + (int)Math.Ceiling(edge.LagMinutes / (double)(24 * 60)));
+            if (DateOnly.FromDateTime(start) < earliest)
+            {
+                yield return new ConflictInfo
+                {
+                    Id = $"{request.Id}-{edge.PredecessorRequestId}-dependency-violation",
+                    Kind = ConflictKinds.DependencyViolation,
+                    Severity = ConflictSeverities.Error,
+                    Message = edge.LagMinutes > 0
+                        ? $"Starts before its predecessor '{name}' finishes plus the required gap"
+                        : $"Starts before its predecessor '{name}' finishes",
+                    PeerRequestId = edge.PredecessorRequestId,
+                };
+            }
         }
     }
 

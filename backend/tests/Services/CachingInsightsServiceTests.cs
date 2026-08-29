@@ -28,6 +28,8 @@ public class CachingInsightsServiceTests
             => throw new NotImplementedException();
         public Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default)
             => throw new NotImplementedException();
+        public Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class GatedInsights(Func<Task<InsightsOverview>> gate) : IInsightsService
@@ -46,6 +48,8 @@ public class CachingInsightsServiceTests
             => throw new NotImplementedException();
         public Task<InsightsRequests> GetRequestTrendAsync(InsightsFilter filter, CancellationToken ct = default)
             => throw new NotImplementedException();
+        public Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private static OrgContext Org(Guid id) => new() { OrgId = id, OrgSlug = "t", DbConnectionString = "x" };
@@ -62,6 +66,7 @@ public class CachingInsightsServiceTests
             Overbooking = 0,
             CriteriaMismatch = 0,
             ResourceUnavailable = 0,
+            SequenceViolation = 0,
             ScheduleOutsideAvailability = 0,
             MissingResource = 0,
         },

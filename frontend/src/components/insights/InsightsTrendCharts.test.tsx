@@ -1,24 +1,32 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import {
+  BottleneckChart,
   ConflictTrendChart,
   RequestStatusTrendChart,
   UtilizationTrendChart,
 } from "./InsightsTrendCharts";
 import type {
+  InsightsBottlenecks,
   InsightsBucket,
   InsightsConflicts,
   InsightsRequests,
   InsightsUtilization,
 } from "@foundation/src/lib/api/insights-api";
 
-// Recharts needs a real layout box (absent in happy-dom) — stub to passthroughs.
+// Recharts needs a real layout box (absent in happy-dom) — stub to passthroughs. Tooltip and
+// YAxis record their props instead of rendering: their formatters are real display logic that
+// a Noop stub would leave permanently unexecuted.
+const tooltipProps = vi.hoisted(() => [] as Record<string, unknown>[]);
+const yAxisProps = vi.hoisted(() => [] as Record<string, unknown>[]);
 vi.mock("recharts", () => {
   const Pass = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   const Noop = () => null;
   return {
     ResponsiveContainer: Pass, LineChart: Pass, BarChart: Pass,
-    Line: Noop, Bar: Noop, XAxis: Noop, YAxis: Noop, Tooltip: Noop, Legend: Noop, CartesianGrid: Noop,
+    Line: Noop, Bar: Noop, XAxis: Noop, Legend: Noop, CartesianGrid: Noop,
+    YAxis: (props: Record<string, unknown>) => { yAxisProps.push(props); return null; },
+    Tooltip: (props: Record<string, unknown>) => { tooltipProps.push(props); return null; },
   };
 });
 
@@ -36,6 +44,65 @@ const util = (bucket: InsightsBucket): InsightsUtilization => ({
     { bucketStart: "2026-04-01T00:00:00Z", bucketEnd: "2026-05-01T00:00:00Z", totalCapacityMinutes: 1000, usedCapacityMinutes: 1500, availableCapacityMinutes: 0, utilizationPercent: 150, conflictCount: 0 },
   ],
   metadata: meta,
+});
+
+const bottlenecks = (
+  overrides: Partial<InsightsBottlenecks["items"][number]> = {},
+): InsightsBottlenecks => ({
+  items: [
+    {
+      resourceId: "res-1",
+      name: "Line 1",
+      resourceTypeKey: "machine",
+      resourceTypeDisplayName: "Machine",
+      overbookedMinutes: 150,
+      peakUtilizationPercent: 142.4,
+      ...overrides,
+    },
+  ],
+  metadata: meta,
+} as unknown as InsightsBottlenecks);
+
+beforeEach(() => {
+  tooltipProps.length = 0;
+  yAxisProps.length = 0;
+});
+
+describe("BottleneckChart", () => {
+  it("says plainly that nothing was overbooked rather than showing a blank chart", () => {
+    render(<BottleneckChart data={{ items: [], metadata: meta } as unknown as InsightsBottlenecks} isLoading={false} error={null} />);
+    expect(screen.getByText(/No resource was booked beyond its capacity/)).toBeInTheDocument();
+  });
+
+  it("quotes hours over capacity and the peak in the tooltip", () => {
+    render(<BottleneckChart data={bottlenecks()} isLoading={false} error={null} />);
+    const { formatter, labelFormatter } = tooltipProps[0] as {
+      formatter: (v: unknown, n: unknown, e: unknown) => [string, string];
+      labelFormatter: (l: unknown, p: unknown) => string;
+    };
+    const payload = [{ payload: { id: "res-1", name: "Line 1", type: "Machine", peak: 142 } }];
+
+    expect(formatter(2.5, "hours", payload[0])).toEqual(["2.5 h over capacity (peak 142%)", "Overbooked"]);
+    expect(labelFormatter("ignored", payload)).toBe("Line 1 — Machine");
+  });
+
+  it("drops the peak clause when the resource published no capacity", () => {
+    // 0% would read as "not busy" for a resource that is, in fact, overbooked.
+    render(<BottleneckChart data={bottlenecks({ peakUtilizationPercent: null })} isLoading={false} error={null} />);
+    const { formatter } = tooltipProps[0] as { formatter: (v: unknown, n: unknown, e: unknown) => [string, string] };
+
+    expect(formatter(2.5, "hours", { payload: { peak: null } })[0]).toBe("2.5 h over capacity");
+  });
+
+  it("labels the axis by resource id so two resources sharing a name stay separate bars", () => {
+    render(<BottleneckChart data={bottlenecks()} isLoading={false} error={null} />);
+    const axis = yAxisProps[0] as { dataKey: string; tickFormatter: (id: string) => string };
+
+    expect(axis.dataKey).toBe("id");
+    expect(axis.tickFormatter("res-1")).toBe("Line 1");
+    // An id the chart does not know must not render as "undefined".
+    expect(axis.tickFormatter("gone")).toBe("");
+  });
 });
 
 describe("InsightsTrendCharts", () => {
@@ -69,7 +136,7 @@ describe("InsightsTrendCharts", () => {
   it("renders the conflict stacked bars with data", () => {
     const data: InsightsConflicts = {
       bucket: "month",
-      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 5, overbooking: 2, criteriaMismatch: 1, resourceUnavailable: 1, scheduleOutsideAvailability: 1, missingResource: 0 }],
+      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 5, overbooking: 2, criteriaMismatch: 1, resourceUnavailable: 1, scheduleOutsideAvailability: 1, missingResource: 0, sequenceViolation: 0 }],
       metadata: meta,
     };
     render(<ConflictTrendChart data={data} bucket="month" isLoading={false} error={null} />);
@@ -80,7 +147,7 @@ describe("InsightsTrendCharts", () => {
   it("shows the conflict empty state when all buckets are zero", () => {
     const data: InsightsConflicts = {
       bucket: "month",
-      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 0, overbooking: 0, criteriaMismatch: 0, resourceUnavailable: 0, scheduleOutsideAvailability: 0, missingResource: 0 }],
+      series: [{ bucketStart: "2026-01-01T00:00:00Z", bucketEnd: "2026-02-01T00:00:00Z", total: 0, overbooking: 0, criteriaMismatch: 0, resourceUnavailable: 0, scheduleOutsideAvailability: 0, missingResource: 0, sequenceViolation: 0 }],
       metadata: meta,
     };
     render(<ConflictTrendChart data={data} bucket="month" isLoading={false} error={null} />);

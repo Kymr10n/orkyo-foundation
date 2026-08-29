@@ -22,6 +22,7 @@ export const API_PATHS = {
     UTILIZATION: '/api/insights/utilization',
     CONFLICTS: '/api/insights/conflicts',
     REQUESTS: '/api/insights/requests',
+    BOTTLENECKS: '/api/insights/bottlenecks',
   },
 
   // Search
@@ -52,6 +53,10 @@ export const API_PATHS = {
   requestMove: (requestId: string) => `/api/requests/${requestId}/move`,
   requestSubtree: (requestId: string) => `/api/requests/${requestId}/subtree`,
   requestDescendantsCount: (requestId: string) => `/api/requests/${requestId}/descendants/count`,
+  REQUEST_CRITICAL_PATH: '/api/requests/critical-path',
+  requestDependencies: (requestId: string) => `/api/requests/${requestId}/dependencies`,
+  requestDependency: (requestId: string, dependencyId: string) =>
+    `/api/requests/${requestId}/dependencies/${dependencyId}`,
 
   // Resource Types
   RESOURCE_TYPES: '/api/resource-types',

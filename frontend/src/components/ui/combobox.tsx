@@ -23,6 +23,13 @@ interface ComboboxProps {
   className?: string;
   /** Maximum height of the list area before scrolling. */
   maxListHeightPx?: number;
+  /**
+   * Cap on how many matches are rendered at once. Unset renders them all, which is the right
+   * default for the small lists most pickers hold. Set it where the source list can run to
+   * thousands: rendering every match then costs more than the user can read anyway, and the
+   * search box is the way through it.
+   */
+  maxResults?: number;
 }
 
 /**
@@ -41,6 +48,7 @@ export function Combobox({
   id,
   className,
   maxListHeightPx = 240,
+  maxResults,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -63,11 +71,17 @@ export function Combobox({
 
   const selected = options.find((o) => o.id === value);
 
-  const filtered = useMemo(() => {
+  const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
     return options.filter((o) => o.label.toLowerCase().includes(q));
   }, [options, query]);
+
+  const filtered = useMemo(
+    () => (maxResults != null && matches.length > maxResults ? matches.slice(0, maxResults) : matches),
+    [matches, maxResults],
+  );
+  const truncated = matches.length - filtered.length;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -142,6 +156,14 @@ export function Combobox({
             })
           )}
         </div>
+        {truncated > 0 && (
+          // Outside the listbox: it is a status message, not an option, and a non-option child
+          // of role="listbox" is invalid. Saying how many are hidden turns "the list looks
+          // wrong" into "type a bit more".
+          <div role="status" className="border-t px-3 py-2 text-xs text-muted-foreground">
+            {truncated} more match{truncated === 1 ? "" : "es"} — refine your search
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

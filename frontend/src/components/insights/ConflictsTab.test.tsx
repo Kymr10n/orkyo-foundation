@@ -126,6 +126,19 @@ describe('ConflictsTab', () => {
       expect(screen.getByText('Size Mismatch')).toBeInTheDocument();
     });
 
+    it('labels a precedence breach in words rather than the raw kind token', () => {
+      mockRegistry(new Map([['req-1', [{
+        id: 'c1',
+        kind: 'dependency_violation',
+        severity: 'error',
+        message: "Starts before its predecessor 'Cut steel' finishes",
+      }]]]));
+      render(<ConflictsTab />, { wrapper: createWrapper() });
+
+      expect(screen.getByText('Dependency Violation')).toBeInTheDocument();
+      expect(screen.queryByText('dependency_violation')).not.toBeInTheDocument();
+    });
+
     it('should display scheduled time information', () => {
       render(<ConflictsTab />, { wrapper: createWrapper() });
       expect(screen.getAllByText(/Jan 28,/).length).toBeGreaterThan(0);
