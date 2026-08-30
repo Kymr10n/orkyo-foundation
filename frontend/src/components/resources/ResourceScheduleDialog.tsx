@@ -31,6 +31,10 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import type { TimeScale } from "@foundation/src/components/utilization/ScaleSelect";
 
+// The calendar has three views, not five: scaleToCalendarView collapses year onto the month grid
+// and hour onto the day grid, so offering those two would look like the picker did nothing.
+const CALENDAR_SCALES: readonly TimeScale[] = ["month", "week", "day"];
+
 // Same vocabulary and the same swatches the Utilization calendar uses, minus the request
 // statuses that no event here carries.
 const LEGEND = [
@@ -190,7 +194,7 @@ export function ResourceScheduleDialog({
             onToday={() => setAnchorTs(new Date())}
             compact
           />
-          <ScaleSelect value={scale} onChange={setScale} compact />
+          <ScaleSelect value={scale} onChange={setScale} scales={CALENDAR_SCALES} compact />
         </div>
         <div className="flex min-h-0 flex-1 flex-col border-t">
           <RequestCalendar

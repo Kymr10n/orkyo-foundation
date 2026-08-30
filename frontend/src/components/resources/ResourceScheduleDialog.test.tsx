@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ResourceScheduleDialog } from "./ResourceScheduleDialog";
 
@@ -168,6 +169,84 @@ describe("ResourceScheduleDialog", () => {
 
     const labels = (latest().legend as { label: string }[]).map((l) => l.label);
     expect(labels).toEqual(["Booked", "Absence", "Conflicts", "Warnings"]);
+  });
+
+  it("offers only the scales the calendar can actually render", async () => {
+    // scaleToCalendarView collapses year onto the month grid and hour onto the day grid, so
+    // offering those two would look like the picker did nothing.
+    renderDialog();
+    await waitFor(() => expect(screen.getByTestId("calendar")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("combobox"));
+
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Month", "Week", "Day"]);
+  });
+
+  it("asks what an empty slot is for rather than guessing", async () => {
+    renderDialog();
+    await waitFor(() => expect((latest().events as unknown[]).length).toBe(2));
+
+    (latest().onSlotSelect as (s: Date, e: Date) => void)(
+      new Date("2026-06-04T09:00:00Z"), new Date("2026-06-04T11:00:00Z"),
+    );
+
+    expect(await screen.findByRole("button", { name: /Assign a request/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Block time/ })).toBeInTheDocument();
+  });
+
+  it("opens the assignment picker for the selected slot", async () => {
+    renderDialog();
+    await waitFor(() => expect((latest().events as unknown[]).length).toBe(2));
+    (latest().onSlotSelect as (s: Date, e: Date) => void)(
+      new Date("2026-06-04T09:00:00Z"), new Date("2026-06-04T11:00:00Z"),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /Assign a request/ }));
+
+    expect(await screen.findByTestId("assign-dialog")).toBeInTheDocument();
+    // The chooser is a fork, not a step to come back to.
+    expect(screen.queryByRole("button", { name: /Block time/ })).not.toBeInTheDocument();
+  });
+
+  it("opens a blank absence form when the slot is blocked out", async () => {
+    renderDialog();
+    await waitFor(() => expect((latest().events as unknown[]).length).toBe(2));
+    (latest().onSlotSelect as (s: Date, e: Date) => void)(
+      new Date("2026-06-04T09:00:00Z"), new Date("2026-06-04T11:00:00Z"),
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /Block time/ }));
+
+    // "new", not an id: blocking time creates an absence rather than editing one.
+    expect(await screen.findByTestId("absence-dialog")).toHaveAttribute("data-absence-id", "new");
+  });
+
+  it("does not open the absence form when a booking is clicked", async () => {
+    // Clicking a booking is not editing an absence; only absences open that form.
+    renderDialog();
+    await waitFor(() => expect((latest().events as unknown[]).length).toBe(2));
+
+    (latest().onEventClick as (id: string) => void)("a1");
+
+    await waitFor(() => expect(screen.getByTestId("calendar")).toBeInTheDocument());
+    expect(screen.queryByTestId("absence-dialog")).not.toBeInTheDocument();
+  });
+
+  it("drops the slot when the chooser is dismissed", async () => {
+    renderDialog();
+    await waitFor(() => expect((latest().events as unknown[]).length).toBe(2));
+    (latest().onSlotSelect as (s: Date, e: Date) => void)(
+      new Date("2026-06-04T09:00:00Z"), new Date("2026-06-04T11:00:00Z"),
+    );
+    await screen.findByRole("button", { name: /Block time/ });
+
+    await userEvent.keyboard("{Escape}");
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Block time/ })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("assign-dialog")).not.toBeInTheDocument();
   });
 
   it("hides the request-status filter, which could only ever hide everything here", async () => {
