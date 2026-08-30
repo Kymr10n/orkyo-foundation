@@ -54,6 +54,13 @@ interface RequestCalendarProps {
   onSlotSelect: (start: Date, end: Date) => void;
   /** Fires on range change so the page can keep the store's anchor aligned. */
   onDatesSet: (activeStart: Date) => void;
+  /**
+   * Key shown above the grid. Defaults to the request statuses plus conflict/warning, which is
+   * what the Utilization page wants; a host charting other kinds passes its own.
+   */
+  legend?: readonly { className: string; label: string }[];
+  /** Hides the query/status/issue bar for hosts whose events carry no request status. */
+  showFilterBar?: boolean;
 }
 
 function LegendItem({ className, label }: { className: string; label: string }) {
@@ -77,6 +84,15 @@ function LegendItem({ className, label }: { className: string; label: string }) 
  * and `onDatesSet` reports the visible range's start back so the store's anchor
  * stays aligned when the calendar snaps to a period boundary.
  */
+const REQUEST_LEGEND: readonly { className: string; label: string }[] = [
+  ...REQUEST_STATUS_ORDER.map((status) => ({
+    className: STATUS_SWATCH[status],
+    label: formatStatusLabel(status),
+  })),
+  { className: SEVERITY_SWATCH.error, label: "Conflicts" },
+  { className: SEVERITY_SWATCH.warning, label: "Warnings" },
+];
+
 export function RequestCalendar({
   events,
   offTimeRanges,
@@ -90,6 +106,8 @@ export function RequestCalendar({
   onEventResize,
   onSlotSelect,
   onDatesSet,
+  legend = REQUEST_LEGEND,
+  showFilterBar = true,
 }: RequestCalendarProps) {
   const plugins = useMemo(() => [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin], []);
 
@@ -199,23 +217,19 @@ export function RequestCalendar({
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
         {!isPhone && (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {REQUEST_STATUS_ORDER.map((status) => (
-              <LegendItem
-                key={status}
-                className={STATUS_SWATCH[status]}
-                label={formatStatusLabel(status)}
-              />
+            {legend.map((item) => (
+              <LegendItem key={item.label} className={item.className} label={item.label} />
             ))}
-            <LegendItem className={SEVERITY_SWATCH.error} label="Conflicts" />
-            <LegendItem className={SEVERITY_SWATCH.warning} label="Warnings" />
           </div>
         )}
-        <ScheduleFilterBar
-          value={filter}
-          onChange={(patch) => setFilter((current) => ({ ...current, ...patch }))}
-          matchCount={visibleEvents.length}
-          totalCount={events.length}
-        />
+        {showFilterBar && (
+          <ScheduleFilterBar
+            value={filter}
+            onChange={(patch) => setFilter((current) => ({ ...current, ...patch }))}
+            matchCount={visibleEvents.length}
+            totalCount={events.length}
+          />
+        )}
       </div>
       <div className="flex-1 min-h-0">
       <FullCalendar

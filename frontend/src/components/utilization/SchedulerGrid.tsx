@@ -23,6 +23,7 @@ import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-
 import type { TimeScale } from "./ScaleSelect";
 import { groupRowsByResourceGroup, type TimeColumn } from "./scheduler-types";
 import { SpaceRow } from "./SpaceRow";
+import { ResourceScheduleDialog } from "@foundation/src/components/resources/ResourceScheduleDialog";
 import { NowLine } from "./NowLine";
 import { TimelineGridShell, type ShellGroup } from "./TimelineGridShell";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
@@ -240,6 +241,7 @@ export function SchedulerGrid({
   // Draggable time cursor + edge-scroll (Spaces-only). Rendered as bodyOverlay.
   // ---------------------------------------------------------------------------
   const timeColumnsRef = useRef<HTMLDivElement>(null);
+  const [scheduleFor, setScheduleFor] = useState<ResourceInfo | null>(null);
   const [isDraggingCursor, setIsDraggingCursor] = useState(false);
   const [edgeScrollDirection, setEdgeScrollDirection] = useState<'left' | 'right' | null>(null);
   const edgeScrollRef = useRef<number | null>(null);
@@ -456,6 +458,7 @@ export function SchedulerGrid({
         onRequestContextMenu={onRequestContextMenu}
         onRequestResize={onRequestResize}
         onEmptyCellClick={onEmptyCellClick}
+        onOpenSchedule={setScheduleFor}
         offTimeRanges={offTimeRanges}
         editable={editable}
       />
@@ -464,6 +467,7 @@ export function SchedulerGrid({
   );
 
   return (
+    <>
     <TimelineGridShell<ResourceInfo>
       labelHeader="Name"
       columns={columns}
@@ -478,5 +482,16 @@ export function SchedulerGrid({
       bodyOverlay={cursorOverlay}
       renderRow={renderRow}
     />
+
+    {scheduleFor && (
+      <ResourceScheduleDialog
+        open
+        onOpenChange={(open) => { if (!open) setScheduleFor(null); }}
+        resourceId={scheduleFor.id}
+        resourceName={scheduleFor.name}
+        allocationMode={scheduleFor.allocationMode}
+      />
+    )}
+    </>
   );
 }

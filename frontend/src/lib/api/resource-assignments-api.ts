@@ -168,6 +168,17 @@ export async function createAssignment(request: CreateResourceAssignmentRequest)
   return apiPost<ResourceAssignmentInfo>(API_PATHS.RESOURCE_ASSIGNMENTS, request);
 }
 
+/** One resource's assignments over a window, for its schedule calendar. */
+export async function getAssignmentsByResource(
+  resourceId: string,
+  from: Date,
+  to: Date,
+): Promise<ResourceAssignmentInfo[]> {
+  return apiGet<ResourceAssignmentInfo[]>(API_PATHS.resourceAssignments(resourceId), {
+    params: { from: from.toISOString(), to: to.toISOString() },
+  });
+}
+
 /**
  * Cancel (delete) a resource assignment
  */

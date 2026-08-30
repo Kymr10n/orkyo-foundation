@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { CalendarOff, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
+import { CalendarDays, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { ResourceEditDialog } from './ResourceEditDialog';
-import { ResourceAbsenceList } from './ResourceAbsenceList';
+import { ResourceScheduleDialog } from './ResourceScheduleDialog';
 import { ResourceCapabilitiesEditor } from './ResourceCapabilitiesEditor';
 import {
   deleteResource,
@@ -48,7 +48,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<ResourceInfo | null>(null);
   const [capabilitiesFor, setCapabilitiesFor] = useState<ResourceInfo | null>(null);
-  const [absencesFor, setAbsencesFor] = useState<ResourceInfo | null>(null);
+  const [scheduleFor, setScheduleFor] = useState<ResourceInfo | null>(null);
 
 
   const {
@@ -111,9 +111,9 @@ export function ResourceList({ resourceType }: ResourceListProps) {
           disabled: !canEdit,
         },
         {
-          label: 'Manage Absences',
-          icon: CalendarOff,
-          onSelect: () => setAbsencesFor(r),
+          label: 'Manage Schedule',
+          icon: CalendarDays,
+          onSelect: () => setScheduleFor(r),
           disabled: !canEdit,
         },
         {
@@ -256,12 +256,13 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         />
       )}
 
-      {absencesFor && (
-        <ResourceAbsenceList
-          open={!!absencesFor}
-          onOpenChange={(open) => !open && setAbsencesFor(null)}
-          resourceId={absencesFor.id}
-          resourceName={absencesFor.name}
+      {scheduleFor && (
+        <ResourceScheduleDialog
+          open={!!scheduleFor}
+          onOpenChange={(open) => !open && setScheduleFor(null)}
+          resourceId={scheduleFor.id}
+          resourceName={scheduleFor.name}
+          allocationMode={scheduleFor.allocationMode}
         />
       )}
 

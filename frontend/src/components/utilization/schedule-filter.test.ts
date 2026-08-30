@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { REQUEST_STATUS_ORDER } from '@foundation/src/constants/request-status';
-import { ISSUE_FILTER, ISSUE_FILTER_ORDER, filterCalendarEvents } from './schedule-filter';
+import {
+  ISSUE_FILTER,
+  ISSUE_FILTER_ORDER,
+  filterCalendarEvents,
+  matchesScheduleFilter,
+} from './schedule-filter';
 import type { CalendarEvent } from './request-calendar-events';
 import type { RequestStatus } from '@foundation/src/types/requests';
 import type { ConflictSeverity } from './request-calendar-events';
@@ -17,7 +22,7 @@ function event(
     end: '2026-08-17T10:00:00Z',
     classNames: [],
     editable: true,
-    extendedProps: { requestId: title, status, conflictSeverity },
+    extendedProps: { kind: "request" as const, requestId: title, status, conflictSeverity },
   };
 }
 
@@ -89,5 +94,16 @@ describe('filterCalendarEvents', () => {
 
   it('can legitimately match nothing when the query matches nothing', () => {
     expect(filterCalendarEvents(EVENTS, { ...ALL, query: 'nothing here' })).toHaveLength(0);
+  });
+
+  it('does not hide an item that carries no status', () => {
+    // Absences and bookings have no request status. The real toolbar sends every status by
+    // default, so treating "no status" as "no match" emptied the resource schedule calendar.
+    expect(
+      matchesScheduleFilter(
+        { name: 'Annual service', status: undefined, issue: ISSUE_FILTER.NONE },
+        { query: '', statuses: REQUEST_STATUS_ORDER, issues: ISSUE_FILTER_ORDER },
+      ),
+    ).toBe(true);
   });
 });

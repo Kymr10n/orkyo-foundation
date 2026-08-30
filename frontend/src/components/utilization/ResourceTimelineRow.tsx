@@ -33,6 +33,7 @@ export const ResourceTimelineRow = React.memo(function ResourceTimelineRow({
   assignments = [],
   conflictedAssignmentIds = EMPTY_SET,
   onSegmentClick,
+  onOpenSchedule,
 }: {
   resource: ResourceInfo;
   /** Line under the name: a job title for people, the description for other types. */
@@ -48,6 +49,8 @@ export const ResourceTimelineRow = React.memo(function ResourceTimelineRow({
   /** Assignment IDs that have a capability mismatch — drives the warning badge. */
   conflictedAssignmentIds?: ReadonlySet<string>;
   onSegmentClick: (resource: ResourceInfo, segment: ResourceUtilizationSegment) => void;
+  /** Opens this resource's own schedule calendar from the label cell. */
+  onOpenSchedule?: (resource: ResourceInfo) => void;
 }) {
   // Parse assignment bounds once per assignment-set change, then compute each
   // segment's overlap count + conflict flag in a single pass. Previously both
@@ -88,16 +91,36 @@ export const ResourceTimelineRow = React.memo(function ResourceTimelineRow({
       ? "text-foreground"
       : "text-muted-foreground";
 
+  const nameBlock = (
+    <>
+      <div className="font-medium text-sm truncate" title={resource.name}>
+        {resource.name}
+      </div>
+      <div className="text-xs text-muted-foreground truncate" title={secondaryLabel ?? ""}>
+        {secondaryLabel ?? " "}
+      </div>
+    </>
+  );
+
   const label = (
     <>
-      <div className="min-w-0 flex-1">
-        <div className="font-medium text-sm truncate" title={resource.name}>
-          {resource.name}
-        </div>
-        <div className="text-xs text-muted-foreground truncate" title={secondaryLabel ?? ""}>
-          {secondaryLabel ?? " "}
-        </div>
-      </div>
+      {onOpenSchedule ? (
+        <button
+          type="button"
+          // The segments are a read-only aggregate; the label is the resource itself, so it
+          // opens that resource's own calendar.
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenSchedule(resource);
+          }}
+          className="min-w-0 flex-1 text-left hover:underline focus-visible:underline focus-visible:outline-hidden"
+          aria-label={`Open the schedule for ${resource.name}`}
+        >
+          {nameBlock}
+        </button>
+      ) : (
+        <div className="min-w-0 flex-1">{nameBlock}</div>
+      )}
       <span
         className={`text-xs font-semibold tabular-nums shrink-0 ${overallClass}`}
         title={`Overall utilization: ${overallPct}%`}

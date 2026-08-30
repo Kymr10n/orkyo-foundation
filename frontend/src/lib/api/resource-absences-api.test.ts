@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   getResourceAbsences,
   createResourceAbsence,
+  updateResourceAbsence,
   deleteResourceAbsence,
 } from './resource-absences-api';
 import * as apiClient from '../core/api-client';
@@ -44,5 +45,23 @@ describe('resource-absences-api', () => {
       await deleteResourceAbsence('res-1', 'abs-1');
       expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.resourceAbsence('res-1', 'abs-1'));
     });
+  });
+
+  it('updates an absence through the resource-scoped path', async () => {
+    vi.mocked(apiClient.apiPut).mockResolvedValue(mockAbsence);
+
+    const result = await updateResourceAbsence('res-1', 'abs-1', {
+      absenceType: 'maintenance',
+      title: 'Annual service',
+      startTs: '2026-07-02T08:00:00Z',
+      endTs: '2026-07-02T12:00:00Z',
+      enabled: true,
+    });
+
+    expect(apiClient.apiPut).toHaveBeenCalledWith(
+      API_PATHS.resourceAbsence('res-1', 'abs-1'),
+      expect.objectContaining({ absenceType: 'maintenance', title: 'Annual service' }),
+    );
+    expect(result).toEqual(mockAbsence);
   });
 });

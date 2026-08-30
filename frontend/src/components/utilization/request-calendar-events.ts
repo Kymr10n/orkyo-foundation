@@ -11,6 +11,13 @@ import type { Conflict, Request, RequestStatus } from "@foundation/src/types/req
  */
 export type ConflictSeverity = "error" | "warning" | null;
 
+/**
+ * What a block on the calendar stands for. The grid itself is indifferent — it reads only the id
+ * and the conflict severity — but a host that mixes kinds needs to know which mutation a drag
+ * belongs to, and a request-only host keeps behaving exactly as before.
+ */
+export type CalendarEventKind = "request" | "absence" | "assignment";
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -20,8 +27,11 @@ export interface CalendarEvent {
   classNames: string[];
   editable: boolean;
   extendedProps: {
-    requestId: string;
-    status: RequestStatus;
+    kind: CalendarEventKind;
+    /** Present on request and assignment events; absences belong to no request. */
+    requestId?: string;
+    /** Request status. Absences and assignments carry none. */
+    status?: RequestStatus;
     conflictSeverity: ConflictSeverity;
   };
 }
@@ -114,6 +124,37 @@ export function getEventClassNames(
 }
 
 /**
+ * Palette for the kinds that are not requests, in the same shape as {@link STATUS_SWATCH} so the
+ * legend can read from one place. A booking borrows the "new" blue — it is scheduled work seen
+ * from the resource's side — and an absence takes the neutral slate that already means
+ * "not available" on the grids.
+ */
+export const KIND_SWATCH: Record<"assignment" | "absence", string> = {
+  assignment: "bg-blue-500/15 dark:bg-blue-500/25 border-blue-500/40",
+  absence: "bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40",
+};
+
+const KIND_EVENT_CLASS: Record<"assignment" | "absence", string[]> = {
+  assignment: ["bg-blue-500/15!", "dark:bg-blue-500/25!", "border-blue-500/40!", "text-foreground!"],
+  absence: ["bg-slate-500/15!", "dark:bg-slate-500/25!", "border-slate-400/40!", "text-muted-foreground!"],
+};
+
+/**
+ * Event colour for a booking or an absence, on the same rules requests follow: the shared
+ * `orkyo-cal-event` base (which owns the padding, radius and type scale that make the label
+ * legible) and the same conflict-severity override.
+ */
+export function getKindEventClassNames(
+  kind: "assignment" | "absence",
+  severity: ConflictSeverity,
+): string[] {
+  if (severity) {
+    return ["orkyo-cal-event", ...SEVERITY_EVENT_CLASS[severity]];
+  }
+  return ["orkyo-cal-event", ...KIND_EVENT_CLASS[kind]];
+}
+
+/**
  * Map one scheduled request to a calendar event. Returns `null` for unscheduled
  * requests (no start/end) — the calendar only shows scheduled work.
  */
@@ -133,6 +174,7 @@ export function mapRequestToCalendarEvent(
     // Cancelled requests are shown for context but not draggable/resizable.
     editable: editable && request.status !== "cancelled",
     extendedProps: {
+      kind: "request",
       requestId: request.id,
       status: request.status,
       conflictSeverity: severity,

@@ -54,6 +54,20 @@ describe('ResourceTimelineRow', () => {
     expect(screen.getByText('60%')).toBeInTheDocument();
   });
 
+  it('opens this resource\'s schedule from the label', () => {
+    const onOpenSchedule = vi.fn();
+    renderRow({ onOpenSchedule });
+
+    fireEvent.click(screen.getByRole('button', { name: /Open the schedule for Alice Smith/ }));
+
+    expect(onOpenSchedule).toHaveBeenCalledWith(resource);
+  });
+
+  it('leaves the label inert when no schedule handler is given', () => {
+    renderRow();
+    expect(screen.queryByRole('button', { name: /Open the schedule/ })).not.toBeInTheDocument();
+  });
+
   it('renders one bar per visible segment', () => {
     renderRow();
     expect(screen.getAllByTestId('resource-segment-bar')).toHaveLength(2);

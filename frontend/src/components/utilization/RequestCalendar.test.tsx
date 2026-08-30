@@ -46,7 +46,7 @@ const event: CalendarEvent = {
   end: "2026-04-17T11:00:00Z",
   classNames: ["orkyo-cal-event"],
   editable: true,
-  extendedProps: { requestId: "r1", status: "new", conflictSeverity: null },
+  extendedProps: { kind: "request" as const, requestId: "r1", status: "new", conflictSeverity: null },
 };
 
 function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCalendar>> = {}) {
@@ -258,7 +258,7 @@ describe("RequestCalendar", () => {
       ...event,
       id: "r2",
       title: "Finish weld",
-      extendedProps: { requestId: "r2", status: "done", conflictSeverity: "error" },
+      extendedProps: { kind: "request" as const, requestId: "r2", status: "done", conflictSeverity: "error" },
     };
 
     it("narrows the events FullCalendar receives to the search", async () => {

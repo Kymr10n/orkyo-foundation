@@ -3,6 +3,7 @@ import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import type { Conflict } from '@foundation/src/types/requests';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
+import userEvent from '@testing-library/user-event';
 import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
 import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/ScheduledRequestOverlay';
 import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
@@ -20,6 +21,12 @@ const appStoreMock = vi.hoisted(() => ({
 }));
 
 // Mock the store
+vi.mock('@foundation/src/components/resources/ResourceScheduleDialog', () => ({
+  ResourceScheduleDialog: ({ resourceId }: { resourceId: string }) => (
+    <div data-testid="resource-schedule" data-resource-id={resourceId} />
+  ),
+}));
+
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector) => {
     const mockState = {
@@ -185,6 +192,33 @@ describe('SchedulerGrid', () => {
 
     await flushQueries();
     expect(screen.getByText('Room A101')).toBeInTheDocument();
+  });
+
+  it("opens a space's own schedule from its row label", async () => {
+    const Wrapper = createWrapper();
+
+    render(
+      <Wrapper>
+        <SchedulerGrid
+          spaces={mockSpaces}
+          requests={mockRequests}
+          scale="month"
+          anchorTs={new Date('2024-01-15')}
+          timeCursorTs={new Date()}
+          nowMs={Date.now()}
+          onRequestClick={vi.fn()}
+          onTimeCursorClick={vi.fn()}
+        />
+      </Wrapper>,
+    );
+    await flushQueries();
+
+    await userEvent.click(screen.getByRole('button', { name: /Open the schedule for A101/ }));
+
+    expect(await screen.findByTestId('resource-schedule')).toHaveAttribute(
+      'data-resource-id',
+      mockSpaces[0].id,
+    );
   });
 
   it('renders memoized SpaceRow components', async () => {

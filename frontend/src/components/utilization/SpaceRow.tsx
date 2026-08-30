@@ -28,6 +28,7 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestContextMenu,
   onRequestResize,
   onEmptyCellClick,
+  onOpenSchedule,
   offTimeRanges = [],
   editable = true,
 }: {
@@ -44,6 +45,8 @@ export const SpaceRow = React.memo(function SpaceRow({
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;
   /** Click/keyboard on an empty cell (schedule-to-slot chooser). */
   onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
+  /** Opens this resource's own schedule calendar from the label cell. */
+  onOpenSchedule?: (space: ResourceInfo) => void;
   offTimeRanges?: readonly OffTimeRange[];
   /** Drag/resize bars (desktop/tablet). Phone is tap-to-open only. */
   editable?: boolean;
@@ -115,10 +118,27 @@ export const SpaceRow = React.memo(function SpaceRow({
       sortableData={{ type: "space-row" }}
       minHeight={rowHeight}
       label={
-        <div className="min-w-0 flex-1">
-          <div className="font-medium text-sm truncate">{space.code}</div>
-          <div className="text-xs text-muted-foreground truncate">{space.name}</div>
-        </div>
+        onOpenSchedule ? (
+          <button
+            type="button"
+            // The row is a drop target and its cells schedule work; the label is the one part
+            // that belongs to the resource itself, so it opens that resource's own calendar.
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenSchedule(space);
+            }}
+            className="min-w-0 flex-1 text-left hover:underline focus-visible:underline focus-visible:outline-hidden"
+            aria-label={`Open the schedule for ${space.code || space.name}`}
+          >
+            <div className="font-medium text-sm truncate">{space.code}</div>
+            <div className="text-xs text-muted-foreground truncate">{space.name}</div>
+          </button>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <div className="font-medium text-sm truncate">{space.code}</div>
+            <div className="text-xs text-muted-foreground truncate">{space.name}</div>
+          </div>
+        )
       }
       isOffTime={isCellOffTime}
       trackRef={setTrackRef}

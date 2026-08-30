@@ -27,6 +27,7 @@ import {
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { ResourceTimelineRow } from './ResourceTimelineRow';
+import { ResourceScheduleDialog } from '@foundation/src/components/resources/ResourceScheduleDialog';
 import { ResourceAssignmentDialog } from './ResourceAssignmentDialog';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
 import {
@@ -123,6 +124,7 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   // the (heavier) row regrouping trails by a render.
   const deferredFilter = useDeferredValue(filter);
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
+  const [scheduleFor, setScheduleFor] = useState<ResourceInfo | null>(null);
 
   const columns = useMemo(
     () => enrichColumnsWithOffTime(generateTimeColumns(scale, anchorTs, weekendsEnabled), offTimeRanges),
@@ -417,6 +419,7 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
               assignments={assignments}
               conflictedAssignmentIds={conflictedAssignmentIds}
               onSegmentClick={handleSegmentClick}
+              onOpenSchedule={setScheduleFor}
             />
           );
         }}
@@ -431,6 +434,16 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
           allocationMode={dialogState.allocationMode}
           start={dialogState.start}
           end={dialogState.end}
+        />
+      )}
+
+      {scheduleFor && (
+        <ResourceScheduleDialog
+          open
+          onOpenChange={(open) => { if (!open) setScheduleFor(null); }}
+          resourceId={scheduleFor.id}
+          resourceName={scheduleFor.name}
+          allocationMode={scheduleFor.allocationMode}
         />
       )}
     </>

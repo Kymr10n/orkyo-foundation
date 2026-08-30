@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { createResourceAbsence, type AbsenceType } from '@foundation/src/lib/api/resource-absences-api';
+import {
+  createResourceAbsence,
+  updateResourceAbsence,
+  type AbsenceType,
+  type ResourceAbsenceInfo,
+} from '@foundation/src/lib/api/resource-absences-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Button } from '@foundation/src/components/ui/button'; // date-picker popover triggers
@@ -16,6 +21,8 @@ import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 interface PersonAbsenceEditDialogProps {
   resourceId: string;
   isOpen: boolean;
+  /** Omit to record a new absence; pass one to edit it. */
+  absence?: ResourceAbsenceInfo;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -29,23 +36,34 @@ const absenceTypes: { value: AbsenceType; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
-export function ResourceAbsenceEditDialog({ resourceId, isOpen, onClose, onSaved }: PersonAbsenceEditDialogProps) {
-  const [absenceType, setAbsenceType] = useState<AbsenceType>('vacation');
-  const [title, setTitle] = useState('');
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
+export function ResourceAbsenceEditDialog({ resourceId, isOpen, absence, onClose, onSaved }: PersonAbsenceEditDialogProps) {
+  const [absenceType, setAbsenceType] = useState<AbsenceType>(absence?.absenceType ?? 'vacation');
+  const [title, setTitle] = useState(absence?.title ?? '');
+  const [startDate, setStartDate] = useState<Date | undefined>(
+    absence ? new Date(absence.startTs) : undefined,
+  );
+  const [endDate, setEndDate] = useState<Date | undefined>(
+    absence ? new Date(absence.endTs) : undefined,
+  );
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      createResourceAbsence(resourceId, {
+    mutationFn: () => {
+      // The times of day are preserved from the existing absence: this form edits dates, and a
+      // drag on the schedule calendar is what sets times. Dropping them here would quietly
+      // widen an absence to midnight-to-midnight on every save.
+      const payload = {
         absenceType,
         title: title || absenceType,
         startTs: startDate!.toISOString(),
         endTs: endDate!.toISOString(),
-      }),
+      };
+      return absence
+        ? updateResourceAbsence(resourceId, absence.id, { ...payload, notes: absence.notes, enabled: absence.enabled })
+        : createResourceAbsence(resourceId, payload);
+    },
     meta: {
-      successMessage: 'Absence added',
-      errorMessage: 'Failed to add absence',
+      successMessage: absence ? 'Absence updated' : 'Absence added',
+      errorMessage: absence ? 'Failed to update absence' : 'Failed to add absence',
       invalidates: [qk.resources.absences(resourceId)],
     },
     onSuccess: () => {
@@ -66,7 +84,7 @@ export function ResourceAbsenceEditDialog({ resourceId, isOpen, onClose, onSaved
     <FormDialog
       open={isOpen}
       onOpenChange={(o) => { if (!o) onClose(); }}
-      title="Add Absence"
+      title={absence ? 'Edit Absence' : 'Add Absence'}
       onSubmit={handleSubmit}
       isSubmitting={saveMutation.isPending}
       submitLabel="Save"

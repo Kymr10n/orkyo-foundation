@@ -24,6 +24,7 @@ import {
   validateAssignment,
   validateAssignmentsBatch,
   createAssignment,
+  getAssignmentsByResource,
   cancelAssignment,
 } from './resource-assignments-api';
 
@@ -132,5 +133,19 @@ describe('mutations', () => {
   it('cancels an assignment via DELETE', async () => {
     await cancelAssignment('asg-1');
     expect(apiMocks.apiDelete).toHaveBeenCalledWith(expect.stringContaining('asg-1'));
+  });
+
+
+  it('reads one resource window with an explicit from/to', async () => {
+    apiMocks.apiGet.mockResolvedValue([]);
+    const from = new Date('2026-06-01T00:00:00Z');
+    const to = new Date('2026-06-08T00:00:00Z');
+
+    await getAssignmentsByResource('res-1', from, to);
+
+    expect(apiMocks.apiGet).toHaveBeenCalledWith(
+      expect.stringContaining('res-1'),
+      { params: { from: from.toISOString(), to: to.toISOString() } },
+    );
   });
 });

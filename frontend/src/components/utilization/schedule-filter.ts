@@ -26,7 +26,8 @@ export interface ScheduleFilter {
 /** The three things a filter judges, whatever surface the thing is drawn on. */
 export interface FilterableSchedulable {
   name: string;
-  status: RequestStatus;
+  /** Absences and assignments have no request status; a status filter cannot match them. */
+  status: RequestStatus | undefined;
   issue: IssueFilter;
 }
 
@@ -44,7 +45,10 @@ export function matchesScheduleFilter(
   const needle = query.trim().toLowerCase();
 
   if (needle && !name.toLowerCase().includes(needle)) return false;
-  if (statuses.length > 0 && !statuses.includes(status)) return false;
+  // A status filter constrains things that have a status. An absence or a booking is not a
+  // request, so it is not what this filter describes — excluding it would empty the view of
+  // everything the caller came to see.
+  if (statuses.length > 0 && status !== undefined && !statuses.includes(status)) return false;
   if (issues.length > 0 && !issues.includes(issue)) return false;
 
   return true;

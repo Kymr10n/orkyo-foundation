@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { Request } from '@foundation/src/types/requests';
 import type { TimeColumn } from './scheduler-types';
@@ -126,6 +126,7 @@ function renderRow({
   columns,
   onRequestClick = vi.fn(),
   onEmptyCellClick,
+  onOpenSchedule,
   editable,
 }: {
   spaceRequests?: Request[];
@@ -136,6 +137,7 @@ function renderRow({
   columns?: TimeColumn[];
   onRequestClick?: (id: string) => void;
   onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
+  onOpenSchedule?: (space: ResourceInfo) => void;
   editable?: boolean;
 } = {}) {
   mockUseSortable.mockReturnValue({
@@ -157,6 +159,7 @@ function renderRow({
       validation={emptyValidation}
       onRequestClick={onRequestClick}
       onEmptyCellClick={onEmptyCellClick}
+      onOpenSchedule={onOpenSchedule}
       offTimeRanges={offTimeRanges as never}
       {...(editable !== undefined ? { editable } : {})}
     />,
@@ -340,5 +343,31 @@ describe('SpaceRow', () => {
     expect(cells[0]).not.toHaveAttribute('role');
     fireEvent.click(cells[0]);
     expect(onEmptyCellClick).not.toHaveBeenCalled();
+  });
+
+  it('opens this space\'s schedule from the label', () => {
+    const onOpenSchedule = vi.fn();
+    renderRow({ onOpenSchedule });
+
+    fireEvent.click(screen.getByRole('button', { name: /Open the schedule for CRA/ }));
+
+    expect(onOpenSchedule).toHaveBeenCalledWith(baseSpace);
+  });
+
+  it('does not schedule work when the label is clicked', () => {
+    // The label sits inside a row whose cells schedule on click; the two must not both fire.
+    const onEmptyCellClick = vi.fn();
+    const onOpenSchedule = vi.fn();
+    renderRow({ onEmptyCellClick, onOpenSchedule });
+
+    fireEvent.click(screen.getByRole('button', { name: /Open the schedule for CRA/ }));
+
+    expect(onOpenSchedule).toHaveBeenCalled();
+    expect(onEmptyCellClick).not.toHaveBeenCalled();
+  });
+
+  it('leaves the label inert when no schedule handler is given', () => {
+    renderRow();
+    expect(screen.queryByRole('button', { name: /Open the schedule/ })).not.toBeInTheDocument();
   });
 });

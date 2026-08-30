@@ -49,9 +49,9 @@ vi.mock('./ResourceCapabilitiesEditor', () => ({
     ) : null,
 }));
 
-vi.mock('./ResourceAbsenceList', () => ({
-  ResourceAbsenceList: ({ open, resourceId }: { open: boolean; resourceId: string }) =>
-    open ? <div data-testid="absence-list" data-resource-id={resourceId} /> : null,
+vi.mock('./ResourceScheduleDialog', () => ({
+  ResourceScheduleDialog: ({ open, resourceId }: { open: boolean; resourceId: string }) =>
+    open ? <div data-testid="resource-schedule" data-resource-id={resourceId} /> : null,
 }));
 
 // Mutable so a case can decide what the resolver returns before rendering.
@@ -170,11 +170,14 @@ describe('ResourceList', () => {
     expect(editor).toHaveAttribute('data-type-key', 'car');
   });
 
-  it('opens the absence list for the chosen resource', async () => {
+  it('opens the schedule calendar for the chosen resource', async () => {
     renderList();
-    await chooseAction('Van 2', /Manage Absences/);
+    await chooseAction('Van 2', /Manage Schedule/);
 
-    expect(await screen.findByTestId('absence-list')).toHaveAttribute('data-resource-id', 'car-2');
+    expect(await screen.findByTestId('resource-schedule')).toHaveAttribute(
+      'data-resource-id',
+      'car-2',
+    );
   });
 
   it('opens the edit dialog for the chosen resource', async () => {
@@ -212,9 +215,9 @@ describe('ResourceList', () => {
     // The row opens the editor, so the actions cell must stop propagation — otherwise
     // choosing Deactivate would leave the edit dialog open behind the confirm.
     renderList();
-    await chooseAction('Van 1', /Manage Absences/);
+    await chooseAction('Van 1', /Manage Schedule/);
 
-    expect(await screen.findByTestId('absence-list')).toBeInTheDocument();
+    expect(await screen.findByTestId('resource-schedule')).toBeInTheDocument();
     expect(screen.queryByTestId('resource-edit-dialog')).not.toBeInTheDocument();
   });
 

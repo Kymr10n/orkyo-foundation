@@ -29,6 +29,12 @@ vi.mock('@foundation/src/lib/api/resource-candidate-requests-api', () => ({
   mismatchCount: vi.fn().mockReturnValue(0),
   matchesAllRequirements: vi.fn().mockReturnValue(true),
 }));
+vi.mock('@foundation/src/components/resources/ResourceScheduleDialog', () => ({
+  ResourceScheduleDialog: ({ resourceId }: { resourceId: string }) => (
+    <div data-testid="resource-schedule" data-resource-id={resourceId} />
+  ),
+}));
+
 vi.mock('@foundation/src/lib/api/resource-assignments-api', () => ({
   getAssignmentsByResourceType: vi.fn().mockResolvedValue([]),
   validateAssignmentsBatch: vi.fn().mockResolvedValue([]),
@@ -479,6 +485,21 @@ describe('ResourceUtilizationGrid', () => {
   });
 
   // ── Dialog lifecycle ─────────────────────────────────────────────────────────
+
+  it("opens a resource's own schedule from its row label", async () => {
+    renderGrid();
+    await waitFor(() => screen.getByText('Alice Smith'));
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /Open the schedule for Alice Smith/ }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId('resource-schedule')).toBeInTheDocument(),
+    );
+    // The label opens the calendar, not the segment's assignment dialog.
+    expect(screen.queryByTestId('person-assignment-dialog')).not.toBeInTheDocument();
+  });
 
   it('closes the resource assignment dialog on dismiss', async () => {
     renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
