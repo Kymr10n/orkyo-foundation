@@ -588,4 +588,114 @@ public class RequestRepositoryTests
         Assert.Contains(updated.Assignments, a => a.ResourceId == toolId);
     }
 
+    // ── #159: a rescheduled request takes all its bookings with it ─────────────
+
+    /// <summary>Schedules a request onto a space and attaches a person for the same window.</summary>
+    private async Task<(Guid RequestId, Guid SpaceId, Guid PersonId)> CreateMultiResourceRequestAsync(
+        DateTime start, DateTime end)
+    {
+        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var personId = await CreatePersonResourceAsync();
+        var requestId = await CreateUnscheduledRequestAsync();
+
+        (await _client.PatchAsJsonAsync($"/api/requests/{requestId}/schedule",
+            new ScheduleRequestRequest { ResourceId = spaceId, StartTs = start, EndTs = end }))
+            .EnsureSuccessStatusCode();
+
+        (await _client.PostAsJsonAsync("/api/resource-assignments", new CreateResourceAssignmentRequest
+        {
+            ResourceId = personId,
+            RequestId = requestId,
+            StartUtc = start,
+            EndUtc = end,
+            AllocationPercent = 100,
+        })).EnsureSuccessStatusCode();
+
+        return (requestId, spaceId, personId);
+    }
+
+    [Fact]
+    public async Task Reschedule_MovesEveryBooking_NotOnlyTheIncomingType()
+    {
+        // The reported bug: only the space's assignment followed the move, leaving the person
+        // booked at a time the work no longer happened — still occupying them for availability,
+        // conflicts and utilization.
+        var start = new DateTime(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc);
+        var (requestId, spaceId, personId) = await CreateMultiResourceRequestAsync(start, start.AddHours(4));
+
+        var moved = new DateTime(2026, 6, 3, 13, 0, 0, DateTimeKind.Utc);
+        (await _client.PatchAsJsonAsync($"/api/requests/{requestId}/schedule",
+            new ScheduleRequestRequest { ResourceId = spaceId, StartTs = moved, EndTs = moved.AddHours(4) }))
+            .EnsureSuccessStatusCode();
+
+        var result = await GetRequestAsync(requestId);
+
+        Assert.Equal(2, result.Assignments.Count);
+        // Normalized: the API round-trips these with a local offset, so the same instant comes
+        // back with a different Kind.
+        Assert.All(result.Assignments, a =>
+        {
+            Assert.Equal(moved, a.StartUtc.ToUniversalTime());
+            Assert.Equal(moved.AddHours(4), a.EndUtc.ToUniversalTime());
+        });
+        // Both resources are still booked — moving is not cancelling.
+        Assert.Contains(result.Assignments, a => a.ResourceId == spaceId);
+        Assert.Contains(result.Assignments, a => a.ResourceId == personId);
+    }
+
+    [Fact]
+    public async Task Reschedule_MovesAnAdHocAttachment_NotJustTargetedTypes()
+    {
+        // The person is attached through POST /api/resource-assignments, so their type is not a
+        // request target. They are still booked for this work, so they still move.
+        var start = new DateTime(2026, 6, 8, 9, 0, 0, DateTimeKind.Utc);
+        var (requestId, spaceId, personId) = await CreateMultiResourceRequestAsync(start, start.AddHours(2));
+
+        var moved = start.AddDays(2);
+        (await _client.PatchAsJsonAsync($"/api/requests/{requestId}/schedule",
+            new ScheduleRequestRequest { ResourceId = spaceId, StartTs = moved, EndTs = moved.AddHours(2) }))
+            .EnsureSuccessStatusCode();
+
+        var person = (await GetRequestAsync(requestId)).Assignments.Single(a => a.ResourceId == personId);
+        Assert.Equal(moved, person.StartUtc.ToUniversalTime());
+    }
+
+    [Fact]
+    public async Task EditingOnlyTheTime_MovesTheBookings()
+    {
+        // PUT names no resource, so the resource-writing branch never runs. Before the fix that
+        // left every assignment behind, including the space's.
+        var start = new DateTime(2026, 6, 15, 9, 0, 0, DateTimeKind.Utc);
+        var (requestId, _, _) = await CreateMultiResourceRequestAsync(start, start.AddHours(3));
+
+        var moved = start.AddDays(1);
+        (await _client.PutAsJsonAsync($"/api/requests/{requestId}",
+            new UpdateRequestRequest { StartTs = moved, EndTs = moved.AddHours(3) }))
+            .EnsureSuccessStatusCode();
+
+        var result = await GetRequestAsync(requestId);
+        Assert.Equal(2, result.Assignments.Count);
+        Assert.All(result.Assignments, a => Assert.Equal(moved, a.StartUtc.ToUniversalTime()));
+    }
+
+    [Fact]
+    public async Task Reschedule_ReplacingOneType_StillCancelsOnlyThatTypesHolder()
+    {
+        // The fix must not turn "move everything" into "keep everything": swapping the space
+        // still retires the previous space, and still leaves the person alone.
+        var start = new DateTime(2026, 6, 22, 9, 0, 0, DateTimeKind.Utc);
+        var (requestId, firstSpaceId, personId) = await CreateMultiResourceRequestAsync(start, start.AddHours(2));
+
+        var secondSpaceId = await TestHelpers.CreateUniqueTestSpace(_client);
+
+        (await _client.PatchAsJsonAsync($"/api/requests/{requestId}/schedule",
+            new ScheduleRequestRequest { ResourceId = secondSpaceId, StartTs = start, EndTs = start.AddHours(2) }))
+            .EnsureSuccessStatusCode();
+
+        var result = await GetRequestAsync(requestId);
+        Assert.Equal(2, result.Assignments.Count);
+        Assert.Contains(result.Assignments, a => a.ResourceId == secondSpaceId);
+        Assert.DoesNotContain(result.Assignments, a => a.ResourceId == firstSpaceId);
+        Assert.Contains(result.Assignments, a => a.ResourceId == personId);
+    }
 }

@@ -632,6 +632,14 @@ public class RequestRepository : IRequestRepository
                 db, transaction, id, updatedResources, finalStartTs.Value, finalEndTs.Value, ct);
         }
 
+        // An edit that changes only the time names no resource, so the branch above does not run
+        // and every booking would keep the old window — including the placeable one (#159).
+        if (finalStartTs.HasValue && finalEndTs.HasValue)
+        {
+            await SyncAssignmentWindowsAsync(
+                db, transaction, id, finalStartTs.Value, finalEndTs.Value, ct);
+        }
+
         // Replace requirements wholesale if the caller supplied a (possibly empty) list.
         if (request.Requirements != null)
         {
@@ -727,6 +735,9 @@ public class RequestRepository : IRequestRepository
         {
             await CancelSameTypeAssignmentAsync(db, tx, updatedId.Value, request.ResourceId.Value, ct);
             await WriteResourceAssignmentAsync(db, tx, updatedId.Value, request.ResourceId.Value, request.StartTs.Value, request.EndTs.Value, ct);
+            // The write above only covers the slot being replaced; the request's other bookings
+            // have to follow it onto the new window (#159).
+            await SyncAssignmentWindowsAsync(db, tx, updatedId.Value, request.StartTs.Value, request.EndTs.Value, ct);
         }
         else
         {
@@ -793,6 +804,17 @@ public class RequestRepository : IRequestRepository
             write.Parameters.AddWithValue("startUtc", request.StartTs.Value);
             write.Parameters.AddWithValue("endUtc", request.EndTs.Value);
             batch.BatchCommands.Add(write);
+
+            // The auto-scheduler solves one resource type at a time, so a multi-type request
+            // arrives here with only that type's resource named. Its other bookings still have
+            // to follow the new window (#159). Deliberately not added to requestUpdateCommands:
+            // only the request UPDATEs count toward the returned total.
+            var sync = new NpgsqlBatchCommand(SyncAssignmentWindowsSql);
+            sync.Parameters.AddWithValue("requestId", id);
+            sync.Parameters.AddWithValue("startUtc", request.StartTs.Value);
+            sync.Parameters.AddWithValue("endUtc", request.EndTs.Value);
+            sync.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            batch.BatchCommands.Add(sync);
         }
 
         await batch.ExecuteNonQueryAsync(ct);
@@ -856,6 +878,19 @@ public class RequestRepository : IRequestRepository
     }
 
     // ── Resource assignment helpers ───────────────────────────────────────────
+
+    // Every resource booked for a request is booked for *the request's* window, so when that
+    // window moves they all move with it. Cancel-then-write only ever rewrites the type slot
+    // being replaced, which left the other types — and any person attached on the request's own
+    // tab — sitting on the old time, still occupying the resource for availability, conflicts
+    // and utilization (issue #159). Not scoped by type or by target: that scoping is the bug.
+    // The inequality guard keeps updated_at honest — an already-correct row is not touched.
+    private const string SyncAssignmentWindowsSql = @"
+            UPDATE resource_assignments
+               SET start_utc = @startUtc, end_utc = @endUtc, updated_at = NOW()
+             WHERE request_id = @requestId
+               AND assignment_status != @cancelled
+               AND (start_utc <> @startUtc OR end_utc <> @endUtc)";
 
     // The ON CONFLICT predicate MUST stay byte-identical to the migration's partial unique
     // index predicate (uq_resource_assignments_active). AssignmentStatuses.Cancelled == 'Cancelled',
@@ -963,6 +998,23 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("startUtc", startUtc);
         cmd.Parameters.AddWithValue("endUtc", endUtc);
+        await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
+    /// Moves every live booking on a request onto the request's own window. Called wherever the
+    /// request's schedule changes, so a resource is never left booked for a time the work no
+    /// longer happens.
+    /// </summary>
+    private static async Task SyncAssignmentWindowsAsync(
+        NpgsqlConnection conn, NpgsqlTransaction? tx, Guid requestId,
+        DateTime startUtc, DateTime endUtc, CancellationToken ct = default)
+    {
+        await using var cmd = new NpgsqlCommand(SyncAssignmentWindowsSql, conn, tx);
+        cmd.Parameters.AddWithValue("requestId", requestId);
+        cmd.Parameters.AddWithValue("startUtc", startUtc);
+        cmd.Parameters.AddWithValue("endUtc", endUtc);
+        cmd.Parameters.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
