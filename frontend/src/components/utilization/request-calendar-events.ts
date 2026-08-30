@@ -129,12 +129,15 @@ export function getEventClassNames(
  * from the resource's side — and an absence takes the neutral slate that already means
  * "not available" on the grids.
  */
-export const KIND_SWATCH: Record<"assignment" | "absence", string> = {
+/** Everything the calendar can show that is not a request. */
+type NonRequestKind = Exclude<CalendarEventKind, "request">;
+
+export const KIND_SWATCH: Record<NonRequestKind, string> = {
   assignment: "bg-blue-500/15 dark:bg-blue-500/25 border-blue-500/40",
   absence: "bg-slate-500/15 dark:bg-slate-500/25 border-slate-400/40",
 };
 
-const KIND_EVENT_CLASS: Record<"assignment" | "absence", string[]> = {
+const KIND_EVENT_CLASS: Record<NonRequestKind, string[]> = {
   assignment: ["bg-blue-500/15!", "dark:bg-blue-500/25!", "border-blue-500/40!", "text-foreground!"],
   absence: ["bg-slate-500/15!", "dark:bg-slate-500/25!", "border-slate-400/40!", "text-muted-foreground!"],
 };
@@ -145,7 +148,7 @@ const KIND_EVENT_CLASS: Record<"assignment" | "absence", string[]> = {
  * legible) and the same conflict-severity override.
  */
 export function getKindEventClassNames(
-  kind: "assignment" | "absence",
+  kind: NonRequestKind,
   severity: ConflictSeverity,
 ): string[] {
   if (severity) {
