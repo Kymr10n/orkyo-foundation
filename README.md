@@ -6,7 +6,7 @@
 </p>
 
 <h3 align="center">Orkyo Foundation</h3>
-<p align="center">The shared domain layer for Orkyo — consumed by both <a href="https://github.com/Kymr10n/orkyo-community">orkyo-community</a> (single-org) and orkyo-saas (multi-tenant).</p>
+<p align="center">The shared domain layer for Orkyo — consumed by both <a href="https://github.com/Kymr10n/orkyo-community">orkyo-community</a> (single-org) and orkyo-saas (multi-tenant).<br><strong>Looking to run Orkyo?</strong> This repository is a library with no runtime wiring — self-host from <a href="https://github.com/Kymr10n/orkyo-community">orkyo-community</a>, or try the <a href="https://orkyo.com/api/auth/bff/demo-login">live demo</a>.<br>Discussions for <em>both</em> editions live here.</p>
 
 <p align="center">
   <a href="https://github.com/Kymr10n/orkyo-foundation/actions/workflows/release-ci.yml"><img src="https://github.com/Kymr10n/orkyo-foundation/actions/workflows/release-ci.yml/badge.svg?branch=main" alt="CI"></a>
