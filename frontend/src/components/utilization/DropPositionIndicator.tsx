@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDndMonitor, type DragMoveEvent } from "@dnd-kit/core";
 import { formatDropInstant, resolveDropStartMs, viewPositionPercent } from "./time-grid-utils";
@@ -16,7 +16,10 @@ import type { TimeScale } from "./ScaleSelect";
  *
  * The marker tracks the landing position continuously, through the same
  * resolver the drop handler uses, so it can never promise a slot the drop then
- * does not honour. Its value is the target *row*: the dragged bar floats freely
+ * does not honour. Pointer events are coalesced into one update per animation
+ * frame — the same rAF throttle useResizeGesture applies — because a pointer
+ * fires far more often than the screen repaints, and the label's Intl formatting
+ * is far too costly to run per event. Its value is the target *row*: the dragged bar floats freely
  * under the pointer and can hover between rows, while the marker is drawn in the
  * row that will actually receive it.
  *
@@ -45,7 +48,31 @@ const LABEL_GAP_PX = 4;
 export function DropPositionIndicator({ scale }: { scale: TimeScale }) {
   const [highlight, setHighlight] = useState<Highlight | null>(null);
 
-  const update = (event: DragMoveEvent) => {
+  // Pending frame + the latest event, so a burst of pointer moves costs one render.
+  const frameRef = useRef<number | null>(null);
+  const latestRef = useRef<DragMoveEvent | null>(null);
+  // The last instant we formatted. Formatting is the expensive half, and a drag
+  // crosses many pixels per minute of schedule, so most frames reuse the label.
+  const labelCacheRef = useRef<{ startMs: number; scale: TimeScale; label: string } | null>(null);
+
+  const cancelFrame = useCallback(() => {
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+  }, []);
+
+  // A drag that ends while a frame is pending must not paint the marker afterwards.
+  useEffect(() => cancelFrame, [cancelFrame]);
+
+  const clear = useCallback(() => {
+    cancelFrame();
+    latestRef.current = null;
+    labelCacheRef.current = null;
+    setHighlight(null);
+  }, [cancelFrame]);
+
+  const apply = (event: DragMoveEvent) => {
     const over = event.over;
     const data = over?.data.current as
       | { type?: string; viewStartMs?: number; viewEndMs?: number }
@@ -81,19 +108,35 @@ export function DropPositionIndicator({ scale }: { scale: TimeScale }) {
       return;
     }
 
+    const cached = labelCacheRef.current;
+    const label = cached?.startMs === startMs && cached.scale === scale
+      ? cached.label
+      : formatDropInstant(new Date(startMs), scale);
+    labelCacheRef.current = { startMs, scale, label };
+
     setHighlight({
       left: rect.left + (percent / 100) * rect.width,
       top: rect.top,
       height: rect.height,
-      label: formatDropInstant(new Date(startMs), scale),
+      label,
+    });
+  };
+
+  // Store the event and paint at most once per frame.
+  const update = (event: DragMoveEvent) => {
+    latestRef.current = event;
+    if (frameRef.current !== null) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null;
+      if (latestRef.current) apply(latestRef.current);
     });
   };
 
   useDndMonitor({
     onDragMove: update,
     onDragOver: update,
-    onDragEnd: () => setHighlight(null),
-    onDragCancel: () => setHighlight(null),
+    onDragEnd: clear,
+    onDragCancel: clear,
   });
 
   if (!highlight) return null;

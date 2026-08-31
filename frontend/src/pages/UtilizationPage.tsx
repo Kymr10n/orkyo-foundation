@@ -60,10 +60,16 @@ import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
-import { DndContext, type CollisionDetection, type DragEndEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { resolveDropStartMs } from "@foundation/src/components/utilization/time-grid-utils";
 import { DropPositionIndicator } from "@foundation/src/components/utilization/DropPositionIndicator";
+import {
+  REQUEST_BAR_BASE_CLASS,
+  RequestBarLabel,
+  RequestBarLayers,
+  requestBarToneClass,
+} from "@foundation/src/components/utilization/RequestBarVisual";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -152,6 +158,16 @@ export function UtilizationPage() {
       return activeType === "space-row" ? t === "space-row" : t !== "space-row";
     });
     return pointerWithin({ ...args, droppableContainers: containers });
+  }, []);
+
+  // The request currently being dragged. It drives the <DragOverlay>, which carries a
+  // lightweight clone under the pointer so dnd-kit never transforms or reconciles the real
+  // bar (and its subtree) on every pointer move — that is what kept a populated grid smooth.
+  // Row-reorder drags (type "space-row") get no overlay.
+  const [activeDragRequest, setActiveDragRequest] = useState<Request | null>(null);
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const data = event.active.data.current as (Request & { type?: string }) | undefined;
+    setActiveDragRequest(data && data.type !== "space-row" ? data : null);
   }, []);
 
   // Right-click target on a scheduled bar, in viewport coordinates. The menu anchors to a
@@ -603,6 +619,7 @@ export function UtilizationPage() {
   // schedule mutation, conflict feedback) so the dialog and the drag path submit
   // identically.
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    setActiveDragRequest(null);
     const { active, over } = event;
     if (!over) return;
 
@@ -848,7 +865,9 @@ export function UtilizationPage() {
               and get a scroll-only, tap-to-open, drag-free grid. */}
           <DndContext
             sensors={sensors}
+            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            onDragCancel={() => setActiveDragRequest(null)}
             collisionDetection={collisionDetection}
           >
             <div className="h-full flex flex-col overflow-hidden gap-3">
@@ -924,6 +943,19 @@ export function UtilizationPage() {
 
             {/* Live drop-location hint (isolated; does not re-render the grid). */}
             <DropPositionIndicator scale={scale} />
+            {/* The clone. dnd-kit sizes this wrapper to the bar it picked up, so the copy
+                fills it and reads as the same object moving. */}
+            <DragOverlay dropAnimation={null}>
+              {activeDragRequest ? (() => {
+                const status = conflictingRequestIds.has(activeDragRequest.id) ? 'overbooked' : 'assigned';
+                return (
+                  <div className={`relative h-full w-full ${REQUEST_BAR_BASE_CLASS} ${requestBarToneClass(status)} shadow-lg cursor-grabbing`}>
+                    <RequestBarLayers status={status} />
+                    <RequestBarLabel request={activeDragRequest} hasConflict={status === 'overbooked'} />
+                  </div>
+                );
+              })() : null}
+            </DragOverlay>
           </DndContext>
         </TabsContent>
 
