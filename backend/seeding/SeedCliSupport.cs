@@ -1,4 +1,3 @@
-using CommandLine;
 using Orkyo.Foundation.Seed.Profiles;
 using Orkyo.Foundation.Seed.Scales;
 
@@ -6,38 +5,61 @@ namespace Orkyo.Foundation.Seed;
 
 /// <summary>
 /// The CLI options shared by every edition's seed tool. Each product's own options
-/// class inherits this and adds only its edition-specific connection/tenant flags
-/// (CommandLineParser reads inherited [Option] properties).
+/// class inherits this and adds only its edition-specific connection/tenant flags,
+/// binding them alongside <see cref="BindShared"/>.
 /// </summary>
 public class SeedCliOptions
 {
-    [Option("profile", Required = true,
-        HelpText = "Required. One of: generic, manufacturing, construction, camping, education.")]
-    public string Profile { get; init; } = "";
+    /// <summary>Long-option names this base class binds. An edition appends its own.</summary>
+    public static readonly string[] SharedOptionNames =
+        ["profile", "scale", "mode", "seed", "random", "force-non-local", "floorplans"];
 
-    [Option("scale", Default = "medium",
-        HelpText = "One of: tiny, small, medium, large, xlarge.")]
-    public string Scale { get; init; } = "medium";
+    /// <summary>Required. One of: generic, manufacturing, construction, camping, education.</summary>
+    public string Profile { get; set; } = "";
 
-    [Option("mode", Default = "reset",
-        HelpText = "reset (truncate tables before seeding) or append.")]
-    public string Mode { get; init; } = "reset";
+    /// <summary>One of: tiny, small, medium, large, xlarge.</summary>
+    public string Scale { get; set; } = "medium";
 
-    [Option("seed", Default = 1337,
-        HelpText = "Random seed for deterministic generation.")]
-    public int RandomSeed { get; init; } = 1337;
+    /// <summary>reset (truncate tables before seeding) or append.</summary>
+    public string Mode { get; set; } = "reset";
 
-    [Option("random", Default = false,
-        HelpText = "Use a fresh random seed instead of the fixed --seed value.")]
-    public bool UseRandom { get; init; }
+    /// <summary>Random seed for deterministic generation.</summary>
+    public int RandomSeed { get; set; } = 1337;
 
-    [Option("force-non-local", Default = false,
-        HelpText = "Override the safety guard that refuses non-local connections.")]
-    public bool ForceNonLocal { get; init; }
+    /// <summary>Use a fresh random seed instead of the fixed --seed value.</summary>
+    public bool UseRandom { get; set; }
 
-    [Option("floorplans", Default = true,
-        HelpText = "Seed the curated floorplan-backed sites (with image assets + geometry-bearing spaces) instead of scale-driven sites/spaces. Requires a profile with a floorplan set (manufacturing). Pass --floorplans false to disable.")]
-    public bool Floorplans { get; init; }
+    /// <summary>Override the safety guard that refuses non-local connections.</summary>
+    public bool ForceNonLocal { get; set; }
+
+    /// <summary>
+    /// Seed the curated floorplan-backed sites (image assets + geometry-bearing spaces)
+    /// instead of scale-driven sites/spaces. On by default; pass --floorplans false to disable.
+    /// </summary>
+    public bool Floorplans { get; set; } = true;
+
+    /// <summary>Help for the shared flags. An edition prints this plus its own.</summary>
+    public const string SharedHelpText = """
+          --profile          Required. One of: generic, manufacturing, construction, camping, education.
+          --scale            One of: tiny, small, medium, large, xlarge. (Default: medium)
+          --mode             reset (truncate tables before seeding) or append. (Default: reset)
+          --seed             Random seed for deterministic generation. (Default: 1337)
+          --random           Use a fresh random seed instead of the fixed --seed value.
+          --force-non-local  Override the safety guard that refuses non-local connections.
+          --floorplans       Seed the curated floorplan-backed sites. (Default: true; --floorplans false to disable)
+        """;
+
+    /// <summary>Bind the shared flags onto an edition's options instance.</summary>
+    public void BindShared(SeedArgs args)
+    {
+        Profile = args.String("profile") ?? "";
+        Scale = args.String("scale", "medium")!;
+        Mode = args.String("mode", "reset")!;
+        RandomSeed = args.Int("seed", 1337);
+        UseRandom = args.Bool("random", false);
+        ForceNonLocal = args.Bool("force-non-local", false);
+        Floorplans = args.Bool("floorplans", true);
+    }
 }
 
 /// <summary>
@@ -50,6 +72,14 @@ public static class SeedCliSupport
     /// <summary>Validate profile/scale early. Returns a non-zero exit code (prints to stderr) on failure, else null.</summary>
     public static int? ValidateProfileAndScale(SeedCliOptions opts)
     {
+        // Exit 1, not 2: a missing required option is a usage error, which is what the
+        // previous parser returned for it. Exit 2 stays reserved for a well-formed command
+        // line naming a profile or scale that does not exist.
+        if (string.IsNullOrWhiteSpace(opts.Profile))
+        {
+            Console.Error.WriteLine("Required option '--profile' is missing.");
+            return 1;
+        }
         try { _ = ProfileCatalog.Resolve(opts.Profile); _ = ScaleCatalog.Resolve(opts.Scale); }
         catch (ArgumentException ex)
         {

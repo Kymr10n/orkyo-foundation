@@ -21,7 +21,6 @@
 
   <ItemGroup>
     <PackageReference Include="Bogus" />
-    <PackageReference Include="CommandLineParser" />
     <PackageReference Include="Npgsql" />
   </ItemGroup>
 </Project>

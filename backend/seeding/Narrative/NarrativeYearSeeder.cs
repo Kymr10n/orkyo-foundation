@@ -651,7 +651,7 @@ public static class NarrativeYearSeeder
             await w.WriteAsync(pred, NpgsqlDbType.Uuid);
             await w.WriteAsync(succ, NpgsqlDbType.Uuid);
             // Literal rather than DependencyTypes.FinishToStart: this project references only
-            // Bogus/CommandLineParser/Npgsql by design, and taking a dependency on the core
+            // Bogus/Npgsql by design, and taking a dependency on the core
             // assembly for one string would couple the seeder to the domain model. The value is
             // pinned by the CHECK constraint in migration 1950.
             await w.WriteAsync("finish_to_start", NpgsqlDbType.Varchar);
