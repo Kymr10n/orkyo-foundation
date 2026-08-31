@@ -60,10 +60,10 @@ import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
-import { DndContext, DragOverlay, type CollisionDetection, type DragEndEvent, type DragStartEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, type CollisionDetection, type DragEndEvent, KeyboardSensor, MouseSensor, TouchSensor, pointerWithin, useSensor, useSensors } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { resolveColumnStartMs } from "@foundation/src/components/utilization/time-grid-utils";
-import { DropColumnIndicator } from "@foundation/src/components/utilization/DropColumnIndicator";
+import { resolveDropStartMs } from "@foundation/src/components/utilization/time-grid-utils";
+import { DropPositionIndicator } from "@foundation/src/components/utilization/DropPositionIndicator";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -154,21 +154,11 @@ export function UtilizationPage() {
     return pointerWithin({ ...args, droppableContainers: containers });
   }, []);
 
-  // Label of the request currently being dragged — drives the <DragOverlay> so
-  // dnd-kit moves a lightweight clone instead of transforming/reconciling the
-  // original node (and its subtree) on every pointer move. Row-reorder drags
-  // (type "space-row") don't get an overlay.
-  const [activeDragLabel, setActiveDragLabel] = useState<string | null>(null);
-
   // Right-click target on a scheduled bar, in viewport coordinates. The menu anchors to a
   // zero-size span at the pointer, the same way the floorplan's shape menu does.
   const [requestMenu, setRequestMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const handleRequestContextMenu = useCallback((requestId: string, position: { x: number; y: number }) => {
     setRequestMenu({ id: requestId, ...position });
-  }, []);
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    const data = event.active.data.current as { type?: string; name?: string } | undefined;
-    setActiveDragLabel(data && data.type !== "space-row" ? data.name ?? null : null);
   }, []);
 
   // One grid tab per active resource type that is not placeable. Placeable types share the
@@ -613,12 +603,11 @@ export function UtilizationPage() {
   // schedule mutation, conflict feedback) so the dialog and the drag path submit
   // identically.
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    setActiveDragLabel(null);
     const { active, over } = event;
     if (!over) return;
 
     const draggedData = active.data.current as Request & { isScheduled?: boolean; type?: string };
-    const dropData = over.data.current as { resourceId?: string; type?: string; parentRequestId?: string; columnStartsMs?: number[] };
+    const dropData = over.data.current as { resourceId?: string; type?: string; parentRequestId?: string; viewStartMs?: number; viewEndMs?: number };
 
     if (draggedData?.type === "space-row") {
       if (active.id !== over.id) handleSpaceReorder(active.id, over.id);
@@ -626,17 +615,25 @@ export function UtilizationPage() {
     }
     if (!draggedData) return;
 
-    if (dropData?.type === "space-track" && dropData.resourceId && dropData.columnStartsMs && selectedSiteId) {
-      // The whole row is one droppable; resolve the exact column from where the
-      // pointer ended (activator position + accumulated drag delta) relative to
-      // the track's measured rect.
-      const activator = event.activatorEvent as PointerEvent;
-      const pointerX = activator.clientX + event.delta.x;
-      const startMs = resolveColumnStartMs(
-        pointerX,
-        over.rect.left,
+    // Only a scheduled bar is draggable onto a track, so it always carries its own
+    // bounds — the drag is a move of an existing placement, never a first placement
+    // (backlog reaches the grid through the "Schedule to…" dialog instead).
+    if (
+      dropData?.type === "space-track" && dropData.resourceId && selectedSiteId &&
+      dropData.viewStartMs !== undefined && dropData.viewEndMs !== undefined &&
+      draggedData.startTs && draggedData.endTs
+    ) {
+      // The whole row is one droppable. The bar moves freely: its new start comes
+      // from the drag delta against the track's measured width, with no snap to a
+      // column edge, so it lands where the user sees it.
+      const origStartMs = new Date(draggedData.startTs).getTime();
+      const startMs = resolveDropStartMs(
+        origStartMs,
+        new Date(draggedData.endTs).getTime() - origStartMs,
+        event.delta.x,
         over.rect.width,
-        dropData.columnStartsMs,
+        dropData.viewStartMs,
+        dropData.viewEndMs,
       );
       await handleScheduleToGrid(draggedData, dropData.resourceId, new Date(startMs));
     }
@@ -851,9 +848,7 @@ export function UtilizationPage() {
               and get a scroll-only, tap-to-open, drag-free grid. */}
           <DndContext
             sensors={sensors}
-            onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            onDragCancel={() => setActiveDragLabel(null)}
             collisionDetection={collisionDetection}
           >
             <div className="h-full flex flex-col overflow-hidden gap-3">
@@ -928,16 +923,7 @@ export function UtilizationPage() {
             </div>
 
             {/* Live drop-location hint (isolated; does not re-render the grid). */}
-            <DropColumnIndicator />
-
-            {/* Lightweight drag clone — avoids transforming the original node. */}
-            <DragOverlay dropAnimation={null}>
-              {activeDragLabel ? (
-                <div className="rounded bg-primary/90 px-2 py-1 text-xs font-medium text-primary-foreground shadow-lg">
-                  {activeDragLabel}
-                </div>
-              ) : null}
-            </DragOverlay>
+            <DropPositionIndicator scale={scale} />
           </DndContext>
         </TabsContent>
 

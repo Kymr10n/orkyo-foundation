@@ -6,7 +6,8 @@ import {
   isAnchorStale,
   overlapsOffTimeRange,
   parseTimeToHour,
-  resolveColumnStartMs,
+  formatDropInstant,
+  resolveDropStartMs,
   utilizationGranularityForScale,
   viewPositionPercent,
 } from "./time-grid-utils";
@@ -154,23 +155,56 @@ describe("time-grid-utils", () => {
     expect(coversOffTimeRange("space-1", start, end, ranges)).toBe(false);
   });
 
-  it("resolves the dropped column from pointer x within the track rect", () => {
-    // Three equal 100px columns spanning a 300px-wide track starting at x=200.
-    const starts = [1000, 2000, 3000];
-    const left = 200;
-    const width = 300;
+  it("moves a dragged bar continuously, without snapping to a column edge", () => {
+    // A 400px track spanning 4000ms (1ms = 0.1px). The bar occupies 1000 → 2000ms.
+    const view = { startMs: 0, endMs: 4000 };
+    const drop = (deltaX: number) =>
+      resolveDropStartMs(1000, 1000, deltaX, 400, view.startMs, view.endMs);
 
-    expect(resolveColumnStartMs(250, left, width, starts)).toBe(1000); // first column
-    expect(resolveColumnStartMs(350, left, width, starts)).toBe(2000); // middle column
-    expect(resolveColumnStartMs(550, left, width, starts)).toBe(3000); // last column
-    // Pointer left of / past the track clamps to the first / last column.
-    expect(resolveColumnStartMs(0, left, width, starts)).toBe(1000);
-    expect(resolveColumnStartMs(9999, left, width, starts)).toBe(3000);
+    expect(drop(0)).toBe(1000); // untouched by a pick-up with no movement
+    // A sub-column nudge lands sub-column: this is the snap-to-cell-edge the
+    // grid used to apply, and the whole point of the continuous resolver.
+    expect(drop(10)).toBe(1100);
+    expect(drop(-10)).toBe(900);
+    expect(drop(55)).toBe(1550);
   });
 
-  it("falls back to the first column start for a degenerate track", () => {
-    expect(resolveColumnStartMs(50, 0, 0, [1000, 2000])).toBe(1000);
-    expect(resolveColumnStartMs(50, 0, 100, [])).toBe(0);
+  it("keeps a dropped bar inside the visible window", () => {
+    // Same geometry: the bar can start no later than viewEnd - duration (3000ms),
+    // and no earlier than the view start, so a drop never puts it out of sight.
+    expect(resolveDropStartMs(1000, 1000, 9999, 400, 0, 4000)).toBe(3000);
+    expect(resolveDropStartMs(1000, 1000, -9999, 400, 0, 4000)).toBe(0);
+    // A bar longer than the window still resolves (no inverted bounds).
+    expect(resolveDropStartMs(0, 9000, 9999, 400, 0, 4000)).toBe(0);
+  });
+
+  it("never drags a bar that already starts before the window", () => {
+    // Clamping such a bar to the view start would silently move a request the
+    // user only picked up, so the bounds widen to include where it already is.
+    expect(resolveDropStartMs(-5000, 1000, 0, 400, 0, 4000)).toBe(-5000);
+    expect(resolveDropStartMs(-5000, 1000, 40, 400, 0, 4000)).toBe(-4600);
+  });
+
+  it("leaves the start untouched for a degenerate track or view", () => {
+    expect(resolveDropStartMs(1000, 1000, 40, 0, 0, 4000)).toBe(1000);
+    expect(resolveDropStartMs(1000, 1000, 40, 400, 4000, 4000)).toBe(1000);
+  });
+
+  it("labels a drop at the precision its scale can aim for", () => {
+    // Local-time parts, so the assertions hold in any timezone the suite runs in.
+    const instant = new Date(2026, 2, 12, 14, 30); // Thu 12 Mar 2026, 14:30
+
+    // Fine columns → the clock is the thing being chosen.
+    expect(formatDropInstant(instant, "hour")).toBe("14:30");
+    expect(formatDropInstant(instant, "day")).toMatch(/Mar.*14:30/);
+    expect(formatDropInstant(instant, "week")).toMatch(/Mar.*14:30/);
+
+    // Coarse columns → a pixel spans hours, so naming a minute would be false
+    // precision. The day (month view) or the day-in-year (year view) is the unit.
+    expect(formatDropInstant(instant, "month")).toMatch(/Mar/);
+    expect(formatDropInstant(instant, "month")).not.toMatch(/14:30/);
+    expect(formatDropInstant(instant, "year")).toMatch(/Mar.*2026/);
+    expect(formatDropInstant(instant, "year")).not.toMatch(/14:30/);
   });
 
   it("buffers the fetch window per scale and snaps to the unit start", () => {

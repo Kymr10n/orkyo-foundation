@@ -153,7 +153,10 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     top: `${displayData.topPx}px`,
     height: `${displayData.heightPx}px`,
     transform: isResizing ? undefined : CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.5 : 1,
+    // Not dimmed while dragging. dnd-kit's transform above already moves this node
+    // continuously under the pointer, so this IS the thing in motion — fading it to
+    // half-opacity hid the only smooth element on screen and made the drag read as
+    // jumpy. Resize never dims its bar, and that is why resize feels fluent.
     zIndex: displayData.zIndex,
   };
 

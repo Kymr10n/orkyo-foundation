@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Api.Services.Reporting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace Api.Reporting.Auth;
@@ -21,15 +22,18 @@ public sealed class ReportingTokenAuthHandler : AuthenticationHandler<Authentica
     public const string TokenPrefix = "orkyo_rpt_";
 
     private readonly IReportingTokenService _tokenService;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     public ReportingTokenAuthHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        IReportingTokenService tokenService)
+        IReportingTokenService tokenService,
+        IServiceScopeFactory scopeFactory)
         : base(options, logger, encoder)
     {
         _tokenService = tokenService;
+        _scopeFactory = scopeFactory;
     }
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -53,8 +57,11 @@ public sealed class ReportingTokenAuthHandler : AuthenticationHandler<Authentica
         // Store token record for downstream filters and audit middleware
         Context.Items[ReportingTokenContextKeys.TokenRecord] = record;
 
-        // Touch last_used_at asynchronously — don't block the request
-        _ = _tokenService.TouchLastUsedAsync(record.Id);
+        // Touch last_used_at asynchronously — don't block the request. Through a fresh DI
+        // scope, NOT the request's _tokenService: this task outlives the request, whose scope
+        // (and its DB connection factory) is disposed the moment the response completes. Using
+        // the scoped instance made the update race disposal and silently stop under load.
+        _ = TouchLastUsedInOwnScopeAsync(record.Id);
 
         var claims = new[]
         {
@@ -69,6 +76,24 @@ public sealed class ReportingTokenAuthHandler : AuthenticationHandler<Authentica
         var ticket = new AuthenticationTicket(principal, SchemeName);
 
         return AuthenticateResult.Success(ticket);
+    }
+
+    /// <summary>Background update with its own scope, so it cannot race request disposal.</summary>
+    private async Task TouchLastUsedInOwnScopeAsync(Guid tokenId)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            await scope.ServiceProvider
+                .GetRequiredService<IReportingTokenService>()
+                .TouchLastUsedAsync(tokenId);
+        }
+        catch (Exception ex)
+        {
+            // Nothing awaits this task; an escaped exception would only surface as an
+            // unobserved-task event. The touch is best-effort by design.
+            Logger.LogWarning(ex, "Background last_used_at update failed for reporting token {TokenId}", tokenId);
+        }
     }
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)

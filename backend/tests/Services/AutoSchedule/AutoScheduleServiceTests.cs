@@ -18,7 +18,8 @@ public class AutoScheduleServiceTests
         TenantSettings? settings = null,
         IEnumerable<ISchedulingSolver>? solvers = null,
         IReadOnlyList<string>? placeableKeys = null,
-        IReadOnlyList<WithheldRequestNode>? withheld = null)
+        IReadOnlyList<WithheldRequestNode>? withheld = null,
+        IRequestRepository? requestRepository = null)
     {
         var mockProblemBuilder = new Mock<SchedulingProblemBuilder>(
             Mock.Of<IRequestRepository>(),
@@ -58,7 +59,7 @@ public class AutoScheduleServiceTests
             mockProblemBuilder.Object,
             analyzer,
             resolvedSolvers,
-            Mock.Of<IRequestRepository>(),
+            requestRepository ?? Mock.Of<IRequestRepository>(),
             typeRepo.Object,
             gate,
             mockSettingsService.Object,
@@ -258,5 +259,71 @@ public class AutoScheduleServiceTests
                 DateOnly.FromDateTime(DateTime.UtcNow),
                 DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))),
             CancellationToken.None));
+    }
+
+    /// <summary>Returns one fixed placement, so a test can pin the window that reaches the write.</summary>
+    private sealed class StubSolver(DateOnly start, DateOnly end, Guid requestId, Guid resourceId)
+        : ISchedulingSolver
+    {
+        public SolverKind Kind => SolverKind.Greedy;
+        public int Priority => 999;
+
+        public Task<SchedulingSolution> SolveAsync(
+            AnalyzedSchedulingProblem problem, CancellationToken cancellationToken)
+            => Task.FromResult(new SchedulingSolution(
+                SolverKind.Greedy, SolverStatus.Optimal,
+                [new ScheduledPlacement(requestId, resourceId, start, end,
+                    DurationDays: end.DayNumber - start.DayNumber + 1, Priority: 1)],
+                [], []));
+    }
+
+    private async Task<ScheduleRequestRequest> ApplyAndCaptureWindowAsync(DateOnly start, DateOnly end)
+    {
+        var requestId = Guid.NewGuid();
+        List<(Guid Id, ScheduleRequestRequest Data)>? captured = null;
+        var repo = new Mock<IRequestRepository>();
+        repo.Setup(r => r.BatchUpdateSchedulesAsync(
+                It.IsAny<IReadOnlyList<(Guid, ScheduleRequestRequest)>>(), It.IsAny<CancellationToken>()))
+            .Callback<IReadOnlyList<(Guid, ScheduleRequestRequest)>, CancellationToken>(
+                (u, _) => captured = [.. u])
+            .ReturnsAsync(1);
+
+        var service = CreateService(
+            solvers: [new StubSolver(start, end, requestId, Guid.NewGuid())],
+            requestRepository: repo.Object);
+
+        await service.ApplyAsync(
+            new AutoScheduleApplyRequest(Guid.NewGuid(), new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
+            CancellationToken.None);
+
+        captured.Should().NotBeNull();
+        return captured!.Single().Data;
+    }
+
+    [Fact]
+    public async Task ApplyAsync_GivesASingleDayPlacementAFullDayWindow()
+    {
+        // The solver's End is inclusive: a one-day placement has Start == End. Converting both to
+        // midnight produced a zero-length window, and BatchUpdateSchedulesAsync derives
+        // actual_duration_value from End - Start — so it wrote 0 and Postgres rejected the row on
+        // requests_actual_duration_value_check. Every sub-day auto-schedule apply failed.
+        var day = new DateOnly(2026, 9, 4);
+
+        var window = await ApplyAndCaptureWindowAsync(day, day);
+
+        (window.EndTs!.Value - window.StartTs!.Value).Should().Be(TimeSpan.FromDays(1));
+    }
+
+    [Fact]
+    public async Task ApplyAsync_GivesAMultiDayPlacementItsFullSpan()
+    {
+        // The same off-by-one silently shortened every longer placement by a day, which no
+        // constraint caught: a three-day job was written as two.
+        var start = new DateOnly(2026, 9, 1);
+
+        var window = await ApplyAndCaptureWindowAsync(start, new DateOnly(2026, 9, 3));
+
+        window.StartTs.Should().Be(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
+        (window.EndTs!.Value - window.StartTs!.Value).Should().Be(TimeSpan.FromDays(3));
     }
 }

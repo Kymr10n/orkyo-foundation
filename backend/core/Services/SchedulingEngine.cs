@@ -10,6 +10,22 @@ namespace Api.Services;
 public static class SchedulingEngine
 {
     /// <summary>
+    /// The last calendar day a scheduled window actually occupies.
+    ///
+    /// Schedule windows are half-open timestamps: a one-day placement applied on 2026-03-02 is
+    /// stored as <c>[03-02 00:00, 03-03 00:00)</c>. The day-bucket consumers (the solver's fixed
+    /// occupancies, dependency fold-ins, the conflict engine's precedence check, critical-path
+    /// durations) all reason in INCLUSIVE last days, and a naive
+    /// <c>DateOnly.FromDateTime(endTs)</c> on a midnight-exclusive end lands one day too far —
+    /// phantom-occupying capacity, delaying successors, and inflating durations. An end at exactly
+    /// midnight, under the half-open convention, means the window never entered that day.
+    /// </summary>
+    public static DateOnly InclusiveLastDay(DateTime endTs)
+        => endTs.TimeOfDay == TimeSpan.Zero
+            ? DateOnly.FromDateTime(endTs).AddDays(-1)
+            : DateOnly.FromDateTime(endTs);
+
+    /// <summary>
     /// Result of a scheduling calculation.
     /// </summary>
     public record ScheduleResult

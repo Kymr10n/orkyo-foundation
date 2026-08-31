@@ -207,6 +207,29 @@ public static class FoundationServiceExtensions
         services.AddScoped<IReportingTokenService, ReportingTokenService>();
         services.AddScoped<IReportingQueryService, ReportingQueryService>();
 
+        // ── Platform API (MCP) ────────────────────────────────────────────────
+        services.AddScoped<Api.Services.PlatformApi.IApiAccessTokenService,
+            Api.Services.PlatformApi.ApiAccessTokenService>();
+
+        // The MCP server runs in stateless mode: every request carries its own bearer token and is
+        // authorized on its own. A stateful session would outlive the credential that opened it,
+        // letting a revoked token keep working until the session dropped.
+        services.AddSingleton<Api.PlatformApi.Mcp.McpSolveThrottle>();
+        services.AddMcpServer(options =>
+            {
+                options.ServerInfo = new() { Name = "orkyo-schedule", Version = "2.0.0" };
+            })
+            .WithHttpTransport(options =>
+                options.SessionMode = ModelContextProtocol.AspNetCore.HttpServerSessionMode.Stateless)
+            .WithTools<Api.PlatformApi.Mcp.ScheduleTools>()
+            .WithTools<Api.PlatformApi.Mcp.PlanningTools>()
+            .WithTools<Api.PlatformApi.Mcp.AutoScheduleTools>()
+            .WithTools<Api.PlatformApi.Mcp.LifecycleTools>()
+            // One filter around every tools/call: per-call attribution logging, and
+            // containment so raw exception text never reaches an outside LLM client.
+            .WithRequestFilters(filters =>
+                filters.AddCallToolFilter(Api.PlatformApi.Mcp.McpToolPipeline.AuditAndContainErrors));
+
         // ── Scheduling solver (singleton — stateless and thread-safe) ─────────
         services.AddScoped<SchedulingProblemBuilder>();
         services.AddSingleton<SchedulingFeasibilityAnalyzer>();

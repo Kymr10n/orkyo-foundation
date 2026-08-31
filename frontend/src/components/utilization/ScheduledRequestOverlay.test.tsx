@@ -149,6 +149,16 @@ function flushFrames() {
 }
 
 describe("ScheduledRequestOverlay resize", () => {
+  it("sets no inline opacity, so the dragged bar is never dimmed", () => {
+    // The bar is the one element dnd-kit translates continuously under the pointer.
+    // It used to render at opacity 0.5 while dragging, which hid the only smooth
+    // thing on screen and made the drag read as jumpy. Re-adding a conditional
+    // dim would show up here as opacity "1" in the resting state.
+    renderOverlay();
+
+    expect(screen.getByTitle(/Test Request/).style.opacity).toBe("");
+  });
+
   beforeEach(() => {
     useSchedulerStore.setState({ draft: null });
     frameCallbacks = new Map();

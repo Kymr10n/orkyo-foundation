@@ -191,13 +191,9 @@ vi.mock("@foundation/src/domain/scheduling/weekend-ranges", () => ({
 
 // Capture DndContext.onDragEnd for handler testing
 let capturedOnDragEnd: ((event: any) => void) | null = null;
-let capturedOnDragStart: ((event: any) => void) | null = null;
-let capturedOnDragCancel: (() => void) | null = null;
 vi.mock("@dnd-kit/core", () => ({
-  DndContext: ({ children, onDragEnd, onDragStart, onDragCancel }: any) => {
+  DndContext: ({ children, onDragEnd }: any) => {
     capturedOnDragEnd = onDragEnd;
-    capturedOnDragStart = onDragStart;
-    capturedOnDragCancel = onDragCancel;
     return <div data-testid="dnd-context">{children}</div>;
   },
   DragOverlay: ({ children }: any) => <div data-testid="drag-overlay">{children}</div>,
@@ -381,8 +377,6 @@ describe("UtilizationPage", () => {
     capturedExportHandler = null;
     capturedExportOffer = null;
     capturedOnDragEnd = null;
-    capturedOnDragStart = null;
-    capturedOnDragCancel = null;
     capturedOnSlotSelect = null;
     capturedOnEventClick = null;
     capturedOnEventMove = null;
@@ -875,19 +869,6 @@ describe("UtilizationPage", () => {
     expect(mockSetScale).not.toHaveBeenCalled();
   });
 
-  it("drag start sets the overlay label and drag cancel clears it", async () => {
-    const Wrapper = createWrapper("stations");
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    capturedOnDragStart!({ active: { data: { current: { type: "request", name: "Task 1" } } } });
-    await waitFor(() => expect(screen.getByText("Task 1")).toBeInTheDocument());
-
-    capturedOnDragCancel!();
-    // Genuinely asynchronous: the drag overlay clears on a later tick, unlike the other
-    // absence assertions in this suite which hold immediately after the awaited action.
-    await waitFor(() => expect(screen.queryByText("Task 1")).not.toBeInTheDocument());
-  });
-
   it("moving a calendar event with no space assignment does nothing", async () => {
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1" }], isLoading: false });
     const Wrapper = createWrapper("calendar");
@@ -1153,6 +1134,10 @@ describe("UtilizationPage", () => {
 
   // --- Drag-end handler paths ---
 
+  // The window the track droppable reports: one 24h day column.
+  const VIEW_START_MS = new Date("2024-01-20T00:00:00Z").getTime();
+  const VIEW_END_MS = new Date("2024-01-21T00:00:00Z").getTime();
+
   it("handleDragEnd does nothing when no over target", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -1162,7 +1147,7 @@ describe("UtilizationPage", () => {
     // No error = early return worked
   });
 
-  it("handleDragEnd schedules request to grid", async () => {
+  it("handleDragEnd ignores a drop that carries no existing placement", async () => {
     mockUseRequests.mockReturnValue({
       data: [{ id: "r1", name: "Task 1", durationMin: 60 }],
       isLoading: false,
@@ -1170,22 +1155,21 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // The whole row is one droppable; the column is resolved from the pointer
-    // x-position within the track's rect. One column → always lands on it.
+    // Only a scheduled bar is draggable onto a track — the backlog reaches the
+    // grid through the "Schedule to…" dialog. A payload with no start/end is
+    // therefore not a move we can resolve, and must not reach the mutation.
     capturedOnDragEnd!({
       active: { id: "r1", data: { current: { id: "r1", name: "Task 1", durationMin: 60 } } },
       over: {
         id: "track-s1",
         rect: { left: 0, width: 100 },
-        data: { current: { type: "space-track", resourceId: "s1", columnStartsMs: [new Date("2024-01-20T09:00:00Z").getTime()] } },
+        data: { current: { type: "space-track", resourceId: "s1", viewStartMs: VIEW_START_MS, viewEndMs: VIEW_END_MS } },
       },
-      activatorEvent: { clientX: 50 },
       delta: { x: 0, y: 0 },
     });
 
-    await waitFor(() => {
-      expect(mockScheduleMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ requestId: "r1" }));
-    });
+    await Promise.resolve();
+    expect(mockScheduleMutateAsync).not.toHaveBeenCalled();
   });
 
   it("unschedules a request from the bar's context menu", async () => {
@@ -1229,27 +1213,29 @@ describe("UtilizationPage", () => {
     expect(mockSetSpaceOrder).toHaveBeenCalledWith(["s2", "s1"]);
   });
 
-  it("handleDragEnd schedules already-scheduled request preserving duration", async () => {
+  it("handleDragEnd moves a bar to where it was dropped, not to a column edge", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
+    // A 100px track spanning one 24h day column. A 25px drag is a quarter of the
+    // view = +6h, so a bar at 06:00 lands at 12:00 — NOT at the column's 00:00
+    // edge, which is where the old pointer-to-column resolution put every drop.
     capturedOnDragEnd!({
       active: {
         id: "r1",
         data: {
           current: {
             id: "r1", name: "Task 1", isScheduled: true,
-            startTs: "2024-01-15T09:00:00Z", endTs: "2024-01-15T11:00:00Z",
+            startTs: "2024-01-20T06:00:00Z", endTs: "2024-01-20T08:00:00Z",
           },
         },
       },
       over: {
         id: "track-s2",
         rect: { left: 0, width: 100 },
-        data: { current: { type: "space-track", resourceId: "s2", columnStartsMs: [new Date("2024-01-20T10:00:00Z").getTime()] } },
+        data: { current: { type: "space-track", resourceId: "s2", viewStartMs: VIEW_START_MS, viewEndMs: VIEW_END_MS } },
       },
-      activatorEvent: { clientX: 50 },
-      delta: { x: 0, y: 0 },
+      delta: { x: 25, y: 0 },
     });
 
     await waitFor(() => {
@@ -1258,8 +1244,47 @@ describe("UtilizationPage", () => {
           requestId: "r1",
           data: expect.objectContaining({
             resourceId: "s2",
-            startTs: "2024-01-20T10:00:00.000Z",
-            endTs: "2024-01-20T12:00:00.000Z",
+            startTs: "2024-01-20T12:00:00.000Z",
+            // Duration preserved exactly — a move never resizes.
+            endTs: "2024-01-20T14:00:00.000Z",
+          }),
+        }),
+      );
+    });
+  });
+
+  it("handleDragEnd keeps the time when a bar is dragged straight to another row", async () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    // No horizontal movement → no time change. The old resolver re-derived the
+    // start from the pointer's column, so a purely vertical move could shift it.
+    capturedOnDragEnd!({
+      active: {
+        id: "r1",
+        data: {
+          current: {
+            id: "r1", name: "Task 1", isScheduled: true,
+            startTs: "2024-01-20T06:00:00Z", endTs: "2024-01-20T08:00:00Z",
+          },
+        },
+      },
+      over: {
+        id: "track-s2",
+        rect: { left: 0, width: 100 },
+        data: { current: { type: "space-track", resourceId: "s2", viewStartMs: VIEW_START_MS, viewEndMs: VIEW_END_MS } },
+      },
+      delta: { x: 0, y: 120 },
+    });
+
+    await waitFor(() => {
+      expect(mockScheduleMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestId: "r1",
+          data: expect.objectContaining({
+            resourceId: "s2",
+            startTs: "2024-01-20T06:00:00.000Z",
+            endTs: "2024-01-20T08:00:00.000Z",
           }),
         }),
       );

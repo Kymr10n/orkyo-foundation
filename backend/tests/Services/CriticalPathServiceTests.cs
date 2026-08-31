@@ -24,6 +24,8 @@ public class CriticalPathServiceTests
         _service = new CriticalPathService(_dependencies.Object, _requests.Object);
     }
 
+    // end is HALF-OPEN, matching what the product stores: a one-day request starting Day1
+    // carries end = Day1.AddDays(1). SchedulingEngine.InclusiveLastDay converts it back.
     private static RequestInfo Request(Guid id, string name, int durationDays,
         DateTime? start = null, DateTime? end = null, DateTime? latestEnd = null) => new()
         {
@@ -77,7 +79,7 @@ public class CriticalPathServiceTests
     {
         Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid();
         Setup([Edge(a, b), Edge(b, c)],
-            Request(a, "A", 2, start: Day1, end: Day1.AddDays(1)),
+            Request(a, "A", 2, start: Day1, end: Day1.AddDays(2)),
             Request(b, "B", 3),
             Request(c, "C", 1));
 
@@ -101,7 +103,7 @@ public class CriticalPathServiceTests
     {
         Guid a = Guid.NewGuid(), b = Guid.NewGuid();
         Setup([Edge(a, b, lagMinutes: 2 * 24 * 60)],
-            Request(a, "A", 1, start: Day1, end: Day1),
+            Request(a, "A", 1, start: Day1, end: Day1.AddDays(1)),
             Request(b, "B", 1));
 
         var result = await _service.ComputeAsync(null);
@@ -118,7 +120,7 @@ public class CriticalPathServiceTests
         Guid start = Guid.NewGuid(), longBranch = Guid.NewGuid(), shortBranch = Guid.NewGuid(), join = Guid.NewGuid();
         Setup(
             [Edge(start, longBranch), Edge(start, shortBranch), Edge(longBranch, join), Edge(shortBranch, join)],
-            Request(start, "Start", 1, start: Day1, end: Day1),
+            Request(start, "Start", 1, start: Day1, end: Day1.AddDays(1)),
             Request(longBranch, "Long", 5),
             Request(shortBranch, "Short", 2),
             Request(join, "Join", 1));
@@ -141,8 +143,8 @@ public class CriticalPathServiceTests
         Guid a = Guid.NewGuid(), b = Guid.NewGuid();
         var placedStart = Day1.AddDays(10);
         Setup([Edge(a, b)],
-            Request(a, "A", 1, start: Day1, end: Day1),
-            Request(b, "B", 1, start: placedStart, end: placedStart));
+            Request(a, "A", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(b, "B", 1, start: placedStart, end: placedStart.AddDays(1)));
 
         var result = await _service.ComputeAsync(null);
 
@@ -155,7 +157,7 @@ public class CriticalPathServiceTests
     {
         Guid a = Guid.NewGuid(), b = Guid.NewGuid();
         Setup([Edge(a, b)],
-            Request(a, "A", 1, start: Day1, end: Day1),
+            Request(a, "A", 1, start: Day1, end: Day1.AddDays(1)),
             // Due the day it can first run: no room to move.
             Request(b, "B", 1, latestEnd: Day1.AddDays(1)));
 
@@ -181,7 +183,7 @@ public class CriticalPathServiceTests
         // A site filter follows the successor, so a predecessor elsewhere is not in the read.
         // Inventing dates for it would be worse than saying so.
         Guid a = Guid.NewGuid(), b = Guid.NewGuid();
-        Setup([Edge(a, b)], Request(b, "B", 1, start: Day1, end: Day1));
+        Setup([Edge(a, b)], Request(b, "B", 1, start: Day1, end: Day1.AddDays(1)));
 
         var result = await _service.ComputeAsync(Guid.NewGuid());
 

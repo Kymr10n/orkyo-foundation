@@ -605,4 +605,37 @@ public class SchedulingEngineTests
     {
         SchedulingEngine.DurationToMinutes(value, unit).Should().Be(expectedMinutes);
     }
+
+    // ── InclusiveLastDay ──────────────────────────────────────────────────────
+    // Schedule windows are half-open; every day-bucket consumer (fixed occupancies,
+    // dependency fold-ins, precedence conflicts, critical-path durations) reasons in
+    // inclusive last days. These pin the conversion both ways.
+
+    [Fact]
+    public void InclusiveLastDay_MidnightEnd_IsThePreviousDay()
+    {
+        // A one-day placement applied on 03-02 stores end_ts 03-03T00:00. Its last occupied
+        // day is 03-02 — reading 03-03 phantom-occupied a day per applied placement.
+        var lastDay = SchedulingEngine.InclusiveLastDay(new DateTime(2026, 3, 3, 0, 0, 0, DateTimeKind.Utc));
+
+        lastDay.Should().Be(new DateOnly(2026, 3, 2));
+    }
+
+    [Fact]
+    public void InclusiveLastDay_MidDayEnd_IsThatDay()
+    {
+        // A manually scheduled 09:00–17:00 window genuinely occupies its end date.
+        var lastDay = SchedulingEngine.InclusiveLastDay(new DateTime(2026, 3, 2, 17, 0, 0, DateTimeKind.Utc));
+
+        lastDay.Should().Be(new DateOnly(2026, 3, 2));
+    }
+
+    [Fact]
+    public void InclusiveLastDay_OneSecondPastMidnight_IsThatDay()
+    {
+        // The exclusion applies to exactly midnight only — any entry into the day counts.
+        var lastDay = SchedulingEngine.InclusiveLastDay(new DateTime(2026, 3, 3, 0, 0, 1, DateTimeKind.Utc));
+
+        lastDay.Should().Be(new DateOnly(2026, 3, 3));
+    }
 }

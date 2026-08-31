@@ -1,38 +1,17 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
-import { CalendarIcon, Plus, Trash2, Copy, Check, Key } from "lucide-react";
+import { Plus, Key } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
-import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import { StatusBadge } from "@foundation/src/components/ui/status-badge";
-import { Calendar } from "@foundation/src/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@foundation/src/components/ui/popover";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@foundation/src/components/ui/select";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { formatLocalized } from "@foundation/src/lib/formatters";
-import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { OrkyoDataTable } from "@foundation/src/components/ui/OrkyoDataTable";
 import {
   listReportingTokens,
   createReportingToken,
@@ -40,108 +19,17 @@ import {
   type ReportingTokenSummary,
 } from "@foundation/src/lib/api/reporting-tokens-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
-
-type ExpiryMode = "7" | "30" | "60" | "90" | "custom" | "none";
-
-const EXPIRY_PRESETS: { value: ExpiryMode; days: number; label: string }[] = [
-  { value: "7", days: 7, label: "7 days" },
-  { value: "30", days: 30, label: "30 days" },
-  { value: "60", days: 60, label: "60 days" },
-  { value: "90", days: 90, label: "90 days" },
-];
-
-function addLocalDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function toDateOnly(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function fromDateOnly(value: string): Date | undefined {
-  const [year, month, day] = value.split("-").map(Number);
-  if (!year || !month || !day) return undefined;
-  return new Date(year, month - 1, day);
-}
-
-function getPresetExpiry(days: number): string {
-  return toDateOnly(addLocalDays(new Date(), days));
-}
-
-function formatExpiryLabel(dateOnly: string): string {
-  const date = fromDateOnly(dateOnly);
-  if (!date) return "";
-  return formatLocalized(date, {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return formatLocalized(new Date(iso), {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/** Derived lifecycle state — shared by the badge and the status column's facet. */
-type TokenStatus = "revoked" | "expired" | "active";
-
-function tokenStatus(token: ReportingTokenSummary): TokenStatus {
-  if (token.revokedAtUtc) return "revoked";
-  if (token.expiresAtUtc && new Date(token.expiresAtUtc) < new Date()) return "expired";
-  return "active";
-}
-
-const TOKEN_STATUS_LABEL: Record<TokenStatus, string> = {
-  revoked: "Revoked",
-  expired: "Expired",
-  active: "Active",
-};
-
-/** StatusBadge tint per derived state. */
-const TOKEN_STATUS_TINT: Record<TokenStatus, string> = {
-  revoked: "disabled",
-  expired: "inactive",
-  active: "active",
-};
-
-function TokenStatusBadge({ token }: { token: ReportingTokenSummary }) {
-  const status = tokenStatus(token);
-  return <StatusBadge status={TOKEN_STATUS_TINT[status]} label={TOKEN_STATUS_LABEL[status]} />;
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    // navigator.clipboard is only exposed in secure contexts (HTTPS or localhost);
-    // Community self-hosts may be reached over plain HTTP on a LAN. The token stays
-    // visible in the dialog/table, so the user can still copy it manually.
-    if (!navigator.clipboard?.writeText) {
-      toast.error("Clipboard unavailable — copy the token manually");
-      return;
-    }
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  return (
-    <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5">
-      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? "Copied" : "Copy"}
-    </Button>
-  );
-}
+import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
+import {
+  CopyButton,
+  ExpiryFields,
+  RawTokenDialog,
+  RevokeTokenDialog,
+  buildTokenColumns,
+  renderTokenCard,
+  resolveExpiry,
+  type ExpiryMode,
+} from "./api-tokens/token-ui";
 
 interface CreateTokenDialogProps {
   open: boolean;
@@ -153,14 +41,7 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
   const [name, setName] = useState("");
   const [expiryMode, setExpiryMode] = useState<ExpiryMode>("7");
   const [customExpiresAt, setCustomExpiresAt] = useState("");
-  const selectedPreset = EXPIRY_PRESETS.find((preset) => preset.value === expiryMode);
-  const expiresAt = expiryMode === "custom"
-    ? customExpiresAt
-    : selectedPreset
-      ? getPresetExpiry(selectedPreset.days)
-      : "";
-  const selectedCustomDate = customExpiresAt ? fromDateOnly(customExpiresAt) : undefined;
-  const today = fromDateOnly(toDateOnly(new Date())) ?? new Date();
+  const expiresAt = resolveExpiry(expiryMode, customExpiresAt);
 
   // Reset the form each time the dialog opens — render-phase, not an effect (see useEntityFormDialog.ts).
   const [syncedOpen, setSyncedOpen] = useState(open);
@@ -174,19 +55,13 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
   }
 
   const mutation = useMutation({
-    mutationFn: () => createReportingToken({
-      name,
-      ...(expiresAt ? { expiresAt } : {}),
-    }),
+    mutationFn: () => createReportingToken({ name, ...(expiresAt ? { expiresAt } : {}) }),
     meta: {
       errorMessage: "Failed to create token. Please try again.",
       invalidates: [qk.reportingTokens.all()],
     },
     onSuccess: (result) => {
       onOpenChange(false);
-      setName("");
-      setExpiryMode("7");
-      setCustomExpiresAt("");
       onCreated(result.rawToken);
     },
   });
@@ -212,123 +87,13 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
           autoFocus
         />
       </div>
-      <div className="space-y-1.5">
-        <div className="grid gap-3 sm:grid-cols-[220px_1fr] sm:items-start">
-          <div className="space-y-1.5">
-            <Label htmlFor="token-expiration">Expiration</Label>
-            <Select value={expiryMode} onValueChange={(value) => setExpiryMode(value as ExpiryMode)}>
-              <SelectTrigger id="token-expiration" className="h-9 min-w-[220px]">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="min-w-[220px]">
-                {EXPIRY_PRESETS.map((preset) => (
-                  <SelectItem key={preset.value} value={preset.value}>
-                    {preset.label} ({formatExpiryLabel(getPresetExpiry(preset.days))})
-                  </SelectItem>
-                ))}
-                <SelectItem value="custom">Custom</SelectItem>
-                <SelectItem value="none">No expiration</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {expiryMode === "custom" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="token-custom-expires">Select date *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="token-custom-expires"
-                    type="button"
-                    variant="outline"
-                    className="h-9 w-full justify-start text-left font-normal"
-                  >
-                    {customExpiresAt ? formatExpiryLabel(customExpiresAt) : "dd . mm . yyyy"}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-70" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={selectedCustomDate}
-                    onSelect={(date) => setCustomExpiresAt(date ? toDateOnly(date) : "")}
-                    disabled={(date) => date < today}
-                    autoFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          {expiryMode === "none"
-            ? "The token will not expire automatically"
-            : "The token will expire on the selected date"}
-        </p>
-      </div>
+      <ExpiryFields
+        mode={expiryMode}
+        onModeChange={setExpiryMode}
+        customExpiresAt={customExpiresAt}
+        onCustomChange={setCustomExpiresAt}
+      />
     </FormDialog>
-  );
-}
-
-interface RawTokenDialogProps {
-  token: string | null;
-  onClose: () => void;
-}
-
-function RawTokenDialog({ token, onClose }: RawTokenDialogProps) {
-  return (
-    <Dialog open={!!token} onOpenChange={() => onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Token created</DialogTitle>
-          <DialogDescription>
-            Copy this token now. It will not be shown again.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="bg-muted rounded-md p-3 font-mono text-sm break-all select-all">
-          {token}
-        </div>
-        <Alert>
-          <AlertDescription>
-            Store this token securely. Anyone with it can read your workspace's reporting data.
-          </AlertDescription>
-        </Alert>
-        <DialogFooter className="gap-2">
-          <CopyButton text={token ?? ""} />
-          <Button onClick={onClose}>Done</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-interface RevokeDialogProps {
-  token: ReportingTokenSummary | null;
-  onOpenChange: (open: boolean) => void;
-}
-
-function RevokeDialog({ token, onOpenChange }: RevokeDialogProps) {
-  const mutation = useMutation({
-    mutationFn: (id: string) => revokeReportingToken(id),
-    meta: {
-      successMessage: "Token revoked",
-      errorMessage: "Failed to revoke token. Please try again.",
-      invalidates: [qk.reportingTokens.all()],
-    },
-    onSuccess: () => onOpenChange(false),
-  });
-
-  return (
-    <ConfirmDialog
-      open={!!token}
-      onOpenChange={onOpenChange}
-      title={`Revoke "${token?.name}"?`}
-      description="It will stop working immediately. Any integration using it will lose access."
-      confirmLabel="Revoke"
-      destructive
-      isPending={mutation.isPending}
-      onConfirm={() => { if (token) mutation.mutate(token.id); }}
-    />
   );
 }
 
@@ -377,106 +142,10 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
     enabled: apiAccessAllowed,
   });
 
-  const columns: ColumnDef<ReportingTokenSummary>[] = [
-    {
-      accessorKey: 'name',
-      header: 'Name',
-      meta: { filter: { type: 'text' } },
-      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-    },
-    {
-      id: 'prefix',
-      header: 'Prefix',
-      cell: ({ row }) => (
-        <span className="font-mono text-sm text-muted-foreground">{row.original.tokenPrefix}…</span>
-      ),
-    },
-    {
-      id: 'status',
-      accessorFn: (r) => tokenStatus(r),
-      header: 'Status',
-      meta: { filter: { type: 'enum', getLabel: (v) => TOKEN_STATUS_LABEL[v as TokenStatus] ?? v } },
-      cell: ({ row }) => <TokenStatusBadge token={row.original} />,
-    },
-    {
-      id: 'created',
-      accessorFn: (r) => r.createdAtUtc ?? '',
-      header: 'Created',
-      meta: { filter: { type: 'date' } },
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAtUtc)}</span>
-      ),
-    },
-    {
-      id: 'lastUsed',
-      accessorFn: (r) => r.lastUsedAtUtc ?? '',
-      header: 'Last used',
-      meta: { filter: { type: 'date' } },
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.lastUsedAtUtc)}</span>
-      ),
-    },
-    {
-      id: 'expires',
-      accessorFn: (r) => r.expiresAtUtc ?? '',
-      header: 'Expires',
-      meta: { filter: { type: 'date' } },
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.expiresAtUtc)}</span>
-      ),
-    },
-    {
-      id: 'actions',
-      header: () => null,
-      size: 56,
-      cell: ({ row }) => {
-        const token = row.original;
-        return token.isActive ? (
-          <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); setRevokeTarget(token); }}
-              aria-label={`Revoke ${token.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : null;
-      },
-    },
-  ];
+  const columns = buildTokenColumns<ReportingTokenSummary>(setRevokeTarget);
 
   // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
-  const tableUrlState = useTableUrlState('tokens', columns);
-
-  // Phone presentation: name + status/prefix stacked, revoke trailing.
-  const renderCard = (token: ReportingTokenSummary) => (
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0 space-y-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-medium truncate">{token.name}</span>
-          <TokenStatusBadge token={token} />
-        </div>
-        <p className="font-mono text-xs text-muted-foreground truncate">{token.tokenPrefix}…</p>
-        <p className="text-xs text-muted-foreground truncate">
-          Created {formatDate(token.createdAtUtc)} · Last used {formatDate(token.lastUsedAtUtc)}
-        </p>
-      </div>
-      {token.isActive && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); setRevokeTarget(token); }}
-          aria-label={`Revoke ${token.name}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      )}
-    </div>
-  );
+  const tableUrlState = useTableUrlState("tokens", columns);
 
   if (authLoading) {
     return (
@@ -549,10 +218,10 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
         </div>
       ) : (
         <OrkyoDataTable
-        {...tableUrlState}
+          {...tableUrlState}
           columns={columns}
           data={tokens}
-          renderCard={renderCard}
+          renderCard={(token) => renderTokenCard(token, setRevokeTarget)}
         />
       )}
 
@@ -563,8 +232,17 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
         onOpenChange={setCreateOpen}
         onCreated={(t) => setRawToken(t)}
       />
-      <RawTokenDialog token={rawToken} onClose={() => setRawToken(null)} />
-      <RevokeDialog token={revokeTarget} onOpenChange={(open) => !open && setRevokeTarget(null)} />
+      <RawTokenDialog
+        token={rawToken}
+        onClose={() => setRawToken(null)}
+        warning="Store this token securely. Anyone with it can read your workspace's reporting data."
+      />
+      <RevokeTokenDialog
+        token={revokeTarget}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+        revokeFn={revokeReportingToken}
+        invalidates={qk.reportingTokens.all()}
+      />
     </div>
   );
 }

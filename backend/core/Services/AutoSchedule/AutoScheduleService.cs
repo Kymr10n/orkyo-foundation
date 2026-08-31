@@ -122,7 +122,15 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 {
                     ResourceId = a.ResourceId,
                     StartTs = a.Start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                    EndTs = a.End.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                    // The solver's End is INCLUSIVE — both solvers compute it as
+                    // start.AddDays(DurationDays - 1), so a one-day placement has Start == End.
+                    // The schedule window is a half-open timestamp range, so the exclusive end is
+                    // the day after. Without the AddDays(1) a one-day placement produced a
+                    // zero-length window, and BatchUpdateSchedulesAsync derives
+                    // actual_duration_value from End - Start, so it wrote 0 and tripped the
+                    // requests_actual_duration_value_check constraint; every multi-day placement
+                    // was silently written one day short.
+                    EndTs = a.End.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
                 }))
             .ToList();
 

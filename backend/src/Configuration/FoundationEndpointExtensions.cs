@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Api.Endpoints;
 using Api.Endpoints.Admin;
 using Api.Endpoints.Ai;
+using Api.Endpoints.PlatformApi;
 using Api.Endpoints.Reporting;
 using Microsoft.AspNetCore.Builder;
 
@@ -74,6 +75,8 @@ public static class FoundationEndpointExtensions
         app.MapUtilizationEndpoints();
         app.MapReportingEndpoints();
         app.MapReportingTokenEndpoints();
+        app.MapApiAccessTokenEndpoints();
+        app.MapOrkyoMcpEndpoints();
 
         return app;
     }

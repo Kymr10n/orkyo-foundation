@@ -16,7 +16,14 @@ public enum AuthProvider
     AzureAD,
 
     /// <summary>Google OAuth (future)</summary>
-    Google
+    Google,
+
+    /// <summary>
+    /// A per-tenant API access token acting on its own behalf (MCP server, automated integrations).
+    /// There is no human behind it: the user id is derived from the token, and its tenant role
+    /// comes from the token's scopes rather than a membership row.
+    /// </summary>
+    ApiToken
 }
 
 /// <summary>

@@ -200,7 +200,9 @@ public class CriticalPathService : ICriticalPathService
     private static int DurationDays(RequestInfo request)
     {
         if (request.StartTs is { } start && request.EndTs is { } end)
-            return Math.Max(1, DateOnly.FromDateTime(end).DayNumber - DateOnly.FromDateTime(start).DayNumber + 1);
+            // Inclusive last day (end_ts is half-open): the raw date of a midnight end would
+            // report every applied one-day placement as two days on the critical path.
+            return Math.Max(1, SchedulingEngine.InclusiveLastDay(end).DayNumber - DateOnly.FromDateTime(start).DayNumber + 1);
 
         var minutes = SchedulingEngine.DurationToMinutes(request.MinimalDurationValue, request.MinimalDurationUnit);
         return Math.Max(1, (int)Math.Ceiling(minutes / (double)(24 * 60)));

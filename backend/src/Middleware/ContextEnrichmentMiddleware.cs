@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Api.Constants;
 using Api.Integrations.Keycloak;
+using Api.PlatformApi.Auth;
 using Api.Security;
 using Api.Services;
+using Api.Services.PlatformApi;
 using Microsoft.Extensions.Caching.Memory;
 using Orkyo.Shared;
 
@@ -85,12 +87,14 @@ public sealed class ContextEnrichmentMiddleware
             // Step 3: Resolve authorization context (role in tenant)
             if (principal.IsAuthenticated)
             {
-                var authContext = await ResolveAuthorizationContextAsync(
-                    identityLinkService,
-                    breakGlassSessionService,
-                    principal.UserId,
-                    tenantContext,
-                    principal.IsSiteAdmin);
+                var authContext = principal.AuthProvider == AuthProvider.ApiToken
+                    ? ResolveApiTokenAuthorizationContext(context, tenantContext)
+                    : await ResolveAuthorizationContextAsync(
+                        identityLinkService,
+                        breakGlassSessionService,
+                        principal.UserId,
+                        tenantContext,
+                        principal.IsSiteAdmin);
                 currentAuthContext.SetContext(authContext);
 
                 // Step 4: Ensure user stub exists in tenant DB for FK references
@@ -135,6 +139,14 @@ public sealed class ContextEnrichmentMiddleware
         if (context.User.Identity?.IsAuthenticated != true)
         {
             return PrincipalContext.Anonymous;
+        }
+
+        // An API access token authenticates a program, not a person: there is no Keycloak subject
+        // and no identity link to resolve, so it is answered from the validated token record.
+        if (context.User.Identity.AuthenticationType == ApiAccessTokenAuthHandler.SchemeName
+            && context.Items[ApiAccessTokenContextKeys.TokenRecord] is ApiAccessTokenRecord apiToken)
+        {
+            return BuildApiTokenPrincipal(apiToken);
         }
 
         // Try Keycloak token first
@@ -217,6 +229,56 @@ public sealed class ContextEnrichmentMiddleware
             // Carried so services can tell concurrent visitors apart on a shared account.
             SessionId = tokenProfile.SessionId,
             IsSiteAdmin = tokenProfile.IsSiteAdmin
+        };
+    }
+
+    /// <summary>
+    /// The identity an API access token acts as. The token's own id doubles as the user id: it is
+    /// already a unique GUID, it is stable for the token's lifetime, and using it directly means an
+    /// audit row's <c>actor_user_id</c> names the exact credential that made the change — which is
+    /// what you want to know when the actor is a program rather than a person.
+    /// </summary>
+    private static PrincipalContext BuildApiTokenPrincipal(ApiAccessTokenRecord token) => new()
+    {
+        UserId = token.Id,
+        Email = $"token-{token.TokenPrefix}@api-tokens.invalid",
+        DisplayName = $"API token: {token.Name}",
+        AuthProvider = AuthProvider.ApiToken,
+        ExternalSubject = null,
+        // A token is never a site admin: break-glass is a human escalation path, and no scope
+        // grants platform administration.
+        IsSiteAdmin = false,
+    };
+
+    /// <summary>
+    /// The tenant role an API access token acts with, taken from its scopes rather than a
+    /// membership row. The token's tenant is authoritative — a token presented against another
+    /// tenant's host gets no role at all, and the endpoint group's tenant-match filter rejects it
+    /// outright as well.
+    /// </summary>
+    private AuthorizationContext ResolveApiTokenAuthorizationContext(
+        HttpContext context, TenantContext tenant)
+    {
+        var token = context.Items[ApiAccessTokenContextKeys.TokenRecord] as ApiAccessTokenRecord;
+
+        if (token is null || token.TenantId != tenant.TenantId)
+        {
+            _logger.LogWarning(
+                "API token tenant mismatch or missing record: token={TokenTenant}, request={RequestTenant}",
+                token?.TenantId, tenant.TenantId);
+            return new AuthorizationContext
+            {
+                TenantId = tenant.TenantId,
+                TenantSlug = tenant.TenantSlug,
+                Role = TenantRole.None,
+            };
+        }
+
+        return new AuthorizationContext
+        {
+            TenantId = tenant.TenantId,
+            TenantSlug = tenant.TenantSlug,
+            Role = token.EffectiveRole,
         };
     }
 

@@ -215,6 +215,11 @@ export const qk = {
     all: () => ["reporting-tokens"] as const,
   },
 
+  apiAccessTokens: {
+    /** The tenant's write-capable API access tokens (also its own invalidation prefix). */
+    all: () => ["api-access-tokens"] as const,
+  },
+
   ai: {
     /** Everything AI-assistant related — the shared invalidation prefix. */
     all: () => ["ai"] as const,

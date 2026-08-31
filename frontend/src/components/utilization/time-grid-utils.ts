@@ -89,36 +89,34 @@ export function parseTimeToHour(time: string): number {
 }
 
 /**
- * Resolve which column index the pointer is over, given the row-track's measured
- * rect. Columns are equal-width within the track, so the index is the offset
- * divided by the column width, clamped to the valid range. Shared by the drop
- * handler (→ start timestamp) and the live drop-location indicator (→ position).
+ * Resolve the start timestamp (ms) of a bar dragged horizontally by `deltaX` pixels.
+ *
+ * Movement is continuous, not quantized to column edges: the pixel delta converts
+ * straight to a time delta against the view span. This is the same px → ms conversion
+ * `useResizeGesture` applies, so moving and resizing by the same distance shift the bar
+ * by the same amount, and the request lands exactly where the dragged bar is drawn.
+ *
+ * Working from the drag *delta* (not the pointer position) is what keeps the grab offset:
+ * the bar translates with the pointer instead of snapping its start under it. A purely
+ * vertical drag to another row therefore keeps the request's time untouched.
+ *
+ * The result stays inside the visible window, so a drop can never push a bar out of sight.
+ * The bounds widen to include `origStartMs` when the bar already starts before the window:
+ * clamping such a bar on any nudge would move a request the user only meant to pick up.
  */
-export function resolveColumnIndex(
-  pointerX: number,
-  trackLeft: number,
+export function resolveDropStartMs(
+  origStartMs: number,
+  durationMs: number,
+  deltaX: number,
   trackWidth: number,
-  columnCount: number,
+  viewStartMs: number,
+  viewEndMs: number,
 ): number {
-  if (columnCount === 0 || trackWidth <= 0) return 0;
-  const columnWidth = trackWidth / columnCount;
-  const idx = Math.floor((pointerX - trackLeft) / columnWidth);
-  return Math.min(columnCount - 1, Math.max(0, idx));
-}
-
-/**
- * Resolve the start timestamp (ms) of the column the pointer landed on. Replaces
- * the old per-cell droppable: the single row droppable carries `columnStartsMs`
- * and we compute the column here at drop time.
- */
-export function resolveColumnStartMs(
-  pointerX: number,
-  trackLeft: number,
-  trackWidth: number,
-  columnStartsMs: readonly number[],
-): number {
-  if (columnStartsMs.length === 0) return 0;
-  return columnStartsMs[resolveColumnIndex(pointerX, trackLeft, trackWidth, columnStartsMs.length)];
+  if (trackWidth <= 0 || viewEndMs <= viewStartMs) return origStartMs;
+  const deltaMs = (deltaX / trackWidth) * (viewEndMs - viewStartMs);
+  const earliest = Math.min(viewStartMs, origStartMs);
+  const latest = Math.max(viewStartMs, viewEndMs - durationMs, origStartMs);
+  return Math.round(Math.min(Math.max(origStartMs + deltaMs, earliest), latest));
 }
 
 function isHourOutsideWorkingHours(hour: number, workingHours: WorkingHoursConfig | null): boolean {
@@ -234,6 +232,31 @@ export function formatTimeColumn(date: Date, granularity: string): string {
       return formatCompactTime(date);
     default:
       return formatLocalized(date, GRID_WEEK_HEADER_OPTS);
+  }
+}
+
+/** Day parts for the drop label — the column headers' weekday+day, plus the month, because
+ *  the label floats over the grid instead of sitting under a header that already names it. */
+const DROP_DAY_OPTS: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit", month: "short" };
+
+/**
+ * Label for the live drop marker: the instant the dragged bar will land on, at the precision
+ * the current scale lets the user aim for. A column is the unit of aim, so the finer the
+ * columns, the more the label says — naming a minute on a month view would be false precision
+ * (one pixel spans hours there), and naming only the day on an hour view would hide the very
+ * thing being chosen.
+ */
+export function formatDropInstant(date: Date, scale: TimeScale): string {
+  switch (scale) {
+    case "hour":
+      return formatCompactTime(date);
+    case "day":
+    case "week":
+      return `${formatLocalized(date, DROP_DAY_OPTS)}, ${formatCompactTime(date)}`;
+    case "month":
+      return formatLocalized(date, DROP_DAY_OPTS);
+    case "year":
+      return formatLocalized(date, { day: "2-digit", month: "short", year: "numeric" });
   }
 }
 

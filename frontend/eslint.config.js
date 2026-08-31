@@ -300,7 +300,10 @@ export default defineConfig(
       // Read-only / per-item-state-machine views.
       'src/components/utilization/ResourceAssignmentDialog.tsx',
       'src/components/utilization/ScheduleSlotDialog.tsx',
-      'src/components/settings/ReportingApiSettings.tsx', // RawTokenDialog: show-once token view
+      // RawTokenDialog: show-once token view. Was ReportingApiSettings.tsx's; extracted here when
+      // the API-access (MCP) token screen needed the same one-time secret reveal, so the exemption
+      // covers one shared dialog instead of a copy per token class.
+      'src/components/settings/api-tokens/token-ui.tsx',
       'src/components/admin/FeedbackTab.tsx',
       'src/components/admin/AnnouncementsTab.tsx',
       // Compound in-place sub-forms / special flows — FormDialog convergence is

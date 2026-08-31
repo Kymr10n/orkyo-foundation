@@ -1,6 +1,7 @@
 using Api.Constants;
 using Api.Endpoints;
 using Api.Integrations.Keycloak;
+using Api.PlatformApi.Auth;
 using Api.Reporting.Auth;
 using Api.Security;
 using Microsoft.AspNetCore.Authentication;
@@ -150,13 +151,23 @@ public static class AuthenticationServiceExtensions
         // Reporting endpoints opt in via .RequireAuthorization("ReportingToken").
         services.AddAuthentication()
             .AddScheme<AuthenticationSchemeOptions, ReportingTokenAuthHandler>(
-                ReportingTokenAuthHandler.SchemeName, _ => { });
+                ReportingTokenAuthHandler.SchemeName, _ => { })
+            // The write-capable API access token scheme (MCP). Separate from reporting on purpose:
+            // each scheme covers one trust class, and each ignores the other's token by prefix.
+            .AddScheme<AuthenticationSchemeOptions, ApiAccessTokenAuthHandler>(
+                ApiAccessTokenAuthHandler.SchemeName, _ => { });
 
         services.AddAuthorization(options =>
         {
             options.AddPolicy(ReportingTokenAuthHandler.PolicyName, policy =>
             {
                 policy.AddAuthenticationSchemes(ReportingTokenAuthHandler.SchemeName);
+                policy.RequireAuthenticatedUser();
+            });
+
+            options.AddPolicy(ApiAccessTokenAuthHandler.PolicyName, policy =>
+            {
+                policy.AddAuthenticationSchemes(ApiAccessTokenAuthHandler.SchemeName);
                 policy.RequireAuthenticatedUser();
             });
         });

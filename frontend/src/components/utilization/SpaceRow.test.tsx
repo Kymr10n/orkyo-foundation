@@ -191,19 +191,18 @@ describe('SpaceRow', () => {
     });
   });
 
-  it('registers a single row-level droppable carrying the column start times', () => {
+  it('registers a single row-level droppable carrying the view bounds', () => {
     renderRow({ columns: [makeColumn('08'), makeColumn('09'), makeColumn('10')] });
     expect(mockUseDroppable).toHaveBeenCalledTimes(1);
+    // Bounds, not per-column starts: the drop resolves a time from the drag delta
+    // against the row's width, so it never needs to know where a column begins.
     expect(mockUseDroppable).toHaveBeenCalledWith({
       id: 'track-space-1',
       data: {
         type: 'space-track',
         resourceId: 'space-1',
-        columnStartsMs: [
-          makeColumn('08').start.getTime(),
-          makeColumn('09').start.getTime(),
-          makeColumn('10').start.getTime(),
-        ],
+        viewStartMs: makeColumn('08').start.getTime(),
+        viewEndMs: makeColumn('10').end.getTime(),
       },
     });
   });

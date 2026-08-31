@@ -266,7 +266,9 @@ public class ConflictService(
             // in day buckets, so a successor starting the same calendar day its predecessor ends
             // is a violation to them; comparing raw timestamps here would report it clean and
             // leave the Conflicts page contradicting the critical-path view.
-            var earliest = DateOnly.FromDateTime(predecessorEnd)
+            // Inclusive last day (end_ts is half-open): the raw date of a midnight end would
+            // flag a successor correctly placed the very next day as a violation.
+            var earliest = SchedulingEngine.InclusiveLastDay(predecessorEnd)
                 .AddDays(1 + (int)Math.Ceiling(edge.LagMinutes / (double)(24 * 60)));
             if (DateOnly.FromDateTime(start) < earliest)
             {

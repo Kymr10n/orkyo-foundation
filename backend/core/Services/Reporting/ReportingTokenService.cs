@@ -1,7 +1,6 @@
-using System.Security.Cryptography;
-using System.Text;
 using Api.Configuration;
 using Api.Models;
+using Api.Services.PlatformApi;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
@@ -85,8 +84,6 @@ public interface IReportingTokenService
 public sealed class ReportingTokenService : IReportingTokenService
 {
     private const string TokenScheme = "orkyo_rpt";
-    private const int PrefixLength = 8;
-    private const int SecretByteLength = 32;
 
     private readonly IDbConnectionFactory _db;
     private readonly byte[] _pepper;
@@ -102,25 +99,20 @@ public sealed class ReportingTokenService : IReportingTokenService
         // Fail early, never fall back: the pepper keys token hashes, and the old chain
         // ended in a literal from this file — a publicly known pepper. An empty value
         // counts as absent (the deploy pipeline writes KEY= for unset keys).
-        var pepperValue = configuration.IsSet(ConfigKeys.ReportingTokenPepper)
-            ? configuration[ConfigKeys.ReportingTokenPepper]!
-            : configuration[ConfigKeys.KeycloakBackendClientSecret];
-        if (string.IsNullOrEmpty(pepperValue))
-            throw new InvalidOperationException(
-                $"ReportingTokenService: neither '{ConfigKeys.ReportingTokenPepper}' nor "
-                + $"'{ConfigKeys.KeycloakBackendClientSecret}' is set; refusing to hash "
-                + "reporting tokens with a known pepper.");
-        _pepper = Encoding.UTF8.GetBytes(pepperValue);
+        _pepper = TokenCredentialHelper.ResolvePepper(
+            configuration.IsSet(ConfigKeys.ReportingTokenPepper)
+                ? configuration[ConfigKeys.ReportingTokenPepper]
+                : null,
+            configuration[ConfigKeys.KeycloakBackendClientSecret],
+            $"ReportingTokenService: neither '{ConfigKeys.ReportingTokenPepper}' nor "
+            + $"'{ConfigKeys.KeycloakBackendClientSecret}' is set");
     }
 
     public async Task<CreatedReportingToken> CreateAsync(
         Guid tenantId, string name, DateTime? expiresAt, Guid? createdByUserId,
         CancellationToken ct = default)
     {
-        var prefix = GeneratePrefix();
-        var secretBytes = RandomNumberGenerator.GetBytes(SecretByteLength);
-        var rawToken = $"{TokenScheme}_{prefix}_{Base64UrlEncode(secretBytes)}";
-        var hash = ComputeHash(secretBytes);
+        var (rawToken, prefix, hash) = TokenCredentialHelper.Generate(TokenScheme, _pepper);
 
         await using var conn = _db.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
@@ -216,7 +208,7 @@ public sealed class ReportingTokenService : IReportingTokenService
 
     public async Task<ReportingTokenRecord?> ValidateAsync(string rawToken, CancellationToken ct = default)
     {
-        if (!TryParseToken(rawToken, out var prefix, out var secretBytes))
+        if (!TokenCredentialHelper.TryParse(rawToken, TokenScheme, out var prefix, out var secretBytes))
             return null;
 
         await using var conn = _db.CreateControlPlaneConnection();
@@ -251,10 +243,8 @@ public sealed class ReportingTokenService : IReportingTokenService
         if (!record.IsActive)
             return null;
 
-        var expectedHash = ComputeHash(secretBytes);
-        if (!CryptographicOperations.FixedTimeEquals(
-                Encoding.UTF8.GetBytes(expectedHash),
-                Encoding.UTF8.GetBytes(record.TokenHash)))
+        var expectedHash = TokenCredentialHelper.ComputeHash(secretBytes, _pepper);
+        if (!TokenCredentialHelper.HashesMatch(expectedHash, record.TokenHash))
             return null;
 
         return record;
@@ -277,64 +267,4 @@ public sealed class ReportingTokenService : IReportingTokenService
         }
     }
 
-    // ── Token format helpers ─────────────────────────────────────────────────
-
-    private static bool TryParseToken(string raw, out string prefix, out byte[] secretBytes)
-    {
-        prefix = "";
-        secretBytes = [];
-
-        // Format: orkyo_rpt_{prefix}_{base64url-secret}
-        if (!raw.StartsWith(TokenScheme + "_", StringComparison.Ordinal))
-            return false;
-
-        var rest = raw[(TokenScheme.Length + 1)..];
-        var underscoreIdx = rest.IndexOf('_');
-        if (underscoreIdx < 0) return false;
-
-        prefix = rest[..underscoreIdx];
-        var secretB64 = rest[(underscoreIdx + 1)..];
-
-        try
-        {
-            secretBytes = Base64UrlDecode(secretB64);
-            return secretBytes.Length == SecretByteLength;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private string ComputeHash(byte[] secretBytes)
-    {
-        using var hmac = new HMACSHA256(_pepper);
-        var hashBytes = hmac.ComputeHash(secretBytes);
-        return Convert.ToHexString(hashBytes).ToLowerInvariant();
-    }
-
-    private static string GeneratePrefix()
-    {
-        const string chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-        Span<byte> buf = stackalloc byte[PrefixLength];
-        RandomNumberGenerator.Fill(buf);
-        return new string(buf.ToArray().Select(b => chars[b % chars.Length]).ToArray());
-    }
-
-    private static string Base64UrlEncode(byte[] data)
-        => Convert.ToBase64String(data)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
-
-    private static byte[] Base64UrlDecode(string s)
-    {
-        s = s.Replace('-', '+').Replace('_', '/');
-        switch (s.Length % 4)
-        {
-            case 2: s += "=="; break;
-            case 3: s += "="; break;
-        }
-        return Convert.FromBase64String(s);
-    }
 }

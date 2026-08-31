@@ -64,19 +64,20 @@ export const SpaceRow = React.memo(function SpaceRow({
     [space.id, spaceEntries]
   );
 
-  // A single droppable per row (not per cell). The exact column is resolved
-  // from the pointer x-position at drop time in UtilizationPage.handleDragEnd,
-  // so we carry the column start timestamps in the drop data. Collapsing
-  // rows×columns droppables to one-per-row is what keeps the grid fast: dnd-kit
-  // clones its container Map on every registration, so per-cell droppables made
-  // mounting O(n²).
-  const columnStartsMs = useMemo(
-    () => columns.map((c) => c.start.getTime()),
-    [columns]
-  );
+  // The window this row draws, shared by the drop resolver below and the
+  // visible-entry filter further down.
+  const viewStartMs = columns[0].start.getTime();
+  const viewEndMs = columns[columns.length - 1].end.getTime();
+
+  // A single droppable per row (not per cell). The drop time is resolved from the
+  // drag delta against the row's measured width in UtilizationPage.handleDragEnd,
+  // so we carry the view's time bounds in the drop data — no per-column data, the
+  // drop no longer snaps to a column. Collapsing rows×columns droppables to
+  // one-per-row is what keeps the grid fast: dnd-kit clones its container Map on
+  // every registration, so per-cell droppables made mounting O(n²).
   const { setNodeRef: setTrackRef, isOver } = useDroppable({
     id: `track-${space.id}`,
-    data: { type: "space-track", resourceId: space.id, columnStartsMs },
+    data: { type: "space-track", resourceId: space.id, viewStartMs, viewEndMs },
   });
 
   const isCellOffTime = useCallback(
@@ -99,8 +100,6 @@ export const SpaceRow = React.memo(function SpaceRow({
   // useDraggable before returning null — so a visible row paid for the space's
   // entire scheduling history, not just what's on screen. Filtering here keeps
   // mounted overlays + dnd draggables proportional to the visible window.
-  const viewStartMs = columns[0].start.getTime();
-  const viewEndMs = columns[columns.length - 1].end.getTime();
   const visibleEntries = useMemo(() => {
     if (spaceEntries.length === 0) return EMPTY_ENTRIES;
     return spaceEntries.filter((e) => !isOutsideView(e, viewStartMs, viewEndMs));

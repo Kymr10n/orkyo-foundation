@@ -53,6 +53,53 @@ var users = app.MapGroup("/api/users").RequireAuthorization().RequireAdminArea()
    are the only writes allowed without a convention — they are allow-listed in the conformance test.
 5. Platform/site-admin routes use `RequireSiteAdmin()` (also stamps the governance marker).
 
+### The one documented exception: the MCP server
+
+`/api/mcp` carries every call — reads and writes alike — over a single `POST`, because that is what
+the Model Context Protocol's transport does. A verb-aware write gate cannot tell `tools/list` from
+`tools/call`, so applying one would demand Editor merely to *discover* the tools, and a read-only
+token could do nothing at all.
+
+So that group declares `RequireTenantMembership()` plus an explicit `AuthorizationGoverned` marker,
+and each **tool** gates itself through one shared guard:
+
+```csharp
+// McpToolGuards — every mutating tool checks the same threshold the HTTP write gate does.
+public static void RequireWrite(IAuthorizationContext authorization, string tool)
+{
+    if (!authorization.CanEdit)
+        throw new McpException($"The '{tool}' tool needs the 'schedule:write' scope. …");
+}
+```
+
+The threshold is not duplicated: `IAuthorizationContext.CanEdit` (`Role >= Editor`) is the single
+source of truth both paths read. A token's role comes from its scopes —
+`schedule:write` → Editor, `schedule:read` → Viewer — resolved in `ContextEnrichmentMiddleware`, so
+an automated caller passes through the *same* membership and role checks a human does.
+
+The surface is 17 tools across four `[McpServerToolType]` classes — `ScheduleTools` (the board),
+`PlanningTools` (critical path, dependencies, capacity), `AutoScheduleTools` (solver preview and
+apply) and `LifecycleTools` (creating work, blocking resource time). One asymmetry is deliberate:
+`auto_schedule_preview` needs only `schedule:read`, matching the HTTP `/preview` endpoint, which
+carries `AllowMemberWrite()` because it persists nothing.
+
+**`schedule:write` is a broader grant than its name suggests.** It now covers creating requests,
+drawing dependency edges and marking resources unavailable — not just moving existing work. Tokens
+issued before those tools existed gained the ability the moment they shipped, without anyone
+re-consenting, which is why it is recorded here rather than left implicit. The scope was not split
+because the alternative — a third scope — buys precision at the cost of a vocabulary every admin
+must understand, and no customer has yet asked to grant rescheduling without creation. When one
+does, `PlatformApiScopes.ScopeToRole` is where it lands. Until then three things contain the
+breadth: `create_request` deliberately exposes no start or end timestamp, so new work cannot be
+placed without going through a conflict-checked path; every tool carries honest `ReadOnly` /
+`Destructive` annotations, which is the only confirmation signal a client has under our stateless
+transport; and every tool call is logged by a single pipeline filter with its tool, arguments and acting token id — attribution a tool cannot forget to provide.
+
+This is the only place a group may skip the three conventions, and it is covered by
+`McpEndpointsTests`, whose refusal theory names **every** write tool by name — exhaustively, since
+without a verb-aware gate an ungated write would otherwise be invisible — and asserts that list
+matches exactly the tools the server advertises as destructive.
+
 ### The guardrail
 
 [`AuthorizationContractTests`](../backend/tests/Authorization/AuthorizationContractTests.cs)

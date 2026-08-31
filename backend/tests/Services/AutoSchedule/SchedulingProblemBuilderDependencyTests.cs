@@ -132,7 +132,8 @@ public class SchedulingProblemBuilderDependencyTests
         var builder = Build(
             backlog: [Leaf(succId, "Grind")],
             edges: [Edge(predId, succId)],
-            offHorizon: [Leaf(predId, "Mill", finishedLastMonth, finishedLastMonth)]);
+            // Half-open end, as stored: the last worked day is 10 May, so end_ts is 11 May 00:00.
+            offHorizon: [Leaf(predId, "Mill", finishedLastMonth, finishedLastMonth.AddDays(1))]);
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
@@ -253,7 +254,7 @@ public class SchedulingProblemBuilderDependencyTests
         var builder = Build(
             backlog: [Leaf(succId, "Grind")],
             edges: [Edge(predId, succId, lagMinutes: 2 * 24 * 60)],
-            offHorizon: [Leaf(predId, "Mill", finished, finished)]);
+            offHorizon: [Leaf(predId, "Mill", finished, finished.AddDays(1))]);
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 

@@ -91,6 +91,13 @@ public static class ConfigKeys
     /// <summary>Pepper for reporting-token hashing; falls back to <see cref="KeycloakBackendClientSecret"/>.</summary>
     public const string ReportingTokenPepper = "REPORTING_TOKEN_PEPPER";
 
+    /// <summary>
+    /// Pepper for API access token (MCP) hashing; falls back to <see cref="KeycloakBackendClientSecret"/>.
+    /// Kept distinct from <see cref="ReportingTokenPepper"/> so a leak of one credential class's
+    /// pepper does not make the write-capable class's stored hashes forgeable.
+    /// </summary>
+    public const string ApiAccessTokenPepper = "API_ACCESS_TOKEN_PEPPER";
+
     /// <summary>Disables the rate limiter (test/dev only). Read by both product Program.cs and test factories.</summary>
     public const string DisableRateLimiting = "DISABLE_RATE_LIMITING";
 

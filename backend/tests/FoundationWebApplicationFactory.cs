@@ -5,12 +5,14 @@ using Api.Endpoints.Admin;
 using Api.Endpoints.Reporting;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
+using Api.PlatformApi.Auth;
 using Api.Reporting.Auth;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using Api.Services.AutoSchedule;
 using Api.Services.BffSession;
+using Api.Services.PlatformApi;
 using Api.Services.Reporting;
 using Api.Validators;
 using FluentValidation;
@@ -170,6 +172,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["ToS:RequiredVersion"] = "2026-02",
             // Reporting token pepper — fixed for test repeatability.
             ["REPORTING_TOKEN_PEPPER"] = "test-reporting-pepper-do-not-use-in-prod",
+            // API access (MCP) token pepper — distinct from the reporting one, as in production.
+            ["API_ACCESS_TOKEN_PEPPER"] = "test-api-access-pepper-do-not-use-in-prod",
             // Rate limiting disabled in tests to avoid spurious 429s.
             [ConfigKeys.DisableRateLimiting] = "true",
         });
@@ -183,7 +187,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         })
         .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("TestScheme", _ => { })
         .AddScheme<AuthenticationSchemeOptions, ReportingTokenAuthHandler>(
-            ReportingTokenAuthHandler.SchemeName, _ => { });
+            ReportingTokenAuthHandler.SchemeName, _ => { })
+        .AddScheme<AuthenticationSchemeOptions, ApiAccessTokenAuthHandler>(
+            ApiAccessTokenAuthHandler.SchemeName, _ => { });
 
         builder.Services.AddAuthorization(options =>
         {
@@ -192,12 +198,28 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 policy.AddAuthenticationSchemes(ReportingTokenAuthHandler.SchemeName);
                 policy.RequireAuthenticatedUser();
             });
+
+            options.AddPolicy(ApiAccessTokenAuthHandler.PolicyName, policy =>
+            {
+                policy.AddAuthenticationSchemes(ApiAccessTokenAuthHandler.SchemeName);
+                policy.RequireAuthenticatedUser();
+            });
         });
 
         // Rate limiting — disabled by DISABLE_RATE_LIMITING config in tests
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddPolicy("mcp-api", ctx =>
+                System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+                    ctx.User?.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 30,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
+                        QueueLimit = 0,
+                    }));
             options.AddPolicy("reporting-api", ctx =>
                 System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
                     ctx.User?.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -410,6 +432,28 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IReportingTokenService, ReportingTokenService>();
         builder.Services.AddScoped<IReportingQueryService, ReportingQueryService>();
 
+        // ── Platform API (MCP) ────────────────────────────────────────────────
+        // MapOrkyoMcpEndpoints throws without these, so the endpoint graph this factory builds
+        // would not include /api/mcp at all — and the authorization conformance test would pass by
+        // never seeing the route.
+        builder.Services.AddScoped<Api.Services.PlatformApi.IApiAccessTokenService,
+            Api.Services.PlatformApi.ApiAccessTokenService>();
+        builder.Services.AddSingleton<Api.PlatformApi.Mcp.McpSolveThrottle>();
+        builder.Services.AddMcpServer(options =>
+            {
+                options.ServerInfo = new() { Name = "orkyo-schedule", Version = "2.0.0" };
+            })
+            .WithHttpTransport(options =>
+                options.SessionMode = ModelContextProtocol.AspNetCore.HttpServerSessionMode.Stateless)
+            .WithTools<Api.PlatformApi.Mcp.ScheduleTools>()
+            .WithTools<Api.PlatformApi.Mcp.PlanningTools>()
+            .WithTools<Api.PlatformApi.Mcp.AutoScheduleTools>()
+            .WithTools<Api.PlatformApi.Mcp.LifecycleTools>()
+            // One filter around every tools/call: per-call attribution logging, and
+            // containment so raw exception text never reaches an outside LLM client.
+            .WithRequestFilters(filters =>
+                filters.AddCallToolFilter(Api.PlatformApi.Mcp.McpToolPipeline.AuditAndContainErrors));
+
         // BFF auth — wires BffOptions binding, in-memory PKCE/session stores, DataProtection,
         // TenantMiddlewareOptions, and (when BFF_ENABLED=true) the cookie auth scheme.
         builder.Services.AddBffAuthentication(builder.Configuration);
@@ -587,6 +631,43 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         });
 
         app.UseAuthorization();
+
+        // API access tokens (orkyo_api_*) authenticate during UseAuthorization, like reporting
+        // tokens, so this runs after it — the same position ContextEnrichmentMiddleware occupies
+        // in the real pipeline. It mirrors that middleware's API-token branch: scopes become a
+        // tenant role, and a token presented against another tenant gets none. The production
+        // branch itself is covered directly by ContextEnrichmentApiTokenTests; this exists so the
+        // endpoint wiring and per-tool scope checks can be exercised over real HTTP.
+        app.Use(async (context, next) =>
+        {
+            if (context.Items[ApiAccessTokenContextKeys.TokenRecord] is ApiAccessTokenRecord token)
+            {
+                var tenantCtx = context.RequestServices.GetRequiredService<TenantContext>();
+                context.RequestServices.GetRequiredService<CurrentTenant>().SetContext(tenantCtx);
+                context.Items["TenantContext"] = tenantCtx;
+                context.Items["OrgContext"] = context.RequestServices.GetRequiredService<OrgContext>();
+
+                context.RequestServices.GetRequiredService<CurrentPrincipal>().SetContext(new PrincipalContext
+                {
+                    UserId = token.Id,
+                    Email = $"token-{token.TokenPrefix}@api-tokens.invalid",
+                    DisplayName = $"API token: {token.Name}",
+                    AuthProvider = AuthProvider.ApiToken,
+                    IsSiteAdmin = false,
+                });
+                context.RequestServices.GetRequiredService<CurrentAuthorizationContext>().SetContext(
+                    new AuthorizationContext
+                    {
+                        TenantId = tenantCtx.TenantId,
+                        TenantSlug = tenantCtx.TenantSlug,
+                        Role = token.TenantId == tenantCtx.TenantId
+                            ? token.EffectiveRole
+                            : TenantRole.None,
+                    });
+            }
+
+            await next(context);
+        });
 
         // Map every foundation endpoint through the SAME extension production uses, so the
         // test surface can never silently drift from FoundationEndpointExtensions (F1).

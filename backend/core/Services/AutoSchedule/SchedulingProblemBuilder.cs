@@ -138,7 +138,10 @@ public class SchedulingProblemBuilder
                 x.Request.Id,
                 x.ResourceId!.Value,
                 DateOnly.FromDateTime(x.Request.StartTs!.Value),
-                DateOnly.FromDateTime(x.Request.EndTs!.Value)))
+                // Inclusive last day, not the raw end date: end_ts is half-open, and the
+                // analyzer's overlap check treats occupancy End inclusively. The raw date of a
+                // midnight end would phantom-occupy one extra day per applied placement.
+                SchedulingEngine.InclusiveLastDay(x.Request.EndTs!.Value)))
             .ToList();
 
         // Precedence edges pointing at anything this run might place. One read for the whole
@@ -157,7 +160,10 @@ public class SchedulingProblemBuilder
         // the run from refusing to place work whose prerequisite is already done.
         var placedEnds = scheduled
             .Where(r => r.EndTs.HasValue)
-            .ToDictionary(r => r.Id, r => DateOnly.FromDateTime(r.EndTs!.Value));
+            // Inclusive last day: the fold-in below starts successors "the day after the
+            // predecessor ends", so a raw midnight-exclusive date would cost every successor of
+            // an applied placement one extra idle day.
+            .ToDictionary(r => r.Id, r => SchedulingEngine.InclusiveLastDay(r.EndTs!.Value));
 
         var unresolved = edges
             .Select(e => e.PredecessorRequestId)
@@ -169,7 +175,7 @@ public class SchedulingProblemBuilder
             foreach (var predecessor in await _requestRepository.GetByIdsAsync(
                          unresolved, includeRequirements: false, cancellationToken))
                 if (predecessor.EndTs is { } end)
-                    placedEnds[predecessor.Id] = DateOnly.FromDateTime(end);
+                    placedEnds[predecessor.Id] = SchedulingEngine.InclusiveLastDay(end);
 
         var solverEdges = new List<DependencyEdge>();
         var earliestFromPredecessor = new Dictionary<Guid, DateOnly>();

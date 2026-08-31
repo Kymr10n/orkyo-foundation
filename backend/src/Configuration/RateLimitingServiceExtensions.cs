@@ -21,6 +21,7 @@ public static class FoundationRateLimitPolicies
     public const string ContactForm = "contact-form";
     public const string BffAuth = "bff-auth";
     public const string ReportingApi = "reporting-api";
+    public const string McpApi = "mcp-api";
 }
 
 /// <summary>
@@ -55,6 +56,14 @@ public static class RateLimitingServiceExtensions
                 RateLimitPartition.GetFixedWindowLimiter(
                     UserOrIpKey(ctx),
                     _ => Window(permitLimit: 60, TimeSpan.FromMinutes(1))));
+
+            // MCP server — per API-token id (the auth handler puts it in the identity name).
+            // Tighter than the reporting ceiling: one MCP call can mutate the schedule, and an
+            // agent in a retry loop is the failure mode this bounds.
+            options.AddPolicy(FoundationRateLimitPolicies.McpApi, ctx =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    UserOrIpKey(ctx),
+                    _ => Window(permitLimit: 30, TimeSpan.FromMinutes(1))));
 
             // SessionEndpoints — per-IP ceiling on session bootstrap.
             options.AddPolicy(FoundationRateLimitPolicies.SessionBootstrap, ctx =>
