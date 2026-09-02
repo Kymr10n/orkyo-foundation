@@ -1,7 +1,5 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
-import { AlertCircle, Layers } from "lucide-react";
 import { useSchedulerStore, MIN_DURATION_FLOOR_MS, RESIZE_MOVE_THRESHOLD_PX } from "@foundation/src/store/scheduler-store";
 import { useResizeGesture } from "@foundation/src/hooks/useResizeGesture";
 import type { ResizeGeometry } from "@foundation/src/hooks/useResizeGesture";
@@ -13,7 +11,12 @@ import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/sche
 import type { ScheduleIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
-import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS, STATUS_PATTERN_CLASS } from "./schedule-colors";
+import {
+  REQUEST_BAR_BASE_CLASS,
+  RequestBarLabel,
+  RequestBarLayers,
+  requestBarToneClass,
+} from "./RequestBarVisual";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverlay({
@@ -51,7 +54,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   const cancelResize = useSchedulerStore((s) => s.cancelResize);
 
   // All hooks must run unconditionally
-  const { attributes, listeners, setNodeRef, transform, isDragging } =
+  const { attributes, listeners, setNodeRef, isDragging } =
     useDraggable({
       id: `scheduled-${request.id}`,
       data: { ...request, isScheduled: true },
@@ -152,11 +155,11 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     width: `${displayData.widthPercent}%`,
     top: `${displayData.topPx}px`,
     height: `${displayData.heightPx}px`,
-    transform: isResizing ? undefined : CSS.Translate.toString(transform),
-    // Not dimmed while dragging. dnd-kit's transform above already moves this node
-    // continuously under the pointer, so this IS the thing in motion — fading it to
-    // half-opacity hid the only smooth element on screen and made the drag read as
-    // jumpy. Resize never dims its bar, and that is why resize feels fluent.
+    // No transform while dragging: the DragOverlay carries a lightweight clone under the
+    // pointer instead, so this node — and its whole subtree — is neither transformed nor
+    // reconciled on every pointer move. Transforming it here made a populated grid sluggish.
+    // What stays behind is a faded ghost marking where the request came from.
+    opacity: isDragging ? 0.4 : undefined,
     zIndex: displayData.zIndex,
   };
 
@@ -183,7 +186,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
     <div
       ref={combinedRef}
       style={style}
-      className={`absolute rounded border text-xs text-foreground p-1 overflow-hidden group transition motion-reduce:transition-none hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${
+      className={`absolute ${REQUEST_BAR_BASE_CLASS} group transition motion-reduce:transition-none hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${requestBarToneClass(status)} ${
         !editable
           ? 'cursor-pointer'
           : isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
@@ -231,15 +234,8 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         }
       }}
     >
-      {/* Translucent fill over the tinted track — gives the bar the same weight as a fully
-          allocated People segment. */}
-      {STATUS_FILL_CLASS[status] && (
-        <div className={`absolute inset-0 ${STATUS_FILL_CLASS[status]}`} aria-hidden="true" />
-      )}
-      {/* Diagonal hatch for the overbooked (conflict) state — non-colour cue. */}
-      {STATUS_PATTERN_CLASS[status] && (
-        <div className={`absolute inset-0 ${STATUS_PATTERN_CLASS[status]}`} aria-hidden="true" />
-      )}
+      {/* Translucent fill + the overbooked hatch — shared with the drag clone. */}
+      <RequestBarLayers status={status} />
       {/* Resize handles — desktop/tablet only (phone is view + tap-to-open). */}
       {editable && (
         <>
@@ -259,18 +255,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
           />
         </>
       )}
-      <div className="relative z-10 flex items-center gap-1">
-        {displayData.hasConflict && (
-          <AlertCircle className="w-3 h-3 flex-shrink-0" />
-        )}
-        {request.planningMode === 'summary' && (
-          <Layers className="w-3 h-3 flex-shrink-0 opacity-70" />
-        )}
-        {request.parentRequestId && (
-          <span className="w-1.5 h-1.5 rounded-full bg-current opacity-50 flex-shrink-0" />
-        )}
-        <div className="truncate font-medium">{request.name}</div>
-      </div>
+      <RequestBarLabel request={request} hasConflict={displayData.hasConflict} />
     </div>
   );
 });

@@ -100,7 +100,9 @@ export function ResourceClassPage({ resourceClass, surface }: ResourceClassPageP
   }
 
   const tabs: PageTab[] = [
-    { value: 'instances', label: resourceType.displayNamePlural },
+    // Named for the class, not the selected type: the type is already stated by the selector
+    // beside it, and a tab that renamed itself made the strip look like a different page.
+    { value: 'instances', label: labels.plural },
     { value: 'groups', label: 'Groups' },
     ...(hasLists ? [{ value: 'lists', label: 'Lists' }] : []),
     // The plan is a station surface of its own — cross-type and site-scoped — so it is reached

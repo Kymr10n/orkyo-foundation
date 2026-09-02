@@ -194,6 +194,16 @@ public static class NarrativeYearSeeder
         conflicts += InjectShutdownOverlap(jobs, contexts, cal, criteria, faker);
         conflicts += InjectCrossSiteAssignments(conn, jobs, contexts);
 
+        // ── Showcase plan ─────────────────────────────────────────────────────────
+        // The generated chains sequence work ACROSS parents, one facility at a time, so opening
+        // a campaign in the plan view shows hundreds of identically named children and no edges
+        // at all — the one place the product draws a plan has nothing to draw. This adds one
+        // hand-built plan whose children are sequenced among themselves, arranged so a visitor
+        // sees every state the feature has at once: a task freed by "any" of two deliveries, one
+        // still locked behind 2-of-3 inspections, and one freed because the work it waited for
+        // was cancelled.
+        var showcase = AddShowcasePlan(parents, jobs, cohorts, cal);
+
         await WriteRequestsAsync(conn, parents, jobs);
         var reqCount = await WriteRequirementsAsync(
             conn, jobs.Select(j => (j.Id, (IReadOnlyList<Guid>)j.RequiredCriteria)), criteria);
@@ -235,7 +245,7 @@ public static class NarrativeYearSeeder
             .ToList();
         await RequestTargetFactory.WriteAsync(conn, targets);
 
-        var depCount = await WriteDependenciesAsync(conn, jobs);
+        var depCount = await WriteDependenciesAsync(conn, jobs, showcase);
 
         return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds, depCount);
     }
@@ -573,6 +583,131 @@ public static class NarrativeYearSeeder
         }
     }
 
+    /// <summary>The edges and join conditions a curated plan contributes to the dependency write.</summary>
+    private sealed record ShowcasePlan(
+        IReadOnlyList<(Guid Pred, Guid Succ)> Edges,
+        IReadOnlyList<(Guid RequestId, string Logic, int? K)> Joins,
+        IReadOnlySet<Guid> PhaseIds)
+    {
+        public static ShowcasePlan Empty => new([], [], new HashSet<Guid>());
+    }
+
+    /// <summary>
+    /// One hand-built plan: a line changeover whose phases are sequenced among themselves.
+    ///
+    /// Everything else in this seeder is generated, and generated work makes a poor showcase for
+    /// join conditions — the chains link one facility's jobs across campaigns, so no parent ever
+    /// owns a sequenced set. This plan exists to be opened. Its shape is chosen so the graph
+    /// reads left to right and every state the feature has is visible in one view:
+    ///
+    ///   • Mount fixtures waits for EITHER vendor's delivery. One has landed, so it is free
+    ///     while the other delivery is still outstanding — the case "all" could not express.
+    ///   • Quality sign-off waits for 2 OF 3 inspections. One is done, one is running, one is
+    ///     not started, so it is still held — a lock with a number on it.
+    ///   • Deep clean bay waits for a purge that is done and a coolant disposal that was
+    ///     CANCELLED. It is free, because abandoned work leaves the set rather than holding it
+    ///     shut forever.
+    ///
+    /// Dates are laid out so no successor starts before a predecessor ends: the plan is a
+    /// correct schedule, not a pile of violations, and the conflict list stays about the
+    /// conflicts the seeder injects deliberately elsewhere.
+    /// </summary>
+    private static ShowcasePlan AddShowcasePlan(
+        List<(Guid Id, string Name, int SortOrder)> parents,
+        List<Job> jobs,
+        IReadOnlyList<FacilityCohort> cohorts,
+        YearCalendar cal)
+    {
+        // Anchored to the first facility, whose campaign window is the one already running.
+        // A profile without cohorts never reaches the narrative path, but no-op rather than throw.
+        var cohort = cohorts.FirstOrDefault();
+        if (cohort is null) return ShowcasePlan.Empty;
+
+        var site = cohort.Facility.SiteCode;
+        var now = cal.ReferenceDate;
+
+        var parentId = Guid.NewGuid();
+        parents.Add((parentId, $"Line changeover ({site})", parents.Count));
+
+        // Whole days at a fixed hour: the readers all work in day buckets, and a mid-shift time
+        // would only invite a same-day comparison to read as a violation.
+        DateTime Day(int offset) => now.Date.AddDays(offset).AddHours(8);
+
+        // (phase, startOffset, endOffset, status). Offsets are days from the reference date, so
+        // the plan keeps its shape whenever the demo is reseeded.
+        var phases = new (string Name, int From, int To, string Status)[]
+        {
+            ("Drain and purge line",              -12, -11, "done"),
+            ("Deliver fixture set (Vendor A)",    -10,  -8, "done"),
+            ("Deliver fixture set (Vendor B)",     -1,   3, "new"),
+            ("Dispose coolant charge",             -9,  -8, "cancelled"),
+            ("Deep clean bay",                      1,   2, "new"),
+            ("Mount fixtures",                      5,   7, "new"),
+            ("Inspect hydraulics",                 -6,  -5, "done"),
+            ("Inspect electrics",                  -1,   1, "in_progress"),
+            ("Inspect safety guards",               1,   3, "new"),
+            ("Quality sign-off",                    8,   9, "new"),
+            ("Restart production",                 10,  12, "new"),
+        };
+
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
+
+        // Appended contiguously: the request writer numbers sort_order with one running counter,
+        // so consecutive jobs give the plan's first column the order written here.
+        foreach (var (name, from, to, status) in phases)
+        {
+            var id = Guid.NewGuid();
+            ids[name] = id;
+            jobs.Add(new Job(
+                id,
+                // The facility suffix is load-bearing: the chain builder and its tests read the
+                // site from the text after the last em-dash.
+                $"{name} — {site}",
+                parentId,
+                Day(from),
+                Day(to),
+                status,
+                DurationHours: Math.Max(1, (to - from) * 8),
+                RequiredCriteria: [],
+                // The archetype only carries generation hints (rooms, skills, tools); these
+                // phases are written outright, so the facility's first one stands in for it.
+                Archetype: cohort.Facility.Archetypes[0],
+                SpaceId: null,
+                // No assignees: this plan is about sequence. Leaving it unbooked also keeps it
+                // out of the overbooking and capability injections, which choose their own
+                // victims and would otherwise have their counts disturbed.
+                Assignees: []));
+        }
+
+        Guid Id(string name) => ids[name];
+
+        var edges = new List<(Guid, Guid)>
+        {
+            (Id("Drain and purge line"), Id("Deep clean bay")),
+            (Id("Dispose coolant charge"), Id("Deep clean bay")),
+
+            (Id("Deliver fixture set (Vendor A)"), Id("Mount fixtures")),
+            (Id("Deliver fixture set (Vendor B)"), Id("Mount fixtures")),
+
+            (Id("Inspect hydraulics"), Id("Quality sign-off")),
+            (Id("Inspect electrics"), Id("Quality sign-off")),
+            (Id("Inspect safety guards"), Id("Quality sign-off")),
+
+            (Id("Mount fixtures"), Id("Restart production")),
+            (Id("Quality sign-off"), Id("Restart production")),
+        };
+
+        // Only the non-default conditions are written; "all" is the column default, and stating
+        // it would be a row that says nothing.
+        var joins = new List<(Guid, string, int?)>
+        {
+            (Id("Mount fixtures"), "any", null),
+            (Id("Quality sign-off"), "k_of_n", 2),
+        };
+
+        return new ShowcasePlan(edges, joins, ids.Values.ToHashSet());
+    }
+
     // ── Bulk writers ──────────────────────────────────────────────────────────
 
     private const string DependencyCopy =
@@ -598,17 +733,25 @@ public static class NarrativeYearSeeder
     /// already violates would fill the conflicts list with noise on first load — the deliberate
     /// conflicts this seeder injects are chosen, not accidental.
     /// </summary>
-    private static async Task<int> WriteDependenciesAsync(NpgsqlConnection conn, IReadOnlyList<Job> jobs)
+    private static async Task<int> WriteDependenciesAsync(
+        NpgsqlConnection conn, IReadOnlyList<Job> jobs, ShowcasePlan showcase)
     {
         var now = DateTime.UtcNow;
         var edges = new List<(Guid Pred, Guid Succ)>();
+        var joins = new List<(Guid RequestId, string Logic, int? K)>();
 
         // Grouped by facility rather than by campaign parent. A campaign turned out to be one
         // archetype repeated a few hundred times — its children all share a name — so chaining
         // within one produces a "critical path" of six identical rows. A facility runs six to ten
         // distinct kinds of work, which is what makes a chain readable and plausible: machine,
         // then inspect, then pack.
-        foreach (var facility in jobs.GroupBy(j => j.Name[(j.Name.LastIndexOf('—') + 1)..].Trim()))
+        // The curated plan is sequenced by hand, so its phases must not also be walked here.
+        // They carry a facility suffix (the chain builder reads the site from it), which would
+        // otherwise group them with that facility's generated work and link them to each other —
+        // edges inside a plan whose whole point is the shape its author gave it.
+        foreach (var facility in jobs
+                     .Where(j => !showcase.PhaseIds.Contains(j.Id))
+                     .GroupBy(j => j.Name[(j.Name.LastIndexOf('—') + 1)..].Trim()))
         {
             var phases = facility.OrderBy(j => j.Start).ThenBy(j => j.Id).ToList();
             if (phases.Count < 2) continue;
@@ -639,27 +782,92 @@ public static class NarrativeYearSeeder
                 current = next;
                 linked++;
             }
+
+            // A chain gives every task exactly one predecessor, and a task with one predecessor
+            // has nothing to choose between — so no start condition in the demo would ever be
+            // anything but "all". Converge a second, earlier phase onto the last link and give
+            // that task a real condition, so the planner and the solver have one to show.
+            var convergent = phases
+                .Where(p => p.Id != current.Id && !used.Contains(p.Name) && p.End.Date < current.Start.Date)
+                .OrderByDescending(p => p.End)
+                .FirstOrDefault();
+
+            if (convergent is not null)
+            {
+                edges.Add((convergent.Id, current.Id));
+                // Alternate the two non-default logics so the demo carries both. k = 2 over two
+                // predecessors is "all" by another name, so k-of-n uses 1 to be visibly different.
+                // Literals for the same reason as the dependency type below: this project
+                // references only Bogus/Npgsql, and the values are pinned by the CHECK
+                // constraint in migration 1960.
+                joins.Add(joins.Count % 2 == 0
+                    ? (current.Id, "any", (int?)null)
+                    : (current.Id, "k_of_n", 1));
+            }
         }
+
+        // The curated plan's own edges and conditions ride along, so the returned count stays the
+        // one number that describes everything written here.
+        edges.AddRange(showcase.Edges);
+        joins.AddRange(showcase.Joins);
 
         if (edges.Count == 0) return 0;
 
-        using var w = await conn.BeginBinaryImportAsync(DependencyCopy);
-        foreach (var (pred, succ) in edges)
+        // Scoped so the importer is DISPOSED before the update below: CompleteAsync ends the
+        // copy but the connection stays in its Copy state until the writer goes away, and any
+        // command issued in between fails with "connection is already in state 'Copy'".
+        await using (var w = await conn.BeginBinaryImportAsync(DependencyCopy))
         {
-            await w.StartRowAsync();
-            await w.WriteAsync(Guid.NewGuid(), NpgsqlDbType.Uuid);
-            await w.WriteAsync(pred, NpgsqlDbType.Uuid);
-            await w.WriteAsync(succ, NpgsqlDbType.Uuid);
-            // Literal rather than DependencyTypes.FinishToStart: this project references only
-            // Bogus/CommandLineParser/Npgsql by design, and taking a dependency on the core
-            // assembly for one string would couple the seeder to the domain model. The value is
-            // pinned by the CHECK constraint in migration 1950.
-            await w.WriteAsync("finish_to_start", NpgsqlDbType.Varchar);
-            await w.WriteAsync(0, NpgsqlDbType.Integer);
-            await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            foreach (var (pred, succ) in edges)
+            {
+                await w.StartRowAsync();
+                await w.WriteAsync(Guid.NewGuid(), NpgsqlDbType.Uuid);
+                await w.WriteAsync(pred, NpgsqlDbType.Uuid);
+                await w.WriteAsync(succ, NpgsqlDbType.Uuid);
+                // Literal rather than DependencyTypes.FinishToStart: this project references only
+                // Bogus/Npgsql by design, and taking a dependency on the core
+                // assembly for one string would couple the seeder to the domain model. The value is
+                // pinned by the CHECK constraint in migration 1950.
+                await w.WriteAsync("finish_to_start", NpgsqlDbType.Varchar);
+                await w.WriteAsync(0, NpgsqlDbType.Integer);
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+            }
+            await w.CompleteAsync();
         }
-        await w.CompleteAsync();
+
+        await WriteJoinConditionsAsync(conn, joins);
         return edges.Count;
+    }
+
+    /// <summary>
+    /// Sets the start conditions chosen above. A handful of rows, so a single parameterised
+    /// UPDATE rather than another COPY — and it must run after the edges exist, or the demo would
+    /// carry a condition over a set that is not there yet.
+    /// </summary>
+    private static async Task WriteJoinConditionsAsync(
+        NpgsqlConnection conn,
+        IReadOnlyList<(Guid RequestId, string Logic, int? K)> joins)
+    {
+        if (joins.Count == 0) return;
+
+        await using var cmd = new NpgsqlCommand(
+            @"UPDATE public.requests r
+                 SET predecessor_logic   = v.logic,
+                     predecessor_logic_k = v.k
+                FROM (SELECT unnest(@ids)::uuid AS id,
+                             unnest(@logics)::varchar AS logic,
+                             unnest(@ks)::integer AS k) v
+               WHERE r.id = v.id", conn);
+        cmd.Parameters.AddWithValue("ids", joins.Select(j => j.RequestId).ToArray());
+        cmd.Parameters.AddWithValue("logics", joins.Select(j => j.Logic).ToArray());
+        // A NULL k is meaningful — it is what "any" and "all" store — so this stays an int?[]
+        // with an explicit array type. Mapping the nulls to DBNull would make it an object[],
+        // which Npgsql cannot infer an element type for.
+        cmd.Parameters.Add(new NpgsqlParameter("ks", NpgsqlDbType.Array | NpgsqlDbType.Integer)
+        {
+            Value = joins.Select(j => j.K).ToArray(),
+        });
+        await cmd.ExecuteNonQueryAsync();
     }
 
     private const string RequestCopy =

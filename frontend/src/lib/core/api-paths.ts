@@ -57,6 +57,7 @@ export const API_PATHS = {
   requestDependencies: (requestId: string) => `/api/requests/${requestId}/dependencies`,
   requestDependency: (requestId: string, dependencyId: string) =>
     `/api/requests/${requestId}/dependencies/${dependencyId}`,
+  requestPlan: (requestId: string) => `/api/requests/${requestId}/plan`,
 
   // Resource Types
   RESOURCE_TYPES: '/api/resource-types',

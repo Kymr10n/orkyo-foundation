@@ -498,7 +498,6 @@
         "type": "Project",
         "dependencies": {
           "Bogus": "[35.6.5, )",
-          "CommandLineParser": "[2.9.1, )",
           "Npgsql": "[10.0.3, )"
         }
       },
@@ -512,7 +511,6 @@
       "orkyo.foundation.web": {
         "type": "Project",
         "dependencies": {
-          "CsvHelper": "[33.1.0, )",
           "FluentValidation.DependencyInjectionExtensions": "[12.1.1, )",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "[10.0.11, )",
           "Microsoft.AspNetCore.DataProtection.StackExchangeRedis": "[10.0.11, )",
@@ -553,18 +551,6 @@
         "requested": "[35.6.5, )",
         "resolved": "35.6.5",
         "contentHash": "2FGZn+aAVHjmCgClgmGkTDBVZk0zkLvAKGaxEf5JL6b3i9JbHTE4wnuY4vHCuzlCmJdU6VZjgDfHwmYkQF8VAA=="
-      },
-      "CommandLineParser": {
-        "type": "CentralTransitive",
-        "requested": "[2.9.1, )",
-        "resolved": "2.9.1",
-        "contentHash": "OE0sl1/sQ37bjVsPKKtwQlWDgqaxWgtme3xZz7JssWUzg5JpMIyHgCTY9MVMxOg48fJ1AgGT3tgdH5m/kQ5xhA=="
-      },
-      "CsvHelper": {
-        "type": "CentralTransitive",
-        "requested": "[33.1.0, )",
-        "resolved": "33.1.0",
-        "contentHash": "kqfTOZGrn7NarNeXgjh86JcpTHUoeQDMB8t9NVa/ZtlSYiV1rxfRnQ49WaJsob4AiGrbK0XDzpyKkBwai4F8eg=="
       },
       "dbup-core": {
         "type": "CentralTransitive",

@@ -378,7 +378,7 @@ public class McpEndpointsTests
         public static readonly string[] All =
         [
             "list_sites", "list_requests", "list_resources", "list_conflicts",
-            "get_critical_path", "list_dependencies", "analyze_capacity",
+            "get_critical_path", "list_dependencies", "get_request_plan", "analyze_capacity",
             "auto_schedule_preview", "list_resource_absences",
             .. Writes,
         ];

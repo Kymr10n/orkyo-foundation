@@ -1,5 +1,5 @@
 import type * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import { cva, type VariantProps } from "@foundation/src/lib/utils/variants"
 
 import { cn } from "@foundation/src/lib/utils"
 

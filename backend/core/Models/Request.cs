@@ -46,6 +46,32 @@ public enum PlanningMode
 }
 
 /// <summary>
+/// How a request joins its incoming dependencies — which of its predecessors must be met
+/// before it may start. The condition belongs to the successor because it is a property of
+/// the whole incoming set ("2 of my 3"), not of any single edge.
+///
+/// Cancelled and deferred predecessors leave the set before the condition is evaluated, and
+/// <see cref="RequestInfo.PredecessorLogicK"/> is clamped to what remains — see
+/// <see cref="Helpers.JoinConditionEvaluator"/>.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum PredecessorLogic
+{
+    /// <summary>Every live predecessor must be met. The default, and what every reader did
+    /// before this concept existed.</summary>
+    [JsonStringEnumMemberName("all")]
+    All,
+
+    /// <summary>Any one live predecessor is enough.</summary>
+    [JsonStringEnumMemberName("any")]
+    Any,
+
+    /// <summary>At least <c>PredecessorLogicK</c> live predecessors must be met.</summary>
+    [JsonStringEnumMemberName("k_of_n")]
+    KOfN
+}
+
+/// <summary>
 /// Request status.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -120,6 +146,17 @@ public record RequestInfo
 
     // Status
     public required RequestStatus Status { get; init; }
+
+    /// <summary>How this request joins its incoming dependencies. Defaults to
+    /// <see cref="PredecessorLogic.All"/> — deliberately not <c>required</c>: "all" is both the
+    /// column default and what every reader did before the concept existed, so a construction
+    /// site that says nothing means exactly that. Inert on a request with no predecessors, and
+    /// on groups (edges bind leaves).</summary>
+    public PredecessorLogic PredecessorLogic { get; init; } = PredecessorLogic.All;
+
+    /// <summary>The k of <see cref="PredecessorLogic.KOfN"/>; null for the other logics. May
+    /// exceed the number of edges — it is clamped to the live predecessor count when read.</summary>
+    public int? PredecessorLogicK { get; init; }
 
     // Metadata
     public DateTime CreatedAt { get; init; }
@@ -284,6 +321,20 @@ public record UpdateRequestRequest
     public DurationUnit? ActualDurationUnit { get; init; }
 
     public RequestStatus? Status { get; init; }
+
+    /// <summary>
+    /// How this request joins its incoming dependencies. The pair below always travels
+    /// together: when this is present both columns are written, with
+    /// <see cref="PredecessorLogicK"/> stored only for <see cref="PredecessorLogic.KOfN"/> and
+    /// NULL otherwise. When it is absent neither column is touched. That makes the
+    /// inconsistent pair — a k left behind by a switch away from k_of_n — unrepresentable,
+    /// without needing a clearable <c>Optional</c> wrapper.
+    /// </summary>
+    public PredecessorLogic? PredecessorLogic { get; init; }
+
+    /// <summary>The k for <see cref="PredecessorLogic.KOfN"/>. Ignored unless
+    /// <see cref="PredecessorLogic"/> is present and k_of_n.</summary>
+    public int? PredecessorLogicK { get; init; }
 
     public bool? SchedulingSettingsApply { get; init; }
 

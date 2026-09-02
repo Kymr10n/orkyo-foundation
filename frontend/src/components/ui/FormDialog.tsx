@@ -95,9 +95,16 @@ export function FormDialog({
     <Dialog open={open} onOpenChange={guardedOnOpenChange}>
       {/* DialogContent is height-bounded + flex-col by default; just collapse the
           default gap so the body's ScrollableDialogBody owns the spacing, and set
-          the form width. Tall forms scroll their body with header/footer pinned. */}
+          the form width. Tall forms scroll their body with header/footer pinned.
+
+          `overflow-y-hidden` turns OFF the base content's bleed backstop. That backstop is for a
+          bare DialogContent, which has no inner scroller; here the ScrollableDialogBody below is
+          the scroller, and leaving both on put two scrollbars side by side down the right edge of
+          any form tall enough to reach the cap. Nothing is lost by disabling it: the header and
+          footer are shrink-0 and the body is flex-1 min-h-0, so the body absorbs every overflow
+          the cap creates. (ScaffoldDialog avoids this by fixing h-[85dvh] instead.) */}
       <DialogContent
-        className={cn('gap-0', phoneClass ?? DIALOG_SIZE[size], contentClassName)}
+        className={cn('gap-0 overflow-y-hidden', phoneClass ?? DIALOG_SIZE[size], contentClassName)}
         // While there are unsaved changes, an outside interaction must not dismiss the
         // dialog. Guarding on `dirty` — stable across the whole interaction — rather than
         // only `confirmOpen`, which flips to false the instant "Keep editing" closes the

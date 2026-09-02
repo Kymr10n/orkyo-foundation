@@ -51,6 +51,24 @@ describe('FormDialog', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
+  it('leaves exactly one vertical scroller: the body, not the dialog shell', () => {
+    renderDialog();
+
+    // DialogContent carries a bleed backstop for BARE use, where nothing inside scrolls. A
+    // FormDialog always wraps its children in a ScrollableDialogBody, so leaving the backstop on
+    // put two scrollbars side by side down the right edge of any form tall enough to reach the
+    // 85dvh cap — which is what a resource form with two list pickers does.
+    const content = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(content.className).toContain('overflow-y-hidden');
+    expect(content.className).not.toContain('overflow-y-auto');
+
+    // …and the body is still a scroller, so nothing is clipped by turning the outer one off.
+    const body = content.querySelector('.overflow-y-auto');
+    expect(body).not.toBeNull();
+    expect(body!.className).toContain('flex-1');
+    expect(body!.className).toContain('min-h-0');
+  });
+
   it('calls onSubmit when the form is submitted', () => {
     const { onSubmit } = renderDialog();
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));

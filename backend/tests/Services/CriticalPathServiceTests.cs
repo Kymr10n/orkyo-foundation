@@ -27,7 +27,9 @@ public class CriticalPathServiceTests
     // end is HALF-OPEN, matching what the product stores: a one-day request starting Day1
     // carries end = Day1.AddDays(1). SchedulingEngine.InclusiveLastDay converts it back.
     private static RequestInfo Request(Guid id, string name, int durationDays,
-        DateTime? start = null, DateTime? end = null, DateTime? latestEnd = null) => new()
+        DateTime? start = null, DateTime? end = null, DateTime? latestEnd = null,
+        PredecessorLogic logic = PredecessorLogic.All, int? k = null,
+        RequestStatus status = RequestStatus.New) => new()
         {
             Id = id,
             Name = name,
@@ -36,11 +38,13 @@ public class CriticalPathServiceTests
             TargetResourceTypeKeys = [],
             MinimalDurationValue = durationDays * 24 * 60,
             MinimalDurationUnit = DurationUnit.Minutes,
-            Status = RequestStatus.New,
+            Status = status,
             SchedulingSettingsApply = true,
             StartTs = start,
             EndTs = end,
             LatestEndTs = latestEnd,
+            PredecessorLogic = logic,
+            PredecessorLogicK = k,
         };
 
     private static RequestDependencyInfo Edge(Guid pred, Guid succ, int lagMinutes = 0) => new()
@@ -190,5 +194,148 @@ public class CriticalPathServiceTests
         Assert.Empty(result.Nodes);
         Assert.Single(result.Diagnostics);
         Assert.Contains("outside this scope", result.Diagnostics[0]);
+    }
+
+    // ── Join conditions ───────────────────────────────────────────────────────
+    // Two predecessors finishing on different days, one successor. Which day the successor may
+    // start is the whole question, and each logic answers it differently.
+
+    private (Guid Early, Guid Late, Guid Succ, RequestInfo[] Requests, RequestDependencyInfo[] Edges)
+        TwoPredecessors(PredecessorLogic logic, int? k = null)
+    {
+        Guid early = Guid.NewGuid(), late = Guid.NewGuid(), succ = Guid.NewGuid();
+        return (early, late, succ,
+            [
+                // Anchored so the forward pass has fixed finishes to fold: 1 day from Day1, and
+                // 5 days from Day1 — so "any" frees the successor four days before "all" does.
+                Request(early, "Early", 1, Day1, Day1.AddDays(1)),
+                Request(late, "Late", 5, Day1, Day1.AddDays(5)),
+                Request(succ, "Successor", 1, logic: logic, k: k),
+            ],
+            [Edge(early, succ), Edge(late, succ)]);
+    }
+
+    private DateOnly EarliestStartOf(CriticalPathResult result, Guid id) =>
+        result.Nodes.Single(n => n.RequestId == id).EarliestStart;
+
+    [Fact]
+    public async Task AllJoin_WaitsForTheLatestPredecessor()
+    {
+        var (_, _, succ, requests, edges) = TwoPredecessors(PredecessorLogic.All);
+        Setup(edges, requests);
+
+        var result = await _service.ComputeAsync(null);
+
+        // Day1 + 5 days, then the day after: the late predecessor governs.
+        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(5)));
+    }
+
+    [Fact]
+    public async Task AnyJoin_StartsAfterTheEarliestPredecessor()
+    {
+        var (_, _, succ, requests, edges) = TwoPredecessors(PredecessorLogic.Any);
+        Setup(edges, requests);
+
+        var result = await _service.ComputeAsync(null);
+
+        // One predecessor is enough, so the early one frees it four days sooner.
+        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(1)));
+    }
+
+    [Fact]
+    public async Task KOfNJoin_StartsAfterTheKthPredecessor()
+    {
+        var (_, _, succ, requests, edges) = TwoPredecessors(PredecessorLogic.KOfN, k: 2);
+        Setup(edges, requests);
+
+        var result = await _service.ComputeAsync(null);
+
+        // 2 of 2 is "all" by another name.
+        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(5)));
+    }
+
+    [Fact]
+    public async Task KOfNJoin_WithKOfOne_MatchesAny()
+    {
+        var (_, _, succ, requests, edges) = TwoPredecessors(PredecessorLogic.KOfN, k: 1);
+        Setup(edges, requests);
+
+        var result = await _service.ComputeAsync(null);
+
+        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(1)));
+    }
+
+    [Fact]
+    public async Task NonAllJoin_ExplainsThatASkippedPredecessorCarriesFloat()
+    {
+        var (_, _, _, requests, edges) = TwoPredecessors(PredecessorLogic.Any);
+        Setup(edges, requests);
+
+        var result = await _service.ComputeAsync(null);
+
+        result.Diagnostics.Should().ContainSingle(d => d.Contains("float"));
+    }
+
+    [Fact]
+    public async Task AnyJoin_GivesTheSlackPredecessorFloatRatherThanMarkingItCritical()
+    {
+        // The regression: the backward pass folded against EVERY successor, so the branch an
+        // "any" join never waited for was pulled back to the binding branch's dates — producing
+        // NEGATIVE float and IsCritical on a request nothing is waiting for. The Bottlenecks
+        // table would then point the planner at the one task with slack to spare.
+        Guid quick = Guid.NewGuid(), slow = Guid.NewGuid(), succ = Guid.NewGuid(), tail = Guid.NewGuid();
+        Setup(
+            [Edge(quick, succ), Edge(slow, succ), Edge(succ, tail)],
+            // Both start on Day1; the quick one finishes in a day, the slow one in ten. The tail
+            // keeps the project finish downstream of the join, so the slack branch is genuinely
+            // slack rather than the thing that ends last.
+            Request(quick, "Quick", 1, Day1, Day1.AddDays(1)),
+            Request(slow, "Slow", 10, Day1, Day1.AddDays(10)),
+            Request(succ, "Successor", 1, logic: PredecessorLogic.Any),
+            Request(tail, "Tail", 20));
+
+        var result = await _service.ComputeAsync(null);
+
+        // "Any" is satisfied by the quick branch, so the slow one carries real float.
+        var slowNode = result.Nodes.Single(n => n.RequestId == slow);
+        slowNode.TotalFloatDays.Should().BeGreaterThan(0);
+        slowNode.IsCritical.Should().BeFalse();
+
+        // …and the branch the join actually waited for is still on the path.
+        result.Nodes.Single(n => n.RequestId == quick).IsCritical.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AllJoin_KeepsEveryPredecessorOnTheCriticalPath()
+    {
+        // The control: under "all" both branches bind, so the backward pass is unchanged and the
+        // long branch is critical exactly as before.
+        Guid quick = Guid.NewGuid(), slow = Guid.NewGuid(), succ = Guid.NewGuid();
+        Setup(
+            [Edge(quick, succ), Edge(slow, succ)],
+            Request(quick, "Quick", 1, Day1, Day1.AddDays(1)),
+            Request(slow, "Slow", 10, Day1, Day1.AddDays(10)),
+            Request(succ, "Successor", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        result.Nodes.Single(n => n.RequestId == slow).IsCritical.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AllJoin_DoesNotWaitForACancelledPredecessor()
+    {
+        Guid cancelled = Guid.NewGuid(), running = Guid.NewGuid(), succ = Guid.NewGuid();
+        Setup(
+            [Edge(cancelled, succ), Edge(running, succ)],
+            Request(cancelled, "Scrapped", 5, Day1, Day1.AddDays(5), status: RequestStatus.Cancelled),
+            Request(running, "Live", 1, Day1, Day1.AddDays(1)),
+            Request(succ, "Successor", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        // Without the exclusion the successor would wait five days for work that will never run.
+        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(1)));
+        result.Diagnostics.Should().ContainSingle(d => d.Contains("cancelled or deferred"));
     }
 }

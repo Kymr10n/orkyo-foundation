@@ -82,7 +82,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                         [SchedulingReasonCode.PredecessorUnscheduled])))
                 .ToList(),
             solution.Diagnostics,
-            solution.ComputeFingerprint(request.ResourceTypeKey!, problem.Dependencies ?? []));
+            solution.ComputeFingerprint(request.ResourceTypeKey!, problem.Dependencies ?? [], problem.JoinConditions));
     }
 
     public async Task<AutoScheduleApplyResponse> ApplyAsync(

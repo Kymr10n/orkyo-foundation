@@ -126,6 +126,14 @@ public static class RequestEndpoints
         .WithName("GetCriticalPath")
         .WithSummary("Compute the critical path over the dependency network");
 
+        group.MapGet("/{id:guid}/plan", async (Guid id, IRequestPlanService planService, CancellationToken ct) =>
+        {
+            var plan = await planService.GetPlanAsync(id, ct);
+            return plan is null ? ErrorResponses.NotFound("Request", id) : Results.Ok(plan);
+        })
+        .WithName("GetRequestPlan")
+        .WithSummary("Get a request's children, the dependencies among them, and whether each may start");
+
         group.MapGet("/{id:guid}/dependencies", async (Guid id, IRequestService requestService, IRequestDependencyService dependencyService, CancellationToken ct) =>
         {
             if (!await requestService.ExistsAsync(id, ct)) return ErrorResponses.NotFound("Request", id);

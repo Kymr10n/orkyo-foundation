@@ -130,7 +130,60 @@ public class RequestService : IRequestService
             && await _dependencies.HasAnyForRequestAsync(id, ct))
             throw new ConflictException("Remove this request's dependencies before turning it into a group");
 
+        if (request.Status == RequestStatus.InProgress)
+            await EnsurePredecessorsAllowStartAsync(id, ct);
+
         return await _repository.UpdateAsync(id, request, ct);
+    }
+
+    /// <summary>
+    /// Refuses a move into <c>in_progress</c> while the request's join condition is unmet.
+    ///
+    /// This governs the STORED status only — the deliberate act of starting something. Effective
+    /// status still flips to in_progress by the clock when a scheduled window opens (see
+    /// <see cref="RequestStatusCalculator"/>), and that is deliberately not gated: a gate cannot
+    /// hold back time, and a request whose dates say it is running is running. Work scheduled
+    /// too early is a planning problem, reported by ConflictService, not refused here.
+    /// </summary>
+    private async Task EnsurePredecessorsAllowStartAsync(Guid id, CancellationToken ct)
+    {
+        // Already started: re-saving an in-progress request (a rename, a note) must not be
+        // refused by a condition that was already accepted when the work began.
+        if (await _repository.GetStoredStatusAsync(id, ct) == RequestStatus.InProgress) return;
+
+        var edges = await _dependencies.GetForRequestAsync(id, ct);
+        if (edges.Predecessors.Count == 0) return;
+
+        var request = await _repository.GetByIdAsync(id, includeRequirements: false, ct);
+        if (request is null) return;
+
+        var predecessors = await _repository.GetByIdsAsync(
+            [.. edges.Predecessors.Select(e => e.PredecessorRequestId)], includeRequirements: false, ct);
+
+        // STORED statuses, in one batch. RequestInfo.Status has already been through
+        // RequestStatusCalculator, and that derivation returns "new" for anything without dates —
+        // so a predecessor finished but never scheduled would read as unmet forever, and the only
+        // way out would be deleting the edge.
+        var storedStatuses = await _repository.GetStoredStatusesAsync(
+            [.. predecessors.Select(p => p.Id)], ct);
+
+        var states = predecessors
+            .Select(p => new PredecessorState(
+                p.Name,
+                storedStatuses.GetValueOrDefault(p.Id, RequestStatus.New),
+                p.StartTs,
+                p.EndTs))
+            .ToList();
+
+        var result = JoinConditionEvaluator.EvaluateGate(JoinCondition.Of(request), states, DateTime.UtcNow);
+        if (result.IsMet) return;
+
+        // Name a few of the offenders: the list can be long, and three is enough to act on.
+        var waitingOn = string.Join(", ", result.UnmetNames.Take(3));
+        var more = result.UnmetNames.Count > 3 ? $" and {result.UnmetNames.Count - 3} more" : "";
+        throw new ConflictException(
+            $"Cannot start: {JoinConditionEvaluator.DescribeShortfall(result.RequiredCount, result.LiveCount, result.MetCount)}. "
+            + $"Waiting on: {waitingOn}{more}");
     }
 
     public Task<bool> DeleteAsync(Guid id, CancellationToken ct = default) => _repository.DeleteAsync(id, ct);

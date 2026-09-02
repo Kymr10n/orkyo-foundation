@@ -20,6 +20,7 @@ public class PlanningToolsTests
 {
     private readonly Mock<ICriticalPathService> _criticalPath = new();
     private readonly Mock<IRequestDependencyService> _dependencies = new();
+    private readonly Mock<IRequestPlanService> _plans = new();
     private readonly Mock<IInsightsService> _insights = new();
 
     private static readonly Guid SiteId = Guid.NewGuid();
@@ -28,7 +29,7 @@ public class PlanningToolsTests
     private static readonly DateTime To = new(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc);
 
     private PlanningTools CreateTools() =>
-        new(_criticalPath.Object, _dependencies.Object, _insights.Object);
+        new(_criticalPath.Object, _dependencies.Object, _plans.Object, _insights.Object);
 
     private static RequestDependencyInfo Edge(string predecessor, string successor) => new()
     {
@@ -188,6 +189,51 @@ public class PlanningToolsTests
 
     private static InsightsMetadata Metadata() =>
         new() { CalculatedAt = DateTime.UtcNow, SourceMode = "live" };
+
+    // ── get_request_plan ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetRequestPlan_ReturnsTheServicesPlan()
+    {
+        var plan = new RequestPlan
+        {
+            ParentId = RequestId,
+            ParentName = "Line changeover",
+            ParentPlanningMode = PlanningMode.Summary,
+            Children =
+            [
+                new RequestPlanChild
+                {
+                    Id = Guid.NewGuid(), Name = "Purge", PlanningMode = PlanningMode.Leaf,
+                    Status = RequestStatus.New, SortOrder = 0,
+                    PredecessorLogic = PredecessorLogic.KOfN, PredecessorLogicK = 2,
+                    CanStart = false, ExternalPredecessorCount = 1, ExternalSuccessorCount = 0,
+                },
+            ],
+            Edges = [],
+        };
+        _plans.Setup(p => p.GetPlanAsync(RequestId, It.IsAny<CancellationToken>())).ReturnsAsync(plan);
+
+        var result = await CreateTools().GetRequestPlanAsync(RequestId);
+
+        // The service's own record travels to the agent unprojected — the condition and the
+        // startability are the whole reason an agent asks.
+        result.Should().BeSameAs(plan);
+        result.Children.Single().PredecessorLogic.Should().Be(PredecessorLogic.KOfN);
+        result.Children.Single().CanStart.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetRequestPlan_ForAnUnknownRequest_TellsTheAgentPlainly()
+    {
+        _plans.Setup(p => p.GetPlanAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((RequestPlan?)null);
+
+        var act = () => CreateTools().GetRequestPlanAsync(RequestId);
+
+        // McpException, not a null result: an agent that gets null has nothing to act on.
+        (await act.Should().ThrowAsync<McpException>()).Which.Message.Should().Contain("not found");
+    }
 
     private void SetupInsights()
     {

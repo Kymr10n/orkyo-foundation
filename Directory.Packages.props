@@ -2,8 +2,8 @@
   <!--
     Central package management: every NuGet version for this repo lives here.
     Projects reference packages without a Version attribute. Formerly-floating
-    ranges (FluentValidation 12.*, Google.OrTools 9.*, Bogus 35.*,
-    CommandLineParser 2.9.*) are pinned to the versions the committed
+    ranges (FluentValidation 12.*, Google.OrTools 9.*, Bogus 35.*) are
+    pinned to the versions the committed
     packages.lock.json files already resolved, so restore behavior is unchanged.
   -->
   <PropertyGroup>
@@ -12,7 +12,6 @@
 
   <ItemGroup>
     <PackageVersion Include="Anthropic" Version="12.42.0" />
-    <PackageVersion Include="CsvHelper" Version="33.1.0" />
     <PackageVersion Include="dbup-core" Version="6.1.1" />
     <PackageVersion Include="dbup-postgresql" Version="7.0.1" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
@@ -37,7 +36,6 @@
   <!-- Seeding (dev-only data generator) -->
   <ItemGroup>
     <PackageVersion Include="Bogus" Version="35.6.5" />
-    <PackageVersion Include="CommandLineParser" Version="2.9.1" />
   </ItemGroup>
 
   <!-- Test-only -->

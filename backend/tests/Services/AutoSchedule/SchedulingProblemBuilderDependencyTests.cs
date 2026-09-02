@@ -22,20 +22,24 @@ public class SchedulingProblemBuilderDependencyTests
     private static readonly DateOnly HorizonStart = new(2026, 6, 1);
     private static readonly DateOnly HorizonEnd = new(2026, 6, 30);
 
-    private static RequestInfo Leaf(Guid id, string name, DateTime? start = null, DateTime? end = null) => new()
-    {
-        Id = id,
-        Name = name,
-        PlanningMode = PlanningMode.Leaf,
-        MinimalDurationValue = 1,
-        MinimalDurationUnit = DurationUnit.Days,
-        Status = RequestStatus.New,
-        SchedulingSettingsApply = true,
-        Assignments = [],
-        TargetResourceTypeKeys = [ResourceTypeKeys.Space],
-        StartTs = start,
-        EndTs = end,
-    };
+    private static RequestInfo Leaf(Guid id, string name, DateTime? start = null, DateTime? end = null,
+        PredecessorLogic logic = PredecessorLogic.All, int? k = null,
+        RequestStatus status = RequestStatus.New) => new()
+        {
+            Id = id,
+            Name = name,
+            PlanningMode = PlanningMode.Leaf,
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Days,
+            Status = status,
+            SchedulingSettingsApply = true,
+            Assignments = [],
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
+            StartTs = start,
+            EndTs = end,
+            PredecessorLogic = logic,
+            PredecessorLogicK = k,
+        };
 
     private static ResourceInfo Space() => new()
     {
@@ -261,5 +265,264 @@ public class SchedulingProblemBuilderDependencyTests
         // Finish 10 May, +1 day finish-to-start, +2 days lag.
         problem.Requests.Single(r => r.RequestId == succId).EarliestStart
             .Should().Be(new DateOnly(2026, 5, 13));
+    }
+
+    // ── Join conditions ───────────────────────────────────────────────────────
+    // The triage runs per successor, because a condition is a property of the whole incoming
+    // set. What matters is whether the successor reaches the solver, with what window, and
+    // under how many constraints.
+
+    private static readonly DateTime Early = new(2026, 5, 10, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Late = new(2026, 5, 20, 0, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public async Task AnyJoin_TakesTheEarliestPlacedPredecessor()
+    {
+        Guid early = Guid.NewGuid(), late = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble", logic: PredecessorLogic.Any)],
+            edges: [Edge(early, succ), Edge(late, succ)],
+            offHorizon:
+            [
+                Leaf(early, "Supplier A", Early, Early.AddDays(1)),
+                Leaf(late, "Supplier B", Late, Late.AddDays(1)),
+            ]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // Either delivery unblocks it, so the earlier one governs: 10 May + 1.
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart
+            .Should().Be(new DateOnly(2026, 5, 11));
+    }
+
+    [Fact]
+    public async Task KOfNJoin_TakesTheKthEarliestPlacedPredecessor()
+    {
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid(), succ = Guid.NewGuid();
+        var middle = new DateTime(2026, 5, 15, 0, 0, 0, DateTimeKind.Utc);
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble", logic: PredecessorLogic.KOfN, k: 2)],
+            edges: [Edge(a, succ), Edge(b, succ), Edge(c, succ)],
+            offHorizon:
+            [
+                Leaf(a, "A", Early, Early.AddDays(1)),
+                Leaf(b, "B", middle, middle.AddDays(1)),
+                Leaf(c, "C", Late, Late.AddDays(1)),
+            ]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // Two of three: free once the second finishes — 15 May + 1, not 20 May + 1.
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart
+            .Should().Be(new DateOnly(2026, 5, 16));
+    }
+
+    [Fact]
+    public async Task AnyJoin_IsNotBlockedByAnUnplaceablePredecessorWhenAnotherIsPlaced()
+    {
+        Guid placed = Guid.NewGuid(), unplaceable = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble", logic: PredecessorLogic.Any)],
+            edges: [Edge(placed, succ), Edge(unplaceable, succ)],
+            // Only the placed one resolves; the other has no end date and is not in this run.
+            offHorizon: [Leaf(placed, "Delivered", Early, Early.AddDays(1))]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // Under "all" this successor would be withheld. Under "any" the delivered predecessor
+        // already satisfies it, so it schedules.
+        problem.Withheld.Should().BeNullOrEmpty();
+        problem.Requests.Should().ContainSingle(r => r.RequestId == succ);
+    }
+
+    [Fact]
+    public async Task AnyJoin_IsWithheldWhenNoPredecessorCanSatisfyIt()
+    {
+        Guid one = Guid.NewGuid(), two = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble", logic: PredecessorLogic.Any)],
+            edges: [Edge(one, succ), Edge(two, succ)],
+            offHorizon: []);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // "Any" of nothing placeable is still nothing.
+        problem.Withheld.Should().ContainSingle(w => w.RequestId == succ);
+    }
+
+    [Fact]
+    public async Task AllJoin_DoesNotWaitForACancelledPredecessor()
+    {
+        Guid cancelled = Guid.NewGuid(), live = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble")],
+            edges: [Edge(cancelled, succ), Edge(live, succ)],
+            offHorizon:
+            [
+                Leaf(cancelled, "Scrapped", Late, Late.AddDays(1), status: RequestStatus.Cancelled),
+                Leaf(live, "Delivered", Early, Early.AddDays(1)),
+            ]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // The cancelled predecessor's 20 May finish is ignored; the live one governs.
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart
+            .Should().Be(new DateOnly(2026, 5, 11));
+    }
+
+    [Fact]
+    public async Task EveryPredecessorCancelled_LeavesTheSuccessorUnconstrained()
+    {
+        Guid cancelled = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble")],
+            edges: [Edge(cancelled, succ)],
+            offHorizon: [Leaf(cancelled, "Scrapped", Late, Late.AddDays(1), status: RequestStatus.Cancelled)]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // Nothing left to wait for — and crucially not withheld, which is what would happen if
+        // an abandoned predecessor still counted towards the condition.
+        problem.Withheld.Should().BeNullOrEmpty();
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task AnyJoin_PrefersACoScheduledPredecessorOverADistantPlacedOne()
+    {
+        // The regression: the satisfied-by-placed branch used to be entered on a COUNT test, so a
+        // single placed predecessor finishing long after the horizon captured the successor and
+        // its co-scheduled alternative was discarded — leaving the request withheld. Choosing
+        // "any" produced a refusal that "all" would not have.
+        Guid distant = Guid.NewGuid(), coScheduled = Guid.NewGuid(), succ = Guid.NewGuid();
+        var farFuture = new DateTime(2027, 5, 10, 0, 0, 0, DateTimeKind.Utc);
+
+        var builder = Build(
+            backlog: [Leaf(coScheduled, "Supplier B"), Leaf(succ, "Assemble", logic: PredecessorLogic.Any)],
+            edges: [Edge(distant, succ), Edge(coScheduled, succ)],
+            offHorizon: [Leaf(distant, "Supplier A", farFuture, farFuture.AddDays(1))]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // Scheduled, not withheld — and constrained by the co-scheduled predecessor rather than
+        // by a 2027 date, so no bound is carried over from the distant one.
+        problem.Withheld.Should().BeNullOrEmpty();
+        problem.Requests.Should().ContainSingle(r => r.RequestId == succ);
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart.Should().BeNull();
+        problem.Dependencies.Should().ContainSingle(e =>
+            e.PredecessorRequestId == coScheduled && e.SuccessorRequestId == succ);
+    }
+
+    [Fact]
+    public async Task KOfNJoin_BindsOnlyThePlacedPredecessorsTheSolverCannotCover()
+    {
+        // k=2 of {A placed, B co-scheduled}. Placed work alone cannot reach 2, so the solver edge
+        // is kept AND exactly one placed bound is needed — the earliest. Max-folding every placed
+        // bound regardless is what used to re-impose a date the join did not require.
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(b, "B"), Leaf(succ, "Assemble", logic: PredecessorLogic.KOfN, k: 2)],
+            edges: [Edge(a, succ), Edge(b, succ)],
+            offHorizon: [Leaf(a, "A", Early, Early.AddDays(1))]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // A's bound binds (10 May + 1) and B stays a solver constraint: k=2 of 2 needs both.
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart
+            .Should().Be(new DateOnly(2026, 5, 11));
+        problem.Dependencies.Should().ContainSingle(e =>
+            e.PredecessorRequestId == b && e.SuccessorRequestId == succ);
+    }
+
+    [Fact]
+    public async Task KOfNJoin_UsesPlacedWorkAloneWhenItAlreadySatisfiesTheJoin()
+    {
+        // k=2 of {A placed early, B placed late, C co-scheduled}: the placed pair already meets
+        // the requirement inside the window, so the answer is the 2nd-earliest placed bound and
+        // C is left unconstrained rather than dragged in.
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(c, "C"), Leaf(succ, "Assemble", logic: PredecessorLogic.KOfN, k: 2)],
+            edges: [Edge(a, succ), Edge(b, succ), Edge(c, succ)],
+            offHorizon:
+            [
+                Leaf(a, "A", Early, Early.AddDays(1)),
+                Leaf(b, "B", Late, Late.AddDays(1)),
+            ]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        problem.Requests.Single(r => r.RequestId == succ).EarliestStart
+            .Should().Be(new DateOnly(2026, 5, 21));
+        problem.Dependencies.Should().NotContain(e => e.SuccessorRequestId == succ);
+    }
+
+    [Fact]
+    public async Task AnyJoin_SurvivesOnePredecessorBeingBlocked()
+    {
+        // The blocking walk used to be plain reachability, which re-imposed "all": blocking one
+        // predecessor of an "any" successor withheld the successor even though the other one was
+        // perfectly placeable.
+        Guid doomed = Guid.NewGuid(), healthy = Guid.NewGuid(), missing = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog:
+            [
+                // `doomed` is itself blocked: its own predecessor is neither placed nor in the run.
+                Leaf(doomed, "Doomed"),
+                Leaf(healthy, "Healthy"),
+                Leaf(succ, "Assemble", logic: PredecessorLogic.Any),
+            ],
+            edges: [Edge(missing, doomed), Edge(doomed, succ), Edge(healthy, succ)],
+            offHorizon: []);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        problem.Withheld.Should().ContainSingle(w => w.RequestId == doomed);
+        problem.Withheld.Should().NotContain(w => w.RequestId == succ);
+        problem.Requests.Should().ContainSingle(r => r.RequestId == succ);
+    }
+
+    [Fact]
+    public async Task AllJoin_IsStillBlockedWhenAPredecessorIs()
+    {
+        // The control for the test above: under "all" a blocked predecessor must still take its
+        // successor down with it, or the run would schedule work with nothing holding it back.
+        Guid doomed = Guid.NewGuid(), healthy = Guid.NewGuid(), missing = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(doomed, "Doomed"), Leaf(healthy, "Healthy"), Leaf(succ, "Assemble")],
+            edges: [Edge(missing, doomed), Edge(doomed, succ), Edge(healthy, succ)],
+            offHorizon: []);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        problem.Withheld.Should().Contain(w => w.RequestId == succ);
+    }
+
+    [Fact]
+    public async Task JoinConditionsTravelWithTheProblem()
+    {
+        Guid pred = Guid.NewGuid(), succ = Guid.NewGuid();
+
+        var builder = Build(
+            backlog: [Leaf(succ, "Assemble", logic: PredecessorLogic.KOfN, k: 2)],
+            edges: [Edge(pred, succ)],
+            offHorizon: [Leaf(pred, "Delivered", Early, Early.AddDays(1))]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // They are part of the preview's identity, so the fingerprint can see them.
+        problem.JoinConditions.Should().NotBeNull();
+        problem.JoinConditions![succ].Logic.Should().Be(PredecessorLogic.KOfN);
+        problem.JoinConditions![succ].K.Should().Be(2);
     }
 }

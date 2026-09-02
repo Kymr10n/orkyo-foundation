@@ -1,3 +1,4 @@
+import { Network } from "lucide-react";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
@@ -35,6 +36,8 @@ interface RequestChildrenSectionProps {
   setPendingExistingIds: (updater: (prev: string[]) => string[]) => void;
   directChildren: Request[];
   onNavigate?: (requestId: string) => void;
+  /** Opens the dependency planner for this group. Absent hides the entry point. */
+  onOpenPlan?: (requestId: string) => void;
   handleRemoveChild: (child: Request) => void | Promise<void>;
 }
 
@@ -66,6 +69,7 @@ export function RequestChildrenSection({
   setPendingExistingIds,
   directChildren,
   onNavigate,
+  onOpenPlan,
   handleRemoveChild,
 }: RequestChildrenSectionProps) {
   return (
@@ -81,6 +85,21 @@ export function RequestChildrenSection({
       onInput={(e) => e.stopPropagation()}
       onChange={(e) => e.stopPropagation()}
     >
+      {/* The planner lives on its own route: a dependency graph needs more width than a dialog
+          has, and this is where someone looking at a group's tasks would go to order them. */}
+      {request && onOpenPlan && directChildren.length > 1 && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => onOpenPlan(request.id)}
+        >
+          <Network className="mr-2 h-4 w-4" aria-hidden="true" />
+          Sequence these tasks
+        </Button>
+      )}
+
       {/* Quick-add first so it stays visible however long the list gets. */}
       {!readOnly && (
         <div className="flex gap-2">

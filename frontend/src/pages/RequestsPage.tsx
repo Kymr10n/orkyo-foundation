@@ -616,12 +616,21 @@ export function RequestsPage() {
         }
         open={dialog?.kind === "edit" || dialog?.kind === "create"}
         onOpenChange={(open) => { if (!open) setDialog(null); }}
-        request={dialog?.kind === "edit" ? dialog.request : null}
+        // Re-resolved from the live list, not the snapshot captured when the dialog opened.
+        // A field the dialog itself saves — the start condition — is controlled by this value,
+        // so a stale snapshot made the control visibly revert under a success toast. Falls back
+        // to the snapshot if the request has since left the list.
+        request={
+          dialog?.kind === "edit"
+            ? requests.find((r) => r.id === dialog.request.id) ?? dialog.request
+            : null
+        }
         parentRequest={dialog?.kind === "create" ? dialog.parent : null}
         defaultPlanningMode={dialog?.kind === "create" ? dialog.defaultMode : undefined}
         canEdit={canEdit}
         allRequests={requests}
         onNavigate={handleDialogNavigate}
+        onOpenPlan={(id) => navigate(`/requests/${id}/plan`)}
         onSave={handleSaveRequest}
       />
 

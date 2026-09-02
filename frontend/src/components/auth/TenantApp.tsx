@@ -35,6 +35,7 @@ import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 const AccountPage = lazy(() => import('@foundation/src/pages/AccountPage').then(m => ({ default: m.AccountPage })));
 const AboutPage = lazy(() => import('@foundation/src/pages/AboutPage').then(m => ({ default: m.AboutPage })));
 const UtilizationPage = lazy(() => import('@foundation/src/pages/UtilizationPage').then(m => ({ default: m.UtilizationPage })));
+const RequestPlanPage = lazy(() => import('@foundation/src/pages/RequestPlanPage').then(m => ({ default: m.RequestPlanPage })));
 const InsightsPage = lazy(() => import('@foundation/src/pages/InsightsPage').then(m => ({ default: m.InsightsPage })));
 const OverviewTab = lazy(() => import('@foundation/src/components/insights/OverviewTab').then(m => ({ default: m.OverviewTab })));
 const UtilizationTab = lazy(() => import('@foundation/src/components/insights/UtilizationTab').then(m => ({ default: m.UtilizationTab })));
@@ -183,6 +184,9 @@ export function TenantApp({
         <Route path="/" element={<RequireAuth><AppLayout upgradeHref={reportingApiUnavailableRedirectTo} /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
           <Route path="requests" element={<RequestsPage />} />
+          {/* The dependency planner for one parent's children. Its own route, not a dialog:
+              a graph needs more width than the widest sanctioned dialog. */}
+          <Route path="requests/:requestId/plan" element={<RequestPlanPage />} />
           <Route path="insights" element={<InsightsPage />}>
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<OverviewTab />} />

@@ -56,7 +56,8 @@ public class RequestRepository : IRequestRepository
           start_ts, end_ts, earliest_start_ts, latest_end_ts,
           minimal_duration_value, minimal_duration_unit,
           actual_duration_value, actual_duration_unit,
-          status, scheduling_settings_apply, created_at, updated_at, assignments";
+          status, scheduling_settings_apply, created_at, updated_at, assignments,
+          predecessor_logic, predecessor_logic_k";
 
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
@@ -579,6 +580,19 @@ public class RequestRepository : IRequestRepository
         if (request.ParentRequestId.HasValue) update.Set("parent_request_id", request.ParentRequestId.Value);
         if (request.PlanningMode.HasValue) update.Set("planning_mode", EnumMapper.ToDbValue(request.PlanningMode.Value));
         if (request.SortOrder.HasValue) update.Set("sort_order", request.SortOrder.Value);
+        // The pair travels together: naming the logic rewrites k as well, so a k left over from
+        // a previous k_of_n cannot survive a switch to all/any and violate the CHECK.
+        if (request.PredecessorLogic.HasValue)
+        {
+            update.Set("predecessor_logic", EnumMapper.ToDbValue(request.PredecessorLogic.Value));
+            // k only for k_of_n; anything else writes NULL. A k_of_n with no k is refused by
+            // the validator, and by the CHECK constraint if it ever gets past it.
+            object k = request.PredecessorLogic.Value == PredecessorLogic.KOfN
+                && request.PredecessorLogicK is { } value
+                    ? value
+                    : DBNull.Value;
+            update.Set("predecessor_logic_k", k);
+        }
         if (request.SiteId.HasValue) update.Set("site_id", request.SiteId.Value);
         else if (request.ChangeSiteId) update.Set("site_id", (object)DBNull.Value);
         update.SetIfNotNull("request_item_id", request.RequestItemId);
@@ -1287,6 +1301,38 @@ public class RequestRepository : IRequestRepository
             p => p.AddWithValue("id", id), ct);
         if (result is null) return null;
         return EnumMapper.ToPlanningMode(result);
+    }
+
+    /// <summary>
+    /// The STORED status, not the effective one. RequestInfo reports status derived from the
+    /// schedule, so a caller that needs to know what a transition is moving away from — the
+    /// execution gate — cannot read it there.
+    /// </summary>
+    public async Task<RequestStatus?> GetStoredStatusAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        var result = await db.ExecuteScalarAsync<string>(
+            "SELECT status FROM requests WHERE id = @id",
+            p => p.AddWithValue("id", id), ct);
+        if (result is null) return null;
+        return EnumMapper.FromDbValue<RequestStatus>(result);
+    }
+
+    public async Task<Dictionary<Guid, RequestStatus>> GetStoredStatusesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return [];
+
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        var rows = await db.QueryListAsync(
+            "SELECT id, status FROM requests WHERE id = ANY(@ids)",
+            p => p.AddWithValue("ids", ids.ToArray()),
+            r => (Id: r.GetGuid("id"), Status: EnumMapper.FromDbValue<RequestStatus>(r.GetString("status"))),
+            ct);
+
+        return rows.ToDictionary(r => r.Id, r => r.Status);
     }
 
     public async Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default)

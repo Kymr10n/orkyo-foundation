@@ -342,6 +342,19 @@ describe('ResourceEditDialog width', () => {
     );
   });
 
+  it('widens for a lookup field too, which picks multi-column rows', async () => {
+    // The directory types bind department and job title as list_lookup, so a Person form showed
+    // two row pickers at the narrow width — a cramped stack of boxes with their own scrollbars.
+    vi.mocked(getResourceCustomFields).mockResolvedValue([
+      field({ key: 'department', label: 'Department', dataType: 'list_lookup' }),
+    ]);
+    renderDialog();
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog')).toHaveClass('sm:max-w-3xl'),
+    );
+  });
+
   it('keeps the default form width when every field is a plain input', async () => {
     // Widening unconditionally would strand single-column inputs across 720px.
     vi.mocked(getResourceCustomFields).mockResolvedValue([

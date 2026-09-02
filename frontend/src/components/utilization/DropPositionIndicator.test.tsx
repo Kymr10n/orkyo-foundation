@@ -1,5 +1,5 @@
 import { render, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Capture the handlers DropPositionIndicator registers with dnd-kit so we can drive
 // drag events directly — no DndContext / real drag needed.
@@ -25,8 +25,42 @@ function dragBy(deltaX: number) {
   };
 }
 
+// The component coalesces pointer moves into one paint per animation frame. These tests
+// drive the frame queue by hand so a move's effect is observable, and so the coalescing
+// itself can be asserted rather than assumed.
+let frameQueue: FrameRequestCallback[] = [];
+
+function runFrame() {
+  const due = frameQueue;
+  frameQueue = [];
+  act(() => { due.forEach((cb) => cb(0)); });
+}
+
 describe('DropPositionIndicator', () => {
-  beforeEach(() => { handlers = {}; });
+  beforeEach(() => {
+    handlers = {};
+    frameQueue = [];
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => frameQueue.push(cb));
+    vi.stubGlobal('cancelAnimationFrame', () => { frameQueue = []; });
+  });
+
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('paints once for a burst of pointer moves', () => {
+    render(<DropPositionIndicator scale="week" />);
+
+    // Three moves inside one frame — a pointer fires far more often than the screen
+    // repaints, and the label's Intl formatting is too costly to run per event.
+    act(() => { handlers.onDragMove(dragBy(10)); });
+    act(() => { handlers.onDragMove(dragBy(20)); });
+    act(() => { handlers.onDragMove(dragBy(30)); });
+    expect(frameQueue.length).toBe(1);
+
+    runFrame();
+
+    // The painted position is the LAST move's, not the first.
+    expect((document.querySelector(HIGHLIGHT) as HTMLElement).style.left).toBe('230px');
+  });
 
   it('tracks the landing position continuously and clears on drag-end', () => {
     render(<DropPositionIndicator scale="week" />);
@@ -34,6 +68,7 @@ describe('DropPositionIndicator', () => {
 
     // No movement → the marker sits on the bar's own start (1000ms → 25% → x=200).
     act(() => handlers.onDragMove(dragBy(0)));
+    runFrame();
     const hl = document.querySelector(HIGHLIGHT) as HTMLElement | null;
     expect(hl).not.toBeNull();
     expect(hl!.style.left).toBe('200px');
@@ -45,9 +80,11 @@ describe('DropPositionIndicator', () => {
     // 10px right = 100ms — a fraction of a column. The marker must follow it rather
     // than stay pinned to the column edge; this is the snap the grid used to have.
     act(() => handlers.onDragMove(dragBy(10)));
+    runFrame();
     expect((document.querySelector(HIGHLIGHT) as HTMLElement).style.left).toBe('210px');
 
     act(() => handlers.onDragMove(dragBy(55)));
+    runFrame();
     expect((document.querySelector(HIGHLIGHT) as HTMLElement).style.left).toBe('255px');
 
     act(() => handlers.onDragEnd(undefined));
@@ -60,18 +97,21 @@ describe('DropPositionIndicator', () => {
     // the scale governs rather than a fixed clock reading.
     const { rerender } = render(<DropPositionIndicator scale="week" />);
     act(() => handlers.onDragMove(dragBy(10)));
+    runFrame();
     // week → day columns, so the day is named AND the time, which is what the drag aims at.
     expect(document.body.textContent).toMatch(/Jan.*\d{2}:\d{2}/);
 
     // hour → the day is a given; only the clock is in play.
     rerender(<DropPositionIndicator scale="hour" />);
     act(() => handlers.onDragMove(dragBy(10)));
+    runFrame();
     expect(document.body.textContent).toMatch(/^\d{2}:\d{2}$/);
 
     // month → week columns: one pixel spans hours, so naming a minute would be
     // false precision. The day is the unit the user can actually aim for.
     rerender(<DropPositionIndicator scale="month" />);
     act(() => handlers.onDragMove(dragBy(10)));
+    runFrame();
     expect(document.body.textContent).toMatch(/Jan/);
     expect(document.body.textContent).not.toMatch(/\d{2}:\d{2}/);
   });
@@ -81,6 +121,7 @@ describe('DropPositionIndicator', () => {
     // Far past the right edge: the bar's start clamps to viewEnd - duration
     // (3000ms → 75% → x=400), keeping the whole bar visible.
     act(() => handlers.onDragMove(dragBy(9999)));
+    runFrame();
     expect((document.querySelector(HIGHLIGHT) as HTMLElement).style.left).toBe('400px');
   });
 
@@ -92,15 +133,18 @@ describe('DropPositionIndicator', () => {
       ...dragBy(0),
       active: { data: { current: { startTs: new Date(-5000).toISOString(), endTs: new Date(-4000).toISOString() } } },
     }));
+    runFrame();
     expect(document.querySelector(HIGHLIGHT)).toBeNull();
   });
 
   it('shows nothing when the pointer is over a non-track droppable', () => {
     render(<DropPositionIndicator scale="week" />);
     act(() => handlers.onDragMove(dragBy(0)));
+    runFrame();
     expect(document.querySelector(HIGHLIGHT)).not.toBeNull();
 
     act(() => handlers.onDragOver({ over: { data: { current: { type: 'other' } } }, active: { data: { current: {} } } }));
+    runFrame();
     expect(document.querySelector(HIGHLIGHT)).toBeNull();
   });
 });

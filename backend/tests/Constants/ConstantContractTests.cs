@@ -133,6 +133,22 @@ public class ConstantContractTests
     public void PlanningModes_ShouldEqualEnumDbValue(string constant, PlanningMode value) =>
         constant.Should().Be(EnumMapper.ToDbValue(value));
 
+    // --- PredecessorLogics ↔ PredecessorLogic enum (DB string == JsonStringEnumMemberName) ---
+    // These strings are also the requests_predecessor_logic_check CHECK values (migration 1960),
+    // so a drift here is a constraint violation at write time, not just a frontend mismatch.
+
+    [Theory]
+    [InlineData(PredecessorLogics.All, PredecessorLogic.All)]
+    [InlineData(PredecessorLogics.Any, PredecessorLogic.Any)]
+    [InlineData(PredecessorLogics.KOfN, PredecessorLogic.KOfN)]
+    public void PredecessorLogics_ShouldEqualEnumDbValue(string constant, PredecessorLogic value)
+    {
+        constant.Should().Be(EnumMapper.ToDbValue(value));
+        // Both directions: "k_of_n" does not match the member name KOfN, so a reader using the
+        // naive Enum.Parse path would throw on perfectly valid stored data.
+        EnumMapper.FromDbValue<PredecessorLogic>(constant).Should().Be(value);
+    }
+
     // --- UserStatusConstants ↔ UserStatus enum (DB string == ParseUserStatus mapping) ---
     // The constants are the canonical users.status DB strings; UserHelper.ParseUserStatus
     // owns the mapping back to the enum, so each constant must parse to its enum member

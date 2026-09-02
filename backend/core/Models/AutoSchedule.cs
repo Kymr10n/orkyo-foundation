@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
+using Api.Helpers;
 
 namespace Api.Models;
 
@@ -117,7 +118,11 @@ public sealed record SchedulingProblem(
     SchedulingSettingsInfo? Settings,
     Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource,
     IReadOnlyList<DependencyEdge>? Dependencies = null,
-    IReadOnlyList<WithheldRequestNode>? Withheld = null);
+    IReadOnlyList<WithheldRequestNode>? Withheld = null,
+    /// <summary>The join condition of every request that has incoming edges. Part of the
+    /// preview's identity: changing a condition changes what a valid plan is, so it belongs in
+    /// the fingerprint alongside the edges.</summary>
+    IReadOnlyDictionary<Guid, JoinCondition>? JoinConditions = null);
 
 /// <summary>
 /// A request kept out of the solve set because a dependency makes it unplaceable in this run:
@@ -216,7 +221,15 @@ public sealed record SchedulingSolution(
     /// preview and apply would leave the fingerprint matching, and the apply would commit a
     /// plan that violates the edge the user just drew.
     /// </param>
-    public string ComputeFingerprint(string resourceTypeKey, IEnumerable<DependencyEdge> edges)
+    /// <param name="joinConditions">
+    /// The join condition of each request with incoming edges, for the same reason: switching a
+    /// request from "any predecessor" to "all" between preview and apply invalidates a plan that
+    /// the edges alone still describe perfectly.
+    /// </param>
+    public string ComputeFingerprint(
+        string resourceTypeKey,
+        IEnumerable<DependencyEdge> edges,
+        IReadOnlyDictionary<Guid, JoinCondition>? joinConditions = null)
     {
         // The type is part of the identity, not just the assignments: an empty solution hashes
         // the same for every type, so without it a preview that proposed nothing would match
@@ -227,6 +240,16 @@ public sealed record SchedulingSolution(
             sb.Append(e.PredecessorRequestId).Append('>')
               .Append(e.SuccessorRequestId).Append('+')
               .Append(e.LagDays).Append(';');
+        }
+        sb.Append('#');
+        foreach (var (requestId, condition) in (joinConditions ?? new Dictionary<Guid, JoinCondition>())
+                     .OrderBy(kv => kv.Key))
+        {
+            // The DB string, not the enum member name: hashing "KOfN" would tie every in-flight
+            // preview's validity to a C# identifier that a rename could change.
+            sb.Append(requestId).Append(':')
+              .Append(EnumMapper.ToDbValue(condition.Logic)).Append(':')
+              .Append(condition.K).Append(';');
         }
         sb.Append('#');
         foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))

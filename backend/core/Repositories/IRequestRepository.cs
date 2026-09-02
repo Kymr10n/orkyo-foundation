@@ -106,6 +106,17 @@ public interface IRequestRepository
     /// <summary>Returns the planning mode of the request, or <c>null</c> if not found.</summary>
     Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default);
 
+    /// <summary>The STORED status (not the schedule-derived effective one), for transition checks.</summary>
+    Task<RequestStatus?> GetStoredStatusAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>
+    /// Stored statuses for several requests at once. The join gate needs these because
+    /// <see cref="RequestInfo.Status"/> is already schedule-derived, and that derivation loses a
+    /// manual <c>done</c> on a request that was never scheduled.
+    /// </summary>
+    Task<Dictionary<Guid, RequestStatus>> GetStoredStatusesAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
+
     /// <summary>Returns <c>true</c> if the request has at least one direct child.</summary>
     Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default);
 

@@ -342,6 +342,61 @@ public class NarrativeYearSeederTests
              WHERE d.successor_request_id = ANY(@ids) AND p.name = s.name", seeded);
         sameName.Should().Be(0, "each step is a different kind of work, or the path is unreadable");
 
+        // ── The curated showcase plan ─────────────────────────────────────────────
+        // Everything above describes generated work, whose chains deliberately sequence ACROSS
+        // parents. That leaves the plan view — the one screen that draws a dependency graph —
+        // with nothing to draw on any campaign. This plan is the exception, and it only earns
+        // its place if it actually arrives sequenced.
+        var showcaseId = await ScalarGuidOrNull(conn, tx, @"
+            SELECT id FROM requests
+             WHERE id = ANY(@ids) AND planning_mode = 'summary' AND name LIKE 'Line changeover (%'",
+            seeded);
+        showcaseId.Should().NotBeNull("the demo needs one plan a visitor can open and read");
+
+        var showcaseChildren = await ScalarInt(conn, tx,
+            "SELECT COUNT(*) FROM requests WHERE parent_request_id = @parent",
+            ("parent", (object)showcaseId!.Value));
+        showcaseChildren.Should().Be(11, "the plan's phases");
+
+        // Edges BETWEEN those children: the plan endpoint only returns edges with both ends in
+        // the group, so a plan whose edges leave it would render as bare boxes.
+        var siblingEdges = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+              JOIN requests p ON p.id = d.predecessor_request_id
+              JOIN requests s ON s.id = d.successor_request_id
+             WHERE p.parent_request_id = @parent AND s.parent_request_id = @parent",
+            ("parent", (object)showcaseId.Value));
+        siblingEdges.Should().Be(9, "the phases are sequenced among themselves");
+
+        // The two conditions the plan exists to demonstrate. Without these it is just a chain.
+        var anyJoins = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM requests
+             WHERE parent_request_id = @parent AND predecessor_logic = 'any'",
+            ("parent", (object)showcaseId.Value));
+        anyJoins.Should().Be(1, "one phase starts on either of two deliveries");
+
+        var kOfN = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM requests
+             WHERE parent_request_id = @parent
+               AND predecessor_logic = 'k_of_n' AND predecessor_logic_k = 2",
+            ("parent", (object)showcaseId.Value));
+        kOfN.Should().Be(1, "one phase waits for 2 of its 3 inspections");
+
+        // A cancelled predecessor is what proves abandoned work leaves the set rather than
+        // holding its successors shut forever — the rule is invisible without an example.
+        var cancelledPhase = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM requests
+             WHERE parent_request_id = @parent AND status = 'cancelled'",
+            ("parent", (object)showcaseId.Value));
+        cancelledPhase.Should().Be(1, "one phase was abandoned, and its successor still runs");
+
+        // Mixed states, so the plan shows locked and startable side by side rather than a
+        // uniformly grey or uniformly green graph.
+        var distinctStatuses = await ScalarInt(conn, tx, @"
+            SELECT COUNT(DISTINCT status) FROM requests WHERE parent_request_id = @parent",
+            ("parent", (object)showcaseId.Value));
+        distinctStatuses.Should().BeGreaterThanOrEqualTo(3, "done, running and not-yet-started");
+
         await tx.RollbackAsync();
     }
 
@@ -358,6 +413,17 @@ public class NarrativeYearSeederTests
     {
         await using var cmd = new NpgsqlCommand(sql, conn, tx);
         return (Guid)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>Parameterised, and null when the row is absent — so a missing seed reads as a
+    /// clear "it was not written" rather than a cast exception.</summary>
+    private static async Task<Guid?> ScalarGuidOrNull(NpgsqlConnection conn, NpgsqlTransaction tx, string sql,
+        params (string Name, object Value)[] parameters)
+    {
+        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        foreach (var (name, value) in parameters)
+            cmd.Parameters.AddWithValue(name, value);
+        return await cmd.ExecuteScalarAsync() as Guid?;
     }
 
     private static async Task<(long, long)> TwoLongs(NpgsqlConnection conn, NpgsqlTransaction tx, string sql,

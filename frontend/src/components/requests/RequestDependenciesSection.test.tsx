@@ -9,6 +9,7 @@ import {
   deleteRequestDependency,
   getRequestDependencies,
 } from "@foundation/src/lib/api/request-dependency-api";
+import { updateRequest } from "@foundation/src/lib/api/request-api";
 import type { Request } from "@foundation/src/types/requests";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -18,6 +19,8 @@ vi.mock("@foundation/src/lib/api/request-dependency-api", () => ({
   addRequestDependency: vi.fn(),
   deleteRequestDependency: vi.fn(),
 }));
+
+vi.mock("@foundation/src/lib/api/request-api", () => ({ updateRequest: vi.fn() }));
 
 const request = { id: "r1", name: "Grind", planningMode: "leaf" } as Request;
 const candidates = [
@@ -41,13 +44,21 @@ function edge(overrides: Partial<Record<string, unknown>> = {}) {
 
 // The production feedback cache, so meta.successMessage / meta.invalidates behave as they do
 // at runtime rather than being silently inert in tests.
-function renderSection(readOnly = false, allCandidates = candidates) {
+function renderSection(readOnly = false, allCandidates = candidates, subject: Request = request) {
   const Wrapper = createFeedbackTestQueryWrapper();
   return render(
     <Wrapper>
-      <RequestDependenciesSection request={request} readOnly={readOnly} candidates={allCandidates} />
+      <RequestDependenciesSection request={subject} readOnly={readOnly} candidates={allCandidates} />
     </Wrapper>,
   );
+}
+
+/** Two predecessors — the point at which the start condition becomes a real choice. */
+function twoPredecessors() {
+  (getRequestDependencies as Mock).mockResolvedValue({
+    predecessors: [edge(), edge({ id: "e2", predecessorRequestId: "r3", predecessorName: "Inspect" })],
+    successors: [],
+  });
 }
 
 beforeEach(() => {
@@ -188,5 +199,112 @@ describe("RequestDependenciesSection", () => {
     // Clearing the field must mean "no gap", not NaN — which would serialize to null and come
     // back a 400 with no explanation.
     await waitFor(() => expect(addRequestDependency).toHaveBeenCalledWith("r1", "r2", 0));
+  });
+
+  // ── Start condition ─────────────────────────────────────────────────────────
+
+  it("offers no start condition until there is a real choice to make", async () => {
+    // With one predecessor every logic means the same thing, so the control would be noise.
+    (getRequestDependencies as Mock).mockResolvedValue({ predecessors: [edge()], successors: [] });
+    renderSection();
+
+    expect(await screen.findByText("Mill")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Can start when")).not.toBeInTheDocument();
+  });
+
+  it("offers the start condition once a request waits for several things", async () => {
+    twoPredecessors();
+    renderSection();
+
+    expect(await screen.findByLabelText("Can start when")).toBeInTheDocument();
+  });
+
+  it("sends the chosen logic and clears k when it does not apply", async () => {
+    twoPredecessors();
+    (updateRequest as Mock).mockResolvedValue({});
+    renderSection();
+
+    await userEvent.click(await screen.findByLabelText("Can start when"));
+    await userEvent.click(await screen.findByRole("option", { name: "Any predecessor" }));
+
+    // k is meaningless for "any", and a stale one left behind would violate the CHECK.
+    await waitFor(() =>
+      expect(updateRequest).toHaveBeenCalledWith("r1", {
+        predecessorLogic: "any",
+        predecessorLogicK: null,
+      }),
+    );
+  });
+
+  it("sends a k with k_of_n, defaulted to every predecessor", async () => {
+    twoPredecessors();
+    (updateRequest as Mock).mockResolvedValue({});
+    renderSection();
+
+    await userEvent.click(await screen.findByLabelText("Can start when"));
+    await userEvent.click(await screen.findByRole("option", { name: "At least…" }));
+
+    await waitFor(() =>
+      expect(updateRequest).toHaveBeenCalledWith("r1", {
+        predecessorLogic: "k_of_n",
+        predecessorLogicK: 2,
+      }),
+    );
+  });
+
+  it("shows the k field only for k_of_n, clamped to the predecessor count", async () => {
+    twoPredecessors();
+    const subject = { ...request, predecessorLogic: "k_of_n", predecessorLogicK: 9 } as Request;
+    renderSection(false, candidates, subject);
+
+    // A k that outlived the edges it described still renders as something true: the server
+    // clamps it to "all of them", and so does the field.
+    const field = await screen.findByLabelText("How many");
+    expect(field).toHaveValue(2);
+  });
+
+  it("commits k on blur, not on every keystroke", async () => {
+    twoPredecessors();
+    (updateRequest as Mock).mockResolvedValue({});
+    const subject = { ...request, predecessorLogic: "k_of_n", predecessorLogicK: 1 } as Request;
+    renderSection(false, candidates, subject);
+
+    const field = await screen.findByLabelText("How many");
+    await userEvent.clear(field);
+    await userEvent.type(field, "2");
+
+    // Clearing the box used to read as Number("") === 0, clamp to 1 and SAVE — so the field
+    // could not be typed into, and every character cost a write plus a tenant-wide invalidation.
+    expect(updateRequest).not.toHaveBeenCalled();
+
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(updateRequest).toHaveBeenCalledExactlyOnceWith("r1", {
+        predecessorLogic: "k_of_n",
+        predecessorLogicK: 2,
+      }),
+    );
+  });
+
+  it("restores the stored k when the box is left empty", async () => {
+    twoPredecessors();
+    (updateRequest as Mock).mockResolvedValue({});
+    const subject = { ...request, predecessorLogic: "k_of_n", predecessorLogicK: 2 } as Request;
+    renderSection(false, candidates, subject);
+
+    const field = await screen.findByLabelText("How many");
+    await userEvent.clear(field);
+    await userEvent.tab();
+
+    // A half-typed value is not a request to store nothing.
+    expect(updateRequest).not.toHaveBeenCalled();
+    expect(field).toHaveValue(2);
+  });
+
+  it("gives viewers no start-condition control", async () => {
+    twoPredecessors();
+    renderSection(true);
+
+    expect(await screen.findByLabelText("Can start when")).toBeDisabled();
   });
 });

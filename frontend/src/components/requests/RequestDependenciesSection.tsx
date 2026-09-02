@@ -16,7 +16,16 @@ import {
   getRequestDependencies,
   type RequestDependency,
 } from "@foundation/src/lib/api/request-dependency-api";
-import type { Request } from "@foundation/src/types/requests";
+import { updateRequest } from "@foundation/src/lib/api/request-api";
+import { PREDECESSOR_LOGIC_OPTIONS } from "@foundation/src/constants/predecessor-logic";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@foundation/src/components/ui/select";
+import type { PredecessorLogic, Request } from "@foundation/src/types/requests";
 import { ArrowRight, Trash2 } from "lucide-react";
 
 /**
@@ -69,6 +78,22 @@ export function RequestDependenciesSection({
     },
   });
 
+  // The condition is a property of the request, not of an edge, so it rides the request update
+  // rather than getting an endpoint of its own. Logic and k always travel together: the server
+  // clears k unless the logic is k_of_n, which is what stops a stale k outliving its logic.
+  const conditionMutation = useMutation({
+    mutationFn: (next: { logic: PredecessorLogic; k: number | null }) =>
+      updateRequest(requestId!, {
+        predecessorLogic: next.logic,
+        predecessorLogicK: next.logic === "k_of_n" ? next.k : null,
+      }),
+    meta: {
+      successMessage: "Start condition updated",
+      errorMessage: "Could not update the start condition",
+      invalidates: REQUEST_DERIVED_QUERY_KEYS,
+    },
+  });
+
   const removeMutation = useMutation({
     mutationFn: (dependencyId: string) => deleteRequestDependency(requestId!, dependencyId),
     meta: {
@@ -107,6 +132,15 @@ export function RequestDependenciesSection({
     <div className="space-y-6">
       <section className="space-y-2">
         <h4 className="text-sm font-medium">Waits for</h4>
+        {predecessors.length > 1 && (
+          <StartConditionControl
+            logic={request?.predecessorLogic ?? "all"}
+            k={request?.predecessorLogicK ?? null}
+            predecessorCount={predecessors.length}
+            readOnly={readOnly || conditionMutation.isPending}
+            onChange={(logic, k) => conditionMutation.mutate({ logic, k })}
+          />
+        )}
         {predecessors.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             Nothing. This request can start as soon as its own window allows.
@@ -260,4 +294,112 @@ function formatLag(minutes: number): string {
     return `${hours} hour${hours === 1 ? "" : "s"}`;
   }
   return `${minutes} min`;
+}
+
+/**
+ * Which predecessors have to be done before this request may start.
+ *
+ * Shown only when there is more than one predecessor: with none the question is moot, and with
+ * exactly one every logic means the same thing, so offering the choice would be noise.
+ */
+function StartConditionControl({
+  logic,
+  k,
+  predecessorCount,
+  readOnly,
+  onChange,
+}: {
+  logic: PredecessorLogic;
+  k: number | null;
+  predecessorCount: number;
+  readOnly: boolean;
+  onChange: (logic: PredecessorLogic, k: number | null) => void;
+}) {
+  // A k that outlived the edges it described still has to render as something sensible, and
+  // "all of them" is how the server reads it too.
+  const effectiveK = Math.min(Math.max(k ?? predecessorCount, 1), predecessorCount);
+
+  const [draftK, setDraftK] = useState(String(effectiveK));
+  // Follow the stored value when it changes underneath — after a save, or when an edge is added
+  // or removed and the clamp moves. Adjusted during render rather than in an effect: React
+  // re-runs this component before touching the DOM, so the box never paints the stale value.
+  const [lastSyncedK, setLastSyncedK] = useState(effectiveK);
+  if (lastSyncedK !== effectiveK) {
+    setLastSyncedK(effectiveK);
+    setDraftK(String(effectiveK));
+  }
+
+  const commitK = () => {
+    const parsed = Number(draftK);
+    // An empty or unparseable box means "no change"; it is a half-typed value, not a request to
+    // store 0.
+    if (draftK.trim() === "" || !Number.isFinite(parsed)) {
+      setDraftK(String(effectiveK));
+      return;
+    }
+    const next = Math.min(Math.max(Math.round(parsed), 1), predecessorCount);
+    setDraftK(String(next));
+    if (next !== effectiveK) onChange("k_of_n", next);
+  };
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border bg-muted/30 p-2">
+      <div className="space-y-1">
+        <Label htmlFor="dependency-logic" className="text-xs">
+          Can start when
+        </Label>
+        <Select
+          value={logic}
+          disabled={readOnly}
+          onValueChange={(next) =>
+            onChange(next as PredecessorLogic, next === "k_of_n" ? effectiveK : null)
+          }
+        >
+          <SelectTrigger id="dependency-logic" className="h-8 w-[190px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PREDECESSOR_LOGIC_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {logic === "k_of_n" && (
+        <div className="space-y-1">
+          <Label htmlFor="dependency-logic-k" className="text-xs">
+            How many
+          </Label>
+          <Input
+            id="dependency-logic-k"
+            type="number"
+            min={1}
+            max={predecessorCount}
+            className="h-8 w-20"
+            // Local draft, committed on blur or Enter. Writing on every keystroke made the field
+            // untypable — clearing it to type "12" produced Number("") === 0, which clamped to 1
+            // and saved — and fired a request update plus a tenant-wide invalidation per
+            // character.
+            value={draftK}
+            disabled={readOnly}
+            onChange={(e) => setDraftK(e.target.value)}
+            onBlur={commitK}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitK();
+              }
+            }}
+          />
+        </div>
+      )}
+
+      <p className="text-xs text-muted-foreground pb-2">
+        {PREDECESSOR_LOGIC_OPTIONS.find((o) => o.value === logic)?.hint}
+      </p>
+    </div>
+  );
 }
