@@ -139,6 +139,22 @@ public class SeedArgsTests
         options.ForceNonLocal.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("--help")]
+    [InlineData("-h")]
+    [InlineData("-?")]
+    public void HelpIsRecognisedRatherThanRejectedAsAnUnknownOption(string flag)
+    {
+        // It is checked before parsing: help is not an option among the others, and answering a
+        // fair question with "Unknown option '--help'" is a rude way to greet someone.
+        SeedCliSupport.IsHelpRequested([flag]).Should().BeTrue();
+        SeedCliSupport.IsHelpRequested(["--profile", "generic", flag]).Should().BeTrue();
+    }
+
+    [Fact]
+    public void AnOrdinaryCommandLineIsNotAHelpRequest() =>
+        SeedCliSupport.IsHelpRequested(["--profile", "generic"]).Should().BeFalse();
+
     [Fact]
     public void ValidateProfileAndScaleRejectsAMissingProfile()
     {

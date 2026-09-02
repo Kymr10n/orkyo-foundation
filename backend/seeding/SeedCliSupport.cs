@@ -69,6 +69,13 @@ public class SeedCliOptions
 /// </summary>
 public static class SeedCliSupport
 {
+    /// <summary>
+    /// Whether the caller asked for usage. Checked before parsing: help is not an option among
+    /// the others, and reporting it as an unknown one would be a rude answer to a fair question.
+    /// </summary>
+    public static bool IsHelpRequested(string[] args)
+        => args.Any(a => a is "--help" or "-h" or "-?");
+
     /// <summary>Validate profile/scale early. Returns a non-zero exit code (prints to stderr) on failure, else null.</summary>
     public static int? ValidateProfileAndScale(SeedCliOptions opts)
     {
