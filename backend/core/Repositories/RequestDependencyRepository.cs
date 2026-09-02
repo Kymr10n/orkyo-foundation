@@ -80,6 +80,18 @@ public class RequestDependencyRepository : IRequestDependencyRepository
             p => p.AddWithValue("ids", successorIds.ToArray()), Map, ct);
     }
 
+    public async Task<List<RequestDependencyInfo>> GetTouchingAsync(
+        IReadOnlyCollection<Guid> requestIds, CancellationToken ct = default)
+    {
+        if (requestIds.Count == 0) return [];
+
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        return await db.QueryListAsync(
+            SelectSql + " WHERE d.predecessor_request_id = ANY(@ids) OR d.successor_request_id = ANY(@ids)",
+            p => p.AddWithValue("ids", requestIds.ToArray()), Map, ct);
+    }
+
     public async Task<RequestDependencyInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);

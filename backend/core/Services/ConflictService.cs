@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 
@@ -242,7 +243,59 @@ public class ConflictService(
         IReadOnlyDictionary<Guid, RequestInfo> byId)
     {
         if (request.StartTs is not { } start) yield break;
-        if (!edgesBySuccessor.TryGetValue(request.Id, out var edges)) yield break;
+        if (!edgesBySuccessor.TryGetValue(request.Id, out var allEdges)) yield break;
+
+        // A cancelled or deferred predecessor is work that will not happen, so it cannot hold
+        // this request back. Same exclusion the critical path and the execution gate apply.
+        var now = DateTime.UtcNow;
+        var edges = allEdges
+            .Where(e => !(byId.TryGetValue(e.PredecessorRequestId, out var p)
+                          && JoinConditionEvaluator.IsAbandoned(p, now)))
+            .ToList();
+
+        var condition = JoinCondition.Of(request);
+        var required = JoinConditionEvaluator.RequiredCount(condition, edges.Count);
+        if (required == 0) yield break;
+
+        // How many predecessors this start already respects. Under "all" that has to be every
+        // one of them, so the per-edge reporting below is unchanged; under "any" or k-of-n a
+        // single satisfied predecessor can make the rest irrelevant, and reporting them
+        // individually would flag a plan that is in fact correct.
+        var satisfied = edges.Count(e =>
+            byId.TryGetValue(e.PredecessorRequestId, out var p)
+            && p.EndTs is { } end
+            && DateOnly.FromDateTime(start) >= EarliestStartAfter(end, e.LagMinutes));
+
+        if (satisfied >= required) yield break;
+
+        // Dispatch on the RESOLVED requirement, not the stored logic: a k_of_n whose k is at or
+        // above its predecessor count means exactly "all", and it should report the same way —
+        // one conflict per offending edge, each naming its peer — rather than losing the peer
+        // links to an aggregate message.
+        if (required < edges.Count)
+        {
+            // One conflict for the request, not one per edge: the shortfall is a property of the
+            // whole incoming set. The wording comes from the same helper the execution gate
+            // uses, so the board and the refusal describe the shortfall identically.
+            // Only a predecessor that exists and is merely unscheduled can still satisfy this.
+            // A row that is gone (byId is tenant-wide, so a miss means deleted) never will, and
+            // counting it would downgrade a decided violation to a "still in progress" warning.
+            var stillPossible = edges.Count(e =>
+                byId.TryGetValue(e.PredecessorRequestId, out var p) && p.EndTs is null);
+
+            yield return new ConflictInfo
+            {
+                Id = $"{request.Id}-join-condition",
+                Kind = ConflictKinds.DependencyViolation,
+                // Unscheduled predecessors could still satisfy the condition once they are
+                // placed; with none left to place, the start is decidably wrong.
+                Severity = satisfied + stillPossible >= required
+                    ? ConflictSeverities.Warning
+                    : ConflictSeverities.Error,
+                Message = $"Starts before its predecessors allow ({JoinConditionEvaluator.DescribeShortfall(required, edges.Count, satisfied)})",
+            };
+            yield break;
+        }
 
         foreach (var edge in edges)
         {
@@ -268,8 +321,7 @@ public class ConflictService(
             // leave the Conflicts page contradicting the critical-path view.
             // Inclusive last day (end_ts is half-open): the raw date of a midnight end would
             // flag a successor correctly placed the very next day as a violation.
-            var earliest = SchedulingEngine.InclusiveLastDay(predecessorEnd)
-                .AddDays(1 + (int)Math.Ceiling(edge.LagMinutes / (double)(24 * 60)));
+            var earliest = EarliestStartAfter(predecessorEnd, edge.LagMinutes);
             if (DateOnly.FromDateTime(start) < earliest)
             {
                 yield return new ConflictInfo
@@ -285,6 +337,19 @@ public class ConflictService(
             }
         }
     }
+
+    /// <summary>
+    /// The first day a successor may start after a predecessor ending at <paramref name="predecessorEnd"/>.
+    ///
+    /// Whole days, matching the critical path. The scheduler and the CPM pass both work in day
+    /// buckets, so a successor starting the same calendar day its predecessor ends is a violation
+    /// to them; comparing raw timestamps here would report it clean and leave the Conflicts page
+    /// contradicting the critical-path view. Inclusive last day (end_ts is half-open): the raw
+    /// date of a midnight end would flag a successor correctly placed the very next day.
+    /// </summary>
+    private static DateOnly EarliestStartAfter(DateTime predecessorEnd, int lagMinutes)
+        => SchedulingEngine.InclusiveLastDay(predecessorEnd)
+            .AddDays(1 + (int)Math.Ceiling(lagMinutes / (double)(24 * 60)));
 
     /// <summary>Request-intrinsic checks computed directly from the request's own fields.</summary>
     private static IEnumerable<ConflictInfo> IntrinsicConflicts(RequestInfo request)

@@ -9,6 +9,8 @@
  *   import { DATE_FORMATS } from '@foundation/src/lib/formatters';
  *   format(date, DATE_FORMATS.DATE_LOCALE_SHORT)
  */
+import { differenceInCalendarDays } from "date-fns";
+
 export const DATE_FORMATS = {
   /** Locale-aware short date. Renders as "Oct 14, 2025" in en-US. */
   DATE_LOCALE_SHORT: "PP",
@@ -87,4 +89,25 @@ export const GRID_WEEK_HEADER_OPTS: Intl.DateTimeFormatOptions = { month: "short
 export function formatDateDisplay(dateStr?: string | null): string {
   if (!dateStr) return "-";
   return formatLocalized(new Date(dateStr), { dateStyle: "medium" });
+}
+
+/** Day-and-month only, for surfaces too narrow for a year. "Apr 2" */
+const WINDOW_DAY_OPTS: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+
+/**
+ * Compact schedule window with its length, for cards and dense rows: "Apr 2 – Apr 7 · 5d".
+ *
+ * Shorter than {@link formatDateDisplay} twice over, which needs about 180px for one window and
+ * cannot fit a 190px card. The day count is inclusive, because a task that starts and finishes on
+ * the same day lasts one day rather than none.
+ *
+ * Returns "Unscheduled" when either end is missing — the two ends are only useful together, and a
+ * half-open window would read as a fact the plan does not have.
+ */
+export function formatScheduledWindow(startTs?: string | null, endTs?: string | null): string {
+  if (!startTs || !endTs) return "Unscheduled";
+  const start = new Date(startTs);
+  const end = new Date(endTs);
+  const days = differenceInCalendarDays(end, start) + 1;
+  return `${formatLocalized(start, WINDOW_DAY_OPTS)} – ${formatLocalized(end, WINDOW_DAY_OPTS)} · ${days}d`;
 }

@@ -38,7 +38,7 @@ import type { Conflict, DurationUnit, PlanningMode, Request, RequestFormData } f
 import { ConflictBanner, conflictDotClass } from "./ConflictIndicator";
 import { TabIndicatorDot } from "@foundation/src/components/ui/status-indicator";
 import { AlertTriangle, ChevronRight, FileText, Layers } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { toast } from "sonner";
@@ -93,6 +93,8 @@ interface RequestFormDialogProps {
   allRequests?: Request[];
   /** Re-target the dialog to another request (breadcrumb / children click). */
   onNavigate?: (requestId: string) => void;
+  /** Opens the dependency planner for a group. Absent hides the entry point. */
+  onOpenPlan?: (requestId: string) => void;
   /**
    * Create-mode consumers should return the created Request so queued children
    * from the Children tab can be created under it. May return void otherwise.
@@ -137,6 +139,7 @@ export function RequestFormDialog({
   canEdit = true,
   allRequests,
   onNavigate,
+  onOpenPlan,
   onSave,
 }: RequestFormDialogProps) {
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
@@ -281,10 +284,37 @@ export function RequestFormDialog({
   const hasPendingCreate = !request && (pendingChildren.length > 0 || pendingExistingIds.length > 0);
   const effectiveDirty = isDirty || hasPendingCreate;
 
+  // Opening the planner leaves this route, so it has to pass the same discard prompt closing
+  // does — otherwise a click on "Sequence these tasks" throws away every unsaved field without
+  // asking, which is precisely what the guard exists to prevent.
+  const pendingPlanId = useRef<string | null>(null);
+
+  const handleDialogClose = useCallback((open: boolean) => {
+    onOpenChange(open);
+    if (open) return;
+
+    const planId = pendingPlanId.current;
+    pendingPlanId.current = null;
+    if (planId) onOpenPlan?.(planId);
+  }, [onOpenChange, onOpenPlan]);
+
   const { guardedOnOpenChange, confirmOpen, ConfirmDiscardDialog } = useDialogDirtyGuard({
     isDirty: effectiveDirty,
-    onOpenChange,
+    onOpenChange: handleDialogClose,
   });
+
+  // "Keep editing" leaves the dialog open, so the queued navigation must be dropped — otherwise
+  // it would fire later, on an ordinary close the user meant as a close.
+  const wasConfirming = useRef(false);
+  useEffect(() => {
+    if (wasConfirming.current && !confirmOpen && open) pendingPlanId.current = null;
+    wasConfirming.current = confirmOpen;
+  }, [confirmOpen, open]);
+
+  const requestPlanNavigation = useCallback((id: string) => {
+    pendingPlanId.current = id;
+    guardedOnOpenChange(false);
+  }, [guardedOnOpenChange]);
 
   // Leaf: fully editable schedule.
   // Summary/Container: structural nodes; schedule is derived from children and not editable.
@@ -1161,6 +1191,7 @@ export function RequestFormDialog({
                   setPendingExistingIds={setPendingExistingIds}
                   directChildren={directChildren}
                   onNavigate={onNavigate}
+                  onOpenPlan={onOpenPlan ? requestPlanNavigation : undefined}
                   handleRemoveChild={handleRemoveChild}
                 />
               )}

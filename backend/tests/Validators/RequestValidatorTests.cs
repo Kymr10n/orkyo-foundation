@@ -439,4 +439,69 @@ public class RequestValidatorTests
     }
 
     #endregion
+
+    #region Join conditions
+
+    [Fact]
+    public void Update_KWithoutALogic_Fails()
+    {
+        // The repository writes k only when the logic is present, so accepting this would return
+        // 200 with the old value still stored — a write that looks accepted and did nothing.
+        var result = _updateValidator.Validate(new UpdateRequestRequest { PredecessorLogicK = 2 });
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(UpdateRequestRequest.PredecessorLogic));
+    }
+
+    [Fact]
+    public void Update_KOfNWithoutK_Fails()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest
+        {
+            PredecessorLogic = PredecessorLogic.KOfN,
+        });
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_KBelowOne_Fails()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest
+        {
+            PredecessorLogic = PredecessorLogic.KOfN,
+            PredecessorLogicK = 0,
+        });
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_KAlongsideAnyLogic_Fails()
+    {
+        var result = _updateValidator.Validate(new UpdateRequestRequest
+        {
+            PredecessorLogic = PredecessorLogic.Any,
+            PredecessorLogicK = 2,
+        });
+
+        Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_AWellFormedPair_Passes()
+    {
+        Assert.True(_updateValidator.Validate(new UpdateRequestRequest
+        {
+            PredecessorLogic = PredecessorLogic.KOfN,
+            PredecessorLogicK = 2,
+        }).IsValid);
+
+        Assert.True(_updateValidator.Validate(new UpdateRequestRequest
+        {
+            PredecessorLogic = PredecessorLogic.Any,
+        }).IsValid);
+    }
+
+    #endregion
 }

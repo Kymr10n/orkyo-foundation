@@ -39,6 +39,10 @@ public static class RequestMapper
                 ? EnumMapper.ParseEnum<DurationUnit>(actualUnit)
                 : null,
             Status = RequestStatusCalculator.Effective(storedStatus, startTs, endTs, DateTime.UtcNow),
+            // FromDbValue, not ParseEnum: the DB strings follow JsonStringEnumMemberName, and
+            // "k_of_n" does not match the member name KOfN the way "leaf" matches Leaf.
+            PredecessorLogic = EnumMapper.FromDbValue<PredecessorLogic>(reader.GetString("predecessor_logic")),
+            PredecessorLogicK = reader.GetNullableInt32("predecessor_logic_k"),
             SchedulingSettingsApply = reader.GetBoolean("scheduling_settings_apply"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),

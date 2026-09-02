@@ -41,6 +41,8 @@ export const qk = {
     dependencies: (requestId: string) => ["requests", "dependencies", requestId] as const,
     /** The critical path over the dependency network. */
     criticalPath: (siteId: string | null) => ["requests", "critical-path", siteId] as const,
+    /** One parent's children, the edges among them, and whether each may start. */
+    plan: (requestId: string) => ["requests", "plan", requestId] as const,
   },
 
   sites: {

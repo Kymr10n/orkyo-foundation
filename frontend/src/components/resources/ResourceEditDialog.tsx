@@ -144,11 +144,18 @@ export function ResourceEditDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      // A list field renders a full data table, which does not fit the default form width and
-      // ends up scrolling sideways inside the dialog. Widen only for the types that have one:
-      // most resource types do not, and a permanently wide dialog leaves single-column inputs
-      // stranded across 720px. `xl` matches ResourceTypeCustomFieldsDialog, the other table.
-      size={customFields.fields.some((f) => f.dataType === 'list') ? 'xl' : 'md'}
+      // A list field renders a full data table and a lookup renders a picker of multi-column
+      // rows; neither fits the default form width, and both end up wrapping or scrolling
+      // sideways inside the dialog. Widen only for the types that have one: most resource types
+      // do not, and a permanently wide dialog leaves single-column inputs stranded across 720px.
+      // `xl` matches ResourceTypeCustomFieldsDialog, the other table.
+      //
+      // Both types, not just `list`: the directory types bind department and job title as
+      // `list_lookup` (ResourceTypeCatalogService.EnsureDirectoryLookupFieldsAsync), so a Person
+      // form carried two row pickers at the narrow width and read as a cramped stack of boxes.
+      size={customFields.fields.some((f) => f.dataType === 'list' || f.dataType === 'list_lookup')
+        ? 'xl'
+        : 'md'}
       title={resource ? `Edit ${resourceType.displayName}` : `New ${resourceType.displayName}`}
       description={resourceType.description || undefined}
       srOnlyDescription={!resourceType.description}

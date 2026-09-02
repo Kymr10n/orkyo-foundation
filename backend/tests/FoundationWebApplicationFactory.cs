@@ -380,6 +380,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<IRequestDependencyService, RequestDependencyService>();
         builder.Services.AddScoped<ICriticalPathService, CriticalPathService>();
+        builder.Services.AddScoped<IRequestPlanService, RequestPlanService>();
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();
         builder.Services.AddScoped<IAutoScheduleService, AutoScheduleService>();
         builder.Services.AddScoped<IExportService, ExportService>();

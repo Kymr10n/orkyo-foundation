@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 
@@ -171,49 +172,136 @@ public class SchedulingProblemBuilder
             .Distinct()
             .ToList();
 
+        // Predecessor state, for the abandonment test below. `scheduled` covers this site and
+        // horizon; the unresolved read covers everything else an edge points at.
+        var predecessorState = scheduled.ToDictionary(r => r.Id);
+
         if (unresolved.Count > 0)
             foreach (var predecessor in await _requestRepository.GetByIdsAsync(
                          unresolved, includeRequirements: false, cancellationToken))
+            {
+                predecessorState[predecessor.Id] = predecessor;
                 if (predecessor.EndTs is { } end)
                     placedEnds[predecessor.Id] = SchedulingEngine.InclusiveLastDay(end);
+            }
 
         var solverEdges = new List<DependencyEdge>();
         var earliestFromPredecessor = new Dictionary<Guid, DateOnly>();
         var blockedBySet = new HashSet<Guid>();
+        var joinConditions = new Dictionary<Guid, JoinCondition>();
+        var nodesById = requestNodes.ToDictionary(n => n.RequestId);
 
-        foreach (var edge in edges)
+        // What each successor still needs, so blocking can be resolved by the join rather than by
+        // reachability. Only successors that depend on the run's own placements are listed: one
+        // satisfied purely by immovable work cannot be un-satisfied by anything the run does.
+        var joinNeeds = new Dictionary<Guid, (int Required, int FromPlaced, List<Guid> SolverPredecessors)>();
+
+        // Triage runs per SUCCESSOR, not per edge: a join condition is a property of a request's
+        // whole incoming set ("2 of my 3"), so no single edge can be classified on its own.
+        var eligibleById = eligibleRequests.ToDictionary(r => r.Id);
+        var now = DateTime.UtcNow;
+
+        foreach (var incoming in edges.GroupBy(e => e.SuccessorRequestId))
         {
-            var lagDays = LagToDays(edge.LagMinutes, settings);
+            var successorId = incoming.Key;
+            var condition = eligibleById.TryGetValue(successorId, out var successor)
+                ? JoinCondition.Of(successor)
+                : JoinCondition.All;
+            joinConditions[successorId] = condition;
 
-            if (solveSet.Contains(edge.PredecessorRequestId))
+            // A cancelled or deferred predecessor is work that will not happen. Dropping it
+            // shrinks n, so an "all" join is not held shut forever by something abandoned.
+            var live = incoming
+                .Where(e => !(predecessorState.TryGetValue(e.PredecessorRequestId, out var p)
+                              && JoinConditionEvaluator.IsAbandoned(p, now)))
+                .ToList();
+
+            var placedBounds = new List<DateOnly>();
+            var edgesForSolver = new List<DependencyEdge>();
+
+            foreach (var edge in live)
             {
-                // Both ends move together in this run: a real constraint for the solver.
-                solverEdges.Add(new DependencyEdge(
-                    edge.PredecessorRequestId, edge.SuccessorRequestId, lagDays));
+                var lagDays = LagToDays(edge.LagMinutes, settings);
+
+                if (solveSet.Contains(edge.PredecessorRequestId))
+                {
+                    // Both ends move together in this run: a candidate constraint for the solver.
+                    edgesForSolver.Add(new DependencyEdge(edge.PredecessorRequestId, successorId, lagDays));
+                }
+                else if (placedEnds.TryGetValue(edge.PredecessorRequestId, out var predEnd))
+                {
+                    // Finish-to-start: the successor may start the day after the predecessor
+                    // ends, plus lag.
+                    placedBounds.Add(predEnd.AddDays(1 + lagDays));
+                }
+                // else: not in this run and with no end date to bound against — it can satisfy
+                // nothing, so it simply does not count towards the condition below.
             }
-            else if (placedEnds.TryGetValue(edge.PredecessorRequestId, out var predEnd))
+
+            var required = JoinConditionEvaluator.RequiredCount(condition, live.Count);
+
+            if (required == 0)
             {
-                // Finish-to-start: the successor may start the day after the predecessor ends,
-                // plus lag. Keep the latest such bound when several predecessors are placed.
-                var bound = predEnd.AddDays(1 + lagDays);
-                if (!earliestFromPredecessor.TryGetValue(edge.SuccessorRequestId, out var existing)
-                    || bound > existing)
-                    earliestFromPredecessor[edge.SuccessorRequestId] = bound;
+                // Nothing left to wait for: every predecessor was abandoned, or there are none.
+                continue;
+            }
+
+            // The last day this successor could still start. A bound past it is a dependency
+            // problem, not a capacity one — the feasibility analyzer would otherwise drop every
+            // candidate and report "no feasible start day", sending the planner to look at
+            // resource load for something a predecessor's finish date caused.
+            var lastStart = nodesById.TryGetValue(successorId, out var node)
+                ? (node.LatestEnd ?? request.HorizonEnd).AddDays(-(node.DurationDays - 1))
+                : (DateOnly?)null;
+
+            var placedFold = JoinConditionEvaluator.FoldEarliestStart(condition, placedBounds);
+            var placedAlone = placedBounds.Count >= required
+                && (placedFold is not { } f || lastStart is not { } last || f <= last);
+
+            if (placedAlone)
+            {
+                // Satisfiable from work that is placed and immovable, WITHOUT pushing the
+                // successor out of its own window. Hand the solver no edges: the condition is
+                // already met, and constraining it against co-scheduled predecessors it does not
+                // need would delay it for nothing. Under "all" this is the familiar case where
+                // every predecessor is already placed and the fold is the max, exactly as before.
+                if (placedFold is { } bound) earliestFromPredecessor[successorId] = bound;
+            }
+            else if (placedBounds.Count + edgesForSolver.Count >= required)
+            {
+                // Satisfiable only with help from predecessors this run is placing — or placed
+                // work alone would push it past its own deadline, and a co-scheduled predecessor
+                // can do better. The solvers fold edges with a max, so the join is kept
+                // conservatively: every solver edge is handed over.
+                solverEdges.AddRange(edgesForSolver);
+                joinNeeds[successorId] = (
+                    required,
+                    placedBounds.Count,
+                    [.. edgesForSolver.Select(e => e.PredecessorRequestId)]);
+
+                // Bind only as many placed bounds as the solver edges cannot cover. Max-folding
+                // all of them would re-impose the far-future bound this branch exists to escape:
+                // for "any" with one distant placed predecessor and one co-scheduled, nothing
+                // from the placed side is needed at all.
+                var neededFromPlaced = Math.Max(0, required - edgesForSolver.Count);
+                if (neededFromPlaced > 0 && placedBounds.Count > 0)
+                {
+                    var ordered = placedBounds.Order().ToList();
+                    earliestFromPredecessor[successorId] = ordered[Math.Min(neededFromPlaced, ordered.Count) - 1];
+                }
             }
             else
             {
-                // Genuinely unplaceable: not in this run, and with no end date to bound against.
+                // Not satisfiable at all this run: too few predecessors are placed or placeable.
                 // Scheduling the successor would knowingly create a violation, so it stays in
                 // the backlog with a reason.
-                blockedBySet.Add(edge.SuccessorRequestId);
+                blockedBySet.Add(successorId);
             }
         }
 
-        // A folded bound that leaves no room is a dependency problem, not a capacity one.
-        // Setting the impossible window anyway makes the feasibility analyzer drop every
-        // candidate and report "no feasible start day", sending the planner to look at
-        // resource load for something the predecessor's finish date caused.
-        var nodesById = requestNodes.ToDictionary(n => n.RequestId);
+        // A bound that still leaves no room blocks the successor outright. (The triage above
+        // already preferred the solver where one could do better, so reaching here means nothing
+        // in this run can place it inside its window.)
         foreach (var (requestId, bound) in earliestFromPredecessor)
         {
             if (!nodesById.TryGetValue(requestId, out var node)) continue;
@@ -222,22 +310,30 @@ public class SchedulingProblemBuilder
             if (bound > lastStart) blockedBySet.Add(requestId);
         }
 
-        // Blocking travels downstream. If S cannot be placed then anything waiting on S cannot
-        // either — and dropping the S→T edge without dropping T would leave T scheduled with
-        // nothing holding it back, which is the violation this whole branch exists to avoid.
+        // Blocking travels downstream, but it travels through the JOIN, not through plain
+        // reachability. If S cannot be placed, a successor that needs "all" of its predecessors
+        // is finished — while one that needs "any" is perfectly fine as long as another
+        // predecessor survives. Walking the edges alone would re-impose "all" on every join and
+        // undo the whole triage above.
+        //
+        // A fixpoint rather than a queue: blocking a request can drop a later successor below its
+        // requirement, which can drop another, and the dependency order is not known here.
         if (blockedBySet.Count > 0)
         {
-            var successorsOf = solverEdges
-                .GroupBy(e => e.PredecessorRequestId)
-                .ToDictionary(g => g.Key, g => g.Select(e => e.SuccessorRequestId).ToList());
-
-            var pending = new Queue<Guid>(blockedBySet);
-            while (pending.Count > 0)
+            bool changed;
+            do
             {
-                if (!successorsOf.TryGetValue(pending.Dequeue(), out var downstream)) continue;
-                foreach (var successor in downstream)
-                    if (blockedBySet.Add(successor)) pending.Enqueue(successor);
-            }
+                changed = false;
+                foreach (var (successorId, need) in joinNeeds)
+                {
+                    if (blockedBySet.Contains(successorId)) continue;
+
+                    var available = need.FromPlaced
+                        + need.SolverPredecessors.Count(id => !blockedBySet.Contains(id));
+
+                    if (available < need.Required && blockedBySet.Add(successorId)) changed = true;
+                }
+            } while (changed);
         }
 
         // Withheld requests leave the solve set, so no solver can report them. Carry them out
@@ -268,7 +364,7 @@ public class SchedulingProblemBuilder
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd,
             requestNodes, resourceNodes, fixedAssignments,
-            settings, blockedPeriodsByResource, solverEdges, withheld);
+            settings, blockedPeriodsByResource, solverEdges, withheld, joinConditions);
     }
 
     /// <summary>

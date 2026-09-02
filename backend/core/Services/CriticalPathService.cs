@@ -65,6 +65,19 @@ public class CriticalPathService : ICriticalPathService
         if (usable.Count != edges.Count)
             diagnostics.Add($"{edges.Count - usable.Count} dependency edge(s) reference requests outside this scope and were excluded.");
 
+        // A cancelled or deferred predecessor is work that will not happen, so it constrains
+        // nothing. Dropping its edges here is the same rule the execution gate applies, and it
+        // keeps an "all" join from waiting forever on something abandoned.
+        var now = DateTime.UtcNow;
+        var abandoned = usable
+            .Where(e => JoinConditionEvaluator.IsAbandoned(requests[e.PredecessorRequestId], now))
+            .ToList();
+        if (abandoned.Count > 0)
+        {
+            usable = usable.Except(abandoned).ToList();
+            diagnostics.Add($"{abandoned.Count} dependency edge(s) start at a cancelled or deferred request and were excluded.");
+        }
+
         if (usable.Count == 0)
             return Empty(diagnostics);
 
@@ -98,16 +111,41 @@ public class CriticalPathService : ICriticalPathService
             .DefaultIfEmpty(DateOnly.FromDateTime(DateTime.UtcNow))
             .Min();
 
+        // Which incoming edges actually held a request back. Under "all" that is all of them, so
+        // the backward pass below is unchanged; under "any" and k-of-n the slack branches are
+        // excluded, because a request the join never waited for cannot constrain how late that
+        // predecessor may finish.
+        var bindingSuccessorsOf = new Dictionary<Guid, List<RequestDependencyInfo>>();
+
         foreach (var id in order)
         {
             var start = Anchor(requests[id]) ?? floor;
 
             if (predecessorsOf.TryGetValue(id, out var incoming))
-                foreach (var edge in incoming)
+            {
+                // One candidate start per predecessor, folded by the request's join condition:
+                // the latest for "all", the earliest for "any", the k-th earliest for k_of_n.
+                var bounds = incoming
+                    .Select(edge => earliestFinish[edge.PredecessorRequestId].AddDays(1 + LagDays(edge)))
+                    .ToList();
+
+                var condition = JoinCondition.Of(requests[id]);
+                if (JoinConditionEvaluator.FoldEarliestStart(condition, bounds) is { } bound)
                 {
-                    var bound = earliestFinish[edge.PredecessorRequestId].AddDays(1 + LagDays(edge));
                     if (bound > start) start = bound;
+
+                    // Binding = the predecessors the fold actually selected. For "all" every edge
+                    // qualifies (the fold is the max, and every bound is <= it). For "any" only
+                    // the earliest does; for k-of-n, the k earliest.
+                    for (var i = 0; i < incoming.Count; i++)
+                        if (bounds[i] <= bound)
+                        {
+                            if (!bindingSuccessorsOf.TryGetValue(incoming[i].PredecessorRequestId, out var list))
+                                bindingSuccessorsOf[incoming[i].PredecessorRequestId] = list = [];
+                            list.Add(incoming[i]);
+                        }
                 }
+            }
 
             earliestStart[id] = start;
             earliestFinish[id] = start.AddDays(duration[id] - 1);
@@ -115,15 +153,25 @@ public class CriticalPathService : ICriticalPathService
 
         var projectFinish = earliestFinish.Values.Max();
 
+        if (nodeIds.Any(id => predecessorsOf.ContainsKey(id)
+                && requests[id].PredecessorLogic != PredecessorLogic.All))
+            diagnostics.Add(
+                "Some requests start on \"any\" or k-of-n of their predecessors, so a predecessor "
+                + "the join did not wait for carries float rather than lying on the critical path.");
+
         // ── Backward pass ───────────────────────────────────────────────────────
         var latestFinish = new Dictionary<Guid, DateOnly>();
         var latestStart = new Dictionary<Guid, DateOnly>();
 
+        // The backward pass folds against the BINDING successors only — the ones whose join
+        // actually waited for this request. Folding against every successor would treat an "any"
+        // join as an "all" and pull the slack branch's latest finish back to the critical one's,
+        // producing negative float and marking a request critical that nothing waits for.
         foreach (var id in Enumerable.Reverse(order))
         {
             var finish = projectFinish;
 
-            if (successorsOf.TryGetValue(id, out var outgoing))
+            if (bindingSuccessorsOf.TryGetValue(id, out var outgoing))
                 foreach (var edge in outgoing)
                 {
                     var bound = latestStart[edge.SuccessorRequestId].AddDays(-(1 + LagDays(edge)));

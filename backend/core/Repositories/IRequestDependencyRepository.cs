@@ -25,6 +25,14 @@ public interface IRequestDependencyRepository
     Task<List<RequestDependencyInfo>> GetBySuccessorsAsync(
         IReadOnlyCollection<Guid> successorIds, CancellationToken ct = default);
 
+    /// <summary>
+    /// Every edge touching any of <paramref name="requestIds"/>, in either direction. One read
+    /// for a whole sibling set: the planner needs the edges among them AND the ones that leave
+    /// the group, and asking per request would be an N+1 over the children.
+    /// </summary>
+    Task<List<RequestDependencyInfo>> GetTouchingAsync(
+        IReadOnlyCollection<Guid> requestIds, CancellationToken ct = default);
+
     Task<RequestDependencyInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
 
     Task<RequestDependencyInfo> CreateAsync(

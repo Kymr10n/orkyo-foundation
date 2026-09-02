@@ -151,6 +151,8 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "actualDurationUnit"
     | "schedulingSettingsApply"
     | "status"
+    | "predecessorLogic"
+    | "predecessorLogicK"
     | "requirements"
     | "createdAt"
     | "updatedAt"
@@ -182,6 +184,8 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "actualDurationUnit",
     "schedulingSettingsApply",
     "status",
+    "predecessorLogic",
+    "predecessorLogicK",
     "requirements",
     "createdAt",
     "updatedAt",
@@ -215,6 +219,8 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       actualDurationUnit: null,
       schedulingSettingsApply: true,
       status: "new",
+      predecessorLogic: "all",
+      predecessorLogicK: null,
       requirements: [],
       createdAt: "2025-01-01T00:00:00Z",
       updatedAt: "2025-01-01T00:00:00Z",
@@ -413,6 +419,8 @@ describe("Contract - UpdateRequestRequest DTO", () => {
     | "sortOrder"
     | "siteId"
     | "changeSiteId"
+    | "predecessorLogic"
+    | "predecessorLogicK"
     | "resourceIds"
     | "requestItemId"
     | "targetResourceTypeKeys"

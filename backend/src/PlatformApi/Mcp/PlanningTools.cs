@@ -23,15 +23,18 @@ public sealed class PlanningTools
 {
     private readonly ICriticalPathService _criticalPath;
     private readonly IRequestDependencyService _dependencies;
+    private readonly IRequestPlanService _plans;
     private readonly IInsightsService _insights;
 
     public PlanningTools(
         ICriticalPathService criticalPath,
         IRequestDependencyService dependencies,
+        IRequestPlanService plans,
         IInsightsService insights)
     {
         _criticalPath = criticalPath;
         _dependencies = dependencies;
+        _plans = plans;
         _insights = insights;
     }
 
@@ -78,6 +81,22 @@ public sealed class PlanningTools
         // needs "and what waits on it?" in the same breath before it moves anything.
         var forRequest = await _dependencies.GetForRequestAsync(requestId.Value, ct);
         return [.. forRequest.Predecessors, .. forRequest.Successors];
+    }
+
+    [McpServerTool(Name = "get_request_plan", Title = "Get a request's plan",
+        ReadOnly = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("Get the sequenced plan of one request's children: every child with its status, "
+        + "its start condition, whether it may start yet, and the dependencies among them. A child "
+        + "carries a start condition over its predecessors — all of them, any one of them, or at "
+        + "least k of them — and canStart says whether that condition is satisfied right now. Use "
+        + "it to explain why a child is still blocked, and to choose what to schedule next.")]
+    public async Task<RequestPlan> GetRequestPlanAsync(
+        [Description("The parent request whose children form the plan.")]
+        Guid requestId,
+        CancellationToken ct = default)
+    {
+        return await _plans.GetPlanAsync(requestId, ct)
+            ?? throw new McpException($"Request {requestId} was not found.");
     }
 
     [McpServerTool(Name = "analyze_capacity", Title = "Analyse capacity",

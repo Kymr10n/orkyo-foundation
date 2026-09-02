@@ -80,15 +80,35 @@ public class ConflictServiceTests
         Value = JsonSerializer.SerializeToElement(true),
     };
 
+    /// <summary>A request that exists but has no dates yet — it can still be placed.</summary>
+    private static RequestInfo Unscheduled(Guid id) => new()
+    {
+        Id = id,
+        Name = "R",
+        PlanningMode = PlanningMode.Leaf,
+        Status = RequestStatus.New,
+        SchedulingSettingsApply = false,
+        Assignments = [],
+        TargetResourceTypeKeys = [ResourceTypeKeys.Space],
+        MinimalDurationValue = 60,
+        MinimalDurationUnit = DurationUnit.Minutes,
+        CreatedAt = Start,
+        UpdatedAt = Start,
+    };
+
     private static RequestInfo ScheduledRequest(
         Guid id, IReadOnlyList<ResourceAssignmentInfo> assignments, DateTime start, DateTime end,
         int minMinutes = 60, List<RequestRequirementInfo>? requirements = null,
-        DateTime? earliestStart = null, DateTime? latestEnd = null) => new()
+        DateTime? earliestStart = null, DateTime? latestEnd = null,
+        PredecessorLogic logic = PredecessorLogic.All, int? k = null,
+        RequestStatus status = RequestStatus.New) => new()
         {
             Id = id,
             Name = "R",
             PlanningMode = PlanningMode.Leaf,
-            Status = RequestStatus.New,
+            PredecessorLogic = logic,
+            PredecessorLogicK = k,
+            Status = status,
             SchedulingSettingsApply = false,
             Assignments = [.. assignments],
             TargetResourceTypeKeys = [ResourceTypeKeys.Space],
@@ -593,4 +613,120 @@ public class ConflictServiceTests
             Warnings = [.. warnings],
         },
     };
+
+    // ── Join conditions ───────────────────────────────────────────────────────
+    // Under "all" every unsatisfied edge is reported on its own, as before. Under "any" or
+    // k-of-n the shortfall belongs to the whole incoming set, so reporting per edge would flag
+    // a plan that is in fact correct.
+
+    /// <summary>Two predecessors, one successor, with the successor's join condition varied.</summary>
+    private async Task<IReadOnlyList<ConflictInfo>> TwoPredecessorConflictsAsync(
+        PredecessorLogic logic,
+        DateTime successorStart,
+        int? k = null,
+        bool secondPredecessorScheduled = true,
+        RequestStatus secondPredecessorStatus = RequestStatus.New)
+    {
+        Guid first = Guid.NewGuid(), second = Guid.NewGuid(), successorId = Guid.NewGuid();
+
+        // First finishes early, second finishes late.
+        var firstPred = ScheduledRequest(first, [], Start, Start.AddDays(1));
+        var secondPred = ScheduledRequest(second, [], Start.AddDays(5), Start.AddDays(6),
+            status: secondPredecessorStatus);
+        var successor = ScheduledRequest(
+            successorId, [], successorStart, successorStart.AddHours(1), logic: logic, k: k);
+
+        var scheduled = secondPredecessorScheduled
+            ? new List<RequestInfo> { firstPred, secondPred, successor }
+            : [firstPred, successor];
+
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(scheduled);
+
+        // An unscheduled predecessor still EXISTS — ConflictService backfills it through
+        // GetByIdsAsync with null dates. Only a deleted row is genuinely absent, and the two mean
+        // opposite things: one can still be placed, the other never will be.
+        if (!secondPredecessorScheduled)
+            _requestRepo.Setup(r => r.GetByIdsAsync(
+                    It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync([Unscheduled(second)]);
+        _dependencyRepo
+            .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Edge(first, successorId), Edge(second, successorId)]);
+
+        var result = await _service.GetAllAsync();
+        return result.SingleOrDefault(e => e.RequestId == successorId)?.Conflicts ?? [];
+    }
+
+    [Fact]
+    public async Task AnAnyJoinSatisfiedByOnePredecessorReportsNothing()
+    {
+        // Starts after the FIRST predecessor finishes but well before the second. Under "all"
+        // this is a violation; under "any" it is exactly what the user asked for.
+        var conflicts = await TwoPredecessorConflictsAsync(
+            PredecessorLogic.Any, successorStart: Start.AddDays(2));
+
+        Assert.DoesNotContain(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+    }
+
+    [Fact]
+    public async Task TheSameStartUnderAnAllJoinIsStillAnError()
+    {
+        // The control for the test above: only the condition changed.
+        var conflicts = await TwoPredecessorConflictsAsync(
+            PredecessorLogic.All, successorStart: Start.AddDays(2));
+
+        Assert.Contains(conflicts, c =>
+            c.Kind == ConflictKinds.DependencyViolation && c.Severity == ConflictSeverities.Error);
+    }
+
+    [Fact]
+    public async Task AnUnmetPartialJoinNamesHowManyAreNeeded()
+    {
+        // Needs one of two, respects neither — the wording has to say "1 of 2", not "all".
+        var conflicts = await TwoPredecessorConflictsAsync(
+            PredecessorLogic.KOfN, successorStart: Start, k: 1);
+
+        var conflict = Assert.Single(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+        Assert.Contains("1 of 2 predecessors must be done; 0 are", conflict.Message);
+    }
+
+    [Fact]
+    public async Task AnUnmetJoinWithAnUnscheduledPredecessorIsOnlyAWarning()
+    {
+        // The second predecessor has no dates yet, so placing it could still satisfy the join.
+        // That is a plan in progress, not a broken one.
+        var conflicts = await TwoPredecessorConflictsAsync(
+            PredecessorLogic.KOfN, successorStart: Start, k: 1, secondPredecessorScheduled: false);
+
+        var conflict = Assert.Single(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+        Assert.Equal(ConflictSeverities.Warning, conflict.Severity);
+    }
+
+    [Fact]
+    public async Task AKOfNJoinThatNeedsEveryPredecessorReportsPerEdgeLikeAll()
+    {
+        // k=2 over 2 predecessors IS "all", so it must report the same way — one conflict per
+        // offending edge, each naming its peer — rather than losing the peer links to an
+        // aggregate message just because the stored logic says k_of_n.
+        var conflicts = await TwoPredecessorConflictsAsync(
+            PredecessorLogic.KOfN, successorStart: Start, k: 2);
+
+        var violations = conflicts.Where(c => c.Kind == ConflictKinds.DependencyViolation).ToList();
+        violations.Should().HaveCountGreaterThan(1);
+        violations.Should().OnlyContain(c => c.PeerRequestId != null);
+    }
+
+    [Fact]
+    public async Task ACancelledPredecessorDoesNotHoldAnAllJoinShut()
+    {
+        // Successor starts after the live predecessor finishes, but before the cancelled one's
+        // window. Counting abandoned work would report a violation the user could only clear by
+        // deleting the edge and losing the record that it existed.
+        var conflicts = await TwoPredecessorConflictsAsync(
+            PredecessorLogic.All, successorStart: Start.AddDays(2),
+            secondPredecessorStatus: RequestStatus.Cancelled);
+
+        Assert.DoesNotContain(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+    }
 }

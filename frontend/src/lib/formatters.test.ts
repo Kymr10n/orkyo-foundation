@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { formatCompactTime, formatDateDisplay, formatLocalized } from "./formatters";
+import {
+  formatCompactTime,
+  formatDateDisplay,
+  formatLocalized,
+  formatScheduledWindow,
+} from "./formatters";
 
 // Dates are constructed in local time and Intl formats in local time, so these are TZ-independent.
 describe("formatCompactTime (24h default)", () => {
@@ -24,5 +29,30 @@ describe("formatDateDisplay", () => {
   it("renders a locale-aware medium date for a valid ISO string", () => {
     const iso = "2026-04-02T10:30:00Z";
     expect(formatDateDisplay(iso)).toBe(formatLocalized(new Date(iso), { dateStyle: "medium" }));
+  });
+});
+
+describe("formatScheduledWindow", () => {
+  it("says so when either end is missing, because half a window is not a schedule", () => {
+    expect(formatScheduledWindow(null, "2026-04-07T00:00:00")).toBe("Unscheduled");
+    expect(formatScheduledWindow("2026-04-02T00:00:00", null)).toBe("Unscheduled");
+    expect(formatScheduledWindow(undefined, undefined)).toBe("Unscheduled");
+  });
+
+  it("renders the window and its length", () => {
+    const start = "2026-04-02T08:00:00";
+    const end = "2026-04-07T17:00:00";
+    const opts = { month: "short", day: "numeric" } as const;
+    expect(formatScheduledWindow(start, end)).toBe(
+      `${formatLocalized(new Date(start), opts)} – ${formatLocalized(new Date(end), opts)} · 6d`,
+    );
+  });
+
+  it("counts a task that starts and finishes on one day as one day, not zero", () => {
+    expect(formatScheduledWindow("2026-04-02T08:00:00", "2026-04-02T17:00:00")).toContain("· 1d");
+  });
+
+  it("spans a month boundary", () => {
+    expect(formatScheduledWindow("2026-04-29T09:00:00", "2026-05-02T09:00:00")).toContain("· 4d");
   });
 });

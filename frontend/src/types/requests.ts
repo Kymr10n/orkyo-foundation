@@ -2,6 +2,18 @@ import type { CriterionValue } from './criterion';
 
 export type AssignmentStatus = 'Planned' | 'Confirmed' | 'Tentative' | 'Cancelled';
 
+/**
+ * How a request joins its incoming dependencies — which predecessors must be met before it may
+ * start.
+ * - `all` — every predecessor (the default, and what every request did before conditions existed)
+ * - `any` — one is enough
+ * - `k_of_n` — at least `predecessorLogicK` of them
+ *
+ * Cancelled and deferred predecessors leave the set before the condition is judged, so scrapped
+ * work cannot hold a task shut forever.
+ */
+export type PredecessorLogic = 'all' | 'any' | 'k_of_n';
+
 export interface ResourceAssignment {
   id: string;
   resourceId: string;
@@ -75,6 +87,15 @@ export interface Request {
   parentRequestId?: string | null;
   planningMode: PlanningMode;
   sortOrder: number;
+
+  /**
+   * How this request joins its predecessors. The server always sends it; optional here so a
+   * fixture need not restate the default, and absent reads as `all` — the same default the
+   * column carries, and what every request did before conditions existed.
+   */
+  predecessorLogic?: PredecessorLogic;
+  /** The k of k_of_n; null or absent for the other logics. */
+  predecessorLogicK?: number | null;
 
   /** Site this request is scoped to. null = site-neutral (schedulable at any site). */
   siteId?: string | null;
@@ -186,6 +207,13 @@ export interface UpdateRequestRequest {
   siteId?: string | null;
   /** When true, a null siteId is applied (clears to "any site") rather than preserved. */
   changeSiteId?: boolean;
+  /**
+   * The join condition. The pair travels together: sending predecessorLogic rewrites k as well
+   * (cleared unless k_of_n), so a stale k cannot survive a switch to all/any. Omit both to leave
+   * the condition untouched.
+   */
+  predecessorLogic?: PredecessorLogic;
+  predecessorLogicK?: number | null;
   /** One resource per targeted type, replacing whatever holds each type's slot. */
   resourceIds?: string[];
   requestItemId?: string;

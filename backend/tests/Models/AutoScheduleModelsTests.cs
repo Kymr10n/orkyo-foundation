@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 
 namespace Orkyo.Foundation.Tests.Models;
@@ -109,6 +110,64 @@ public class AutoScheduleModelsTests
 
         withEdge.Should().NotBe(withoutEdges);
         withLonger.Should().NotBe(withEdge, "the lag is part of what makes a plan valid");
+    }
+
+    [Fact]
+    public void Fingerprint_ChangesWhenAJoinConditionChanges()
+    {
+        // Same reason as the edges: switching a request from "any predecessor" to "all" between
+        // preview and apply invalidates a plan the edge list alone still describes perfectly.
+        var solution = new SchedulingSolution(
+            SolverKind.Greedy, SolverStatus.Optimal, [], [], []);
+
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        DependencyEdge[] edges = [new DependencyEdge(a, b, 0)];
+
+        var asAll = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+            new Dictionary<Guid, JoinCondition> { [b] = JoinCondition.All });
+        var asAny = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+            new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.Any, null) });
+        var asTwoOfN = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+            new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.KOfN, 2) });
+        var asThreeOfN = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+            new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.KOfN, 3) });
+
+        asAny.Should().NotBe(asAll);
+        asTwoOfN.Should().NotBe(asAny);
+        asThreeOfN.Should().NotBe(asTwoOfN, "k is part of what makes a plan valid");
+    }
+
+    [Fact]
+    public void Fingerprint_HashesTheDatabaseStringNotTheEnumMemberName()
+    {
+        // Hashing "KOfN" would tie every in-flight preview's validity to a C# identifier: rename
+        // the member and every outstanding preview goes stale for no reason the user can see.
+        var solution = new SchedulingSolution(
+            SolverKind.Greedy, SolverStatus.Optimal, [], [], []);
+        var b = Guid.NewGuid();
+        DependencyEdge[] edges = [new DependencyEdge(Guid.NewGuid(), b, 0)];
+
+        var fingerprint = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+            new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.KOfN, 2) });
+
+        // Same inputs described the DB way must hash identically — proving the DB string is what
+        // went in. (A direct string assertion is impossible: the value is SHA-256'd.)
+        fingerprint.Should().Be(solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+            new Dictionary<Guid, JoinCondition> { [b] = JoinCondition.Of(PredecessorLogic.KOfN, 2) }));
+        EnumMapper.ToDbValue(PredecessorLogic.KOfN).Should().Be("k_of_n");
+    }
+
+    [Fact]
+    public void Fingerprint_WithoutJoinConditions_MatchesAnEmptyMap()
+    {
+        // Omitting the argument must not be a different plan from passing nothing, or every
+        // caller that has no conditions would see a spurious staleness conflict.
+        var solution = new SchedulingSolution(
+            SolverKind.Greedy, SolverStatus.Optimal, [], [], []);
+
+        solution.ComputeFingerprint(ResourceTypeKeys.Space, [])
+            .Should().Be(solution.ComputeFingerprint(ResourceTypeKeys.Space, [], new Dictionary<Guid, JoinCondition>()));
     }
 
     [Fact]
