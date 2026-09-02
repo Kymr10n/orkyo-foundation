@@ -124,10 +124,8 @@ describe('ResourceClassPage', () => {
     await userEvent.click(screen.getByLabelText('Type'));
     await userEvent.click(await screen.findByRole('option', { name: 'Drills' }));
 
-    // Only the instances tab is named after the type; the rest hold their place.
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(
-      before.map((l) => (l === 'Mills' ? 'Drills' : l)),
-    );
+    // No tab is named after the type, so the strip does not move when the type does.
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(before);
   });
 
   it('stays on the same tab when the type changes', async () => {
@@ -143,7 +141,7 @@ describe('ResourceClassPage', () => {
     renderAt('/stations/mill/instances');
 
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
-      'Mills', 'Groups', 'Floorplan',
+      'Stations', 'Groups', 'Floorplan',
     ]);
   });
 
@@ -188,7 +186,8 @@ describe('ResourceClassPage', () => {
     renderAt('/stations/person/instances');
 
     expect(await screen.findByTestId('instances')).toBeInTheDocument();
-    expect(screen.getAllByRole('tab')[0]).toHaveTextContent('Mills');
+    // The tab strip no longer names the type, so the selector is what proves where it landed.
+    expect(screen.getByLabelText('Type')).toHaveTextContent('Mills');
   });
 
   it('explains itself when the class has no types at all', () => {
@@ -225,7 +224,7 @@ describe('ResourceClassPage', () => {
       renderFloorplan();
 
       expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
-        'Mills', 'Groups', 'Floorplan',
+        'Stations', 'Groups', 'Floorplan',
       ]);
     });
 
