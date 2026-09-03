@@ -211,7 +211,12 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     if: "!startsWith(github.ref, 'refs/tags/v')"
-    needs: [audit-secrets, audit-nuget, audit-npm]
+    # detect-changes only, not the audits: build/test and the dependency audits share
+    # no artifacts, and gating on them means a slow npm registry (2026-09-03: ~10min
+    # of registry traffic timing out audit/npm) hides whether the code is even green.
+    # Publish still needs both paths: it depends on backend-ci/frontend-ci, and the
+    # audit jobs remain required status checks on main via the ruleset.
+    needs: [detect-changes]
 
     permissions:
       contents: read
@@ -283,7 +288,12 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     if: "!startsWith(github.ref, 'refs/tags/v')"
-    needs: [audit-secrets, audit-nuget, audit-npm]
+    # detect-changes only, not the audits: build/test and the dependency audits share
+    # no artifacts, and gating on them means a slow npm registry (2026-09-03: ~10min
+    # of registry traffic timing out audit/npm) hides whether the code is even green.
+    # Publish still needs both paths: it depends on backend-ci/frontend-ci, and the
+    # audit jobs remain required status checks on main via the ruleset.
+    needs: [detect-changes]
 
     permissions:
       contents: read

@@ -49,7 +49,12 @@ on:
 jobs:
   audit-npm:
     name: audit / npm
-    timeout-minutes: 10
+    # 20, not 10: every step here is network-bound (npm ci, the advisory API, an npx
+    # download), and on 2026-09-03 a slow npm registry pushed the job to ~10 minutes
+    # twice in a row. A timeout surfaces as "cancelled" with no error, gates the
+    # build jobs behind it, and stalls the release train on work that validates no
+    # code. The timeout is a hang detector, not a performance budget.
+    timeout-minutes: 20
     runs-on: ubuntu-latest
 
     permissions:
