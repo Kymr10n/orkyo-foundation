@@ -125,6 +125,96 @@ public static class SchedulingEngine
     }
 
     /// <summary>
+    /// Whole working minutes inside the UTC window <c>[fromUtc, toUtc)</c> under a
+    /// site's scheduling settings.
+    ///
+    /// This is the capacity denominator for utilization: the share of a period a
+    /// resource could actually be booked for. Null settings — or working hours off
+    /// with weekends on — mean 24/7, and the raw wall-clock span is returned, which
+    /// is byte-identical to the behaviour callers had before this mask existed.
+    ///
+    /// Off-times and absences are deliberately NOT applied here. Callers subtract
+    /// blocked periods by passing each blocked overlap back through this same
+    /// function, so a blocked night never subtracts capacity that was never open.
+    /// </summary>
+    public static double WorkingMinutesInWindow(
+        DateTime fromUtc,
+        DateTime toUtc,
+        SchedulingSettingsInfo? settings)
+    {
+        if (toUtc <= fromUtc)
+            return 0;
+
+        if (settings is null || (!settings.WorkingHoursEnabled && settings.WeekendsEnabled))
+            return (toUtc - fromUtc).TotalMinutes;
+
+        var tz = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZone);
+
+        // Walk the local calendar days that can touch the window. One day of slack on
+        // each side: the local day containing fromUtc can start before it, and the one
+        // containing toUtc can end after it.
+        var firstDay = DateOnly.FromDateTime(ToLocal(fromUtc, tz)).AddDays(-1);
+        var lastDay = DateOnly.FromDateTime(ToLocal(toUtc, tz)).AddDays(1);
+
+        var total = 0.0;
+        for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
+        {
+            if (!settings.WeekendsEnabled && IsWeekend(day.ToDateTime(TimeOnly.MinValue)))
+                continue;
+
+            // The day's local working window — the whole local day when only the
+            // weekend rule is active.
+            var localStart = settings.WorkingHoursEnabled
+                ? day.ToDateTime(settings.WorkingDayStart)
+                : day.ToDateTime(TimeOnly.MinValue);
+            var localEnd = settings.WorkingHoursEnabled
+                ? day.ToDateTime(settings.WorkingDayEnd)
+                : day.AddDays(1).ToDateTime(TimeOnly.MinValue);
+
+            if (localEnd <= localStart)
+                continue;
+
+            // Converting both edges to UTC and measuring elapsed time is what makes DST
+            // correct: a 12 h local working day stays 12 h across a transition, while a
+            // whole local day is 23 h or 25 h — the capacity that really exists.
+            var startUtc = LocalToUtcSkippingGap(localStart, tz);
+            var endUtc = LocalToUtcSkippingGap(localEnd, tz);
+
+            var overlapStart = startUtc > fromUtc ? startUtc : fromUtc;
+            var overlapEnd = endUtc < toUtc ? endUtc : toUtc;
+            if (overlapEnd > overlapStart)
+                total += (overlapEnd - overlapStart).TotalMinutes;
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// Local to UTC, tolerating the spring-forward gap. A local time that does not
+    /// exist on a transition day (02:30 where 02:00 jumps to 03:00) moves forward to
+    /// the first instant that does — the only reading of "the day starts at 02:30"
+    /// that keeps a working day continuous.
+    /// </summary>
+    private static DateTime LocalToUtcSkippingGap(DateTime localTime, TimeZoneInfo tz)
+    {
+        var local = DateTime.SpecifyKind(localTime, DateTimeKind.Unspecified);
+        if (!tz.IsInvalidTime(local))
+            return ToUtc(local, tz);
+
+        // Every IANA gap is well under three hours; step in 15-minute increments to
+        // cover the 30- and 45-minute historical shifts as well as the usual hour.
+        for (var minutes = 15; minutes <= 180; minutes += 15)
+        {
+            var shifted = local.AddMinutes(minutes);
+            if (!tz.IsInvalidTime(shifted))
+                return ToUtc(shifted, tz);
+        }
+
+        // Unreachable for real zones; fall back to the offset rather than throw.
+        return local - tz.GetUtcOffset(local);
+    }
+
+    /// <summary>
     /// Determines whether a given instant is within working time.
     /// </summary>
     public static bool IsWorkingTime(

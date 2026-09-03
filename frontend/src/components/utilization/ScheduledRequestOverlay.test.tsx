@@ -371,30 +371,52 @@ describe("ScheduledRequestOverlay open", () => {
     ));
   }
 
-  it("opens the request on click", () => {
-    const { onRequestClick } = renderOverlay();
+  it("reports a click with the pointer position, and nothing else", () => {
+    // The position is what lets the page anchor a conflict popover to the bar that was
+    // clicked. The double-click callback must stay out of it: firing both from one
+    // handler meant a single click ran the double-click action.
+    const onRequestDoubleClick = vi.fn();
+    const { onRequestClick } = renderOverlay({ onRequestDoubleClick });
 
-    act(() => { bar().dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => { bar().dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 42, clientY: 7 })); });
 
-    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+    expect(onRequestClick).toHaveBeenCalledWith("req-1", { x: 42, y: 7 });
+    expect(onRequestDoubleClick).not.toHaveBeenCalled();
+  });
+
+  it("opens the request on double-click", () => {
+    const onRequestDoubleClick = vi.fn();
+    const { onRequestClick } = renderOverlay({ onRequestDoubleClick });
+
+    act(() => { bar().dispatchEvent(new MouseEvent("dblclick", { bubbles: true })); });
+
+    expect(onRequestDoubleClick).toHaveBeenCalledWith("req-1");
+    expect(onRequestClick).not.toHaveBeenCalled();
   });
 
   it("opens the request on Enter", () => {
-    const { onRequestClick } = renderOverlay();
+    // Keyboard goes to the editor, not to the click action: a popover anchors to a
+    // pointer position a keypress does not have, and the editor's conflict banner
+    // carries the same detail.
+    const onRequestDoubleClick = vi.fn();
+    const { onRequestClick } = renderOverlay({ onRequestDoubleClick });
 
     act(() => {
       bar().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     });
 
-    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+    expect(onRequestDoubleClick).toHaveBeenCalledWith("req-1");
+    expect(onRequestClick).not.toHaveBeenCalled();
   });
 
-  it("opens the request on a touch tap", () => {
-    const { onRequestClick } = renderOverlay();
+  it("opens the request on a touch tap, with the tap position", () => {
+    const onRequestDoubleClick = vi.fn();
+    const { onRequestClick } = renderOverlay({ onRequestDoubleClick });
 
     act(() => touchTap(bar()));
 
-    expect(onRequestClick).toHaveBeenCalledWith("req-1");
+    expect(onRequestClick).toHaveBeenCalledWith("req-1", { x: 10, y: 10 });
+    expect(onRequestDoubleClick).not.toHaveBeenCalled();
   });
 
   it("does nothing on click, Enter, or tap when no click handler is given", () => {
@@ -408,23 +430,6 @@ describe("ScheduledRequestOverlay open", () => {
       });
       act(() => touchTap(target));
     }).not.toThrow();
-  });
-
-  it("also notifies the double-click handler when one is given", () => {
-    // The two callbacks share a line in the click and keydown handlers, so a render that
-    // never passes this one leaves half of each branch untaken.
-    const onRequestDoubleClick = vi.fn();
-    const { onRequestClick } = renderOverlay({ onRequestDoubleClick });
-    const target = bar();
-
-    act(() => { target.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    expect(onRequestDoubleClick).toHaveBeenCalledWith("req-1");
-
-    act(() => {
-      target.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-    });
-    expect(onRequestDoubleClick).toHaveBeenCalledTimes(2);
-    expect(onRequestClick).toHaveBeenCalledTimes(2);
   });
 
   it("ignores the click that follows a resize", () => {

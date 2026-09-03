@@ -117,8 +117,11 @@ describe("BottlenecksTab", () => {
 
     renderTab();
 
-    await waitFor(() => expect(screen.getByText("Most overloaded stations")).toBeInTheDocument());
-    expect(screen.getByText("Most overloaded assets")).toBeInTheDocument();
+    // Both cards use the neutral word while they mix types — the class distinction is on
+    // the filter control, so a list of people is never headed "Most overloaded assets".
+    await waitFor(() =>
+      expect(screen.getAllByText("Most overloaded resources")).toHaveLength(2),
+    );
     // Every type is fetched, so narrowing later reads from cache.
     const asked = (getInsightsBottlenecks as Mock).mock.calls.map((c) => c[3]);
     expect(asked).toEqual(expect.arrayContaining(["mill", "lathe", "person", "tool"]));
@@ -128,7 +131,9 @@ describe("BottlenecksTab", () => {
     (getInsightsBottlenecks as Mock).mockResolvedValue(emptyBottlenecks);
     renderTab();
 
-    await waitFor(() => expect(screen.getByText("Most overloaded stations")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getAllByText("Most overloaded resources")).toHaveLength(2),
+    );
     await userEvent.click(screen.getByRole("combobox", { name: /filter stations/i }));
     await userEvent.click(await screen.findByRole("option", { name: "CNC Lathes" }));
 

@@ -35,6 +35,142 @@ public class SchedulingEngineTests
             AbsenceType = AbsenceType.Custom
         };
 
+    // ── Working minutes in a window (the utilization capacity denominator) ──
+
+    [Fact]
+    public void WorkingMinutesInWindow_NullSettings_ReturnsWallClockSpan()
+    {
+        var from = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(1), null)
+            .Should().Be(1440);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_WorkingHoursOffAndWeekendsOn_ReturnsWallClockSpan()
+    {
+        // The 24/7 case every unconfigured site is in: capacity must stay exactly what it
+        // was before the mask existed, or every such tenant's figures move for no reason.
+        var settings = MakeSettings(workingHoursEnabled: false, weekendsEnabled: true);
+        var from = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(7), settings)
+            .Should().Be(7 * 1440);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_EmptyOrInvertedWindow_ReturnsZero()
+    {
+        var at = new DateTime(2026, 4, 1, 9, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(at, at, MakeSettings()).Should().Be(0);
+        SchedulingEngine.WorkingMinutesInWindow(at, at.AddHours(-1), MakeSettings()).Should().Be(0);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_BerlinWeekdayShift_CountsOnlyWorkingHours()
+    {
+        // The demo tenant's shape: Europe/Berlin, 06:00-18:00, weekends off.
+        var settings = MakeSettings("Europe/Berlin", workingDayStart: "06:00",
+            workingDayEnd: "18:00", weekendsEnabled: false);
+
+        // Monday 2026-04-06 00:00 Berlin (= 04-05 22:00 UTC) through the following Monday.
+        var from = new DateTime(2026, 4, 5, 22, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(7), settings)
+            .Should().Be(5 * 12 * 60);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_WeekendBucket_ReturnsZero()
+    {
+        var settings = MakeSettings("Europe/Berlin", workingDayStart: "06:00",
+            workingDayEnd: "18:00", weekendsEnabled: false);
+
+        // Saturday 2026-04-11 00:00 Berlin through Monday 00:00 Berlin.
+        var from = new DateTime(2026, 4, 10, 22, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(2), settings).Should().Be(0);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_WeekendsOffOnly_CountsWholeWeekdays()
+    {
+        var settings = MakeSettings("Europe/Berlin", workingHoursEnabled: false, weekendsEnabled: false);
+        var from = new DateTime(2026, 4, 5, 22, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(7), settings)
+            .Should().Be(5 * 1440);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_SpringForwardDay_KeepsWorkingDayLength()
+    {
+        // 2026-03-29 Berlin loses 02:00-03:00. A 06:00-18:00 day is untouched by the gap,
+        // so the working day is still 12 h even though the calendar day is 23 h.
+        var settings = MakeSettings("Europe/Berlin", workingDayStart: "06:00", workingDayEnd: "18:00");
+        var from = new DateTime(2026, 3, 28, 23, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(1), settings).Should().Be(12 * 60);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_FallBackDay_KeepsWorkingDayLength()
+    {
+        // 2026-10-25 Berlin repeats 02:00-03:00; the 06:00-18:00 window is again unaffected.
+        var settings = MakeSettings("Europe/Berlin", workingDayStart: "06:00", workingDayEnd: "18:00");
+        var from = new DateTime(2026, 10, 24, 22, 0, 0, DateTimeKind.Utc);
+
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(1), settings).Should().Be(12 * 60);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_WholeDayAcrossTransition_ReflectsRealElapsedTime()
+    {
+        // With no working-hours limit the day itself is the capacity, so the transition days
+        // really are 23 h and 25 h of elapsed availability.
+        var settings = MakeSettings("Europe/Berlin", workingHoursEnabled: false, weekendsEnabled: false);
+
+        // 24 UTC hours from Sunday 00:00 Berlin land at Monday 01:00 Berlin, because the
+        // Sunday lost an hour — so the window covers no Sunday capacity (weekends are off)
+        // and the first 60 minutes of Monday. Counting local days without converting the
+        // edges to UTC would have reported 0 here.
+        var springFrom = new DateTime(2026, 3, 28, 23, 0, 0, DateTimeKind.Utc);   // Sun 03-29 00:00 local
+        SchedulingEngine.WorkingMinutesInWindow(springFrom, springFrom.AddDays(1), settings)
+            .Should().Be(60);
+
+        // A window aligned to the local Monday is a full day either side of a transition.
+        var mondayFrom = new DateTime(2026, 3, 29, 22, 0, 0, DateTimeKind.Utc);   // Mon 03-30 00:00 local
+        SchedulingEngine.WorkingMinutesInWindow(mondayFrom, mondayFrom.AddDays(1), settings)
+            .Should().Be(1440);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_PartialDay_ClampsToTheWindow()
+    {
+        var settings = MakeSettings("Europe/Berlin", workingDayStart: "06:00", workingDayEnd: "18:00");
+
+        // Wednesday 2026-04-08, 08:00-12:00 Berlin (06:00-10:00 UTC) — fully inside the shift.
+        var from = new DateTime(2026, 4, 8, 6, 0, 0, DateTimeKind.Utc);
+        SchedulingEngine.WorkingMinutesInWindow(from, from.AddHours(4), settings).Should().Be(240);
+
+        // A window straddling the end of the shift counts only the part before it.
+        var late = new DateTime(2026, 4, 8, 14, 0, 0, DateTimeKind.Utc);  // 16:00 Berlin
+        SchedulingEngine.WorkingMinutesInWindow(late, late.AddHours(4), settings).Should().Be(120);
+    }
+
+    [Fact]
+    public void WorkingMinutesInWindow_UnresolvableTimeZone_Throws()
+    {
+        // The contract AppExceptionHandler's TimeZoneNotFoundException arm relies on.
+        var settings = MakeSettings("Not/AZone");
+        var from = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var act = () => SchedulingEngine.WorkingMinutesInWindow(from, from.AddDays(1), settings);
+
+        act.Should().Throw<TimeZoneNotFoundException>();
+    }
+
     // ── Plain elapsed time (no scheduling settings) ─────────────────
 
     [Fact]

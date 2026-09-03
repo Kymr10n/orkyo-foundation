@@ -179,7 +179,12 @@ function ClassBottlenecks({ label, types }: { label: string; types: TypeRanking[
     <BottleneckChart
       // The type name is tenant-authored, so it is shown exactly as written — lowercasing it
       // turns "CNC Machines" into "cnc machines".
-      title={active ? `Most overloaded ${active.type.displayNamePlural}` : `Most overloaded ${label}`}
+      //
+      // With no type selected the card mixes several types, so it uses the neutral word
+      // rather than the class word: "assets" is Orkyo's navigation vocabulary, and a list
+      // of people headed "Most overloaded assets" reads badly to the people on it. The
+      // class distinction still belongs on the filter control below.
+      title={active ? `Most overloaded ${active.type.displayNamePlural}` : "Most overloaded resources"}
       data={merged}
       isLoading={isLoading}
       error={error}

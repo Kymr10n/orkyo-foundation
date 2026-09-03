@@ -65,6 +65,23 @@ public class AppExceptionHandlerTests
     }
 
     [Fact]
+    public async Task TimeZoneNotFoundException_Maps_To422()
+    {
+        // Reachable through stored data, not only through a broken image: seeds write
+        // scheduling_settings straight to the database and bypass the request validator,
+        // so a site can hold a time zone id this runtime cannot resolve. Reporting it as
+        // unprocessable names the offending data; a bare 500 named nothing.
+        var ctx = CreateHttpContext();
+        var handled = await Handler.TryHandleAsync(
+            ctx, new TimeZoneNotFoundException("The time zone ID 'Not/AZone' was not found"), default);
+
+        handled.Should().BeTrue();
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status422UnprocessableEntity);
+        var body = await ReadJsonAsync(ctx);
+        body.GetProperty("detail").GetString().Should().Contain("Not/AZone");
+    }
+
+    [Fact]
     public async Task KeyNotFoundException_FallsThrough_AsAProgrammingError()
     {
         // NotFoundException is how this codebase says "no such resource"; nothing throws

@@ -51,7 +51,9 @@ public class UtilizationService(
     {
         var assignments = await assignmentRepository.GetByResourceAsync(resource.Id, from, to, ct);
         var blockedPeriods = await resolver.GetBlockedPeriodsAsync(resource.Id, ct);
-        return ComputeBuckets(resource, assignments, blockedPeriods, from, to, granularity);
+        var settings = (await resolver.GetSchedulingSettingsForResourcesAsync([resource.Id], ct))
+            .GetValueOrDefault(resource.Id);
+        return ComputeBuckets(resource, assignments, blockedPeriods, settings, from, to, granularity);
     }
 
     /// <summary>
@@ -69,6 +71,7 @@ public class UtilizationService(
             .GroupBy(a => a.ResourceId)
             .ToDictionary(g => g.Key, g => g.ToList());
         var blockedByResource = await resolver.GetBlockedPeriodsForResourcesAsync(resourceIds, ct);
+        var settingsByResource = await resolver.GetSchedulingSettingsForResourcesAsync(resourceIds, ct);
 
         return resources.ToDictionary(
             r => r.Id,
@@ -76,6 +79,7 @@ public class UtilizationService(
                 r,
                 assignmentsByResource.GetValueOrDefault(r.Id, []),
                 blockedByResource.GetValueOrDefault(r.Id, []),
+                settingsByResource.GetValueOrDefault(r.Id),
                 from, to, granularity));
     }
 
@@ -221,22 +225,30 @@ public class UtilizationService(
         ResourceInfo resource,
         List<ResourceAssignmentInfo> assignments,
         List<BlockedPeriod> blockedPeriods,
+        SchedulingSettingsInfo? settings,
         DateTime from, DateTime to, string granularity)
     {
         var shells = BuildBucketShells(from, to, granularity);
-        return shells.Select(shell => ComputeBucket(resource, assignments, blockedPeriods, shell.Start, shell.End)).ToList();
+        return shells.Select(shell => ComputeBucket(resource, assignments, blockedPeriods, settings, shell.Start, shell.End)).ToList();
     }
 
     private static UtilizationBucket ComputeBucket(
         ResourceInfo resource,
         List<ResourceAssignmentInfo> assignments,
         List<BlockedPeriod> blockedPeriods,
+        SchedulingSettingsInfo? settings,
         DateTime bucketStart, DateTime bucketEnd)
     {
-        var bucketSpan = (bucketEnd - bucketStart).TotalMinutes;
+        // Working minutes, not wall-clock: the fractional weight below is "share of the
+        // bookable time in this bucket", and a bucket that is mostly night or weekend has
+        // far less bookable time than its span. Null/24-7 settings return the raw span.
+        var bucketSpan = SchedulingEngine.WorkingMinutesInWindow(bucketStart, bucketEnd, settings);
 
         var isBlocked = blockedPeriods.Any(p => p.StartTs < bucketEnd && p.EndTs > bucketStart);
-        var effectiveAvailability = isBlocked ? 0m : resource.BaseAvailabilityPercent;
+        // No bookable minutes (a weekend or overnight bucket, once working hours are on) is
+        // the same statement as "blocked" for every reader: deriveBucketStatus already maps a
+        // zero here to "non-working", and the grid's averages already skip those buckets.
+        var effectiveAvailability = isBlocked || bucketSpan <= 0 ? 0m : resource.BaseAvailabilityPercent;
 
         // Overlapping active assignments within this bucket
         var overlapping = assignments.Where(a =>
@@ -265,8 +277,12 @@ public class UtilizationService(
             var allocPct = a.AllocationPercent ?? 100m;
             var overlapStart = a.StartUtc > bucketStart ? a.StartUtc : bucketStart;
             var overlapEnd = a.EndUtc < bucketEnd ? a.EndUtc : bucketEnd;
-            var overlapMinutes = (overlapEnd - overlapStart).TotalMinutes;
-            var weight = bucketSpan > 0 ? (decimal)(overlapMinutes / bucketSpan) : 1m;
+            // Masked on both sides of the ratio: a window that waits through a night must
+            // not count those minutes as booked when they were never bookable.
+            var overlapMinutes = SchedulingEngine.WorkingMinutesInWindow(overlapStart, overlapEnd, settings);
+            // A bucket with no bookable time at all (a weekend day) allocates nothing rather
+            // than defaulting the weight to 1 — that default exists for zero-length shells.
+            var weight = bucketSpan > 0 ? (decimal)(overlapMinutes / bucketSpan) : 0m;
             totalAllocated += allocPct * weight;
         }
 

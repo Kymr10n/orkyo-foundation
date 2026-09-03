@@ -37,10 +37,16 @@ export const STATUS_FILL_CLASS: Record<BucketStatus, string> = {
 // Opaque off-time cell tint (weekends / holidays / resource off-time). Solid —
 // not a translucent overlay — so row separators and bars don't show through.
 // color-mix is inlined (not a shared token) because each edition ships its own
-// theme :root, but --destructive/--background exist in all of them; this yields
-// the same hue as the old destructive/15 tint, opaque, and tracks light/dark.
+// theme :root, but --muted-foreground/--background exist in all of them; this is
+// opaque and tracks light/dark.
+//
+// Neutral, not destructive. This was a red mix, which put closed time and
+// overbooking in the same colour: a hatched red weekend column read as a conflict
+// block that would not respond to a click. Red now means conflict and nothing
+// else; the hatch (see PROBLEM_HATCH_CLASS in TimelineRow) stays as the
+// non-colour "not workable" cue, and the cells carry a label saying why.
 export const OFFTIME_TINT_CLASS =
-  'bg-[color-mix(in_srgb,hsl(var(--destructive))_15%,hsl(var(--background)))]';
+  'bg-[color-mix(in_srgb,hsl(var(--muted-foreground))_14%,hsl(var(--background)))]';
 
 export const PROBLEM_HATCH_CLASS =
   'bg-[image:repeating-linear-gradient(45deg,transparent,transparent_11px,var(--hatch-color)_11px,var(--hatch-color)_12px)] [--hatch-color:rgba(0,0,0,0.07)] dark:[--hatch-color:rgba(255,255,255,0.08)]';

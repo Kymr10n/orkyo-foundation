@@ -6,6 +6,7 @@ using Api.Services;
 using Api.Services.Insights;
 using Moq;
 using Xunit;
+using Orkyo.Foundation.Tests.Mocks;
 
 namespace Api.Tests.Services;
 
@@ -24,7 +25,7 @@ public class InsightsServiceTests
     private readonly Mock<IConflictTimelineProvider> _timeline = new();
     private readonly Mock<IResourceRepository> _resources = new();
     private readonly Mock<IResourceAssignmentRepository> _assignments = new();
-    private readonly Mock<IAvailabilityResolver> _availability = new();
+    private readonly Mock<IAvailabilityResolver> _availability = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
     private readonly Mock<IResourceTypeService> _resourceTypes = new();
     private readonly InsightsService _service;
 

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RequestFormDialog } from "./RequestFormDialog";
+import { REQUEST_NAME_PLACEHOLDER, RequestFormDialog } from "./RequestFormDialog";
 import type { Request } from "@foundation/src/types/requests";
 import type { Site } from "@foundation/src/types/site";
 
@@ -307,7 +307,7 @@ describe("RequestFormDialog", () => {
     renderDialog();
     expect(screen.getByText("Create New Request")).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(/Product Launch Event/),
+      screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER),
     ).toBeInTheDocument();
   });
 
@@ -379,7 +379,7 @@ describe("RequestFormDialog", () => {
 
   it("blocks submit and surfaces an error when the name is empty", async () => {
     const { onSave } = renderDialog();
-    const name = screen.getByPlaceholderText(/Product Launch Event/);
+    const name = screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER);
     fireEvent.change(name, { target: { value: "   " } });
 
     fireEvent.click(screen.getByRole("button", { name: "Create Request" }));
@@ -390,7 +390,7 @@ describe("RequestFormDialog", () => {
 
   it("requires a duration of at least 1 for a leaf request", async () => {
     const { onSave } = renderDialog();
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "My Request" },
     });
     // Move to the Timing tab and clear the duration (renders empty for value 0).
@@ -423,7 +423,7 @@ describe("RequestFormDialog", () => {
 
   it("maps form state to RequestFormData and closes on a successful save", async () => {
     const { onSave, onOpenChange } = renderDialog();
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "  My Request  " },
     });
 
@@ -449,7 +449,7 @@ describe("RequestFormDialog", () => {
         <RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />
       </QueryClientProvider>,
     );
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "My Request" },
     });
 
@@ -461,7 +461,7 @@ describe("RequestFormDialog", () => {
 
   it("rejects a schedule whose end is before its start", async () => {
     const { onSave } = renderDialog();
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "My Request" },
     });
     await userEvent.click(screen.getByRole("tab", { name: "Timing" }));
@@ -477,7 +477,7 @@ describe("RequestFormDialog", () => {
 
   it("rejects a start without a matching end", async () => {
     const { onSave } = renderDialog();
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "My Request" },
     });
     await userEvent.click(screen.getByRole("tab", { name: "Timing" }));
@@ -511,7 +511,7 @@ describe("RequestFormDialog", () => {
     );
 
     // Applying the template pre-fills the duration (3 hours) used on save.
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "From Template" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Create Request" }));
@@ -523,7 +523,7 @@ describe("RequestFormDialog", () => {
 
   it("stores the chosen icon in the saved payload", async () => {
     const { onSave } = renderDialog();
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "Iconic" },
     });
     fireEvent.click(screen.getByTestId("pick-icon"));
@@ -744,7 +744,7 @@ describe("RequestFormDialog", () => {
 
   it("includes the scheduled window in the saved payload", async () => {
     const { onSave } = renderDialog();
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "My Request" },
     });
     await userEvent.click(screen.getByRole("tab", { name: "Timing" }));
@@ -959,7 +959,7 @@ describe("RequestFormDialog", () => {
         <RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />
       </QueryClientProvider>,
     );
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "New Group" },
     });
 
@@ -1090,7 +1090,7 @@ describe("RequestFormDialog", () => {
         />
       </QueryClientProvider>,
     );
-    fireEvent.change(screen.getByPlaceholderText(/Product Launch Event/), {
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "New Group" },
     });
 
