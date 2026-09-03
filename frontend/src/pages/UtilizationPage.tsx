@@ -23,6 +23,7 @@ import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import type { DefaultResource } from "@foundation/src/hooks/useRequestForm";
 import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
+import { ConflictDetailsPopover } from "@foundation/src/components/utilization/ConflictDetailsPopover";
 import { getPlacementResourceId, getTargetResourceTypeKeys } from "@foundation/src/domain/scheduling/request-assignments";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import { useNow } from "@foundation/src/hooks/useNow";
@@ -176,6 +177,9 @@ export function UtilizationPage() {
   const handleRequestContextMenu = useCallback((requestId: string, position: { x: number; y: number }) => {
     setRequestMenu({ id: requestId, ...position });
   }, []);
+
+  // Click target on a conflicted bar. Same zero-size anchor as the menu above.
+  const [conflictPopover, setConflictPopover] = useState<{ id: string; x: number; y: number } | null>(null);
 
   // One grid tab per active resource type that is not placeable. Placeable types share the
   // scheduler tab (drag-to-schedule, floorplan, backlog) because they share one floorplan;
@@ -557,6 +561,18 @@ export function UtilizationPage() {
     if (request) openRequestEditor(request, conflicts.get(requestId) ?? []);
   }, [requests, openRequestEditor, conflicts]);
 
+  // Single click on a bar. A red bar states there is a conflict, so the click answers
+  // the question it raises instead of opening the editor and making the user hunt for
+  // the banner. Bars with nothing wrong keep opening the editor, as they always did.
+  const handleRequestClick = useCallback((requestId: string, position?: { x: number; y: number }) => {
+    const hasConflicts = (conflicts.get(requestId) ?? []).length > 0;
+    if (hasConflicts && position) {
+      setConflictPopover({ id: requestId, ...position });
+      return;
+    }
+    handleRequestDoubleClick(requestId);
+  }, [conflicts, handleRequestDoubleClick]);
+
   // --- Drag-end sub-handlers (named for readability, not extracted) ---
 
   const handleSpaceReorder = useCallback((activeId: string | number, overId: string | number) => {
@@ -917,12 +933,14 @@ export function UtilizationPage() {
                     anchorTs={anchorTs}
                     timeCursorTs={timeCursorTs}
                     nowMs={nowMs}
-                    // Phone has no hover/double-click, so a single tap opens the
-                    // editor; desktop opens on double-click only.
+                    // Desktop: a click shows conflict detail on a red bar and opens the
+                    // editor otherwise; a double-click always opens the editor. Phone has
+                    // no hover or double-click, so a tap goes straight to the editor —
+                    // its conflict banner carries the same detail in one tap, not two.
                     // Drag-to-reschedule works on both (mouse-move / touch long-
                     // press via the sensors above). Precise duration edits happen
                     // in the dialog's Timing tab — better on touch than 2px handles.
-                    onRequestClick={isPhone ? handleRequestDoubleClick : undefined}
+                    onRequestClick={isPhone ? handleRequestDoubleClick : handleRequestClick}
                     onRequestDoubleClick={handleRequestDoubleClick}
                     onRequestContextMenu={canEdit && !isPhone ? handleRequestContextMenu : undefined}
                     onRequestResize={handleResizeRequest}
@@ -1010,6 +1028,25 @@ export function UtilizationPage() {
 
       {/* Dialogs — rendered outside tabs; they portal to document.body */}
       {requestEditorDialogs}
+
+      {conflictPopover && (() => {
+        const request = requests.find((r) => r.id === conflictPopover.id);
+        const items = conflicts.get(conflictPopover.id) ?? [];
+        if (!request || items.length === 0) return null;
+        return (
+          <ConflictDetailsPopover
+            request={request}
+            conflicts={items.map((c) => ({ ...c, request }))}
+            position={{ x: conflictPopover.x, y: conflictPopover.y }}
+            peerRequestFor={(c) => c.peerRequestId ? requests.find((r) => r.id === c.peerRequestId) : undefined}
+            onOpenRequest={(target) => {
+              setConflictPopover(null);
+              openRequestEditor(target, conflicts.get(target.id) ?? []);
+            }}
+            onClose={() => setConflictPopover(null)}
+          />
+        );
+      })()}
 
       {/* Unschedule lives here rather than in the grid so the mutation stays on the page that
           owns it. Double-click already opens the editor, so the menu does not repeat it. */}

@@ -33,6 +33,19 @@ public interface IAvailabilityResolver
     /// </summary>
     Task<Dictionary<Guid, List<BlockedPeriod>>> GetBlockedPeriodsForResourcesAsync(
         IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Scheduling settings per resource, resolved through each resource's anchoring site —
+    /// the working-hours/weekend mask that turns a wall-clock period into bookable capacity.
+    /// Sits here because this class already resolves resource → site in bulk, so the
+    /// insights and utilization aggregates get the mask without either growing a
+    /// scheduling-repository dependency of its own.
+    ///
+    /// Resources with no home site, and sites with no settings row, are absent from the
+    /// result: callers treat a missing entry as 24/7, which is the pre-mask behaviour.
+    /// </summary>
+    Task<Dictionary<Guid, SchedulingSettingsInfo>> GetSchedulingSettingsForResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct = default);
 }
 
 public class AvailabilityResolver(
@@ -114,6 +127,28 @@ public class AvailabilityResolver(
             AddBlockingEvents(result[resourceId], resourceId, events, holidaysEnabled,
                 groupMembershipMap.GetValueOrDefault(resourceId, []),
                 resourceTypeMap.GetValueOrDefault(resourceId));
+        }
+
+        return result;
+    }
+
+    public async Task<Dictionary<Guid, SchedulingSettingsInfo>> GetSchedulingSettingsForResourcesAsync(
+        IReadOnlyList<Guid> resourceIds, CancellationToken ct = default)
+    {
+        var result = new Dictionary<Guid, SchedulingSettingsInfo>();
+        if (resourceIds.Count == 0) return result;
+
+        var siteMap = await schedulingRepository.GetSiteIdsForResourcesAsync(resourceIds, ct);
+        if (siteMap.Count == 0) return result;
+
+        // One load for every distinct site (sites ≪ resources), same shape as the events above.
+        var settingsBySite = await schedulingRepository.GetSettingsBySitesAsync(
+            siteMap.Values.Distinct().ToList(), ct);
+
+        foreach (var (resourceId, siteId) in siteMap)
+        {
+            if (settingsBySite.TryGetValue(siteId, out var settings))
+                result[resourceId] = settings;
         }
 
         return result;

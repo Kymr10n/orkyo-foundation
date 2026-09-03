@@ -42,7 +42,7 @@ interface SchedulerGridProps {
   timeCursorTs: Date;
   /** Live wall-clock "now" (epoch ms) shared with the operational status recompute — drives the Now line. */
   nowMs: number;
-  onRequestClick?: (requestId: string) => void;
+  onRequestClick?: (requestId: string, position?: { x: number; y: number }) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   onRequestContextMenu?: (requestId: string, position: { x: number; y: number }) => void;
   onRequestResize?: (requestId: string, startTs: string, endTs: string) => void;

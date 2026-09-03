@@ -441,7 +441,8 @@ public class InsightsService(
     private sealed record UtilizationInputs(
         IReadOnlyList<ResourceInfo> Resources,
         IReadOnlyDictionary<Guid, List<ResourceAssignmentInfo>> AssignmentsByResource,
-        IReadOnlyDictionary<Guid, List<BlockedPeriod>> BlockedByResource);
+        IReadOnlyDictionary<Guid, List<BlockedPeriod>> BlockedByResource,
+        IReadOnlyDictionary<Guid, SchedulingSettingsInfo> SettingsByResource);
 
     /// <summary>
     /// Loads the resources of one type — or of every type, when <paramref name="resourceTypeKey"/>
@@ -470,8 +471,9 @@ public class InsightsService(
             .GroupBy(a => a.ResourceId)
             .ToDictionary(g => g.Key, g => g.ToList());
         var blockedByResource = await availabilityResolver.GetBlockedPeriodsForResourcesAsync(resourceIds, ct);
+        var settingsByResource = await availabilityResolver.GetSchedulingSettingsForResourcesAsync(resourceIds, ct);
 
-        return new UtilizationInputs(resources, assignmentsByResource, blockedByResource);
+        return new UtilizationInputs(resources, assignmentsByResource, blockedByResource, settingsByResource);
     }
 
     /// <summary>
@@ -522,6 +524,8 @@ public class InsightsService(
     {
         var assignments = data.AssignmentsByResource.GetValueOrDefault(resource.Id, []);
         var blocked = data.BlockedByResource.GetValueOrDefault(resource.Id, []);
+        // Absent for unsited resources and sites with no settings row — the 24/7 case.
+        var settings = data.SettingsByResource.GetValueOrDefault(resource.Id);
 
         var capacity = new double[buckets.Count];
         var occupied = new double[buckets.Count];
@@ -529,9 +533,12 @@ public class InsightsService(
         for (var i = 0; i < buckets.Count; i++)
         {
             var (bs, be) = buckets[i];
-            var span = (be - bs).TotalMinutes;
+            // Working minutes, not wall-clock minutes: a shop open 06:00-18:00 on weekdays has
+            // 35% of the calendar available, and measuring against the calendar deflated every
+            // reported figure by the same factor.
+            var span = SchedulingEngine.WorkingMinutesInWindow(bs, be, settings);
 
-            var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be));
+            var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be, settings));
             var openMin = Math.Max(0, span - blockedMin);
             capacity[i] = resource.BaseAvailabilityPercent / 100.0 * openMin;
 
@@ -539,7 +546,10 @@ public class InsightsService(
             foreach (var a in assignments)
             {
                 if (a.AssignmentStatus == AssignmentStatuses.Cancelled) continue;
-                var overlap = OverlapMinutes(a.StartUtc, a.EndUtc, bs, be);
+                // Masked on both sides of the ratio. A scheduled window deliberately spans the
+                // nights and weekends it waits through (SchedulingEngine stretches it), so an
+                // unmasked numerator over a masked denominator would report over 100% everywhere.
+                var overlap = OverlapMinutes(a.StartUtc, a.EndUtc, bs, be, settings);
                 if (overlap <= 0) continue;
                 total += (double)(a.AllocationPercent ?? 100m) / 100.0 * overlap;
             }
@@ -561,11 +571,16 @@ public class InsightsService(
         return new UtilSeries(Accumulate(data.Resources, buckets, data), data.Resources.Count);
     }
 
-    private static double OverlapMinutes(DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd)
+    /// <summary>
+    /// Working minutes shared by two windows. With null or 24/7 settings this is the plain
+    /// wall-clock intersection, so unconfigured sites keep the figures they always had.
+    /// </summary>
+    private static double OverlapMinutes(
+        DateTime aStart, DateTime aEnd, DateTime bStart, DateTime bEnd, SchedulingSettingsInfo? settings)
     {
         var start = aStart > bStart ? aStart : bStart;
         var end = aEnd < bEnd ? aEnd : bEnd;
-        return end > start ? (end - start).TotalMinutes : 0;
+        return end > start ? SchedulingEngine.WorkingMinutesInWindow(start, end, settings) : 0;
     }
 
     /// <summary>

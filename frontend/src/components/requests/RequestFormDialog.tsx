@@ -113,6 +113,16 @@ export type { RequestFormData };
  * Returns null when there's nothing to warn about (single-site, no schedule
  * context, or the site already matches).
  */
+/**
+ * Placeholder for the request name field.
+ *
+ * Exported so the tests select the input by the same string the component renders —
+ * a dozen call sites used to hard-code a copy of it, and any wording change broke
+ * them all. The example is deliberately shop-floor: the previous one ("Product
+ * Launch Event") read as event-planning software to the manufacturing audience.
+ */
+export const REQUEST_NAME_PLACEHOLDER = "e.g., Bracket run \u2014 200 pcs";
+
 export function computeSiteScopeWarning(
   isMultiSite: boolean,
   scheduleSiteId: string | null | undefined,
@@ -878,7 +888,7 @@ export function RequestFormDialog({
                           id="name"
                           value={state.name}
                           onChange={(e) => setField('name', e.target.value)}
-                          placeholder="e.g., Product Launch Event"
+                          placeholder={REQUEST_NAME_PLACEHOLDER}
                           required
                           className="flex-1"
                           disabled={readOnly}

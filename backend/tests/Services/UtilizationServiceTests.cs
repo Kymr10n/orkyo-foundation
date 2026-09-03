@@ -4,6 +4,7 @@ using Api.Repositories;
 using Api.Services;
 using Moq;
 using Xunit;
+using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Services;
 
@@ -50,11 +51,28 @@ public class UtilizationServiceTests
         AbsenceType = AbsenceType.Custom
     };
 
+    private static SchedulingSettingsInfo MakeSettings(
+        string timeZone = "Europe/Berlin",
+        string workingDayStart = "06:00",
+        string workingDayEnd = "18:00",
+        bool weekendsEnabled = false) => new()
+    {
+        Id = Guid.NewGuid(),
+        SiteId = Guid.NewGuid(),
+        TimeZone = timeZone,
+        WorkingHoursEnabled = true,
+        WorkingDayStart = TimeOnly.Parse(workingDayStart),
+        WorkingDayEnd = TimeOnly.Parse(workingDayEnd),
+        WeekendsEnabled = weekendsEnabled,
+        PublicHolidaysEnabled = false
+    };
+
     private static IUtilizationService BuildService(
         ResourceInfo resource,
         List<ResourceAssignmentInfo>? assignments = null,
         List<BlockedPeriod>? blockedPeriods = null,
-        ResourceGroupMembersResponse? groupMembers = null)
+        ResourceGroupMembersResponse? groupMembers = null,
+        SchedulingSettingsInfo? settings = null)
     {
         var resourceRepo = new Mock<IResourceRepository>();
         resourceRepo.Setup(r => r.GetByIdAsync(ResourceId)).ReturnsAsync(resource);
@@ -78,7 +96,7 @@ public class UtilizationServiceTests
         groupRepo.Setup(r => r.GetMembersAsync(GroupId))
             .ReturnsAsync(groupMembers ?? new ResourceGroupMembersResponse { GroupId = GroupId, Members = [resource] });
 
-        var resolver = new Mock<IAvailabilityResolver>();
+        var resolver = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(blockedPeriods ?? []);
         // Bulk path: blocked periods for all resources keyed by id.
@@ -86,6 +104,13 @@ public class UtilizationServiceTests
                 It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
                 ids.ToDictionary(id => id, _ => blockedPeriods ?? []));
+        if (settings is not null)
+        {
+            resolver.Setup(r => r.GetSchedulingSettingsForResourcesAsync(
+                    It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) =>
+                    ids.ToDictionary(id => id, _ => settings));
+        }
 
         return new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
     }
@@ -231,7 +256,7 @@ public class UtilizationServiceTests
         assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
             .ReturnsAsync([]);
         var groupRepo = new Mock<IResourceGroupMemberRepository>();
-        var resolver = new Mock<IAvailabilityResolver>();
+        var resolver = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(blocked);
 
@@ -290,7 +315,7 @@ public class UtilizationServiceTests
                 It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         var groupRepo = new Mock<IResourceGroupMemberRepository>();
-        var resolver = new Mock<IAvailabilityResolver>();
+        var resolver = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
         resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
@@ -324,7 +349,7 @@ public class UtilizationServiceTests
         assignmentRepo.Setup(r => r.GetActiveByResourcesAsync(
                 It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        var resolver = new Mock<IAvailabilityResolver>();
+        var resolver = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>())).ReturnsAsync([]);
         resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
@@ -383,7 +408,7 @@ public class UtilizationServiceTests
         groupRepo.Setup(r => r.GetMembersAsync(GroupId))
             .ReturnsAsync(new ResourceGroupMembersResponse { GroupId = GroupId, Members = [resource1, resource2] });
 
-        var resolver = new Mock<IAvailabilityResolver>();
+        var resolver = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
         resolver.Setup(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
@@ -417,7 +442,7 @@ public class UtilizationServiceTests
                 It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([MakeAssignment(r1.Id, from, to)]);
 
-        var resolver = new Mock<IAvailabilityResolver>();
+        var resolver = new Mock<IAvailabilityResolver>().WithNoSchedulingSettings();
         resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(id => id, _ => new List<BlockedPeriod>()));
 
@@ -440,4 +465,70 @@ public class UtilizationServiceTests
             It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
         resolver.Verify(r => r.GetBlockedPeriodsAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    // ── Working-hours masking ──────────────────────────────────────────────
+    // Capacity is bookable time, not wall-clock time. Before this, a shop open
+    // 06:00-18:00 on weekdays was measured against the full calendar and every
+    // figure read ~2.8x too low.
+
+    [Fact]
+    public async Task WorkingHours_WeekendDay_IsNonWorking()
+    {
+        var resource = MakeResource(AllocationModes.Fractional);
+        var service = BuildService(resource, settings: MakeSettings());
+
+        // Saturday 2026-04-11 00:00 Berlin (= 04-10 22:00 UTC), two days.
+        var from = new DateTime(2026, 4, 10, 22, 0, 0, DateTimeKind.Utc);
+        var result = await service.GetResourceUtilizationAsync(ResourceId, from, from.AddDays(2), "day");
+
+        Assert.NotNull(result);
+        Assert.All(result.Buckets, b =>
+        {
+            // Zero effective availability is what the frontend reads as "non-working"
+            // (deriveBucketStatus), so weekends stop counting toward averages.
+            Assert.Equal(0m, b.EffectiveAvailabilityPercent);
+            Assert.Equal(0m, b.AllocatedPercent);
+        });
+    }
+
+    [Fact]
+    public async Task WorkingHours_AssignmentSpanningNight_CountsOnlyTheShift()
+    {
+        var resource = MakeResource(AllocationModes.Fractional);
+
+        // Wednesday 2026-04-08 08:00 Berlin through Thursday 08:00 Berlin: 24 wall-clock
+        // hours, but only 10 h of the Wednesday shift plus 2 h of the Thursday shift.
+        var start = new DateTime(2026, 4, 8, 6, 0, 0, DateTimeKind.Utc);
+        var assignment = MakeAssignment(ResourceId, start, start.AddHours(24), 100m);
+        var service = BuildService(resource, [assignment], settings: MakeSettings());
+
+        // One bucket over the Wednesday, local midnight to midnight.
+        var from = new DateTime(2026, 4, 7, 22, 0, 0, DateTimeKind.Utc);
+        var result = await service.GetResourceUtilizationAsync(ResourceId, from, from.AddDays(1), "day");
+
+        Assert.NotNull(result);
+        var bucket = Assert.Single(result.Buckets);
+        // 10 h booked of a 12 h shift, not 16 h of a 24 h day.
+        Assert.Equal(100m, bucket.EffectiveAvailabilityPercent);
+        Assert.Equal(83.33m, bucket.AllocatedPercent);
+    }
+
+    [Fact]
+    public async Task WorkingHours_FullShiftBooking_ReadsAsFullyAllocated()
+    {
+        var resource = MakeResource(AllocationModes.Fractional);
+
+        // Wednesday 06:00-18:00 Berlin — exactly the shift.
+        var start = new DateTime(2026, 4, 8, 4, 0, 0, DateTimeKind.Utc);
+        var assignment = MakeAssignment(ResourceId, start, start.AddHours(12), 100m);
+        var service = BuildService(resource, [assignment], settings: MakeSettings());
+
+        var from = new DateTime(2026, 4, 7, 22, 0, 0, DateTimeKind.Utc);
+        var result = await service.GetResourceUtilizationAsync(ResourceId, from, from.AddDays(1), "day");
+
+        Assert.NotNull(result);
+        var bucket = Assert.Single(result.Buckets);
+        Assert.Equal(100m, bucket.AllocatedPercent);
+    }
+
 }

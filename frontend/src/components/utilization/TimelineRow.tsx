@@ -57,6 +57,20 @@ interface TimelineRowProps {
   testId?: string;
 }
 
+/**
+ * Why a timeline column is shaded, or undefined when it is ordinary working time.
+ *
+ * One function for both cell branches below: the clickable and non-clickable cells
+ * shade for the same reasons and must not explain them differently.
+ */
+function offTimeLabel(col: TimeColumn, resourceOffTime: boolean): string | undefined {
+  if (resourceOffTime) return "Off-time";
+  if (col.isGlobalOffTime) return "Closed \u2014 holiday or shutdown";
+  if (col.isWeekend) return "Weekend \u2014 outside working days";
+  if (col.isOutsideWorkingHours) return "Outside working hours";
+  return undefined;
+}
+
 function DefaultColumnCells({
   columns,
   isOffTime,
@@ -71,23 +85,34 @@ function DefaultColumnCells({
   return (
     <>
       {columns.map((col) => {
-        // Resource-specific off-time gets the same destructive tint as weekends/
-        // global off-time; otherwise fall back to the shared column tint.
+        // Resource-specific off-time gets the same tint as weekends/global off-time;
+        // otherwise fall back to the shared column tint.
         const tint = isOffTime?.(col) ? OFFTIME_TINT_CLASS : columnTintClass(col);
         // The off-time background column carries the diagonal hatch (the "Off"
         // segment bars stay hatch-free so the two don't double up). Outside
         // working hours (muted) is not a problem state, so it stays hatch-free.
         const hatch = tint === OFFTIME_TINT_CLASS ? PROBLEM_HATCH_CLASS : "";
         const className = `flex-1 min-w-[60px] border-r ${tint} ${hatch}`;
+        // Say why the cell is shaded. Unlabelled it reads as a bar that ignores
+        // clicks, which is exactly how the tinted columns were being misread.
+        const offTimeTitle = offTimeLabel(col, isOffTime?.(col) ?? false);
         if (!onCellClick) {
-          return <div key={col.start.getTime()} className={className} />;
+          return (
+            <div
+              key={col.start.getTime()}
+              className={className}
+              title={offTimeTitle}
+              aria-label={offTimeTitle}
+            />
+          );
         }
         return (
           <div
             key={col.start.getTime()}
             role="button"
             tabIndex={0}
-            aria-label={cellAriaLabel?.(col)}
+            aria-label={cellAriaLabel?.(col) ?? offTimeTitle}
+            title={offTimeTitle}
             className={`${className} cursor-pointer hover:bg-accent/40`}
             onClick={() => onCellClick(col)}
             onKeyDown={(e) => {

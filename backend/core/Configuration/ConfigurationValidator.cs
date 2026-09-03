@@ -4,9 +4,26 @@ namespace Api.Configuration;
 
 public static class ConfigurationValidator
 {
+    /// <summary>
+    /// Null when the IANA time zone database is available, otherwise the error text.
+    /// The Alpine runtime images carry no tzdata unless the Dockerfile installs it, and
+    /// SchedulingEngine resolves every site's time zone through TimeZoneInfo — without
+    /// the database each scheduled-request write throws TimeZoneNotFoundException.
+    /// Called by Validate() (which runs at API startup and in the deploy pipeline's
+    /// --validate gate, before cutover) and by both editions' workers at startup.
+    /// </summary>
+    public static string? TimeZoneDataError()
+        => TimeZoneInfo.TryFindSystemTimeZoneById("Europe/Berlin", out _)
+            ? null
+            : "Time zone database not available: cannot resolve 'Europe/Berlin'. "
+              + "The runtime image must include the tzdata package.";
+
     public static List<string> Validate(IConfiguration configuration, string? environmentName = null)
     {
         var errors = new List<string>();
+
+        if (TimeZoneDataError() is { } timeZoneError)
+            errors.Add(timeZoneError);
 
         // No fallback: an unknown environment must be an error, not a silent assumption.
         // Every deployment surface sets ASPNETCORE_ENVIRONMENT (both infra templates,

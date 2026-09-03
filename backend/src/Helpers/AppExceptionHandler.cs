@@ -45,6 +45,16 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => KeycloakAdminExceptionMapper.Map(kae),
             PostgresException pg when pg.SqlState == "23505"
                 => ErrorResponses.Conflict("A record with this identifier already exists"),
+            // A site's stored scheduling settings name a time zone this runtime cannot
+            // resolve. The write path validates against GetSystemTimeZones()
+            // (SchedulingValidators), but seeds write scheduling_settings straight to the
+            // database and bypass it — so an unresolvable id is a reachable state, not an
+            // impossible one. Report it as data the caller can fix, never as a bare 500.
+            // A runtime image with no tzdata at all is caught earlier, by
+            // ConfigurationValidator.TimeZoneDataError() at startup.
+            TimeZoneNotFoundException tznf
+                => ErrorResponses.UnprocessableEntity(
+                    $"The site's scheduling settings use a time zone this server cannot resolve: {tznf.Message}"),
             _ => null
         };
 

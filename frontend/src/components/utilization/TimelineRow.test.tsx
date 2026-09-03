@@ -51,3 +51,48 @@ describe('TimelineRow cell interactivity', () => {
     expect(onCellClick).toHaveBeenNthCalledWith(1, columns[0]);
   });
 });
+
+describe('TimelineRow off-time labelling', () => {
+  // The reported symptom: a shaded, hatched column that answers no click and shows no
+  // tooltip reads as a broken conflict block. Every shaded column now says why.
+  const shaded: TimeColumn[] = [
+    { start: new Date('2026-01-03T08:00:00Z'), end: new Date('2026-01-03T09:00:00Z'), label: 'Sat', isWeekend: true },
+    { start: new Date('2026-01-05T20:00:00Z'), end: new Date('2026-01-05T21:00:00Z'), label: '20', isOutsideWorkingHours: true },
+    { start: new Date('2026-01-06T08:00:00Z'), end: new Date('2026-01-06T09:00:00Z'), label: '08', isGlobalOffTime: true },
+  ];
+
+  it('explains why a non-clickable column is shaded', () => {
+    const { container } = render(<TimelineRow rowId="r1" columns={shaded} label="Row" />);
+    const cells = getCells(container);
+
+    expect(cells[0]).toHaveAttribute('title', 'Weekend — outside working days');
+    expect(cells[1]).toHaveAttribute('title', 'Outside working hours');
+    expect(cells[2]).toHaveAttribute('title', 'Closed — holiday or shutdown');
+  });
+
+  it('names resource off-time ahead of the calendar reasons', () => {
+    const { container } = render(
+      <TimelineRow rowId="r1" columns={shaded} label="Row" isOffTime={() => true} />,
+    );
+
+    expect(getCells(container)[0]).toHaveAttribute('title', 'Off-time');
+  });
+
+  it('leaves ordinary working columns unlabelled', () => {
+    const { container } = render(<TimelineRow rowId="r1" columns={columns} label="Row" />);
+
+    for (const cell of getCells(container)) {
+      expect(cell).not.toHaveAttribute('title');
+    }
+  });
+
+  it('shades off-time neutrally, so red keeps meaning conflict', () => {
+    const { container } = render(
+      <TimelineRow rowId="r1" columns={shaded} label="Row" isOffTime={() => true} />,
+    );
+
+    // A destructive tint here put closed time and overbooking in one colour.
+    expect(getCells(container)[0].className).not.toContain('--destructive');
+    expect(getCells(container)[0].className).toContain('--muted-foreground');
+  });
+});

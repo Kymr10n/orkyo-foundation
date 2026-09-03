@@ -36,7 +36,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
   columns: TimeColumn[];
   scheduleIndex: ScheduleIndex;
   validation: ValidationResult;
-  onRequestClick?: (requestId: string) => void;
+  onRequestClick?: (requestId: string, position?: { x: number; y: number }) => void;
   onRequestDoubleClick?: (requestId: string) => void;
   /** Right-click on the bar. Mouse-only by nature — clearing the dates in the request
    *  editor is the keyboard path to the same result. */
@@ -191,7 +191,19 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
           ? 'cursor-pointer'
           : isResizing ? 'cursor-ew-resize select-none' : 'cursor-grab active:cursor-grabbing touch-none'
       }`}
-      onClick={() => { if (!isResizing && Date.now() - lastCommitMsRef.current > 300) { onRequestClick?.(request.id); onRequestDoubleClick?.(request.id); } }}
+      // Click and double-click are distinct actions, and firing both from onClick made
+      // the double-click handler the only one that ever ran. The caller decides what a
+      // click means; on a conflicted bar it opens the conflict details, which is the
+      // question a red bar raises. The click point travels with it so the caller can
+      // anchor a popover to the bar the user actually hit.
+      onClick={(e) => {
+        if (isResizing || Date.now() - lastCommitMsRef.current <= 300) return;
+        onRequestClick?.(request.id, { x: e.clientX, y: e.clientY });
+      }}
+      onDoubleClick={() => {
+        if (isResizing || Date.now() - lastCommitMsRef.current <= 300) return;
+        onRequestDoubleClick?.(request.id);
+      }}
       onContextMenu={onRequestContextMenu ? (e) => {
         e.preventDefault();
         onRequestContextMenu(request.id, { x: e.clientX, y: e.clientY });
@@ -218,8 +230,7 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         const moved = Math.hypot(c.clientX - s.x, c.clientY - s.y);
         if (Date.now() - s.t < 250 && moved < 8 && Date.now() - lastCommitMsRef.current > 300) {
           e.preventDefault(); // suppress any follow-up synthesized click (no double-open)
-          onRequestClick?.(request.id);
-          onRequestDoubleClick?.(request.id);
+          onRequestClick?.(request.id, { x: c.clientX, y: c.clientY });
         }
       } : undefined}
       onKeyDown={(e) => {
@@ -230,7 +241,10 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (!isResizing) { onRequestClick?.(request.id); onRequestDoubleClick?.(request.id); }
+          // The editor, not the click action: a conflict popover anchors to a pointer
+          // position that a keypress does not have, and the editor's ConflictBanner
+          // carries the same conflict detail.
+          if (!isResizing) onRequestDoubleClick?.(request.id);
         }
       }}
     >

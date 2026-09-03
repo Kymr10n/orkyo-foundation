@@ -172,6 +172,24 @@ public class ConfigurationValidatorTests
             .Build();
     }
 
+    [Fact]
+    public void TimeZoneDataError_OnAHostWithTzdata_ReportsNoProblem()
+    {
+        // The probe guards the Alpine runtime images, which ship without the IANA
+        // database unless the Dockerfile installs it. CI runs on a host that has it, so
+        // this pins the healthy answer; the failing branch is proved by running the
+        // built image with the tzdata layer removed (see the deploy --validate gate).
+        ConfigurationValidator.TimeZoneDataError().Should().BeNull();
+    }
+
+    [Fact]
+    public void Validate_WithCompleteConfig_ReportsNoTimeZoneError()
+    {
+        var errors = ConfigurationValidator.Validate(BuildValidConfig());
+
+        errors.Should().NotContain(e => e.Contains("Time zone database"));
+    }
+
     private static Dictionary<string, string?> ValidConfigValues() => new()
     {
         // Required since the silent Production fallback was removed: an unknown
