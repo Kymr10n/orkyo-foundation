@@ -3,8 +3,8 @@ using Api.Models;
 using Api.Repositories;
 using Api.Services;
 using Moq;
-using Xunit;
 using Orkyo.Foundation.Tests.Mocks;
+using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 
@@ -56,16 +56,16 @@ public class UtilizationServiceTests
         string workingDayStart = "06:00",
         string workingDayEnd = "18:00",
         bool weekendsEnabled = false) => new()
-    {
-        Id = Guid.NewGuid(),
-        SiteId = Guid.NewGuid(),
-        TimeZone = timeZone,
-        WorkingHoursEnabled = true,
-        WorkingDayStart = TimeOnly.Parse(workingDayStart),
-        WorkingDayEnd = TimeOnly.Parse(workingDayEnd),
-        WeekendsEnabled = weekendsEnabled,
-        PublicHolidaysEnabled = false
-    };
+        {
+            Id = Guid.NewGuid(),
+            SiteId = Guid.NewGuid(),
+            TimeZone = timeZone,
+            WorkingHoursEnabled = true,
+            WorkingDayStart = TimeOnly.Parse(workingDayStart),
+            WorkingDayEnd = TimeOnly.Parse(workingDayEnd),
+            WeekendsEnabled = weekendsEnabled,
+            PublicHolidaysEnabled = false
+        };
 
     private static IUtilizationService BuildService(
         ResourceInfo resource,
