@@ -36,7 +36,7 @@ public static class RequestEndpoints
                 var paged = await requestService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, includeRequirements, ct);
                 return Results.Ok(paged);
             }
-            return Results.Ok(await requestService.GetAllAsync(includeRequirements, ct));
+            return Results.Ok(await requestService.GetAllAsync(includeRequirements, siteId, ct));
         })
         .WithName("GetRequests")
         .WithSummary("Get all requests");

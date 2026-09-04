@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
+import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
@@ -495,24 +495,23 @@ describe("UtilizationPage", () => {
     expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
   });
 
-  it("Calendar tab steps by a full period; grid tabs pan by a sub-period", () => {
+  it("steps by a full period on every tab", () => {
     const anchor = new Date("2024-01-15"); // matches the mocked store anchor; scale = month
 
     const CalWrapper = createWrapper("calendar");
     const { unmount } = render(<CalWrapper><UtilizationPage /></CalWrapper>);
     mockSetAnchorTs.mockClear(); // ignore any on-mount snap
     fireEvent.click(screen.getByTestId("nav-next"));
-    // Calendar pages a whole month (addMonths), not the grid's addWeeks pan.
     expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateCalendarPeriod(anchor, "month", 1));
-    expect(mockSetAnchorTs).not.toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
     unmount();
 
+    // The grids used to pan by a sub-period here (a week, on a month scale), which read as a
+    // control that did not work. They now page like the calendar.
     const GridWrapper = createWrapper("stations");
     render(<GridWrapper><UtilizationPage /></GridWrapper>);
     mockSetAnchorTs.mockClear();
     fireEvent.click(screen.getByTestId("nav-next"));
-    // Grid pans by the sub-period (addWeeks for month scale).
-    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateTime(anchor, "month", 1));
+    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateCalendarPeriod(anchor, "month", 1));
   });
 
   // --- Stale-anchor reconcile (frozen default anchor drifts on a long-lived tab) ---
@@ -1384,22 +1383,22 @@ describe("UtilizationPage", () => {
   });
 });
 
-describe("navigateTime", () => {
+describe("time navigation", () => {
   const anchor = new Date("2024-06-15T12:00:00Z");
 
   it.each([
     ["year", 1, "2024-07-15"],
     ["year", -1, "2024-05-15"],
-    ["month", 1, "2024-06-22"],
-    ["month", -1, "2024-06-08"],
-    ["week", 1, "2024-06-16"],
-    ["week", -1, "2024-06-14"],
-    ["day", 1, "2024-06-15T13:00"],
-    ["day", -1, "2024-06-15T11:00"],
-    ["hour", 1, "2024-06-15T12:15"],
-    ["hour", -1, "2024-06-15T11:45"],
+    ["month", 1, "2024-07-15"],
+    ["month", -1, "2024-05-15"],
+    ["week", 1, "2024-06-22"],
+    ["week", -1, "2024-06-08"],
+    ["day", 1, "2024-06-16"],
+    ["day", -1, "2024-06-14"],
+    ["hour", 1, "2024-06-16"],
+    ["hour", -1, "2024-06-14"],
   ] as const)("scale=%s direction=%d", (scale, direction, expected) => {
-    const result = navigateTime(anchor, scale, direction);
+    const result = navigateCalendarPeriod(anchor, scale, direction);
     expect(result.toISOString()).toContain(expected);
   });
 

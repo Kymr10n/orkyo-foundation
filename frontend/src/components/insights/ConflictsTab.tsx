@@ -115,7 +115,9 @@ export function ConflictsTab() {
       ? "Couldn't load conflicts."
       : visibleConflictItems.length === 0
         ? "No conflicts detected. All scheduled requests meet their requirements."
-        : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests.`;
+        // The scope is spelled out because the Overview KPI counts the filtered window and this
+        // list does not — without saying so, the two numbers look like a contradiction.
+        : `${visibleConflictItems.length} conflict${visibleConflictItems.length > 1 ? "s" : ""} found in scheduled requests — all time, all sites.`;
 
   return (
     <div className="flex h-full flex-col gap-4 p-1">

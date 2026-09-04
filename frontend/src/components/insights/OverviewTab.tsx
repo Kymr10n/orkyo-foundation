@@ -29,7 +29,13 @@ export function OverviewTab() {
           <KpiCard label="Total requests" value={String(o.requests.total)} />
           <KpiCard label="Scheduled" value={String(o.requests.scheduled)} />
           <KpiCard label="Unscheduled" value={String(o.requests.unscheduled)} />
-          <KpiCard label="Conflicts" value={String(o.conflicts.total)} hint={`${o.conflicts.overbooking} overbooking`} />
+          {/* Scoped to the selected window and site, unlike the Conflicts tab's all-time list —
+              said out loud so the two counts do not read as a contradiction. */}
+          <KpiCard
+            label="Conflicts"
+            value={String(o.conflicts.total)}
+            hint={`${o.conflicts.overbooking} overbooking · in selected window`}
+          />
           {/* One card per resource type the tenant has, so a type can never be silently
               missing from the dashboard. */}
           {o.utilization.byResourceType.map((u) => (

@@ -86,7 +86,7 @@ import {
   DropdownMenuTrigger,
 } from "@foundation/src/components/ui/dropdown-menu";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
-import { navigateTime, navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
+import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 /** "Mills", "Mills and Drills", "Mills, Drills and Presses". */
@@ -546,14 +546,11 @@ export function UtilizationPage() {
     }
   }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKey, applyMutation, autoSchedulePreview, queryClient]);
 
-  // The Calendar tab pages by whole periods (one click = one week/month); every timeline grid
-  // pans by a sub-period. Same controls, tab-aware step.
-  const stepAnchor = (direction: 1 | -1) =>
-    isCalendarTab
-      ? navigateCalendarPeriod(anchorTs, scale, direction)
-      : navigateTime(anchorTs, scale, direction);
-  const handlePrevious = () => setAnchorTs(stepAnchor(-1));
-  const handleNext = () => setAnchorTs(stepAnchor(1));
+  // One click = one whole period, on every tab. The grids used to pan by a sub-period, which
+  // read as a broken control: on a week scale the arrow moved a day, so reaching next week took
+  // seven clicks and the label still said the same week.
+  const handlePrevious = () => setAnchorTs(navigateCalendarPeriod(anchorTs, scale, -1));
+  const handleNext = () => setAnchorTs(navigateCalendarPeriod(anchorTs, scale, 1));
 
   // Handle double-click on request in grid
   const handleRequestDoubleClick = useCallback((requestId: string) => {

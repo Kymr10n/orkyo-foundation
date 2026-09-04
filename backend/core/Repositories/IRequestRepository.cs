@@ -10,7 +10,7 @@ namespace Api.Repositories;
 public interface IRequestRepository
 {
     /// <summary>Returns all requests. Pass <c>includeRequirements: true</c> to populate the requirements list.</summary>
-    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default);
+    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default);
 
     /// <summary>Returns a page of requests.</summary>
     Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);

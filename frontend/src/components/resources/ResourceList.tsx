@@ -21,6 +21,7 @@ import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
 import { useLookupFieldLabels } from '@foundation/src/hooks/useLookupFieldLabels';
 import { CAPABILITY_LABELS } from '@foundation/src/constants/resource-type-key';
+import { useAppStore } from '@foundation/src/store/app-store';
 
 /** Stable identity so the transfer hook's memo doesn't churn while loading. */
 const EMPTY_RESOURCES: ResourceInfo[] = [];
@@ -44,6 +45,10 @@ interface ResourceListProps {
  */
 export function ResourceList({ resourceType }: ResourceListProps) {
   const canEdit = useCanEdit();
+  // Scoped by the top-bar site picker, like the board and the requests list. The backend reads
+  // site membership as "home site, or the site it is currently assigned to", so a resource with
+  // neither is not listed under any site — pick "All sites" to see it.
+  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   const [editing, setEditing] = useState<ResourceInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<ResourceInfo | null>(null);
@@ -57,8 +62,8 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     error,
     refetch,
   } = useQuery({
-    queryKey: qk.resources.byType(resourceType.key),
-    queryFn: () => getResources({ resourceTypeKey: resourceType.key }),
+    queryKey: [...qk.resources.byType(resourceType.key), { siteId: selectedSiteId }],
+    queryFn: () => getResources({ resourceTypeKey: resourceType.key, siteId: selectedSiteId ?? undefined }),
   });
 
   // A directory type shows email beside the two organization lookups every person carries. Those
