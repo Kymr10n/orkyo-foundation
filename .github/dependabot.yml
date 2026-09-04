@@ -3,18 +3,52 @@
 # @kymr10n/foundation package), the SHA-pinned GitHub Actions in workflows,
 # and the digest-pinned Keycloak base image.
 #
-# Each ecosystem raises at most two pull requests per run: one batching all
-# minor and patch updates, and one batching majors. Majors stay separate
+# Each ecosystem raises at most three pull requests per run: one batching all
+# minor and patch updates, one batching majors, and one batching the bumps that
+# carry no semver update-type at all (digests, SHA pins). Majors stay separate
 # because they need a deliberate review, not because they are unwelcome —
 # nothing is ignored, so a security fix that only ships in a new major still
 # reaches us. `applies-to: version-updates` keeps Dependabot security updates
 # out of the groups, so an advisory-driven fix arrives on its own, at once.
+#
+# GROUP ORDER MATTERS. A dependency joins the FIRST group it matches, so the
+# patterns-only catch-all must stay last — above it, the update-types filters
+# claim majors and minor/patch first.
+#
+# SCHEDULE IS STAGGERED across the four repos, one weekday each, two hours
+# between ecosystems: infra Monday, foundation Tuesday, saas Wednesday,
+# community Thursday. Six Dependabot runs starting in the same minute is what
+# rate-limited codeload and failed six saas pull requests at "Set up job" with
+# HTTP 429 on 2026-08-17.
+#
+# NO AUTO-MERGE IN THIS REPO — a decision, not a gap. main-protection carries a
+# pull_request rule (one approving review + a code-owner review), and GitHub's
+# deferred auto-merge path does NOT re-check ruleset bypass_actors when it
+# completes: the pull request stays BLOCKED / REVIEW_REQUIRED for good, even
+# with the bot listed as a bypass actor. Calling the merge endpoint directly
+# succeeds for the same actor, which isolates it to the auto-merge path. GitHub
+# support has said engineering will not resolve it in the near term.
+#   https://github.com/orgs/community/discussions/162623
+#   https://github.com/orgs/community/discussions/142206
+#
+# Two workarounds were considered and rejected. Dropping the pull_request rule
+# weakens the gate for human pull requests too, to serve a bot. A
+# workflow_run-triggered direct merge needs a github-actions[bot] bypass, which
+# is a wider hole than the Dependabot one, and puts real complexity in a merge
+# path. The grouping above already cuts this repo to roughly one pull request
+# per ecosystem per week, so the remaining manual merge is cheap. Revisit only
+# if GitHub fixes the bypass.
+#
+# orkyo-saas and orkyo-infra have no pull_request rule on main, so auto-merge
+# completes there and is enabled in those two repos.
 version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
       interval: weekly
+      day: tuesday
+      time: "03:00"
 
     open-pull-requests-limit: 5
     groups:
@@ -31,6 +65,8 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+      day: tuesday
+      time: "05:00"
 
     open-pull-requests-limit: 5
     groups:
@@ -47,6 +83,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
+      day: tuesday
+      time: "07:00"
 
     open-pull-requests-limit: 5
     groups:
@@ -58,11 +96,21 @@ updates:
         applies-to: version-updates
         patterns: ["*"]
         update-types: ["major"]
+      actions-digest:
+        # Same failure mode the docker-digest group below fixes, for Actions.
+        # A SHA pin that resolves to no semver release — a reusable workflow
+        # referenced by commit, or an action whose tag did not move — carries no
+        # update-type, matches neither group above, and arrives as one pull
+        # request PER WORKFLOW FILE. Patterns-only batches them into one.
+        applies-to: version-updates
+        patterns: ["*"]
 
   - package-ecosystem: docker
     directory: /keycloak
     schedule:
       interval: weekly
+      day: tuesday
+      time: "09:00"
 
     open-pull-requests-limit: 5
     groups:
