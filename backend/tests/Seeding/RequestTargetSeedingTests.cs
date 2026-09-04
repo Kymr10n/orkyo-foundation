@@ -84,7 +84,7 @@ public class RequestTargetSeedingTests
         var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
         var year = await NarrativeYearSeeder.SeedAsync(
             conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
-            avail.Vacations);
+            avail.Vacations, avail.AbsenceWindows);
 
         // Scope every assertion to this run's rows — the shared fixture DB carries committed data.
         var seededIds = year.RequestIds.ToArray();

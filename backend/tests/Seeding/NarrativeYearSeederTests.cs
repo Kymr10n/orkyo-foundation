@@ -89,7 +89,8 @@ public class NarrativeYearSeederTests
         var cal = new YearCalendar(DateTime.UtcNow);
         var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
         var year = await NarrativeYearSeeder.SeedAsync(
-            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker, avail.Vacations);
+            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
+            avail.Vacations, avail.AbsenceWindows);
 
         year.Requests.Should().BeGreaterThan(0);
         year.Requirements.Should().BeGreaterThan(0);
@@ -98,6 +99,16 @@ public class NarrativeYearSeederTests
         avail.Events.Should().BeGreaterThan(0);
         avail.Absences.Should().BeGreaterThan(0);
         tools.Should().NotBeEmpty();
+
+        // Nobody is on holiday and off sick at the same time. The leave generator lays a person's
+        // blocks end to end, but Monday alignment nudges each one forward, and that drift once let
+        // a year's last block run into the first block of the next year.
+        var (_, selfOverlaps) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*)
+            FROM resource_absences x
+            JOIN resource_absences y ON y.resource_id = x.resource_id AND y.id <> x.id
+            WHERE x.start_ts < y.end_ts AND y.start_ts < x.end_ts");
+        selfOverlaps.Should().Be(0, "one person's absences never overlap each other");
 
         // year.Conflicts counts BOTH injected kinds: ~2.5 % capability staffing + ~2.5 % scheduling
         // clones ≈ 5 % of leaf requests. Each clone flags 2 requests in the UI (source + clone), so
@@ -146,6 +157,12 @@ public class NarrativeYearSeederTests
               AND ra.start_utc < ab.end_ts AND ab.start_ts < ra.end_utc",
             ("ids", seededIds));
         overAbsence.Should().BeGreaterThan(0, "someone is booked over their own holiday");
+        // …and only the arranged ones. The capacity ledger holds every absence as a full booking,
+        // so the generator cannot staff work onto time off by accident; the overlaps that remain
+        // are the one-per-cohort injection. Before that, the pass tracked capacity alone and
+        // produced 169 unintended vacation overlaps at medium scale, burying the example.
+        overAbsence.Should().BeLessThanOrEqualTo(cohorts.Count,
+            "the only absence overlaps are the deliberate one per cohort");
 
         var (_, overShutdown) = await TwoLongs(conn, tx, @"
             SELECT 0, count(*)
