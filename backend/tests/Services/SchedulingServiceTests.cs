@@ -110,8 +110,9 @@ public class SchedulingServiceTests
         // Working hours disabled → schedule is plain start + duration (no snapping).
         _schedulingRepo.Setup(s => s.GetSettingsAsync(siteId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(SchedulingSettingsInfo.Default(siteId));
-        _resolver.Setup(r => r.GetBlockedPeriodsAsync(resourceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<BlockedPeriod>());
+        _resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, List<BlockedPeriod>>());
 
         // No end provided → the service computes it from start + minimal duration (2h here).
         var request = new UpdateRequestRequest
@@ -128,5 +129,79 @@ public class SchedulingServiceTests
 
         Assert.Equal(Start, result.StartTs);
         Assert.Equal(Start.AddHours(2), result.EndTs);
+    }
+
+    [Fact]
+    public async Task ApplySchedulingToCreate_PreservesAnExplicitWindow()
+    {
+        // The reviewer typed Sep 2 08:00-12:00 and it saved as Sep 4 06:00-10:00: create used to
+        // recompute even when the caller supplied an end, while update has always preserved it.
+        // An explicit window persists and surfaces conflicts instead of being silently moved.
+        var request = new CreateRequestRequest
+        {
+            Name = "Bracket run",
+            ResourceIds = [Guid.NewGuid()],
+            StartTs = Start,
+            EndTs = Start.AddHours(4),
+            MinimalDurationValue = 2,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = true,
+        };
+
+        var result = await _service.ApplySchedulingToCreateAsync(request);
+
+        Assert.Equal(Start, result.StartTs);
+        Assert.Equal(Start.AddHours(4), result.EndTs);
+        // Early return: scheduling computation is never invoked when an end is provided.
+        _schedulingRepo.Verify(s => s.GetSiteIdForResourceAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ApplySchedulingToCreate_WalksPastAnAbsenceOnASecondResource()
+    {
+        // Working hours follow the immovable resource, but the slot has to be free for every
+        // resource on the request. Only the site-bearing one used to be checked, so a job landed
+        // on a day its operator was on leave and conflicted the moment it was saved.
+        var machineId = Guid.NewGuid();
+        var operatorId = Guid.NewGuid();
+        var siteId = Guid.NewGuid();
+
+        _schedulingRepo.Setup(s => s.GetSiteIdForResourceAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(siteId);
+        _schedulingRepo.Setup(s => s.GetSettingsAsync(siteId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SchedulingSettingsInfo.Default(siteId));
+        _resolver.Setup(r => r.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Dictionary<Guid, List<BlockedPeriod>>
+            {
+                [machineId] = [],
+                [operatorId] =
+                [
+                    new BlockedPeriod
+                    {
+                        Id = Guid.NewGuid(),
+                        Title = "Vacation",
+                        Source = BlockedPeriodSource.ResourceAbsence,
+                        StartTs = Start.AddHours(-1),
+                        EndTs = Start.AddHours(4),
+                    },
+                ],
+            });
+
+        var request = new CreateRequestRequest
+        {
+            Name = "Bracket run",
+            ResourceIds = [machineId, operatorId],
+            StartTs = Start,
+            MinimalDurationValue = 2,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SchedulingSettingsApply = true,
+        };
+
+        var result = await _service.ApplySchedulingToCreateAsync(request);
+
+        // Pushed to the end of the operator's absence rather than left on top of it.
+        Assert.Equal(Start.AddHours(4), result.StartTs);
+        Assert.Equal(Start.AddHours(6), result.EndTs);
     }
 }

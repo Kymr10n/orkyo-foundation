@@ -12,7 +12,7 @@ namespace Api.Services;
 public interface IRequestService
 {
     /// <summary>Returns all requests. Pass <c>includeRequirements: true</c> to populate requirement lists.</summary>
-    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default);
+    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default);
     /// <summary>Returns a page of requests.</summary>
     Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
 
@@ -67,8 +67,8 @@ public class RequestService : IRequestService
         _dependencies = dependencies;
     }
 
-    public Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, CancellationToken ct = default)
-        => _repository.GetAllAsync(includeRequirements, ct);
+    public Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default)
+        => _repository.GetAllAsync(includeRequirements, siteId, ct);
 
     public Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
         => _repository.GetAllAsync(page, includeRequirements, ct);

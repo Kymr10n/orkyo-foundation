@@ -703,6 +703,15 @@ export function RequestFormDialog({
     setIsSaving(true);
     try {
       const saved = await onSave(formData);
+      // The backend snaps a start that falls outside working time, on a weekend, or into a
+      // resource's absence — and used to do it silently, so a request typed for Sunday simply
+      // appeared on Monday. Said once here, where every typed date is submitted.
+      if (saved && typeof saved === 'object' && startTs && saved.startTs
+          && new Date(saved.startTs).getTime() !== new Date(startTs).getTime()) {
+        toast.info(`Moved to ${formatDateDisplay(saved.startTs)}`, {
+          description: "The time you chose is outside working hours or overlaps time off.",
+        });
+      }
       // Create mode, group: create the queued new children and reparent the
       // queued existing requests under the new group. Failures are surfaced per
       // item via toast — the group and whatever succeeded so far are kept; the

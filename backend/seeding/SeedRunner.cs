@@ -165,7 +165,8 @@ public static class SeedRunner
             var calendar = new Narrative.YearCalendar(opts.ReferenceDate);
             var avail = await AvailabilityFactory.SeedAsync(conn, calendar, sites, people, faker);
             var year = await Narrative.NarrativeYearSeeder.SeedAsync(
-                conn, cohorts, skillCriteria, caps.PersonSkills, calendar, scale, faker, avail.Vacations);
+                conn, cohorts, skillCriteria, caps.PersonSkills, calendar, scale, faker,
+                avail.Vacations, avail.AbsenceWindows);
 
             tools = seededTools.Count;
             machines = seededMachines.Count;

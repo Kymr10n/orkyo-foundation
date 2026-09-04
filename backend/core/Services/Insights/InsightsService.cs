@@ -390,6 +390,7 @@ public class InsightsService(
                 case ConflictKinds.ConnectorMismatch:
                     criteria++; break;
                 case ConflictKinds.StartsInOffTime:
+                case ConflictKinds.ResourceUnavailable:
                 case ConflictKinds.SiteMismatch:
                     unavailable++; break;
                 case ConflictKinds.BelowMinDuration:

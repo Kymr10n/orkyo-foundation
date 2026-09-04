@@ -12,6 +12,13 @@ public static class ConflictKinds
     public const string Overlap = "overlap";
     public const string CapacityExceeded = "capacity_exceeded";
     public const string StartsInOffTime = "starts_in_off_time";
+
+    /// <summary>
+    /// The resource carries an absence over the booked window (maintenance, vacation, sickness),
+    /// so it cannot do the work. An error, unlike <see cref="StartsInOffTime"/>: a site closure
+    /// says the hours are unusual, an absence says the resource is gone.
+    /// </summary>
+    public const string ResourceUnavailable = "resource_unavailable";
     public const string SiteMismatch = "site_mismatch";
     public const string BelowMinDuration = "below_min_duration";
     public const string BeforeEarliestStart = "before_earliest_start";

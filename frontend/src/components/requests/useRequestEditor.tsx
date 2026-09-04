@@ -56,10 +56,12 @@ export function useRequestEditor(): UseRequestEditorResult {
   const handleSave = useCallback(
     async (data: RequestFormData) => {
       if (!request) return;
-      await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
+      // Returned so the dialog can say when the scheduler moved the dates that were typed.
+      const saved = await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
       invalidateRequestData(queryClient);
       setIsOpen(false);
       setRequest(null);
+      return saved;
     },
     [request, queryClient],
   );

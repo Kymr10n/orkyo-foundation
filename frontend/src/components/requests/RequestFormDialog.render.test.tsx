@@ -9,6 +9,13 @@ import type { Site } from "@foundation/src/types/site";
 // --- Mock the data-loading boundary (network) and site hooks -------------------
 const useSitesMock = vi.fn(() => ({ data: [] as Site[] }));
 const useIsMultiSiteMock = vi.fn(() => false);
+const toastMocks = vi.hoisted(() => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  success: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast: toastMocks }));
+
 vi.mock("@foundation/src/hooks/useSites", () => ({
   useSites: () => useSitesMock(),
   useIsMultiSite: () => useIsMultiSiteMock(),
@@ -288,6 +295,9 @@ function renderDialog(props?: Partial<React.ComponentProps<typeof RequestFormDia
 }
 
 beforeEach(() => {
+  toastMocks.info.mockClear();
+  toastMocks.error.mockClear();
+  toastMocks.success.mockClear();
   useSitesMock.mockReturnValue({ data: [] });
   useIsMultiSiteMock.mockReturnValue(false);
   apiMocks.getCriteria.mockResolvedValue([]);
@@ -438,6 +448,59 @@ describe("RequestFormDialog", () => {
       }),
     );
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+  });
+
+  it("says so when the scheduler moved the dates that were typed", async () => {
+    // The backend snaps a start that lands outside working time or on an absence. It used to do
+    // it silently, so a request typed for a Sunday simply turned up on Monday with no explanation.
+    const SCHEDULED: Request = {
+      ...EXISTING,
+      startTs: "2026-06-07T09:00:00Z", // a Sunday
+      endTs: "2026-06-07T11:00:00Z",
+    } as Request;
+    const onSave = vi.fn(() =>
+      Promise.resolve({
+        ...SCHEDULED,
+        startTs: "2026-06-08T06:00:00Z", // walked to Monday by the scheduler
+        endTs: "2026-06-08T08:00:00Z",
+      } as Request),
+    );
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RequestFormDialog open onOpenChange={vi.fn()} onSave={onSave} request={SCHEDULED} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(toastMocks.info).toHaveBeenCalledWith(
+        expect.stringContaining("Moved to"),
+        expect.objectContaining({ description: expect.stringContaining("outside working hours") }),
+      ),
+    );
+  });
+
+  it("stays quiet when the scheduler kept the dates that were typed", async () => {
+    const SCHEDULED: Request = {
+      ...EXISTING,
+      startTs: "2026-06-08T06:00:00Z",
+      endTs: "2026-06-08T08:00:00Z",
+    } as Request;
+    const onSave = vi.fn(() => Promise.resolve(SCHEDULED));
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <RequestFormDialog open onOpenChange={vi.fn()} onSave={onSave} request={SCHEDULED} />
+      </QueryClientProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(toastMocks.info).not.toHaveBeenCalled();
   });
 
   it("surfaces the error and stays open when save rejects", async () => {

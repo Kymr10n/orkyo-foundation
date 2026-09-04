@@ -23,6 +23,12 @@ interface PersonAbsenceEditDialogProps {
   isOpen: boolean;
   /** Omit to record a new absence; pass one to edit it. */
   absence?: ResourceAbsenceInfo;
+  /** Dates a drag on the schedule already chose, so the form does not ask for them again. */
+  initialStart?: Date;
+  initialEnd?: Date;
+  /** What this kind of resource is usually blocked for — a machine goes down for maintenance,
+   *  a person takes leave. The caller knows the resource; the dialog does not. */
+  defaultAbsenceType?: AbsenceType;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -36,14 +42,23 @@ const absenceTypes: { value: AbsenceType; label: string }[] = [
   { value: 'custom', label: 'Custom' },
 ];
 
-export function ResourceAbsenceEditDialog({ resourceId, isOpen, absence, onClose, onSaved }: PersonAbsenceEditDialogProps) {
-  const [absenceType, setAbsenceType] = useState<AbsenceType>(absence?.absenceType ?? 'vacation');
+export function ResourceAbsenceEditDialog({
+  resourceId,
+  isOpen,
+  absence,
+  initialStart,
+  initialEnd,
+  defaultAbsenceType = 'vacation',
+  onClose,
+  onSaved,
+}: PersonAbsenceEditDialogProps) {
+  const [absenceType, setAbsenceType] = useState<AbsenceType>(absence?.absenceType ?? defaultAbsenceType);
   const [title, setTitle] = useState(absence?.title ?? '');
   const [startDate, setStartDate] = useState<Date | undefined>(
-    absence ? new Date(absence.startTs) : undefined,
+    absence ? new Date(absence.startTs) : initialStart,
   );
   const [endDate, setEndDate] = useState<Date | undefined>(
-    absence ? new Date(absence.endTs) : undefined,
+    absence ? new Date(absence.endTs) : initialEnd,
   );
 
   const saveMutation = useMutation({
@@ -64,10 +79,16 @@ export function ResourceAbsenceEditDialog({ resourceId, isOpen, absence, onClose
     meta: {
       successMessage: absence ? 'Absence updated' : 'Absence added',
       errorMessage: absence ? 'Failed to update absence' : 'Failed to add absence',
-      invalidates: [qk.resources.absences(resourceId)],
+      // An absence makes existing bookings on this resource conflict, so the conflict registry
+      // and the utilization grid are stale the moment it is saved — not just the absence list.
+      invalidates: [
+        qk.resources.absences(resourceId),
+        qk.conflicts.all(),
+        qk.utilization.byResourceAll(),
+      ],
     },
     onSuccess: () => {
-      setAbsenceType('vacation');
+      setAbsenceType(defaultAbsenceType);
       setTitle('');
       setStartDate(undefined);
       setEndDate(undefined);
@@ -84,7 +105,7 @@ export function ResourceAbsenceEditDialog({ resourceId, isOpen, absence, onClose
     <FormDialog
       open={isOpen}
       onOpenChange={(o) => { if (!o) onClose(); }}
-      title={absence ? 'Edit Absence' : 'Add Absence'}
+      title={absence ? 'Edit Absence' : 'Block Time'}
       onSubmit={handleSubmit}
       isSubmitting={saveMutation.isPending}
       submitLabel="Save"

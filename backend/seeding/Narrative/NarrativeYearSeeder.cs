@@ -40,7 +40,8 @@ public static class NarrativeYearSeeder
         YearCalendar cal,
         IScale scale,
         Faker faker,
-        IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> vacations)
+        IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> vacations,
+        IReadOnlyList<(Guid ResourceId, DateTime Start, DateTime End)> absences)
     {
         var parents = new List<(Guid Id, string Name, int SortOrder)>();
         var jobs = new List<Job>();
@@ -57,7 +58,7 @@ public static class NarrativeYearSeeder
         foreach (var cohort in cohorts)
         {
             var cohortStart = jobs.Count; // snapshot before this cohort adds jobs
-            var ctx = new AssignContext(cohort, personSkills, faker);
+            var ctx = new AssignContext(cohort, personSkills, faker, absences);
             contexts.Add((cohort, ctx));
             var campaignWin = cal.CampaignWindow(cohort.Facility.SiteCode);
 
@@ -254,9 +255,11 @@ public static class NarrativeYearSeeder
     /// Books a few people over their own holiday.
     /// </summary>
     /// <remarks>
-    /// The seeder tracks capacity, not time off, so an assignment never lands on an absence by
-    /// accident and the conflict has no example. One per cohort, on the first vacation that starts
-    /// after the reference date, staffed by the person whose holiday it is.
+    /// The capacity ledger holds absences as full-capacity bookings, so no assignment lands on
+    /// one by accident and the conflict would have no example. This books the person directly,
+    /// without asking whether they are free, which is what makes the overlap deliberate. One per
+    /// cohort, on the first vacation that starts after the reference date, staffed by the person
+    /// whose holiday it is.
     /// </remarks>
     private static int InjectAbsenceOverlaps(
         List<Job> jobs,
@@ -518,9 +521,19 @@ public static class NarrativeYearSeeder
         private readonly IReadOnlyDictionary<Guid, HashSet<Guid>> _personSkills;
         private readonly Faker _faker;
 
-        public AssignContext(FacilityCohort cohort, IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills, Faker faker)
+        public AssignContext(
+            FacilityCohort cohort,
+            IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills,
+            Faker faker,
+            IReadOnlyList<(Guid ResourceId, DateTime Start, DateTime End)> absences)
         {
             _cohort = cohort; _personSkills = personSkills; _faker = faker;
+
+            // Time off enters the ledger as a full-capacity booking, so every picker below avoids
+            // it through the check it already makes. Without this the pass saw capacity only and
+            // staffed work onto vacations by accident.
+            foreach (var (resourceId, start, end) in absences)
+                MarkBusy(resourceId, start, end, 100m);
         }
 
         public bool IsFree(Guid id, DateTime s, DateTime e, decimal requestedPct = 100m)

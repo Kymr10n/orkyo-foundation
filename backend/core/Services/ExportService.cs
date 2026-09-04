@@ -426,7 +426,7 @@ public class ExportService : IExportService
             }
         }
 
-        var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true, ct);
+        var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true, ct: ct);
 
         var placeableKeySet = (await _resourceTypeRepo.GetPlaceableKeysAsync(ct)).ToHashSet();
         return allRequests

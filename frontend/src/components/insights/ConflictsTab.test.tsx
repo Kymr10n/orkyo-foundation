@@ -331,6 +331,9 @@ describe('ConflictsTab', () => {
       ['before_earliest_start', 'Before Earliest Start'],
       ['after_latest_end', 'After Latest End'],
       ['capacity_exceeded', 'Capacity Exceeded'],
+      // An absence and a site closure are different statements and must not share a label.
+      ['resource_unavailable', 'Resource Unavailable'],
+      ['starts_in_off_time', 'Outside Working Time'],
       ['unknown_xyz', 'unknown_xyz'],
     ];
 

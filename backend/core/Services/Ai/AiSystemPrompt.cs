@@ -86,6 +86,9 @@ public static class AiSystemPrompt
           window, or change the constraint if it is wrong.
         - {ConflictKinds.StartsInOffTime}: the placement begins outside working hours.
           Move it into working time, or adjust the site's hours.
+        - {ConflictKinds.ResourceUnavailable}: the resource is away for the booked window —
+          maintenance, leave, sickness. Move the work, give it to another resource, or
+          change the absence if it was recorded wrongly.
         - {ConflictKinds.SiteMismatch}: the resource belongs to a different site than the
           request. Pick a resource at the right site, or move the request.
         - {ConflictKinds.DependencyViolation}: the request is placed before the one it waits

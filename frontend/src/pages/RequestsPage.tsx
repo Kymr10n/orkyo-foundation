@@ -48,6 +48,7 @@ import {
     canHaveChildren,
 } from "@foundation/src/domain/request-tree";
 import { useRequestTreeStore } from "@foundation/src/store/request-tree-store";
+import { useAppStore } from "@foundation/src/store/app-store";
 import { SpreadsheetImportWizard } from "@foundation/src/components/system/SpreadsheetImportWizard";
 import {
     Calendar,
@@ -95,6 +96,9 @@ export function RequestsPage() {
   const placeableKeys = usePlaceableTypeKeys();
   const canEdit = useCanEdit();
   const navigate = useNavigate();
+  // The site picker in the top bar scopes this list, the same way it scopes the board.
+  // Site-neutral requests stay visible under every site — the backend keeps them in.
+  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   // The request list lives in the query cache under the shared `requests`
   // prefix, so `invalidateRequestData` alone refreshes it after any mutation —
   // no manual re-fetch bookkeeping.
@@ -104,8 +108,8 @@ export function RequestsPage() {
     error: requestsError,
     refetch: refetchRequests,
   } = useQuery({
-    queryKey: qk.requests.list(),
-    queryFn: () => getRequests(true),
+    queryKey: qk.requests.list(selectedSiteId),
+    queryFn: () => getRequests(true, selectedSiteId ?? undefined),
   });
   const nowMs = useNow();
   // Recompute the time-derived lifecycle (new → in_progress → done) live so the list/tree/detail
@@ -320,18 +324,19 @@ export function RequestsPage() {
       setError(null);
 
       const isEdit = dialog?.kind === "edit";
-      let created: Request | undefined;
+      let saved: Request | undefined;
       if (isEdit) {
-        await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
+        saved = await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
       } else {
-        created = await createRequest(buildCreatePayload(data));
+        saved = await createRequest(buildCreatePayload(data));
       }
 
       invalidateRequestData(queryClient);
       setDialog(null);
       toast.success(isEdit ? "Request updated" : "Request created");
-      // Returned so the dialog can create children queued on its Children tab.
-      return created;
+      // Returned so the dialog can create children queued on its Children tab, and so it can
+      // tell the person when the scheduler moved the dates they typed.
+      return saved;
     } catch (err) {
       logger.error("Failed to save request:", err);
       const message = toErrorMessage(err);

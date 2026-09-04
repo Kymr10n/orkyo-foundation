@@ -33,8 +33,8 @@ export const qk = {
     scheduledAll: () => ["requests", "scheduled"] as const,
     backlog: () => ["requests", "backlog"] as const,
     conflicted: () => ["requests", "conflicted"] as const,
-    /** Full request list incl. hierarchy — the Requests page. */
-    list: () => ["requests", "list"] as const,
+    /** Full request list incl. hierarchy — the Requests page, scoped to the selected site. */
+    list: (siteId: string | null = null) => ["requests", "list", { siteId }] as const,
     /** One request, fetched by id on demand. */
     detail: (requestId: string) => ["requests", "detail", requestId] as const,
     /** Precedence edges touching one request. */

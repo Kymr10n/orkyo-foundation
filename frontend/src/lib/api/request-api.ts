@@ -21,11 +21,14 @@ import { API_PATHS } from "../core/api-paths";
  */
 export async function getRequests(
   includeRequirements = false,
+  siteId?: string,
 ): Promise<Request[]> {
-  const path = includeRequirements
-    ? `${API_PATHS.REQUESTS}?includeRequirements=true`
-    : API_PATHS.REQUESTS;
-  return apiGet<Request[]>(path);
+  const params = new URLSearchParams();
+  if (includeRequirements) params.set("includeRequirements", "true");
+  // Site-neutral requests stay in the result — the backend keeps them under every site.
+  if (siteId) params.set("siteId", siteId);
+  const query = params.toString();
+  return apiGet<Request[]>(query ? `${API_PATHS.REQUESTS}?${query}` : API_PATHS.REQUESTS);
 }
 
 /**

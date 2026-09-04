@@ -369,7 +369,7 @@ public class SchedulingEndpointsTests
     #region Scheduling + Request Integration
 
     [Fact]
-    public async Task CreateRequest_WithSchedulingAndOffTime_ExtendsEndTs()
+    public async Task CreateRequest_WithSchedulingAndOffTime_PreservesTheExplicitWindow()
     {
         var siteId = await GetOrCreateSiteId();
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
@@ -414,10 +414,12 @@ public class SchedulingEndpointsTests
         var created = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(created);
 
-        // Without scheduling: EndTs = 13:00
-        // With scheduling: 1h (09:00-10:00) + skip off-time (10:00-14:00) + 3h (14:00-17:00) = EndTs 17:00
-        Assert.True(created.EndTs > new DateTime(2027, 1, 5, 13, 0, 0, DateTimeKind.Utc),
-            $"EndTs {created.EndTs:u} should be extended past the off-time to at least 17:00");
+        // An explicitly-provided window is preserved even though it crosses the off-time —
+        // create behaves like update now. The overlap surfaces as a conflict instead of the
+        // window being silently rewritten (a job typed as Sep 2 08:00-12:00 once saved as
+        // Sep 4 06:00-10:00 with no notice; that is the behaviour this pins down).
+        Assert.Equal(new DateTime(2027, 1, 5, 9, 0, 0, DateTimeKind.Utc), created.StartTs);
+        Assert.Equal(new DateTime(2027, 1, 5, 13, 0, 0, DateTimeKind.Utc), created.EndTs);
     }
 
     [Fact]

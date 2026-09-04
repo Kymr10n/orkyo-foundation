@@ -250,6 +250,37 @@ public class ConflictServiceTests
     }
 
     [Fact]
+    public async Task ReportsAnAbsenceAsAnErrorRatherThanAnOffTimeWarning()
+    {
+        // A site closure says the hours are unusual; an absence says the resource is gone. The
+        // second one makes the booking wrong, so it must not read as the same soft warning —
+        // a machine blocked for maintenance under a booked job was showing amber, like a weekend.
+        var requestId = Guid.NewGuid();
+        var machineId = Guid.NewGuid();
+        var assignment = SpaceAssignment(Guid.NewGuid(), requestId, machineId, Start, Start.AddHours(8));
+        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(requestId, [assignment], Start, Start.AddHours(8))]);
+
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Batch(requestId, machineId,
+                new ValidationIssue
+                {
+                    Code = ValidationReasonCode.ResourceAbsence,
+                    Message = "Resource is unavailable during this period (Maintenance)",
+                    ResourceId = machineId,
+                    ConflictingAvailabilityId = Guid.NewGuid(),
+                })]);
+
+        var result = await _service.GetAllAsync();
+
+        var entry = Assert.Single(result, e => e.RequestId == requestId);
+        var conflict = Assert.Single(entry.Conflicts, c => c.Kind == ConflictKinds.ResourceUnavailable);
+        Assert.Equal(ConflictSeverities.Error, conflict.Severity);
+        Assert.Equal(machineId, conflict.ResourceId);
+    }
+
+    [Fact]
     public async Task SurfacesOverbookForNonSpaceAssignment()
     {
         // A double-booked person (not the room) must now surface — the registry evaluates the whole
