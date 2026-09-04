@@ -61,7 +61,7 @@ describe('ResourceAbsenceEditDialog', () => {
 
   it('renders dialog title and required form fields', () => {
     renderDialog();
-    expect(screen.getByText('Add Absence')).toBeInTheDocument();
+    expect(screen.getByText('Block Time')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
     expect(screen.getByText(/Start Date/)).toBeInTheDocument();
     expect(screen.getByText(/End Date/)).toBeInTheDocument();

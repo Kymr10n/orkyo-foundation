@@ -39,6 +39,15 @@ public enum ValidationReasonCode
     [JsonStringEnumMemberName("offtime.overlap")]
     OffTimeOverlap,
 
+    /// <summary>
+    /// The window overlaps an absence the resource itself carries (maintenance, vacation,
+    /// sickness). Distinct from <see cref="OffTimeOverlap"/>, which covers the site's own
+    /// closures: an absence makes the resource unavailable, so the booking is wrong rather
+    /// than merely outside preferred hours.
+    /// </summary>
+    [JsonStringEnumMemberName("resource.absence")]
+    ResourceAbsence,
+
     [JsonStringEnumMemberName("assignment.overbooked")]
     AssignmentOverbooked,
 

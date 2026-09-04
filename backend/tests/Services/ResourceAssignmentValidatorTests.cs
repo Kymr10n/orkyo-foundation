@@ -321,6 +321,41 @@ public class ResourceAssignmentValidatorTests
     }
 
     [Fact]
+    public async Task ResourceAbsence_OnUnsitedResource_StillReturnsWarning()
+    {
+        // Absences belong to the resource, not to a site, so a resource with no home site is
+        // governed by them alone. This path used to return early on a null site, which meant a
+        // person on leave with no home site never conflicted with anything booked on them.
+        var resource = CreateResource();
+        var request = CreateValidationRequest(resourceId: resource.Id);
+
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
+            .ReturnsAsync((RequestInfo?)null);
+        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
+            .ReturnsAsync((Guid?)null);
+        _availabilityResolverMock.Setup(r => r.GetBlockedPeriodsAsync(
+            resource.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<BlockedPeriod>
+            {
+                new()
+                {
+                    Id = Guid.NewGuid(),
+                    Title = "Vacation",
+                    Source = BlockedPeriodSource.ResourceAbsence,
+                    StartTs = request.StartUtc.AddDays(-1),
+                    EndTs = request.EndUtc.AddDays(1),
+                }
+            });
+
+        var result = await _validator.ValidateAsync(request);
+
+        var warning = Assert.Single(result.Warnings);
+        Assert.Equal(ValidationReasonCode.ResourceAbsence, warning.Code);
+        Assert.Contains("Vacation", warning.Message);
+    }
+
+    [Fact]
     public async Task AssignmentOverbooked_ExclusiveOverlap_ReturnsBlocker()
     {
         var resource = CreateResource(allocationMode: AllocationModes.Exclusive);

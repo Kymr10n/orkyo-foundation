@@ -55,7 +55,7 @@ public class ResourceAssignmentValidator(
             blockers.Add(Inactive(resource.Id));
 
         await CheckCapabilitiesAsync(request, resource, blockers, ct);
-        await CheckSiteScopedWindowAsync(request, resource, warnings, ct);
+        await CheckUnavailabilityAsync(request, resource, warnings, ct);
         await CheckSiteMatchAsync(request, resource, blockers, warnings);
         await CheckAllocationAsync(request, resource, blockers);
 
@@ -88,12 +88,11 @@ public class ResourceAssignmentValidator(
             .GroupBy(a => a.ResourceId)
             .ToDictionary(g => g.Key, g => new AssignmentOverlapIndex(g));
 
-        // Off-times only apply to sited resources (matches the single path's early-return).
-        // Bulk-resolve in one pass over the sited subset (was N+1: ~4 DB round-trips per resource);
-        // the bulk method over the same ids returns absences+events identical to the per-resource path.
-        var sited = resourceIds.Where(siteByResource.ContainsKey).ToList();
-        var blockedByResource = sited.Count > 0
-            ? await availabilityResolver.GetBlockedPeriodsForResourcesAsync(sited, ct)
+        // Every resource, not just the sited ones: absences apply regardless of site, and the
+        // resolver already scopes site events to the resources that have a site. Bulk-resolve in
+        // one pass (was N+1: ~4 DB round-trips per resource).
+        var blockedByResource = resourceIds.Count > 0
+            ? await availabilityResolver.GetBlockedPeriodsForResourcesAsync(resourceIds, ct)
             : new Dictionary<Guid, List<BlockedPeriod>>();
 
         // Settings per distinct site (only a few sites).
@@ -133,12 +132,12 @@ public class ResourceAssignmentValidator(
                 }
             }
 
-            // Site-scoped non-working time.
+            // Absences belong to the resource, so they are evaluated for every resource — an
+            // unsited one (a person with no home site) is governed by nothing else. Weekends and
+            // working hours come from the site, so they stay site-scoped.
+            EvaluateBlockedPeriods(request, resource.Id, blockedByResource.GetValueOrDefault(resource.Id, []), warnings);
             if (siteByResource.TryGetValue(resource.Id, out var siteId))
-            {
-                EvaluateBlockedPeriods(request, resource.Id, blockedByResource.GetValueOrDefault(resource.Id, []), warnings);
                 EvaluateWeekends(request, resource.Id, settingsBySite.GetValueOrDefault(siteId), warnings);
-            }
 
             // Allocation: compute the overlapping set / committed total in memory from the
             // resource's active assignments, then apply the shared rule. Both modes want the same
@@ -161,14 +160,16 @@ public class ResourceAssignmentValidator(
 
     // ── Single-item checks: fetch per-row, then delegate to the shared Evaluate* helpers ──
 
-    private async Task CheckSiteScopedWindowAsync(
+    private async Task CheckUnavailabilityAsync(
         ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> warnings, CancellationToken ct = default)
     {
-        var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id, ct);
-        if (siteId is null) return;
-
+        // Absences apply to every resource; weekends and working hours come from the site, so an
+        // unsited resource is governed by its absences alone. Mirrors the batch path.
         var blocked = await availabilityResolver.GetBlockedPeriodsAsync(resource.Id, ct);
         EvaluateBlockedPeriods(request, resource.Id, blocked, warnings);
+
+        var siteId = await schedulingRepository.GetSiteIdForResourceAsync(resource.Id, ct);
+        if (siteId is null) return;
 
         var settings = await schedulingRepository.GetSettingsAsync(siteId.Value, ct);
         EvaluateWeekends(request, resource.Id, settings, warnings);
@@ -304,10 +305,17 @@ public class ResourceAssignmentValidator(
         {
             var isHoliday = period.Source == BlockedPeriodSource.AvailabilityEvent
                             && period.EventType == AvailabilityEventType.PublicHoliday;
+            // An absence belongs to the resource, a closure to its site. Only the first one means
+            // the resource cannot do the work, so only it is reported as unavailability.
+            var isAbsence = period.Source == BlockedPeriodSource.ResourceAbsence;
             warnings.Add(new ValidationIssue
             {
-                Code = isHoliday ? ValidationReasonCode.NonWorkingHoliday : ValidationReasonCode.OffTimeOverlap,
-                Message = isHoliday ? "Assignment overlaps a public holiday" : "Resource has off-time during this period",
+                Code = isHoliday ? ValidationReasonCode.NonWorkingHoliday
+                    : isAbsence ? ValidationReasonCode.ResourceAbsence
+                    : ValidationReasonCode.OffTimeOverlap,
+                Message = isHoliday ? "Assignment overlaps a public holiday"
+                    : isAbsence ? $"Resource is unavailable during this period ({period.Title})"
+                    : "Resource has off-time during this period",
                 ResourceId = resourceId,
                 ConflictingAvailabilityId = period.Id,
                 Details = period.Title,

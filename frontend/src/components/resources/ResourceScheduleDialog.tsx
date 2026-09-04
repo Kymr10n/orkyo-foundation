@@ -75,7 +75,8 @@ export function ResourceScheduleDialog({
   const [anchorTs, setAnchorTs] = useState(() => new Date());
   const [slot, setSlot] = useState<{ start: Date; end: Date } | null>(null);
   const [assigning, setAssigning] = useState<{ start: Date; end: Date } | null>(null);
-  const [absence, setAbsence] = useState<ResourceAbsenceInfo | "new" | null>(null);
+  // Either an existing absence being edited, or the slot a drag just chose for a new one.
+  const [absence, setAbsence] = useState<ResourceAbsenceInfo | { start: Date; end: Date } | null>(null);
 
   const window = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
 
@@ -220,7 +221,7 @@ export function ResourceScheduleDialog({
         <SlotChooser
           onClose={() => setSlot(null)}
           onBlockTime={() => {
-            setAbsence("new");
+            setAbsence(slot);
             setSlot(null);
           }}
           onAssign={() => {
@@ -246,7 +247,12 @@ export function ResourceScheduleDialog({
         <ResourceAbsenceEditDialog
           isOpen
           resourceId={resourceId}
-          absence={absence === "new" ? undefined : absence}
+          absence={"id" in absence ? absence : undefined}
+          initialStart={"id" in absence ? undefined : absence.start}
+          initialEnd={"id" in absence ? undefined : absence.end}
+          // Type-neutral: this calendar blocks machines and people alike, and "unavailable"
+          // is true of both. The person picks the specific reason in the form.
+          defaultAbsenceType="unavailable"
           onClose={() => setAbsence(null)}
           onSaved={() => {
             setAbsence(null);

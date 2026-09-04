@@ -24,6 +24,10 @@ export function getConflictKindLabel(kind: string): string {
       return "After Latest End";
     case "connector_mismatch":
       return "Capability Mismatch";
+    case "resource_unavailable":
+      return "Resource Unavailable";
+    case "starts_in_off_time":
+      return "Outside Working Time";
     case "load_exceeded":
       return "Load Exceeded";
     case "size_mismatch":

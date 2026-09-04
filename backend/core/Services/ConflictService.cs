@@ -193,6 +193,18 @@ public class ConflictService(
                     ResourceId = issue.ResourceId,
                 };
 
+            // The resource itself is away, so the booking cannot happen — an error, unlike a
+            // site closure. Counts under "resource unavailable" either way (InsightsService).
+            case ValidationReasonCode.ResourceAbsence:
+                return new ConflictInfo
+                {
+                    Id = $"{requestId}-{issue.ResourceId}-{issue.ConflictingAvailabilityId}-absence",
+                    Kind = ConflictKinds.ResourceUnavailable,
+                    Severity = ConflictSeverities.Error,
+                    Message = issue.Message,
+                    ResourceId = issue.ResourceId,
+                };
+
             case ValidationReasonCode.OffTimeOverlap:
             case ValidationReasonCode.NonWorkingHoliday:
             case ValidationReasonCode.NonWorkingWeekend:
