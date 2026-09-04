@@ -782,13 +782,13 @@ export function UtilizationPage() {
   // pick a site that won't show here. So persist exactly what they chose.
   const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
     if (!calendarForm) return;
-    if (calendarForm.mode === "edit" && calendarForm.request) {
-      await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode, calendarForm.request.siteId));
-    } else {
-      await createRequest(buildCreatePayload(data));
-    }
+    // Returned so the dialog can say when the scheduler moved the dates that were typed.
+    const saved = calendarForm.mode === "edit" && calendarForm.request
+      ? await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode, calendarForm.request.siteId))
+      : await createRequest(buildCreatePayload(data));
     invalidateRequestData(queryClient);
     setCalendarForm(null);
+    return saved;
   }, [calendarForm, queryClient]);
 
   // The calendar is driven by the page's scale selector + date navigator (shared

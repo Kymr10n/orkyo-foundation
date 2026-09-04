@@ -129,11 +129,18 @@ public class SchedulingService : ISchedulingService
         if (!request.SchedulingSettingsApply || request.StartTs == null)
             return request;
 
-        var siteBearer = await ResolveSiteBearingResourceAsync(request.ResourceIds ?? [], ct);
+        // Respect an explicitly-provided window, exactly as the update path does: when the caller
+        // sets an end, never override it. A window that is too short or sits on off-time persists
+        // and surfaces a conflict — a red flag beats a silently moved plan. The auto-compute below
+        // only applies when the caller gives a start but no end.
+        if (request.EndTs != null) return request;
+
+        var resourceIds = request.ResourceIds ?? [];
+        var siteBearer = await ResolveSiteBearingResourceAsync(resourceIds, ct);
         if (siteBearer is null) return request;
 
         var result = await ComputeScheduledTimesAsync(
-            siteBearer.Value, request.StartTs.Value,
+            siteBearer.Value, resourceIds, request.StartTs.Value,
             request.MinimalDurationValue, request.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
@@ -163,13 +170,13 @@ public class SchedulingService : ISchedulingService
         // Not FirstOrDefault over the assignments: the view orders them by type key, so a
         // request holding a person and a room resolved its working hours from the person's home
         // office, alphabetically. Only an immovable resource says where the work happens.
-        var resourceId = await ResolveSiteBearingResourceAsync(
-            request.ResourceIds ?? [.. existing.Assignments.Select(a => a.ResourceId)], ct);
+        var resourceIds = request.ResourceIds ?? [.. existing.Assignments.Select(a => a.ResourceId)];
+        var resourceId = await ResolveSiteBearingResourceAsync(resourceIds, ct);
         var startTs = request.StartTs ?? existing.StartTs;
         if (resourceId == null || startTs == null) return request;
 
         var result = await ComputeScheduledTimesAsync(
-            resourceId.Value, startTs.Value,
+            resourceId.Value, resourceIds, startTs.Value,
             request.MinimalDurationValue ?? existing.MinimalDurationValue,
             request.MinimalDurationUnit ?? existing.MinimalDurationUnit, ct);
 
@@ -192,8 +199,11 @@ public class SchedulingService : ISchedulingService
 
         if (request.EndTs != null) return request;
 
+        // Only the resource being scheduled onto: this call rewrites that resource type's
+        // assignment and leaves the others in place, so constraining the slot by resources this
+        // drag may be replacing would push the request away from where it was dropped.
         var result = await ComputeScheduledTimesAsync(
-            request.ResourceId.Value, request.StartTs.Value,
+            request.ResourceId.Value, [request.ResourceId.Value], request.StartTs.Value,
             existing.MinimalDurationValue, existing.MinimalDurationUnit, ct);
 
         return result == null ? request : request with
@@ -205,16 +215,24 @@ public class SchedulingService : ISchedulingService
         };
     }
 
+    /// <summary>
+    /// Working hours come from the site of <paramref name="siteBearingResourceId"/> — the one
+    /// resource that says where the work happens. Blocked periods come from every assigned
+    /// resource: a slot the machine is free for is no good if the operator is on leave, and
+    /// landing the request there would create a conflict the moment it is saved.
+    /// </summary>
     private async Task<SchedulingEngine.ScheduleResult?> ComputeScheduledTimesAsync(
-        Guid resourceId, DateTime startTs, int durationValue, DurationUnit durationUnit, CancellationToken ct = default)
+        Guid siteBearingResourceId, IReadOnlyList<Guid> allResourceIds,
+        DateTime startTs, int durationValue, DurationUnit durationUnit, CancellationToken ct = default)
     {
-        var siteId = await _schedulingRepository.GetSiteIdForResourceAsync(resourceId, ct);
+        var siteId = await _schedulingRepository.GetSiteIdForResourceAsync(siteBearingResourceId, ct);
         if (siteId == null) return null;
 
         var settings = await _schedulingRepository.GetSettingsAsync(siteId.Value, ct)
             ?? SchedulingSettingsInfo.Default(siteId.Value);
 
-        var blockedPeriods = await _resolver.GetBlockedPeriodsAsync(resourceId, ct);
+        var blockedByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(allResourceIds, ct);
+        var blockedPeriods = blockedByResource.Values.SelectMany(p => p).ToList();
         var durationMinutes = SchedulingEngine.DurationToMinutes(durationValue, durationUnit);
         return SchedulingEngine.CalculateSchedule(startTs, durationMinutes, true, settings, blockedPeriods);
     }

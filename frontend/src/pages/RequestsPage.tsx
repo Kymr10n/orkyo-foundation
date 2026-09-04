@@ -320,18 +320,19 @@ export function RequestsPage() {
       setError(null);
 
       const isEdit = dialog?.kind === "edit";
-      let created: Request | undefined;
+      let saved: Request | undefined;
       if (isEdit) {
-        await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
+        saved = await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
       } else {
-        created = await createRequest(buildCreatePayload(data));
+        saved = await createRequest(buildCreatePayload(data));
       }
 
       invalidateRequestData(queryClient);
       setDialog(null);
       toast.success(isEdit ? "Request updated" : "Request created");
-      // Returned so the dialog can create children queued on its Children tab.
-      return created;
+      // Returned so the dialog can create children queued on its Children tab, and so it can
+      // tell the person when the scheduler moved the dates they typed.
+      return saved;
     } catch (err) {
       logger.error("Failed to save request:", err);
       const message = toErrorMessage(err);
