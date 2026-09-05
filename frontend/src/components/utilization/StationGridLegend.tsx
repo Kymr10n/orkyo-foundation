@@ -6,12 +6,12 @@ import {
 } from './schedule-colors';
 
 /**
- * The key for the stations grid.
+ * The key for the stations grid and the Requests canvas, which paint the same three states.
  *
  * Deliberately not the calendar's key. A calendar block is coloured by the request's *status*; a
  * grid bar is coloured by what it does to the station — assigned, or overbooked — and the columns
- * behind it carry off-time. Showing the calendar's five statuses here would name colours this grid
- * never paints.
+ * behind it carry off-time. Showing the calendar's five statuses here would name colours these
+ * grids never paint.
  *
  * Swatches read from the same maps `ScheduledRequestOverlay` and the row backgrounds use, so the
  * key cannot drift from what is on screen.

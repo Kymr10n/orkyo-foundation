@@ -40,6 +40,7 @@ import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule 
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { ResourceUtilizationGrid } from "@foundation/src/components/utilization/ResourceUtilizationGrid";
+import { RequestCanvas } from "@foundation/src/components/utilization/RequestCanvas";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
@@ -98,6 +99,7 @@ function joinNames(names: string[]): string {
 
 const STATIONS_TAB = 'stations';
 const ASSETS_TAB = 'assets';
+const REQUESTS_TAB = 'requests';
 
 export function UtilizationPage() {
   usePageTitle("Utilization");
@@ -203,11 +205,11 @@ export function UtilizationPage() {
     ];
   }, [resourceTypes]);
 
-  // Tab state — persisted in URL so the view is bookmarkable. Three fixed values, so the set is
+  // Tab state — persisted in URL so the view is bookmarkable. Four fixed values, so the set is
   // known without waiting for the types.
   const [rawTab, handleTabChange] = useTabParam('calendar');
   const isKnownTab =
-    rawTab === 'calendar' || rawTab === STATIONS_TAB || rawTab === ASSETS_TAB;
+    rawTab === 'calendar' || rawTab === STATIONS_TAB || rawTab === ASSETS_TAB || rawTab === REQUESTS_TAB;
   // Until the types load the valid set is unknown, so an unrecognised value is held rather
   // than replaced — otherwise a deep link to a real type tab flashes Calendar first.
   const activeTab = !resourceTypesLoaded || isKnownTab ? rawTab : 'calendar';
@@ -221,6 +223,10 @@ export function UtilizationPage() {
   const isCalendarTab = activeTab === 'calendar';
   const isSchedulerTab = activeTab === STATIONS_TAB;
   const isAssetsTab = activeTab === ASSETS_TAB;
+  const isRequestsTab = activeTab === REQUESTS_TAB;
+  // Calendar and the Requests canvas show requests, not resources: neither has a type of its own,
+  // so neither takes a type filter, offers auto-schedule, or narrows the export.
+  const isRequestCentricTab = isCalendarTab || isRequestsTab;
 
   // Which types each grid tab is showing. Held in the URL so a filtered view is shareable.
   const [stationKeys, setStationKeys] = useTypeFilter('stationTypes', placeableTypes);
@@ -235,7 +241,7 @@ export function UtilizationPage() {
   // live exactly when the filter names a single type, which generalizes the old rule (enabled
   // when the tenant happened to have one placeable type) instead of guessing at a pool.
   const autoScheduleTypeKey =
-    !isCalendarTab && selectedKeys.length === 1 ? selectedKeys[0] : null;
+    !isRequestCentricTab && selectedKeys.length === 1 ? selectedKeys[0] : null;
 
   // Stations first, then assets with people at their head — the PDF sections rows by type, and
   // this is the order the two grid tabs present them in.
@@ -244,22 +250,22 @@ export function UtilizationPage() {
     [placeableTypes, gridTypes],
   );
 
-  // The export follows what is on screen: Calendar has no type of its own and exports every
-  // type; a grid tab exports exactly the types its filter admits. Anything else hands back a PDF
-  // that disagrees with the screen it came from.
+  // The export follows what is on screen: Calendar and the Requests canvas have no type of their
+  // own and export every type; a grid tab exports exactly the types its filter admits. Anything
+  // else hands back a PDF that disagrees with the screen it came from.
   const exportTypes = useMemo(
     () => {
-      if (isCalendarTab) return orderedTypes;
+      if (isRequestCentricTab) return orderedTypes;
       return orderedTypes.filter((t) => selectedKeys.includes(t.key));
     },
-    [isCalendarTab, orderedTypes, selectedKeys],
+    [isRequestCentricTab, orderedTypes, selectedKeys],
   );
   // Names what the PDF will contain. The scheduler tab can span several placeable types, and
   // naming only the first would misdescribe the file. A filter that admits everything says so rather than
   // enumerating the whole catalogue, and three or more types read as a list, not as a chain of
   // "and"s.
   const exportScopeLabel =
-    isCalendarTab || exportTypes.length === orderedTypes.length
+    isRequestCentricTab || exportTypes.length === orderedTypes.length
       ? 'all resources'
       : joinNames(exportTypes.map((t) => t.displayNamePlural));
 
@@ -389,8 +395,9 @@ export function UtilizationPage() {
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
   // Conflict detection — backend is the single source of truth. Scope the registry to the visible
-  // window (Calendar/Space) so it never evaluates the whole tenant all-time. A type grid tab
-  // computes its own windowed conflicts, so skip the registry there entirely.
+  // window (Calendar/Stations/Requests) so it never evaluates the whole tenant all-time. A type
+  // grid tab computes its own windowed conflicts, so skip the registry there entirely. The
+  // Requests canvas colours its bars from it, so it stays on there.
   const { conflictsByRequest: conflicts } = useConflictRegistry({
     from: fetchWindow.from,
     to: fetchWindow.to,
@@ -414,6 +421,19 @@ export function UtilizationPage() {
   // prop: a box per grid would ask which of three identical boxes to type in, and could only ever
   // be labelled after one of the types.
   const [assetFilter, setAssetFilter] = useState<ResourceGridFilter>(EMPTY_RESOURCE_GRID_FILTER);
+
+  // The Requests canvas filters the same scheduled set the stations grid does, by the same three
+  // things, but with its own state: a search typed on one tab reappearing on another reads as
+  // the page forgetting what was asked of it.
+  const [requestsFilter, setRequestsFilter] = useState<ScheduleFilter>({
+    query: '',
+    statuses: REQUEST_STATUS_ORDER,
+    issues: ISSUE_FILTER_ORDER,
+  });
+  const visibleCanvasRequests = useMemo(
+    () => filterScheduledRequests(scheduled, requestsFilter, conflicts),
+    [scheduled, requestsFilter, conflicts],
+  );
 
   // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
   // status + conflict severity. Reuses the same scoped `scheduled` set as the grid.
@@ -801,6 +821,7 @@ export function UtilizationPage() {
     { value: 'calendar', label: 'Calendar' },
     { value: STATIONS_TAB, label: 'Stations' },
     { value: ASSETS_TAB, label: 'Assets' },
+    { value: REQUESTS_TAB, label: 'Requests' },
   ];
 
   // Scale + time navigation shared across every tab (the calendar is
@@ -809,7 +830,7 @@ export function UtilizationPage() {
   // controls wrap onto their own line under the title instead of a bespoke row.
   const schedulingControls = (
     <>
-      {autoScheduleAvailable && canEdit && !isCalendarTab && (
+      {autoScheduleAvailable && canEdit && !isRequestCentricTab && (
         <AutoScheduleButton
           onClick={handleAutoScheduleClick}
           loading={previewMutation.isPending}
@@ -1018,6 +1039,48 @@ export function UtilizationPage() {
                 </section>
               ))}
             </div>
+          </div>
+        </TabsContent>
+
+        {/* Requests — the same scheduled requests as rows instead of bars on resource rows: one
+            row per task, grouped under its parent, on the same time columns. Read-only: a bar
+            opens the request; scheduling stays on Stations and Calendar, whose rows are resources
+            and so can say where a drop lands. The canvas owns its zoom; the filter and key are the
+            page's, like the other tabs'. */}
+        <TabsContent
+          value={REQUESTS_TAB}
+          className="h-full overflow-hidden m-0 data-[state=inactive]:hidden"
+        >
+          <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-background">
+            <RequestCanvas
+              requests={visibleCanvasRequests}
+              lookup={requests}
+              conflicts={conflicts}
+              scale={scale}
+              anchorTs={anchorTs}
+              nowMs={nowMs}
+              siteId={selectedSiteId}
+              isLoading={requestsLoading}
+              offTimeRanges={offTimeRanges}
+              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+              workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
+              workingDayStart={schedulingSettings?.workingDayStart}
+              workingDayEnd={schedulingSettings?.workingDayEnd}
+              // Same split as the stations grid: on desktop a click on a red bar shows the
+              // conflict detail and opens the editor otherwise; on phone a tap goes straight
+              // to the editor, whose banner carries the same detail.
+              onRequestClick={isPhone ? handleRequestDoubleClick : handleRequestClick}
+              onRequestDoubleClick={handleRequestDoubleClick}
+              legend={!isPhone && <StationGridLegend />}
+              filterBar={
+                <ScheduleFilterBar
+                  value={requestsFilter}
+                  onChange={(patch) => setRequestsFilter((current) => ({ ...current, ...patch }))}
+                  matchCount={visibleCanvasRequests.length}
+                  totalCount={scheduled.length}
+                />
+              }
+            />
           </div>
         </TabsContent>
 

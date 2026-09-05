@@ -9,7 +9,7 @@ const columns: TimeColumn[] = [
 ];
 
 function getCells(container: HTMLElement): HTMLElement[] {
-  return Array.from(container.querySelectorAll<HTMLElement>('[class*="min-w-[60px]"]'));
+  return Array.from(container.querySelectorAll<HTMLElement>('[data-column-cell]'));
 }
 
 describe('TimelineRow cell interactivity', () => {
@@ -94,5 +94,27 @@ describe('TimelineRow off-time labelling', () => {
     // A destructive tint here put closed time and overbooking in one colour.
     expect(getCells(container)[0].className).not.toContain('--destructive');
     expect(getCells(container)[0].className).toContain('--muted-foreground');
+  });
+});
+
+describe('TimelineRow column width', () => {
+  // The header and the body draw their columns separately; both take the same minimum width so
+  // a zoomed canvas keeps its body cells under its header cells.
+  it('gives every cell the 60px minimum the grids always had', () => {
+    const { container } = render(<TimelineRow rowId="r1" columns={columns} label="Row" />);
+    for (const cell of getCells(container)) {
+      expect(cell.style.minWidth).toBe('60px');
+    }
+  });
+
+  it('widens every cell to columnMinWidthPx, clickable or not', () => {
+    const { container } = render(
+      <TimelineRow rowId="r1" columns={columns} label="Row" columnMinWidthPx={90} onCellClick={vi.fn()} />,
+    );
+    const cells = getCells(container);
+    expect(cells).toHaveLength(columns.length);
+    for (const cell of cells) {
+      expect(cell.style.minWidth).toBe('90px');
+    }
   });
 });

@@ -73,3 +73,29 @@ describe('TimelineGridShell', () => {
     expect(clicked!.label).toBe('09:00');
   });
 });
+
+describe('TimelineGridShell column width', () => {
+  beforeEach(() => {
+    useAppStore.setState({ collapsedGroupIds: [] });
+  });
+
+  it('defaults header cells to the 60px minimum', () => {
+    const { container } = renderShell();
+    const headerCells = container.querySelectorAll<HTMLElement>('[data-column-cell]');
+    expect(headerCells).toHaveLength(columns.length);
+    for (const cell of headerCells) {
+      expect(cell.style.minWidth).toBe('60px');
+    }
+  });
+
+  it('widens header cells and anchors each row to the zoomed column width', () => {
+    const { container } = renderShell({ columnMinWidthPx: 120 });
+    for (const cell of container.querySelectorAll<HTMLElement>('[data-column-cell]')) {
+      expect(cell.style.minWidth).toBe('120px');
+    }
+    // 208px label column + 3 columns at 120px: the row must span the whole horizontal scroll
+    // or its gridlines stop at the viewport edge while the header keeps going.
+    const rowWrapper = screen.getByTestId('row-r1').parentElement as HTMLElement;
+    expect(rowWrapper.style.minWidth).toBe(`${208 + 3 * 120}px`);
+  });
+});

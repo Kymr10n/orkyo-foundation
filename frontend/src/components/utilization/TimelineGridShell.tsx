@@ -8,6 +8,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 import { GroupHeader } from "./GroupHeader";
+import { DEFAULT_COLUMN_MIN_WIDTH_PX } from "./TimelineRow";
 
 /**
  * Shared presentational shell for both utilization grids (Spaces + People).
@@ -26,11 +27,14 @@ import { GroupHeader } from "./GroupHeader";
 // to the scroll *viewport* width — on a narrow screen the row's border-b, tints
 // and hover then truncate at the viewport edge while the columns scroll on past
 // it, so the grid lines "disappear". Anchoring every row to the full column
-// width (label + all columns at their min width) fixes it. These MUST stay in
-// sync with TimelineRow's `w-52` label cell and `min-w-[60px]` column cells (and
-// the header row in this file).
+// width (label + all columns at their min width) fixes it. The label width MUST
+// stay in sync with TimelineRow's `w-52` label cell; the column min width is the
+// `columnMinWidthPx` prop, which the caller passes to both this shell and every
+// TimelineRow it renders (default 60px, the width every grid always had). The
+// Requests canvas raises it to zoom: wider minimums overflow the body scroller,
+// and the header follows through the scroll sync below.
 const LABEL_COL_PX = 208; // w-52
-const MIN_COL_PX = 60; // min-w-[60px]
+const MIN_COL_PX = DEFAULT_COLUMN_MIN_WIDTH_PX;
 
 export interface ShellGroup<R> {
   id: string;
@@ -61,6 +65,12 @@ interface TimelineGridShellProps<R> {
   /** Show a loading indicator in the body instead of emptyMessage / rows. */
   isLoading?: boolean;
   /**
+   * Per-column minimum width in px (default 60). Header cells and the row anchor width both
+   * follow it, so a caller that raises it (the Requests canvas zoom) must pass the same value to
+   * the TimelineRows it renders, or body and header columns drift apart.
+   */
+  columnMinWidthPx?: number;
+  /**
    * Outer container className override. The default makes the shell a flex child that owns exactly
    * one scroll region: its header row stays put and only the rows below scroll. Both utilization
    * grids use it as-is; overriding it with a fixed height is what produces a second scroller.
@@ -83,6 +93,7 @@ export function TimelineGridShell<R>({
   bodyOverlay,
   toolbar,
   isLoading = false,
+  columnMinWidthPx = MIN_COL_PX,
   className = "flex-1 flex flex-col overflow-hidden bg-background",
   testId,
 }: TimelineGridShellProps<R>) {
@@ -173,9 +184,9 @@ export function TimelineGridShell<R>({
           top: 0,
           // width:100% fills wide viewports; minWidth anchors the row to the full
           // column width so grid lines/tints span the whole horizontal scroll on
-          // narrow screens (see LABEL_COL_PX/MIN_COL_PX note above).
+          // narrow screens (see LABEL_COL_PX/columnMinWidthPx note above).
           width: '100%',
-          minWidth: `${LABEL_COL_PX + columns.length * MIN_COL_PX}px`,
+          minWidth: `${LABEL_COL_PX + columns.length * columnMinWidthPx}px`,
           transform: `translateY(${vItem.start}px)`,
         }}
       >
@@ -212,9 +223,11 @@ export function TimelineGridShell<R>({
             {columns.map((col, i) => (
               <div
                 key={col.start.getTime()}
-                className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground ${
+                data-column-cell
+                className={`flex-1 px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground ${
                   onColumnHeaderClick ? "cursor-pointer hover:bg-accent/50" : ""
                 } ${columnHeaders[i].tint}`}
+                style={{ minWidth: `${columnMinWidthPx}px` }}
                 title={columnHeaders[i].title}
                 onClick={onColumnHeaderClick ? () => onColumnHeaderClick(col) : undefined}
               >
