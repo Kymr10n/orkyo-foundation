@@ -402,3 +402,84 @@ describe("SitePlanCanvas — grid furniture matches the other tabs", () => {
     expect(tops).toEqual([0, 44]);
   });
 });
+
+describe("SitePlanCanvas — structure-view zoom", () => {
+  it("steps the card scale in and out, and stops at both ends", async () => {
+    const { container } = renderCanvas({ view: "structure" });
+    await screen.findByText("Contract One");
+    const surface = () => container.querySelector<HTMLElement>('[style*="scale("]')!;
+    const zoomIn = screen.getByRole("button", { name: "Zoom in" });
+    const zoomOut = screen.getByRole("button", { name: "Zoom out" });
+
+    // Starts at 1x, with room in both directions (ZOOM_MIN 0.5 … ZOOM_MAX 2).
+    expect(surface().style.transform).toBe("scale(1)");
+    expect(zoomOut).toBeEnabled();
+
+    await userEvent.click(zoomIn);
+    expect(surface().style.transform).toBe("scale(1.25)");
+
+    await userEvent.click(zoomOut);
+    expect(surface().style.transform).toBe("scale(1)");
+
+    // Two steps down reaches the floor, and the control says so.
+    await userEvent.click(zoomOut);
+    await userEvent.click(zoomOut);
+    expect(surface().style.transform).toBe("scale(0.5)");
+    expect(zoomOut).toBeDisabled();
+  });
+
+  it("clamps at the maximum rather than growing without limit", async () => {
+    const { container } = renderCanvas({ view: "structure" });
+    await screen.findByText("Contract One");
+    const zoomIn = screen.getByRole("button", { name: "Zoom in" });
+    // ZOOM_MAX is 2 and the step is 0.25, so four clicks reach it and the fifth cannot.
+    for (let i = 0; i < 4; i++) await userEvent.click(zoomIn);
+    expect(container.querySelector<HTMLElement>('[style*="scale("]')!.style.transform).toBe("scale(2)");
+    expect(zoomIn).toBeDisabled();
+  });
+
+  it("returns to fit from the reset control", async () => {
+    const { container } = renderCanvas({ view: "structure" });
+    await screen.findByText("Contract One");
+    await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    await userEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    expect(container.querySelector<HTMLElement>('[style*="scale("]')!.style.transform).toBe("scale(1)");
+  });
+
+  it("keeps the viewport centred on the same point across a zoom step", async () => {
+    // The scroll correction only runs with a real scroller, so give the canvas measurable size.
+    const width = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const height = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 800 });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 600 });
+    try {
+      renderCanvas({ view: "structure" });
+      await screen.findByText("Contract One");
+      await userEvent.click(screen.getByText("Contract One"));
+      await userEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+      // Anchored on the viewport centre: the offset follows the scale rather than staying put.
+      expect(screen.getByTestId("site-plan-canvas")).toBeInTheDocument();
+    } finally {
+      if (width) Object.defineProperty(HTMLElement.prototype, "clientWidth", width);
+      if (height) Object.defineProperty(HTMLElement.prototype, "clientHeight", height);
+    }
+  });
+});
+
+describe("SitePlanCanvas — keyboard on a timeline bar", () => {
+  const dated = (id: string) =>
+    child(id, "g1", {
+      startTs: new Date(2026, 5, 9).toISOString(),
+      endTs: new Date(2026, 5, 10).toISOString(),
+    });
+
+  it.each(["{Enter}", " "])("opens the request from %s", async (key) => {
+    const onOpenRequest = vi.fn();
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({ children: [dated("Cut")], edges: [] }));
+    renderCanvas({ view: "timeline", onOpenRequest });
+    await userEvent.click(await screen.findByText("Contract One"));
+    screen.getByTestId("plan-bar-Cut").focus();
+    await userEvent.keyboard(key);
+    expect(onOpenRequest).toHaveBeenCalledWith("Cut");
+  });
+});

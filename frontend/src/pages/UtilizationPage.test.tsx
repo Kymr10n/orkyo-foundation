@@ -4,6 +4,15 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
+import type * as ReactRouter from "react-router";
+
+// The page navigates on two canvas callbacks; assert the destinations rather than the
+// router's internal history. MemoryRouter still provides the rest of the routing context.
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock("react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactRouter>()),
+  useNavigate: () => mockNavigate,
+}));
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
@@ -347,8 +356,19 @@ vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
 // The canvas is its own tested surface; the page tests only its wiring: which view is
 // requested and whether the time controls follow it.
 vi.mock("@foundation/src/components/requests/plan/SitePlanCanvas", () => ({
-  SitePlanCanvas: ({ view }: { view: string }) => (
-    <div data-testid="site-plan-canvas-stub" data-view={view} />
+  SitePlanCanvas: ({
+    view,
+    onOpenRequest,
+    onOpenGroupPlanner,
+  }: {
+    view: string;
+    onOpenRequest: (id: string) => void;
+    onOpenGroupPlanner: (id: string) => void;
+  }) => (
+    <div data-testid="site-plan-canvas-stub" data-view={view}>
+      <button onClick={() => onOpenRequest("req-9")}>stub-open-request</button>
+      <button onClick={() => onOpenGroupPlanner("grp-9")}>stub-open-planner</button>
+    </div>
   ),
 }));
 
@@ -1610,5 +1630,25 @@ describe("Requests tab — canvas views and time controls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
     expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+});
+
+describe("Requests tab — where the canvas sends you", () => {
+  // The canvas shows tasks from any point in time, so both routes are deep links rather
+  // than anything resolved from the page's in-memory feeds.
+  it("opens a task in the request editor", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    await screen.findByTestId("site-plan-canvas-stub");
+    fireEvent.click(screen.getByText("stub-open-request"));
+    expect(mockNavigate).toHaveBeenCalledWith("/requests?edit=req-9");
+  });
+
+  it("sends a band's Sequence action to that group's planner", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    await screen.findByTestId("site-plan-canvas-stub");
+    fireEvent.click(screen.getByText("stub-open-planner"));
+    expect(mockNavigate).toHaveBeenCalledWith("/requests/grp-9/plan");
   });
 });
