@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
 import { SitePlanCanvas } from "./SitePlanCanvas";
@@ -122,7 +122,8 @@ describe("SitePlanCanvas", () => {
     expect(container.querySelectorAll("svg g").length).toBe(0);
 
     await userEvent.click(screen.getByText("Contract Two"));
-    await waitFor(() => expect(container.querySelectorAll("svg g").length).toBe(1));
+    // No waitFor: the click is awaited, so React has already flushed the expansion.
+    expect(container.querySelectorAll("svg g").length).toBe(1);
   });
 
   it("counts an edge into a collapsed band on the visible node instead of hiding it", async () => {
@@ -244,7 +245,7 @@ describe("SitePlanCanvas — timeline view", () => {
     const { container } = renderCanvas({ view: "timeline" });
     await userEvent.click(await screen.findByText("Contract One"));
     await userEvent.click(screen.getByText("Contract Two"));
-    await waitFor(() => expect(container.querySelectorAll("svg g").length).toBe(1));
+    expect(container.querySelectorAll("svg g").length).toBe(1);
   });
 
   it("draws no edge to an undated task", async () => {

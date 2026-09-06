@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, MemoryRouter } from 'react-router';
@@ -255,6 +255,14 @@ const createWrapper = () => {
 };
 
 describe('RequestsPage', () => {
+  // Restoring the clock in teardown rather than at the end of a test body, so a fake-timer
+  // test that fails part-way cannot leave the clock faked for whatever runs next. Measured:
+  // with shouldAdvanceTime the leak does not currently cascade, so this is hygiene against a
+  // future test that fakes timers without it — not a fix for an observed failure.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetRequests.mockResolvedValue([]);
@@ -383,7 +391,6 @@ describe('RequestsPage', () => {
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   it('shows adjust search message when search yields no results', async () => {
@@ -399,7 +406,6 @@ describe('RequestsPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'zzz' } });
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText(/try adjusting your search/i)).toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   // --- View mode toggle ---
