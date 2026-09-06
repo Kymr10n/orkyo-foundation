@@ -26,6 +26,7 @@ import {
   PLAN_NODE_WIDTH,
 } from "@foundation/src/domain/plan-layout";
 import { PlanEdgeLayer } from "./PlanEdgeLayer";
+import { collectViolatingEdgeIds } from "./plan-conflicts";
 import { PlanNodeCard } from "./PlanNodeCard";
 import { PlanBacklogTray } from "./PlanBacklogTray";
 
@@ -82,22 +83,11 @@ export function RequestPlanPanel({
     staleTime: STALE.OPERATIONAL,
   });
 
-  // Edges the conflict engine says this plan violates, so the drawing agrees with the Conflicts
-  // page instead of showing a tidy graph over work the server has already flagged.
   const { conflictsByRequest } = useConflictRegistry();
-  const violatingEdgeIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const edge of data?.edges ?? []) {
-      const conflicts = conflictsByRequest.get(edge.successorRequestId) ?? [];
-      // A join-condition shortfall names no peer — it is a property of the whole incoming set —
-      // so it marks every edge into that successor.
-      if (conflicts.some((c) =>
-        c.kind === "dependency_violation"
-        && (c.peerRequestId === edge.predecessorRequestId || !c.peerRequestId)
-      )) ids.add(edge.id);
-    }
-    return ids;
-  }, [data?.edges, conflictsByRequest]);
+  const violatingEdgeIds = useMemo(
+    () => collectViolatingEdgeIds(data?.edges ?? [], conflictsByRequest),
+    [data?.edges, conflictsByRequest],
+  );
 
   // The canvas draws what is sequenced plus what the user has staged; the tray holds the rest.
   const { sequenced, unsequenced } = useMemo(
@@ -126,6 +116,15 @@ export function RequestPlanPanel({
 
   const nodesById = useMemo(
     () => new Map(layout.nodes.map((n) => [n.id, n])),
+    [layout.nodes],
+  );
+
+  // The edge layer speaks rects, so it can also serve bars of task-dependent width (the site
+  // canvas's timeline view); here every rect is a fixed-size card.
+  const rectsById = useMemo(
+    () => new Map(layout.nodes.map((n) => [
+      n.id, { x: n.x, y: n.y, width: PLAN_NODE_WIDTH, height: PLAN_NODE_HEIGHT },
+    ])),
     [layout.nodes],
   );
 
@@ -432,7 +431,7 @@ export function RequestPlanPanel({
             >
               <PlanEdgeLayer
                 edges={data.edges}
-                nodesById={nodesById}
+                rectsById={rectsById}
                 width={layout.width}
                 height={layout.height}
                 selectedEdgeId={selectedEdgeId}

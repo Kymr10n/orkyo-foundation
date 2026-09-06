@@ -167,10 +167,10 @@ function renderRow({
   return { ...result, onRequestClick };
 }
 
-// Cells are plain presentational divs (`data-column-cell`) rendered by TimelineRow.
+// Cells are plain presentational divs (`min-w-[60px]`) rendered by TimelineRow.
 function getCells(container: HTMLElement): HTMLElement[] {
   return Array.from(
-    container.querySelectorAll<HTMLElement>('[data-column-cell]'),
+    container.querySelectorAll<HTMLElement>('[class*="min-w-[60px]"]'),
   );
 }
 

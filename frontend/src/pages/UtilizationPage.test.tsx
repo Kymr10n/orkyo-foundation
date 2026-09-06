@@ -6,7 +6,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
@@ -254,29 +253,6 @@ vi.mock("@foundation/src/components/utilization/ResourceUtilizationGrid", () => 
   ),
 }));
 
-// The canvas is a surface of its own (RequestCanvas.test.tsx); here only the page's wiring into
-// it matters — which requests it gets, which handlers, and that the key and filter bar it is
-// handed are the real ones.
-vi.mock("@foundation/src/components/utilization/RequestCanvas", () => ({
-  RequestCanvas: ({ requests, lookup, isLoading, onRequestClick, onRequestDoubleClick, legend, filterBar }: any) => (
-    <div
-      data-testid="request-canvas"
-      data-request-names={(requests ?? []).map((r: any) => r.name).join(",")}
-      data-lookup-count={String((lookup ?? []).length)}
-      data-loading={String(isLoading)}
-    >
-      {legend}
-      {filterBar}
-      {onRequestClick && (
-        <button data-testid="canvas-click-request" onClick={() => onRequestClick("r1", { x: 10, y: 20 })}>Click</button>
-      )}
-      {onRequestDoubleClick && (
-        <button data-testid="canvas-dblclick-request" onClick={() => onRequestDoubleClick("r1")}>DblClick</button>
-      )}
-    </div>
-  ),
-}));
-
 vi.mock("@foundation/src/components/utilization/ScaleSelect", () => ({
   ScaleSelect: () => <div data-testid="scale-select" />,
 }));
@@ -366,6 +342,14 @@ vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
     capturedChooserBacklog = backlog;
     return open ? <div data-testid="slot-chooser" data-resource-name={resourceName ?? ""} /> : null;
   },
+}));
+
+// The canvas is its own tested surface; the page tests only its wiring: which view is
+// requested and whether the time controls follow it.
+vi.mock("@foundation/src/components/requests/plan/SitePlanCanvas", () => ({
+  SitePlanCanvas: ({ view }: { view: string }) => (
+    <div data-testid="site-plan-canvas-stub" data-view={view} />
+  ),
 }));
 
 // The scheduler tab is identified by its surface now, not by the space type key.
@@ -1405,151 +1389,6 @@ describe("UtilizationPage", () => {
     fireEvent.click(screen.getByTestId("auto-schedule-btn"));
     expect(mockPreviewMutateAsync).not.toHaveBeenCalled();
   });
-  describe("requests canvas tab", () => {
-    const twoScheduled = [
-      { id: "r1", name: "Fabricate frame", status: "new", assignments: [] },
-      {
-        id: "r2",
-        name: "Finish weld",
-        status: "new",
-        startTs: "2020-01-01T09:00:00Z",
-        endTs: "2020-01-01T11:00:00Z",
-        assignments: [],
-      },
-    ];
-
-    it("is a fourth fixed tab that a deep link lands on", async () => {
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      expect(screen.getByRole("tab", { name: "Requests" })).toHaveAttribute("data-state", "active");
-      expect(screen.getByTestId("request-canvas")).toBeInTheDocument();
-      // A known tab is never "corrected" back to Calendar.
-      await waitFor(() => expect(window.location.search).not.toContain("calendar"));
-    });
-
-    it("hands the canvas the scheduled requests plus the full lookup set", () => {
-      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
-      mockUseBacklog.mockReturnValue({ data: [{ id: "b1", name: "Backlog item", status: "new", assignments: [] }], isLoading: false });
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      const canvas = screen.getByTestId("request-canvas");
-      expect(canvas).toHaveAttribute("data-request-names", "Fabricate frame,Finish weld");
-      // Parent names may come from the backlog too, so the lookup is the union.
-      expect(canvas).toHaveAttribute("data-lookup-count", "3");
-    });
-
-    it("shows the canvas only on its own tab", () => {
-      const Wrapper = createWrapper("stations");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-      expect(screen.queryByTestId("request-canvas")).not.toBeInTheDocument();
-    });
-
-    it("passes the loading state through", () => {
-      mockUseRequests.mockReturnValue({ data: [], isLoading: true });
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-      expect(screen.getByTestId("request-canvas")).toHaveAttribute("data-loading", "true");
-    });
-
-    it("shows the stations key on desktop and drops it on phone", () => {
-      const Wrapper = createWrapper("requests");
-      const { unmount } = render(<Wrapper><UtilizationPage /></Wrapper>);
-      expect(screen.getByText("Assigned")).toBeInTheDocument();
-      expect(screen.getByText("Overbooked")).toBeInTheDocument();
-      expect(screen.getByText("Off-time")).toBeInTheDocument();
-      unmount();
-
-      mockIsPhone = true;
-      const PhoneWrapper = createWrapper("requests");
-      render(<PhoneWrapper><UtilizationPage /></PhoneWrapper>);
-      expect(screen.queryByText("Off-time")).not.toBeInTheDocument();
-    });
-
-    it("narrows the canvas to the search", async () => {
-      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      await userEvent.type(screen.getByLabelText("Search requests"), "weld");
-
-      await waitFor(() =>
-        expect(screen.getByTestId("request-canvas")).toHaveAttribute("data-request-names", "Finish weld"),
-      );
-    });
-
-    it("narrows the canvas by status", async () => {
-      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      await userEvent.click(screen.getByRole("button", { name: "Filter by status" }));
-      await userEvent.click(await screen.findByRole("menuitem", { name: "Done" }));
-
-      await waitFor(() =>
-        expect(screen.getByTestId("request-canvas")).toHaveAttribute("data-request-names", "Fabricate frame"),
-      );
-    });
-
-    it("opens the editor from a bar's double-click", async () => {
-      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      fireEvent.click(screen.getByTestId("canvas-dblclick-request"));
-
-      await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
-    });
-
-    it("opens the editor from a click on a bar with nothing wrong", async () => {
-      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      fireEvent.click(screen.getByTestId("canvas-click-request"));
-
-      await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
-    });
-
-    it("answers a click on a conflicted bar with the conflict detail, not the editor", async () => {
-      mockUseRequests.mockReturnValue({ data: twoScheduled, isLoading: false });
-      vi.mocked(useConflictRegistry).mockReturnValue({
-        conflictsByRequest: new Map([
-          ["r1", [{ id: "c1", kind: "overlap", severity: "error", message: "Overlaps Finish weld" }]],
-        ]),
-      } as any);
-      try {
-        const Wrapper = createWrapper("requests");
-        render(<Wrapper><UtilizationPage /></Wrapper>);
-
-        fireEvent.click(screen.getByTestId("canvas-click-request"));
-
-        expect(await screen.findByLabelText("Conflicts on Fabricate frame")).toBeInTheDocument();
-        expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
-      } finally {
-        vi.mocked(useConflictRegistry).mockReturnValue({ conflictsByRequest: new Map() } as any);
-      }
-    });
-
-    it("keeps the conflict registry on, scoped to the window", () => {
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-      expect(vi.mocked(useConflictRegistry)).toHaveBeenCalledWith(
-        expect.objectContaining({ enabled: true }),
-      );
-    });
-
-    it("offers no auto-schedule and exports every type, like the calendar", async () => {
-      mockUseAutoScheduleAvailable.mockReturnValue(true);
-      const Wrapper = createWrapper("requests");
-      render(<Wrapper><UtilizationPage /></Wrapper>);
-
-      // The canvas has no type of its own, so there is nothing for one solver run to solve.
-      expect(screen.queryByTestId("auto-schedule-btn")).not.toBeInTheDocument();
-      expect(capturedExportOffer?.label).toBe("Utilization (all resources)");
-    });
-  });
 });
 
 describe("time navigation", () => {
@@ -1750,5 +1589,26 @@ describe("time navigation", () => {
       });
     });
   });
+});
 
+describe("Requests tab — canvas views and time controls", () => {
+  it("defaults to the timeline view with the time controls showing", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    const stub = await screen.findByTestId("site-plan-canvas-stub");
+    expect(stub).toHaveAttribute("data-view", "timeline");
+    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+
+  it("switching to Structure hides the time controls — that view has no time axis", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    await screen.findByTestId("site-plan-canvas-stub");
+    fireEvent.click(screen.getByRole("button", { name: "Structure" }));
+    expect(screen.getByTestId("site-plan-canvas-stub")).toHaveAttribute("data-view", "structure");
+    expect(screen.queryByTestId("time-navigator")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
 });

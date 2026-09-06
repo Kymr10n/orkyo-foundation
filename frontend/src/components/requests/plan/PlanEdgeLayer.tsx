@@ -1,14 +1,23 @@
 import { memo } from "react";
 import type { RequestDependency } from "@foundation/src/lib/api/request-dependency-api";
-import type { PlanLayoutNode } from "@foundation/src/domain/plan-layout";
-import { PLAN_NODE_HEIGHT, PLAN_NODE_WIDTH } from "@foundation/src/domain/plan-layout";
 
-/** Where an edge leaves a node (its right side) and where it arrives (the next node's left). */
-function exitPoint(node: PlanLayoutNode) {
-  return { x: node.x + PLAN_NODE_WIDTH, y: node.y + PLAN_NODE_HEIGHT / 2 };
+/**
+ * The box an edge connects to. Structure views pass fixed-size card rects; the timeline passes
+ * bars whose width is the task's duration — the layer only cares about the sides.
+ */
+export interface PlanRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
-function entryPoint(node: PlanLayoutNode) {
-  return { x: node.x, y: node.y + PLAN_NODE_HEIGHT / 2 };
+
+/** Where an edge leaves a rect (its right side) and where it arrives (the next rect's left). */
+function exitPoint(rect: PlanRect) {
+  return { x: rect.x + rect.width, y: rect.y + rect.height / 2 };
+}
+function entryPoint(rect: PlanRect) {
+  return { x: rect.x, y: rect.y + rect.height / 2 };
 }
 
 /**
@@ -32,7 +41,7 @@ const ARROWHEAD_ID = "plan-edge-arrowhead";
  */
 export const PlanEdgeLayer = memo(function PlanEdgeLayer({
   edges,
-  nodesById,
+  rectsById,
   width,
   height,
   selectedEdgeId,
@@ -41,7 +50,7 @@ export const PlanEdgeLayer = memo(function PlanEdgeLayer({
   pendingEdge,
 }: {
   edges: readonly RequestDependency[];
-  nodesById: ReadonlyMap<string, PlanLayoutNode>;
+  rectsById: ReadonlyMap<string, PlanRect>;
   width: number;
   height: number;
   selectedEdgeId: string | null;
@@ -73,8 +82,8 @@ export const PlanEdgeLayer = memo(function PlanEdgeLayer({
       </defs>
 
       {edges.map((edge) => {
-        const from = nodesById.get(edge.predecessorRequestId);
-        const to = nodesById.get(edge.successorRequestId);
+        const from = rectsById.get(edge.predecessorRequestId);
+        const to = rectsById.get(edge.successorRequestId);
         if (!from || !to) return null;
 
         const isSelected = edge.id === selectedEdgeId;

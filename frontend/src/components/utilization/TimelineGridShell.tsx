@@ -1,5 +1,4 @@
 import { useRef, useMemo, type ReactNode } from "react";
-import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -8,7 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 import { GroupHeader } from "./GroupHeader";
-import { DEFAULT_COLUMN_MIN_WIDTH_PX } from "./TimelineRow";
+import { columnHeaderTintClass, columnHeaderTitle } from "./TimelineRow";
 
 /**
  * Shared presentational shell for both utilization grids (Spaces + People).
@@ -27,14 +26,11 @@ import { DEFAULT_COLUMN_MIN_WIDTH_PX } from "./TimelineRow";
 // to the scroll *viewport* width — on a narrow screen the row's border-b, tints
 // and hover then truncate at the viewport edge while the columns scroll on past
 // it, so the grid lines "disappear". Anchoring every row to the full column
-// width (label + all columns at their min width) fixes it. The label width MUST
-// stay in sync with TimelineRow's `w-52` label cell; the column min width is the
-// `columnMinWidthPx` prop, which the caller passes to both this shell and every
-// TimelineRow it renders (default 60px, the width every grid always had). The
-// Requests canvas raises it to zoom: wider minimums overflow the body scroller,
-// and the header follows through the scroll sync below.
+// width (label + all columns at their min width) fixes it. These MUST stay in
+// sync with TimelineRow's `w-52` label cell and `min-w-[60px]` column cells (and
+// the header row in this file).
 const LABEL_COL_PX = 208; // w-52
-const MIN_COL_PX = DEFAULT_COLUMN_MIN_WIDTH_PX;
+const MIN_COL_PX = 60; // min-w-[60px]
 
 export interface ShellGroup<R> {
   id: string;
@@ -65,12 +61,6 @@ interface TimelineGridShellProps<R> {
   /** Show a loading indicator in the body instead of emptyMessage / rows. */
   isLoading?: boolean;
   /**
-   * Per-column minimum width in px (default 60). Header cells and the row anchor width both
-   * follow it, so a caller that raises it (the Requests canvas zoom) must pass the same value to
-   * the TimelineRows it renders, or body and header columns drift apart.
-   */
-  columnMinWidthPx?: number;
-  /**
    * Outer container className override. The default makes the shell a flex child that owns exactly
    * one scroll region: its header row stays put and only the rows below scroll. Both utilization
    * grids use it as-is; overriding it with a fixed height is what produces a second scroller.
@@ -93,7 +83,6 @@ export function TimelineGridShell<R>({
   bodyOverlay,
   toolbar,
   isLoading = false,
-  columnMinWidthPx = MIN_COL_PX,
   className = "flex-1 flex flex-col overflow-hidden bg-background",
   testId,
 }: TimelineGridShellProps<R>) {
@@ -141,21 +130,13 @@ export function TimelineGridShell<R>({
   // Per-column tint + tooltip title, precomputed once per column/scale change.
   // The title's date-fns format() was previously called for every column on
   // every render of the shell.
-  const columnHeaders = useMemo(() => {
-    const opts: Intl.DateTimeFormatOptions =
-      scale === "day" || scale === "hour"
-        ? { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE }
-        : { weekday: "long", month: "long", day: "numeric", year: "numeric" };
-    return columns.map((col) => ({
-      tint:
-        col.isWeekend || col.isGlobalOffTime
-          ? "bg-destructive/10 text-destructive"
-          : col.isOutsideWorkingHours
-          ? "bg-muted/80"
-          : "",
-      title: formatLocalized(col.start, opts),
-    }));
-  }, [columns, scale]);
+  const columnHeaders = useMemo(
+    () => columns.map((col) => ({
+      tint: columnHeaderTintClass(col),
+      title: columnHeaderTitle(col, scale),
+    })),
+    [columns, scale],
+  );
 
   // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -184,9 +165,9 @@ export function TimelineGridShell<R>({
           top: 0,
           // width:100% fills wide viewports; minWidth anchors the row to the full
           // column width so grid lines/tints span the whole horizontal scroll on
-          // narrow screens (see LABEL_COL_PX/columnMinWidthPx note above).
+          // narrow screens (see LABEL_COL_PX/MIN_COL_PX note above).
           width: '100%',
-          minWidth: `${LABEL_COL_PX + columns.length * columnMinWidthPx}px`,
+          minWidth: `${LABEL_COL_PX + columns.length * MIN_COL_PX}px`,
           transform: `translateY(${vItem.start}px)`,
         }}
       >
@@ -223,11 +204,9 @@ export function TimelineGridShell<R>({
             {columns.map((col, i) => (
               <div
                 key={col.start.getTime()}
-                data-column-cell
-                className={`flex-1 px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground ${
+                className={`flex-1 min-w-[60px] px-3 py-2 border-r text-center text-xs font-medium text-muted-foreground ${
                   onColumnHeaderClick ? "cursor-pointer hover:bg-accent/50" : ""
                 } ${columnHeaders[i].tint}`}
-                style={{ minWidth: `${columnMinWidthPx}px` }}
                 title={columnHeaders[i].title}
                 onClick={onColumnHeaderClick ? () => onColumnHeaderClick(col) : undefined}
               >

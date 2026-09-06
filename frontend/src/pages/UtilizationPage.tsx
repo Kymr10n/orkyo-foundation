@@ -10,11 +10,10 @@ import {
   type ResourceGridFilter,
 } from "@foundation/src/components/utilization/resource-grid-filter";
 import {
-  ISSUE_FILTER_ORDER,
+  DEFAULT_SCHEDULE_FILTER,
   filterScheduledRequests,
   type ScheduleFilter,
 } from "@foundation/src/components/utilization/schedule-filter";
-import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
 import { useTypeFilter } from "@foundation/src/hooks/useTypeFilter";
 import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerGrid";
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
@@ -37,10 +36,11 @@ import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/useP
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
+import { Button } from "@foundation/src/components/ui/button";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { ResourceUtilizationGrid } from "@foundation/src/components/utilization/ResourceUtilizationGrid";
-import { RequestCanvas } from "@foundation/src/components/utilization/RequestCanvas";
+import { SitePlanCanvas, type SitePlanView } from "@foundation/src/components/requests/plan/SitePlanCanvas";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
@@ -78,6 +78,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { CalendarOff } from "lucide-react";
 import {
@@ -124,6 +125,7 @@ export function UtilizationPage() {
   // Viewers get a read-only grid: with no canEdit, attach no drag sensors so
   // scheduling/reorder drags can't be initiated at all (writes also 403 server-side).
   const canEdit = useCanEdit();
+  const navigate = useNavigate();
 
   // Separate mouse + touch sensors so tap-to-open and drag-to-reschedule coexist
   // on every device. Mouse: 8px of movement before a drag (plain clicks open the
@@ -219,6 +221,11 @@ export function UtilizationPage() {
   useEffect(() => {
     if (resourceTypesLoaded && !isKnownTab) handleTabChange('calendar');
   }, [resourceTypesLoaded, isKnownTab, handleTabChange]);
+
+  // The Requests tab's two views over one canvas: Timeline (bars on the date grid, the
+  // default) and Structure (dependency depth). Owned here because the time controls in the
+  // header only make sense while the timeline is showing.
+  const [requestsView, setRequestsView] = useState<SitePlanView>('timeline');
 
   const isCalendarTab = activeTab === 'calendar';
   const isSchedulerTab = activeTab === STATIONS_TAB;
@@ -407,11 +414,7 @@ export function UtilizationPage() {
 
   // Search and filters for the stations grid. Local, like the calendar's: a query changes on every
   // keystroke, and writing that to the address bar would bury real navigation under typing history.
-  const [stationFilter, setStationFilter] = useState<ScheduleFilter>({
-    query: '',
-    statuses: REQUEST_STATUS_ORDER,
-    issues: ISSUE_FILTER_ORDER,
-  });
+  const [stationFilter, setStationFilter] = useState<ScheduleFilter>(DEFAULT_SCHEDULE_FILTER);
   const visibleScheduled = useMemo(
     () => filterScheduledRequests(scheduled, stationFilter, conflicts),
     [scheduled, stationFilter, conflicts],
@@ -421,19 +424,6 @@ export function UtilizationPage() {
   // prop: a box per grid would ask which of three identical boxes to type in, and could only ever
   // be labelled after one of the types.
   const [assetFilter, setAssetFilter] = useState<ResourceGridFilter>(EMPTY_RESOURCE_GRID_FILTER);
-
-  // The Requests canvas filters the same scheduled set the stations grid does, by the same three
-  // things, but with its own state: a search typed on one tab reappearing on another reads as
-  // the page forgetting what was asked of it.
-  const [requestsFilter, setRequestsFilter] = useState<ScheduleFilter>({
-    query: '',
-    statuses: REQUEST_STATUS_ORDER,
-    issues: ISSUE_FILTER_ORDER,
-  });
-  const visibleCanvasRequests = useMemo(
-    () => filterScheduledRequests(scheduled, requestsFilter, conflicts),
-    [scheduled, requestsFilter, conflicts],
-  );
 
   // Calendar tab: scheduled requests projected to FullCalendar events, coloured by
   // status + conflict severity. Reuses the same scoped `scheduled` set as the grid.
@@ -837,16 +827,22 @@ export function UtilizationPage() {
           disabled={!selectedSiteId || !autoScheduleTypeKey}
         />
       )}
-      <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
-      <TimeNavigator
-        scale={scale}
-        anchorTs={anchorTs}
-        onAnchorChange={setAnchorTs}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        onToday={handleToday}
-        compact={isPhone}
-      />
+      {/* The structure view is time-independent, so the time controls would be dead weight
+          there; the timeline view is driven by them. */}
+      {!(isRequestsTab && requestsView === 'structure') && (
+        <>
+          <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
+          <TimeNavigator
+            scale={scale}
+            anchorTs={anchorTs}
+            onAnchorChange={setAnchorTs}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            onToday={handleToday}
+            compact={isPhone}
+          />
+        </>
+      )}
     </>
   );
 
@@ -1042,44 +1038,49 @@ export function UtilizationPage() {
           </div>
         </TabsContent>
 
-        {/* Requests — the same scheduled requests as rows instead of bars on resource rows: one
-            row per task, grouped under its parent, on the same time columns. Read-only: a bar
-            opens the request; scheduling stays on Stations and Calendar, whose rows are resources
-            and so can say where a drop lands. The canvas owns its zoom; the filter and key are the
-            page's, like the other tabs'. */}
+        {/* Requests — the dependency canvas: every group as a band, every task as a node,
+            and the edges among them, cross-group ones included. Two views: Timeline puts the
+            bars on the date grid the header's selector drives; Structure lays them out by
+            dependency depth. Read-only; editing stays in the per-group planner each band
+            header links to. */}
         <TabsContent
           value={REQUESTS_TAB}
           className="h-full overflow-hidden m-0 data-[state=inactive]:hidden"
         >
           <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-background">
-            <RequestCanvas
-              requests={visibleCanvasRequests}
-              lookup={requests}
-              conflicts={conflicts}
+            <div className="flex items-center gap-1 border-b px-3 py-1.5" role="group" aria-label="Canvas view">
+              <Button
+                variant={requestsView === 'timeline' ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-pressed={requestsView === 'timeline'}
+                onClick={() => setRequestsView('timeline')}
+              >
+                Timeline
+              </Button>
+              <Button
+                variant={requestsView === 'structure' ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-pressed={requestsView === 'structure'}
+                onClick={() => setRequestsView('structure')}
+              >
+                Structure
+              </Button>
+            </div>
+            <SitePlanCanvas
+              siteId={selectedSiteId}
+              view={requestsView}
               scale={scale}
               anchorTs={anchorTs}
               nowMs={nowMs}
-              siteId={selectedSiteId}
-              isLoading={requestsLoading}
               offTimeRanges={offTimeRanges}
               weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
               workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
               workingDayStart={schedulingSettings?.workingDayStart}
               workingDayEnd={schedulingSettings?.workingDayEnd}
-              // Same split as the stations grid: on desktop a click on a red bar shows the
-              // conflict detail and opens the editor otherwise; on phone a tap goes straight
-              // to the editor, whose banner carries the same detail.
-              onRequestClick={isPhone ? handleRequestDoubleClick : handleRequestClick}
-              onRequestDoubleClick={handleRequestDoubleClick}
-              legend={!isPhone && <StationGridLegend />}
-              filterBar={
-                <ScheduleFilterBar
-                  value={requestsFilter}
-                  onChange={(patch) => setRequestsFilter((current) => ({ ...current, ...patch }))}
-                  matchCount={visibleCanvasRequests.length}
-                  totalCount={scheduled.length}
-                />
-              }
+              // The deep link, not the page's in-memory lookup: the canvas shows tasks from any
+              // point in time, and the page's feeds only hold the visible window plus backlog.
+              onOpenRequest={(id) => navigate(`/requests?edit=${id}`)}
+              onOpenGroupPlanner={(groupId) => navigate(`/requests/${groupId}/plan`)}
             />
           </div>
         </TabsContent>

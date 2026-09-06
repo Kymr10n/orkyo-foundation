@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestRowActions } from './RequestRowActions';
 import { makeRequest } from '@foundation/src/test-utils/request-fixtures';
 
@@ -73,6 +74,65 @@ describe('RequestRowActions', () => {
     );
     await userEvent.click(screen.getByRole('button', { name: 'Delete Main Hall Booking' }));
     expect(handlers.onDelete).toHaveBeenCalledWith(request);
+    expect(parentOnClick).not.toHaveBeenCalled();
+  });
+});
+
+describe('RequestRowActions — sequencing a group', () => {
+  const group = makeRequest({ id: 'g-1', name: 'Q3 Structural Frames', planningMode: 'summary' });
+  const label = 'Sequence the tasks in Q3 Structural Frames';
+
+  function renderRow(props: Partial<React.ComponentProps<typeof RequestRowActions>>) {
+    return render(
+      <TooltipProvider>
+        <RequestRowActions request={group} {...makeHandlers()} {...props} />
+      </TooltipProvider>,
+    );
+  }
+
+  it('offers the planner on a group that has tasks to order', async () => {
+    const onOpenPlan = vi.fn();
+    renderRow({ childCount: 2, onOpenPlan });
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    expect(onOpenPlan).toHaveBeenCalledWith(group);
+  });
+
+  it('hides the planner on a group holding one task — ordering one thing is not an operation', () => {
+    renderRow({ childCount: 1, onOpenPlan: vi.fn() });
+    expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+  });
+
+  it('hides the planner on a task, which has no children to order', () => {
+    render(
+      <TooltipProvider>
+        <RequestRowActions
+          request={makeRequest({ id: 'r-2', name: 'Lift weldments', planningMode: 'leaf' })}
+          childCount={3}
+          onOpenPlan={vi.fn()}
+          {...makeHandlers()}
+        />
+      </TooltipProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /Sequence the tasks/ })).not.toBeInTheDocument();
+  });
+
+  it('hides the planner when no handler is supplied', () => {
+    renderRow({ childCount: 5 });
+    expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+  });
+
+  it('stops propagation so opening the planner does not also select the row', async () => {
+    const onOpenPlan = vi.fn();
+    const parentOnClick = vi.fn();
+    render(
+      <div onClick={parentOnClick}>
+        <TooltipProvider>
+          <RequestRowActions request={group} childCount={4} onOpenPlan={onOpenPlan} {...makeHandlers()} />
+        </TooltipProvider>
+      </div>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: label }));
+    expect(onOpenPlan).toHaveBeenCalledWith(group);
     expect(parentOnClick).not.toHaveBeenCalled();
   });
 });

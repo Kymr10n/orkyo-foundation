@@ -7,7 +7,13 @@ import { REQUEST_STATUS_ORDER } from '@foundation/src/constants/request-status';
 import { formatStatusLabel } from '@foundation/src/lib/utils/utils';
 import type { RequestStatus } from '@foundation/src/types/requests';
 import { SEVERITY_SWATCH, STATUS_SWATCH } from './request-calendar-events';
-import { ISSUE_FILTER, ISSUE_FILTER_ORDER, type ScheduleFilter, type IssueFilter } from './schedule-filter';
+import {
+  DEFAULT_SCHEDULE_FILTER,
+  ISSUE_FILTER,
+  ISSUE_FILTER_ORDER,
+  type ScheduleFilter,
+  type IssueFilter,
+} from './schedule-filter';
 
 interface ScheduleFilterBarProps {
   value: ScheduleFilter;
@@ -120,13 +126,7 @@ export function ScheduleFilterBar({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() =>
-            onChange({
-              query: '',
-              statuses: REQUEST_STATUS_ORDER,
-              issues: ISSUE_FILTER_ORDER,
-            })
-          }
+          onClick={() => onChange(DEFAULT_SCHEDULE_FILTER)}
         >
           <X className="mr-1 h-3.5 w-3.5" />
           Clear

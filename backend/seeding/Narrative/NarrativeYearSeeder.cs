@@ -45,6 +45,8 @@ public static class NarrativeYearSeeder
     {
         var parents = new List<(Guid Id, string Name, int SortOrder)>();
         var jobs = new List<Job>();
+        // Curated within-campaign sequences, built where the jobs are: see the campaign loop.
+        var chainEdges = new List<(Guid Pred, Guid Succ)>();
         var conflicts = 0;
         // Kept per cohort so the showcase pass below can book against the same capacity ledger the
         // cohort built, rather than double-booking by accident where it means to book cleanly.
@@ -73,11 +75,38 @@ public static class NarrativeYearSeeder
             foreach (var arch in campaignArchetypes)
             {
                 var n = Math.Max(1, variablePerFacility * arch.Weight / Math.Max(1, weightSum));
+                // A campaign is one archetype repeated, so no chain of distinctly named work can
+                // be found among its children after the fact — it has to be MADE. A few of the
+                // batches get follow-up steps from the facility's routine kinds (machine, then
+                // inspect, then pack), under the same parent and dated after their base job, and
+                // the edges ride to the dependency write. This is what gives a campaign band on
+                // the site canvas visible threads instead of hundreds of bare rows.
+                var chainsBudget = MaxChainsPerGroup;
+                var chainStride = Math.Max(1, n / MaxChainsPerGroup);
                 for (var i = 0; i < n; i++)
                 {
                     var day = cal.PickWorkingDay(campaignWin.Start, campaignWin.End, faker);
                     if (day is null) continue;
-                    jobs.Add(BuildJob(cohort, arch, cal, criteria, ctx, day.Value, parentId, faker));
+                    var baseJob = BuildJob(cohort, arch, cal, criteria, ctx, day.Value, parentId, faker);
+                    jobs.Add(baseJob);
+
+                    if (chainsBudget > 0 && i % chainStride == 0 && routineArchetypes.Count > 0)
+                    {
+                        var previous = baseJob;
+                        foreach (var followArch in routineArchetypes.Take(2))
+                        {
+                            // Strictly later calendar days: every reader of these edges works in
+                            // whole days, and a same-day successor would arrive as a violation.
+                            var followDay = cal.PickWorkingDay(
+                                previous.End.Date.AddDays(1), previous.End.Date.AddDays(6), faker);
+                            if (followDay is null || followDay > cal.End) break;
+                            var follow = BuildJob(cohort, followArch, cal, criteria, ctx, followDay.Value, parentId, faker);
+                            jobs.Add(follow);
+                            chainEdges.Add((previous.Id, follow.Id));
+                            previous = follow;
+                        }
+                        if (previous.Id != baseJob.Id) chainsBudget--;
+                    }
                 }
             }
             foreach (var arch in routineArchetypes)
@@ -204,6 +233,11 @@ public static class NarrativeYearSeeder
         // still locked behind 2-of-3 inspections, and one freed because the work it waited for
         // was cancelled.
         var showcase = AddShowcasePlan(parents, jobs, cohorts, cal);
+        // A second, plainer chain at another facility — and the one CURATED cross-group edge in
+        // the demo: its first phase waits for the changeover's restart. The site-wide canvas is
+        // the only surface that can draw an edge between two groups, and without this it would
+        // have nothing curated to draw.
+        showcase = Merge(showcase, AddRetoolPlan(parents, jobs, cohorts, cal, showcase));
 
         await WriteRequestsAsync(conn, parents, jobs);
         var reqCount = await WriteRequirementsAsync(
@@ -246,7 +280,7 @@ public static class NarrativeYearSeeder
             .ToList();
         await RequestTargetFactory.WriteAsync(conn, targets);
 
-        var depCount = await WriteDependenciesAsync(conn, jobs, showcase);
+        var depCount = await WriteDependenciesAsync(conn, jobs, showcase, chainEdges);
 
         return new Result(allIds.Count, reqCount, asgCount, conflicts, allIds, depCount);
     }
@@ -600,10 +634,17 @@ public static class NarrativeYearSeeder
     private sealed record ShowcasePlan(
         IReadOnlyList<(Guid Pred, Guid Succ)> Edges,
         IReadOnlyList<(Guid RequestId, string Logic, int? K)> Joins,
-        IReadOnlySet<Guid> PhaseIds)
+        IReadOnlySet<Guid> PhaseIds,
+        IReadOnlyDictionary<string, Guid> IdsByName)
     {
-        public static ShowcasePlan Empty => new([], [], new HashSet<Guid>());
+        public static ShowcasePlan Empty => new([], [], new HashSet<Guid>(), new Dictionary<string, Guid>());
     }
+
+    private static ShowcasePlan Merge(ShowcasePlan a, ShowcasePlan b) => new(
+        [.. a.Edges, .. b.Edges],
+        [.. a.Joins, .. b.Joins],
+        a.PhaseIds.Union(b.PhaseIds).ToHashSet(),
+        a.IdsByName.Concat(b.IdsByName).ToDictionary(kv => kv.Key, kv => kv.Value));
 
     /// <summary>
     /// One hand-built plan: a line changeover whose phases are sequenced among themselves.
@@ -718,7 +759,80 @@ public static class NarrativeYearSeeder
             (Id("Quality sign-off"), "k_of_n", 2),
         };
 
-        return new ShowcasePlan(edges, joins, ids.Values.ToHashSet());
+        return new ShowcasePlan(edges, joins, ids.Values.ToHashSet(), ids);
+    }
+
+    /// <summary>
+    /// The second curated plan: a bracket-line retool at the SAME facility as the changeover,
+    /// phased as a plain chain — the changeover carries every exotic join condition, and a demo
+    /// where each group shows a different amount of machinery reads better than two equal tours.
+    ///
+    /// Its opening phase waits for the changeover's "Restart production": the demo's one curated
+    /// cross-group dependency. The per-group planner can only count that edge; the site-wide
+    /// canvas draws it, and this is the example it draws. Dated after the restart ends, so the
+    /// edge is a correct promise rather than a seeded violation — and kept inside one facility,
+    /// which is both the plausible story (a retool waits on its own line) and the invariant the
+    /// chain tests hold every edge to.
+    /// </summary>
+    private static ShowcasePlan AddRetoolPlan(
+        List<(Guid Id, string Name, int SortOrder)> parents,
+        List<Job> jobs,
+        IReadOnlyList<FacilityCohort> cohorts,
+        YearCalendar cal,
+        ShowcasePlan changeover)
+    {
+        var cohort = cohorts.FirstOrDefault();
+        if (cohort is null || !changeover.IdsByName.TryGetValue("Restart production", out var restartId))
+            return ShowcasePlan.Empty;
+
+        var site = cohort.Facility.SiteCode;
+        var now = cal.ReferenceDate;
+
+        var parentId = Guid.NewGuid();
+        parents.Add((parentId, $"Bracket line retool ({site})", parents.Count));
+
+        DateTime Day(int offset) => now.Date.AddDays(offset).AddHours(8);
+
+        // The changeover's restart runs to +12, so this plan starts at +13: the cross-group
+        // edge below holds by the same whole-day rule every reader applies.
+        var phases = new (string Name, int From, int To, string Status)[]
+        {
+            ("Strip old bracket tooling",  13, 14, "new"),
+            ("Calibrate presses",          15, 16, "new"),
+            ("Test run brackets",          17, 18, "new"),
+            ("Approve retool",             19, 20, "new"),
+        };
+
+        var ids = new Dictionary<string, Guid>(StringComparer.Ordinal);
+        foreach (var (name, from, to, status) in phases)
+        {
+            var id = Guid.NewGuid();
+            ids[name] = id;
+            jobs.Add(new Job(
+                id,
+                $"{name} — {site}",
+                parentId,
+                Day(from),
+                Day(to),
+                status,
+                DurationHours: Math.Max(1, (to - from) * 8),
+                RequiredCriteria: [],
+                Archetype: cohort.Facility.Archetypes[0],
+                SpaceId: null,
+                Assignees: []));
+        }
+
+        Guid Id(string name) => ids[name];
+
+        var edges = new List<(Guid, Guid)>
+        {
+            (restartId, Id("Strip old bracket tooling")),
+            (Id("Strip old bracket tooling"), Id("Calibrate presses")),
+            (Id("Calibrate presses"), Id("Test run brackets")),
+            (Id("Test run brackets"), Id("Approve retool")),
+        };
+
+        return new ShowcasePlan(edges, [], ids.Values.ToHashSet(), ids);
     }
 
     // ── Bulk writers ──────────────────────────────────────────────────────────
@@ -734,6 +848,13 @@ public static class NarrativeYearSeeder
     private const int MaxChainedPhases = 6;
 
     /// <summary>
+    /// Within-group chains per campaign. The site-wide canvas draws a band per parent, and a
+    /// band with no edges reads as broken on a surface whose whole point is edges; a few clear
+    /// threads is what makes it readable, a lattice is what would make it noise again.
+    /// </summary>
+    private const int MaxChainsPerGroup = 3;
+
+    /// <summary>
     /// Chains each facility's jobs into a sequence, so the demo has a critical path to show and
     /// the scheduler has precedence to respect.
     ///
@@ -747,7 +868,8 @@ public static class NarrativeYearSeeder
     /// conflicts this seeder injects are chosen, not accidental.
     /// </summary>
     private static async Task<int> WriteDependenciesAsync(
-        NpgsqlConnection conn, IReadOnlyList<Job> jobs, ShowcasePlan showcase)
+        NpgsqlConnection conn, IReadOnlyList<Job> jobs, ShowcasePlan showcase,
+        IReadOnlyList<(Guid Pred, Guid Succ)> withinGroupChains)
     {
         var now = DateTime.UtcNow;
         var edges = new List<(Guid Pred, Guid Succ)>();
@@ -818,6 +940,11 @@ public static class NarrativeYearSeeder
                     : (current.Id, "k_of_n", 1));
             }
         }
+
+        // Within-group chains are built where the jobs are generated — a campaign is one
+        // archetype repeated, so a name-distinct chain among its existing children cannot be
+        // found, only made. See the campaign loop in SeedAsync.
+        edges.AddRange(withinGroupChains);
 
         // The curated plan's own edges and conditions ride along, so the returned count stays the
         // one number that describes everything written here.

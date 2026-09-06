@@ -1,8 +1,10 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 
 /**
  * Shared row chrome for both utilization grids (Spaces + People).
@@ -18,6 +20,25 @@ import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
  * the drop target is a single row-level droppable (Spaces attaches it via
  * `trackRef`), not one droppable per cell.
  */
+
+/**
+ * Header-cell tint for a column — single source for the grid shell and the Requests timeline,
+ * so a weekend reads the same red in every header.
+ */
+export function columnHeaderTintClass(col: TimeColumn): string {
+  if (col.isWeekend || col.isGlobalOffTime) return "bg-destructive/10 text-destructive";
+  if (col.isOutsideWorkingHours) return "bg-muted/80";
+  return "";
+}
+
+/** Hover title for a header cell: the full localized date (with time on sub-day scales). */
+export function columnHeaderTitle(col: TimeColumn, scale: TimeScale): string {
+  const opts: Intl.DateTimeFormatOptions =
+    scale === "day" || scale === "hour"
+      ? { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE }
+      : { weekday: "long", month: "long", day: "numeric", year: "numeric" };
+  return formatLocalized(col.start, opts);
+}
 
 /** Tailwind tint for a column cell — single source for both grids. */
 export function columnTintClass(col: TimeColumn): string {
@@ -54,17 +75,8 @@ interface TimelineRowProps {
   onCellClick?: (col: TimeColumn) => void;
   /** Accessible name per cell; the row owner supplies the resource context. */
   cellAriaLabel?: (col: TimeColumn) => string;
-  /**
-   * Per-column minimum width in px. Default 60 — the width every grid always had. The Requests
-   * canvas raises it to zoom; it MUST match the value the surrounding TimelineGridShell uses so
-   * the body columns stay under the header columns.
-   */
-  columnMinWidthPx?: number;
   testId?: string;
 }
-
-/** The column width every grid used before zoom existed; the shell's MIN_COL_PX mirrors it. */
-export const DEFAULT_COLUMN_MIN_WIDTH_PX = 60;
 
 /**
  * Why a timeline column is shaded, or undefined when it is ordinary working time.
@@ -85,16 +97,12 @@ function DefaultColumnCells({
   isOffTime,
   onCellClick,
   cellAriaLabel,
-  columnMinWidthPx,
 }: {
   columns: readonly TimeColumn[];
   isOffTime?: (col: TimeColumn) => boolean;
   onCellClick?: (col: TimeColumn) => void;
   cellAriaLabel?: (col: TimeColumn) => string;
-  columnMinWidthPx: number;
 }) {
-  // Inline rather than a Tailwind min-w class: the width is a runtime value once zoom is in play.
-  const cellStyle = { minWidth: `${columnMinWidthPx}px` };
   return (
     <>
       {columns.map((col) => {
@@ -105,7 +113,7 @@ function DefaultColumnCells({
         // segment bars stay hatch-free so the two don't double up). Outside
         // working hours (muted) is not a problem state, so it stays hatch-free.
         const hatch = tint === OFFTIME_TINT_CLASS ? PROBLEM_HATCH_CLASS : "";
-        const className = `flex-1 border-r ${tint} ${hatch}`;
+        const className = `flex-1 min-w-[60px] border-r ${tint} ${hatch}`;
         // Say why the cell is shaded. Unlabelled it reads as a bar that ignores
         // clicks, which is exactly how the tinted columns were being misread.
         const offTimeTitle = offTimeLabel(col, isOffTime?.(col) ?? false);
@@ -113,9 +121,7 @@ function DefaultColumnCells({
           return (
             <div
               key={col.start.getTime()}
-              data-column-cell
               className={className}
-              style={cellStyle}
               title={offTimeTitle}
               aria-label={offTimeTitle}
             />
@@ -124,13 +130,11 @@ function DefaultColumnCells({
         return (
           <div
             key={col.start.getTime()}
-            data-column-cell
             role="button"
             tabIndex={0}
             aria-label={cellAriaLabel?.(col) ?? offTimeTitle}
             title={offTimeTitle}
             className={`${className} cursor-pointer hover:bg-accent/40`}
-            style={cellStyle}
             onClick={() => onCellClick(col)}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
@@ -155,7 +159,6 @@ function RowInner({
   trackClassName,
   onCellClick,
   cellAriaLabel,
-  columnMinWidthPx = DEFAULT_COLUMN_MIN_WIDTH_PX,
   testId,
   dragRef,
   dragStyle,
@@ -183,7 +186,6 @@ function RowInner({
           isOffTime={isOffTime}
           onCellClick={onCellClick}
           cellAriaLabel={cellAriaLabel}
-          columnMinWidthPx={columnMinWidthPx}
         />
         {children}
       </div>

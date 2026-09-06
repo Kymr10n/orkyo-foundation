@@ -22,12 +22,40 @@ public record RequestPlan
     public required IReadOnlyList<RequestDependencyInfo> Edges { get; init; }
 }
 
+/// <summary>
+/// A site's whole plan: every leaf request under the site (plus site-neutral ones), the group
+/// each belongs to, and every dependency among them — including edges that cross groups, which
+/// the per-parent <see cref="RequestPlan"/> can only count. The site-wide canvas draws these.
+/// </summary>
+public record SiteRequestPlan
+{
+    /// <summary>The parents of the listed children, for the canvas's group bands.</summary>
+    public required IReadOnlyList<SitePlanGroup> Groups { get; init; }
+
+    /// <summary>Every leaf in scope, in sort order, each carrying its ParentRequestId.</summary>
+    public required IReadOnlyList<RequestPlanChild> Children { get; init; }
+
+    /// <summary>Edges with BOTH ends among the children — cross-group ones included.</summary>
+    public required IReadOnlyList<RequestDependencyInfo> Edges { get; init; }
+}
+
+/// <summary>A group band on the site-wide canvas: the parent's identity, nothing more.</summary>
+public record SitePlanGroup
+{
+    public required Guid Id { get; init; }
+    public required string Name { get; init; }
+    public required int SortOrder { get; init; }
+}
+
 /// <summary>A child of the planned parent, with everything the planner shows on its node.</summary>
 public record RequestPlanChild
 {
     public required Guid Id { get; init; }
     public required string Name { get; init; }
     public required PlanningMode PlanningMode { get; init; }
+
+    /// <summary>The group this task belongs to; null for a parentless task.</summary>
+    public Guid? ParentRequestId { get; init; }
 
     /// <summary>Schedule-derived status, as everywhere else in the read model.</summary>
     public required RequestStatus Status { get; init; }

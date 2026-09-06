@@ -27,12 +27,7 @@ import { ResourceScheduleDialog } from "@foundation/src/components/resources/Res
 import { NowLine } from "./NowLine";
 import { TimelineGridShell, type ShellGroup } from "./TimelineGridShell";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
-import {
-  generateTimeColumns,
-  parseTimeToHour,
-  type WorkingHoursConfig,
-} from "./time-grid-utils";
-import { enrichColumnsWithOffTime } from "./time-grid-offtime";
+import { useTimeColumns } from "./useTimeColumns";
 
 interface SchedulerGridProps {
   spaces: ResourceInfo[];
@@ -80,19 +75,9 @@ export function SchedulerGrid({
   workingDayEnd = "17:00",
   editable = true,
 }: SchedulerGridProps) {
-  const workingHours: WorkingHoursConfig | null = workingHoursEnabled
-    ? { enabled: true, start: parseTimeToHour(workingDayStart), end: parseTimeToHour(workingDayEnd) }
-    : null;
-  const columns = useMemo(
-    () =>
-      enrichColumnsWithOffTime(
-        generateTimeColumns(scale, anchorTs, weekendsEnabled, workingHours),
-        offTimeRanges,
-      ),
-    // workingHours is derived from the two string props + the flag.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges],
-  );
+  const columns = useTimeColumns({
+    scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
+  });
   const spaceOrder = useAppStore((s) => s.spaceOrder);
 
   // ---------------------------------------------------------------------------

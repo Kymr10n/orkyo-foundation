@@ -12,6 +12,7 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { getPlanningModeIcon, getRequestIcon } from "@foundation/src/constants";
 import {
+  buildChildCountMap,
   buildDerivedMap,
   canHaveChildren,
   resolveDuration,
@@ -51,6 +52,7 @@ const COL_ACTIONS = "w-[60px] shrink-0";
 const TreeRow = React.memo(function TreeRow({
   entry,
   childCount,
+  onOpenPlan,
   derived,
   conflictCount,
   onOpenConflicts,
@@ -64,6 +66,7 @@ const TreeRow = React.memo(function TreeRow({
 }: {
   entry: FlatTreeEntry;
   childCount: number;
+  onOpenPlan?: (request: Request) => void;
   derived: DerivedValues | null;
   conflictCount: number;
   onOpenConflicts: (requestId: string) => void;
@@ -262,6 +265,8 @@ const TreeRow = React.memo(function TreeRow({
             canEdit={canEdit}
             onEdit={onEdit}
             onDelete={onDelete}
+            childCount={childCount}
+            onOpenPlan={onOpenPlan}
           />
         </span>
       </div>
@@ -283,6 +288,8 @@ interface RequestTreeViewProps {
   onSelect: (id: string) => void;
   onEdit: (request: Request) => void;
   onDelete: (request: Request) => void;
+  /** Opens the dependency planner for a group. Omit to hide the row action. */
+  onOpenPlan?: (request: Request) => void;
   onDrop: (draggedId: string, targetId: string) => void;
 }
 
@@ -296,6 +303,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
   onSelect,
   onEdit,
   onDelete,
+  onOpenPlan,
   onDrop,
 }: RequestTreeViewProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -372,15 +380,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
     setActiveId(null);
   }, []);
 
-  const childCountMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const r of allRequests) {
-      if (r.parentRequestId) {
-        map.set(r.parentRequestId, (map.get(r.parentRequestId) ?? 0) + 1);
-      }
-    }
-    return map;
-  }, [allRequests]);
+  const childCountMap = useMemo(() => buildChildCountMap(allRequests), [allRequests]);
 
   const derivedMap = useMemo(() => buildDerivedMap(allRequests), [allRequests]);
 
@@ -584,6 +584,7 @@ export const RequestTreeView = React.memo(function RequestTreeView({
                   onToggle={onToggle}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  onOpenPlan={onOpenPlan}
                   onSelect={onSelect}
                   isSelected={selectedId === entry.request.id}
                   isDropTarget={validDropTargets.has(entry.request.id)}

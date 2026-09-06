@@ -39,7 +39,14 @@ export function RequestBarLayers({ status }: { status: RequestBarStatus }) {
 }
 
 /** Conflict marker, planning-mode and child-request badges, then the request's name. */
-export function RequestBarLabel({ request, hasConflict }: { request: Request; hasConflict: boolean }) {
+export function RequestBarLabel({
+  request,
+  hasConflict,
+}: {
+  /** Only what the label reads — so any request-shaped row (a plan child, say) can carry it. */
+  request: Pick<Request, "name" | "planningMode" | "parentRequestId">;
+  hasConflict: boolean;
+}) {
   return (
     <div className="relative z-10 flex items-center gap-1">
       {hasConflict && <AlertCircle className="w-3 h-3 flex-shrink-0" />}

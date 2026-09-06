@@ -10,6 +10,7 @@ import {
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
+  buildChildCountMap,
   buildDerivedMap,
   resolveDuration,
   resolveSchedule,
@@ -26,6 +27,8 @@ interface RequestListViewProps {
   onSelect: (id: string) => void;
   onEdit: (request: Request) => void;
   onDelete: (request: Request) => void;
+  /** Opens the dependency planner for a group. Omit to hide the row action. */
+  onOpenPlan?: (request: Request) => void;
   /** Jump to a parent request (switches to the tree, expands ancestors). */
   onNavigateToParent: (parentId: string) => void;
 }
@@ -36,6 +39,7 @@ export const RequestListView = React.memo(function RequestListView({
   onSelect,
   onEdit,
   onDelete,
+  onOpenPlan,
   onNavigateToParent,
 }: RequestListViewProps) {
   const canEdit = useCanEdit();
@@ -51,6 +55,9 @@ export const RequestListView = React.memo(function RequestListView({
     }
     return map;
   }, [requests]);
+
+  // Direct children per parent — decides which rows offer the planner.
+  const childCountMap = useMemo(() => buildChildCountMap(requests), [requests]);
 
   // Derived schedule/duration for parent (Group/Container) rows — same memo
   // pattern the tree uses, so a group shows its rolled-up window/effort instead
@@ -197,10 +204,12 @@ export const RequestListView = React.memo(function RequestListView({
           canEdit={canEdit}
           onEdit={onEdit}
           onDelete={onDelete}
+          childCount={childCountMap.get(row.original.id) ?? 0}
+          onOpenPlan={onOpenPlan}
         />
       ),
     },
-  ], [parentNameMap, derivedMap, selectedId, onEdit, onNavigateToParent, canEdit, onDelete]);
+  ], [parentNameMap, derivedMap, selectedId, onEdit, onNavigateToParent, canEdit, onDelete, childCountMap, onOpenPlan]);
 
   // Phone presentation: name + actions on top; kind/status/duration badges and
   // the schedule window below.
