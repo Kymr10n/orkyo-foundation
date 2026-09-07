@@ -59,8 +59,8 @@
       },
       "RESPite": {
         "type": "Transitive",
-        "resolved": "3.1.13",
-        "contentHash": "wqViG+Dl4Ln/X33IyfmciyGirm1ET+M7kjwbb+oJAbDXLP2u2hX1eOnaEgyIAerJNSP98BytyddcW3ZQH55wgw=="
+        "resolved": "3.1.31",
+        "contentHash": "u+MFK6FzGWngKaY3wJ/V9vQSVe/NSqpk0IYYw6ACwmlPq5eTnsyZGlzEa3YMifJGVs3omrl5MkgigB1jZYNnGg=="
       },
       "System.IO.Hashing": {
         "type": "Transitive",
@@ -75,13 +75,13 @@
       "orkyo.foundation.core": {
         "type": "Project",
         "dependencies": {
-          "Anthropic": "[12.42.0, )",
+          "Anthropic": "[12.45.0, )",
           "FluentValidation": "[12.1.1, )",
           "Google.OrTools": "[9.15.6755, )",
           "MailKit": "[4.17.0, )",
           "Npgsql": "[10.0.3, )",
           "Orkyo.Shared": "[0.1.0, )",
-          "StackExchange.Redis": "[3.1.13, )"
+          "StackExchange.Redis": "[3.1.31, )"
         }
       },
       "orkyo.shared": {
@@ -89,9 +89,9 @@
       },
       "Anthropic": {
         "type": "CentralTransitive",
-        "requested": "[12.42.0, )",
-        "resolved": "12.42.0",
-        "contentHash": "h+dM4erkxtQUXgddDLKJB0Uw7ZbPxSvhZ0HKacxl3w26/At/yzLv+EFc5heBBxMTZvBuN3L74z458gB9/1I6qg==",
+        "requested": "[12.45.0, )",
+        "resolved": "12.45.0",
+        "contentHash": "eigJuw1xLSBk/+hSqPwTioP0fMENs+Qw72eH5N+n/RlA/BXdye2X2o+Z6g74l/n2I1ohToSUygRrdy+L8UlhlA==",
         "dependencies": {
           "Microsoft.Extensions.AI.Abstractions": "10.5.1"
         }
@@ -127,11 +127,11 @@
       },
       "StackExchange.Redis": {
         "type": "CentralTransitive",
-        "requested": "[3.1.13, )",
-        "resolved": "3.1.13",
-        "contentHash": "OvhFdV2ucee2hnN2v2EOcOTMvIzGsq1PX4kAbIYC8cax+MyabSa7Eu3hWY6D//SbxzZQ/eYFvD8Tvg+pK+969g==",
+        "requested": "[3.1.31, )",
+        "resolved": "3.1.31",
+        "contentHash": "QillloeZxgw9+IWmnowTrjrn+JV7JIMVzr1JiUpCa7pJQI48rtcqG9yy6u5UBRiTuCiKU5909aRu67Ch6gWVMg==",
         "dependencies": {
-          "RESPite": "3.1.13",
+          "RESPite": "3.1.31",
           "System.IO.Hashing": "10.0.5"
         }
       }
