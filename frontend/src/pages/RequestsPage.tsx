@@ -350,6 +350,12 @@ export function RequestsPage() {
     }
   }, [dialog, queryClient]);
 
+  // The planner is a route, so the row action navigates rather than opening a dialog. Same
+  // destination the editor's Children tab uses — one planner, two ways in.
+  const handleOpenPlan = useCallback((request: Request) => {
+    navigate(`/requests/${request.id}/plan`);
+  }, [navigate]);
+
   const handleSelect = useCallback((id: string) => {
     setSelectedId(selectedId === id ? null : id);
   }, [selectedId, setSelectedId]);
@@ -593,6 +599,7 @@ export function RequestsPage() {
               onSelect={handleSelect}
               onEdit={handleEditRequest}
               onDelete={handleDeleteRequest}
+              onOpenPlan={handleOpenPlan}
               onDrop={handleDrop}
             />
           ) : (
@@ -603,6 +610,7 @@ export function RequestsPage() {
                 onSelect={handleSelect}
                 onEdit={handleEditRequest}
                 onDelete={handleDeleteRequest}
+                onOpenPlan={handleOpenPlan}
                 onNavigateToParent={handleNavigateToRequest}
               />
             </ScrollArea>

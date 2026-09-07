@@ -43,6 +43,8 @@ export const qk = {
     criticalPath: (siteId: string | null) => ["requests", "critical-path", siteId] as const,
     /** One parent's children, the edges among them, and whether each may start. */
     plan: (requestId: string) => ["requests", "plan", requestId] as const,
+    /** The site-wide dependency plan (null = tenant-wide). */
+    sitePlan: (siteId: string | null) => ["requests", "site-plan", siteId] as const,
   },
 
   sites: {

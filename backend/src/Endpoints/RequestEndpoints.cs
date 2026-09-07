@@ -126,6 +126,14 @@ public static class RequestEndpoints
         .WithName("GetCriticalPath")
         .WithSummary("Compute the critical path over the dependency network");
 
+        // Site-wide variant of the per-parent plan below: every leaf plus every edge among
+        // them, cross-group edges included. The literal "plan" segment is safe next to
+        // /{id:guid}/plan for the same reason as "dependencies" above.
+        group.MapGet("/plan", async (IRequestPlanService planService, CancellationToken ct, Guid? siteId = null) =>
+            Results.Ok(await planService.GetSitePlanAsync(siteId, ct)))
+        .WithName("GetSiteRequestPlan")
+        .WithSummary("Get the dependency plan across a site");
+
         group.MapGet("/{id:guid}/plan", async (Guid id, IRequestPlanService planService, CancellationToken ct) =>
         {
             var plan = await planService.GetPlanAsync(id, ct);

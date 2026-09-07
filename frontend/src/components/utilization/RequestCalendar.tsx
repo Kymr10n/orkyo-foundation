@@ -7,12 +7,10 @@ import listPlugin from "@fullcalendar/list";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
 import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
-import { SEVERITY_SWATCH, STATUS_SWATCH } from "./request-calendar-events";
-import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
-import { formatStatusLabel } from "@foundation/src/lib/utils/utils";
+import { REQUEST_LEGEND } from "./request-calendar-events";
 import { ScheduleFilterBar } from "./ScheduleFilterBar";
 import {
-  ISSUE_FILTER_ORDER,
+  DEFAULT_SCHEDULE_FILTER,
   filterCalendarEvents,
   type ScheduleFilter,
 } from "./schedule-filter";
@@ -84,15 +82,6 @@ function LegendItem({ className, label }: { className: string; label: string }) 
  * and `onDatesSet` reports the visible range's start back so the store's anchor
  * stays aligned when the calendar snaps to a period boundary.
  */
-const REQUEST_LEGEND: readonly { className: string; label: string }[] = [
-  ...REQUEST_STATUS_ORDER.map((status) => ({
-    className: STATUS_SWATCH[status],
-    label: formatStatusLabel(status),
-  })),
-  { className: SEVERITY_SWATCH.error, label: "Conflicts" },
-  { className: SEVERITY_SWATCH.warning, label: "Warnings" },
-];
-
 export function RequestCalendar({
   events,
   offTimeRanges,
@@ -156,11 +145,7 @@ export function RequestCalendar({
 
   // Filter state is local and not in the URL: a search query changes on every keystroke, and
   // writing that to the address bar would bury real navigation under typing history.
-  const [filter, setFilter] = useState<ScheduleFilter>({
-    query: "",
-    statuses: REQUEST_STATUS_ORDER,
-    issues: ISSUE_FILTER_ORDER,
-  });
+  const [filter, setFilter] = useState<ScheduleFilter>(DEFAULT_SCHEDULE_FILTER);
   const visibleEvents = useMemo(() => filterCalendarEvents(events, filter), [events, filter]);
 
   const allEvents = useMemo<EventInput[]>(() => {

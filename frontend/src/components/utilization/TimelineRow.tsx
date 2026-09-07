@@ -1,8 +1,10 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
+import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 
 /**
  * Shared row chrome for both utilization grids (Spaces + People).
@@ -18,6 +20,25 @@ import { PROBLEM_HATCH_CLASS, OFFTIME_TINT_CLASS } from "./schedule-colors";
  * the drop target is a single row-level droppable (Spaces attaches it via
  * `trackRef`), not one droppable per cell.
  */
+
+/**
+ * Header-cell tint for a column — single source for the grid shell and the Requests timeline,
+ * so a weekend reads the same red in every header.
+ */
+export function columnHeaderTintClass(col: TimeColumn): string {
+  if (col.isWeekend || col.isGlobalOffTime) return "bg-destructive/10 text-destructive";
+  if (col.isOutsideWorkingHours) return "bg-muted/80";
+  return "";
+}
+
+/** Hover title for a header cell: the full localized date (with time on sub-day scales). */
+export function columnHeaderTitle(col: TimeColumn, scale: TimeScale): string {
+  const opts: Intl.DateTimeFormatOptions =
+    scale === "day" || scale === "hour"
+      ? { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE }
+      : { weekday: "long", month: "long", day: "numeric", year: "numeric" };
+  return formatLocalized(col.start, opts);
+}
 
 /** Tailwind tint for a column cell — single source for both grids. */
 export function columnTintClass(col: TimeColumn): string {

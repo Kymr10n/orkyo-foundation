@@ -197,6 +197,20 @@ export function getDirectChildren(
 }
 
 /**
+ * Direct children per parent id. The tree view's count badge and both views' row actions read
+ * it — a group offers the dependency planner only when it has more than one task to order.
+ */
+export function buildChildCountMap(requests: readonly Request[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const r of requests) {
+    if (r.parentRequestId) {
+      map.set(r.parentRequestId, (map.get(r.parentRequestId) ?? 0) + 1);
+    }
+  }
+  return map;
+}
+
+/**
  * Determine if a request can accept children based on its planning mode.
  */
 export function canHaveChildren(planningMode: PlanningMode): boolean {

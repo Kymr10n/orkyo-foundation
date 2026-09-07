@@ -4,6 +4,15 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
+import type * as ReactRouter from "react-router";
+
+// The page navigates on two canvas callbacks; assert the destinations rather than the
+// router's internal history. MemoryRouter still provides the rest of the routing context.
+const mockNavigate = vi.hoisted(() => vi.fn());
+vi.mock("react-router", async (importOriginal) => ({
+  ...(await importOriginal<typeof ReactRouter>()),
+  useNavigate: () => mockNavigate,
+}));
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
@@ -342,6 +351,25 @@ vi.mock("@foundation/src/components/utilization/ScheduleSlotDialog", () => ({
     capturedChooserBacklog = backlog;
     return open ? <div data-testid="slot-chooser" data-resource-name={resourceName ?? ""} /> : null;
   },
+}));
+
+// The canvas is its own tested surface; the page tests only its wiring: which view is
+// requested and whether the time controls follow it.
+vi.mock("@foundation/src/components/requests/plan/SitePlanCanvas", () => ({
+  SitePlanCanvas: ({
+    view,
+    onOpenRequest,
+    onOpenGroupPlanner,
+  }: {
+    view: string;
+    onOpenRequest: (id: string) => void;
+    onOpenGroupPlanner: (id: string) => void;
+  }) => (
+    <div data-testid="site-plan-canvas-stub" data-view={view}>
+      <button onClick={() => onOpenRequest("req-9")}>stub-open-request</button>
+      <button onClick={() => onOpenGroupPlanner("grp-9")}>stub-open-planner</button>
+    </div>
+  ),
 }));
 
 // The scheduler tab is identified by its surface now, not by the space type key.
@@ -1410,9 +1438,9 @@ describe("time navigation", () => {
     const Wrapper = createWrapper("assets", "tool,forklift");
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    // Three fixed tabs; the types are a filter within Assets, not tabs of their own.
+    // Four fixed tabs; the types are a filter within Assets, not tabs of their own.
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
-      "Calendar", "Stations", "Assets",
+      "Calendar", "Stations", "Assets", "Requests",
     ]);
     expect(screen.getByTestId("tool-utilization-grid")).toBeInTheDocument();
     expect(screen.getByTestId("forklift-utilization-grid")).toBeInTheDocument();
@@ -1580,5 +1608,47 @@ describe("time navigation", () => {
         }
       });
     });
+  });
+});
+
+describe("Requests tab — canvas views and time controls", () => {
+  it("defaults to the timeline view with the time controls showing", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    const stub = await screen.findByTestId("site-plan-canvas-stub");
+    expect(stub).toHaveAttribute("data-view", "timeline");
+    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+
+  it("switching to Structure hides the time controls — that view has no time axis", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    await screen.findByTestId("site-plan-canvas-stub");
+    fireEvent.click(screen.getByRole("button", { name: "Structure" }));
+    expect(screen.getByTestId("site-plan-canvas-stub")).toHaveAttribute("data-view", "structure");
+    expect(screen.queryByTestId("time-navigator")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
+    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+  });
+});
+
+describe("Requests tab — where the canvas sends you", () => {
+  // The canvas shows tasks from any point in time, so both routes are deep links rather
+  // than anything resolved from the page's in-memory feeds.
+  it("opens a task in the request editor", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    await screen.findByTestId("site-plan-canvas-stub");
+    fireEvent.click(screen.getByText("stub-open-request"));
+    expect(mockNavigate).toHaveBeenCalledWith("/requests?edit=req-9");
+  });
+
+  it("sends a band's Sequence action to that group's planner", async () => {
+    const Wrapper = createWrapper("requests");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+    await screen.findByTestId("site-plan-canvas-stub");
+    fireEvent.click(screen.getByText("stub-open-planner"));
+    expect(mockNavigate).toHaveBeenCalledWith("/requests/grp-9/plan");
   });
 });

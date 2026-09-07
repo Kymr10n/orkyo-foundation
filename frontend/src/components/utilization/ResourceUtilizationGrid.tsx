@@ -39,11 +39,10 @@ import { groupRowsByResourceGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
   CONFLICT_CHECK_DELAY_MS,
-  generateTimeColumns,
   overlapsOffTimeRange,
   utilizationGranularityForScale,
 } from './time-grid-utils';
-import { enrichColumnsWithOffTime } from './time-grid-offtime';
+import { useTimeColumns } from './useTimeColumns';
 
 export interface ResourceUtilizationGridProps {
   /** The resource type whose rows this grid shows. Every query is scoped to its key. */
@@ -126,10 +125,7 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [scheduleFor, setScheduleFor] = useState<ResourceInfo | null>(null);
 
-  const columns = useMemo(
-    () => enrichColumnsWithOffTime(generateTimeColumns(scale, anchorTs, weekendsEnabled), offTimeRanges),
-    [scale, anchorTs, weekendsEnabled, offTimeRanges],
-  );
+  const columns = useTimeColumns({ scale, anchorTs, weekendsEnabled, offTimeRanges });
   const from = columns[0].start;
   const to = columns[columns.length - 1].end;
   const granularity = utilizationGranularityForScale(scale);

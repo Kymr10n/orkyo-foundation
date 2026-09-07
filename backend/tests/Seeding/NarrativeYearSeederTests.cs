@@ -407,6 +407,50 @@ public class NarrativeYearSeederTests
             ("parent", (object)showcaseId.Value));
         cancelledPhase.Should().Be(1, "one phase was abandoned, and its successor still runs");
 
+        // ── The second curated plan, and the one curated cross-group edge ─────────
+        // The retool at the next facility is a plain chain — the changeover carries the exotic
+        // conditions — and its opening phase waits for the changeover's restart. That edge is
+        // the only surface-drawable example of a cross-group dependency: the per-group planner
+        // can merely count it, the site-wide canvas draws it.
+        var retoolId = await ScalarGuidOrNull(conn, tx, @"
+            SELECT id FROM requests
+             WHERE id = ANY(@ids) AND planning_mode = 'summary' AND name LIKE 'Bracket line retool (%'",
+            seeded);
+        retoolId.Should().NotBeNull("the demo needs a second sequenced plan");
+
+        var retoolEdges = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+              JOIN requests p ON p.id = d.predecessor_request_id
+              JOIN requests s ON s.id = d.successor_request_id
+             WHERE p.parent_request_id = @parent AND s.parent_request_id = @parent",
+            ("parent", (object)retoolId!.Value));
+        retoolEdges.Should().Be(3, "four phases chained in order");
+
+        var crossGroupEdge = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM request_dependencies d
+              JOIN requests p ON p.id = d.predecessor_request_id
+              JOIN requests s ON s.id = d.successor_request_id
+             WHERE p.parent_request_id = @changeover AND s.parent_request_id = @retool",
+            ("changeover", (object)showcaseId.Value), ("retool", (object)retoolId.Value));
+        crossGroupEdge.Should().Be(1, "the retool waits for the changeover's restart");
+
+        // ── Every campaign band carries internal structure ────────────────────────
+        // The site canvas draws a band per parent; a band of hundreds of rows and zero edges
+        // reads as broken on a surface whose whole point is edges. Each campaign must hold at
+        // least one within-group chain (the curated plans assert their own shapes above).
+        var campaignsWithoutEdges = await ScalarInt(conn, tx, @"
+            SELECT COUNT(*) FROM requests parent
+             WHERE parent.id = ANY(@ids) AND parent.planning_mode = 'summary'
+               AND parent.name NOT LIKE 'Line changeover (%'
+               AND parent.name NOT LIKE 'Bracket line retool (%'
+               AND NOT EXISTS (
+                 SELECT 1 FROM request_dependencies d
+                   JOIN requests p ON p.id = d.predecessor_request_id
+                   JOIN requests s ON s.id = d.successor_request_id
+                  WHERE p.parent_request_id = parent.id AND s.parent_request_id = parent.id)",
+            seeded);
+        campaignsWithoutEdges.Should().Be(0, "each campaign band shows at least one sequenced thread");
+
         // Mixed states, so the plan shows locked and startable side by side rather than a
         // uniformly grey or uniformly green graph.
         var distinctStatuses = await ScalarInt(conn, tx, @"

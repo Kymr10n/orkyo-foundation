@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, MemoryRouter } from 'react-router';
@@ -134,7 +134,7 @@ vi.mock('@foundation/src/hooks/useSpaces', () => ({
 
 // Mock child components to isolate page logic
 vi.mock('@foundation/src/components/requests/RequestTreeView', () => ({
-  RequestTreeView: ({ entries, onSelect, onEdit, onDelete, onDrop, onOpenConflicts }: any) => (
+  RequestTreeView: ({ entries, onSelect, onEdit, onDelete, onDrop, onOpenConflicts, onOpenPlan }: any) => (
     <div data-testid="tree-view">
       {(entries as { request: { id: string; name: string; parentRequestId?: string | null } }[]).map((e) => (
         <div key={e.request.id} data-testid={`tree-item-${e.request.id}`}>
@@ -144,6 +144,7 @@ vi.mock('@foundation/src/components/requests/RequestTreeView', () => ({
           <button onClick={() => (onDelete as (r: unknown) => void)(e.request)}>Delete</button>
           {onOpenConflicts && <button data-testid={`open-conflicts-${e.request.id}`} onClick={() => (onOpenConflicts as (id: string) => void)(e.request.id)}>Conflicts</button>}
           {onDrop && <button data-testid={`drop-${e.request.id}`} onClick={() => (onDrop as (a: string, b: string) => void)('r-drag', e.request.id)}>Drop</button>}
+          {onOpenPlan && <button data-testid={`plan-${e.request.id}`} onClick={() => (onOpenPlan as (r: unknown) => void)(e.request)}>Plan</button>}
         </div>
       ))}
     </div>
@@ -255,6 +256,14 @@ const createWrapper = () => {
 };
 
 describe('RequestsPage', () => {
+  // Restoring the clock in teardown rather than at the end of a test body, so a fake-timer
+  // test that fails part-way cannot leave the clock faked for whatever runs next. Measured:
+  // with shouldAdvanceTime the leak does not currently cascade, so this is hygiene against a
+  // future test that fakes timers without it — not a fix for an observed failure.
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetRequests.mockResolvedValue([]);
@@ -383,7 +392,6 @@ describe('RequestsPage', () => {
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   it('shows adjust search message when search yields no results', async () => {
@@ -399,7 +407,6 @@ describe('RequestsPage', () => {
     fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'zzz' } });
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText(/try adjusting your search/i)).toBeInTheDocument();
-    vi.useRealTimers();
   });
 
   // --- View mode toggle ---
@@ -895,5 +902,19 @@ describe('RequestsPage', () => {
     await waitFor(() => expect(screen.getByText('Delete request')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.queryByText('Delete request')).not.toBeInTheDocument();
+  });
+});
+
+describe('RequestsPage — the planner row action', () => {
+  it('routes a group row straight to its dependency planner', async () => {
+    mockGetRequests.mockResolvedValue([
+      { id: 'g1', name: 'Contract', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
+    ]);
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await waitFor(() => expect(screen.getByTestId('plan-g1')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('plan-g1'));
+    // The route the editor's Children tab already used — one planner, two ways in.
+    expect(mockNavigate).toHaveBeenCalledWith('/requests/g1/plan');
   });
 });

@@ -1,4 +1,6 @@
 import type { Conflict, Request, RequestStatus } from "@foundation/src/types/requests";
+import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
+import { formatStatusLabel } from "@foundation/src/lib/utils/utils";
 
 /**
  * Calendar event projection of a Request — see
@@ -111,6 +113,20 @@ export const SEVERITY_SWATCH: Record<"error" | "warning", string> = {
   error: "bg-red-500/15 dark:bg-red-500/25 border-red-500/60",
   warning: "bg-amber-500/15 dark:bg-amber-500/25 border-amber-500/60",
 };
+
+/**
+ * The key for any surface that colours blocks by request status + conflict severity — the
+ * calendar and the Requests timeline. Built from the swatch maps above so it cannot drift
+ * from what is painted.
+ */
+export const REQUEST_LEGEND: readonly { className: string; label: string }[] = [
+  ...REQUEST_STATUS_ORDER.map((status) => ({
+    className: STATUS_SWATCH[status],
+    label: formatStatusLabel(status),
+  })),
+  { className: SEVERITY_SWATCH.error, label: "Conflicts" },
+  { className: SEVERITY_SWATCH.warning, label: "Warnings" },
+];
 
 /** Event colour = translucent status block, overridden by conflict severity. */
 export function getEventClassNames(

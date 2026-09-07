@@ -10,11 +10,10 @@ import {
   type ResourceGridFilter,
 } from "@foundation/src/components/utilization/resource-grid-filter";
 import {
-  ISSUE_FILTER_ORDER,
+  DEFAULT_SCHEDULE_FILTER,
   filterScheduledRequests,
   type ScheduleFilter,
 } from "@foundation/src/components/utilization/schedule-filter";
-import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
 import { useTypeFilter } from "@foundation/src/hooks/useTypeFilter";
 import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerGrid";
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
@@ -37,9 +36,11 @@ import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/useP
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
 import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
+import { Button } from "@foundation/src/components/ui/button";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
 import { ResourceUtilizationGrid } from "@foundation/src/components/utilization/ResourceUtilizationGrid";
+import { SitePlanCanvas, type SitePlanView } from "@foundation/src/components/requests/plan/SitePlanCanvas";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
@@ -77,6 +78,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { CalendarOff } from "lucide-react";
 import {
@@ -98,6 +100,7 @@ function joinNames(names: string[]): string {
 
 const STATIONS_TAB = 'stations';
 const ASSETS_TAB = 'assets';
+const REQUESTS_TAB = 'requests';
 
 export function UtilizationPage() {
   usePageTitle("Utilization");
@@ -122,6 +125,7 @@ export function UtilizationPage() {
   // Viewers get a read-only grid: with no canEdit, attach no drag sensors so
   // scheduling/reorder drags can't be initiated at all (writes also 403 server-side).
   const canEdit = useCanEdit();
+  const navigate = useNavigate();
 
   // Separate mouse + touch sensors so tap-to-open and drag-to-reschedule coexist
   // on every device. Mouse: 8px of movement before a drag (plain clicks open the
@@ -203,11 +207,11 @@ export function UtilizationPage() {
     ];
   }, [resourceTypes]);
 
-  // Tab state — persisted in URL so the view is bookmarkable. Three fixed values, so the set is
+  // Tab state — persisted in URL so the view is bookmarkable. Four fixed values, so the set is
   // known without waiting for the types.
   const [rawTab, handleTabChange] = useTabParam('calendar');
   const isKnownTab =
-    rawTab === 'calendar' || rawTab === STATIONS_TAB || rawTab === ASSETS_TAB;
+    rawTab === 'calendar' || rawTab === STATIONS_TAB || rawTab === ASSETS_TAB || rawTab === REQUESTS_TAB;
   // Until the types load the valid set is unknown, so an unrecognised value is held rather
   // than replaced — otherwise a deep link to a real type tab flashes Calendar first.
   const activeTab = !resourceTypesLoaded || isKnownTab ? rawTab : 'calendar';
@@ -218,9 +222,18 @@ export function UtilizationPage() {
     if (resourceTypesLoaded && !isKnownTab) handleTabChange('calendar');
   }, [resourceTypesLoaded, isKnownTab, handleTabChange]);
 
+  // The Requests tab's two views over one canvas: Timeline (bars on the date grid, the
+  // default) and Structure (dependency depth). Owned here because the time controls in the
+  // header only make sense while the timeline is showing.
+  const [requestsView, setRequestsView] = useState<SitePlanView>('timeline');
+
   const isCalendarTab = activeTab === 'calendar';
   const isSchedulerTab = activeTab === STATIONS_TAB;
   const isAssetsTab = activeTab === ASSETS_TAB;
+  const isRequestsTab = activeTab === REQUESTS_TAB;
+  // Calendar and the Requests canvas show requests, not resources: neither has a type of its own,
+  // so neither takes a type filter, offers auto-schedule, or narrows the export.
+  const isRequestCentricTab = isCalendarTab || isRequestsTab;
 
   // Which types each grid tab is showing. Held in the URL so a filtered view is shareable.
   const [stationKeys, setStationKeys] = useTypeFilter('stationTypes', placeableTypes);
@@ -235,7 +248,7 @@ export function UtilizationPage() {
   // live exactly when the filter names a single type, which generalizes the old rule (enabled
   // when the tenant happened to have one placeable type) instead of guessing at a pool.
   const autoScheduleTypeKey =
-    !isCalendarTab && selectedKeys.length === 1 ? selectedKeys[0] : null;
+    !isRequestCentricTab && selectedKeys.length === 1 ? selectedKeys[0] : null;
 
   // Stations first, then assets with people at their head — the PDF sections rows by type, and
   // this is the order the two grid tabs present them in.
@@ -244,22 +257,22 @@ export function UtilizationPage() {
     [placeableTypes, gridTypes],
   );
 
-  // The export follows what is on screen: Calendar has no type of its own and exports every
-  // type; a grid tab exports exactly the types its filter admits. Anything else hands back a PDF
-  // that disagrees with the screen it came from.
+  // The export follows what is on screen: Calendar and the Requests canvas have no type of their
+  // own and export every type; a grid tab exports exactly the types its filter admits. Anything
+  // else hands back a PDF that disagrees with the screen it came from.
   const exportTypes = useMemo(
     () => {
-      if (isCalendarTab) return orderedTypes;
+      if (isRequestCentricTab) return orderedTypes;
       return orderedTypes.filter((t) => selectedKeys.includes(t.key));
     },
-    [isCalendarTab, orderedTypes, selectedKeys],
+    [isRequestCentricTab, orderedTypes, selectedKeys],
   );
   // Names what the PDF will contain. The scheduler tab can span several placeable types, and
   // naming only the first would misdescribe the file. A filter that admits everything says so rather than
   // enumerating the whole catalogue, and three or more types read as a list, not as a chain of
   // "and"s.
   const exportScopeLabel =
-    isCalendarTab || exportTypes.length === orderedTypes.length
+    isRequestCentricTab || exportTypes.length === orderedTypes.length
       ? 'all resources'
       : joinNames(exportTypes.map((t) => t.displayNamePlural));
 
@@ -389,8 +402,9 @@ export function UtilizationPage() {
   }, [preferences, spaceOrder.length, setSpaceOrder]);
 
   // Conflict detection — backend is the single source of truth. Scope the registry to the visible
-  // window (Calendar/Space) so it never evaluates the whole tenant all-time. A type grid tab
-  // computes its own windowed conflicts, so skip the registry there entirely.
+  // window (Calendar/Stations/Requests) so it never evaluates the whole tenant all-time. A type
+  // grid tab computes its own windowed conflicts, so skip the registry there entirely. The
+  // Requests canvas colours its bars from it, so it stays on there.
   const { conflictsByRequest: conflicts } = useConflictRegistry({
     from: fetchWindow.from,
     to: fetchWindow.to,
@@ -400,11 +414,7 @@ export function UtilizationPage() {
 
   // Search and filters for the stations grid. Local, like the calendar's: a query changes on every
   // keystroke, and writing that to the address bar would bury real navigation under typing history.
-  const [stationFilter, setStationFilter] = useState<ScheduleFilter>({
-    query: '',
-    statuses: REQUEST_STATUS_ORDER,
-    issues: ISSUE_FILTER_ORDER,
-  });
+  const [stationFilter, setStationFilter] = useState<ScheduleFilter>(DEFAULT_SCHEDULE_FILTER);
   const visibleScheduled = useMemo(
     () => filterScheduledRequests(scheduled, stationFilter, conflicts),
     [scheduled, stationFilter, conflicts],
@@ -801,6 +811,7 @@ export function UtilizationPage() {
     { value: 'calendar', label: 'Calendar' },
     { value: STATIONS_TAB, label: 'Stations' },
     { value: ASSETS_TAB, label: 'Assets' },
+    { value: REQUESTS_TAB, label: 'Requests' },
   ];
 
   // Scale + time navigation shared across every tab (the calendar is
@@ -809,23 +820,29 @@ export function UtilizationPage() {
   // controls wrap onto their own line under the title instead of a bespoke row.
   const schedulingControls = (
     <>
-      {autoScheduleAvailable && canEdit && !isCalendarTab && (
+      {autoScheduleAvailable && canEdit && !isRequestCentricTab && (
         <AutoScheduleButton
           onClick={handleAutoScheduleClick}
           loading={previewMutation.isPending}
           disabled={!selectedSiteId || !autoScheduleTypeKey}
         />
       )}
-      <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
-      <TimeNavigator
-        scale={scale}
-        anchorTs={anchorTs}
-        onAnchorChange={setAnchorTs}
-        onPrevious={handlePrevious}
-        onNext={handleNext}
-        onToday={handleToday}
-        compact={isPhone}
-      />
+      {/* The structure view is time-independent, so the time controls would be dead weight
+          there; the timeline view is driven by them. */}
+      {!(isRequestsTab && requestsView === 'structure') && (
+        <>
+          <ScaleSelect value={scale} onChange={setScale} compact={isPhone} />
+          <TimeNavigator
+            scale={scale}
+            anchorTs={anchorTs}
+            onAnchorChange={setAnchorTs}
+            onPrevious={handlePrevious}
+            onNext={handleNext}
+            onToday={handleToday}
+            compact={isPhone}
+          />
+        </>
+      )}
     </>
   );
 
@@ -1018,6 +1035,53 @@ export function UtilizationPage() {
                 </section>
               ))}
             </div>
+          </div>
+        </TabsContent>
+
+        {/* Requests — the dependency canvas: every group as a band, every task as a node,
+            and the edges among them, cross-group ones included. Two views: Timeline puts the
+            bars on the date grid the header's selector drives; Structure lays them out by
+            dependency depth. Read-only; editing stays in the per-group planner each band
+            header links to. */}
+        <TabsContent
+          value={REQUESTS_TAB}
+          className="h-full overflow-hidden m-0 data-[state=inactive]:hidden"
+        >
+          <div className="flex h-full flex-col overflow-hidden rounded-xl border bg-background">
+            <div className="flex items-center gap-1 border-b px-3 py-1.5" role="group" aria-label="Canvas view">
+              <Button
+                variant={requestsView === 'timeline' ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-pressed={requestsView === 'timeline'}
+                onClick={() => setRequestsView('timeline')}
+              >
+                Timeline
+              </Button>
+              <Button
+                variant={requestsView === 'structure' ? 'secondary' : 'ghost'}
+                size="sm"
+                aria-pressed={requestsView === 'structure'}
+                onClick={() => setRequestsView('structure')}
+              >
+                Structure
+              </Button>
+            </div>
+            <SitePlanCanvas
+              siteId={selectedSiteId}
+              view={requestsView}
+              scale={scale}
+              anchorTs={anchorTs}
+              nowMs={nowMs}
+              offTimeRanges={offTimeRanges}
+              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+              workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
+              workingDayStart={schedulingSettings?.workingDayStart}
+              workingDayEnd={schedulingSettings?.workingDayEnd}
+              // The deep link, not the page's in-memory lookup: the canvas shows tasks from any
+              // point in time, and the page's feeds only hold the visible window plus backlog.
+              onOpenRequest={(id) => navigate(`/requests?edit=${id}`)}
+              onOpenGroupPlanner={(groupId) => navigate(`/requests/${groupId}/plan`)}
+            />
           </div>
         </TabsContent>
 

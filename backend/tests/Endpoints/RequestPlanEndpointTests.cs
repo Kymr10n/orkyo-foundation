@@ -58,7 +58,9 @@ public class RequestPlanEndpointTests
         string status = "new",
         string predecessorLogic = "all",
         int? k = null,
-        string? name = null)
+        string? name = null,
+        Guid? siteOverride = null,
+        bool siteNeutral = false)
     {
         var id = Guid.NewGuid();
         await using var conn = new NpgsqlConnection(_tenantCs);
@@ -70,7 +72,8 @@ public class RequestPlanEndpointTests
                  created_at, updated_at)
             VALUES
                 (@id, @name, @status, 60, 'minutes', @mode, @parent, @site, @start, @end, @logic, @k, NOW(), NOW())", conn);
-        cmd.Parameters.AddWithValue("site", await _site.Value);
+        cmd.Parameters.AddWithValue("site",
+            siteNeutral ? DBNull.Value : (object?)siteOverride ?? await _site.Value);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("name", name ?? $"Plan {id.ToString()[..8]}");
         cmd.Parameters.AddWithValue("status", status);
@@ -341,5 +344,70 @@ public class RequestPlanEndpointTests
         var response = await _client.GetAsync($"/api/requests/{Guid.NewGuid()}/plan");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    // ── The site-wide plan ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SitePlanDrawsTheCrossGroupEdgeThePerParentPlanOnlyCounts()
+    {
+        var parent1 = await SeedRequestAsync(planningMode: "summary", name: "Group One");
+        var parent2 = await SeedRequestAsync(planningMode: "summary", name: "Group Two");
+        var a = await SeedRequestAsync(parentId: parent1);
+        var b = await SeedRequestAsync(parentId: parent2);
+        await LinkAsync(b, a);
+
+        // The per-parent view has no node for the other end: counts only.
+        var groupPlan = await _client.GetFromJsonAsync<RequestPlan>($"/api/requests/{parent1}/plan");
+        groupPlan!.Edges.Should().BeEmpty();
+        groupPlan.Children.Single(c => c.Id == a).ExternalSuccessorCount.Should().Be(1);
+
+        // The site view holds both ends, so the edge is drawable — and each node names its band.
+        var sitePlan = await _client.GetFromJsonAsync<SiteRequestPlan>(
+            $"/api/requests/plan?siteId={await _site.Value}");
+        sitePlan!.Edges.Should().ContainSingle(e =>
+            e.PredecessorRequestId == a && e.SuccessorRequestId == b);
+        sitePlan.Groups.Select(g => g.Id).Should().BeEquivalentTo(new[] { parent1, parent2 });
+        sitePlan.Children.Single(c => c.Id == a).ParentRequestId.Should().Be(parent1);
+        sitePlan.Children.Single(c => c.Id == b).ParentRequestId.Should().Be(parent2);
+        // Nothing external any more: both ends are on the canvas.
+        sitePlan.Children.Single(c => c.Id == a).ExternalSuccessorCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SitePlanListsLeavesOnlyAndKeepsSiteNeutralOnes()
+    {
+        var parent = await SeedRequestAsync(planningMode: "summary");
+        var mine = await SeedRequestAsync(parentId: parent);
+        var neutral = await SeedRequestAsync(siteNeutral: true);
+        var elsewhere = await SeedRequestAsync(siteOverride: await SeedSiteAsync());
+
+        var plan = await _client.GetFromJsonAsync<SiteRequestPlan>(
+            $"/api/requests/plan?siteId={await _site.Value}");
+
+        var ids = plan!.Children.Select(c => c.Id).ToList();
+        ids.Should().Contain(mine);
+        ids.Should().Contain(neutral, "a site-neutral task is schedulable at every site");
+        ids.Should().NotContain(elsewhere);
+        ids.Should().NotContain(parent, "groups are bands, not nodes");
+    }
+
+    [Fact]
+    public async Task SitePlanAgreesWithThePerParentPlanOnCanStart()
+    {
+        var parent = await SeedRequestAsync(planningMode: "summary");
+        var predecessor = await SeedRequestAsync(parentId: parent);
+        var blocked = await SeedRequestAsync(parentId: parent);
+        await LinkAsync(blocked, predecessor);
+
+        var groupPlan = await _client.GetFromJsonAsync<RequestPlan>($"/api/requests/{parent}/plan");
+        var sitePlan = await _client.GetFromJsonAsync<SiteRequestPlan>(
+            $"/api/requests/plan?siteId={await _site.Value}");
+
+        foreach (var id in new[] { predecessor, blocked })
+            sitePlan!.Children.Single(c => c.Id == id).CanStart
+                .Should().Be(groupPlan!.Children.Single(c => c.Id == id).CanStart,
+                    "one projection serves both canvases");
+        sitePlan!.Children.Single(c => c.Id == blocked).CanStart.Should().BeFalse();
     }
 }

@@ -1,5 +1,4 @@
 import { useRef, useMemo, type ReactNode } from "react";
-import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAppStore } from "@foundation/src/store/app-store";
@@ -8,6 +7,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 import { GroupHeader } from "./GroupHeader";
+import { columnHeaderTintClass, columnHeaderTitle } from "./TimelineRow";
 
 /**
  * Shared presentational shell for both utilization grids (Spaces + People).
@@ -130,21 +130,13 @@ export function TimelineGridShell<R>({
   // Per-column tint + tooltip title, precomputed once per column/scale change.
   // The title's date-fns format() was previously called for every column on
   // every render of the shell.
-  const columnHeaders = useMemo(() => {
-    const opts: Intl.DateTimeFormatOptions =
-      scale === "day" || scale === "hour"
-        ? { weekday: "long", month: "long", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE }
-        : { weekday: "long", month: "long", day: "numeric", year: "numeric" };
-    return columns.map((col) => ({
-      tint:
-        col.isWeekend || col.isGlobalOffTime
-          ? "bg-destructive/10 text-destructive"
-          : col.isOutsideWorkingHours
-          ? "bg-muted/80"
-          : "",
-      title: formatLocalized(col.start, opts),
-    }));
-  }, [columns, scale]);
+  const columnHeaders = useMemo(
+    () => columns.map((col) => ({
+      tint: columnHeaderTintClass(col),
+      title: columnHeaderTitle(col, scale),
+    })),
+    [columns, scale],
+  );
 
   // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
   // eslint-disable-next-line react-hooks/incompatible-library

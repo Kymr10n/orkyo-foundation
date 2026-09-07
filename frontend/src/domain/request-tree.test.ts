@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Request } from "@foundation/src/types/requests";
 import {
+  buildChildCountMap,
   buildRequestTree,
   flattenTree,
   flattenVisibleTree,
@@ -400,3 +401,22 @@ describe("flattenVisibleTree", () => {
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
+
+describe("buildChildCountMap", () => {
+  it("counts direct children only, never grandchildren", () => {
+    const map = buildChildCountMap(flat);
+    expect(map.get("root-1")).toBe(2); // grandchild-1 belongs to child-1, not root-1
+    expect(map.get("child-1")).toBe(1);
+    expect(map.get("root-2")).toBe(1);
+  });
+
+  it("has no entry for a request without children", () => {
+    const map = buildChildCountMap(flat);
+    expect(map.has("child-2")).toBe(false);
+    expect(map.has("grandchild-1")).toBe(false);
+  });
+
+  it("returns an empty map for no requests", () => {
+    expect(buildChildCountMap([]).size).toBe(0);
+  });
+});

@@ -21,6 +21,8 @@ export interface RequestPlanChild {
   endTs: string | null;
   sortOrder: number;
   icon: string | null;
+  /** The group this task belongs to; null for a parentless task. */
+  parentRequestId?: string | null;
   predecessorLogic: PredecessorLogic;
   predecessorLogicK: number | null;
   /** Whether the join condition is satisfied right now — the same answer the server's gate gives. */
@@ -41,4 +43,26 @@ export interface RequestPlan {
 
 export function getRequestPlan(requestId: string): Promise<RequestPlan> {
   return apiGet<RequestPlan>(API_PATHS.requestPlan(requestId));
+}
+
+/** A group band on the site-wide canvas: the parent's identity, nothing more. */
+export interface SitePlanGroup {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+/**
+ * The plan across a whole site: every leaf task, the group each belongs to, and every edge
+ * among them — cross-group edges included, which the per-parent plan can only count.
+ */
+export interface SiteRequestPlan {
+  groups: SitePlanGroup[];
+  children: RequestPlanChild[];
+  edges: RequestDependency[];
+}
+
+export function getSitePlan(siteId?: string | null): Promise<SiteRequestPlan> {
+  const query = siteId ? `?siteId=${siteId}` : "";
+  return apiGet<SiteRequestPlan>(`${API_PATHS.sitePlan}${query}`);
 }

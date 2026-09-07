@@ -14,6 +14,13 @@ public interface IRequestPlanService
 {
     /// <summary>The plan for <paramref name="parentId"/>, or null when no such request exists.</summary>
     Task<RequestPlan?> GetPlanAsync(Guid parentId, CancellationToken ct = default);
+
+    /// <summary>
+    /// The plan across a whole site (or the tenant, when <paramref name="siteId"/> is null):
+    /// every leaf task plus the edges among them — cross-group edges included, which the
+    /// per-parent plan can only count. Site-neutral tasks are kept under every site.
+    /// </summary>
+    Task<SiteRequestPlan> GetSitePlanAsync(Guid? siteId, CancellationToken ct = default);
 }
 
 public class RequestPlanService(
@@ -36,10 +43,58 @@ public class RequestPlanService(
                 Edges = [],
             };
 
+        var (planChildren, internalEdges) = await AssembleAsync(children, ct);
+
+        return new RequestPlan
+        {
+            ParentId = parent.Id,
+            ParentName = parent.Name,
+            ParentPlanningMode = parent.PlanningMode,
+            Edges = internalEdges,
+            Children = planChildren,
+        };
+    }
+
+    public async Task<SiteRequestPlan> GetSitePlanAsync(Guid? siteId, CancellationToken ct = default)
+    {
+        // The site filter keeps site-neutral rows, the same rule the requests list applies.
+        var leaves = (await requests.GetAllAsync(includeRequirements: false, siteId, ct))
+            .Where(r => r.PlanningMode == PlanningMode.Leaf)
+            .ToList();
+
+        var (children, edges) = await AssembleAsync(leaves, ct);
+
+        // The bands. A parent can sit at another site than its children (or be site-neutral),
+        // so it is fetched by id rather than assumed to be in the leaf query's scope.
+        var parentIds = leaves
+            .Where(l => l.ParentRequestId.HasValue)
+            .Select(l => l.ParentRequestId!.Value)
+            .Distinct()
+            .ToList();
+        var groups = parentIds.Count == 0
+            ? new List<SitePlanGroup>()
+            : (await requests.GetByIdsAsync(parentIds, includeRequirements: false, ct))
+                .Select(p => new SitePlanGroup { Id = p.Id, Name = p.Name, SortOrder = p.SortOrder })
+                .OrderBy(g => g.SortOrder)
+                .ThenBy(g => g.Name)
+                .ToList();
+
+        return new SiteRequestPlan { Groups = groups, Children = children, Edges = edges };
+    }
+
+    /// <summary>
+    /// The shared assembly step over any node set: partition its touching edges into drawable
+    /// (both ends inside) and external counts, and evaluate every node's join condition. The
+    /// per-parent plan runs it over one group's children, the site plan over a site's leaves —
+    /// one projection, so the two canvases cannot disagree on what a node says.
+    /// </summary>
+    private async Task<(List<RequestPlanChild> Children, List<RequestDependencyInfo> InternalEdges)> AssembleAsync(
+        IReadOnlyList<RequestInfo> children, CancellationToken ct)
+    {
         var childIds = children.Select(c => c.Id).ToHashSet();
         var touching = await dependencies.GetTouchingAsync(childIds, ct);
 
-        // Both ends inside the group: the edges the planner can actually draw.
+        // Both ends inside the set: the edges the planner can actually draw.
         var internalEdges = touching
             .Where(e => childIds.Contains(e.PredecessorRequestId) && childIds.Contains(e.SuccessorRequestId))
             .ToList();
@@ -54,7 +109,7 @@ public class RequestPlanService(
             .GroupBy(e => e.PredecessorRequestId)
             .ToDictionary(g => g.Key, g => g.Count());
 
-        // CanStart weighs EVERY predecessor, inside the group or not — a task waiting on work in
+        // CanStart weighs EVERY predecessor, inside the set or not — a task waiting on work in
         // another group is no more startable for the planner not being able to draw it.
         var predecessorsOf = touching
             .Where(e => childIds.Contains(e.SuccessorRequestId))
@@ -77,32 +132,28 @@ public class RequestPlanService(
 
         var now = DateTime.UtcNow;
 
-        return new RequestPlan
-        {
-            ParentId = parent.Id,
-            ParentName = parent.Name,
-            ParentPlanningMode = parent.PlanningMode,
-            Edges = internalEdges,
-            Children = children
-                .OrderBy(c => c.SortOrder)
-                .Select(child => new RequestPlanChild
-                {
-                    Id = child.Id,
-                    Name = child.Name,
-                    PlanningMode = child.PlanningMode,
-                    Status = child.Status,
-                    StartTs = child.StartTs,
-                    EndTs = child.EndTs,
-                    SortOrder = child.SortOrder,
-                    Icon = child.Icon,
-                    PredecessorLogic = child.PredecessorLogic,
-                    PredecessorLogicK = child.PredecessorLogicK,
-                    CanStart = CanStart(child, predecessorsOf, predecessorsById, storedStatuses, childStatuses, now),
-                    ExternalPredecessorCount = externalPredecessors.GetValueOrDefault(child.Id),
-                    ExternalSuccessorCount = externalSuccessors.GetValueOrDefault(child.Id),
-                })
-                .ToList(),
-        };
+        var planChildren = children
+            .OrderBy(c => c.SortOrder)
+            .Select(child => new RequestPlanChild
+            {
+                Id = child.Id,
+                Name = child.Name,
+                PlanningMode = child.PlanningMode,
+                ParentRequestId = child.ParentRequestId,
+                Status = child.Status,
+                StartTs = child.StartTs,
+                EndTs = child.EndTs,
+                SortOrder = child.SortOrder,
+                Icon = child.Icon,
+                PredecessorLogic = child.PredecessorLogic,
+                PredecessorLogicK = child.PredecessorLogicK,
+                CanStart = CanStart(child, predecessorsOf, predecessorsById, storedStatuses, childStatuses, now),
+                ExternalPredecessorCount = externalPredecessors.GetValueOrDefault(child.Id),
+                ExternalSuccessorCount = externalSuccessors.GetValueOrDefault(child.Id),
+            })
+            .ToList();
+
+        return (planChildren, internalEdges);
     }
 
     private static bool CanStart(

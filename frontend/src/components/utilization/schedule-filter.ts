@@ -1,3 +1,4 @@
+import { REQUEST_STATUS_ORDER } from '@foundation/src/constants/request-status';
 import type { Conflict, Request, RequestStatus } from '@foundation/src/types/requests';
 import { getEventConflictSeverity, type CalendarEvent } from './request-calendar-events';
 
@@ -22,6 +23,16 @@ export interface ScheduleFilter {
   statuses: readonly RequestStatus[];
   issues: readonly IssueFilter[];
 }
+
+/**
+ * Everything admitted, nothing typed — the state every tab's filter starts from. Frozen: the
+ * tabs share this one object as their initial state and patch it by spread, never in place.
+ */
+export const DEFAULT_SCHEDULE_FILTER: ScheduleFilter = Object.freeze({
+  query: '',
+  statuses: REQUEST_STATUS_ORDER,
+  issues: ISSUE_FILTER_ORDER,
+});
 
 /** The three things a filter judges, whatever surface the thing is drawn on. */
 export interface FilterableSchedulable {
