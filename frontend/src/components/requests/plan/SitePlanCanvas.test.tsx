@@ -310,6 +310,26 @@ describe("SitePlanCanvas — fit to width", () => {
       else delete (HTMLElement.prototype as { clientWidth?: unknown }).clientWidth;
     }
   });
+
+  it("stretches the structure bands to the card instead of stopping at the widest layout", async () => {
+    const proto = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 1400 });
+    try {
+      (getSitePlan as Mock).mockResolvedValue(sitePlan({
+        children: [child("Cut", "g1")],
+        edges: [],
+      }));
+      renderCanvas({ view: "structure" });
+      const label = await screen.findByText("Contract One");
+      await userEvent.click(label);
+      // One card is far narrower than the viewport. The band chrome follows the scroller,
+      // not the layout, so the header rules across the whole card like the grids' group rows.
+      expect(label.closest("button")!.parentElement!.style.width).toBe("1400px");
+    } finally {
+      if (proto) Object.defineProperty(HTMLElement.prototype, "clientWidth", proto);
+      else delete (HTMLElement.prototype as { clientWidth?: unknown }).clientWidth;
+    }
+  });
 });
 
 describe("SitePlanCanvas — timeline colour coding", () => {

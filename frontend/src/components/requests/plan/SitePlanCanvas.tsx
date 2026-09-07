@@ -38,6 +38,7 @@ import { collectViolatingEdgeIds } from "./plan-conflicts";
 const ZOOM_MIN = 0.5;
 const ZOOM_MAX = 2;
 const ZOOM_STEP = 0.25;
+/** Bottom breathing room under the structure canvas; it runs flush on every other edge. */
 const CANVAS_PADDING = 32;
 
 /** Band chrome: the header strip and the breathing room around an expanded band's graph. */
@@ -205,7 +206,7 @@ export function SitePlanCanvas({
   // places duration-wide bars by date, one per row.
   const geometry = useMemo(() => {
     const isTimeline = view === "timeline";
-    // Timeline runs flush inside the card like the other grids, so the whole scroller
+    // Both views run flush inside the card like the other grids, so the whole scroller
     // width is drawable.
     const usable = Math.max(0, containerWidth);
     const timelineWidth = Math.max(columns.length * TIMELINE_MIN_COL_PX, usable);
@@ -271,7 +272,7 @@ export function SitePlanCanvas({
     return {
       placedBands,
       rectsById,
-      width: isTimeline ? timelineWidth : Math.max(maxCardWidth, 480),
+      width: isTimeline ? timelineWidth : Math.max(maxCardWidth, usable),
       height: Math.max(y, 0),
     };
   }, [bands, expandedIds, view, columns.length, viewStartMs, viewEndMs, containerWidth]);
@@ -585,11 +586,11 @@ export function SitePlanCanvas({
           </div>
         </div>
       ) : (
-        <div ref={attachScroller} className="min-h-0 flex-1 overflow-auto p-4">
+        <div ref={attachScroller} className="min-h-0 flex-1 overflow-auto">
           <div
             className="relative"
             style={{
-              width: geometry.width * zoom + CANVAS_PADDING,
+              width: geometry.width * zoom,
               height: geometry.height * zoom + CANVAS_PADDING,
             }}
           >
