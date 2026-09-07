@@ -953,6 +953,12 @@ public static class NarrativeYearSeeder
 
         if (edges.Count == 0) return 0;
 
+        // Two producers can name the same pair: the facility walk above sees the very jobs the
+        // within-group chains already linked when they were created, and its "a kind not used
+        // yet" rule does not exclude them. A pair is unique in the database, so a second proposal
+        // is the same edge rather than another one, and the writer is where that is settled.
+        var written = new HashSet<(Guid Pred, Guid Succ)>();
+
         // Scoped so the importer is DISPOSED before the update below: CompleteAsync ends the
         // copy but the connection stays in its Copy state until the writer goes away, and any
         // command issued in between fails with "connection is already in state 'Copy'".
@@ -960,6 +966,8 @@ public static class NarrativeYearSeeder
         {
             foreach (var (pred, succ) in edges)
             {
+                if (!written.Add((pred, succ))) continue;
+
                 await w.StartRowAsync();
                 await w.WriteAsync(Guid.NewGuid(), NpgsqlDbType.Uuid);
                 await w.WriteAsync(pred, NpgsqlDbType.Uuid);
@@ -976,7 +984,7 @@ public static class NarrativeYearSeeder
         }
 
         await WriteJoinConditionsAsync(conn, joins);
-        return edges.Count;
+        return written.Count;
     }
 
     /// <summary>
