@@ -41,9 +41,13 @@ public static class NarrativeYearSeeder
     // (tiny jobs, huge roster) from generating a day nobody could render.
     private const int MaxJobsPerDayPerCohort = 60;
 
-    // Every Nth campaign job grows a follow-up chain. A constant stride keeps it deterministic
-    // now that campaign volume is a consequence of the targets rather than a known count.
-    private const int ChainStride = 40;
+    // Every Nth job grows a follow-up chain of two more, so roughly 3/N of all work ends up
+    // sequenced. This used to be capped at three chains per facility, which was a fair ratio at
+    // 4k requests and invisible at 19k: the Requests timeline showed 10k tasks against 25
+    // dependencies, which undersells the one feature that view exists to show. A stride of 30
+    // puts about a tenth of the shop's work in a plan, enough to find without burying the
+    // timeline in arrows.
+    private const int ChainStride = 30;
 
     // One in this many of a cohort's jobs is deliberately broken, per conflict kind. Volume is
     // target-driven now, so a divisor tuned against ~1.3k jobs per cohort would inject hundreds
@@ -133,8 +137,8 @@ public static class NarrativeYearSeeder
             // scarcer resource and work that needs one should claim it before the crew is spent.
             var people = ctx.PeopleIds();
             var machineRoles = ctx.MachineRoles();
-            var chainsBudget = MaxChainsPerGroup;
-            var campaignJobs = 0;
+            var chainedJobs = 0;
+            var campaignChained = false;
 
             foreach (var day in cal.WorkingDays())
             {
@@ -158,7 +162,13 @@ public static class NarrativeYearSeeder
                     if (job is null) return null;
                     placedToday++;
                     jobs.Add(job);
-                    if (parent is not null) AddChain(job, ref campaignJobs, ref chainsBudget);
+                    // A campaign band with no sequenced thread is a plan view that opens onto
+                    // hundreds of identical rows, so the first campaign job is chained outright
+                    // instead of waiting for the stride to happen to land on one.
+                    if (parent is not null && !campaignChained)
+                        campaignChained = AddChain(job, ref chainedJobs, force: true);
+                    else
+                        AddChain(job, ref chainedJobs);
                     return job;
                 }
 
@@ -222,25 +232,61 @@ public static class NarrativeYearSeeder
                 // inspect, then pack), under the same parent and dated after their base job, and
                 // the edges ride to the dependency write. This is what gives a campaign band on
                 // the site canvas visible threads instead of hundreds of bare rows.
-                void AddChain(Job baseJob, ref int seen, ref int budget)
+                bool AddChain(Job baseJob, ref int seen, bool force = false)
                 {
                     var index = seen++;
-                    if (budget <= 0 || index % ChainStride != 0 || routineArchetypes.Count == 0) return;
+                    if ((!force && index % ChainStride != 0) || routineArchetypes.Count == 0) return false;
+
+                    // Build the follow-ups first, then decide. A chain that cannot be staffed
+                    // must leave nothing behind: creating the parent up front produced groups
+                    // holding one task and no edges, which is worse than no group at all.
+                    // Never follow a job with more of the same work either — a chain reads as a
+                    // path through the shop (machine it, inspect it, ship it), and "Weld frames →
+                    // Weld frames" tells a visitor nothing.
+                    var follows = new List<Job>();
                     var previous = baseJob;
-                    foreach (var followArch in routineArchetypes.Take(2))
+                    foreach (var followArch in routineArchetypes.Where(a => a != baseJob.Archetype).Take(2))
                     {
                         // Strictly later calendar days: every reader of these edges works in
                         // whole days, and a same-day successor would arrive as a violation.
                         var followDay = cal.PickWorkingDay(
                             previous.End.Date.AddDays(1), previous.End.Date.AddDays(6), faker);
                         if (followDay is null || followDay > cal.End) break;
-                        var follow = TryBuildJob(cohort, followArch, cal, criteria, ctx, followDay.Value, parentId, faker);
+                        var follow = TryBuildJob(cohort, followArch, cal, criteria, ctx, followDay.Value, null, faker);
                         if (follow is null) break;
-                        jobs.Add(follow);
-                        chainEdges.Add((previous.Id, follow.Id));
+                        follows.Add(follow);
                         previous = follow;
                     }
-                    if (previous.Id != baseJob.Id) budget--;
+                    if (follows.Count == 0) return false;
+
+                    // Follow-ups belong to the same piece of work, so they hang off the same
+                    // parent as the job that started them; a routine chain gets its own, so the
+                    // plan view has something to open besides the seasonal campaigns.
+                    var chainParent = baseJob.ParentId ?? NewRoutineParent(baseJob);
+                    if (baseJob.ParentId is null) Reparent(baseJob, chainParent);
+
+                    var predecessor = baseJob;
+                    foreach (var follow in follows)
+                    {
+                        jobs.Add(follow with { ParentId = chainParent });
+                        chainEdges.Add((predecessor.Id, follow.Id));
+                        predecessor = follow;
+                    }
+                    return true;
+                }
+
+                // A parent for a chain of routine work, named for the job that starts it.
+                Guid NewRoutineParent(Job baseJob)
+                {
+                    var id = Guid.NewGuid();
+                    parents.Add((id, $"{baseJob.Archetype.Verb} {baseJob.Archetype.Noun} — {cohort.Facility.SiteCode}", parents.Count));
+                    return id;
+                }
+
+                void Reparent(Job baseJob, Guid parent)
+                {
+                    var at = jobs.LastIndexOf(baseJob);
+                    if (at >= 0) jobs[at] = baseJob with { ParentId = parent };
                 }
             }
 
@@ -1068,7 +1114,6 @@ public static class NarrativeYearSeeder
     /// band with no edges reads as broken on a surface whose whole point is edges; a few clear
     /// threads is what makes it readable, a lattice is what would make it noise again.
     /// </summary>
-    private const int MaxChainsPerGroup = 3;
 
     /// <summary>
     /// Chains each facility's jobs into a sequence, so the demo has a critical path to show and

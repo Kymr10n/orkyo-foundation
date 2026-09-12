@@ -507,6 +507,25 @@ public class NarrativeYearSeederTests
         var farLoad = await OccupancyAsync(conn, tx, cal, people, monthBase.AddMonths(11));
         _output.WriteLine($"people utilization (11 months ahead): {farLoad:P1}");
 
+        // Sequencing is what the Requests timeline exists to show. The chain budget used to be
+        // three per facility, which read as 25 dependencies against 10k tasks once demand became
+        // target-driven — the feature invisible in the view built for it.
+        var (edges, chained) = await TwoLongs(conn, tx, @"
+            SELECT count(*), count(DISTINCT d.predecessor_request_id) + count(DISTINCT d.successor_request_id)
+            FROM request_dependencies d
+            WHERE d.predecessor_request_id = ANY(@ids) OR d.successor_request_id = ANY(@ids)",
+            seededIds);
+        var sequencedShare = (double)chained / narrative.Year.Requests;
+        _output.WriteLine($"dependencies={edges} tasks in a chain={chained} ({sequencedShare:P1} of requests)");
+        sequencedShare.Should().BeInRange(0.03, 0.25,
+            "enough sequenced work to find on the timeline, not so much that it is all arrows");
+
+        var (_, grouped) = await TwoLongs(conn, tx, @"
+            SELECT 0, count(*) FROM requests WHERE id = ANY(@ids) AND parent_request_id IS NOT NULL",
+            seededIds);
+        ((double)grouped / narrative.Year.Requests).Should().BeGreaterThan(0.03,
+            "a plan view that opens onto nothing but campaigns is a thin demo");
+
         farLoad.Should().BeLessThan(peopleLoad * 0.8, "the far horizon is only partly booked");
 
         // Every month of the dashboard's default window carries work — the seeded year used to
