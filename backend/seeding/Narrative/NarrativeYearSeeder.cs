@@ -32,6 +32,45 @@ public static class NarrativeYearSeeder
     // backlog nobody could work through is not a demo of anything.
     private static int BacklogCount(IScale scale) => Math.Clamp(scale.Requests / 250, 12, 24);
 
+    // How many times in a row the day's fill may fail to place a job before it gives up. A miss
+    // means no capable person or no free station at that hour — the shop is saturated in the way
+    // that matters — so a handful of consecutive misses is the honest signal that the day is done.
+    private const int MaxConsecutiveMisses = 12;
+
+    // A guard, not a driver: the targets decide volume, and this only stops a pathological cohort
+    // (tiny jobs, huge roster) from generating a day nobody could render.
+    private const int MaxJobsPerDayPerCohort = 60;
+
+    // Every Nth campaign job grows a follow-up chain. A constant stride keeps it deterministic
+    // now that campaign volume is a consequence of the targets rather than a known count.
+    private const int ChainStride = 40;
+
+    // One in this many of a cohort's jobs is deliberately broken, per conflict kind. Volume is
+    // target-driven now, so a divisor tuned against ~1.3k jobs per cohort would inject hundreds
+    // of conflicts at the new scale; ~1 % of jobs seeded (≈2 % of requests flagged, since a clone
+    // flags its source too) is enough to prove detection without burying the real schedule.
+    private const int ConflictDivisor = 200;
+
+    /// <summary>
+    /// Picks the next kind of work, by weight. A campaign archetype outside its own season still
+    /// runs, at half weight: those are the facility's main machines, and leaving them idle for the
+    /// 15 months either side of the campaign is what made the old demo's charts flat.
+    /// </summary>
+    private static JobArchetype PickArchetype(IReadOnlyList<JobArchetype> pool, bool inCampaign, Faker faker)
+    {
+        static int BaseWeight(JobArchetype a, bool inCampaign) =>
+            a.Cadence == JobCadence.Campaign && !inCampaign ? Math.Max(1, a.Weight / 2) : a.Weight;
+
+        var total = pool.Sum(a => BaseWeight(a, inCampaign));
+        var roll = faker.Random.Int(1, Math.Max(1, total));
+        foreach (var a in pool)
+        {
+            roll -= BaseWeight(a, inCampaign);
+            if (roll <= 0) return a;
+        }
+        return pool[^1];
+    }
+
     public static async Task<Result> SeedAsync(
         NpgsqlConnection conn,
         IReadOnlyList<FacilityCohort> cohorts,
@@ -52,15 +91,10 @@ public static class NarrativeYearSeeder
         // cohort built, rather than double-booking by accident where it means to book cleanly.
         var contexts = new List<(FacilityCohort Cohort, AssignContext Ctx)>();
 
-        // Recurring cadence is fixed; campaign+routine volume fills up to the scale target.
-        var recurringPerFacility = cal.MonthStarts().Count() /*PM monthly*/ + 4 /*QA quarterly*/;
-        var variableTotal = Math.Max(cohorts.Count * 10, scale.Requests - cohorts.Count * (recurringPerFacility + 1));
-        var variablePerFacility = variableTotal / cohorts.Count;
-
         foreach (var cohort in cohorts)
         {
             var cohortStart = jobs.Count; // snapshot before this cohort adds jobs
-            var ctx = new AssignContext(cohort, personSkills, faker, absences);
+            var ctx = new AssignContext(cohort, personSkills, faker, absences, cal);
             contexts.Add((cohort, ctx));
             var campaignWin = cal.CampaignWindow(cohort.Facility.SiteCode);
 
@@ -70,57 +104,9 @@ public static class NarrativeYearSeeder
 
             var campaignArchetypes = cohort.Facility.Archetypes.Where(a => a.Cadence == JobCadence.Campaign).ToList();
             var routineArchetypes = cohort.Facility.Archetypes.Where(a => a.Cadence == JobCadence.Routine).ToList();
-            var weightSum = campaignArchetypes.Concat(routineArchetypes).Sum(a => a.Weight);
 
-            foreach (var arch in campaignArchetypes)
-            {
-                var n = Math.Max(1, variablePerFacility * arch.Weight / Math.Max(1, weightSum));
-                // A campaign is one archetype repeated, so no chain of distinctly named work can
-                // be found among its children after the fact — it has to be MADE. A few of the
-                // batches get follow-up steps from the facility's routine kinds (machine, then
-                // inspect, then pack), under the same parent and dated after their base job, and
-                // the edges ride to the dependency write. This is what gives a campaign band on
-                // the site canvas visible threads instead of hundreds of bare rows.
-                var chainsBudget = MaxChainsPerGroup;
-                var chainStride = Math.Max(1, n / MaxChainsPerGroup);
-                for (var i = 0; i < n; i++)
-                {
-                    var day = cal.PickWorkingDay(campaignWin.Start, campaignWin.End, faker);
-                    if (day is null) continue;
-                    var baseJob = BuildJob(cohort, arch, cal, criteria, ctx, day.Value, parentId, faker);
-                    jobs.Add(baseJob);
-
-                    if (chainsBudget > 0 && i % chainStride == 0 && routineArchetypes.Count > 0)
-                    {
-                        var previous = baseJob;
-                        foreach (var followArch in routineArchetypes.Take(2))
-                        {
-                            // Strictly later calendar days: every reader of these edges works in
-                            // whole days, and a same-day successor would arrive as a violation.
-                            var followDay = cal.PickWorkingDay(
-                                previous.End.Date.AddDays(1), previous.End.Date.AddDays(6), faker);
-                            if (followDay is null || followDay > cal.End) break;
-                            var follow = BuildJob(cohort, followArch, cal, criteria, ctx, followDay.Value, parentId, faker);
-                            jobs.Add(follow);
-                            chainEdges.Add((previous.Id, follow.Id));
-                            previous = follow;
-                        }
-                        if (previous.Id != baseJob.Id) chainsBudget--;
-                    }
-                }
-            }
-            foreach (var arch in routineArchetypes)
-            {
-                var n = Math.Max(1, variablePerFacility * arch.Weight / Math.Max(1, weightSum));
-                for (var i = 0; i < n; i++)
-                {
-                    var day = cal.PickWorkingDay(cal.Start, cal.End, faker);
-                    if (day is null) continue;
-                    jobs.Add(BuildJob(cohort, arch, cal, criteria, ctx, day.Value, null, faker));
-                }
-            }
-
-            // Recurring PM — one per month; QA — one per quarter.
+            // Recurring PM — one per month; QA — one per quarter. Booked first so the fixed
+            // cadence always gets its slot before general work fills the day.
             var pm = cohort.Facility.Archetypes.First(a => a.Cadence == JobCadence.MonthlyPm);
             var monthIdx = 0;
             foreach (var month in cal.MonthStarts())
@@ -128,15 +114,134 @@ public static class NarrativeYearSeeder
                 var day = cal.PickWorkingDay(month, month.AddMonths(1), faker);
                 if (day is not null)
                 {
-                    jobs.Add(BuildJob(cohort, pm, cal, criteria, ctx, day.Value, null, faker));
+                    if (TryBuildJob(cohort, pm, cal, criteria, ctx, day.Value, null, faker) is { } pmJob) jobs.Add(pmJob);
                     if (monthIdx % 3 == 0)
                     {
                         var qa = cohort.Facility.Archetypes.First(a => a.Cadence == JobCadence.QuarterlyQa);
                         var qday = cal.PickWorkingDay(month, month.AddMonths(1), faker);
-                        if (qday is not null) jobs.Add(BuildJob(cohort, qa, cal, criteria, ctx, qday.Value, null, faker));
+                        if (qday is not null && TryBuildJob(cohort, qa, cal, criteria, ctx, qday.Value, null, faker) is { } qaJob)
+                            jobs.Add(qaJob);
                     }
                 }
                 monthIdx++;
+            }
+
+            // ── Fill each day up to its target ────────────────────────────────────
+            // Volume is a consequence of how busy the shop should be, not an input. See
+            // DemandProfile: history and the committed quarter run near capacity, the far end of
+            // the book thins out. Two passes per day — stations first, because a station is the
+            // scarcer resource and work that needs one should claim it before the crew is spent.
+            var people = ctx.PeopleIds();
+            var machineRoles = ctx.MachineRoles();
+            var chainsBudget = MaxChainsPerGroup;
+            var campaignJobs = 0;
+
+            foreach (var day in cal.WorkingDays())
+            {
+                var months = DemandProfile.MonthsFrom(cal.ReferenceDate, day);
+                var inCampaign = day >= campaignWin.Start && day < campaignWin.End;
+                var peopleTarget = DemandProfile.WithCampaign(DemandProfile.People(months), inCampaign);
+                var stationTarget = DemandProfile.WithCampaign(DemandProfile.Stations(months), inCampaign);
+                var placedToday = 0;
+
+                // The fill is driven by the resource that is still idle, not by randomly drawn
+                // work. Drawing work at random stalls: once the few people holding a given skill
+                // are booked, most draws name work nobody free can do, and the day ends with
+                // capable people still sitting idle. Asking "who is not busy, and what can they
+                // do?" is what actually reaches the target.
+                var allArchetypes = campaignArchetypes.Concat(routineArchetypes).ToList();
+
+                Job? Place(JobArchetype arch, Guid? lead, Guid? machine)
+                {
+                    var parent = arch.Cadence == JobCadence.Campaign && inCampaign ? parentId : (Guid?)null;
+                    var job = TryBuildJob(cohort, arch, cal, criteria, ctx, day, parent, faker, lead, machine);
+                    if (job is null) return null;
+                    placedToday++;
+                    jobs.Add(job);
+                    if (parent is not null) AddChain(job, ref campaignJobs, ref chainsBudget);
+                    return job;
+                }
+
+                // Pass 1 — stations. A station is the scarcer resource, so work that needs one
+                // claims it before the crew is spent on work that does not.
+                // Machines are visited in a shuffled order across ALL roles, not role by role.
+                // Several roles draw on the same skill — mills, lathes and the 5-axis all want a
+                // CNC operator — so taking one role at a time let the first role spend every
+                // qualified person and left the others cold all year.
+                var stationChance = DemandProfile.WorkProbability(stationTarget);
+                var stations = machineRoles
+                    .SelectMany(role => ctx.PlacedMachineIds(role).Select(id => (Role: role, Id: id)))
+                    .OrderBy(_ => faker.Random.Int())
+                    .ToList();
+
+                foreach (var (role, machineId) in stations)
+                {
+                    var roleArchetypes = allArchetypes.Where(a => a.MachineRole == role).ToList();
+                    if (roleArchetypes.Count == 0) continue;
+
+                    {
+                        if (faker.Random.Double() > stationChance) continue; // idle today
+                        var misses = 0;
+                        while (ctx.Load([machineId], day) < DemandProfile.FullDayFill
+                            && misses < MaxConsecutiveMisses && placedToday < MaxJobsPerDayPerCohort)
+                        {
+                            // Only work that still fits the hours left, or the loop spends its
+                            // attempts on jobs that cannot be placed and leaves the day half empty.
+                            var fits = roleArchetypes.Where(a => a.MinHours <= ctx.RemainingHours(machineId, day)).ToList();
+                            if (fits.Count == 0) break;
+                            if (Place(PickArchetype(fits, inCampaign, faker), null, machineId) is null) misses++;
+                            else misses = 0;
+                        }
+                    }
+                }
+
+                // Pass 2 — the crew. Least-busy first, and only work each person can actually lead.
+                var peopleChance = DemandProfile.WorkProbability(peopleTarget);
+                foreach (var personId in people.OrderBy(id => ctx.Load([id], day)).ToList())
+                {
+                    if (faker.Random.Double() > peopleChance) continue; // not rostered onto work today
+                    var canLead = allArchetypes
+                        .Where(a => ctx.Capable(personId, a.RequiredSkills.Select(sk => criteria[sk]).ToList()))
+                        .ToList();
+                    if (canLead.Count == 0) continue;
+
+                    var misses = 0;
+                    while (ctx.Load([personId], day) < DemandProfile.FullDayFill
+                        && misses < MaxConsecutiveMisses && placedToday < MaxJobsPerDayPerCohort)
+                    {
+                        var fits = canLead.Where(a => a.MinHours <= ctx.RemainingHours(personId, day)).ToList();
+                        if (fits.Count == 0) break;
+                        if (Place(PickArchetype(fits, inCampaign, faker), personId, null) is null) misses++;
+                        else misses = 0;
+                    }
+                }
+
+                // A campaign is one archetype repeated, so no chain of distinctly named work can
+                // be found among its children after the fact — it has to be MADE. A few of the
+                // batches get follow-up steps from the facility's routine kinds (machine, then
+                // inspect, then pack), under the same parent and dated after their base job, and
+                // the edges ride to the dependency write. This is what gives a campaign band on
+                // the site canvas visible threads instead of hundreds of bare rows.
+                void AddChain(Job baseJob, ref int seen, ref int budget)
+                {
+                    var index = seen++;
+                    if (budget <= 0 || index % ChainStride != 0 || routineArchetypes.Count == 0) return;
+                    var previous = baseJob;
+                    foreach (var followArch in routineArchetypes.Take(2))
+                    {
+                        // Strictly later calendar days: every reader of these edges works in
+                        // whole days, and a same-day successor would arrive as a violation.
+                        var followDay = cal.PickWorkingDay(
+                            previous.End.Date.AddDays(1), previous.End.Date.AddDays(6), faker);
+                        if (followDay is null || followDay > cal.End) break;
+                        var follow = TryBuildJob(cohort, followArch, cal, criteria, ctx, followDay.Value, parentId, faker);
+                        if (follow is null) break;
+                        jobs.Add(follow);
+                        chainEdges.Add((previous.Id, follow.Id));
+                        previous = follow;
+                    }
+                    if (previous.Id != baseJob.Id) budget--;
+                }
             }
 
             // Scope conflict injection to this cohort's jobs only — avoids cross-facility
@@ -151,7 +256,7 @@ public static class NarrativeYearSeeder
             // (correct) room but are staffed by a person who lacks a required skill — and only that
             // person, so nobody covers it. Person-skills are checked against the assigned people, so
             // this surfaces a capability blocker on the people dimension (see ConflictService).
-            var capBudget = Math.Max(1, cohortJobs.Count / 40);
+            var capBudget = Math.Max(1, cohortJobs.Count / ConflictDivisor);
             var capPool = cohortJobs
                 .Where(j => j.SpaceId is not null && j.RequiredCriteria.Count > 0)
                 .OrderBy(_ => faker.Random.Int())
@@ -199,7 +304,7 @@ public static class NarrativeYearSeeder
                     && InNonConcurrentRoom(j)
                     && j.Assignees.Any(a => personIds.Contains(a.ResId)))
                 .ToList();
-            var conflictBudget = Math.Max(1, cohortJobs.Count / 40); // ~2.5% clone injection → ~5% requests flagged (source + clone each)
+            var conflictBudget = Math.Max(1, cohortJobs.Count / ConflictDivisor); // clone injection → source + clone each flagged
             for (var i = 0; i < conflictBudget && clonePool.Count > 0; i++)
             {
                 var src = faker.PickRandom(clonePool);
@@ -222,7 +327,7 @@ public static class NarrativeYearSeeder
         // once here, deliberately, so the conflict list shows what the product can actually detect.
         conflicts += InjectAbsenceOverlaps(jobs, contexts, cal, criteria, vacations, faker);
         conflicts += InjectShutdownOverlap(jobs, contexts, cal, criteria, faker);
-        conflicts += InjectCrossSiteAssignments(conn, jobs, contexts);
+        conflicts += InjectCrossSiteAssignments(conn, jobs, contexts, cal);
 
         // ── Showcase plan ─────────────────────────────────────────────────────────
         // The generated chains sequence work ACROSS parents, one facility at a time, so opening
@@ -420,7 +525,8 @@ public static class NarrativeYearSeeder
     private static int InjectCrossSiteAssignments(
         NpgsqlConnection conn,
         List<Job> jobs,
-        IReadOnlyList<(FacilityCohort Cohort, AssignContext Ctx)> contexts)
+        IReadOnlyList<(FacilityCohort Cohort, AssignContext Ctx)> contexts,
+        YearCalendar cal)
     {
         if (contexts.Count < 2) return 0;
 
@@ -437,7 +543,7 @@ public static class NarrativeYearSeeder
             // is free in — the point is the site mismatch, not an overbooking on top of it.
             var hostJob = jobs.FirstOrDefault(j =>
                 j.SpaceId is not null
-                && j.Start > DateTime.UtcNow
+                && j.Start > cal.ReferenceDate
                 && host.SpaceByRoomCode.Values.Any(sp => sp.Id == j.SpaceId)
                 && ctx.IsFree(candidate.Value, j.Start, j.End, 50m));
             if (hostJob is null) continue;
@@ -464,16 +570,47 @@ public static class NarrativeYearSeeder
         return cmd.ExecuteScalar() as Guid?;
     }
 
-    private static Job BuildJob(
+    /// <summary>
+    /// Builds one job, or returns null when the shop cannot actually do it on that day.
+    ///
+    /// Every pick is gathered BEFORE anything is marked busy, so a job that fails for want of a
+    /// lead or a machine leaves the ledger untouched — the demand loop below calls this until the
+    /// day reaches its target, and a half-reserved failure would burn capacity on work nobody does.
+    /// This replaces the previous behaviour of writing the job anyway with its skill requirements
+    /// stripped, which produced a demo full of unstaffed rows whenever volume outran the roster.
+    /// </summary>
+    private static Job? TryBuildJob(
         FacilityCohort cohort, JobArchetype arch, YearCalendar cal,
         IReadOnlyDictionary<string, Guid> criteria, AssignContext ctx,
-        DateTime day, Guid? parentId, Faker faker)
+        DateTime day, Guid? parentId, Faker faker,
+        Guid? preferredLead = null, Guid? preferredMachine = null)
     {
         var (start, end) = cal.MakeSlot(day, arch.MinHours, arch.MaxHours, faker);
-        var status = cal.StatusFor(start, end, faker);
         var requiredCriteria = arch.RequiredSkills.Select(s => criteria[s]).ToList();
-        var name = $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}";
 
+        // A job is only real when someone can lead it. No lead, no job.
+        // When the caller is filling a specific idle person or station, only that one will do —
+        // otherwise the loop would happily hand the work to someone already busy and leave the
+        // person it was trying to occupy exactly as idle as before.
+        var lead = preferredLead is { } wanted
+            ? ctx.PickSpecificPerson(wanted, requiredCriteria, start, end)
+            : ctx.PickCapablePerson(requiredCriteria, start, end);
+        if (lead is not { } leadId) return null;
+
+        // The machine is the other hard requirement: this kind of work happens at a station.
+        MachineFactory.SeededMachine? machine = null;
+        if (arch.MachineRole is { } machineRole)
+        {
+            machine = preferredMachine is { } wantedMachine
+                ? ctx.PickSpecificMachine(wantedMachine, start, end)
+                : ctx.PickMachine(machineRole, start, end);
+            if (machine is null) return null;
+        }
+
+        // Room and tool stay soft — a shop improvises those, and refusing the job would leave
+        // capacity idle for want of a trolley.
+        var status = cal.StatusFor(start, end, faker);
+        var name = $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}";
         var assignees = new List<(Guid, decimal?)>();
 
         // Space (the room). Shared storage rooms (ConcurrentRoomCodes) are Fractional — booked at a
@@ -492,27 +629,15 @@ public static class NarrativeYearSeeder
             }
         }
 
-        // Lead person — must hold all required skills; prefer a free one.
-        var lead = ctx.PickCapablePerson(requiredCriteria, start, end);
-        if (lead is { } leadId)
-        {
-            assignees.Add((leadId, 100m));
-            ctx.MarkBusy(leadId, start, end, 100m);
+        assignees.Add((leadId, 100m));
+        ctx.MarkBusy(leadId, start, end, 100m);
 
-            // Additional team members for multi-person jobs (assembly crews, packaging lines, etc.).
-            // Helpers are tracked at 50 % — PickHelpers checks capacity and marks them busy.
-            if (arch.TeamSize > 1)
-            {
-                foreach (var helper in ctx.PickHelpers(leadId, requiredCriteria, arch.TeamSize - 1, start, end))
-                    assignees.Add((helper, 50m));
-            }
-        }
-        else
+        // Additional team members for multi-person jobs (assembly crews, packaging lines, etc.).
+        // Helpers are tracked at 50 % — PickHelpers checks capacity and marks them busy.
+        if (arch.TeamSize > 1)
         {
-            // No capable free person — drop requirements so ConflictService doesn't fire
-            // a capability conflict for every unmet skill. The job appears as "needs
-            // assignment" rather than conflicted.
-            requiredCriteria = [];
+            foreach (var helper in ctx.PickHelpers(leadId, requiredCriteria, arch.TeamSize - 1, start, end))
+                assignees.Add((helper, 100m));
         }
 
         // Tool (Exclusive ⇒ free slot; Fractional ⇒ shared at 50 %, both tracked).
@@ -531,13 +656,10 @@ public static class NarrativeYearSeeder
 
         // Machine. Always Exclusive — a mill runs one job at a time — so a null percent, the same
         // shape the Exclusive-tool branch above writes.
-        if (arch.MachineRole is { } machineRole)
+        if (machine is { } m)
         {
-            if (ctx.PickMachine(machineRole, start, end) is { } machine)
-            {
-                assignees.Add((machine.Id, (decimal?)null));
-                ctx.MarkBusy(machine.Id, start, end, 100m);
-            }
+            assignees.Add((m.Id, (decimal?)null));
+            ctx.MarkBusy(m.Id, start, end, 100m);
         }
 
         var hours = (int)Math.Round((end - start).TotalHours);
@@ -547,41 +669,113 @@ public static class NarrativeYearSeeder
     // ── Assignment context: per-facility timelines, capability lookup, tool pools ──
     private sealed class AssignContext
     {
-        // Tracks cumulative allocation % per resource across overlapping windows.
+        // Tracks cumulative allocation % per resource across overlapping windows, keyed by day so
+        // both the overlap check and the per-day load below stay cheap at ~25k jobs.
         // A person/tool is available for a new assignment only when currentLoad + requestedPct ≤ 100.
         // This prevents accidental overbooking for leads (100%), helpers (50%), and fractional tools (50%).
-        private readonly Dictionary<Guid, List<(DateTime S, DateTime E, decimal Pct)>> _alloc = new();
+        private readonly Dictionary<(Guid Id, DateOnly Day), List<(DateTime S, DateTime E, decimal Pct)>> _alloc = new();
+        // Booked and absent hours per resource-day, weighted by allocation % and clipped to the
+        // site's working window — the same minutes Insights counts, so the loop's notion of "full"
+        // is the dashboard's notion of "full".
+        private readonly Dictionary<(Guid Id, DateOnly Day), double> _busyHours = new();
+        private readonly Dictionary<(Guid Id, DateOnly Day), double> _absentHours = new();
         private readonly FacilityCohort _cohort;
         private readonly IReadOnlyDictionary<Guid, HashSet<Guid>> _personSkills;
         private readonly Faker _faker;
+        private readonly YearCalendar _cal;
 
         public AssignContext(
             FacilityCohort cohort,
             IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills,
             Faker faker,
-            IReadOnlyList<(Guid ResourceId, DateTime Start, DateTime End)> absences)
+            IReadOnlyList<(Guid ResourceId, DateTime Start, DateTime End)> absences,
+            YearCalendar cal)
         {
-            _cohort = cohort; _personSkills = personSkills; _faker = faker;
+            _cohort = cohort; _personSkills = personSkills; _faker = faker; _cal = cal;
 
             // Time off enters the ledger as a full-capacity booking, so every picker below avoids
             // it through the check it already makes. Without this the pass saw capacity only and
             // staffed work onto vacations by accident.
             foreach (var (resourceId, start, end) in absences)
-                MarkBusy(resourceId, start, end, 100m);
+                MarkBusy(resourceId, start, end, 100m, absence: true);
         }
 
         public bool IsFree(Guid id, DateTime s, DateTime e, decimal requestedPct = 100m)
         {
-            if (!_alloc.TryGetValue(id, out var list)) return true;
-            var load = list.Where(b => s < b.E && b.S < e).Sum(b => b.Pct);
-            return load + requestedPct <= 100m;
+            foreach (var day in DaysTouched(s, e))
+            {
+                if (!_alloc.TryGetValue((id, day), out var list)) continue;
+                var load = list.Where(b => s < b.E && b.S < e).Sum(b => b.Pct);
+                if (load + requestedPct > 100m) return false;
+            }
+            return true;
         }
 
-        public void MarkBusy(Guid id, DateTime s, DateTime e, decimal pct = 100m)
+        public void MarkBusy(Guid id, DateTime s, DateTime e, decimal pct = 100m, bool absence = false)
         {
-            if (!_alloc.TryGetValue(id, out var list)) _alloc[id] = list = [];
-            list.Add((s, e, pct));
+            foreach (var day in DaysTouched(s, e))
+            {
+                var key = (id, day);
+                if (!_alloc.TryGetValue(key, out var list)) _alloc[key] = list = [];
+                list.Add((s, e, pct));
+
+                // Hours are accumulated per day against that day's working window. Jobs never
+                // cross midnight, but absences span whole weeks — hence the per-day split.
+                var (ws, we) = _cal.WorkingWindow(day.ToDateTime(TimeOnly.MinValue));
+                var overlap = (Math.Min(e.Ticks, we.Ticks) - Math.Max(s.Ticks, ws.Ticks)) / (double)TimeSpan.TicksPerHour;
+                if (overlap <= 0) continue;
+                var weighted = overlap * (double)pct / 100.0;
+                var target = absence ? _absentHours : _busyHours;
+                target[key] = target.GetValueOrDefault(key) + weighted;
+            }
         }
+
+        /// <summary>
+        /// How full a set of resources is on one day: booked hours over hours actually available,
+        /// where time off removes capacity rather than filling it. 1.0 when there is no capacity
+        /// left at all, so the caller stops instead of looping.
+        /// </summary>
+        public double Load(IReadOnlyList<Guid> ids, DateTime day)
+        {
+            if (ids.Count == 0) return 1.0;
+            var key = DateOnly.FromDateTime(day);
+            var (ws, we) = _cal.WorkingWindow(day);
+            var dayHours = (we - ws).TotalHours;
+
+            double busy = 0, capacity = 0;
+            foreach (var id in ids)
+            {
+                busy += _busyHours.GetValueOrDefault((id, key));
+                capacity += Math.Max(0, dayHours - _absentHours.GetValueOrDefault((id, key)));
+            }
+            return capacity <= 0 ? 1.0 : busy / capacity;
+        }
+
+        private static IEnumerable<DateOnly> DaysTouched(DateTime s, DateTime e)
+        {
+            for (var d = s.Date; d < e; d = d.AddDays(1)) yield return DateOnly.FromDateTime(d);
+        }
+
+        /// <summary>Hours still open for this resource on this day, after work and time off.</summary>
+        public double RemainingHours(Guid id, DateTime day)
+        {
+            var key = (id, DateOnly.FromDateTime(day));
+            var (ws, we) = _cal.WorkingWindow(day);
+            return Math.Max(0, (we - ws).TotalHours
+                - _busyHours.GetValueOrDefault(key) - _absentHours.GetValueOrDefault(key));
+        }
+
+        /// <summary>Whether this person holds every skill the work needs.</summary>
+        public bool Capable(Guid personId, IReadOnlyList<Guid> required) =>
+            _personSkills.TryGetValue(personId, out var sk) && required.All(sk.Contains);
+
+        /// <summary>This one person, if they can lead the work and are free for it.</summary>
+        public Guid? PickSpecificPerson(Guid personId, IReadOnlyList<Guid> required, DateTime s, DateTime e) =>
+            Capable(personId, required) && IsFree(personId, s, e, 100m) ? personId : null;
+
+        /// <summary>This one machine, if it is on the floor and free.</summary>
+        public MachineFactory.SeededMachine? PickSpecificMachine(Guid machineId, DateTime s, DateTime e) =>
+            _cohort.Machines.FirstOrDefault(m => m.Id == machineId && m.Placed && IsFree(m.Id, s, e, 100m));
 
         public Guid? PickCapablePerson(IReadOnlyList<Guid> required, DateTime s, DateTime e)
         {
@@ -595,25 +789,47 @@ public static class NarrativeYearSeeder
             return free == Guid.Empty ? null : free;
         }
 
-        // Helpers support the lead at 50 % — checked and tracked so total load stays ≤ 100 %.
+        /// <summary>
+        /// The rest of the crew, booked for the whole job like the lead.
+        /// </summary>
+        /// <remarks>
+        /// Helpers used to book at 50 %, which read as "half their attention" but landed as half
+        /// their day: a crew member picked up on one job could not then lead another, so they
+        /// finished the day 50 % utilized. With crews on most work that was half the shop, and it
+        /// held people utilization near 67 % no matter how much work was generated. Someone
+        /// standing at an assembly station for seven hours is there for seven hours.
+        /// </remarks>
         public IReadOnlyList<Guid> PickHelpers(Guid leadId, IReadOnlyList<Guid> required, int count, DateTime s, DateTime e)
         {
             var helpers = _cohort.People
                 .Where(p => p.ResourceId != leadId
                     && _personSkills.TryGetValue(p.ResourceId, out var sk)
                     && required.Any(c => sk.Contains(c))
-                    && IsFree(p.ResourceId, s, e, 50m))
+                    && IsFree(p.ResourceId, s, e, 100m))
                 .OrderBy(_ => _faker.Random.Int())
                 .Take(count)
                 .Select(p => p.ResourceId)
                 .ToList();
-            foreach (var id in helpers) MarkBusy(id, s, e, 50m);
+            foreach (var id in helpers) MarkBusy(id, s, e, 100m);
             return helpers;
         }
 
+        /// <summary>Machines of a role that are actually on the floor — see <see cref="PickMachine"/>.</summary>
+        public IReadOnlyList<Guid> PlacedMachineIds(string role) =>
+            _cohort.Machines.Where(m => m.Role == role && m.Placed).Select(m => m.Id).ToList();
+
+        public IReadOnlyList<string> MachineRoles() =>
+            _cohort.Machines.Where(m => m.Placed).Select(m => m.Role).Distinct().ToList();
+
+        public IReadOnlyList<Guid> PeopleIds() => _cohort.People.Select(p => p.ResourceId).ToList();
+
         public MachineFactory.SeededMachine? PickMachine(string role, DateTime s, DateTime e)
         {
-            var pool = _cohort.Machines.Where(m => m.Role == role).OrderBy(_ => _faker.Random.Int()).ToList();
+            // Unplaced machines are owned but not on the plan — they exist so the floorplan's
+            // place-an-existing-resource flow has something to act on. Booking work onto one would
+            // schedule a machine that is not anywhere, and it carries no capacity (MachineFactory
+            // writes base_availability_percent = 0), so the dashboard would never count the work.
+            var pool = _cohort.Machines.Where(m => m.Role == role && m.Placed).OrderBy(_ => _faker.Random.Int()).ToList();
             if (pool.Count == 0) return null;
             // Machines are Exclusive without exception, so a free slot means the whole window.
             return pool.FirstOrDefault(m => IsFree(m.Id, s, e, 100m));

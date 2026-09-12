@@ -12,7 +12,7 @@ public class SeedCliOptions
 {
     /// <summary>Long-option names this base class binds. An edition appends its own.</summary>
     public static readonly string[] SharedOptionNames =
-        ["profile", "scale", "mode", "seed", "random", "force-non-local", "floorplans"];
+        ["profile", "scale", "mode", "seed", "random", "force-non-local", "floorplans", "reference-date"];
 
     /// <summary>Required. One of: generic, manufacturing, construction, camping, education.</summary>
     public string Profile { get; set; } = "";
@@ -38,6 +38,16 @@ public class SeedCliOptions
     /// </summary>
     public bool Floorplans { get; set; } = true;
 
+    /// <summary>
+    /// The date the seeded year is anchored on (yyyy-MM-dd, UTC). Defaults to now.
+    /// </summary>
+    /// <remarks>
+    /// The demo reset wants "now" — the whole point is a shop whose history ends today. A fixed
+    /// date is what makes a local run reproducible: the utilization targets are a function of the
+    /// distance from this date, so without pinning it no two runs can be compared.
+    /// </remarks>
+    public string? ReferenceDate { get; set; }
+
     /// <summary>Help for the shared flags. An edition prints this plus its own.</summary>
     public const string SharedHelpText = """
           --profile          Required. One of: generic, manufacturing, construction, camping, education.
@@ -47,6 +57,7 @@ public class SeedCliOptions
           --random           Use a fresh random seed instead of the fixed --seed value.
           --force-non-local  Override the safety guard that refuses non-local connections.
           --floorplans       Seed the curated floorplan-backed sites. (Default: true; --floorplans false to disable)
+          --reference-date   Date the seeded year is anchored on, yyyy-MM-dd. (Default: today)
         """;
 
     /// <summary>Bind the shared flags onto an edition's options instance.</summary>
@@ -59,6 +70,7 @@ public class SeedCliOptions
         UseRandom = args.Bool("random", false);
         ForceNonLocal = args.Bool("force-non-local", false);
         Floorplans = args.Bool("floorplans", true);
+        ReferenceDate = args.String("reference-date");
     }
 }
 
@@ -93,8 +105,22 @@ public static class SeedCliSupport
             Console.Error.WriteLine(ex.Message);
             return 2;
         }
+        if (opts.ReferenceDate is { } rd && ParseReferenceDate(rd) is null)
+        {
+            Console.Error.WriteLine($"Invalid --reference-date '{rd}'. Expected yyyy-MM-dd.");
+            return 1;
+        }
         return null;
     }
+
+    /// <summary>The reference date as UTC midnight, or null when it cannot be parsed.</summary>
+    internal static DateTime? ParseReferenceDate(string value) =>
+        DateTime.TryParseExact(
+            value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? DateTime.SpecifyKind(parsed, DateTimeKind.Utc)
+            : null;
 
     /// <summary>Assemble <see cref="SeedOptions"/> from the shared CLI flags plus the edition-resolved tenant id.</summary>
     public static SeedOptions BuildSeedOptions(SeedCliOptions opts, Guid tenantId) => new()
@@ -106,6 +132,7 @@ public static class SeedCliSupport
         UseRandom = opts.UseRandom,
         ForceNonLocal = opts.ForceNonLocal,
         UseFloorplans = opts.Floorplans,
+        ReferenceDate = opts.ReferenceDate is { } rd ? ParseReferenceDate(rd) ?? DateTime.UtcNow : DateTime.UtcNow,
         TenantId = tenantId,
     };
 
