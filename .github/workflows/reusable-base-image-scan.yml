@@ -53,8 +53,16 @@ on:
         default: 'HIGH,CRITICAL'
     secrets:
       GHCR_TOKEN:
-        description: 'GHCR login, needed only when an image lives under ghcr.io/kymr10n'
-        required: true
+        # Optional on purpose. A pull request opened by Dependabot runs with the
+        # repo's *Dependabot* secrets, not its Actions secrets; declaring this
+        # required rejected the whole workflow call on such PRs ("Secret
+        # GHCR_TOKEN is required, but not provided") before a single step ran —
+        # which, with `Result` a required check, blocked every Dependabot PR.
+        # The login step below only runs for ghcr.io images; public bases need
+        # nothing. A caller that scans a ghcr.io image must also add GHCR_TOKEN
+        # as a Dependabot secret, or its Dependabot PRs cannot pull it.
+        description: 'GHCR login, used only when an image lives under ghcr.io/kymr10n'
+        required: false
 
 jobs:
   discover:
