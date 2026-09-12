@@ -4,10 +4,12 @@
 
 import type {
   CreateRequestRequest,
+  DurationUnit,
   MoveRequestRequest,
   Request,
   UpdateRequestRequest,
 } from "@foundation/src/types/requests";
+import { DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from "@foundation/src/constants/app";
 import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
@@ -63,6 +65,29 @@ export async function createRequest(
   request: CreateRequestRequest,
 ): Promise<Request> {
   return apiPost<Request>(API_PATHS.REQUESTS, request);
+}
+
+/**
+ * Create a leaf task under a parent, from nothing but a name.
+ *
+ * The quick paths into a group — the Children tab and the sequence editor — both ask for a name
+ * and nothing else, so the remaining required fields come from one place rather than from
+ * whichever screen happens to be open. A task created this way is a starting point: duration and
+ * scheduling are edited afterwards, in the request itself.
+ */
+export async function createChildRequest(
+  parentRequestId: string,
+  name: string,
+  sortOrder: number,
+): Promise<Request> {
+  return createRequest({
+    parentRequestId,
+    name,
+    planningMode: "leaf",
+    sortOrder,
+    minimalDurationValue: DEFAULT_DURATION_VALUE,
+    minimalDurationUnit: DEFAULT_DURATION_UNIT as DurationUnit,
+  });
 }
 
 /**

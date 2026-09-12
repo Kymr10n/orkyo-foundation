@@ -3,6 +3,7 @@ import {
   getRequest,
   getRequests,
   createRequest,
+  createChildRequest,
   updateRequest,
   deleteRequest,
   moveRequest,
@@ -10,6 +11,7 @@ import {
 } from './request-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from '@foundation/src/constants/app';
 
 vi.mock('../core/api-client');
 
@@ -85,6 +87,25 @@ describe('request-api', () => {
 
       expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.REQUESTS, createReq);
       expect(result).toEqual(mockRequest);
+    });
+  });
+
+  describe('createChildRequest', () => {
+    it('fills in what a name-only task still needs', async () => {
+      // Both quick paths into a group — the Children tab and the sequence editor — ask for a
+      // name and nothing else, so these defaults live here rather than in either screen.
+      vi.mocked(apiClient.apiPost).mockResolvedValue(mockRequest);
+
+      await createChildRequest('grp-1', 'Deburr', 3);
+
+      expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.REQUESTS, {
+        parentRequestId: 'grp-1',
+        name: 'Deburr',
+        planningMode: 'leaf',
+        sortOrder: 3,
+        minimalDurationValue: DEFAULT_DURATION_VALUE,
+        minimalDurationUnit: DEFAULT_DURATION_UNIT,
+      });
     });
   });
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize, Plus } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { Combobox } from "@foundation/src/components/ui/combobox";
 import { Label } from "@foundation/src/components/ui/label";
@@ -13,6 +13,8 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import { getRequestPlan } from "@foundation/src/lib/api/request-plan-api";
+import { createChildRequest } from "@foundation/src/lib/api/request-api";
+import { Input } from "@foundation/src/components/ui/input";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import {
   addRequestDependency,
@@ -73,6 +75,7 @@ export function RequestPlanPanel({
   const [staged, setStaged] = useState<ReadonlySet<string>>(() => new Set());
   // The pair a link was just made between, so the canvas can point at what changed.
   const [justLinked, setJustLinked] = useState<{ from: string; to: string } | null>(null);
+  const [newTaskName, setNewTaskName] = useState("");
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -147,6 +150,35 @@ export function RequestPlanPanel({
     },
     onSuccess: (_result, variables) => setJustLinked(variables),
   });
+
+  // A group with nothing in it, or with one task, used to be a dead end here: the plan could
+  // only arrange what the Children tab had already created, so building a sequence meant leaving
+  // for a dialog and coming back. Tasks are made where the sequence is drawn now.
+  const children = data?.children;
+  const nextSortOrder = useMemo(
+    () => (children && children.length > 0 ? Math.max(...children.map((c) => c.sortOrder)) + 1 : 0),
+    [children],
+  );
+
+  const addTaskMutation = useMutation({
+    mutationFn: (name: string) => createChildRequest(requestId, name, nextSortOrder),
+    meta: {
+      successMessage: "Task added",
+      errorMessage: "Could not add the task",
+      invalidates: REQUEST_DERIVED_QUERY_KEYS,
+    },
+    onSuccess: (created) => {
+      // It has no dependencies yet, so the plan counts it as unsequenced and the tray would
+      // swallow it. The user made it here, looking at the canvas; that is where it belongs.
+      setStaged((current) => new Set(current).add(created.id));
+      setNewTaskName("");
+    },
+  });
+
+  const submitNewTask = () => {
+    const name = newTaskName.trim();
+    if (name) addTaskMutation.mutate(name);
+  };
 
   const unlinkMutation = useMutation({
     mutationFn: (edgeId: string) => {
@@ -356,11 +388,12 @@ export function RequestPlanPanel({
     );
   }
 
-  if (data.children.length === 0) {
+  // An editor gets the panel even with nothing in it: the toolbar below is where the first task
+  // is made. A viewer has nothing to do here and gets told so instead of an empty canvas.
+  if (data.children.length === 0 && !canEdit) {
     return (
       <p className="p-6 text-sm text-muted-foreground">
-        {data.parentName} has no children yet. Add some on the request's Children tab, then
-        sequence them here.
+        {data.parentName} has no tasks yet.
       </p>
     );
   }
@@ -372,6 +405,35 @@ export function RequestPlanPanel({
         <span className="text-xs text-muted-foreground">
           {data.children.length} task{data.children.length === 1 ? "" : "s"}
         </span>
+
+        {canEdit && (
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submitNewTask();
+            }}
+          >
+            {/* Enter submits, because adding several tasks in a row is the normal way to start a
+                plan and reaching for the button each time would be the slow half of it. */}
+            <Input
+              value={newTaskName}
+              onChange={(e) => setNewTaskName(e.target.value)}
+              placeholder="New task name"
+              aria-label="New task name"
+              className="h-8 w-48"
+            />
+            <Button
+              type="submit"
+              variant="outline"
+              size="sm"
+              disabled={newTaskName.trim().length === 0 || addTaskMutation.isPending}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add task
+            </Button>
+          </form>
+        )}
 
         <div className="ml-auto flex items-center gap-1">
           <Button
@@ -413,8 +475,9 @@ export function RequestPlanPanel({
         <div ref={scrollRef} className="min-w-0 flex-1 overflow-auto p-4">
           {canvasChildren.length === 0 && (
             <p className="p-6 text-sm text-muted-foreground">
-              Nothing is sequenced yet. Pick a task from the list to put it on the plan, then say
-              what it waits for.
+              {data.children.length === 0
+                ? "No tasks yet. Add the first one above, then say what each task waits for."
+                : "Nothing is sequenced yet. Pick a task from the list to put it on the plan, then say what it waits for."}
             </p>
           )}
           <div
