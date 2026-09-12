@@ -265,7 +265,6 @@ const TreeRow = React.memo(function TreeRow({
             canEdit={canEdit}
             onEdit={onEdit}
             onDelete={onDelete}
-            childCount={childCount}
             onOpenPlan={onOpenPlan}
           />
         </span>

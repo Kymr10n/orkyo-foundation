@@ -14,9 +14,6 @@ interface RequestRowActionsProps {
    *  RequestTreeView's `canEdit && …` gate. Viewers get no buttons rather than
    *  a 403. Defaults to true. */
   canEdit?: boolean;
-  /** Direct children of this request. Decides whether sequencing is offered:
-   *  ordering fewer than two tasks is not an operation. */
-  childCount?: number;
   onEdit: (request: Request) => void;
   onDelete: (request: Request) => void;
   /** Opens the dependency planner for this group. Omit to hide the action. */
@@ -33,18 +30,18 @@ interface RequestRowActionsProps {
 export function RequestRowActions({
   request,
   canEdit = true,
-  childCount = 0,
   onEdit,
   onDelete,
   onOpenPlan,
 }: RequestRowActionsProps) {
   if (!canEdit) return null;
 
-  // The planner orders a parent's children, so it is meaningless on a task and on a group
-  // holding one thing. Reaching it used to mean opening the editor, finding the Children tab
-  // and closing the editor again — three clicks through a dialog you opened to leave.
-  const canSequence =
-    onOpenPlan !== undefined && canHaveChildren(request.planningMode) && childCount > 1;
+  // Every group offers it, whatever it holds today. Reaching the planner used to mean opening
+  // the editor, finding the Children tab and closing the editor again — three clicks through a
+  // dialog you opened to leave. Gating on a second task made the icon come and go between
+  // neighbouring rows of the same kind, so a reader could not learn where it lived; and a group
+  // of one is exactly where someone goes to plan the next task in.
+  const canSequence = onOpenPlan !== undefined && canHaveChildren(request.planningMode);
 
   return (
     <div className="flex items-center justify-end gap-0.5">

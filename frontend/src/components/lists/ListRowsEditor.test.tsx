@@ -128,6 +128,32 @@ describe('ListRowsEditor', () => {
     expect(updateListRow).toHaveBeenCalledWith('i1', 'r1', { values: { note: 'new brakes' } });
   });
 
+  it('opens the edit dialog from the row itself, not only the pencil', async () => {
+    const user = userEvent.setup();
+    renderEditor();
+
+    // The entry is what a reader aims at; on a wide table the button is far from the name.
+    await user.click(await screen.findByText('oil change'));
+
+    const input = await screen.findByLabelText('Note');
+    await user.clear(input);
+    await user.type(input, 'new brakes');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(updateListRow).toHaveBeenCalledWith('i1', 'r1', {
+      values: { note: 'new brakes' },
+    }));
+  });
+
+  it('leaves the row inert for a viewer, who has nothing to open', async () => {
+    const user = userEvent.setup();
+    renderEditor({ readOnly: true });
+
+    await user.click(await screen.findByText('oil change'));
+
+    expect(screen.queryByLabelText('Note')).not.toBeInTheDocument();
+  });
+
   it('confirms before deleting a row', async () => {
     const user = userEvent.setup();
     renderEditor();

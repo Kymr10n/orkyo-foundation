@@ -103,6 +103,15 @@ export function ListRowsEditor({
   // inline arrow here would hand it a new identity every render — the memo would never hold, and
   // the columns would be rebuilt on every keystroke anywhere in the page. The setters are stable,
   // so the closure only has to follow the label and the read-only flag.
+  // The row is the target, not just the pencil at the end of it. A reader who wants to change an
+  // entry aims at the entry, and on a wide table the button is a long way from the name that
+  // identifies it. The pencil stays: it is the keyboard path, and it is what says the row is
+  // editable at all.
+  const openEditDialog = useCallback((row: ListRow) => {
+    setEditing(row);
+    setDialogOpen(true);
+  }, []);
+
   const renderRowActions = useCallback(
     (row: ListRow) => (
       <div className="flex justify-end gap-1">
@@ -112,10 +121,9 @@ export function ListRowsEditor({
           size="icon"
           aria-label={`Edit ${entityLabel}`}
           onClick={(e) => {
-            // The row itself may be clickable in a host that wires onRowClick.
+            // The row underneath opens the same dialog; without this the click would run twice.
             e.stopPropagation();
-            setEditing(row);
-            setDialogOpen(true);
+            openEditDialog(row);
           }}
         >
           <Pencil className="h-4 w-4" />
@@ -134,7 +142,7 @@ export function ListRowsEditor({
         </Button>
       </div>
     ),
-    [entityLabel],
+    [entityLabel, openEditDialog],
   );
 
   return (
@@ -159,6 +167,7 @@ export function ListRowsEditor({
         error={error ? 'Failed to load rows' : null}
         emptyMessage={emptyMessage}
         renderRowActions={readOnly ? undefined : renderRowActions}
+        onRowClick={readOnly ? undefined : openEditDialog}
       />
 
       {dialogOpen && (

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
 import { RequestPlanPanel } from "./RequestPlanPanel";
 import { getRequestPlan } from "@foundation/src/lib/api/request-plan-api";
+import { createChildRequest } from "@foundation/src/lib/api/request-api";
 import { addRequestDependency } from "@foundation/src/lib/api/request-dependency-api";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
@@ -18,6 +19,7 @@ import {
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@foundation/src/lib/api/request-plan-api", () => ({ getRequestPlan: vi.fn() }));
+vi.mock("@foundation/src/lib/api/request-api", () => ({ createChildRequest: vi.fn() }));
 vi.mock("@foundation/src/lib/api/request-dependency-api", () => ({
   addRequestDependency: vi.fn(),
   deleteRequestDependency: vi.fn(),
@@ -149,11 +151,46 @@ describe("RequestPlanPanel", () => {
     expect(screen.getByText("Unsequenced (2)")).toBeInTheDocument();
   });
 
-  it("says what to do when a group has no children yet", async () => {
+  it("invites the first task when the group is empty, instead of sending the editor away", async () => {
     (getRequestPlan as Mock).mockResolvedValue(plan({ children: [] }));
     renderPanel();
 
-    expect(await screen.findByText(/has no children yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/No tasks yet/)).toBeInTheDocument();
+    expect(screen.getByLabelText("New task name")).toBeInTheDocument();
+  });
+
+  it("tells a viewer of an empty group there is nothing here", async () => {
+    (useCanEdit as Mock).mockReturnValue(false);
+    (getRequestPlan as Mock).mockResolvedValue(plan({ children: [] }));
+    renderPanel();
+
+    expect(await screen.findByText(/has no tasks yet/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("New task name")).not.toBeInTheDocument();
+  });
+
+  it("creates a task under this group, and puts it on the canvas", async () => {
+    const user = userEvent.setup();
+    (createChildRequest as Mock).mockResolvedValue({ id: "new-1", name: "Deburr" });
+    (getRequestPlan as Mock).mockResolvedValue(plan({ children: [child("Weld")] }));
+    renderPanel();
+    await screen.findByText("Weld");
+
+    await user.type(screen.getByLabelText("New task name"), "Deburr");
+    await user.click(screen.getByRole("button", { name: /Add task/ }));
+
+    // Sort order follows the tasks already there, so a new one lands at the end.
+    await waitFor(() => expect(createChildRequest).toHaveBeenCalledWith("p1", "Deburr", expect.any(Number)));
+  });
+
+  it("will not create a task from an empty name", async () => {
+    const user = userEvent.setup();
+    (getRequestPlan as Mock).mockResolvedValue(plan({ children: [child("Weld")] }));
+    renderPanel();
+    await screen.findByText("Weld");
+
+    await user.type(screen.getByLabelText("New task name"), "   ");
+
+    expect(screen.getByRole("button", { name: /Add task/ })).toBeDisabled();
   });
 
   it("marks a task that cannot start yet, and says why to a screen reader", async () => {

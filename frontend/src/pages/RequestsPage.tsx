@@ -24,6 +24,7 @@ import {
     createRequest,
     deleteRequest,
     deleteRequestSubtree,
+    getRequest,
     getRequests,
     moveRequest,
     updateRequest,
@@ -179,9 +180,16 @@ export function RequestsPage() {
     invalidates: REQUEST_DERIVED_QUERY_KEYS,
   });
 
-  // Open the detail dialog when arriving with ?edit=<id> from global search.
+  // Open the detail dialog when arriving with ?edit=<id> — from global search, and from the
+  // sequence editor's "Open task". The list this page loads is scoped to the selected site, and
+  // a deep link is not, so a task the link names may not be in it; fetch that one rather than
+  // leaving the reader on the list they were trying to leave.
   useEditQueryParam(requests, (request) => setDialog({ kind: "edit", request }), {
     ready: !isLoading,
+    resolveMissing: (id) => getRequest(id).catch(() => null),
+    onMissing: () => toast.error("That request could not be opened", {
+      description: "It may have been deleted, or it belongs to another site.",
+    }),
   });
 
   // Parent → child-ids map, built once per list change and shared by every

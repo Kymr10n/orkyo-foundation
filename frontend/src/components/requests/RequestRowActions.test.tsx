@@ -92,14 +92,17 @@ describe('RequestRowActions — sequencing a group', () => {
 
   it('offers the planner on a group that has tasks to order', async () => {
     const onOpenPlan = vi.fn();
-    renderRow({ childCount: 2, onOpenPlan });
+    renderRow({ onOpenPlan });
     await userEvent.click(screen.getByRole('button', { name: label }));
     expect(onOpenPlan).toHaveBeenCalledWith(group);
   });
 
-  it('hides the planner on a group holding one task — ordering one thing is not an operation', () => {
-    renderRow({ childCount: 1, onOpenPlan: vi.fn() });
-    expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+  it('offers the planner on an empty group, which is where its first task is made', () => {
+    // The planner creates tasks now, so a group with nothing in it is a destination rather than
+    // a dead end — and an icon that came and went between rows of the same kind taught nobody
+    // where it lived.
+    renderRow({ onOpenPlan: vi.fn() });
+    expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
   });
 
   it('hides the planner on a task, which has no children to order', () => {
@@ -107,7 +110,6 @@ describe('RequestRowActions — sequencing a group', () => {
       <TooltipProvider>
         <RequestRowActions
           request={makeRequest({ id: 'r-2', name: 'Lift weldments', planningMode: 'leaf' })}
-          childCount={3}
           onOpenPlan={vi.fn()}
           {...makeHandlers()}
         />
@@ -117,7 +119,7 @@ describe('RequestRowActions — sequencing a group', () => {
   });
 
   it('hides the planner when no handler is supplied', () => {
-    renderRow({ childCount: 5 });
+    renderRow({});
     expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
   });
 
@@ -127,7 +129,7 @@ describe('RequestRowActions — sequencing a group', () => {
     render(
       <div onClick={parentOnClick}>
         <TooltipProvider>
-          <RequestRowActions request={group} childCount={4} onOpenPlan={onOpenPlan} {...makeHandlers()} />
+          <RequestRowActions request={group} onOpenPlan={onOpenPlan} {...makeHandlers()} />
         </TooltipProvider>
       </div>,
     );

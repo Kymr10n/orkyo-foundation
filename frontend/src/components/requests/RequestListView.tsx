@@ -10,7 +10,6 @@ import {
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
-  buildChildCountMap,
   buildDerivedMap,
   resolveDuration,
   resolveSchedule,
@@ -55,9 +54,6 @@ export const RequestListView = React.memo(function RequestListView({
     }
     return map;
   }, [requests]);
-
-  // Direct children per parent — decides which rows offer the planner.
-  const childCountMap = useMemo(() => buildChildCountMap(requests), [requests]);
 
   // Derived schedule/duration for parent (Group/Container) rows — same memo
   // pattern the tree uses, so a group shows its rolled-up window/effort instead
@@ -204,12 +200,11 @@ export const RequestListView = React.memo(function RequestListView({
           canEdit={canEdit}
           onEdit={onEdit}
           onDelete={onDelete}
-          childCount={childCountMap.get(row.original.id) ?? 0}
           onOpenPlan={onOpenPlan}
         />
       ),
     },
-  ], [parentNameMap, derivedMap, selectedId, onEdit, onNavigateToParent, canEdit, onDelete, childCountMap, onOpenPlan]);
+  ], [parentNameMap, derivedMap, selectedId, onEdit, onNavigateToParent, canEdit, onDelete, onOpenPlan]);
 
   // Phone presentation: name + actions on top; kind/status/duration badges and
   // the schedule window below.

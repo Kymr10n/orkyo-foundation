@@ -1,7 +1,7 @@
 /** @jsxImportSource react */
 import { StrictMode } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useSearchParams } from 'react-router';
 import { useEditQueryParam } from './useEditQueryParam';
 
@@ -16,14 +16,18 @@ function Harness({
   onOpen,
   ready,
   getId,
+  resolveMissing,
+  onMissing,
 }: {
   items?: readonly Item[];
   onOpen: (item: Item) => void;
   ready?: boolean;
   getId?: (item: Item) => string;
+  resolveMissing?: (id: string) => Promise<Item | null>;
+  onMissing?: (id: string) => void;
 }) {
   const [searchParams] = useSearchParams();
-  useEditQueryParam(items, onOpen, { ready, getId });
+  useEditQueryParam(items, onOpen, { ready, getId, resolveMissing, onMissing });
   return <div data-testid="qs">{searchParams.toString()}</div>;
 }
 
@@ -118,4 +122,75 @@ describe('useEditQueryParam', () => {
     renderAt('/?edit=Alpha', { items: byName, onOpen, getId: (i) => i.name });
     expect(onOpen).toHaveBeenCalledWith(byName[0]);
   });
+
+  it('fetches the item when the loaded list does not hold it', async () => {
+    // A scoped list (by site, filter or page) is not proof the id is unreal.
+    const onOpen = vi.fn();
+    const missing = { id: 'zzz', name: 'Elsewhere' };
+    const resolveMissing = vi.fn().mockResolvedValue(missing);
+
+    renderAt('/?edit=zzz', { items, onOpen, resolveMissing });
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(missing));
+    expect(resolveMissing).toHaveBeenCalledWith('zzz');
+  });
+
+  it('says so when the id resolves to nothing, rather than doing nothing', async () => {
+    const onOpen = vi.fn();
+    const onMissing = vi.fn();
+
+    renderAt('/?edit=zzz', {
+      items,
+      onOpen,
+      resolveMissing: vi.fn().mockResolvedValue(null),
+      onMissing,
+    });
+
+    await waitFor(() => expect(onMissing).toHaveBeenCalledWith('zzz'));
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed fetch the same way', async () => {
+    const onMissing = vi.fn();
+
+    renderAt('/?edit=zzz', {
+      items,
+      onOpen: vi.fn(),
+      resolveMissing: vi.fn().mockRejectedValue(new Error('boom')),
+      onMissing,
+    });
+
+    await waitFor(() => expect(onMissing).toHaveBeenCalledWith('zzz'));
+  });
+
+  it('prefers the loaded list, so a present item costs no request', async () => {
+    const onOpen = vi.fn();
+    const resolveMissing = vi.fn();
+
+    renderAt('/?edit=b', { items, onOpen, resolveMissing });
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalled());
+    expect(resolveMissing).not.toHaveBeenCalled();
+  });
+
+
+  it('still resolves a missing id under StrictMode double-invocation', async () => {
+    // The regression this pins: StrictMode re-runs the mount effect, and a cleanup that
+    // abandoned the fetch left the id marked as handled with nothing shown — the link died
+    // silently and the reader stayed on the list.
+    const onOpen = vi.fn();
+    const missing = { id: 'zzz', name: 'Elsewhere' };
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={['/?edit=zzz']}>
+          <Harness items={items} onOpen={onOpen} resolveMissing={vi.fn().mockResolvedValue(missing)} />
+        </MemoryRouter>
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(missing));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByTestId('qs')).toHaveTextContent(''));
+  });
+
 });

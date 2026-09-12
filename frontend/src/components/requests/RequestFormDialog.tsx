@@ -11,7 +11,7 @@ import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import { RequestIconSelector } from "@foundation/src/components/requests/RequestIconSelector";
 import { getCriteria } from "@foundation/src/lib/api/criteria-api";
-import { createRequest, getRequestChildren, moveRequest } from "@foundation/src/lib/api/request-api";
+import { createChildRequest, getRequestChildren, moveRequest } from "@foundation/src/lib/api/request-api";
 import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
 import { getTemplates } from "@foundation/src/lib/api/template-api";
 import { type Template } from "@foundation/src/types/templates";
@@ -19,8 +19,6 @@ import { useAppStore } from "@foundation/src/store/app-store";
 import {
   VALIDATION_MESSAGES,
   PLANNING_MODE_CONFIG,
-  DEFAULT_DURATION_VALUE,
-  DEFAULT_DURATION_UNIT,
 } from "@foundation/src/constants";
 import { combineDateTimeToISO, durationToMinutes, formatDuration, formatMinutesHuman } from "@foundation/src/lib/utils";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
@@ -382,17 +380,6 @@ export function RequestFormDialog({
   // Edit mode needs the tree to list existing children; create mode only queues
   // names locally, so the tab is always available for a new group.
   const showChildrenTab = isGroup && (request ? !!allRequests : true);
-
-  /** Shared defaults for children created from the Children tab. */
-  const createChildRequest = (parentRequestId: string, name: string, sortOrder: number) =>
-    createRequest({
-      parentRequestId,
-      name,
-      planningMode: 'leaf',
-      sortOrder,
-      minimalDurationValue: DEFAULT_DURATION_VALUE,
-      minimalDurationUnit: DEFAULT_DURATION_UNIT as DurationUnit,
-    });
 
   const handleAddChild = async () => {
     const name = newChildName.trim();

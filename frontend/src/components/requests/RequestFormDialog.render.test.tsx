@@ -41,6 +41,7 @@ const apiMocks = vi.hoisted(() => ({
     Promise.resolve({ data: [] as unknown[] }),
   ),
   createRequest: vi.fn(() => Promise.resolve({} as unknown)),
+  createChildRequest: vi.fn(() => Promise.resolve({} as unknown)),
   moveRequest: vi.fn(() => Promise.resolve({} as unknown)),
   updateRequest: vi.fn(() => Promise.resolve({} as unknown)),
 }));
@@ -50,6 +51,7 @@ vi.mock("@foundation/src/lib/api/criteria-api", () => ({
 vi.mock("@foundation/src/lib/api/request-api", () => ({
   getRequestChildren: apiMocks.getRequestChildren,
   createRequest: apiMocks.createRequest,
+  createChildRequest: apiMocks.createChildRequest,
   moveRequest: apiMocks.moveRequest,
   updateRequest: apiMocks.updateRequest,
 }));
@@ -872,21 +874,17 @@ describe("RequestFormDialog", () => {
     expect(onNavigate).toHaveBeenCalledWith("c-1");
   });
 
-  it("quick-adds a child via createRequest in edit mode", async () => {
+  it("quick-adds a child in edit mode", async () => {
     renderDialog({ request: GROUP, allRequests: TREE });
     await userEvent.click(screen.getByRole("tab", { name: "Children" }));
     fireEvent.change(screen.getByTestId("new-child-name"), {
       target: { value: "Fresh Child" },
     });
     fireEvent.click(screen.getByTestId("add-child-btn"));
-    await waitFor(() => expect(apiMocks.createRequest).toHaveBeenCalledTimes(1));
-    expect(apiMocks.createRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        parentRequestId: "grp-1",
-        name: "Fresh Child",
-        planningMode: "leaf",
-      }),
-    );
+    // The defaults a name-only task needs belong to the shared helper, which the sequence
+    // editor calls too; what this screen owns is the parent and the name.
+    await waitFor(() => expect(apiMocks.createChildRequest).toHaveBeenCalledTimes(1));
+    expect(apiMocks.createChildRequest).toHaveBeenCalledWith("grp-1", "Fresh Child", expect.any(Number));
   });
 
   it("removes a child from the group via moveRequest in edit mode", async () => {
@@ -1012,7 +1010,7 @@ describe("RequestFormDialog", () => {
 
   it("queues children in create mode and creates them under the new group on save", async () => {
     // Call counts on shared api mocks persist across tests in this file; start clean.
-    apiMocks.createRequest.mockClear();
+    apiMocks.createChildRequest.mockClear();
     const newGroup = { id: "new-group-id", name: "New Group" } as Request;
     const onSave = vi.fn(() => Promise.resolve(newGroup));
     const onOpenChange = vi.fn();
@@ -1050,13 +1048,11 @@ describe("RequestFormDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Request" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(apiMocks.createRequest).toHaveBeenCalledTimes(1));
-    expect(apiMocks.createRequest).toHaveBeenCalledWith(
-      expect.objectContaining({
-        parentRequestId: "new-group-id",
-        name: "Child B",
-        planningMode: "leaf",
-      }),
+    await waitFor(() => expect(apiMocks.createChildRequest).toHaveBeenCalledTimes(1));
+    expect(apiMocks.createChildRequest).toHaveBeenCalledWith(
+      "new-group-id",
+      "Child B",
+      expect.any(Number),
     );
   });
 
