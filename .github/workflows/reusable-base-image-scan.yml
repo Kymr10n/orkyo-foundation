@@ -1,0 +1,197 @@
+name: reusable / base-image-scan
+
+# Scans the pinned BASE images a repo ships on — not the built app images — so a
+# CVE shows up the day it lands in the database, on the pull request that bumps
+# a digest, and without a 30-minute image build in front of it.
+#
+# Why this exists (2026-09-12, preparing 0.23.0): the built-image scan in
+# release-ci.yml runs only on push to main, fifth in the chain, ~75 minutes of
+# budget in. Every CVE that blocked that train was therefore found at release
+# time: a Dependabot digest bump merged unscanned, a new libexpat pair arrived
+# with zero commits and was noticed four days later, and community's frontend
+# scan had been red for four days behind scheduled runs that skip it. This job
+# takes ~1 minute, needs no build, and runs on the PR and nightly.
+#
+# What it scans: for every tracked `Dockerfile` (excluding `*.local`/`*.dev`),
+# the LAST `FROM` line — the runtime stage, which is what ships. Build-stage
+# bases (node, dotnet/sdk) never reach production and would only add noise.
+# Only digest-pinned references are picked up; a `FROM ${ARG}` base (community's
+# Keycloak) must be passed in `extra-images` explicitly.
+#
+# It also enforces the `.trivyignore` policy the file header states and nothing
+# checked: every entry needs `Added:` and `Review:` dates, the review date must
+# not have lapsed, and the window must be 14 days or less. Four entries across
+# three repos had lapsed unnoticed when this was written.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
+# reference a local `./.github/actions/...` composite action — that breaks the
+# CALLER with an undiagnosable startup_failure. Every third-party action below
+# is pinned to the exact SHA reusable-container-scan.yml uses. Consumers must pin
+# their `uses:` to this file by commit SHA, never `@main`. Call with
+# `secrets: inherit` and grant `contents: read`, `packages: read`, `issues: write`.
+
+on:
+  workflow_call:
+    inputs:
+      extra-images:
+        description: 'JSON array of additional image refs to scan that discovery cannot see (e.g. a FROM ${ARG} base)'
+        required: false
+        type: string
+        default: '[]'
+      java-image-patterns:
+        description: 'JSON array of substrings; an image ref containing one ships JARs and needs the Trivy Java DB (matched by name, so a digest bump does not stale it)'
+        required: false
+        type: string
+        default: '["keycloak"]'
+      severity:
+        description: 'Trivy severities that fail the scan'
+        required: false
+        type: string
+        default: 'HIGH,CRITICAL'
+    secrets:
+      GHCR_TOKEN:
+        description: 'GHCR login, needed only when an image lives under ghcr.io/kymr10n'
+        required: true
+
+jobs:
+  discover:
+    name: Discover pinned bases
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      images: ${{ steps.find.outputs.images }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Collect the runtime-stage base of every Dockerfile
+        id: find
+        env:
+          EXTRA_IMAGES: ${{ inputs.extra-images }}
+          JAVA_PATTERNS: ${{ inputs.java-image-patterns }}
+        run: |
+          set -euo pipefail
+          found=()
+          while IFS= read -r file; do
+            # Last FROM = runtime stage. Strip the `AS name` suffix and the FROM keyword.
+            base=$(grep -E '^FROM ' "$file" | tail -n1 | sed -E 's/^FROM +//; s/ +AS +.*$//I')
+            if [[ "$base" =~ @sha256:[0-9a-f]{64}$ ]]; then
+              found+=("$base")
+            else
+              echo "skip (not digest-pinned): $file -> $base"
+            fi
+          done < <(git ls-files '*Dockerfile' ':!*.local' ':!*.dev')
+
+          # Matrix of {image, java}: java=true when the ref contains one of the patterns.
+          images=$(printf '%s\n' "${found[@]}" | sort -u | jq -R . \
+            | jq -sc --argjson extra "$EXTRA_IMAGES" --argjson pat "$JAVA_PATTERNS" \
+                '. + $extra | unique | map({image: ., java: (. as $i | $pat | any(. as $p | $i | contains($p)))})')
+          echo "images=${images}" >> "$GITHUB_OUTPUT"
+          echo "Scanning: ${images}"
+          if [[ "$images" == "[]" ]]; then
+            echo "::error::no pinned base images found and no extra-images given" >&2
+            exit 1
+          fi
+
+      - name: Check .trivyignore policy (dates present, not lapsed, 14-day window)
+        run: |
+          set -euo pipefail
+          [[ -f .trivyignore ]] || { echo "no .trivyignore — nothing to check"; exit 0; }
+          today=$(date -u +%F)
+          fail=0
+          while IFS= read -r line; do
+            cve=${line%%[[:space:]]*}
+            added=$(sed -nE 's/.*Added: ([0-9]{4}-[0-9]{2}-[0-9]{2}).*/\1/p' <<<"$line")
+            review=$(sed -nE 's/.*Review: ([0-9]{4}-[0-9]{2}-[0-9]{2}).*/\1/p' <<<"$line")
+            if [[ -z "$added" || -z "$review" ]]; then
+              echo "::error file=.trivyignore::${cve}: entry must carry 'Added: YYYY-MM-DD' and 'Review: YYYY-MM-DD'" >&2
+              fail=1; continue
+            fi
+            if [[ "$review" < "$today" ]]; then
+              echo "::error file=.trivyignore::${cve}: review date ${review} has lapsed — re-triage: drop it if upstream fixed it, or renew with a new Review date" >&2
+              fail=1
+            fi
+            window=$(( ( $(date -ud "$review" +%s) - $(date -ud "$added" +%s) ) / 86400 ))
+            if (( window > 14 )); then
+              echo "::error file=.trivyignore::${cve}: review window is ${window} days; policy is 14" >&2
+              fail=1
+            fi
+          done < <(grep -E '^CVE-[0-9]{4}-[0-9]+' .trivyignore || true)
+          exit "$fail"
+
+  scan:
+    name: Scan ${{ matrix.image }}
+    needs: discover
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include: ${{ fromJson(needs.discover.outputs.images) }}
+      fail-fast: false
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Log in to GHCR
+        if: startsWith(matrix.image, 'ghcr.io/')
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Trivy — base image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          severity: ${{ inputs.severity }}
+          exit-code: '1'
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+        env:
+          # .NET/nginx bases contain no JARs — skip the 869 MB Java DB download.
+          TRIVY_SKIP_JAVA_DB_UPDATE: ${{ matrix.java && 'false' || 'true' }}
+
+  report:
+    name: Open issue on failure
+    needs: [discover, scan]
+    # Nightly and manual runs open an issue so a red scan is not silent. A pull
+    # request already shows red on the PR itself — no issue for those.
+    if: always() && github.event_name != 'pull_request' && (needs.discover.result == 'failure' || needs.scan.result == 'failure')
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create or reopen issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const title = '🔒 Security: HIGH/CRITICAL CVEs in pinned base images, or a lapsed .trivyignore entry';
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              '## Base image scan failed',
+              `**Run:** ${run}`,
+              `**Date:** ${new Date().toISOString()}`,
+              '',
+              'Either a pinned runtime base image now carries a HIGH/CRITICAL CVE, or a `.trivyignore` entry is malformed or past its review date. The run log names which.',
+              '',
+              '**Action:** bump the digest in the Dockerfile if upstream has rebuilt (check the live tag before adding an exception — it usually has), otherwise record a time-bound `.trivyignore` entry with a review date within 14 days. Lapsed entries: drop if fixed, renew if not.',
+            ].join('\n');
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'all', labels: ['security'], per_page: 20,
+            });
+            const existing = issues.find(i => i.title === title);
+            if (existing) {
+              if (existing.state === 'closed') {
+                await github.rest.issues.update({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number, state: 'open' });
+              }
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: existing.number,
+                body: `Still failing: ${new Date().toISOString()} — ${run}` });
+            } else {
+              await github.rest.issues.create({ owner: context.repo.owner, repo: context.repo.repo, title, body, labels: ['security'] });
+            }
