@@ -25,9 +25,11 @@ public class NarrativeYearSeederTests
 {
     private readonly IOrgDbConnectionFactory _connFactory;
     private readonly OrgContext _orgContext;
+    private readonly Xunit.Abstractions.ITestOutputHelper _output;
 
-    public NarrativeYearSeederTests(DatabaseFixture fixture)
+    public NarrativeYearSeederTests(DatabaseFixture fixture, Xunit.Abstractions.ITestOutputHelper output)
     {
+        _output = output;
         var scope = fixture.Factory.Services.CreateScope();
         _connFactory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
         _orgContext = scope.ServiceProvider.GetRequiredService<OrgContext>();
@@ -41,56 +43,10 @@ public class NarrativeYearSeederTests
         await using var tx = await conn.BeginTransactionAsync();
         var faker = new Faker { Random = new Randomizer(1337) };
 
-        var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
-        var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
-
-        var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
-
-        // 30 minimal people (resources of type person) — enough for facility coverage.
-        // Deterministic ids (own Randomizer so the main faker stream is untouched): the cross-site
-        // off-site selection in SiteModelFactory.ApplyAsync is `abs(hashtext(id::text)) % 40 = 0`, so
-        // random person ids made the cross-site-ratio assertion below non-deterministic run-to-run.
-        var idRng = new Randomizer(1337);
-        var people = new List<PeopleFactories.SeededPerson>();
-        var now = DateTime.UtcNow;
-        using (var w = await conn.BeginBinaryImportAsync(
-            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) FROM STDIN (FORMAT BINARY)"))
-        {
-            for (var i = 0; i < 30; i++)
-            {
-                var id = idRng.Guid();
-                await w.StartRowAsync();
-                await w.WriteAsync(id, NpgsqlDbType.Uuid);
-                await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
-                await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
-                await w.WriteAsync("Fractional", NpgsqlDbType.Varchar); // people are Fractional in production (PeopleFactories)
-                await w.WriteAsync(100, NpgsqlDbType.Integer);
-                await w.WriteAsync(true, NpgsqlDbType.Boolean);
-                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                people.Add(new PeopleFactories.SeededPerson(id, $"Person {i}"));
-            }
-            await w.CompleteAsync();
-        }
-
-        var facilities = FacilityModel.All;
-        var tools = await ToolFactory.SeedAsync(conn, facilities, fp.Sites);
-        // Machines are part of the narrative now — mills, drills and assembly stations carry the
-        // work that used to be booked onto tools of the same name.
-        var machineTypeIds = await MachineFactory.SeedTypesAsync(conn);
-        var lists = await MachineListFactory.SeedDefinitionsAsync(conn);
-        var machineFields = await MachineListFactory.SeedFieldsAsync(conn, machineTypeIds, lists);
-        var machines = await MachineFactory.SeedMachinesAsync(
-            conn, fp.Sites, machineTypeIds,
-            MachineListFactory.BuildValueDocuments(MachineCatalog.All, lists, faker));
-        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
-        var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools, machines);
-        var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
-        var cal = new YearCalendar(DateTime.UtcNow);
-        var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
-        var year = await NarrativeYearSeeder.SeedAsync(
-            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
-            avail.Vacations, avail.AbsenceWindows);
+        var narrative = await SeedNarrativeAsync(conn, tx, DateTime.UtcNow, peopleCount: 30);
+        var (spaceTypeId, personTypeId, people, tools, criteria, cohorts, avail, year) =
+            (narrative.SpaceTypeId, narrative.PersonTypeId, narrative.People, narrative.Tools,
+             narrative.Criteria, narrative.Cohorts, narrative.Availability, narrative.Year);
 
         year.Requests.Should().BeGreaterThan(0);
         year.Requirements.Should().BeGreaterThan(0);
@@ -277,7 +233,12 @@ public class NarrativeYearSeederTests
             WHERE (a.allocation_percent + b.allocation_percent) > 100
               AND a.request_id = ANY(@ids)",
             ("ids", seededIds));
-        personPairs.Should().BeLessThanOrEqualTo(year.Conflicts + 2,
+        // One injected clone double-books every member of the crew it copies, not just the lead,
+        // and crew members book their whole day (100 %) rather than half of it — so a single
+        // intentional conflict on a three-person job shows up here as three overlapping pairs.
+        // The generated jobs themselves cannot overbook: every pick goes through the ledger's
+        // IsFree check, so anything systematically accidental would be orders of magnitude larger.
+        personPairs.Should().BeLessThanOrEqualTo(year.Conflicts * MaxCrewSize + 2,
             "accidental person overbooking must stay within the intentional conflict band");
 
         // Site model: pin cohort people to their facility site, then run the full home-site pass
@@ -468,6 +429,232 @@ public class NarrativeYearSeederTests
         foreach (var (name, value) in parameters)
             cmd.Parameters.AddWithValue(name, value);
         return Convert.ToInt64(await cmd.ExecuteScalarAsync());
+    }
+
+    /// <summary>
+    /// The demo has to look like a business. Utilization on the Insights charts read 0–8 % for
+    /// every resource type before this: demand was a fixed job count spread flat over 18 months,
+    /// the seeded shifts sat outside the site's working hours so a third of the booked minutes
+    /// were never counted, and capacity nobody can schedule (lobbies, unplaced machines) sat in
+    /// the denominator.
+    ///
+    /// Occupancy is recomputed here the way <c>InsightsService</c> does — allocation-weighted
+    /// minutes clipped to the site working day, over open minutes less time off — because the
+    /// service opens its own connection and this seed lives in a rolled-back transaction. The
+    /// structural guards below are what keep the mirror honest.
+    /// </summary>
+    [Fact]
+    public async Task NarrativeSeed_FillsTheShop_ToARealisticUtilization()
+    {
+        await using var conn = _connFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+
+        var reference = new DateTime(2026, 9, 12, 0, 0, 0, DateTimeKind.Utc);
+        // The production roster, because utilization is a ratio: the machine catalog is fixed, so a
+        // roster half the real size would flatter the numbers and prove nothing about the demo.
+        var narrative = await SeedNarrativeAsync(conn, tx, reference, peopleCount: new Orkyo.Foundation.Seed.Scales.Medium().People);
+        var cal = narrative.Calendar;
+
+        // ── Structural: the seed only books time the product actually counts ──────
+        // Scoped to this seed's own rows: the tenant DB is shared with every other test in the
+        // collection, and their committed data would otherwise answer these questions.
+        var seededIds = ("ids", (object)narrative.Year.RequestIds.ToArray());
+
+        var (outsideHours, _) = await TwoLongs(conn, tx, $@"
+            SELECT count(*), 0
+            FROM resource_assignments ra
+            WHERE ra.request_id = ANY(@ids) AND ra.assignment_status <> 'Cancelled'
+              AND ((ra.start_utc AT TIME ZONE '{YearCalendar.SiteTimeZoneId}')::time < TIME '{YearCalendar.WorkDayStartHour:00}:00'
+                OR (ra.end_utc AT TIME ZONE '{YearCalendar.SiteTimeZoneId}')::time > TIME '{YearCalendar.WorkDayEndHour:00}:00')",
+            seededIds);
+        outsideHours.Should().Be(0,
+            "every generated job sits inside the site working day, or Insights discards its minutes");
+
+        var (onDeadCapacity, _) = await TwoLongs(conn, tx, @"
+            SELECT count(*), 0
+            FROM resource_assignments ra
+            JOIN resources res ON res.id = ra.resource_id
+            WHERE ra.request_id = ANY(@ids) AND res.base_availability_percent = 0",
+            seededIds);
+        onDeadCapacity.Should().Be(0, "nothing is booked onto a resource that offers no capacity");
+
+        narrative.Machines.Where(m => !m.Placed).Should().NotBeEmpty("the place-an-existing-resource flow needs stock");
+        var (unplacedWithCapacity, _) = await TwoLongs(conn, tx, @"
+            SELECT count(*), 0 FROM resources
+            WHERE id = ANY(@ids) AND geometry IS NULL AND base_availability_percent > 0",
+            ("ids", (object)narrative.Machines.Select(m => m.Id).ToArray()));
+        unplacedWithCapacity.Should().Be(0, "a machine that is not on the plan carries no capacity");
+
+        // ── The number a visitor actually sees ────────────────────────────────────
+        var people = narrative.Cohorts.SelectMany(c => c.People.Select(p => p.ResourceId)).ToHashSet();
+        var monthBase = new DateTime(reference.Year, reference.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        var peopleLoad = await OccupancyAsync(conn, tx, cal, people, monthBase.AddMonths(-2));
+        _output.WriteLine($"requests={narrative.Year.Requests} assignments={narrative.Year.Assignments} people={people.Count}");
+        _output.WriteLine($"people utilization (2 months back): {peopleLoad:P1}");
+        peopleLoad.Should().BeInRange(0.70, 0.95,
+            "a workshop whose people sit near capacity is the point of the demo");
+
+        var stations = narrative.Machines.Where(m => m.Placed).Select(m => m.Id).ToHashSet();
+        var stationLoad = await OccupancyAsync(conn, tx, cal, stations, monthBase.AddMonths(-2));
+        _output.WriteLine($"station utilization (2 months back): {stationLoad:P1}");
+        stationLoad.Should().BeInRange(0.60, 0.90, "stations run high, with slack for set-ups");
+
+        // ── The shape, not just the level ─────────────────────────────────────────
+        // The far end of the book is a planning horizon, not a promise: it must visibly thin out,
+        // which is what makes the chart read as a plan rather than a flat line.
+        var farLoad = await OccupancyAsync(conn, tx, cal, people, monthBase.AddMonths(11));
+        _output.WriteLine($"people utilization (11 months ahead): {farLoad:P1}");
+
+        farLoad.Should().BeLessThan(peopleLoad * 0.8, "the far horizon is only partly booked");
+
+        // Every month of the dashboard's default window carries work — the seeded year used to
+        // stop one month short of it, so the last bucket was always an empty cliff.
+        for (var m = -6; m <= 12; m++)
+        {
+            var load = await OccupancyAsync(conn, tx, cal, people, monthBase.AddMonths(m));
+            load.Should().BeGreaterThan(0.02, $"month {m:+#;-#;0} relative to now has work");
+        }
+    }
+
+    /// <summary>Booked share of available working time for a set of resources in one month,
+    /// mirroring the Insights definition.</summary>
+    private static async Task<double> OccupancyAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx, YearCalendar cal,
+        IReadOnlySet<Guid> resourceIds, DateTime monthStart)
+    {
+        var monthEnd = monthStart.AddMonths(1);
+        var ids = resourceIds.ToArray();
+
+        double booked = 0;
+        await using (var cmd = new NpgsqlCommand(@"
+            SELECT ra.start_utc, ra.end_utc, COALESCE(ra.allocation_percent, 100)
+            FROM resource_assignments ra
+            WHERE ra.resource_id = ANY(@ids) AND ra.assignment_status <> 'Cancelled'
+              AND ra.start_utc < @to AND ra.end_utc > @from", conn, tx))
+        {
+            cmd.Parameters.AddWithValue("ids", ids);
+            cmd.Parameters.AddWithValue("from", monthStart);
+            cmd.Parameters.AddWithValue("to", monthEnd);
+            await using var rd = await cmd.ExecuteReaderAsync();
+            while (await rd.ReadAsync())
+                booked += WorkingHours(cal, rd.GetDateTime(0), rd.GetDateTime(1), monthStart, monthEnd)
+                    * (double)rd.GetDecimal(2) / 100.0;
+        }
+
+        double absent = 0;
+        await using (var cmd = new NpgsqlCommand(@"
+            SELECT start_ts, end_ts FROM resource_absences
+            WHERE resource_id = ANY(@ids) AND start_ts < @to AND end_ts > @from", conn, tx))
+        {
+            cmd.Parameters.AddWithValue("ids", ids);
+            cmd.Parameters.AddWithValue("from", monthStart);
+            cmd.Parameters.AddWithValue("to", monthEnd);
+            await using var rd = await cmd.ExecuteReaderAsync();
+            while (await rd.ReadAsync())
+                absent += WorkingHours(cal, rd.GetDateTime(0), rd.GetDateTime(1), monthStart, monthEnd);
+        }
+
+        var workingDays = cal.WorkingDays().Count(d => d >= monthStart && d < monthEnd);
+        var capacity = workingDays * (YearCalendar.WorkDayEndHour - YearCalendar.WorkDayStartHour) * (double)ids.Length - absent;
+        return capacity <= 0 ? 0 : booked / capacity;
+    }
+
+    /// <summary>Hours of [start, end) inside a working day's site hours, within the month.</summary>
+    private static double WorkingHours(
+        YearCalendar cal, DateTime start, DateTime end, DateTime monthStart, DateTime monthEnd)
+    {
+        double hours = 0;
+        for (var day = start.Date; day < end; day = day.AddDays(1))
+        {
+            if (day < monthStart || day >= monthEnd || !cal.IsWorkingDay(day)) continue;
+            var (ws, we) = cal.WorkingWindow(day);
+            var overlap = (Math.Min(end.Ticks, we.Ticks) - Math.Max(start.Ticks, ws.Ticks)) / (double)TimeSpan.TicksPerHour;
+            if (overlap > 0) hours += overlap;
+        }
+        return hours;
+    }
+
+    /// <summary>The largest crew any archetype asks for — see <c>FacilityModel</c>.</summary>
+    private static readonly int MaxCrewSize = FacilityModel.All.SelectMany(f => f.Archetypes).Max(a => a.TeamSize);
+
+    /// <summary>Everything one narrative seed produced, for the tests to assert against.</summary>
+    private sealed record SeededNarrative(
+        YearCalendar Calendar,
+        Guid SpaceTypeId,
+        Guid PersonTypeId,
+        IReadOnlyList<PeopleFactories.SeededPerson> People,
+        IReadOnlyList<ToolFactory.SeededTool> Tools,
+        IReadOnlyList<MachineFactory.SeededMachine> Machines,
+        IReadOnlyDictionary<string, Guid> Criteria,
+        IReadOnlyList<FacilityCohort> Cohorts,
+        AvailabilityFactory.Result Availability,
+        NarrativeYearSeeder.Result Year);
+
+    /// <summary>
+    /// Seeds one coherent narrative year into the open transaction: floorplans, people, tools,
+    /// machines, skills, cohorts, availability, and the year of work itself. Shared so the
+    /// coherence test and the utilization test exercise the same seed rather than two setups
+    /// that drift apart.
+    /// </summary>
+    private async Task<SeededNarrative> SeedNarrativeAsync(
+        NpgsqlConnection conn, NpgsqlTransaction tx, DateTime reference, int peopleCount)
+    {
+        var faker = new Faker { Random = new Randomizer(1337) };
+        var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
+        var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
+
+        var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
+
+        // 30 minimal people (resources of type person) — enough for facility coverage.
+        // Deterministic ids (own Randomizer so the main faker stream is untouched): the cross-site
+        // off-site selection in SiteModelFactory.ApplyAsync is `abs(hashtext(id::text)) % 40 = 0`, so
+        // random person ids made the cross-site-ratio assertion below non-deterministic run-to-run.
+        var idRng = new Randomizer(1337);
+        var people = new List<PeopleFactories.SeededPerson>();
+        var now = DateTime.UtcNow;
+        using (var w = await conn.BeginBinaryImportAsync(
+            "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, created_at, updated_at) FROM STDIN (FORMAT BINARY)"))
+        {
+            for (var i = 0; i < peopleCount; i++)
+            {
+                var id = idRng.Guid();
+                await w.StartRowAsync();
+                await w.WriteAsync(id, NpgsqlDbType.Uuid);
+                await w.WriteAsync(personTypeId, NpgsqlDbType.Uuid);
+                await w.WriteAsync($"Person {i}", NpgsqlDbType.Varchar);
+                await w.WriteAsync("Fractional", NpgsqlDbType.Varchar); // people are Fractional in production (PeopleFactories)
+                await w.WriteAsync(100, NpgsqlDbType.Integer);
+                await w.WriteAsync(true, NpgsqlDbType.Boolean);
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                await w.WriteAsync(now, NpgsqlDbType.TimestampTz);
+                people.Add(new PeopleFactories.SeededPerson(id, $"Person {i}"));
+            }
+            await w.CompleteAsync();
+        }
+
+        var facilities = FacilityModel.All;
+        var tools = await ToolFactory.SeedAsync(conn, facilities, fp.Sites);
+        // Machines are part of the narrative now — mills, drills and assembly stations carry the
+        // work that used to be booked onto tools of the same name.
+        var machineTypeIds = await MachineFactory.SeedTypesAsync(conn);
+        var lists = await MachineListFactory.SeedDefinitionsAsync(conn);
+        var machineFields = await MachineListFactory.SeedFieldsAsync(conn, machineTypeIds, lists);
+        var machines = await MachineFactory.SeedMachinesAsync(
+            conn, fp.Sites, machineTypeIds,
+            MachineListFactory.BuildValueDocuments(MachineCatalog.All, lists, faker));
+        var criteria = await CapabilityFactory.SeedSkillCriteriaAsync(conn);
+        var cohorts = Cohorts.Build(facilities, fp.Sites, fp.Spaces, people, tools, machines);
+        var caps = await CapabilityFactory.AssignAsync(conn, criteria, cohorts, faker);
+        var cal = new YearCalendar(reference);
+        var avail = await AvailabilityFactory.SeedAsync(conn, cal, fp.Sites, people, faker);
+        var year = await NarrativeYearSeeder.SeedAsync(
+            conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
+            avail.Vacations, avail.AbsenceWindows);
+
+        return new SeededNarrative(
+            cal, spaceTypeId, personTypeId, people, tools, machines, criteria, cohorts, avail, year);
     }
 
     private static async Task<Guid> ScalarGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)

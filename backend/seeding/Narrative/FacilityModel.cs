@@ -14,6 +14,10 @@ public enum JobCadence { Campaign, Routine, MonthlyPm, QuarterlyQa }
 public sealed record ToolSpec(string Name, string Role, string AllocationMode, int Count, double? MaxLoadTons = null);
 
 /// <summary>One kind of work. The lead assignee must hold every skill in <paramref name="RequiredSkills"/>.
+/// Durations are a shift's worth of work for machine jobs and a half-shift for inspection and
+/// logistics, because the seeder fills each day to a utilization target: shorter jobs would reach
+/// the same occupancy with several times the rows, and the tenant-wide conflict registry validates
+/// every scheduled request.
 /// <paramref name="ToolRole"/> (optional) selects a same-facility tool; <paramref name="MachineRole"/>
 /// (optional) selects a same-facility machine — a placed resource booked like a room rather than
 /// fetched like a tool. A job can name either, and the two are kept separate so converting one kind
@@ -44,14 +48,14 @@ public static class FacilityModel
             ],
             Archetypes:
             [
-                new JobArchetype("Machine", "precision components", "CNC",  [SkillCatalog.CncOperation], null, 4, 8, JobCadence.Campaign, Weight: 4, TeamSize: 2, MachineRole: MachineCatalog.MillRole),
-                new JobArchetype("Turn", "shaft components",        "CNC",  [SkillCatalog.CncOperation], null, 3, 6, JobCadence.Routine, Weight: 2, TeamSize: 1, MachineRole: MachineCatalog.LatheRole),
-                new JobArchetype("Mill", "5-axis aerospace parts",  "CNC",  [SkillCatalog.CncOperation], null, 4, 8, JobCadence.Routine, Weight: 2, TeamSize: 2, MachineRole: MachineCatalog.CncRole),
-                new JobArchetype("Drill", "fixture holes",          "CNC",  [SkillCatalog.Drilling],     null, 2, 4, JobCadence.Routine, Weight: 2, MachineRole: MachineCatalog.DrillRole),
-                new JobArchetype("Assemble", "machined sub-assemblies", "ASSY", [SkillCatalog.Assembly], null, 4, 8, JobCadence.Routine, Weight: 3, TeamSize: 3),
-                new JobArchetype("Inspect", "first-article batch",  "QC",   [SkillCatalog.QaInspection], "qa", 2, 4, JobCadence.Routine, Weight: 2, TeamSize: 2),
-                new JobArchetype("Receive", "raw stock",            "RAW",  [SkillCatalog.ForkliftLicense], "forklift", 1, 2, JobCadence.Routine, Weight: 2),
-                new JobArchetype("Ship", "finished goods",          "FIN",  [SkillCatalog.ForkliftLicense], "forklift", 1, 2, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Machine", "precision components", "CNC",  [SkillCatalog.CncOperation], null, 6, 8, JobCadence.Campaign, Weight: 4, TeamSize: 2, MachineRole: MachineCatalog.MillRole),
+                new JobArchetype("Turn", "shaft components",        "CNC",  [SkillCatalog.CncOperation], null, 6, 8, JobCadence.Routine, Weight: 2, TeamSize: 1, MachineRole: MachineCatalog.LatheRole),
+                new JobArchetype("Mill", "5-axis aerospace parts",  "CNC",  [SkillCatalog.CncOperation], null, 6, 8, JobCadence.Routine, Weight: 2, TeamSize: 2, MachineRole: MachineCatalog.CncRole),
+                new JobArchetype("Drill", "fixture holes",          "CNC",  [SkillCatalog.Drilling],     null, 4, 6, JobCadence.Routine, Weight: 2, MachineRole: MachineCatalog.DrillRole),
+                new JobArchetype("Assemble", "machined sub-assemblies", "ASSY", [SkillCatalog.Assembly], null, 6, 8, JobCadence.Routine, Weight: 3, TeamSize: 3),
+                new JobArchetype("Inspect", "first-article batch",  "QC",   [SkillCatalog.QaInspection], "qa", 3, 4, JobCadence.Routine, Weight: 2, TeamSize: 2),
+                new JobArchetype("Receive", "raw stock",            "RAW",  [SkillCatalog.ForkliftLicense], "forklift", 2, 3, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Ship", "finished goods",          "FIN",  [SkillCatalog.ForkliftLicense], "forklift", 2, 3, JobCadence.Routine, Weight: 2),
                 new JobArchetype("Service", "CNC machine",          "CNC",  [SkillCatalog.Maintenance], null, 2, 4, JobCadence.MonthlyPm, TeamSize: 2, MachineRole: MachineCatalog.MillRole),
                 new JobArchetype("Audit", "quality system",         "QC",   [SkillCatalog.QaInspection], null, 4, 6, JobCadence.QuarterlyQa, TeamSize: 2),
             ],
@@ -70,14 +74,14 @@ public static class FacilityModel
             ],
             Archetypes:
             [
-                new JobArchetype("Weld", "structural frames",  "WELD",  [SkillCatalog.WeldingCert], "weld", 4, 8, JobCadence.Campaign, Weight: 4, TeamSize: 2),
-                new JobArchetype("Fabricate", "steel components","FAB",  [SkillCatalog.Assembly],    "fab", 4, 8, JobCadence.Routine, Weight: 3, TeamSize: 2),
-                new JobArchetype("Paint", "coated assemblies", "PAINT",  [SkillCatalog.Painting],    "paint", 2, 4, JobCadence.Routine, Weight: 2),
-                new JobArchetype("Finish", "weld seams",       "GRIND",  [SkillCatalog.Grinding],    null, 2, 4, JobCadence.Routine, Weight: 2),
-                new JobArchetype("Drill", "weldment bolt holes","FAB",   [SkillCatalog.Drilling],    null, 2, 4, JobCadence.Routine, Weight: 2, MachineRole: MachineCatalog.DrillRole),
-                new JobArchetype("Cut", "steel stock to length","FAB",   [SkillCatalog.MetalCutting],"saw", 2, 4, JobCadence.Routine, Weight: 2),
-                new JobArchetype("Lift", "heavy weldments",    "WELD",   [SkillCatalog.CraneOperation], "crane", 1, 2, JobCadence.Routine, Weight: 1),
-                new JobArchetype("Receive", "steel stock",     "MAT",    [SkillCatalog.ForkliftLicense], "forklift", 1, 2, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Weld", "structural frames",  "WELD",  [SkillCatalog.WeldingCert], "weld", 6, 8, JobCadence.Campaign, Weight: 4, TeamSize: 2),
+                new JobArchetype("Fabricate", "steel components","FAB",  [SkillCatalog.Assembly],    "fab", 6, 8, JobCadence.Routine, Weight: 3, TeamSize: 2),
+                new JobArchetype("Paint", "coated assemblies", "PAINT",  [SkillCatalog.Painting],    "paint", 3, 4, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Finish", "weld seams",       "GRIND",  [SkillCatalog.Grinding],    null, 3, 4, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Drill", "weldment bolt holes","FAB",   [SkillCatalog.Drilling],    null, 4, 6, JobCadence.Routine, Weight: 2, MachineRole: MachineCatalog.DrillRole),
+                new JobArchetype("Cut", "steel stock to length","FAB",   [SkillCatalog.MetalCutting],"saw", 3, 4, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Lift", "heavy weldments",    "WELD",   [SkillCatalog.CraneOperation], "crane", 2, 3, JobCadence.Routine, Weight: 1),
+                new JobArchetype("Receive", "steel stock",     "MAT",    [SkillCatalog.ForkliftLicense], "forklift", 2, 3, JobCadence.Routine, Weight: 2),
                 new JobArchetype("Service", "welding equipment","WELD",  [SkillCatalog.Maintenance], "weld", 2, 4, JobCadence.MonthlyPm, TeamSize: 2),
                 new JobArchetype("Audit", "weld quality",      "QC",     [SkillCatalog.QaInspection], null, 4, 6, JobCadence.QuarterlyQa, TeamSize: 2),
             ],
@@ -95,9 +99,9 @@ public static class FacilityModel
             Archetypes:
             [
                 new JobArchetype("Assemble", "product units",  "PROD",  [SkillCatalog.Assembly],      null, 6, 8, JobCadence.Campaign, Weight: 4, TeamSize: 3, MachineRole: MachineCatalog.AssemblyRole),
-                new JobArchetype("Test", "finished units",     "QC",    [SkillCatalog.QaInspection],  null, 2, 4, JobCadence.Routine, Weight: 3, TeamSize: 2, MachineRole: MachineCatalog.TestRole),
-                new JobArchetype("Pack", "customer orders",    "PKG",   [SkillCatalog.Packaging],     "line", 4, 6, JobCadence.Routine, Weight: 3, TeamSize: 2),
-                new JobArchetype("Putaway", "palletised goods","WHSE",  [SkillCatalog.ForkliftLicense], "forklift", 1, 2, JobCadence.Routine, Weight: 2),
+                new JobArchetype("Test", "finished units",     "QC",    [SkillCatalog.QaInspection],  null, 4, 6, JobCadence.Routine, Weight: 3, TeamSize: 2, MachineRole: MachineCatalog.TestRole),
+                new JobArchetype("Pack", "customer orders",    "PKG",   [SkillCatalog.Packaging],     "line", 6, 8, JobCadence.Routine, Weight: 3, TeamSize: 2),
+                new JobArchetype("Putaway", "palletised goods","WHSE",  [SkillCatalog.ForkliftLicense], "forklift", 2, 3, JobCadence.Routine, Weight: 2),
                 new JobArchetype("Service", "assembly stations","MAINT",[SkillCatalog.Maintenance],   null, 2, 4, JobCadence.MonthlyPm, TeamSize: 2, MachineRole: MachineCatalog.AssemblyRole),
                 new JobArchetype("Audit", "assembly compliance","QC",   [SkillCatalog.QaInspection],  null, 4, 6, JobCadence.QuarterlyQa, TeamSize: 2),
             ],

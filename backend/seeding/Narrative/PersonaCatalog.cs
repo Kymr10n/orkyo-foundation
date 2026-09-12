@@ -27,40 +27,40 @@ public static class PersonaCatalog
     /// <summary>PMF machines parts: operators, a toolroom, inspection, maintenance, logistics.</summary>
     private static readonly IReadOnlyList<Persona> Machining =
     [
-        new("CNC Machinist",         "Senior Operator",       "Production Machining",     [SkillCatalog.CncOperation]),
+        new("CNC Machinist",         "Senior Operator",       "Production Machining",     [SkillCatalog.CncOperation, SkillCatalog.Drilling]),
         new("Machinist",             "Operator",              "Production Machining",     [SkillCatalog.CncOperation, SkillCatalog.Drilling]),
-        new("Toolroom Operator",     "Operator",              "Production Tooling",       [SkillCatalog.Drilling]),
-        new("Sub-Assembly Fitter",   "Operator",              "Production Assembly & Test", [SkillCatalog.Assembly]),
-        new("Quality Inspector",     "QA Tech",               "Quality Calibration",      [SkillCatalog.QaInspection]),
-        new("Maintenance Technician","Maintenance Tech",      "Maintenance Machining",    [SkillCatalog.Maintenance]),
-        new("Materials Handler",     "Logistics Coordinator", "Logistics Inbound",        [SkillCatalog.ForkliftLicense]),
+        new("Toolroom Operator",     "Operator",              "Production Tooling",       [SkillCatalog.Drilling, SkillCatalog.CncOperation]),
+        new("Sub-Assembly Fitter",   "Operator",              "Production Assembly & Test", [SkillCatalog.Assembly, SkillCatalog.QaInspection]),
+        new("Quality Inspector",     "QA Tech",               "Quality Calibration",      [SkillCatalog.QaInspection, SkillCatalog.Assembly]),
+        new("Maintenance Technician","Maintenance Tech",      "Maintenance Machining",    [SkillCatalog.Maintenance, SkillCatalog.Drilling]),
+        new("Materials Handler",     "Logistics Coordinator", "Logistics Inbound",        [SkillCatalog.ForkliftLicense, SkillCatalog.Assembly]),
         new("Shift Lead",            "Shift Lead",            "Production Machining",     [SkillCatalog.CncOperation, SkillCatalog.QaInspection]),
     ];
 
     /// <summary>FWF fabricates and welds: welders, fabricators, finishing, a weld inspector.</summary>
     private static readonly IReadOnlyList<Persona> Fabrication =
     [
-        new("Welder",                "Operator",              "Production Fabrication",   [SkillCatalog.WeldingCert]),
+        new("Welder",                "Operator",              "Production Fabrication",   [SkillCatalog.WeldingCert, SkillCatalog.Grinding]),
         new("Senior Welder",         "Senior Operator",       "Production Fabrication",   [SkillCatalog.WeldingCert, SkillCatalog.Grinding]),
         new("Fabricator",            "Operator",              "Production Fabrication",   [SkillCatalog.Assembly, SkillCatalog.MetalCutting]),
         new("Saw & Drill Operator",  "Operator",              "Production Fabrication",   [SkillCatalog.MetalCutting, SkillCatalog.Drilling]),
-        new("Painter",               "Operator",              "Production Fabrication",   [SkillCatalog.Painting]),
-        new("Finisher",              "Operator",              "Production Fabrication",   [SkillCatalog.Grinding]),
+        new("Painter",               "Operator",              "Production Fabrication",   [SkillCatalog.Painting, SkillCatalog.Grinding]),
+        new("Finisher",              "Operator",              "Production Fabrication",   [SkillCatalog.Grinding, SkillCatalog.MetalCutting]),
         new("Crane & Forklift Operator","Logistics Coordinator","Logistics Inbound",      [SkillCatalog.CraneOperation, SkillCatalog.ForkliftLicense]),
-        new("Weld QA Inspector",     "QA Engineer",           "Quality Fabrication",      [SkillCatalog.QaInspection]),
-        new("Maintenance Technician","Maintenance Tech",      "Maintenance Fabrication",  [SkillCatalog.Maintenance]),
+        new("Weld QA Inspector",     "QA Engineer",           "Quality Fabrication",      [SkillCatalog.QaInspection, SkillCatalog.Assembly]),
+        new("Maintenance Technician","Maintenance Tech",      "Maintenance Fabrication",  [SkillCatalog.Maintenance, SkillCatalog.Drilling]),
     ];
 
     /// <summary>PPF builds and tests the finished product: assemblers, testers, packing.</summary>
     private static readonly IReadOnlyList<Persona> AssemblyAndTest =
     [
-        new("Assembler",             "Operator",              "Production Assembly & Test", [SkillCatalog.Assembly]),
+        new("Assembler",             "Operator",              "Production Assembly & Test", [SkillCatalog.Assembly, SkillCatalog.Packaging]),
         new("Senior Assembler",      "Senior Operator",       "Production Assembly & Test", [SkillCatalog.Assembly, SkillCatalog.Packaging]),
-        new("Test Technician",       "QA Tech",               "Quality Assembly & Test",  [SkillCatalog.QaInspection]),
-        new("QA Engineer",           "QA Engineer",           "Quality Assembly & Test",  [SkillCatalog.QaInspection]),
-        new("Packer",                "Operator",              "Production Packaging",     [SkillCatalog.Packaging]),
-        new("Warehouse Operator",    "Logistics Coordinator", "Logistics Outbound",       [SkillCatalog.ForkliftLicense]),
-        new("Maintenance Technician","Maintenance Tech",      "Maintenance Assembly & Test", [SkillCatalog.Maintenance]),
+        new("Test Technician",       "QA Tech",               "Quality Assembly & Test",  [SkillCatalog.QaInspection, SkillCatalog.Assembly]),
+        new("QA Engineer",           "QA Engineer",           "Quality Assembly & Test",  [SkillCatalog.QaInspection, SkillCatalog.Packaging]),
+        new("Packer",                "Operator",              "Production Packaging",     [SkillCatalog.Packaging, SkillCatalog.ForkliftLicense]),
+        new("Warehouse Operator",    "Logistics Coordinator", "Logistics Outbound",       [SkillCatalog.ForkliftLicense, SkillCatalog.Packaging]),
+        new("Maintenance Technician","Maintenance Tech",      "Maintenance Assembly & Test", [SkillCatalog.Maintenance, SkillCatalog.Assembly]),
         new("Line Lead",             "Shift Lead",            "Production Assembly & Test", [SkillCatalog.Assembly, SkillCatalog.QaInspection]),
     ];
 
