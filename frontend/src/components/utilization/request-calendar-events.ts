@@ -1,6 +1,7 @@
 import type { Conflict, Request, RequestStatus } from "@foundation/src/types/requests";
 import { REQUEST_STATUS_ORDER } from "@foundation/src/constants/request-status";
 import { formatStatusLabel } from "@foundation/src/lib/utils/utils";
+import { formatCompactTime } from "@foundation/src/lib/formatters";
 
 /**
  * Calendar event projection of a Request — see
@@ -210,6 +211,33 @@ export function requestsToCalendarEvents(
   return requests
     .map((r) => mapRequestToCalendarEvent(r, conflicts, editable))
     .filter((e): e is CalendarEvent => e !== null);
+}
+
+/**
+ * Hover text for a calendar block. A block is only as tall as its job is long and only as wide as
+ * its share of the day, so at a dense scale the label clips to a character or two — the name is
+ * exactly what the reader is hovering to recover. Times come along because the block's position
+ * is the only other thing it was showing, and the status because the tint that carries it is
+ * colour alone at this size.
+ *
+ * Mirrors the timeline grid's bar tooltip (ScheduledRequestOverlay), which reads
+ * "<name> - <detail>", so the two views answer a hover the same way.
+ */
+export function calendarEventTooltip(event: {
+  title: string;
+  start: Date;
+  end: Date | null;
+  status?: RequestStatus;
+  conflictSeverity: ConflictSeverity;
+}): string {
+  const when = event.end
+    ? `${formatCompactTime(event.start)}\u2013${formatCompactTime(event.end)}`
+    : formatCompactTime(event.start);
+  const parts = [when];
+  if (event.status) parts.push(formatStatusLabel(event.status));
+  if (event.conflictSeverity === "error") parts.push("Conflict");
+  else if (event.conflictSeverity === "warning") parts.push("Warning");
+  return `${event.title} \u2014 ${parts.join(", ")}`;
 }
 
 /** Calendar view <-> shared TimeScale mapping (keeps the store window aligned). */

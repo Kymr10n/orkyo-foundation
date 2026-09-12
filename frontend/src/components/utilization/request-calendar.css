@@ -66,18 +66,21 @@
   --hatch-color: rgba(255, 255, 255, 0.08);
 }
 
-/* Time-grid slot density — compress each 30-min sub-slot to 16px (≈32px/hour) so the per-hour
-   band reads as dense as the People/Space timeline rows. FullCalendar v6 injects
+/* Time-grid slot density. FullCalendar v6 injects
    `.fc .fc-timegrid-slot { border-bottom: 0; height: 1.5em }` (≈42px/hour) at runtime — there is
    no .css file to override (the rule lives in @fullcalendar/timegrid/internal.js). The
    `.orkyo-calendar .fc` prefix is specificity (0,3,0) vs FC's (0,2,0), so it wins without
-   `!important` — same pattern as .orkyo-cal-event / fc-col-header-cell-cushion below. This sets
-   the slot's natural/minimum height only: the full 00:00–24:00 range is preserved (no
-   slotMin/MaxTime) and 30-min drag/resize snapping is driven by slotDuration, not CSS, so both are
-   unaffected. Over 24h the 48-slot stack (~768px) still exceeds the pane, so expandRows stays inert
-   and FC's single .fc-scroller scrolls — no double scrollbar. */
+   `!important` — same pattern as .orkyo-cal-event / fc-col-header-cell-cushion below.
+
+   RequestCalendar sets --orkyo-slot-height from the measured pane so the site's working day plus
+   an hour either side fills it; the 16px fallback (≈32px/hour, as dense as the People/Space
+   timeline rows) applies where there are no working hours to fit, such as the resource schedule
+   dialog. This sets the slot's natural/minimum height only: the full 00:00–24:00 range is
+   preserved (no slotMin/MaxTime) and 30-min drag/resize snapping is driven by slotDuration, not
+   CSS, so both are unaffected. The 48-slot stack still exceeds the pane either way, so expandRows
+   stays inert and FC's single .fc-scroller scrolls — no double scrollbar. */
 .orkyo-calendar .fc .fc-timegrid-slot {
-  height: 16px;
+  height: var(--orkyo-slot-height, 16px);
 }
 
 /* Event block layout — colours come from the utility classNames on the node. */
