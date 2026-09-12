@@ -18,6 +18,8 @@ interface ListRowsTableProps {
   displayColumnId?: string | null;
   /** Per-row controls (edit, delete). Rendered in a trailing column when provided. */
   renderRowActions?: (row: ListRow) => ReactNode;
+  /** When set, the whole row is the target for it, not just the trailing edit button. */
+  onRowClick?: (row: ListRow) => void;
 }
 
 /**
@@ -43,6 +45,7 @@ export function ListRowsTable({
   emptyMessage = 'No rows yet.',
   displayColumnId,
   renderRowActions,
+  onRowClick,
 }: ListRowsTableProps) {
   const activeColumns = useMemo(() => columns.filter((c) => c.isActive), [columns]);
 
@@ -119,6 +122,7 @@ export function ListRowsTable({
       isLoading={isLoading}
       error={error}
       emptyMessage={emptyMessage}
+      onRowClick={onRowClick}
       // On a phone the grid becomes stacked cards: every column as a label/value pair, so a row
       // stays readable without horizontal scrolling.
       renderCard={(row) => (
