@@ -31,3 +31,16 @@
 # Renewed on a 14-day cadence while it stays a false positive; a permanent-exception
 # class (VEX) would end the churn — see the base-image-scan follow-ups.
 CVE-2025-59250  # HIGH | mssql-jdbc: improper input validation — Trivy compares the installed 13.2.1 against a fix list ending 13.2.1.jre11 and calls it older; the shipped JAR is the fixed version, false positive (re-verified 2026-09-12 on quay.io/keycloak/keycloak:26.7.3) | Added: 2026-09-12 | Review: 2026-09-26
+
+# ── Keycloak embedded netty — CVE-2026-75595 (CRITICAL) ─────────────────────
+# 2026-09-12: netty-handler 4.1.136.Final is bundled by Keycloak 26.7.3, the newest
+# upstream tag; the fix is 4.1.137/4.2.17 and no published Keycloak carries it, so a
+# digest bump cannot clear this. Time-boxed as a deliberate risk decision, on one fact:
+# production and staging ALREADY run this exact netty — the deployed 0.22.0 image
+# (ghcr.io/kymr10n/keycloak:26.6-orkyo-0.22.0, digest dd1ae711…, scanned 2026-09-12)
+# ships netty-handler-4.1.136.Final and reports this CVE. Holding the release train
+# therefore does not reduce exposure; it only keeps the libexpat/openssl/util-linux base
+# fixes and the 0.23.0 features out of production. Keycloak sits behind nginx and
+# Cloudflare, not exposed directly. Drop this entry the moment a Keycloak build with
+# netty ≥ 4.1.137 is published; foundation #176 tracks it.
+CVE-2026-75595  # CRITICAL | netty-handler 4.1.136.Final bundled by Keycloak 26.7.3 (fix 4.1.137 / 4.2.17) | no upstream Keycloak with the fix yet; production already runs this exact netty (0.22.0 image, scanned 2026-09-12) so shipping is not a regression; KC behind nginx + Cloudflare | Added: 2026-09-12 | Review: 2026-09-26
