@@ -59,6 +59,22 @@ const MIN_BAR_PX = 3;
 const UNGROUPED_ID = "ungrouped";
 const UNGROUPED_NAME = "Ungrouped";
 
+/** "7 of 345" while the timeline is showing a subset, plain "345" when it is showing them all. */
+function countLabel(listed: number, total: number): string {
+  return listed === total ? `${total}` : `${listed} of ${total}`;
+}
+
+/**
+ * Does this task have dates, and do they run into the visible period? The one test behind both
+ * which bars are drawn and which groups are listed at all, so the list can never offer a group
+ * whose body then comes up empty. Undated work is false by definition: it has no place on a
+ * time axis (the Structure view is where it lives).
+ */
+function overlapsWindow(child: RequestPlanChild, startMs: number, endMs: number): boolean {
+  if (!child.startTs || !child.endTs) return false;
+  return new Date(child.endTs).getTime() > startMs && new Date(child.startTs).getTime() < endMs;
+}
+
 export type SitePlanView = "structure" | "timeline";
 
 interface Band {
@@ -90,6 +106,10 @@ interface PlacedBand {
  * dated task is a bar spanning its actual start→end, stretched or compressed by the scale,
  * with the same dependency arrows between the bars. A task without dates has no place on a
  * time axis, so timeline mode counts it on the band header instead of drawing it.
+ *
+ * Timeline lists only the groups with work in the visible period — a site holds hundreds of
+ * groups and a week holds a handful. Structure lists every group, and is where work that is
+ * undated, or scheduled for another month, remains reachable.
  *
  * Read-only either way: a tenant has thousands of tasks, so bands start collapsed and editing
  * stays in the per-group planner each band header links to.
@@ -200,6 +220,29 @@ export function SitePlanCanvas({
     return ordered;
   }, [data]);
 
+  // What the timeline actually lists. A site carries hundreds of groups and a week holds a
+  // handful of them, so listing the rest is several screens of empty rows between the reader and
+  // the work in front of them. Structure has no time axis and keeps every group, which is what
+  // makes this safe: nothing becomes unreachable, it moves to the view that can show it.
+  const listedBands = useMemo(
+    () =>
+      view === "timeline"
+        ? bands.filter((b) => b.children.some((c) => overlapsWindow(c, viewStartMs, viewEndMs)))
+        : bands,
+    [bands, view, viewStartMs, viewEndMs],
+  );
+
+  const listedTaskCount = useMemo(
+    () =>
+      view === "timeline"
+        ? listedBands.reduce(
+            (n, b) => n + b.children.filter((c) => overlapsWindow(c, viewStartMs, viewEndMs)).length,
+            0,
+          )
+        : (data?.children.length ?? 0),
+    [listedBands, view, viewStartMs, viewEndMs, data?.children.length],
+  );
+
   // ── Geometry: per-band layouts stacked with a running offset ──────────────
   // One placedBands/rects shape whichever view produced it, so the edge layer and the band
   // headers do not care. Structure places fixed-size cards by dependency depth; timeline
@@ -217,7 +260,7 @@ export function SitePlanCanvas({
     const rectsById = new Map<string, PlanRect>();
     const placedBands: PlacedBand[] = [];
 
-    for (const band of bands) {
+    for (const band of listedBands) {
       const expanded = expandedIds.has(band.id);
       const top = y;
       let bodyHeight = 0;
@@ -230,11 +273,7 @@ export function SitePlanCanvas({
           .filter((c) => c.startTs && c.endTs)
           .sort((a, b) => new Date(a.startTs!).getTime() - new Date(b.startTs!).getTime());
         unscheduled = band.children.length - dated.length;
-        const visible = dated.filter((c) => {
-          const s = new Date(c.startTs!).getTime();
-          const e = new Date(c.endTs!).getTime();
-          return e > viewStartMs && s < viewEndMs;
-        });
+        const visible = dated.filter((c) => overlapsWindow(c, viewStartMs, viewEndMs));
         outsideWindow = dated.length - visible.length;
 
         if (expanded) {
@@ -275,7 +314,7 @@ export function SitePlanCanvas({
       width: isTimeline ? timelineWidth : Math.max(maxCardWidth, usable),
       height: Math.max(y, 0),
     };
-  }, [bands, expandedIds, view, columns.length, viewStartMs, viewEndMs, containerWidth]);
+  }, [listedBands, expandedIds, view, columns.length, viewStartMs, viewEndMs, containerWidth]);
 
   // Only edges with both ends visible are drawable; the rest surface as counts.
   const drawableEdges = useMemo(
@@ -376,6 +415,16 @@ export function SitePlanCanvas({
       <p className="p-6 text-sm text-muted-foreground">
         No tasks at this site yet. Create requests on the Requests page and they appear here with
         their dependencies.
+      </p>
+    );
+  }
+
+  // The site has work, this period does not. Say which of the two it is, because the fix is
+  // different: step the date navigator, or switch to the view that carries no dates at all.
+  if (view === "timeline" && listedBands.length === 0) {
+    return (
+      <p className="p-6 text-sm text-muted-foreground">
+        No tasks in this period. Step to another date, or open Structure to see every group.
       </p>
     );
   }
@@ -509,9 +558,10 @@ export function SitePlanCanvas({
           </div>
         )}
         <span className="ml-auto">
-          {data.children.length} task{data.children.length === 1 ? "" : "s"} in{" "}
-          {bands.length} group{bands.length === 1 ? "" : "s"} · {data.edges.length} dependenc
-          {data.edges.length === 1 ? "y" : "ies"}
+          {countLabel(listedTaskCount, data.children.length)} task
+          {data.children.length === 1 ? "" : "s"} in{" "}
+          {countLabel(listedBands.length, bands.length)} group{bands.length === 1 ? "" : "s"} ·{" "}
+          {data.edges.length} dependenc{data.edges.length === 1 ? "y" : "ies"}
         </span>
         {view === "structure" && (
           <div className="flex items-center gap-1">

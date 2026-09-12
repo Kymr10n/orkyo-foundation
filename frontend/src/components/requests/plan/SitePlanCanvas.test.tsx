@@ -241,6 +241,66 @@ describe("SitePlanCanvas — timeline view", () => {
     expect(within(one).getByText("· 1 outside this period")).toBeInTheDocument();
   });
 
+  it("lists only the groups with work in the period", async () => {
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({
+      children: [dated("Cut", "g1", 1), dated("Later", "g2", 30)],
+      edges: [],
+    }));
+    renderCanvas({ view: "timeline" });
+
+    await screen.findByText("Contract One");
+    // Hundreds of groups and a handful of them in any one week: the rest are empty rows.
+    expect(screen.queryByText("Contract Two")).not.toBeInTheDocument();
+  });
+
+  it("keeps a group whose work started earlier and is still running", async () => {
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({
+      children: [child("Long", "g1", {
+        startTs: new Date(2026, 5, 1).toISOString(),
+        endTs: new Date(2026, 5, 12).toISOString(),
+      })],
+      edges: [],
+    }));
+    renderCanvas({ view: "timeline" });
+
+    expect(await screen.findByText("Contract One")).toBeInTheDocument();
+  });
+
+  it("drops a group holding only undated work, which Structure still lists", async () => {
+    const plan = sitePlan({ children: [dated("Cut", "g1", 1), child("Someday", "g2")], edges: [] });
+    (getSitePlan as Mock).mockResolvedValue(plan);
+    const { unmount } = renderCanvas({ view: "timeline" });
+
+    await screen.findByText("Contract One");
+    expect(screen.queryByText("Contract Two")).not.toBeInTheDocument();
+
+    // Structure has no time axis, so it is where undated work stays reachable.
+    unmount();
+    renderCanvas({ view: "structure" });
+    expect(await screen.findByText("Contract Two")).toBeInTheDocument();
+  });
+
+  it("says how much of the site the period is showing", async () => {
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({
+      children: [dated("Cut", "g1", 1), dated("Later", "g2", 30)],
+      edges: [],
+    }));
+    renderCanvas({ view: "timeline" });
+
+    expect(await screen.findByText(/1 of 2 tasks in 1 of 2 groups/)).toBeInTheDocument();
+  });
+
+  it("distinguishes an empty period from an empty site", async () => {
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({
+      children: [dated("Later", "g1", 30)],
+      edges: [],
+    }));
+    renderCanvas({ view: "timeline" });
+
+    expect(await screen.findByText(/No tasks in this period/)).toBeInTheDocument();
+    expect(screen.queryByText(/No tasks at this site yet/)).not.toBeInTheDocument();
+  });
+
   it("draws the cross-group edge between two dated bars once both bands are expanded", async () => {
     const { container } = renderCanvas({ view: "timeline" });
     await userEvent.click(await screen.findByText("Contract One"));
@@ -367,6 +427,7 @@ describe("SitePlanCanvas — timeline colour coding", () => {
   });
 
   it("shows the status/severity key on the timeline toolbar only", async () => {
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({ children: [at("Cut", "new")], edges: [] }));
     renderCanvas({ view: "timeline" });
     await screen.findByText("Contract One");
     expect(screen.getByText("In Progress")).toBeInTheDocument();
@@ -375,11 +436,16 @@ describe("SitePlanCanvas — timeline colour coding", () => {
 });
 
 describe("SitePlanCanvas — grid furniture matches the other tabs", () => {
-  const dated = (id: string) =>
-    child(id, "g1", {
+  const dated = (id: string, parent = "g1") =>
+    child(id, parent, {
       startTs: new Date(2026, 5, 9).toISOString(),
       endTs: new Date(2026, 5, 10).toISOString(),
     });
+
+  // The timeline lists only groups with work in the period, so furniture tests need a task in it.
+  beforeEach(() => {
+    (getSitePlan as Mock).mockResolvedValue(sitePlan({ children: [dated("Cut")], edges: [] }));
+  });
 
   it("tints the date header but never hatches it — hatching is a body-cell cue", async () => {
     renderCanvas({ view: "timeline", weekendsEnabled: true });
@@ -410,7 +476,7 @@ describe("SitePlanCanvas — grid furniture matches the other tabs", () => {
 
   it("stacks bands contiguously — no gaps for stripes to show through", async () => {
     (getSitePlan as Mock).mockResolvedValue(sitePlan({
-      children: [dated("Cut"), child("Weld", "g2")],
+      children: [dated("Cut"), dated("Weld", "g2")],
       edges: [],
     }));
     const { container } = renderCanvas({ view: "timeline" });
