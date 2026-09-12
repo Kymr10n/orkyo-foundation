@@ -337,7 +337,7 @@
       "orkyo.foundation.core": {
         "type": "Project",
         "dependencies": {
-          "Anthropic": "[12.45.0, )",
+          "Anthropic": "[12.46.0, )",
           "FluentValidation": "[12.1.1, )",
           "Google.OrTools": "[9.15.6755, )",
           "MailKit": "[4.17.0, )",
@@ -351,9 +351,9 @@
       },
       "Anthropic": {
         "type": "CentralTransitive",
-        "requested": "[12.45.0, )",
-        "resolved": "12.45.0",
-        "contentHash": "eigJuw1xLSBk/+hSqPwTioP0fMENs+Qw72eH5N+n/RlA/BXdye2X2o+Z6g74l/n2I1ohToSUygRrdy+L8UlhlA==",
+        "requested": "[12.46.0, )",
+        "resolved": "12.46.0",
+        "contentHash": "hrkgGKtNgw+p0WUgpOtwd2ayQcOpj/9/W4vnJ6bFvzfj+DHXF47O/i37/59J4DexpUPtJVePZVa5Tzbx1odBvg==",
         "dependencies": {
           "Microsoft.Extensions.AI.Abstractions": "10.5.1"
         }
