@@ -30,6 +30,8 @@ name: reusable / base-image-scan
 # is pinned to the exact SHA reusable-container-scan.yml uses. Consumers must pin
 # their `uses:` to this file by commit SHA, never `@main`. Call with
 # `secrets: inherit` and grant `contents: read`, `packages: read`, `issues: write`.
+# To make the scan a required status check, require `<caller job> / Result` and
+# drop the caller's `paths:` filter — a required check that never runs blocks the PR.
 
 on:
   workflow_call:
@@ -164,6 +166,31 @@ jobs:
         env:
           # .NET/nginx bases contain no JARs — skip the 869 MB Java DB download.
           TRIVY_SKIP_JAVA_DB_UPDATE: ${{ matrix.java && 'false' || 'true' }}
+
+  # One stable check name for branch protection. The per-image scan jobs embed
+  # the digest in their name, so they cannot be listed as required checks; this
+  # job can. Fails if discovery, the policy check, or any image scan did not
+  # succeed (a skipped scan counts — it means discovery failed).
+  result:
+    name: Result
+    needs: [discover, policy, scan]
+    if: always()
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless every job succeeded
+        env:
+          DISCOVER: ${{ needs.discover.result }}
+          POLICY: ${{ needs.policy.result }}
+          SCAN: ${{ needs.scan.result }}
+        run: |
+          echo "discover=${DISCOVER} policy=${POLICY} scan=${SCAN}"
+          for r in "${DISCOVER}" "${POLICY}" "${SCAN}"; do
+            if [[ "${r}" != "success" ]]; then
+              echo "::error::base image scan did not pass (discover=${DISCOVER} policy=${POLICY} scan=${SCAN})" >&2
+              exit 1
+            fi
+          done
 
   report:
     name: Open issue on failure
