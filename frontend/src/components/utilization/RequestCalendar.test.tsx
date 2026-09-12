@@ -6,13 +6,15 @@ import { render, screen } from "@testing-library/react";
 // real library (and without a browser layout engine). The stub captures the
 // props FullCalendar would receive so we can invoke its callbacks directly.
 let capturedProps: Record<string, any> = {};
+// The imperative API FullCalendar would expose. Null by default, which leaves the ref null and
+// every imperative effect (view/date sync, scroll) inert — set it in a test that drives one.
+let mockApi: Record<string, any> | null = null;
 vi.mock("@fullcalendar/react", async () => {
-  const { forwardRef } = await import("react");
+  const { forwardRef, useImperativeHandle } = await import("react");
   return {
-    // forwardRef so the component's calendarRef doesn't warn; the ref stays null
-    // (no getApi), so the view/date sync effects are inert under test.
-    default: forwardRef((props: any, _ref: any) => {
+    default: forwardRef((props: any, ref: any) => {
       capturedProps = props;
+      useImperativeHandle(ref, () => (mockApi ? { getApi: () => mockApi } : null), []);
       return null;
     }),
   };
@@ -74,6 +76,7 @@ function renderCalendar(overrides: Partial<React.ComponentProps<typeof RequestCa
 beforeEach(() => {
   capturedProps = {};
   mockIsPhone = false;
+  mockApi = null;
 });
 
 describe("RequestCalendar", () => {
@@ -299,6 +302,127 @@ describe("RequestCalendar", () => {
 
       expect(screen.getByLabelText("Search requests")).toBeInTheDocument();
       expect(screen.queryByText("Conflicts")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("working-hours window", () => {
+    // The pane is the element carrying the fitted slot height; FullCalendar itself is stubbed out.
+    const pane = () => document.querySelector<HTMLElement>(".orkyo-calendar div.flex-1");
+    const working = { enabled: true, start: "06:00", end: "14:00" };
+
+    it("opens an hour before the working day starts", () => {
+      renderCalendar({ workingHours: working });
+
+      expect(capturedProps.scrollTime).toBe("5:00:00");
+    });
+
+    it("does not scroll past the edges of the day", () => {
+      renderCalendar({ workingHours: { enabled: true, start: "00:00", end: "23:30" } });
+
+      expect(capturedProps.scrollTime).toBe("0:00:00");
+    });
+
+    it("leaves FullCalendar's own scroll position when working hours are off", () => {
+      renderCalendar({ workingHours: { ...working, enabled: false } });
+
+      expect(capturedProps.scrollTime).toBeUndefined();
+    });
+
+    it("leaves the scroll position alone for hosts that pass no working hours", () => {
+      // The resource schedule dialog reuses this calendar without scheduling settings.
+      renderCalendar();
+
+      expect(capturedProps.scrollTime).toBeUndefined();
+    });
+
+    it("ignores working hours that do not describe a day", () => {
+      renderCalendar({ workingHours: { enabled: true, start: "17:00", end: "09:00" } });
+
+      expect(capturedProps.scrollTime).toBeUndefined();
+      expect(pane()?.style.getPropertyValue("--orkyo-slot-height")).toBe("");
+    });
+
+    it("re-applies the opening scroll once the rows are sized", () => {
+      // FullCalendar resolves scrollTime into a pixel offset against the slot height at mount —
+      // the 16px fallback. Taller rows leave that offset pointing hours earlier, so the view has
+      // to be sent back to the working day by time.
+      const scrollToTime = vi.fn();
+      mockApi = {
+        scrollToTime,
+        gotoDate: vi.fn(),
+        changeView: vi.fn(),
+        // The date-sync effect reads the view's period; the anchor sits inside it, so it is quiet.
+        view: {
+          type: "timeGridWeek",
+          currentStart: new Date("2026-04-13T00:00:00Z"),
+          currentEnd: new Date("2026-04-20T00:00:00Z"),
+        },
+      };
+
+      renderCalendar({ workingHours: working });
+
+      expect(scrollToTime).toHaveBeenCalledWith("5:00:00");
+    });
+
+    it("sizes the slots so the working window fills the pane", () => {
+      renderCalendar({ workingHours: working });
+
+      // 800px of observed pane (see the ResizeObserver stub in test/setup.ts) over 05:00-15:00,
+      // which is 20 half-hour slots.
+      expect(pane()?.style.getPropertyValue("--orkyo-slot-height")).toBe("40px");
+    });
+
+    it("never renders less dense than the static fallback", () => {
+      // A full day in the same pane works out under 16px a slot, so the floor takes over and the
+      // calendar scrolls instead of shrinking the rows.
+      renderCalendar({ workingHours: { enabled: true, start: "01:00", end: "23:00" } });
+
+      expect(pane()?.style.getPropertyValue("--orkyo-slot-height")).toBe("16px");
+    });
+
+    it("leaves the slot height to the stylesheet without working hours", () => {
+      renderCalendar();
+
+      expect(pane()?.style.getPropertyValue("--orkyo-slot-height")).toBe("");
+    });
+  });
+
+  describe("hover text", () => {
+    // FullCalendar builds the event elements itself, so the wrapper sets the tooltip through
+    // eventDidMount; the stub never calls it, so drive it the way FullCalendar would.
+    function mountEvent(overrides: Record<string, any> = {}) {
+      const el = document.createElement("div");
+      capturedProps.eventDidMount({
+        el,
+        event: {
+          title: "Weld structural frames",
+          start: new Date("2026-04-17T09:00:00Z"),
+          end: new Date("2026-04-17T11:00:00Z"),
+          display: "auto",
+          extendedProps: { status: "new", conflictSeverity: null },
+          ...overrides,
+        },
+      });
+      return el;
+    }
+
+    it("names the request on hover, which a block too small to read cannot", () => {
+      renderCalendar();
+
+      expect(mountEvent().title).toContain("Weld structural frames");
+    });
+
+    it("leaves the off-time shading untitled", () => {
+      renderCalendar();
+
+      // Weekends and closures are the week's shape, not something to hover for a name.
+      expect(mountEvent({ display: "background" }).title).toBe("");
+    });
+
+    it("skips an event with no start rather than guessing a time", () => {
+      renderCalendar();
+
+      expect(mountEvent({ start: null }).title).toBe("");
     });
   });
 });

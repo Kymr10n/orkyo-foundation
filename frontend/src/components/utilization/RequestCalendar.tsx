@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
@@ -7,8 +7,10 @@ import listPlugin from "@fullcalendar/list";
 import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInput, BusinessHoursInput } from "@fullcalendar/core";
 import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
-import { REQUEST_LEGEND } from "./request-calendar-events";
+import { calendarEventTooltip, REQUEST_LEGEND } from "./request-calendar-events";
+import type { RequestStatus } from "@foundation/src/types/requests";
 import { ScheduleFilterBar } from "./ScheduleFilterBar";
+import { parseTimeToHour } from "./time-grid-utils";
 import {
   DEFAULT_SCHEDULE_FILTER,
   filterCalendarEvents,
@@ -60,6 +62,14 @@ interface RequestCalendarProps {
   /** Hides the query/status/issue bar for hosts whose events carry no request status. */
   showFilterBar?: boolean;
 }
+
+/** Hours shown either side of the working day (see workingWindow below). */
+const WINDOW_MARGIN_HOURS = 1;
+const HOURS_PER_DAY = 24;
+/** FullCalendar's default slot duration — two slots to the hour. */
+const SLOTS_PER_HOUR = 2;
+/** The static density request-calendar.css falls back to; also the floor when fitting. */
+const MIN_SLOT_PX = 16;
 
 function LegendItem({ className, label }: { className: string; label: string }) {
   return (
@@ -143,6 +153,80 @@ export function RequestCalendar({
     return { startTime: workingHours.start, endTime: workingHours.end };
   }, [workingHours]);
 
+  // The hours worth looking at: the site's working day plus an hour either side, so an early
+  // start or an overrun is visible without scrolling. The axis itself stays 00:00–24:00 (no
+  // slotMin/MaxTime) — nothing is ever hidden — but the view opens here and the slots are sized
+  // so this window fills the pane instead of the ~two thirds of empty night the day used to
+  // spend. Null when the tenant has working hours switched off, or the times are unusable; then
+  // the calendar keeps FullCalendar's own defaults, which is also what the resource schedule
+  // dialog (no workingHours prop) gets.
+  const workingWindow = useMemo(() => {
+    if (!workingHours?.enabled) return null;
+    const start = parseTimeToHour(workingHours.start);
+    const end = parseTimeToHour(workingHours.end);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+    return {
+      start: Math.max(0, start - WINDOW_MARGIN_HOURS),
+      end: Math.min(HOURS_PER_DAY, end + WINDOW_MARGIN_HOURS),
+    };
+  }, [workingHours]);
+
+  const scrollTime = workingWindow ? `${workingWindow.start}:00:00` : undefined;
+
+  // Slot height is CSS (FullCalendar has no option for it), so the measured value goes to the
+  // stylesheet as a custom property. Measured rather than computed from the viewport because the
+  // calendar shares the page with the header, tabs and filter bar, and only the pane knows what
+  // is left. Floored at the static 16px so a short window never renders *less* dense than before.
+  const [slotHeight, setSlotHeight] = useState<number | null>(null);
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+
+  const paneHeightRef = useRef(0);
+
+  const measure = useCallback(() => {
+    const el = paneRef.current;
+    if (!el || !workingWindow || paneHeightRef.current <= 0) return;
+    // The day headers sit inside the pane and do not scroll, so they are not available to slots.
+    const header = el.querySelector<HTMLElement>(".fc-col-header");
+    const available = paneHeightRef.current - (header?.clientHeight ?? 0);
+    const slots = (workingWindow.end - workingWindow.start) * SLOTS_PER_HOUR;
+    if (available <= 0) return;
+    setSlotHeight(Math.max(MIN_SLOT_PX, Math.floor(available / slots)));
+  }, [workingWindow]);
+
+  const attachPane = useCallback((el: HTMLDivElement | null) => {
+    paneRef.current = el;
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    observerRef.current = new ResizeObserver((entries) => {
+      // The entry's own box, not clientHeight: it is what the observer already measured, and it
+      // is the height reported before layout is readable back off the element.
+      paneHeightRef.current = entries[0]?.contentRect.height ?? el.clientHeight;
+      measure();
+    });
+    observerRef.current.observe(el);
+  }, [measure]);
+
+  // The headers only exist once FullCalendar has rendered, and their height changes with the
+  // view (a day column header is not a week's), so re-measure on those too — the observer alone
+  // sees the pane, which does not resize when the view does.
+  useEffect(() => {
+    measure();
+  }, [measure, active, initialView]);
+
+  useEffect(() => () => observerRef.current?.disconnect(), []);
+
+  // Re-apply the opening scroll once the rows have their fitted height. FullCalendar turns
+  // scrollTime into a pixel offset when it mounts the view, against whatever the slots measured
+  // then — the 16px fallback. Taller rows leave that offset pointing hours earlier, which is why
+  // the view opened on the middle of the night. Scrolling by time again resolves it against the
+  // heights now in force.
+  useEffect(() => {
+    if (!active || !scrollTime) return;
+    calendarRef.current?.getApi()?.scrollToTime(scrollTime);
+  }, [active, initialView, slotHeight, scrollTime]);
+
   // Filter state is local and not in the URL: a search query changes on every keystroke, and
   // writing that to the address bar would bury real navigation under typing history.
   const [filter, setFilter] = useState<ScheduleFilter>(DEFAULT_SCHEDULE_FILTER);
@@ -216,7 +300,11 @@ export function RequestCalendar({
           />
         )}
       </div>
-      <div className="flex-1 min-h-0">
+      <div
+        ref={attachPane}
+        className="flex-1 min-h-0"
+        style={slotHeight ? ({ "--orkyo-slot-height": `${slotHeight}px` } as React.CSSProperties) : undefined}
+      >
       <FullCalendar
         ref={calendarRef}
         plugins={plugins}
@@ -227,6 +315,10 @@ export function RequestCalendar({
         height="100%"
         expandRows
         allDaySlot={false}
+        // Open on the working window rather than FullCalendar's fixed 06:00. Undefined keeps
+        // that default for hosts without working hours. scrollTimeReset stays on, so stepping to
+        // another week comes back to the working day instead of keeping a scrolled-away position.
+        scrollTime={scrollTime}
         nowIndicator
         firstDay={1}
         // Overlapping events partition into side-by-side columns instead of the
@@ -257,6 +349,20 @@ export function RequestCalendar({
           },
         }}
         events={allEvents}
+        // Native title rather than the Tooltip component: FullCalendar owns these nodes and
+        // creates them outside React's tree, and the grid's own bars answer a hover the same
+        // way. Set on the element FullCalendar wraps around the content, so the whole block is
+        // the hover target — including the list view on phones, which renders its own row.
+        eventDidMount={(arg) => {
+          if (arg.event.display === "background" || !arg.event.start) return;
+          arg.el.title = calendarEventTooltip({
+            title: arg.event.title,
+            start: arg.event.start,
+            end: arg.event.end,
+            status: arg.event.extendedProps?.status as RequestStatus | undefined,
+            conflictSeverity: (arg.event.extendedProps?.conflictSeverity ?? null) as ConflictSeverity,
+          });
+        }}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}
         eventResize={handleEventResize}

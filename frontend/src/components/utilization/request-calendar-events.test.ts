@@ -5,6 +5,7 @@ import {
   mapRequestToCalendarEvent,
   requestsToCalendarEvents,
   scaleToCalendarView,
+  calendarEventTooltip,
 } from "./request-calendar-events";
 import { makeRequest, makeScheduledRequest } from "@foundation/src/test-utils/request-fixtures";
 import { getStatusColor } from "@foundation/src/lib/utils";
@@ -133,4 +134,51 @@ describe("scale <-> calendar view mapping", () => {
     expect(scaleToCalendarView("year", { phone: true })).toBe("listMonth");
   });
 
+});
+
+describe("calendarEventTooltip", () => {
+  const start = new Date("2026-04-17T09:00:00Z");
+  const end = new Date("2026-04-17T11:30:00Z");
+
+  it("leads with the name, which is what a clipped block is hiding", () => {
+    const text = calendarEventTooltip({
+      title: "Weld structural frames",
+      start,
+      end,
+      status: "in_progress",
+      conflictSeverity: null,
+    });
+
+    expect(text.startsWith("Weld structural frames")).toBe(true);
+    expect(text).toContain("In Progress");
+  });
+
+  it("carries both ends of the block's time range", () => {
+    const text = calendarEventTooltip({ title: "Task", start, end, conflictSeverity: null });
+
+    // Formatted in the runner's locale, so assert the shape rather than the literal clock text.
+    expect(text).toMatch(/\d{1,2}[:.]\d{2}.*\u2013.*\d{1,2}[:.]\d{2}/);
+  });
+
+  it("falls back to the start alone when the event has no end", () => {
+    const text = calendarEventTooltip({ title: "Task", start, end: null, conflictSeverity: null });
+
+    expect(text).not.toContain("\u2013");
+  });
+
+  it("names the issue, which the block conveys by tint alone at this size", () => {
+    expect(
+      calendarEventTooltip({ title: "Task", start, end, conflictSeverity: "error" }),
+    ).toContain("Conflict");
+    expect(
+      calendarEventTooltip({ title: "Task", start, end, conflictSeverity: "warning" }),
+    ).toContain("Warning");
+  });
+
+  it("omits the status for blocks that carry none, such as absences", () => {
+    const text = calendarEventTooltip({ title: "Annual leave", start, end, conflictSeverity: null });
+
+    expect(text).toContain("Annual leave");
+    expect(text).not.toContain(",");
+  });
 });
