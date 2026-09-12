@@ -23,6 +23,11 @@ namespace Orkyo.Foundation.Tests.Seeding;
 [Collection("Database collection")]
 public class NarrativeYearSeederTests
 {
+    /// <summary>The coherence checks are overlap self-joins over a full seeded year. They run in
+    /// seconds on a developer machine and a good deal longer on CI's shared Postgres, which is a
+    /// slow check rather than a broken one — Npgsql's 30-second default called it broken.</summary>
+    private const int VerifyTimeoutSeconds = 180;
+
     private readonly IOrgDbConnectionFactory _connFactory;
     private readonly OrgContext _orgContext;
     private readonly Xunit.Abstractions.ITestOutputHelper _output;
@@ -425,7 +430,7 @@ public class NarrativeYearSeederTests
     private static async Task<long> ScalarInt(NpgsqlConnection conn, NpgsqlTransaction tx, string sql,
         params (string Name, object Value)[] parameters)
     {
-        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        await using var cmd = new NpgsqlCommand(sql, conn, tx) { CommandTimeout = VerifyTimeoutSeconds };
         foreach (var (name, value) in parameters)
             cmd.Parameters.AddWithValue(name, value);
         return Convert.ToInt64(await cmd.ExecuteScalarAsync());
@@ -672,6 +677,18 @@ public class NarrativeYearSeederTests
             conn, cohorts, criteria, caps.PersonSkills, cal, ScaleCatalog.Resolve("tiny"), faker,
             avail.Vacations, avail.AbsenceWindows);
 
+        // Every row above arrived by COPY inside this transaction, so the planner has no statistics
+        // for any of it and assumes the tables are empty. The coherence checks below are overlap
+        // self-joins on resource_assignments; against assumed-empty tables the planner picks nested
+        // loops and the query degrades from seconds to minutes on a small CI Postgres. Volume is
+        // driven by the resources and the working days now, not by the scale's request count, so
+        // this dataset is large enough for that to matter.
+        await using (var analyze = new NpgsqlCommand(
+            "ANALYZE requests, resource_assignments, resources, resource_types", conn, tx))
+        {
+            await analyze.ExecuteNonQueryAsync();
+        }
+
         return new SeededNarrative(
             cal, spaceTypeId, personTypeId, people, tools, machines, criteria, cohorts, avail, year);
     }
@@ -696,7 +713,7 @@ public class NarrativeYearSeederTests
     private static async Task<(long, long)> TwoLongs(NpgsqlConnection conn, NpgsqlTransaction tx, string sql,
         params (string Name, object Value)[] parameters)
     {
-        await using var cmd = new NpgsqlCommand(sql, conn, tx);
+        await using var cmd = new NpgsqlCommand(sql, conn, tx) { CommandTimeout = VerifyTimeoutSeconds };
         foreach (var (name, value) in parameters)
             cmd.Parameters.AddWithValue(name, value);
         await using var rd = await cmd.ExecuteReaderAsync();
