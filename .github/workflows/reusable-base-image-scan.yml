@@ -18,8 +18,9 @@ name: reusable / base-image-scan
 # Only digest-pinned references are picked up; a `FROM ${ARG}` base (community's
 # Keycloak) must be passed in `extra-images` explicitly.
 #
-# It also enforces the `.trivyignore` policy the file header states and nothing
-# checked: every entry needs `Added:` and `Review:` dates, the review date must
+# A separate `policy` job enforces the `.trivyignore` rules the file header states
+# and nothing checked — separate, so an out-of-policy entry never hides the image
+# scan result and vice versa: every entry needs `Added:` and `Review:` dates, the review date must
 # not have lapsed, and the window must be 14 days or less. Four entries across
 # three repos had lapsed unnoticed when this was written.
 #
@@ -94,6 +95,15 @@ jobs:
             exit 1
           fi
 
+  policy:
+    name: .trivyignore policy
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Check .trivyignore policy (dates present, not lapsed, 14-day window)
         run: |
           set -euo pipefail
@@ -157,10 +167,10 @@ jobs:
 
   report:
     name: Open issue on failure
-    needs: [discover, scan]
+    needs: [discover, policy, scan]
     # Nightly and manual runs open an issue so a red scan is not silent. A pull
     # request already shows red on the PR itself — no issue for those.
-    if: always() && github.event_name != 'pull_request' && (needs.discover.result == 'failure' || needs.scan.result == 'failure')
+    if: always() && github.event_name != 'pull_request' && (needs.discover.result == 'failure' || needs.policy.result == 'failure' || needs.scan.result == 'failure')
     timeout-minutes: 5
     runs-on: ubuntu-latest
     permissions:
