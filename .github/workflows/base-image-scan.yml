@@ -1,0 +1,32 @@
+name: Base Image Scan
+
+# Scans the pinned Keycloak base (quay.io) on the pull request that bumps it
+# and nightly, so a CVE is seen the day it lands rather than at release time.
+# Also enforces the .trivyignore review-date policy. See the reusable workflow
+# for the reasoning.
+#
+# Severity is CRITICAL only, matching security-refresh.yml: HIGH findings in the
+# upstream Keycloak image are bundled by Keycloak and resolved only by a digest
+# bump, so they are surfaced there but do not gate.
+
+on:
+  pull_request:
+    paths:
+      - '**/Dockerfile*'
+      - '.trivyignore'
+  schedule:
+    - cron: '45 2 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  base-image-scan:
+    permissions:
+      contents: read
+      packages: read
+      issues: write
+    uses: ./.github/workflows/reusable-base-image-scan.yml
+    with:
+      severity: CRITICAL
+    secrets: inherit
