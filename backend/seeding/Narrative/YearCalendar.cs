@@ -3,15 +3,42 @@ using Bogus;
 namespace Orkyo.Foundation.Seed.Narrative;
 
 /// <summary>
-/// The 18-month time scaffold around the reference date (~6 months of history → ~12 months ahead),
+/// The time scaffold around the reference date (~6 months of history → ~12 months ahead),
 /// so the demo shows real completed history AND upcoming/planned work — letting the Insights
 /// dashboard populate both backward- and forward-looking ranges. Provides working-day logic
-/// (Mon–Fri, minus public holidays and plant shutdowns), two shifts, job-slot generation,
+/// (Mon–Fri, minus public holidays and plant shutdowns), the working shift, job-slot generation,
 /// per-facility campaign windows, and time→status. All times UTC.
+///
+/// Slots are authored in SITE LOCAL time and converted on the way out. They used to be UTC while
+/// the sites run Europe/Berlin, so the late shift (14–22 UTC = 16:00–24:00 local in summer) fell
+/// almost entirely outside working hours — and Insights masks booked minutes to the working
+/// calendar, which silently discarded about a third of every seeded person-hour. Authoring locally
+/// is what keeps the seeded day inside the day the product counts.
 /// </summary>
 public sealed class YearCalendar
 {
-    private static readonly (int H, int Len)[] Shifts = [(6, 8), (14, 8)]; // A 06–14, B 14–22
+    /// <summary>The zone every seeded site runs in — see <c>TenantConfigFactory</c>, which seeds
+    /// the matching <c>scheduling_settings</c> from this same constant.</summary>
+    public const string SiteTimeZoneId = "Europe/Berlin";
+
+    public static readonly TimeZoneInfo SiteTimeZone = TimeZoneInfo.FindSystemTimeZoneById(SiteTimeZoneId);
+
+    /// <summary>Site working hours, local. Must match <c>TenantConfigFactory</c>.</summary>
+    /// <remarks>
+    /// ONE eight-hour shift, and the length is load-bearing. Insights divides a resource's booked
+    /// minutes by the site's working minutes, so the working day is the denominator every
+    /// utilization number on the dashboard is measured against. The demo used to declare a
+    /// twelve-hour two-shift day while staffing a single shift: a person working a full eight-hour
+    /// day then read 8/12 ≈ 67 % at best, and with shorter jobs nearer 50 %, which is what made the
+    /// shop look idle. Lowering people's own availability instead is not an option — people are
+    /// Fractional, and the validator turns any allocation above their availability into an
+    /// overbooking blocker, so a 67 %-available person would flag every job they lead.
+    /// </remarks>
+    public const int WorkDayStartHour = 6;
+    public const int WorkDayEndHour = 14;
+
+    // One shift, matching the working day above, so a full day's job fills a full day.
+    private static readonly (int H, int Len)[] Shifts = [(6, 8)];
 
     public DateTime ReferenceDate { get; }
     public DateTime Start { get; }
@@ -23,8 +50,11 @@ public sealed class YearCalendar
     {
         ReferenceDate = DateTime.SpecifyKind(referenceDate, DateTimeKind.Utc);
         // 6 months of history → 12 months ahead, anchored on the first of the reference month.
+        // 19 months, not 18: the dashboard's default range ends at (today + 12 months), so a
+        // window that stopped at month +11 left the final bucket empty and the chart fell off a
+        // cliff to 0 % at its right edge.
         Start = new DateTime(ReferenceDate.Year, ReferenceDate.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-6);
-        End = Start.AddMonths(18);
+        End = Start.AddMonths(19);
 
         Holidays = BuildHolidays();
         Shutdowns = BuildShutdowns();
@@ -91,25 +121,48 @@ public sealed class YearCalendar
         return null;
     }
 
-    /// <summary>A shift-aligned [start, end) on the given working day for a job of the given length.</summary>
+    /// <summary>A shift-aligned [start, end) on the given working day for a job of the given length.
+    /// Authored in site-local hours and returned in UTC.</summary>
     public (DateTime Start, DateTime End) MakeSlot(DateTime day, int minHours, int maxHours, Faker faker)
     {
         var (shiftH, shiftLen) = Shifts[faker.Random.Int(0, Shifts.Length - 1)];
         var dur = Math.Clamp(faker.Random.Int(minHours, maxHours), 1, shiftLen);
-        var latestStartOffset = shiftLen - dur;
-        var startHour = shiftH + faker.Random.Int(0, Math.Max(0, latestStartOffset));
-        var start = new DateTime(day.Year, day.Month, day.Day, startHour, 0, 0, DateTimeKind.Utc);
+        // Never start so late that the job would run past the working day.
+        var latestStartHour = Math.Min(shiftH + (shiftLen - dur), WorkDayEndHour - dur);
+        var startHour = faker.Random.Int(shiftH, Math.Max(shiftH, latestStartHour));
+        var start = ToUtc(day, startHour);
         return (start, start.AddHours(dur));
+    }
+
+    /// <summary>The site's working window for a day, in UTC — the span Insights counts against.</summary>
+    public (DateTime Start, DateTime End) WorkingWindow(DateTime day) =>
+        (ToUtc(day, WorkDayStartHour), ToUtc(day, WorkDayEndHour));
+
+    /// <summary>Site-local wall-clock hour on <paramref name="day"/>, as UTC.</summary>
+    private static DateTime ToUtc(DateTime day, int localHour)
+    {
+        // Unspecified kind: ConvertTimeToUtc treats it as a wall-clock reading in the given zone.
+        // Every hour used here is ≥ 06:00, so the spring-forward gap (02:00–03:00) is never hit.
+        var local = new DateTime(day.Year, day.Month, day.Day, localHour, 0, 0, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(local, SiteTimeZone);
+    }
+
+    /// <summary>Every working day in the window, ascending — the spine of the demand loop.</summary>
+    public IEnumerable<DateTime> WorkingDays()
+    {
+        for (var d = Start; d < End; d = d.AddDays(1))
+            if (IsWorkingDay(d)) yield return d;
     }
 
     /// <summary>Each facility's seasonal campaign window (clipped to the calendar window).</summary>
     public (DateTime Start, DateTime End) CampaignWindow(string siteCode)
     {
-        // Stagger campaigns relative to *now* (not the window edge, which is 6 months back):
-        // PMF is active now (started last month), FWF kicks off in 2 months, PPF's holiday surge
-        // is planned 5 months out.
+        // Stagger campaigns relative to *now* (not the window edge, which is 6 months back), and
+        // keep all three peaks inside the part of the dashboard a visitor actually looks at:
+        // PMF's ran last quarter, FWF's is running now, PPF's starts next quarter. Pushing PPF
+        // out to +5..+8 months used to park the only dense band at the far right of the chart.
         var monthBase = new DateTime(ReferenceDate.Year, ReferenceDate.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var offsetMonths = siteCode switch { "PMF" => -1, "FWF" => 2, _ => 5 };
+        var offsetMonths = siteCode switch { "PMF" => -3, "FWF" => 0, _ => 3 };
         var s = monthBase.AddMonths(offsetMonths);
         var e = s.AddMonths(3);
         return (s < Start ? Start : s, e > End ? End : e);

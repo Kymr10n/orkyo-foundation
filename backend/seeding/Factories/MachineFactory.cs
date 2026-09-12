@@ -79,7 +79,11 @@ public static class MachineFactory
             await writer.WriteAsync(typeIds[spec.TypeKey], NpgsqlDbType.Uuid);
             await writer.WriteAsync(spec.Name, NpgsqlDbType.Varchar);
             await writer.WriteAsync("Exclusive", NpgsqlDbType.Varchar);
-            await writer.WriteAsync(100, NpgsqlDbType.Integer);
+            // A machine that is not on the plan yet offers no capacity. Seeding it at 100 % put
+            // idle phantom stations in every utilization denominator — two of six assembly
+            // stations and one of three test stations — and dragged the whole chart down with
+            // equipment nobody can schedule. Placing it on the floorplan is what gives it hours.
+            await writer.WriteAsync(spec.Geometry is not null ? 100 : 0, NpgsqlDbType.Integer);
             await writer.WriteAsync(true, NpgsqlDbType.Boolean);
             await writer.WriteAsync(siteIdByCode[spec.SiteCode], NpgsqlDbType.Uuid);
             // A machine is bolted to its floor. Letting it travel would put it on another site's plan.

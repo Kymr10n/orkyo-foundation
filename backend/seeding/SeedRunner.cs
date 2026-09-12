@@ -156,6 +156,10 @@ public static class SeedRunner
             await SiteModelFactory.ApplyCohortSitesAsync(conn, tx,
                 cohorts.SelectMany(c => c.People.Select(p => (p.ResourceId, c.SiteId))).ToList());
 
+            // Lobbies, toilets and cupboards are on the plan but no work is booked into them.
+            // Leaving them at full capacity put unfillable hours in every room's denominator.
+            await SpaceFactories.MarkNonWorkRoomsUnavailableAsync(conn, tx, cohorts);
+
             var caps = await CapabilityFactory.AssignAsync(conn, skillCriteria, cohorts, faker);
 
             // Person groups by team/role, derived from the skills just assigned.

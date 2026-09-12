@@ -33,12 +33,18 @@ public static class TenantConfigFactory
             await writer.StartRowAsync();
             await writer.WriteAsync(Guid.NewGuid(), NpgsqlDbType.Uuid);
             await writer.WriteAsync(site.Id, NpgsqlDbType.Uuid);
-            await writer.WriteAsync("Europe/Berlin", NpgsqlDbType.Varchar);
+            // Zone and hours come from YearCalendar, which authors every job slot against them.
+            // They were duplicated literals, and the seeded shifts silently drifted out of the
+            // working day — Insights counts only the minutes inside it, so a third of the seeded
+            // work stopped being counted at all.
+            await writer.WriteAsync(Narrative.YearCalendar.SiteTimeZoneId, NpgsqlDbType.Varchar);
             await writer.WriteAsync(true, NpgsqlDbType.Boolean);
-            // A two-shift day. The narrative's jobs run 06:00–18:00, so the shaded hours line up
-            // with where the work actually is rather than boxing it in.
-            await writer.WriteAsync(new TimeSpan(6, 0, 0), NpgsqlDbType.Time);
-            await writer.WriteAsync(new TimeSpan(18, 0, 0), NpgsqlDbType.Time);
+            // One eight-hour shift. The narrative's jobs run inside these hours, so the shaded
+            // hours line up with where the work actually is — and, because Insights measures
+            // utilization against exactly this window, so that a full day's work reads as a full
+            // day rather than as two thirds of one.
+            await writer.WriteAsync(new TimeSpan(Narrative.YearCalendar.WorkDayStartHour, 0, 0), NpgsqlDbType.Time);
+            await writer.WriteAsync(new TimeSpan(Narrative.YearCalendar.WorkDayEndHour, 0, 0), NpgsqlDbType.Time);
             await writer.WriteAsync(false, NpgsqlDbType.Boolean);   // weekends off
             await writer.WriteAsync(true, NpgsqlDbType.Boolean);
             await writer.WriteAsync("DE", NpgsqlDbType.Varchar);

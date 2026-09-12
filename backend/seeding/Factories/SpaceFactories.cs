@@ -225,6 +225,53 @@ public static class SpaceFactories
     };
 
     /// <summary>
+    /// Takes the schedulable capacity off rooms no work is ever booked into, and reports how many
+    /// it changed.
+    /// </summary>
+    /// <remarks>
+    /// A floorplan is a whole building: lobbies, toilets, a janitor's cupboard, the electrical
+    /// room. They are real spaces and belong on the plan, but no job archetype targets them, so
+    /// every one of them sat in the utilization denominator contributing capacity that could never
+    /// be filled — about eight of the thirteen-to-fifteen rooms per site, which is most of why
+    /// room utilization read near zero.
+    ///
+    /// The work rooms are derived from the facility model rather than listed again here, so a new
+    /// archetype brings its room with it and this cannot drift. They keep <c>is_active</c>: a room
+    /// that vanished from the floorplan and the resource lists would be a worse lie than an idle
+    /// one.
+    /// </remarks>
+    public static async Task<int> MarkNonWorkRoomsUnavailableAsync(
+        NpgsqlConnection conn,
+        NpgsqlTransaction? tx,
+        IReadOnlyList<Narrative.FacilityCohort> cohorts)
+    {
+        var workRoomIds = cohorts
+            .SelectMany(c =>
+            {
+                var codes = c.Facility.Archetypes.Select(a => a.RoomCode)
+                    .Concat(c.Facility.ConcurrentRoomCodes)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                return c.SpaceByRoomCode
+                    .Where(kv => codes.Contains(kv.Key))
+                    .Select(kv => kv.Value.Id);
+            })
+            .Distinct()
+            .ToArray();
+
+        var siteIds = cohorts.Select(c => c.SiteId).Distinct().ToArray();
+        if (siteIds.Length == 0) return 0;
+
+        using var cmd = new NpgsqlCommand(
+            "UPDATE resources SET base_availability_percent = 0, updated_at = now() " +
+            "WHERE home_site_id = ANY(@sites) AND resource_type_id = @spaceType " +
+            "AND NOT (id = ANY(@workRooms))", conn, tx);
+        cmd.Parameters.AddWithValue("sites", siteIds);
+        cmd.Parameters.AddWithValue("workRooms", workRoomIds);
+        cmd.Parameters.AddWithValue("spaceType", await ResolveSpaceResourceTypeIdAsync(conn, tx));
+        return await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
     /// Seeds space groups + memberships by functional area (curated-floorplan path). One group
     /// per area that has at least one space; each space joins exactly one group (single-group is
     /// enforced by migration 1530). Replaces the round-robin assignment for the demo.
