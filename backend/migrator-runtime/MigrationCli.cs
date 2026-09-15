@@ -18,17 +18,40 @@ namespace Orkyo.Migrator;
 ///   migrate  --target all|control-plane|tenant [--tenant-slug X] [--tenant-id Y]
 ///   validate --target all|control-plane|tenant [--tenant-slug X] [--tenant-id Y]
 /// </code>
-/// Required env: <c>CONTROL_PLANE_CONNECTION_STRING</c>.
-/// Optional env: <c>APP_VERSION</c>, <c>MIGRATION_LOCK_TIMEOUT_SECONDS</c>.
+/// The connection string, app version and lock timeout come from <see cref="MigrationCliOptions"/>:
+/// the argv-only overload reads them from the environment (<c>ConnectionStrings__ControlPlane</c>,
+/// legacy <c>CONTROL_PLANE_CONNECTION_STRING</c>, <c>APP_VERSION</c>, <c>MIGRATION_LOCK_TIMEOUT_SECONDS</c>);
+/// a product with its own configuration passes the options directly.
 /// </remarks>
 public static class MigrationCli
 {
     private const string ControlPlaneLockKey = "orkyo:control-plane";
 
-    public static async Task<int> RunMigrationCliAsync(
+    /// <summary>Runs with options read from the process environment.</summary>
+    public static Task<int> RunMigrationCliAsync(
         this IServiceProvider services,
         string[] args,
         CancellationToken cancellationToken = default)
+        => RunMigrationCliAsync(services, args, MigrationCliOptions.FromEnvironment, cancellationToken);
+
+    /// <summary>Runs with explicit options — a product that builds them from its own configuration.</summary>
+    public static Task<int> RunMigrationCliAsync(
+        this IServiceProvider services,
+        string[] args,
+        MigrationCliOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return RunMigrationCliAsync(services, args, () => options, cancellationToken);
+    }
+
+    // The options are resolved inside the try so a missing variable is reported the way every
+    // other startup failure is (logged, exit code 1) instead of escaping as an exception.
+    private static async Task<int> RunMigrationCliAsync(
+        IServiceProvider services,
+        string[] args,
+        Func<MigrationCliOptions> resolveOptions,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(args);
@@ -39,19 +62,10 @@ public static class MigrationCli
         try
         {
             var parsed = CliArgs.Parse(args);
-
-            // Read using ASP.NET Core's standard env-var convention (ConnectionStrings:ControlPlane →
-            // ConnectionStrings__ControlPlane). Fall back to the legacy CONTROL_PLANE_CONNECTION_STRING
-            // for docker-compose configs that haven't been updated yet.
-            var connectionString =
-                Environment.GetEnvironmentVariable("ConnectionStrings__ControlPlane")
-                ?? Environment.GetEnvironmentVariable("CONTROL_PLANE_CONNECTION_STRING")
-                ?? throw new InvalidOperationException(
-                    "Neither ConnectionStrings__ControlPlane nor CONTROL_PLANE_CONNECTION_STRING is set. " +
-                    "The migrator needs a connection to the control-plane database to run any command.");
-
-            var appVersion = Environment.GetEnvironmentVariable("APP_VERSION");
-            var lockTimeout = ParseLockTimeoutSeconds();
+            var options = resolveOptions();
+            var connectionString = options.ControlPlaneConnectionString;
+            var appVersion = options.AppVersion;
+            var lockTimeout = options.LockTimeoutSeconds;
 
             LegacyAdoptionBaseline? baseline = null;
             if (parsed.AdoptLegacyPath is { } adoptPath)
@@ -156,18 +170,6 @@ public static class MigrationCli
             logger.LogCritical(ex, "Migration failed: {Message}", ex.Message);
             return 1;
         }
-    }
-
-    private static int ParseLockTimeoutSeconds()
-    {
-        var raw = Environment.GetEnvironmentVariable("MIGRATION_LOCK_TIMEOUT_SECONDS");
-        if (string.IsNullOrWhiteSpace(raw)) return 60;
-        if (!int.TryParse(raw, out var v) || v <= 0)
-        {
-            throw new InvalidOperationException(
-                $"MIGRATION_LOCK_TIMEOUT_SECONDS must be a positive integer (got '{raw}').");
-        }
-        return v;
     }
 
     private static IReadOnlyList<TenantDatabase> ApplyTenantFilter(

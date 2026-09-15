@@ -9,6 +9,10 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **`MigrationCliOptions` and `RunMigrationCliAsync(args, options)`.** The migrator's connection string,
+  app version and lock timeout are a value object a product can build from its own configuration.
+  The argv-only overload keeps reading the environment (`MigrationCliOptions.FromEnvironment()`), so
+  existing migrators are unchanged.
 - **`AddOrkyoValkey(configuration)`.** Registers the process's `IConnectionMultiplexer` from
   `VALKEY_CONNECTION` and fails at startup when it is missing; replaces the three identical lines in each
   product's `Program.cs`. The `IBreakGlassSessionStore` choice stays product-side.
