@@ -9,6 +9,10 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **`FoundationWorkerLoop` and `AddFoundationWorkerLoop(jobs)`.** The worker loop both editions carried as
+  their own `BackgroundService` (run each job through `IWorkerJobCoordinator`, jittered sleep, error retry)
+  lives in core. A product declares its `WorkerJob`s and keeps a few-line hosted service that awaits
+  `RunAsync`. No hosting dependency in core.
 - **`AddOrgContextFromHttpContext()` and `IOrgContextAccessor`.** One registration of the
   request-scoped `OrgContext` for both editions, replacing the per-product factory. `IOrgContextAccessor.Current`
   is `null` when no tenant is resolved (site-admin scope); resolving `OrgContext` there throws the typed
