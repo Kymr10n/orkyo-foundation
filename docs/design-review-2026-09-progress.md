@@ -41,6 +41,7 @@ names the package.
 | test(frontend): lint rule for hand-rolled empty and loading markup | WP-07 | `orkyo/ui-primitives`; 25 files / 37 sites baselined with file-level disables |
 | test: give the exception-mapping test request services | — | The one red test of the first CI run |
 | fix(tenancy): tenant settings construct without a tenant | WP-11 | Found in the first local SaaS run: every request without a tenant, `/health` too, returned 500. `TenantSettingsRepository` now takes `IOrgContextAccessor`. CI did not see it because the test host always has a tenant |
+| test: hold the keepalive tests on the wire, not a timer | — | `AiChatStreamTests` held a silent turn on a 260 ms timer and expected two 40 ms beats; a loaded runner fitted one. The turn now waits until the body has carried the expected number of keepalives |
 
 Not in PR-1: **WP-22** (per-purpose GitHub tokens). See §6.
 
