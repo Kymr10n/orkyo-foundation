@@ -58,7 +58,8 @@ public static partial class EmbeddedSqlLoader
                 Sql: normalized,
                 Checksum: checksum,
                 DependsOn: Array.Empty<string>(),
-                SupersededChecksums: ParseSupersededChecksums(normalized)));
+                SupersededChecksums: ParseSupersededChecksums(normalized),
+                Scope: ParseScope(normalized)));
         }
 
         return scripts;
@@ -86,6 +87,29 @@ public static partial class EmbeddedSqlLoader
 
     [GeneratedRegex(@"^\s*--\s*@supersedes-checksum:\s*([0-9a-fA-F]{64})\s*$")]
     private static partial Regex SupersedesDirective();
+
+    // Declared in the file as `-- @scope: tenant-database-only` (whole-line comment). Any other
+    // value is a typo and is refused at module load, not silently treated as Default.
+    public static MigrationScope ParseScope(string sql)
+    {
+        foreach (var line in sql.Split('\n'))
+        {
+            var match = ScopeDirective().Match(line);
+            if (!match.Success) continue;
+            var value = match.Groups[1].Value.Trim().ToLowerInvariant();
+            return value switch
+            {
+                "tenant-database-only" => MigrationScope.TenantDatabaseOnly,
+                "default" => MigrationScope.Default,
+                _ => throw new InvalidOperationException(
+                    $"Unknown @scope value '{value}'. Use 'tenant-database-only' or omit the directive."),
+            };
+        }
+        return MigrationScope.Default;
+    }
+
+    [GeneratedRegex(@"^\s*--\s*@scope:\s*([A-Za-z-]+)\s*$")]
+    private static partial Regex ScopeDirective();
 
     private static MigrationTargetDatabase ParseTarget(string relative, string resourceName)
     {

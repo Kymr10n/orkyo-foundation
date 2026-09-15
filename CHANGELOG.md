@@ -9,6 +9,11 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **`MigrationScope` on `MigrationScript`.** A tenant-phase migration that must not run where control
+  plane and tenant share one database declares `-- @scope: tenant-database-only` in the file;
+  `FoundationMigrationModule.TenantDatabaseOnlyIds` marks the two legacy feedback migrations that predate
+  the directive. A shared-database edition filters on `Scope` instead of on a filename substring.
+  Additive: the record gains a defaulted last parameter.
 - **`MigrationCliOptions` and `RunMigrationCliAsync(args, options)`.** The migrator's connection string,
   app version and lock timeout are a value object a product can build from its own configuration.
   The argv-only overload keeps reading the environment (`MigrationCliOptions.FromEnvironment()`), so
