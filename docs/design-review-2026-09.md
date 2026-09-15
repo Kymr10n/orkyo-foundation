@@ -50,7 +50,7 @@ What this review found, in priority order:
    registration and the Serilog envelope are duplicated between products. ~500 lines of CI YAML are
    duplicated between the product repos. Foundation does not consume four of its own reusable
    workflows. The shared workflows are pinned at four different foundation commits.
-4. **Agent-facing documentation that disagrees with the code** (§4.5). Sixteen concrete stale
+4. **Agent-facing documentation that disagrees with the code** (§4.5). Fifteen concrete stale
    statements across CLAUDE.md, README, ARCHITECTURE.md, authorization.md, conventions.md and the
    infra overview. Two of them point new readers to a "current" plan that its own repo marks historical.
 5. **Frontend convergence debt** (§4.3). Three loading idioms, hand-rolled empty states beside
@@ -809,11 +809,14 @@ three open packs (archive or mark active).
 
 ### 4.5 Documentation accuracy
 
-#### Finding D1: sixteen stale statements in the agent-facing contracts
+#### Finding D1: fifteen stale statements in the agent-facing contracts
 
 Severity: Medium · Category: Standardize · Area: Docs · Migration risk: Low
 
 Every item was verified against the tree. These files are what a contributor or an agent reads first.
+
+*Correction 2026-09-15:* a sixteenth row claimed foundation has no `frontend/src/App.tsx`. It does
+(`frontend/src/App.tsx`, the reference shell the products mirror). The row is withdrawn.
 
 | # | File | Says | Reality |
 |---|---|---|---|
@@ -822,7 +825,6 @@ Every item was verified against the tree. These files are what a contributor or 
 | 3 | `orkyo-foundation/README.md:61-71` | tree has `backend/migrations/` | it is `migrations-foundation/`, plus `core/`, `migration-abstractions/`, `migrator-runtime/`, `seeding/`, `testsupport/` |
 | 4 | `frontend/ARCHITECTURE.md:73-77` | SaaS imports via `@foundation/src/...` | `orkyo-saas/frontend/INTEGRATION.md:18-24` forbids that alias; products import `@kymr10n/foundation/src/...` |
 | 5 | `frontend/ARCHITECTURE.md:130` | a bridge module at `saas/src/lib/foundation/` | does not exist; `saas/frontend/src/lib/` holds `api/` and `generated/` |
-| 6 | `frontend/ARCHITECTURE.md` | foundation `App.tsx` with `LocalDevShell` | foundation has no `App.tsx`; each product owns that logic |
 | 7 | `frontend/ARCHITECTURE.md` | routes "requests, spaces, scheduling, feedback" | `/spaces` is a redirect into `ResourceClassPage` |
 | 8 | `orkyo-saas/docs/architecture.md:31` | "ASP.NET Core 9" | .NET 10 (`global.json`) |
 | 9 | `orkyo-saas/docs/architecture.md:596` | Observability "SaaS only — Community will gain parity (planned)" | Community calls `UseOrkyoLogging` and `MapOrkyoMetricsEndpoint` (`api/Program.cs`) |
@@ -834,7 +836,7 @@ Every item was verified against the tree. These files are what a contributor or 
 | 15 | `orkyo-infra/docs/structural-hardening-2026-05.md:18,38,62,70,81,143,145` | `scripts/backup.sh`, `scripts/restore.sh`, `scripts/check_migration_classification.sh`, `compose/prod/docker-compose.core.yml`, "dispatches to saas only" | none of the four paths exists; both dispatches exist |
 | 16 | `orkyo-documentation/CLAUDE.md:7` | Node `>=22.12` | `package.json:32` `>=24.0`; `.nvmrc` 24 |
 
-Recommended target state: all sixteen corrected in one docs PR per repo (§10). For the numbers
+Recommended target state: all fifteen corrected in one docs PR per repo (§10). For the numbers
 (items 10, 12, 13) the doc cites the test that owns the number instead of the number.
 
 ---
@@ -965,7 +967,7 @@ Every pattern below already exists in the repo. The recommendation is that each 
 
 | Phase | Scope | Risk | Findings |
 |---|---|---|---|
-| 0 — prose and scripts | fix the sixteen stale statements; fix `setup.sh` and the pre-commit install types in foundation and community; delete `orkyo-community/.githooks`; merge the two UI guideline files; move completed plans | none | D1, X1, F12, X5 |
+| 0 — prose and scripts | fix the fifteen stale statements; fix `setup.sh` and the pre-commit install types in foundation and community; delete `orkyo-community/.githooks`; merge the two UI guideline files; move completed plans | none | D1, X1, F12, X5 |
 | 1 — fail-closed and conformance | `AllowTenantHeader` false in the image; shared authorization conformance helper run in SaaS and Community; typed tenantless `OrgContext`; scrub infra `.claude/settings.json`; calendar-feed scope decision | low | S1, S3, S4, S5, S2 |
 | 2 — ratchets | baseline tests for services-with-SQL, `conn`/`db`, bare limits, bare `NotFound`, `Fetch/Load/Find`; ESLint rules for hand-rolled empty/loading markup; dead-dependency check | none (tests only) | B5, B6, F3, F9 |
 | 3 — composition helpers | worker host, Valkey registration, Serilog envelope, `OrgContext` registration, `MigrationCli` options, migration scope field | medium (additive API + two downstream PRs) | B1, B2, B3 |
@@ -1007,7 +1009,7 @@ rejected in all three product repos.
 | # | Repo | Title | Finding | Size |
 |---|---|---|---|---|
 | 1 | foundation, community | Install pre-commit correctly; remove `core.hooksPath` and `.githooks` | X1 | S |
-| 2 | all | Correct the sixteen stale documentation statements | D1 | S |
+| 2 | all | Correct the fifteen stale documentation statements | D1 | S |
 | 3 | saas | Ship `AllowTenantHeader: false`; enable it for local dev only | S1 | S |
 | 4 | foundation, saas, community | Shared authorization conformance helper; run it in each product host | S3 | M |
 | 5 | foundation, saas | Typed tenantless `OrgContext`; one registration helper | S4 | M |

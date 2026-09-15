@@ -64,7 +64,7 @@ through `scripts/ci/patch-coverage.sh` once, and the number goes in the descript
 
 ### WP-01 · Correct the agent-facing contracts in foundation
 
-Commit 1 of 17 · Closes: D1 items 1, 3, 4–7, 10–13; S7; F12 · Size: S · Risk: none
+Commit 1 of 17 · Closes: D1 items 1, 3, 4, 5, 7, 10–13; S7; F12 · Size: S · Risk: none
 
 Changes:
 - `CLAUDE.md:20` names pre-commit, not `.githooks/pre-push`. `:165` is deleted. `:92` marks the
@@ -72,8 +72,8 @@ Changes:
 - `README.md:61-71` shows the real tree (`core/`, `migration-abstractions/`, `migrator-runtime/`,
   `migrations-foundation/`, `seeding/`, `testsupport/`, `frontend/docs/`, `frontend/e2e/`).
 - `frontend/ARCHITECTURE.md`: the import form is `@kymr10n/foundation/src/*`. The bridge module
-  paragraph is removed. The `App.tsx` example moves to "how a product composes the shell". The route
-  list names `ResourceClassPage`. The extension section describes the slot API only.
+  paragraph is removed. The `App.tsx` section says the products mirror foundation's `src/App.tsx`. The
+  route list names `ResourceClassPage`. The extension section describes the slot API only.
 - `docs/authorization.md:80` cites `ToolNames.Writes` and `McpEndpointsTests` for the tool count.
   `:101` says "tools without `readOnlyHint`". `:155-158` becomes a note that the gate is
   `AutoScheduleService.cs:174` and SaaS migration 2290.
