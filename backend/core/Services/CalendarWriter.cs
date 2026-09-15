@@ -24,7 +24,7 @@ public record CalendarFeedEvent
 /// and 75-octet line folding — are cheaper to own and test here than to audit in
 /// a dependency (and this repo takes no dependency it can avoid).
 /// </summary>
-public static class ICalendarWriter
+public static class CalendarWriter
 {
     private const string ProductId = "-//Orkyo//Schedule Feed//EN";
 

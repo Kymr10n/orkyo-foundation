@@ -71,7 +71,7 @@ public static class CalendarFeedEndpoints
             await tokenRepo.TouchAsync(stored.Id, ct);
 
             var domain = TenantHost(configuration, currentTenant);
-            var ics = ICalendarWriter.Write(events, stored.Label ?? "Orkyo schedule", domain);
+            var ics = CalendarWriter.Write(events, stored.Label ?? "Orkyo schedule", domain);
 
             // A calendar client refetches the whole document; caching it would
             // hand back a stale schedule for as long as the cache lives.

@@ -90,8 +90,8 @@ AI allowance and account-lifecycle endpoints still use the bare form; the baseli
 **Reads are `Get`.** `Fetch`, `Load` and `Find` all appear; one class uses `Fetch` and
 `Load` for the same kind of operation. Async methods end in `Async`.
 
-**`I`-prefixed means an interface.** `ICalendarWriter` is a static class and should be
-renamed when it is next touched.
+**`I`-prefixed means an interface.** `CalendarWriter` (the iCalendar serializer) was the one
+static class with the prefix; it was renamed in 2026-09.
 
 **Hooks live in `hooks/`** (frontend). Two currently live beside their components.
 
