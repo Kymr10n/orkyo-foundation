@@ -81,7 +81,9 @@ Reach for the helper before writing the shape by hand — all in `EndpointHelper
 
 **Bare `Results.NotFound()`** (empty body) is only for deliberately hiding whether
 something exists — the anonymous calendar-feed routes. Everywhere else uses
-`ErrorResponses.NotFound` so the body carries a `code`.
+`ErrorResponses.NotFound` so the body carries a `code`. Four sites in the AI conversation,
+AI allowance and account-lifecycle endpoints still use the bare form; the baseline in
+`ConventionContractTests` holds them at four until each is touched.
 
 ## Naming
 
@@ -147,9 +149,10 @@ both consuming products.
 
 ## Layering
 
-**Services do not write SQL.** Eight of them do, some with a dozen raw `NpgsqlCommand`s;
-those are repositories wearing service names. Move the query into a repository when you
-next touch it.
+**Services do not write SQL.** Sixteen files under `core/Services` do, some with a dozen raw
+`NpgsqlCommand`s; those are repositories wearing service names. The baseline in
+`ConventionContractTests` lists them and only shrinks. Move the query into a repository when
+you next touch it.
 
 ## Foundation is a package
 

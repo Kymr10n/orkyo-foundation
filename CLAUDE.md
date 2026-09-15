@@ -17,7 +17,7 @@ Multi-tenancy or a `tenantId` parameter alone is NOT a reason to keep code in Sa
 - **No runtime wiring** in this repo. Products do the wiring.
 - **Public API surface** must stay backward-compatible within a major version. Breaking changes require a major bump + coordinated downstream PRs in saas + community.
 - **Tests live where the code lives.** Service tests for foundation code stay here; integration tests against product wiring stay in the product repo.
-- **`dotnet format`** must pass before push (enforced by `.githooks/pre-push`, to be replaced by `pre-commit`).
+- **`dotnet format`** must pass before push. The pre-push hook in `.pre-commit-config.yaml` runs it; `./setup.sh` installs the hooks once.
 - **Documentation language is ASD-STE100 Simplified Technical English.** Applies to `docs/` and `frontend/docs/` — descriptive register: simple tenses, 25 words maximum per sentence, no imperative. Approved modals are can/will/must — never should, would, may, might, or could. The 53 rules are in `.claude/skills/simple-english/SKILL.md`; the scope table and the Orkyo term list are in `orkyo-documentation/docs/LANGUAGE-STANDARD.md`. `requirements/` is out of scope (historical spec packs). A `PostToolUse` hook (`.claude/hooks/ste-check.py`) reports violations — advisory, no CI gate.
 
 ## Authorization & roles
@@ -89,7 +89,7 @@ This runs the Foundation, Community, and SaaS test suites in sequence. Foundatio
 2. `docs/conventions.md` — which way wins when the repo solves one problem two ways
 3. `frontend/ARCHITECTURE.md` — rendering split + multi-product routing
 4. `.github/workflows/release-ci.yml` — release & dispatch model
-5. `orkyo-infra/docs/structural-hardening-2026-05.md` — current cross-repo hardening plan
+5. `orkyo-infra/docs/00-overview.md` — the live cross-repo architecture (`structural-hardening-2026-05.md` there is historical context only)
 
 ## Releasing
 
@@ -162,7 +162,6 @@ a percentage rather than to catch a defect.
 - Don't move code out of foundation without checking the placement rule first.
 - Don't add runtime services (Serilog sinks, Prometheus exporters, etc.) here; expose them as opt-in helpers that products call.
 - Don't break backward compatibility silently. Bump major + open downstream PRs.
-- Don't modify `.githooks/pre-push` ad-hoc; the broader plan replaces it with `pre-commit`.
 - Don't modify existing migration SQL files after they are merged — see Migration rules above.
 
 ## Documentation impact (enforced)
