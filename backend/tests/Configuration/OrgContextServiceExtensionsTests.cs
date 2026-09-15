@@ -89,8 +89,12 @@ public sealed class OrgContextServiceExtensionsTests
     [Fact]
     public async Task TheExceptionMapsToA500_WithAStableCode()
     {
-        var ctx = new DefaultHttpContext();
-        ctx.Response.Body = new MemoryStream();
+        // The JSON result resolves its serializer options from the request services.
+        var ctx = new DefaultHttpContext
+        {
+            RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider(),
+            Response = { Body = new MemoryStream() },
+        };
 
         var handled = await new AppExceptionHandler().TryHandleAsync(ctx, new TenantContextUnavailableException(), default);
 
