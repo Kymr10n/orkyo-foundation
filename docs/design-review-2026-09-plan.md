@@ -1,8 +1,8 @@
 # Remediation plan for the September 2026 design review
 
 > **Status:** proposed, 2026-09-15. Companion to [`design-review-2026-09.md`](design-review-2026-09.md).
-> The review is audit-only. This plan turns its 33 findings into 24 work packages, each the size of
-> one pull request, in five waves. Nothing here is started.
+> The review is audit-only. This plan turns its 33 findings into 23 work packages, each the size of
+> one pull request, in five waves, plus nine items that ride feature work. Nothing here is started.
 
 ## 1. How the plan is built
 
