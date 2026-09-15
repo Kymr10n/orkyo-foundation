@@ -253,6 +253,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             OrgSlug = TestConstants.TenantSlug,
             DbConnectionString = tenantCs,
         });
+        // Every scope in this host is the one test tenant, HTTP or not — the same contract
+        // the fixed OrgContext above has always given the services under test. The real
+        // HttpContext-backed accessor is covered by OrgContextServiceExtensionsTests.
+        builder.Services.AddScoped<IOrgContextAccessor>(sp => new FixedOrgContextAccessor(sp.GetRequiredService<OrgContext>()));
 
         builder.Services.AddScoped(_ => new TenantContext
         {
@@ -707,4 +711,10 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         public void InvalidateCache(string slug) { }
     }
+}
+
+/// <summary>Always the one test tenant; see the registration in the factory.</summary>
+internal sealed class FixedOrgContextAccessor(OrgContext orgContext) : IOrgContextAccessor
+{
+    public OrgContext? Current => orgContext;
 }

@@ -9,6 +9,11 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **`AddOrgContextFromHttpContext()` and `IOrgContextAccessor`.** One registration of the
+  request-scoped `OrgContext` for both editions, replacing the per-product factory. `IOrgContextAccessor.Current`
+  is `null` when no tenant is resolved (site-admin scope); resolving `OrgContext` there throws the typed
+  `TenantContextUnavailableException` (mapped to a 500 with code `tenant_context_unavailable`) instead of
+  returning a sentinel with an empty connection string. `TenantSettingsService` now takes the accessor.
 - **User-definable resource types.** Tenants can create their own resource types (cars, cameras, …)
   alongside the built-in space/person/tool types, each with its own custom fields — text, number,
   boolean, date, or choice list, with optional required/min/max/pattern constraints. Field values are
