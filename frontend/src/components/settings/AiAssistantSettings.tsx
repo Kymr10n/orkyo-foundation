@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 4 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
 import { useState } from "react";
 import { Bot, Check, Gauge, KeyRound, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";

@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { Check, Loader2, X } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import type { AiProposal } from "@foundation/src/lib/api/ai-api";

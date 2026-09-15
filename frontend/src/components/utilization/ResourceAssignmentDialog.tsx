@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 2 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";

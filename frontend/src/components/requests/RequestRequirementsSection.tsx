@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";

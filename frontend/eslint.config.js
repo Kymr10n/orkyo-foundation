@@ -5,6 +5,7 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
+import uiPrimitives from './eslint-rules/ui-primitives.js';
 
 // Date/time convergence guardrail — every date/time string flows through
 // src/lib/formatters.ts (DATE_FORMATS tokens / formatLocalized), so the app
@@ -237,6 +238,16 @@ export default defineConfig(
     rules: {
       'no-restricted-syntax': 'off',
     },
+  },
+
+  // UI primitives convergence (2026-09 review, F3): hand-rolled empty states and raw
+  // <Loader2> outside components/ui. A local rule, so the legacy sites carry a file-level
+  // disable that names exactly this rule; the disables are the baseline and only go down.
+  {
+    files: ['src/**/*.tsx'],
+    ignores: ['**/*.test.tsx'],
+    plugins: { orkyo: { rules: { 'ui-primitives': uiPrimitives } } },
+    rules: { 'orkyo/ui-primitives': 'error' },
   },
 
   // ── Convention guardrails (enforcing since the Wave 2 sweep) ───────────────
