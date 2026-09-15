@@ -43,28 +43,82 @@ public class AiChatStreamTests
         await Task.CompletedTask;
     }
 
+    /// <summary>An event stream that stays silent until <paramref name="release"/> completes,
+    /// then emits its single event.</summary>
+    private static async IAsyncEnumerable<AiChatEvent> SilentUntil(Task release)
+    {
+        await release;
+        yield return new AiChatEvent.Message("done thinking");
+    }
+
+    /// <summary>
+    /// A body that signals once <paramref name="expected"/> keepalives have reached the wire.
+    /// A test that holds the turn on this count observes the heartbeat it is asserting on; one
+    /// that holds it on a timer only guesses how many beats a loaded runner fits into the gap,
+    /// and a 260 ms gap once produced a single beat in CI.
+    /// </summary>
+    private sealed class KeepaliveCountingStream(int expected) : MemoryStream
+    {
+        private int _seen;
+
+        public TaskCompletionSource Reached { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        // MemoryStream completes its writes synchronously, so the bytes are in the body
+        // before the count is taken and the signal fires.
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
+        {
+            var write = base.WriteAsync(buffer, offset, count, ct);
+            Count(buffer.AsSpan(offset, count));
+            return write;
+        }
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct = default)
+        {
+            var write = base.WriteAsync(buffer, ct);
+            Count(buffer.Span);
+            return write;
+        }
+
+        private void Count(ReadOnlySpan<byte> written)
+        {
+            _seen += Encoding.UTF8.GetString(written).Split("keep-alive").Length - 1;
+            if (_seen >= expected)
+                Reached.TrySetResult();
+        }
+    }
+
+    private static (HttpResponse Response, KeepaliveCountingStream Body) CreateCountingResponse(int keepalives)
+    {
+        var context = new DefaultHttpContext();
+        var body = new KeepaliveCountingStream(keepalives);
+        context.Response.Body = body;
+        return (context.Response, body);
+    }
+
     [Fact]
     public async Task ASilentTurn_EmitsKeepalivesWhileItWaits()
     {
-        var (response, body) = CreateResponse();
+        // The turn stays quiet until two keepalives are on the wire: silence spanning several
+        // intervals must produce more than one, and the count is what proves it.
+        var (response, body) = CreateCountingResponse(keepalives: 2);
 
         await AiChatEndpoints.StreamWithHeartbeatAsync(
-            response, SlowStream(TimeSpan.FromMilliseconds(260)), Beat, default);
+            response, SilentUntil(body.Reached.Task), Beat, default);
 
         var written = ReadBody(body);
 
         Assert.Contains(": keep-alive", written);
-        // The gap spans several intervals, so silence must produce more than one.
         Assert.True(written.Split(": keep-alive").Length - 1 >= 2, written);
     }
 
     [Fact]
     public async Task TheRealEventStillArrives_AfterTheKeepalives()
     {
-        var (response, body) = CreateResponse();
+        var (response, body) = CreateCountingResponse(keepalives: 1);
 
         await AiChatEndpoints.StreamWithHeartbeatAsync(
-            response, SlowStream(TimeSpan.FromMilliseconds(120)), Beat, default);
+            response, SilentUntil(body.Reached.Task), Beat, default);
 
         var written = ReadBody(body);
 

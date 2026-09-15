@@ -29,14 +29,22 @@ export function useSaveAiCredential() {
   return useMutation({
     mutationFn: (apiKey: string) => saveAiCredential(apiKey),
     // A new key changes who can chat, so the member-facing status is stale too.
-    meta: { invalidates: [qk.ai.all()] },
+    meta: {
+      successMessage: "AI key saved.",
+      errorMessage: "That key was not accepted. Check that it is an Anthropic API key.",
+      invalidates: [qk.ai.all()],
+    },
   });
 }
 
 export function useDeleteAiCredential() {
   return useMutation({
     mutationFn: deleteAiCredential,
-    meta: { invalidates: [qk.ai.all()] },
+    meta: {
+      successMessage: "AI key removed. The assistant is switched off for this workspace.",
+      errorMessage: "Could not remove the AI key",
+      invalidates: [qk.ai.all()],
+    },
   });
 }
 
@@ -71,7 +79,11 @@ export function useSaveAiDailyLimits() {
     mutationFn: (limits: AiDailyLimits) => saveAiDailyLimits(limits),
     // Invalidates the whole AI prefix: changing a limit changes what the member-facing
     // status endpoint reports, not only this admin screen.
-    meta: { invalidates: [qk.ai.all()] },
+    meta: {
+      successMessage: "Daily limits saved",
+      errorMessage: "Could not save the daily limits",
+      invalidates: [qk.ai.all()],
+    },
   });
 }
 
@@ -84,14 +96,22 @@ export function useSaveAiAllowance() {
       userId: string;
       monthlyTokenLimit: number | null;
     }) => saveAiAllowance(userId, monthlyTokenLimit),
-    meta: { invalidates: [qk.ai.all()] },
+    meta: {
+      successMessage: "Allowance updated.",
+      errorMessage: "Could not update the allowance",
+      invalidates: [qk.ai.all()],
+    },
   });
 }
 
 export function useRevokeAiAllowance() {
   return useMutation({
     mutationFn: (userId: string) => revokeAiAllowance(userId),
-    meta: { invalidates: [qk.ai.all()] },
+    meta: {
+      successMessage: "Access removed.",
+      errorMessage: "Could not remove access",
+      invalidates: [qk.ai.all()],
+    },
   });
 }
 

@@ -77,7 +77,7 @@ source of truth both paths read. A token's role comes from its scopes —
 `schedule:write` → Editor, `schedule:read` → Viewer — resolved in `ContextEnrichmentMiddleware`, so
 an automated caller passes through the *same* membership and role checks a human does.
 
-The surface is 17 tools across four `[McpServerToolType]` classes — `ScheduleTools` (the board),
+The surface is the tools across four `[McpServerToolType]` classes (`McpEndpointsTests` asserts the count; `ToolNames.Writes` lists the write half) — `ScheduleTools` (the board),
 `PlanningTools` (critical path, dependencies, capacity), `AutoScheduleTools` (solver preview and
 apply) and `LifecycleTools` (creating work, blocking resource time). One asymmetry is deliberate:
 `auto_schedule_preview` needs only `schedule:read`, matching the HTTP `/preview` endpoint, which
@@ -98,7 +98,7 @@ transport; and every tool call is logged by a single pipeline filter with its to
 This is the only place a group may skip the three conventions, and it is covered by
 `McpEndpointsTests`, whose refusal theory names **every** write tool by name — exhaustively, since
 without a verb-aware gate an ungated write would otherwise be invisible — and asserts that list
-matches exactly the tools the server advertises as destructive.
+matches exactly the tools the server advertises without `readOnlyHint` — a stricter set than "destructive", since four write tools are annotated `Destructive = false`.
 
 ### The guardrail
 
@@ -152,7 +152,7 @@ server computes no entitlement for. Today that is auto-schedule availability and
 **Wire rule:** the plan travels as its machine code (lowercase, `subscription_tiers.code`), never
 `display_name`. `TenantPlanInfo` carries both; only `PlanCode` goes on the wire.
 
-**Known gap:** `FeatureKeys.AutoSchedule` has no entitlement row and no endpoint gate, so the
-"premium plan" rule for auto-schedule lives only in the frontend hook — the endpoint is reachable by
-an unentitled tenant. Fixing it means seeding the quota row and adding `EnsureEnabledAsync` to
-`AutoScheduleEndpoints`, after which it moves onto the entitlement map like the other four.
+**Auto-schedule is gated server-side.** `AutoScheduleService` calls
+`EnsureEnabledAsync(FeatureKeys.AutoSchedule)` before it runs, and SaaS migration
+`2290.saas.auto_schedule_quota` seeds the entitlement row. The frontend hook mirrors that decision;
+it is not the only check.

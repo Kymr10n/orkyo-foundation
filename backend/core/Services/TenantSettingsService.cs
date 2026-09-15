@@ -9,7 +9,7 @@ public class TenantSettingsService : ITenantSettingsService
 {
     private readonly ITenantSettingsRepository _tenantRepo;
     private readonly ISiteSettingsRepository _siteRepo;
-    private readonly OrgContext _orgContext;
+    private readonly IOrgContextAccessor _orgContextAccessor;
     private readonly ILogger<TenantSettingsService> _logger;
 
     // Per-tenant in-memory cache, keyed by TenantId.
@@ -30,17 +30,20 @@ public class TenantSettingsService : ITenantSettingsService
     public TenantSettingsService(
         ITenantSettingsRepository tenantRepo,
         ISiteSettingsRepository siteRepo,
-        OrgContext orgContext,
+        IOrgContextAccessor orgContextAccessor,
         ILogger<TenantSettingsService> logger)
     {
         _tenantRepo = tenantRepo;
         _siteRepo = siteRepo;
-        _orgContext = orgContext;
+        _orgContextAccessor = orgContextAccessor;
         _logger = logger;
     }
 
-    /// <summary>True when operating in site-admin context (no tenant selected).</summary>
-    private bool IsSiteContext => _orgContext.OrgId == Guid.Empty;
+    /// <summary>True when operating in site-admin context (no tenant resolved for the request).</summary>
+    private bool IsSiteContext => _orgContextAccessor.Current is null;
+
+    /// <summary>The tenant's id; only valid after <see cref="IsSiteContext"/> was checked.</summary>
+    private Guid TenantId => _orgContextAccessor.Current!.OrgId;
 
     public async Task<TenantSettings> GetSettingsAsync(CancellationToken ct = default)
     {
@@ -53,7 +56,7 @@ public class TenantSettingsService : ITenantSettingsService
                 return TenantSettingsOverrideApplier.Apply(siteOverrides);
             }
 
-            var tenantId = _orgContext.OrgId;
+            var tenantId = TenantId;
 
             if (_cache.TryGetValue(tenantId, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
             {
@@ -119,9 +122,9 @@ public class TenantSettingsService : ITenantSettingsService
         }
         else
         {
-            _cache.TryRemove(_orgContext.OrgId, out _);
+            _cache.TryRemove(TenantId, out _);
             _logger.LogInformation("Tenant {TenantId} updated {Count} tenant-level settings: {Keys}",
-                _orgContext.OrgId, updates.Count, string.Join(", ", updates.Keys));
+                TenantId, updates.Count, string.Join(", ", updates.Keys));
         }
 
         return await GetSettingsAsync(ct);
@@ -147,9 +150,9 @@ public class TenantSettingsService : ITenantSettingsService
             result = await _tenantRepo.DeleteAsync(key, ct);
             if (result)
             {
-                _cache.TryRemove(_orgContext.OrgId, out _);
+                _cache.TryRemove(TenantId, out _);
                 _logger.LogInformation("Tenant {TenantId} reset setting '{Key}' to default",
-                    _orgContext.OrgId, key);
+                    TenantId, key);
             }
         }
 

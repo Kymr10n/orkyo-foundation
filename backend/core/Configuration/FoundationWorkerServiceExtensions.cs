@@ -36,4 +36,21 @@ public static class FoundationWorkerServiceExtensions
         services.AddSingleton<UserLifecycleService>();
         return services;
     }
+
+    /// <summary>
+    /// Registers the shared <see cref="FoundationWorkerLoop"/> with the product's job list.
+    /// The product's hosted service resolves the loop and awaits <see cref="FoundationWorkerLoop.RunAsync"/>;
+    /// the jobs are built from the provider so they can take the product's own services.
+    /// </summary>
+    public static IServiceCollection AddFoundationWorkerLoop(
+        this IServiceCollection services,
+        Func<IServiceProvider, IEnumerable<WorkerJob>> jobs)
+    {
+        ArgumentNullException.ThrowIfNull(jobs);
+        services.AddSingleton(sp => new FoundationWorkerLoop(
+            sp.GetRequiredService<IWorkerJobCoordinator>(),
+            jobs(sp),
+            sp.GetRequiredService<ILogger<FoundationWorkerLoop>>()));
+        return services;
+    }
 }

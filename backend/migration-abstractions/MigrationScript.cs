@@ -36,6 +36,11 @@ namespace Orkyo.Migrations.Abstractions;
 /// one — a seed whose target table moved, not a change that would have produced different data.
 /// </para>
 /// </param>
+/// <param name="Scope">
+/// Which deployment shapes this migration runs in; <see cref="MigrationScope.Default"/> unless the
+/// file carries <c>-- @scope: tenant-database-only</c> or its module marks the id. See
+/// <see cref="MigrationScope"/>.
+/// </param>
 public sealed record MigrationScript(
     string Id,
     string Module,
@@ -43,4 +48,5 @@ public sealed record MigrationScript(
     string Sql,
     string Checksum,
     IReadOnlyCollection<string> DependsOn,
-    IReadOnlyCollection<string> SupersededChecksums);
+    IReadOnlyCollection<string> SupersededChecksums,
+    MigrationScope Scope = MigrationScope.Default);

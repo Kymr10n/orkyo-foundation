@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { BrowserRouter, MemoryRouter } from 'react-router';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestsPage } from '@foundation/src/pages/RequestsPage';
@@ -239,11 +240,14 @@ vi.mock('@foundation/src/lib/utils/utils', async (importOriginal) => {
 });
 
 const createWrapper = () => {
-  const queryClient = new QueryClient({
+  // The page's mutations declare their toasts in `meta`, so the wrapper carries the same
+  // MutationCache production uses (with the mocked sonner toast) — otherwise no toast fires.
+  const queryClient: QueryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
     },
+    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
   });
 
   return ({ children }: { children: React.ReactNode }) => (
@@ -782,7 +786,7 @@ describe('RequestsPage', () => {
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-save'));
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('Failed to create request', expect.objectContaining({ description: 'Create boom' })),
+      expect(toast.error).toHaveBeenCalledWith('Failed to save request', expect.objectContaining({ description: 'Create boom' })),
     );
   });
 
@@ -799,7 +803,7 @@ describe('RequestsPage', () => {
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-save'));
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('Failed to update request', expect.objectContaining({ description: 'Update boom' })),
+      expect(toast.error).toHaveBeenCalledWith('Failed to save request', expect.objectContaining({ description: 'Update boom' })),
     );
   });
 

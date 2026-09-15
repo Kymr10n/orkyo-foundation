@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 4 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
 import { useState } from "react";
 import { Bot, Check, Gauge, KeyRound, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -88,12 +89,13 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
   const handleSave = async () => {
     const trimmed = apiKey.trim();
     if (!trimmed) return;
+    // Success and failure toasts come from the hook's `meta` (docs/dialog-feedback.md);
+    // the catch only keeps the rejected promise from surfacing as unhandled.
     try {
       await saveCredential.mutateAsync(trimmed);
       setApiKey("");
-      toast.success("AI key saved.");
     } catch {
-      toast.error("That key was not accepted. Check that it is an Anthropic API key.");
+      /* toasted by the MutationCache */
     }
   };
 
@@ -113,9 +115,12 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
   };
 
   const handleRemove = async () => {
-    await deleteCredential.mutateAsync();
-    setRemoveOpen(false);
-    toast.success("AI key removed. The assistant is switched off for this workspace.");
+    try {
+      await deleteCredential.mutateAsync();
+      setRemoveOpen(false);
+    } catch {
+      /* toasted by the MutationCache */
+    }
   };
 
   return (
@@ -307,9 +312,8 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
       // Both fields go together: they are one row on the server, so sending one while
       // showing a stale value for the other would overwrite it silently.
       await save.mutateAsync({ userDailyTurns: user.value, tenantDailyTurns: workspace.value });
-      toast.success("Daily limits saved");
     } catch {
-      toast.error("Could not save the daily limits");
+      /* toasted by the MutationCache */
     }
   };
 
@@ -394,14 +398,20 @@ function AllowanceRow({ row }: { row: AiUserAllowance }) {
       toast.error("A token limit must be zero or more.");
       return;
     }
-    await save.mutateAsync({ userId: row.userId, monthlyTokenLimit: limit });
-    toast.success("Allowance updated.");
+    try {
+      await save.mutateAsync({ userId: row.userId, monthlyTokenLimit: limit });
+    } catch {
+      /* toasted by the MutationCache */
+    }
   };
 
   const handleRevoke = async () => {
-    await revoke.mutateAsync(row.userId);
-    setDraft("");
-    toast.success("Access removed.");
+    try {
+      await revoke.mutateAsync(row.userId);
+      setDraft("");
+    } catch {
+      /* toasted by the MutationCache */
+    }
   };
 
   return (

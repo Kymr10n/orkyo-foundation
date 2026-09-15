@@ -75,6 +75,8 @@ export const qk = {
     utilizationGrid: (typeKey: string) => ["resources", typeKey, "utilization-grid"] as const,
     /** Absences recorded for one resource. */
     absences: (resourceId: string) => ["resource-absences", resourceId] as const,
+    /** Prefix over one resource's assignment windows — invalidate after a schedule change. */
+    assignmentsFor: (resourceId: string) => ["resource-assignments", resourceId] as const,
     /** One resource's assignments over a window — its schedule calendar. */
     assignments: (resourceId: string, from: Date, to: Date) =>
       ["resource-assignments", resourceId, iso(from), iso(to)] as const,

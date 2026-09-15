@@ -19,11 +19,18 @@ central `MutationCache` do it once, in one place.
   diff-and-batch save logic lives in [`capability-diff.ts`](../frontend/src/components/capabilities/capability-diff.ts)
   (`diffCapabilityAssignments(existing, desired, mode)`); `mode` is `upsert` (person/space) or
   `add-new` (group, backend insert-only).
-- **Genuinely special dialogs are exempt** — multi-tab/wizard (RequestFormDialog, TourDialog),
-  list/multi-select pickers (MoveToDialog, AddExistingRequestsDialog, ResourceGroupMembersEditor),
-  read-only/per-item-state-machine views (RequestDetailsDialog, AutoSchedulePreviewDialog,
-  PersonAssignmentDialog), and compound in-place sub-forms (AvailabilityEventDialog, TemplateDialogBase,
-  PersonEditDialog). Forcing these onto `FormDialog` would hurt clarity, not help it.
+- **Genuinely special dialogs are exempt** — multi-tab/wizard (RequestFormDialog, TourDialog,
+  the preset import preview and export dialogs in PresetSettings, SpreadsheetImportWizard),
+  list/multi-select pickers and choosers (MoveToDialog, AddExistingRequestsDialog,
+  ResourceGroupMembersEditor, ScheduleSlotDialog — it mutates nothing, both actions open
+  RequestFormDialog), read-only/per-item-state-machine views (RequestDetailsDialog,
+  AutoSchedulePreviewDialog, ResourceAssignmentDialog, the feedback detail view in FeedbackTab,
+  `RawTokenDialog` in api-tokens — a one-time secret display with no form), upload flows with
+  progress (FloorplanUploadDialog), and compound in-place sub-forms (AvailabilityEventDialog,
+  TemplateDialogBase, PersonEditDialog). Forcing these onto `FormDialog` would hurt clarity, not
+  help it. A dialog with a title, fields, an inline error and a Cancel/Save footer is not on this
+  list; the announcement editor in AnnouncementsTab moved onto `FormDialog` in 2026-09 for that
+  reason.
 
 ## The mechanism
 
@@ -71,8 +78,12 @@ meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. 
 
 ## Exceptions
 
-- **Page-level callback handlers** that aren't `useMutation` (e.g. `RequestsPage` request CRUD uses
-  `useCallback` + manual `loadRequests()` orchestration) keep their own inline toast/invalidation.
+- **None for page-level CRUD.** `RequestsPage` was the documented exception (callback handlers with
+  manual toasts and reloads); its move, delete and save are `useMutation` with `meta` since 2026-09,
+  with `REQUEST_DERIVED_QUERY_KEYS` as the invalidation set.
+- **A result the server reports as success but the person reads as failure** — the AI key test
+  returning `ok: false` with a reason — toasts from the handler, because `meta` cannot turn a
+  resolved mutation into an error toast.
 
 Full-CRUD entities (criteria, sites) are NOT an exception: their hooks ([useCriteria.ts](../frontend/src/hooks/useCriteria.ts),
 [useSites.ts](../frontend/src/hooks/useSites.ts)) declare `meta` per mutation like everything else.

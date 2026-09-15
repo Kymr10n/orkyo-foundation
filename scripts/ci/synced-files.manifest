@@ -24,3 +24,14 @@ frontend/scripts/sync-foundation-build.mjs	orkyo-saas	orkyo-community
 frontend/scripts/validate-foundation-imports.mjs	orkyo-saas	orkyo-community
 frontend/scripts/check-dedupe-sync.mjs	orkyo-saas	orkyo-community
 frontend/src/test/vite-config.test.ts	orkyo-saas	orkyo-community
+
+# Agent configuration: the STE hook and the vendored simple-english skill are byte-identical
+# in every repo (2026-09 review, X3). Documentation and infra are not checked out by the
+# workflow, so only the two products are listed; infra's settings.json differs by design.
+.claude/hooks/ste-check.py	orkyo-foundation	orkyo-saas,orkyo-community
+.claude/skills/simple-english/LICENSE	orkyo-foundation	orkyo-saas,orkyo-community
+.claude/skills/simple-english/SKILL.md	orkyo-foundation	orkyo-saas,orkyo-community
+.claude/skills/simple-english/UPSTREAM.md	orkyo-foundation	orkyo-saas,orkyo-community
+.claude/skills/simple-english/ste_lint.py	orkyo-foundation	orkyo-saas,orkyo-community
+.claude/skills/simple-english/references/checklist.md	orkyo-foundation	orkyo-saas,orkyo-community
+.claude/skills/simple-english/references/use-cases.md	orkyo-foundation	orkyo-saas,orkyo-community

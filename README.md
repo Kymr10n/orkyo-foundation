@@ -60,13 +60,20 @@ follow SemVer; consumer-facing changes are recorded in [CHANGELOG.md](CHANGELOG.
 ```
 Orkyo.Foundation.slnx   ← Solution at repo root
 backend/
-  src/           ← Orkyo.Foundation (domain library)
-  tests/         ← Foundation tests (unit + integration)
-  migrations/    ← Orkyo.Migrations (domain schema)
-  shared/        ← Orkyo.Shared (config keys, environment names)
+  shared/                 ← Orkyo.Shared (config keys, environment names)
+  core/                   ← Orkyo.Foundation.Core (models, services, repositories, validators)
+  src/                    ← Orkyo.Foundation.Web (endpoints, middleware, DI extension methods)
+  migration-abstractions/ ← IMigrationModule, MigrationScript
+  migrator-runtime/       ← the DbUp-based runner, checksum policy, advisory lock
+  migrations-foundation/  ← Orkyo.Foundation.Migrations (domain schema as embedded SQL)
+  seeding/                ← demo/seed data generator (+ seeding-tests/)
+  testsupport/            ← shared test helpers consumed by the product test suites
+  tests/                  ← Foundation tests (unit + integration)
 frontend/
-  src/           ← Shared domain components and hooks
-  contracts/     ← API types (no tenant headers)
+  src/                    ← Shared domain components, hooks, pages, route tree
+  contracts/              ← wire constants (headers, claims, error codes, roles, plans)
+  docs/                   ← UI guidelines, UX audit, coverage policy
+  e2e/                    ← Playwright specs
   vitest.config.ts
 ```
 

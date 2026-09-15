@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 2 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
 /**
  * Command Palette Component - Global search with keyboard navigation
  * Opens with Ctrl+K (Cmd+K on Mac)

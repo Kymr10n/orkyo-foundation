@@ -10,7 +10,10 @@ namespace Orkyo.Foundation.Tests.Architecture;
 /// scope through one of the two sanctioned dependencies:
 ///
 ///   • <see cref="OrgContext"/>            → tenant-scoped (queries the caller's tenant DB via
-///                                            <c>IOrgDbConnectionFactory.CreateOrgConnection(orgContext)</c>), or
+///                                            <c>IOrgDbConnectionFactory.CreateOrgConnection(orgContext)</c>),
+///   • <see cref="IOrgContextAccessor"/>   → tenant-scoped, for a repository that must construct in a scope
+///                                            with no tenant (it yields only the caller's own OrgContext or
+///                                            null, and the repository throws on null), or
 ///   • <see cref="IDbConnectionFactory"/>  → control-plane (an explicit, reviewed cross-tenant choice).
 ///
 /// A repository that takes neither has no sanctioned way to obtain a scoped connection, so it would
@@ -41,8 +44,8 @@ public class RepositoryScopingTests
 
         Assert.True(
             offenders.Count == 0,
-            "These repositories take neither OrgContext (tenant-scoped) nor IDbConnectionFactory " +
-            "(control-plane) in any constructor, so their data scope is undeclared and could leak " +
+            "These repositories take none of OrgContext / IOrgContextAccessor (tenant-scoped) or " +
+            "IDbConnectionFactory (control-plane) in any constructor, so their data scope is undeclared and could leak " +
             "across tenants. Add the appropriate dependency:\n  " + string.Join("\n  ", offenders));
     }
 
@@ -50,5 +53,6 @@ public class RepositoryScopingTests
         repository.GetConstructors()
             .SelectMany(c => c.GetParameters())
             .Any(p => p.ParameterType == typeof(OrgContext)
+                   || p.ParameterType == typeof(IOrgContextAccessor)
                    || p.ParameterType == typeof(IDbConnectionFactory));
 }

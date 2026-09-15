@@ -3,7 +3,7 @@ using Api.Services;
 
 namespace Orkyo.Foundation.Tests.Services;
 
-public class ICalendarWriterTests
+public class CalendarWriterTests
 {
     private static CalendarFeedEvent Event(string summary = "Pack customer orders", string? location = null) => new()
     {
@@ -16,7 +16,7 @@ public class ICalendarWriterTests
     };
 
     private static string Write(params CalendarFeedEvent[] events) =>
-        ICalendarWriter.Write(events, "Orkyo schedule", "orkyo.com");
+        CalendarWriter.Write(events, "Orkyo schedule", "orkyo.com");
 
     [Fact]
     public void Write_ProducesAWellFormedCalendarEnvelope()
@@ -61,7 +61,7 @@ public class ICalendarWriterTests
         };
 
         // A Local DateTime stamped with Z would move the event by the offset.
-        ICalendarWriter.Write([local], "n", "orkyo.com").Should().Contain("DTSTART:20260815T090000Z");
+        CalendarWriter.Write([local], "n", "orkyo.com").Should().Contain("DTSTART:20260815T090000Z");
     }
 
     [Fact]
@@ -86,15 +86,15 @@ public class ICalendarWriterTests
     [InlineData("C:\\temp", "C:\\\\temp")]
     public void Escape_ProtectsTheCharactersThatWouldSplitAProperty(string input, string expected)
     {
-        ICalendarWriter.Escape(input).Should().Be(expected);
+        CalendarWriter.Escape(input).Should().Be(expected);
     }
 
     [Fact]
     public void Escape_TurnsNewlinesIntoTheLiteralEscape()
     {
         // A raw newline inside a value ends the property and corrupts the file.
-        ICalendarWriter.Escape("line one\r\nline two").Should().Be("line one\\nline two");
-        ICalendarWriter.Escape("line one\nline two").Should().Be("line one\\nline two");
+        CalendarWriter.Escape("line one\r\nline two").Should().Be("line one\\nline two");
+        CalendarWriter.Escape("line one\nline two").Should().Be("line one\\nline two");
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class ICalendarWriterTests
     public void AppendLine_LeavesShortLinesUnfolded()
     {
         var sb = new StringBuilder();
-        ICalendarWriter.AppendLine(sb, "SUMMARY:short");
+        CalendarWriter.AppendLine(sb, "SUMMARY:short");
         sb.ToString().Should().Be("SUMMARY:short\r\n");
     }
 
@@ -116,7 +116,7 @@ public class ICalendarWriterTests
     public void AppendLine_FoldsLongLinesToSeventyFiveOctetsWithLeadingSpace()
     {
         var sb = new StringBuilder();
-        ICalendarWriter.AppendLine(sb, "SUMMARY:" + new string('x', 200));
+        CalendarWriter.AppendLine(sb, "SUMMARY:" + new string('x', 200));
 
         var lines = sb.ToString().Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
         lines.Length.Should().BeGreaterThan(1);
@@ -131,7 +131,7 @@ public class ICalendarWriterTests
         // mojibake — the classic failure of a naive writer on non-English names.
         var sb = new StringBuilder();
         var line = "SUMMARY:" + string.Concat(Enumerable.Repeat("Grüße", 40));
-        ICalendarWriter.AppendLine(sb, line);
+        CalendarWriter.AppendLine(sb, line);
 
         var folded = sb.ToString();
         folded.Replace("\r\n ", "").TrimEnd('\r', '\n').Should().Be(line);
@@ -144,7 +144,7 @@ public class ICalendarWriterTests
     [Fact]
     public void Write_HandlesAnEmptyScheduleWithoutProducingAnInvalidFile()
     {
-        var ics = ICalendarWriter.Write([], "Orkyo schedule", "orkyo.com");
+        var ics = CalendarWriter.Write([], "Orkyo schedule", "orkyo.com");
 
         ics.Should().Contain("BEGIN:VCALENDAR");
         ics.Should().Contain("END:VCALENDAR");

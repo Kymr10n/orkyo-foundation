@@ -1,3 +1,4 @@
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Badge } from "@foundation/src/components/ui/badge";

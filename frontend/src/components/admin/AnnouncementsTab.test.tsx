@@ -11,6 +11,10 @@ const mockCreateAnnouncement = vi.fn();
 const mockUpdateAnnouncement = vi.fn();
 const mockDeleteAnnouncement = vi.fn();
 
+// FormDialog's footer gates Save on useCanEdit(), which reads the auth context; a site admin
+// always may edit, so the hook is answered directly here.
+vi.mock('@foundation/src/hooks/usePermissions', () => ({ useCanEdit: () => true }));
+
 vi.mock('@foundation/src/lib/api/announcement-api', () => ({
   getAnnouncements: (...args: unknown[]) => mockGetAnnouncements(...args),
   createAnnouncement: (...args: unknown[]) => mockCreateAnnouncement(...args),

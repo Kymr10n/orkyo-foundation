@@ -50,6 +50,10 @@ updates:
       day: tuesday
       time: "03:00"
 
+    # A conventional subject so the bump is exempt from the docs-impact trailer
+    # rule by type (`build:`), instead of escaping it by having no type at all.
+    commit-message:
+      prefix: "build(deps)"
     open-pull-requests-limit: 5
     groups:
       nuget-minor-patch:
@@ -68,6 +72,10 @@ updates:
       day: tuesday
       time: "05:00"
 
+    # A conventional subject so the bump is exempt from the docs-impact trailer
+    # rule by type (`build:`), instead of escaping it by having no type at all.
+    commit-message:
+      prefix: "build(deps)"
     open-pull-requests-limit: 5
     groups:
       npm-minor-patch:
@@ -86,6 +94,10 @@ updates:
       day: tuesday
       time: "07:00"
 
+    # A conventional subject so the bump is exempt from the docs-impact trailer
+    # rule by type (`build:`), instead of escaping it by having no type at all.
+    commit-message:
+      prefix: "build(deps)"
     open-pull-requests-limit: 5
     groups:
       actions-minor-patch:
@@ -112,6 +124,10 @@ updates:
       day: tuesday
       time: "09:00"
 
+    # A conventional subject so the bump is exempt from the docs-impact trailer
+    # rule by type (`build:`), instead of escaping it by having no type at all.
+    commit-message:
+      prefix: "build(deps)"
     open-pull-requests-limit: 5
     groups:
       docker-minor-patch:

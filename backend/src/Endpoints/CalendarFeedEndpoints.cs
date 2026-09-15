@@ -46,8 +46,13 @@ public static class CalendarFeedEndpoints
         // ── The feed itself ──────────────────────────────────────────────────
         // Anonymous by necessity: a calendar client fetches this unattended and
         // cannot complete an OIDC redirect, so the unguessable token in the path
-        // IS the credential. It grants read of one user's schedule and nothing
-        // else, and can be revoked on its own.
+        // IS the credential. It grants read of the schedule the subscription was
+        // created for — one site, or the whole organisation when no site was
+        // chosen — not only the subscriber's own assignments (GetEventsAsync
+        // filters by site, never by user). That is the feature: a planner
+        // subscribes a shared calendar to the site's schedule. It is also the
+        // blast radius of a leaked feed URL, which is why the token can be
+        // revoked on its own and why the dialog says who else loses access.
         app.MapGet("/api/calendar/feed/{token}.ics", [AllowAnonymous] async (
             string token,
             ICalendarFeedTokenRepository tokenRepo,
@@ -71,7 +76,7 @@ public static class CalendarFeedEndpoints
             await tokenRepo.TouchAsync(stored.Id, ct);
 
             var domain = TenantHost(configuration, currentTenant);
-            var ics = ICalendarWriter.Write(events, stored.Label ?? "Orkyo schedule", domain);
+            var ics = CalendarWriter.Write(events, stored.Label ?? "Orkyo schedule", domain);
 
             // A calendar client refetches the whole document; caching it would
             // hand back a stale schedule for as long as the cache lives.

@@ -9,6 +9,27 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **`MigrationScope` on `MigrationScript`.** A tenant-phase migration that must not run where control
+  plane and tenant share one database declares `-- @scope: tenant-database-only` in the file;
+  `FoundationMigrationModule.TenantDatabaseOnlyIds` marks the two legacy feedback migrations that predate
+  the directive. A shared-database edition filters on `Scope` instead of on a filename substring.
+  Additive: the record gains a defaulted last parameter.
+- **`MigrationCliOptions` and `RunMigrationCliAsync(args, options)`.** The migrator's connection string,
+  app version and lock timeout are a value object a product can build from its own configuration.
+  The argv-only overload keeps reading the environment (`MigrationCliOptions.FromEnvironment()`), so
+  existing migrators are unchanged.
+- **`AddOrkyoValkey(configuration)`.** Registers the process's `IConnectionMultiplexer` from
+  `VALKEY_CONNECTION` and fails at startup when it is missing; replaces the three identical lines in each
+  product's `Program.cs`. The `IBreakGlassSessionStore` choice stays product-side.
+- **`FoundationWorkerLoop` and `AddFoundationWorkerLoop(jobs)`.** The worker loop both editions carried as
+  their own `BackgroundService` (run each job through `IWorkerJobCoordinator`, jittered sleep, error retry)
+  lives in core. A product declares its `WorkerJob`s and keeps a few-line hosted service that awaits
+  `RunAsync`. No hosting dependency in core.
+- **`AddOrgContextFromHttpContext()` and `IOrgContextAccessor`.** One registration of the
+  request-scoped `OrgContext` for both editions, replacing the per-product factory. `IOrgContextAccessor.Current`
+  is `null` when no tenant is resolved (site-admin scope); resolving `OrgContext` there throws the typed
+  `TenantContextUnavailableException` (mapped to a 500 with code `tenant_context_unavailable`) instead of
+  returning a sentinel with an empty connection string. `TenantSettingsService` now takes the accessor.
 - **User-definable resource types.** Tenants can create their own resource types (cars, cameras, …)
   alongside the built-in space/person/tool types, each with its own custom fields — text, number,
   boolean, date, or choice list, with optional required/min/max/pattern constraints. Field values are

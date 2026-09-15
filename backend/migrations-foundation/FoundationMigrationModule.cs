@@ -22,6 +22,24 @@ public sealed class FoundationMigrationModule : IMigrationModule
     /// </summary>
     public int Order => 1000;
 
+    /// <summary>
+    /// Tenant-phase migrations that assume the tenant schema has its own database. They predate the
+    /// <c>-- @scope</c> directive and cannot be edited (applied migrations are immutable), so they are
+    /// marked here by id. Community, which runs control plane and tenant in one database where the
+    /// control-plane <c>feedback</c> table (1170) already lives, skips them: the create (1240) would
+    /// collide with that table and the drop (1630) would destroy it. New migrations with the same
+    /// property declare the directive in the file instead of growing this list.
+    /// </summary>
+    public static readonly IReadOnlySet<string> TenantDatabaseOnlyIds = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "1240.foundation.feedback",
+        "1630.foundation.drop_feedback",
+    };
+
     public IReadOnlyCollection<MigrationScript> GetMigrations() =>
-        EmbeddedSqlLoader.LoadFromAssembly(typeof(FoundationMigrationModule).Assembly, ModuleName);
+        EmbeddedSqlLoader.LoadFromAssembly(typeof(FoundationMigrationModule).Assembly, ModuleName)
+            .Select(s => s.Scope == MigrationScope.Default && TenantDatabaseOnlyIds.Contains(s.Id)
+                ? s with { Scope = MigrationScope.TenantDatabaseOnly }
+                : s)
+            .ToList();
 }

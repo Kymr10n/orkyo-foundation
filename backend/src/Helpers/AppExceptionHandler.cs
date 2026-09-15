@@ -41,6 +41,10 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.BadRequest(arg.Message),
             UnauthorizedAccessException
                 => ErrorResponses.Forbidden(),
+            // A tenant-scoped service resolved where no tenant was resolved: a wiring error,
+            // reported as a 500 with a stable code so it never reads as a data problem.
+            TenantContextUnavailableException tcu
+                => ProblemResults.Problem(StatusCodes.Status500InternalServerError, TenantContextUnavailableException.Code, tcu.Message),
             KeycloakAdminException kae
                 => KeycloakAdminExceptionMapper.Map(kae),
             PostgresException pg when pg.SqlState == "23505"

@@ -182,6 +182,10 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISiteService, SiteService>();
         services.AddScoped<ISiteSettingsService, SiteSettingsService>();
         services.AddScoped<IStarterTemplateService, StarterTemplateService>();
+        // Nullable org context for services that serve both a tenant and the site-admin scope.
+        // Products that register OrgContext through AddOrgContextFromHttpContext get the same
+        // accessor; TryAdd keeps a product's own accessor if it registered one first.
+        services.TryAddScoped<IOrgContextAccessor, HttpContextOrgContextAccessor>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         services.AddScoped<ITenantUserService, TenantUserService>();
         services.AddScoped<IPlatformTenantAuditWriter, PlatformTenantAuditWriter>();

@@ -1,0 +1,494 @@
+name: reusable-product-ci
+
+# The product CI both editions carried as ~500 lines of near-identical YAML each:
+# change detection, backend build/format/test, frontend lint/typecheck/build/test,
+# the smoke run (migrator twice + validate, API boots to /health), and the image
+# builds. What differs between saas and community is data, not shape, so it is input.
+#
+# Callers pin this file by commit SHA (never @main) and pass `secrets: inherit`:
+# GHCR_TOKEN (private npm/NuGet feed, image push) and CODECOV_TOKEN.
+#
+# Not here, by design: the audit jobs (already reusable), container-scan (already
+# reusable), and the product-specific tails (SaaS's deploy/release dispatch,
+# Community's self-hosted bundle) which stay in each caller. The audits gate this
+# workflow at the caller (`needs:`), so their SHA pins stay per repo.
+
+on:
+  workflow_call:
+    inputs:
+      product:
+        description: "Image name suffix and cache scope: saas | community"
+        type: string
+        required: true
+      solution-path:
+        description: "The .slnx to restore, format, build and test"
+        type: string
+        required: true
+      api-project:
+        description: "Path to the API csproj the smoke job boots"
+        type: string
+        required: true
+      migrator-project:
+        description: "Path to the migrator csproj"
+        type: string
+        required: true
+      seed-project:
+        description: "Path to the seed CLI csproj (its --help is the runtime check)"
+        type: string
+        required: true
+      seed-in-solution:
+        description: "false when the seed project is not in the solution (built by dotnet run instead of --no-build)"
+        type: boolean
+        required: false
+        default: true
+      backend-test-environment:
+        description: "ASPNETCORE_ENVIRONMENT for dotnet test; empty leaves it unset"
+        type: string
+        required: false
+        default: ""
+      checkout-foundation-endpoints:
+        description: "Sparse-checkout foundation's backend/src/Endpoints beside the package (the SaaS endpoint conformance test reads it)"
+        type: boolean
+        required: false
+        default: false
+      frontend-extra-checks:
+        description: "Shell run in frontend/ after the foundation-package check (e.g. product sync checks); empty for none"
+        type: string
+        required: false
+        default: ""
+      ci-database:
+        description: "Name of the Postgres database the smoke job creates"
+        type: string
+        required: true
+      migrator-env-var:
+        description: "Env var name the migrator reads its connection string from"
+        type: string
+        required: true
+      api-port:
+        description: "Port the API listens on in the smoke job"
+        type: string
+        required: true
+      health-path:
+        description: "Health path polled after boot (/health or /health/live)"
+        type: string
+        required: false
+        default: "/health"
+      smoke-env:
+        description: "KEY=VALUE lines exported for the API (and the optional --validate run) in the smoke job"
+        type: string
+        required: true
+      validate-config:
+        description: "Run the API's --validate pass before the migrator (Community's config contract)"
+        type: boolean
+        required: false
+        default: false
+      images:
+        description: "JSON array of {service, dockerfile, context?, no_secret?, build_args?} to build and push"
+        type: string
+        required: true
+      build-images:
+        description: "Whether this run builds and pushes images (the caller decides from the ref)"
+        type: boolean
+        required: true
+      extra-image-tag:
+        description: "An additional floating tag for every image (e.g. release); empty for none"
+        type: string
+        required: false
+        default: ""
+      run-backend:
+        description: "Caller-side gate for backend-ci (e.g. a nightly no-change check); PR path filtering is applied on top"
+        type: boolean
+        required: false
+        default: true
+      run-frontend:
+        description: "Caller-side gate for frontend-ci"
+        type: boolean
+        required: false
+        default: true
+    secrets:
+      GHCR_TOKEN:
+        required: true
+      CODECOV_TOKEN:
+        required: true
+
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io/kymr10n
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  # ─────────────────────────────────────────────
+  # CHANGE DETECTION — gates backend-ci / frontend-ci on PRs
+  # ─────────────────────────────────────────────
+  detect-changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend || 'true' }}
+      frontend: ${{ steps.filter.outputs.frontend || 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Path filter (PR only — push/dispatch always run both)
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'Directory.Build.props'
+              - 'global.json'
+              - 'nuget.config'
+            frontend:
+              - 'frontend/**'
+
+  # ─────────────────────────────────────────────
+  # BACKEND CI
+  # ─────────────────────────────────────────────
+  backend-ci:
+    name: backend-ci
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: >-
+      inputs.run-backend &&
+      github.event_name != 'repository_dispatch' &&
+      needs.detect-changes.outputs.backend == 'true'
+
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # DELIBERATE (W2.22): PublicEndpointTenantSkipTests scans foundation's Endpoints dir
+      # (in addition to the product's) to classify every anonymous endpoint, so that job
+      # needs the foundation source alongside the NuGet package.
+      - name: Checkout foundation source (endpoint security tests)
+        if: inputs.checkout-foundation-endpoints
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Kymr10n/orkyo-foundation
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: orkyo-foundation
+          sparse-checkout: backend/src/Endpoints
+          sparse-checkout-cone-mode: true
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          source-url: https://nuget.pkg.github.com/Kymr10n/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ inputs.product }}-${{ hashFiles('Directory.Packages.props', 'Directory.Build.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ inputs.product }}-
+
+      # No lock files here on purpose, so no locked-mode flag either. The products restore
+      # in TWO shapes: locally the sibling orkyo-foundation checkout is used through
+      # ProjectReference, while CI resolves Orkyo.* from the package feed. Those are
+      # different dependency graphs, and a packages.lock.json can only record one.
+      - name: Restore
+        run: dotnet restore ${{ inputs.solution-path }}
+
+      - name: Format check
+        run: dotnet format ${{ inputs.solution-path }} --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build ${{ inputs.solution-path }} -c Release --no-restore -warnaserror
+
+      - name: Test
+        run: |
+          if [ -n "${{ inputs.backend-test-environment }}" ]; then
+            export ASPNETCORE_ENVIRONMENT="${{ inputs.backend-test-environment }}"
+          fi
+          dotnet test ${{ inputs.solution-path }} \
+            -c Release --no-build \
+            --verbosity normal \
+            --logger GitHubActions \
+            --collect:"XPlat Code Coverage" \
+            --results-directory backend/TestResults
+
+      - name: Upload backend coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          directory: backend/TestResults
+          flags: backend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ─────────────────────────────────────────────
+  # FRONTEND CI
+  # ─────────────────────────────────────────────
+  frontend-ci:
+    name: frontend-ci
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    needs: [detect-changes]
+    if: >-
+      inputs.run-frontend &&
+      github.event_name != 'repository_dispatch' &&
+      needs.detect-changes.outputs.frontend == 'true'
+
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure npm for GitHub Packages (@kymr10n/foundation)
+        run: |
+          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> frontend/.npmrc
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Verify foundation package is installed
+        # Fails fast with a clear message if the registry/auth ever silently
+        # drops @kymr10n/foundation, instead of letting downstream lint surface
+        # cryptic "type 'X' is an 'error' type" errors.
+        run: |
+          test -d node_modules/@kymr10n/foundation \
+            || (echo "::error::@kymr10n/foundation is not installed — check npm registry auth" && exit 1)
+          npm run check:foundation-imports
+          npm run check:dedupe-sync
+        working-directory: frontend
+
+      - name: Lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Product sync checks
+        if: inputs.frontend-extra-checks != ''
+        run: ${{ inputs.frontend-extra-checks }}
+        working-directory: frontend
+
+      - name: Type check
+        run: npm run typecheck
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+
+      - name: Test with coverage
+        run: npm run test:coverage
+        working-directory: frontend
+
+      - name: Upload frontend coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        with:
+          files: frontend/coverage/cobertura-coverage.xml
+          flags: frontend
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ─────────────────────────────────────────────
+  # SMOKE TESTS — gates image builds
+  # ─────────────────────────────────────────────
+  smoke-tests:
+    name: smoke-tests
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    needs: [backend-ci, frontend-ci]
+    if: >-
+      !failure() && !cancelled() &&
+      inputs.run-backend && inputs.run-frontend &&
+      github.event_name != 'repository_dispatch'
+
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+        ports:
+          - 5432:5432
+      valkey:
+        image: valkey/valkey:8-alpine@sha256:e0eb7c480958d32bdc4357a74bdd70653ae15f2f9b4c93c4a5a9fad1dc471c84
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+        ports:
+          - 6379:6379
+
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          source-url: https://nuget.pkg.github.com/Kymr10n/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore
+        run: dotnet restore ${{ inputs.solution-path }}
+
+      - name: Build
+        run: dotnet build ${{ inputs.solution-path }} -c Release --no-restore
+
+      # The product's runtime configuration, once, for every step below that boots the API.
+      - name: Export smoke environment
+        run: |
+          {
+            echo "ASPNETCORE_URLS=http://+:${{ inputs.api-port }}"
+            printf '%s\n' "${{ inputs.smoke-env }}"
+          } | sed '/^[[:space:]]*$/d' >> "$GITHUB_ENV"
+
+      - name: Validate config contract
+        if: inputs.validate-config
+        run: |
+          dotnet run --no-build -c Release \
+            --project ${{ inputs.api-project }} \
+            -- --validate
+
+      # The seed CLI's options are inherited from foundation's SeedCliOptions. When foundation
+      # 0.21.0 moved them off CommandLineParser, an edition still compiled — the attributes had
+      # simply vanished at runtime — and the break surfaced only in the staging demo reset, after
+      # a release. Executing the CLI is the only gate that catches that class.
+      - name: Seed CLI answers --help
+        run: |
+          if [ "${{ inputs.seed-in-solution }}" = "true" ]; then no_build="--no-build"; else no_build=""; fi
+          out=$(dotnet run $no_build -c Release \
+            --project ${{ inputs.seed-project }} -- --help)
+          echo "$out"
+          grep -q -- '--profile' <<<"$out"
+
+      - name: Create database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres \
+            -c "CREATE DATABASE ${{ inputs.ci-database }};" || true
+
+      - name: Run migrator
+        env:
+          ${{ inputs.migrator-env-var }}: "Host=localhost;Port=5432;Database=${{ inputs.ci-database }};Username=postgres;Password=postgres"
+          APP_VERSION: ci-${{ github.sha }}
+        run: |
+          dotnet run --no-build -c Release \
+            --project ${{ inputs.migrator-project }} \
+            -- migrate --target all
+          dotnet run --no-build -c Release \
+            --project ${{ inputs.migrator-project }} \
+            -- migrate --target all
+          dotnet run --no-build -c Release \
+            --project ${{ inputs.migrator-project }} \
+            -- validate --target all
+
+      - name: Start API and verify health
+        run: |
+          dotnet run --no-build -c Release \
+            --project ${{ inputs.api-project }} \
+            > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
+
+          for i in $(seq 1 30); do
+            if curl -sf "http://localhost:${{ inputs.api-port }}${{ inputs.health-path }}" >/dev/null 2>&1; then
+              echo "API healthy after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API failed to start"
+          tail -n 100 /tmp/api.log
+          exit 1
+
+      - name: Teardown
+        if: always()
+        run: |
+          [ -f /tmp/api.pid ] && kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+
+  # ─────────────────────────────────────────────
+  # BUILD IMAGES — the caller decides on which refs, after smoke
+  # ─────────────────────────────────────────────
+  build-images:
+    name: Build Images (${{ matrix.service }})
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    needs: [smoke-tests]
+    if: >-
+      !failure() && !cancelled() &&
+      inputs.build-images
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include: ${{ fromJson(inputs.images) }}
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # Per-commit `sha-<sha>` tags are the immutable provenance record; the optional
+      # extra tag floats (e.g. `release` on a hotfix branch, so operators can deploy it).
+      - name: Build and push (backend with NuGet secret)
+        if: matrix.no_secret != true
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context || '.' }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/orkyo-${{ inputs.product }}-${{ matrix.service }}:sha-${{ github.sha }}
+            ${{ inputs.extra-image-tag != '' && format('{0}/orkyo-{1}-{2}:{3}', env.REGISTRY, inputs.product, matrix.service, inputs.extra-image-tag) || '' }}
+          secrets: nuget_token=${{ secrets.GHCR_TOKEN }}
+          cache-from: type=gha,scope=${{ inputs.product }}-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.product }}-${{ matrix.service }}
+
+      - name: Build and push (frontend/keycloak — needs GHCR_TOKEN for @kymr10n/foundation)
+        if: matrix.no_secret == true
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: ${{ matrix.context || 'frontend' }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/orkyo-${{ inputs.product }}-${{ matrix.service }}:sha-${{ github.sha }}
+            ${{ inputs.extra-image-tag != '' && format('{0}/orkyo-{1}-{2}:{3}', env.REGISTRY, inputs.product, matrix.service, inputs.extra-image-tag) || '' }}
+          build-args: ${{ matrix.build_args || '' }}
+          secrets: ghcr_token=${{ secrets.GHCR_TOKEN }}
+          cache-from: type=gha,scope=${{ inputs.product }}-${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.product }}-${{ matrix.service }}
