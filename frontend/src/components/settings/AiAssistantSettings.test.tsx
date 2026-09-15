@@ -120,13 +120,14 @@ describe('AiAssistantSettings daily limits', () => {
     expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument();
   });
 
-  it('reports a failed save', async () => {
+  it('does not claim success when the save fails', async () => {
+    // The error toast itself is the hook's `meta.errorMessage`, fired by the MutationCache
+    // (useAiAssistant.test.ts); the hooks are mocked here, so only the absence is asserted.
     saveLimits.mockRejectedValue(new Error('nope'));
     render(<AiAssistantSettings />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save limits/i }));
 
-    expect(toastError).toHaveBeenCalled();
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 });

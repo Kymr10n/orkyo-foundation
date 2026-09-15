@@ -126,7 +126,7 @@ export function ResourceScheduleDialog({
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: qk.resources.absences(resourceId) });
-    void queryClient.invalidateQueries({ queryKey: ["resource-assignments", resourceId] });
+    void queryClient.invalidateQueries({ queryKey: qk.resources.assignmentsFor(resourceId) });
     invalidateRequestData(queryClient);
   };
 

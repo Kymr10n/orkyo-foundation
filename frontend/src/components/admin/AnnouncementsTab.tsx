@@ -18,15 +18,7 @@ import { Textarea } from '@foundation/src/components/ui/textarea';
 import { Switch } from '@foundation/src/components/ui/switch';
 import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { DateTimePicker } from '@foundation/src/components/ui/date-time-picker';
-import {
-  Dialog,
-  DialogContent,
-  DIALOG_SIZE,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@foundation/src/components/ui/dialog';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { Plus, Pencil, Trash2, Megaphone, AlertTriangle } from 'lucide-react';
 import {
@@ -415,119 +407,110 @@ function AnnouncementFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={DIALOG_SIZE.md}>
-        <DialogHeader>
-          <DialogTitle>{isEdit ? 'Edit Announcement' : 'New Announcement'}</DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? 'Update the announcement. Editing increments the revision, marking it as unread for all users.'
-              : 'Create a platform-wide announcement visible to all users.'}
-          </DialogDescription>
-        </DialogHeader>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={isEdit ? 'Edit Announcement' : 'New Announcement'}
+      description={
+        isEdit
+          ? 'Update the announcement. Editing increments the revision, marking it as unread for all users.'
+          : 'Create a platform-wide announcement visible to all users.'
+      }
+      error={error}
+      onSubmit={handleSubmit}
+      isSubmitting={loading}
+      submitLabel={isEdit ? 'Save Changes' : 'Create'}
+      submittingLabel="Saving…"
+      submitDisabled={!title.trim() || !body.trim() || (!isEdit && channels.length === 0)}
+    >
+    <div className="grid gap-4 py-4">
+      <div className="grid gap-2">
+        <Label htmlFor="ann-title">Title</Label>
+        <Input
+          id="ann-title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Scheduled maintenance on Friday"
+          maxLength={200}
+        />
+      </div>
 
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="ann-title">Title</Label>
-            <Input
-              id="ann-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Scheduled maintenance on Friday"
-              maxLength={200}
-            />
-          </div>
+      <div className="grid gap-2">
+        <Label htmlFor="ann-body">Body</Label>
+        <Textarea
+          id="ann-body"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Details about the announcement..."
+          rows={5}
+          maxLength={5000}
+        />
+        <p className="text-xs text-muted-foreground text-right">{body.length} / 5000</p>
+      </div>
 
-          <div className="grid gap-2">
-            <Label htmlFor="ann-body">Body</Label>
-            <Textarea
-              id="ann-body"
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Details about the announcement..."
-              rows={5}
-              maxLength={5000}
-            />
-            <p className="text-xs text-muted-foreground text-right">{body.length} / 5000</p>
-          </div>
+      <div className="flex items-start gap-3">
+        <Switch
+          id="ann-important"
+          checked={isImportant}
+          onCheckedChange={setIsImportant}
+          className="mt-0.5"
+        />
+        <Label htmlFor="ann-important" className="cursor-pointer font-normal">
+          Mark as important
+          <span className="block text-xs text-muted-foreground">
+            Emailed to all users, even those who opted out of announcement emails.
+          </span>
+        </Label>
+      </div>
 
-          <div className="flex items-start gap-3">
-            <Switch
-              id="ann-important"
-              checked={isImportant}
-              onCheckedChange={setIsImportant}
-              className="mt-0.5"
-            />
-            <Label htmlFor="ann-important" className="cursor-pointer font-normal">
-              Mark as important
-              <span className="block text-xs text-muted-foreground">
-                Emailed to all users, even those who opted out of announcement emails.
-              </span>
-            </Label>
-          </div>
-
-          {!isEdit && (
-            <div className="grid gap-2">
-              <Label>Delivery channels</Label>
-              {CHANNEL_OPTIONS.map((opt) => (
-                <div key={opt.value} className="flex items-center gap-3">
-                  <Checkbox
-                    id={`ann-channel-${opt.value}`}
-                    checked={channels.includes(opt.value)}
-                    onCheckedChange={(checked) => toggleChannel(opt.value, checked === true)}
-                  />
-                  <Label htmlFor={`ann-channel-${opt.value}`} className="cursor-pointer font-normal">
-                    {opt.label}
-                    <span className="ml-2 text-xs text-muted-foreground">{opt.hint}</span>
-                  </Label>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {isEdit ? (
-            <div className="grid gap-2">
-              <Label htmlFor="ann-expires">Expires At</Label>
-              <DateTimePicker
-                id="ann-expires"
-                value={expiresAt}
-                onChange={setExpiresAt}
-                placeholder="Pick expiration date & time"
+      {!isEdit && (
+        <div className="grid gap-2">
+          <Label>Delivery channels</Label>
+          {CHANNEL_OPTIONS.map((opt) => (
+            <div key={opt.value} className="flex items-center gap-3">
+              <Checkbox
+                id={`ann-channel-${opt.value}`}
+                checked={channels.includes(opt.value)}
+                onCheckedChange={(checked) => toggleChannel(opt.value, checked === true)}
               />
+              <Label htmlFor={`ann-channel-${opt.value}`} className="cursor-pointer font-normal">
+                {opt.label}
+                <span className="ml-2 text-xs text-muted-foreground">{opt.hint}</span>
+              </Label>
             </div>
-          ) : (
-            <div className="grid gap-2">
-              <Label htmlFor="ann-retention">Retention (days)</Label>
-              <Input
-                id="ann-retention"
-                type="number"
-                min={1}
-                max={3650}
-                value={retentionDays}
-                onChange={(e) => setRetentionDays(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Announcement expires after this many days. Default: 90.
-              </p>
-            </div>
-          )}
-
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          ))}
         </div>
+      )}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={loading || !title.trim() || !body.trim() || (!isEdit && channels.length === 0)}
-          >
-            {loading ? 'Saving...' : isEdit ? 'Save Changes' : 'Create'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {isEdit ? (
+        <div className="grid gap-2">
+          <Label htmlFor="ann-expires">Expires At</Label>
+          <DateTimePicker
+            id="ann-expires"
+            value={expiresAt}
+            onChange={setExpiresAt}
+            placeholder="Pick expiration date & time"
+          />
+        </div>
+      ) : (
+        <div className="grid gap-2">
+          <Label htmlFor="ann-retention">Retention (days)</Label>
+          <Input
+            id="ann-retention"
+            type="number"
+            min={1}
+            max={3650}
+            value={retentionDays}
+            onChange={(e) => setRetentionDays(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Announcement expires after this many days. Default: 90.
+          </p>
+        </div>
+      )}
+
+    </div>
+    </FormDialog>
   );
 }
 

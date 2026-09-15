@@ -63,14 +63,14 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { logger } from "@foundation/src/lib/core/logger";
-import { invalidateRequestData, REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
+import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import { errorMessage as toErrorMessage } from "@foundation/src/hooks/mutation-utils";
 
 const EMPTY_REQUESTS: Request[] = [];
@@ -93,7 +93,6 @@ type Dialog =
 
 export function RequestsPage() {
   usePageTitle("Requests");
-  const queryClient = useQueryClient();
   const placeableKeys = usePlaceableTypeKeys();
   const canEdit = useCanEdit();
   const navigate = useNavigate();
@@ -101,7 +100,7 @@ export function RequestsPage() {
   // Site-neutral requests stay visible under every site — the backend keeps them in.
   const selectedSiteId = useAppStore((state) => state.selectedSiteId);
   // The request list lives in the query cache under the shared `requests`
-  // prefix, so `invalidateRequestData` alone refreshes it after any mutation —
+  // prefix, so the mutations' `meta.invalidates` refreshes it after any change —
   // no manual re-fetch bookkeeping.
   const {
     data: rawRequests = EMPTY_REQUESTS,
@@ -121,10 +120,7 @@ export function RequestsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [spreadsheetImportOpen, setSpreadsheetImportOpen] = useState(false);
-  // Mutation in-flight flag + error; list load state comes from the query above.
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isLoading = requestsLoading || loading;
   const errorMessage =
     error ??
     (requestsError
@@ -145,6 +141,70 @@ export function RequestsPage() {
     viewMode,
     setViewMode,
   } = useRequestTreeStore();
+
+  // The request mutations declare their feedback in `meta` (docs/dialog-feedback.md): the
+  // MutationCache toasts once and invalidates every request-derived namespace, so the list,
+  // the conflict badges, the occupancy grids and the insights refresh without bookkeeping here.
+  // `onError` keeps the inline error; the toast is meta's.
+  const { mutate: runMove, isPending: moving } = useMutation({
+    mutationFn: async ({ draggedId, targetId }: { draggedId: string; targetId: string }) => {
+      await moveRequest(draggedId, {
+        newParentRequestId: targetId,
+        sortOrder: getNextSortOrder(targetId, requests),
+      });
+      return targetId;
+    },
+    meta: { errorMessage: "Failed to move request", invalidates: REQUEST_DERIVED_QUERY_KEYS },
+    onSuccess: (targetId) => {
+      // Auto-expand the new parent
+      if (!expandedIds.has(targetId)) toggle(targetId);
+    },
+    onError: (err) => {
+      logger.error("Failed to move request:", err);
+      setError(toErrorMessage(err));
+    },
+  });
+  const { mutate: runDelete, isPending: deleting } = useMutation({
+    mutationFn: async ({ request, descendantIds }: { request: Request; descendantIds: string[] }) => {
+      // Use subtree delete if the request has descendants
+      if (descendantIds.length > 0) await deleteRequestSubtree(request.id);
+      else await deleteRequest(request.id);
+      return { request, descendantIds };
+    },
+    meta: {
+      successMessage: "Request deleted",
+      errorMessage: "Failed to delete request",
+      invalidates: REQUEST_DERIVED_QUERY_KEYS,
+    },
+    onSuccess: ({ request, descendantIds }) => {
+      // Clear selection if the deleted request (or one of its descendants) was selected
+      if (selectedId && (selectedId === request.id || descendantIds.includes(selectedId))) {
+        setSelectedId(request.parentRequestId ?? null);
+      }
+    },
+    onError: (err) => {
+      logger.error("Failed to delete request:", err);
+      setError(toErrorMessage(err));
+    },
+  });
+  const { mutateAsync: saveRequest, isPending: saving } = useMutation({
+    mutationFn: ({ data, editing }: { data: RequestFormData; editing: Request | null }) =>
+      editing
+        ? updateRequest(editing.id, buildUpdatePayload(data, editing.planningMode, editing.siteId))
+        : createRequest(buildCreatePayload(data)),
+    meta: {
+      successMessage: (_saved, variables) =>
+        (variables as { editing: Request | null }).editing ? "Request updated" : "Request created",
+      errorMessage: "Failed to save request",
+      invalidates: REQUEST_DERIVED_QUERY_KEYS,
+    },
+    onSuccess: () => setDialog(null),
+    onError: (err) => {
+      logger.error("Failed to save request:", err);
+      setError(toErrorMessage(err));
+    },
+  });
+  const isLoading = requestsLoading || moving || deleting || saving;
 
   // Parent (expandable) ids — feeds the toolbar Expand/Collapse-all buttons.
   // Mirrors the one-liner the tree uses for its `*` shortcut.
@@ -261,26 +321,11 @@ export function RequestsPage() {
     setDialog({ kind: "create", parent: null, defaultMode });
   }, []);
 
-  const handleDrop = useCallback(async (draggedId: string, targetId: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      await moveRequest(draggedId, {
-        newParentRequestId: targetId,
-        sortOrder: getNextSortOrder(targetId, requests),
-      });
-      invalidateRequestData(queryClient);
-      // Auto-expand the new parent
-      if (!expandedIds.has(targetId)) {
-        toggle(targetId);
-      }
-    } catch (err) {
-      logger.error("Failed to move request:", err);
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [requests, queryClient, expandedIds, toggle]);
+
+  const handleDrop = useCallback((draggedId: string, targetId: string) => {
+    setError(null);
+    runMove({ draggedId, targetId });
+  }, [runMove]);
 
   const handleEditRequest = useCallback((request: Request) => {
     setDialog({ kind: "edit", request });
@@ -290,73 +335,21 @@ export function RequestsPage() {
     setDialog({ kind: "delete", request });
   }, []);
 
-  const handleConfirmDelete = useCallback(async () => {
+  const handleConfirmDelete = useCallback(() => {
     if (dialog?.kind !== "delete") return;
     const request = dialog.request;
     setDialog(null);
+    setError(null);
+    runDelete({ request, descendantIds: getDescendantIds(request.id, requests, childrenById) });
+  }, [dialog, requests, childrenById, runDelete]);
 
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Use subtree delete if the request has descendants
-      const descendantIds = getDescendantIds(request.id, requests, childrenById);
-      if (descendantIds.length > 0) {
-        await deleteRequestSubtree(request.id);
-      } else {
-        await deleteRequest(request.id);
-      }
-
-      // Clear selection if the deleted request (or one of its descendants) was selected
-      if (selectedId) {
-        if (selectedId === request.id || descendantIds.includes(selectedId)) {
-          setSelectedId(request.parentRequestId ?? null);
-        }
-      }
-
-      invalidateRequestData(queryClient);
-      toast.success("Request deleted");
-    } catch (err) {
-      logger.error("Failed to delete request:", err);
-      const message = toErrorMessage(err);
-      setError(message);
-      toast.error("Failed to delete request", { description: message });
-    } finally {
-      setLoading(false);
-    }
-  }, [dialog, requests, childrenById, queryClient, selectedId, setSelectedId]);
-
-  const handleSaveRequest = useCallback(async (data: RequestFormData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const isEdit = dialog?.kind === "edit";
-      let saved: Request | undefined;
-      if (isEdit) {
-        saved = await updateRequest(dialog.request.id, buildUpdatePayload(data, dialog.request.planningMode, dialog.request.siteId));
-      } else {
-        saved = await createRequest(buildCreatePayload(data));
-      }
-
-      invalidateRequestData(queryClient);
-      setDialog(null);
-      toast.success(isEdit ? "Request updated" : "Request created");
-      // Returned so the dialog can create children queued on its Children tab, and so it can
-      // tell the person when the scheduler moved the dates they typed.
-      return saved;
-    } catch (err) {
-      logger.error("Failed to save request:", err);
-      const message = toErrorMessage(err);
-      setError(message);
-      toast.error(dialog?.kind === "edit" ? "Failed to update request" : "Failed to create request", {
-        description: message,
-      });
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [dialog, queryClient]);
+  const handleSaveRequest = useCallback((data: RequestFormData) => {
+    setError(null);
+    // Returned so the dialog can create children queued on its Children tab, and so it can
+    // tell the person when the scheduler moved the dates they typed. A rejection keeps the
+    // dialog open (the inline error shows why); the toast is the mutation's meta.
+    return saveRequest({ data, editing: dialog?.kind === "edit" ? dialog.request : null });
+  }, [dialog, saveRequest]);
 
   // The planner is a route, so the row action navigates rather than opening a dialog. Same
   // destination the editor's Children tab uses — one planner, two ways in.
