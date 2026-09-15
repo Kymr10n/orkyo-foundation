@@ -9,6 +9,9 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **`AddOrkyoValkey(configuration)`.** Registers the process's `IConnectionMultiplexer` from
+  `VALKEY_CONNECTION` and fails at startup when it is missing; replaces the three identical lines in each
+  product's `Program.cs`. The `IBreakGlassSessionStore` choice stays product-side.
 - **`FoundationWorkerLoop` and `AddFoundationWorkerLoop(jobs)`.** The worker loop both editions carried as
   their own `BackgroundService` (run each job through `IWorkerJobCoordinator`, jittered sleep, error retry)
   lives in core. A product declares its `WorkerJob`s and keeps a few-line hosted service that awaits
