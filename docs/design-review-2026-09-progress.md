@@ -40,6 +40,7 @@ names the package.
 | build: shared dev.sh core and synced .claude files | WP-21 | `scripts/dev-common.sh`; `.claude/` rows in `synced-files.manifest` |
 | test(frontend): lint rule for hand-rolled empty and loading markup | WP-07 | `orkyo/ui-primitives`; 25 files / 37 sites baselined with file-level disables |
 | test: give the exception-mapping test request services | — | The one red test of the first CI run |
+| fix(tenancy): tenant settings construct without a tenant | WP-11 | Found in the first local SaaS run: every request without a tenant, `/health` too, returned 500. `TenantSettingsRepository` now takes `IOrgContextAccessor`. CI did not see it because the test host always has a tenant |
 
 Not in PR-1: **WP-22** (per-purpose GitHub tokens). See §6.
 

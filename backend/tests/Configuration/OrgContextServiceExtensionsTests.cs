@@ -1,6 +1,7 @@
 using Api.Configuration;
 using Api.Constants;
 using Api.Helpers;
+using Api.Repositories;
 using Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -74,6 +75,45 @@ public sealed class OrgContextServiceExtensionsTests
 
         act.Should().Throw<TenantContextUnavailableException>(
             "a tenant-only service must fail typed here, never open a connection with an empty string");
+    }
+
+    [Fact]
+    public void TenantSettingsService_Constructs_WhenNoTenantWasResolved()
+    {
+        // Every request with no tenant (/health, site admin) builds this service through
+        // ContextEnrichmentMiddleware → IIdentityLinkService → IEmailService. A tenant-only
+        // constructor dependency anywhere below it fails those requests with a 500.
+        var (services, _) = BuildWithTenantSettings();
+
+        using var scope = services.CreateScope();
+        var act = () => scope.ServiceProvider.GetRequiredService<ITenantSettingsService>();
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public async Task TenantSettingsRepository_ThrowsTyped_OnATenantQueryWithNoTenant()
+    {
+        var (services, _) = BuildWithTenantSettings();
+
+        using var scope = services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<ITenantSettingsRepository>();
+
+        await repo.Invoking(r => r.GetAllAsync()).Should().ThrowAsync<TenantContextUnavailableException>();
+    }
+
+    private static (IServiceProvider Services, DefaultHttpContext Http) BuildWithTenantSettings()
+    {
+        var http = new DefaultHttpContext();
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton<IHttpContextAccessor>(new HttpContextAccessor { HttpContext = http });
+        services.AddOrgContextFromHttpContext();
+        services.AddSingleton(Mock.Of<IOrgDbConnectionFactory>());
+        services.AddSingleton(Mock.Of<ISiteSettingsRepository>());
+        services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
+        services.AddScoped<ITenantSettingsService, TenantSettingsService>();
+        return (services.BuildServiceProvider(), http);
     }
 
     [Fact]
