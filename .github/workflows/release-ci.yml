@@ -101,107 +101,40 @@ jobs:
   # ─────────────────────────────────────────────
   # SECURITY AUDITS — three parallel jobs, all gate downstream builds
   # ─────────────────────────────────────────────
+  # The three audit jobs call this repo's own reusable workflows — the same files the
+  # products call by SHA — so one change to a scan applies everywhere. Job ids are kept.
+  # NOTE: a reusable job's check is displayed as "<job> / <inner job name>", so the
+  # required-check entries in the main ruleset must be updated when this merges.
   audit-secrets:
-    name: audit / secrets + fs
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
     if: "!startsWith(github.ref, 'refs/tags/v')"
-
     permissions:
       contents: read
       security-events: write
-    steps:
-      - name: Checkout (full history for secret scan)
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      - name: Install gitleaks
-        env:
-          GITLEAKS_VERSION: 8.30.1
-        run: |
-          curl -sSfL \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin gitleaks
-          gitleaks version
-
-      - name: Gitleaks secret scan
-        run: gitleaks detect --source . --config .gitleaks.toml --redact --verbose --exit-code 1
-
-      - name: Trivy — filesystem scan
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          exit-code: '1'
-          ignore-unfixed: true
-        env:
-          TRIVY_SKIP_JAVA_DB_UPDATE: "true"
-
-      - name: Migration header lint
-        run: bash scripts/ci/lint-migration-headers.sh backend/migrations-foundation/sql
+      pull-requests: read
+    uses: ./.github/workflows/reusable-audit-secrets.yml
+    with:
+      migration-lint-path: backend/migrations-foundation/sql
+      run-iac-scan: false
 
   audit-nuget:
-    name: audit / NuGet
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
     if: "!startsWith(github.ref, 'refs/tags/v')"
-
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-
-      - name: Restore
-        run: dotnet restore Orkyo.Foundation.slnx --locked-mode
-
-      - name: Check for vulnerable packages
-        run: |
-          output=$(dotnet list Orkyo.Foundation.slnx package --vulnerable --include-transitive 2>&1)
-          echo "$output"
-          if echo "$output" | grep -qi "has the following vulnerable packages"; then
-            echo "::error::Vulnerable NuGet packages detected — update before merging"
-            exit 1
-          fi
+      packages: read
+    uses: ./.github/workflows/reusable-audit-nuget.yml
+    with:
+      solution-path: Orkyo.Foundation.slnx
+      with-private-registry: false
 
   audit-npm:
-    name: audit / npm
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
     if: "!startsWith(github.ref, 'refs/tags/v')"
-
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend deps
-        run: npm ci
-        working-directory: frontend
-
-      - name: npm audit
-        run: npm audit --audit-level=high --omit=dev
-        working-directory: frontend
-
-      - name: License scan
-        run: |
-          npx --yes license-checker@^25.0.1 \
-            --summary \
-            --excludePrivatePackages \
-            --failOn "GPL-2.0;GPL-3.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0"
-        working-directory: frontend
+    uses: ./.github/workflows/reusable-audit-npm.yml
+    with:
+      with-private-registry: false
+      # The npm package is distributed (AGPL), so its dependency licenses are checked.
+      with-license-scan: true
 
   # ─────────────────────────────────────────────
   # BACKEND CI
