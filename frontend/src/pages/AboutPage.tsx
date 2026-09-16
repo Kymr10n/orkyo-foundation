@@ -28,14 +28,19 @@ export function AboutPage() {
 
         <Card>
           <CardHeader className="text-center pb-2 md:pb-2">
+            {/* Resolved against the app's own base, not the domain root. SaaS builds under
+                /app/, and only a curated list of icons is copied to the root there for the
+                favicon — the dark logo was not on it, so a reader in dark mode got the SPA's
+                index.html in place of the image and saw nothing at all. These files ship with
+                the bundle, so the bundle is where to ask for them. */}
             <div className="mx-auto mb-4">
               <img
-                src="/orkyo-180.png"
+                src={`${import.meta.env.BASE_URL}orkyo-180.png`}
                 alt="Orkyo"
                 className="h-16 w-16 object-contain dark:hidden"
               />
               <img
-                src="/orkyo-dark-180.png"
+                src={`${import.meta.env.BASE_URL}orkyo-dark-180.png`}
                 alt="Orkyo"
                 className="h-16 w-16 object-contain hidden dark:block"
               />
