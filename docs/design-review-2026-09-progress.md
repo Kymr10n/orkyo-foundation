@@ -9,11 +9,11 @@
 
 | PR | Repository | State | Commits | CI |
 |---|---|---|---|---|
-| PR-1 | orkyo-foundation | **open**, [#188](https://github.com/Kymr10n/orkyo-foundation/pull/188) | 17 of 17 planned packages minus WP-22, plus the review correction, the progress doc and one test fix | green (backend-ci, frontend-ci, audits, codecov/patch) |
+| PR-1 | orkyo-foundation | **merged** 2026-09-15, [#188](https://github.com/Kymr10n/orkyo-foundation/pull/188), squash `02017f9` | 17 of 17 planned packages minus WP-22, plus the review correction, the progress doc, two test fixes and two WP-11 follow-ups | green; shipped as `0.24.2-nightly.20260916.02017f9` |
 | PR-4 | orkyo-infra | **open**, [#45](https://github.com/Kymr10n/orkyo-infra/pull/45) | 4 of 5 (WP-22 blocked) | pending; commit 4 needs the migration-gate approval |
 | PR-5 | orkyo-documentation | **open**, [#17](https://github.com/Kymr10n/orkyo-documentation/pull/17) | 2 of 2 | pending |
-| PR-2 | orkyo-saas | branch pushed, **not opened** | 10 of 11 (the CI swap waits for the PR-1 merge SHA) | red until the nightly bump carries PR-1 |
-| PR-3 | orkyo-community | branch pushed, **not opened** | 10 of 12 (the CI swap waits for the PR-1 merge SHA; WP-22 blocked) | red until the nightly bump carries PR-1 |
+| PR-2 | orkyo-saas | **open**, [#259](https://github.com/Kymr10n/orkyo-saas/pull/259) | 11 of 12 (WP-22 blocked) | first run pending; the branch pins the nightly that carries PR-1 |
+| PR-3 | orkyo-community | **open**, [#130](https://github.com/Kymr10n/orkyo-community/pull/130) | 11 of 12 (WP-22 blocked) | first run pending; the branch pins the nightly that carries PR-1 |
 
 All branches are `claude/orkyo-design-review-a6t5ij`. One commit per work package; the subject
 names the package.
@@ -69,10 +69,10 @@ PR CI was the first build, and it is green.
 
 ## 5. PR-2 and PR-3 — the product branches
 
-Both branches carry every product commit except the CI swap (WP-19 + WP-20), which pins
-`reusable-product-ci.yml` by a commit SHA that must exist on foundation `main`. That commit is
-written after PR-1 merges. Until the nightly bump carries PR-1's package, the product CI resolves
-the old package and the branches are red. The PRs open after the bump.
+Both branches carry every product commit. The CI swap (WP-19 + WP-20) pins
+`reusable-product-ci.yml` and every other foundation reusable to the PR-1 merge commit `02017f9`.
+The nightly bump of 2026-09-16 (`0.24.2-nightly.20260916.02017f9`) landed on both product mains
+with green CI, each branch merged that main, and the PRs opened at 02:45Z.
 
 | Package | orkyo-saas | orkyo-community |
 |---|---|---|
@@ -88,7 +88,7 @@ the old package and the branches are red. The PRs open after the bump.
 | WP-17 admin slot | — | done; the READY-stage path check stays until `TenantApp` gains the slot |
 | WP-21 dev.sh / compose | done | done |
 | WP-30 dead dependencies | done; `check-dedupe-sync.mjs` flags unused deps (synced file, identical in both) | done |
-| WP-19 + WP-20 CI swap | waits for the PR-1 merge SHA | waits for the PR-1 merge SHA |
+| WP-19 + WP-20 CI swap | done; the inline jobs became one `product-ci` call | done; the nightly no-change skip rides the audits' `needs` |
 | WP-22 tokens | blocked | blocked |
 
 The product backend and shell changes are not compiled or run locally. `bash -n`, `./dev.sh help`,
@@ -96,16 +96,17 @@ the YAML loads, `check-dedupe-sync.mjs` and the synced-files check pass.
 
 ## 6. Open items for the owner
 
-1. **Review and merge PR-1.** At merge, update the main ruleset's required checks: the three
-   audit checks are now displayed as `audit-secrets / audit / secrets + fs`, `audit-nuget / audit / NuGet`,
-   `audit-npm / audit / npm`.
+1. **Update the foundation main ruleset's required checks.** PR-1 is merged with the new names:
+   `audit-secrets / audit / secrets + fs`, `audit-nuget / audit / NuGet`, `audit-npm / audit / npm`.
+   The product rulesets need the same edit when PR-2 and PR-3 merge: `backend-ci`, `frontend-ci`,
+   `smoke-tests` and `Build Images (…)` become `product-ci / …`.
 2. **Approve PR-4's fourth commit** (one comment marker in `infra/deploy/check_migration_classification.sh`).
 3. **Create the three tokens for WP-22**, then it can be written: `GHCR_PULL_TOKEN` (packages:
    read), `DISPATCH_TOKEN` (actions: write and contents: read on the three product repos),
    `RELEASE_PUSH_TOKEN` (contents: write with the ruleset bypass). `GHCR_TOKEN` stays until one
    release train on staging succeeds with the new secrets.
-4. **After the nightly bump** that follows the PR-1 merge: the CI-swap commit is added to each
-   product branch with the merge SHA, and PR-2 and PR-3 are opened.
+4. **Review and merge PR-2 and PR-3.** Their CI is the first build of the product backend
+   changes against the package that carries PR-1.
 5. **Record the Keycloak and MailHog image digests** for the two `compose.local.yml` files; the
    Postgres and Valkey lines carry the digests CI already uses.
 
