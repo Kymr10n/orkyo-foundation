@@ -107,4 +107,19 @@ describe('AboutPage', () => {
     renderAboutPage();
     expect(screen.getByText(/not shared with third parties/)).toBeInTheDocument();
   });
+
+  it('loads both logos from the bundle, not the domain root', () => {
+    // SaaS builds under /app/ and copies only a curated icon list to the root for the favicon.
+    // The dark logo was not on that list, so a root-absolute src returned the SPA's index.html
+    // and a reader in dark mode saw no logo at all.
+    renderAboutPage();
+
+    const sources = screen.getAllByAltText('Orkyo').map((img) => img.getAttribute('src'));
+
+    expect(sources).toEqual([
+      `${import.meta.env.BASE_URL}orkyo-180.png`,
+      `${import.meta.env.BASE_URL}orkyo-dark-180.png`,
+    ]);
+  });
+
 });
