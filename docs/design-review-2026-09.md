@@ -788,6 +788,14 @@ place where a rename breaks a different repo. Recorded so the next rename checks
 | `release/**` = hotfix line | saas `release-ci.yml:20,428` | infra `docs/runbooks/deploy.md:101-117` |
 
 The one item worth a change: one PAT for five distinct privileges is a single point of compromise.
+
+**Decided 2026-09-16 (owner): keep the single `GHCR_TOKEN`; X4 is accepted, not remediated.** The
+same question was settled the same way in `docs/plans/structural-hardening-2026-05.md:45`, which
+rejected a separate `INFRA_DISPATCH_TOKEN` for the same reason it is rejected here: splitting turns
+one rotation into three, on a stack one person operates, and a missed rotation is the failure this
+project has actually had. The exposure stays what it was — one PAT, held only in GitHub secrets,
+rotated on the schedule in `orkyo-infra` issue #34. Anyone proposing the split a third time should
+read this paragraph first.
 Fine-grained tokens per purpose are a bounded piece of work.
 
 #### Finding X5: plan documents accumulate without status
@@ -890,7 +898,7 @@ Recommended target state: all fifteen corrected in one docs PR per repo (§10). 
 3. Calendar-feed token scope (S2) — Medium.
 4. Sentinel `OrgContext` (S4) — Medium.
 5. Production coordinates and a checksum rewrite in `.claude/settings.json` (S5) — Medium.
-6. One PAT for five privileges (X4) — Medium.
+6. One PAT for five privileges (X4) — Medium. Accepted 2026-09-16; the split was declined.
 7. Deploy path outside the no-silent-defaults linter (S6) — Low.
 8. Three admin settings pages rely on the route guard only, by design
    (`ListDefinitionSettings.tsx:22`, `ResourceTypeSettings.tsx:20`, `TypeCatalogSettings.tsx:37`) — Low.
@@ -1022,7 +1030,7 @@ rejected in all three product repos.
 | 12 | foundation, community | Migration scope field replaces the `feedback` substring | B3 | S |
 | 13 | foundation | Decide the fate of `migrations-foundation/revert/` | B7 | S |
 | 14 | foundation, saas, community | `reusable-product-ci.yml`; foundation consumes its own reusables; one pin per repo | X2 | M |
-| 15 | all | Per-purpose GitHub tokens instead of one `GHCR_TOKEN` | X4 | M |
+| ~~15~~ | all | ~~Per-purpose GitHub tokens instead of one `GHCR_TOKEN`~~ — declined 2026-09-16, see X4 | X4 | — |
 | 16 | saas, community | Remove `@radix-ui/react-label` and `react-separator`; extend dedupe check to unused deps | F9 | S |
 | 17 | foundation | Merge the two `UI-GUIDELINES.md`; fix the status palette | F12 | S |
 | 18 | foundation, community | Community admin page via the `TenantApp` slot API | F1 | S |
