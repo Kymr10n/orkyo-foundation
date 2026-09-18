@@ -4,6 +4,7 @@ import {
 } from "@foundation/src/components/requests/RequestFormDialog";
 import { RequestTreeView } from "@foundation/src/components/requests/RequestTreeView";
 import { RequestListView } from "@foundation/src/components/requests/RequestListView";
+import { NewFromRoutingDialog } from "@foundation/src/components/requests/NewFromRoutingDialog";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Button } from "@foundation/src/components/ui/button";
@@ -57,6 +58,7 @@ import {
     ChevronsUp,
     FileSpreadsheet,
     List,
+    ListOrdered,
     Plus,
     Search,
     TreePine,
@@ -120,6 +122,7 @@ export function RequestsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [spreadsheetImportOpen, setSpreadsheetImportOpen] = useState(false);
+  const [newFromRoutingOpen, setNewFromRoutingOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errorMessage =
     error ??
@@ -533,12 +536,29 @@ export function RequestsPage() {
               Import from spreadsheet
             </Button>
           )}
+          {canEdit && (
+            <Button variant="outline" onClick={() => setNewFromRoutingOpen(true)}>
+              <ListOrdered className="h-4 w-4 mr-2" />
+              New from routing
+            </Button>
+          )}
           <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             New Request
           </Button>
         </div>
       </div>
+
+      {/* Mounted only while open: it loads routings and sites, neither worth fetching on
+          every Requests render. */}
+      {newFromRoutingOpen && (
+        <NewFromRoutingDialog
+          open
+          onOpenChange={(open) => { if (!open) setNewFromRoutingOpen(false); }}
+          requests={requests}
+          defaultSiteId={selectedSiteId}
+        />
+      )}
 
       {/* Mounted only while open: the wizard loads sites and the tenant's plan
           entitlement, and neither is worth fetching on every Requests render. */}

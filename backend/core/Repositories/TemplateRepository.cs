@@ -33,11 +33,18 @@ public class TemplateRepository : ITemplateRepository
         _connectionFactory = connectionFactory;
     }
 
+    // The target types ride along as a sorted key array, the same shape the requests view uses.
     private const string TemplateCols = @"
         id, name, description, entity_type,
         duration_value, duration_unit,
         fixed_start, fixed_end, fixed_duration,
-        created_at, updated_at";
+        created_at, updated_at,
+        COALESCE(
+          (SELECT array_agg(rt.key ORDER BY rt.key)
+             FROM template_target_resource_types ttt
+             JOIN resource_types rt ON rt.id = ttt.resource_type_id
+            WHERE ttt.template_id = templates.id),
+          ARRAY[]::text[]) AS target_resource_type_keys";
 
     private static Template MapTemplate(NpgsqlDataReader r) => new()
     {
@@ -51,7 +58,8 @@ public class TemplateRepository : ITemplateRepository
         FixedEnd = r.GetBoolean(7),
         FixedDuration = r.GetBoolean(8),
         CreatedAt = r.GetDateTime(9),
-        UpdatedAt = r.GetDateTime(10)
+        UpdatedAt = r.GetDateTime(10),
+        TargetResourceTypeKeys = r.GetFieldValue<string[]>(11),
     };
 
     public async Task<List<Template>> GetAllAsync(string entityType, CancellationToken ct = default)
@@ -65,9 +73,39 @@ public class TemplateRepository : ITemplateRepository
     public async Task<Template?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        return await conn.QuerySingleOrDefaultAsync(
+        return await ReadAsync(conn, id, ct);
+    }
+
+    private static Task<Template?> ReadAsync(NpgsqlConnection conn, Guid id, CancellationToken ct)
+        => conn.QuerySingleOrDefaultAsync(
             $"SELECT {TemplateCols} FROM templates WHERE id = @Id",
             p => p.AddWithValue("Id", id), MapTemplate, ct);
+
+    /// <summary>
+    /// Replaces a request template's target types. Only request templates carry them: a
+    /// space or group template has nothing to schedule onto. Every key must name a type.
+    /// </summary>
+    private static async Task WriteTargetTypesAsync(
+        NpgsqlConnection conn, Guid templateId, string entityType, IReadOnlyList<string> keys, CancellationToken ct)
+    {
+        if (keys.Count > 0 && entityType != TemplateEntityTypes.Request)
+            throw new ArgumentException("Only request templates carry target resource types");
+
+        await conn.ExecuteAsync("DELETE FROM template_target_resource_types WHERE template_id = @id",
+            p => p.AddWithValue("id", templateId), ct);
+        if (keys.Count == 0) return;
+
+        var distinct = keys.Distinct(StringComparer.Ordinal).ToArray();
+        var written = await conn.ExecuteAsync(@"
+            INSERT INTO template_target_resource_types (template_id, resource_type_id)
+            SELECT @id, rt.id FROM resource_types rt WHERE rt.key = ANY(@keys)",
+            p =>
+            {
+                p.AddWithValue("id", templateId);
+                p.AddWithValue("keys", distinct);
+            }, ct);
+        if (written != distinct.Length)
+            throw new ArgumentException("One or more target resource type keys do not exist");
     }
 
     public async Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default)
@@ -82,11 +120,13 @@ public class TemplateRepository : ITemplateRepository
             throw new ArgumentException("Description must be 255 characters or fewer");
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
-        return (await conn.QuerySingleOrDefaultAsync($@"
+        var id = await conn.ExecuteScalarAsync<Guid>(@"
             INSERT INTO templates (name, description, entity_type, duration_value, duration_unit, fixed_start, fixed_end, fixed_duration)
             VALUES (@Name, @Description, @EntityType, @DurationValue, @DurationUnit, @FixedStart, @FixedEnd, @FixedDuration)
-            RETURNING {TemplateCols}",
+            RETURNING id",
             p =>
             {
                 p.AddWithValue("Name", request.Name);
@@ -97,7 +137,11 @@ public class TemplateRepository : ITemplateRepository
                 p.AddWithValue("FixedStart", request.FixedStart);
                 p.AddWithValue("FixedEnd", request.FixedEnd);
                 p.AddWithValue("FixedDuration", request.FixedDuration);
-            }, MapTemplate, ct))!;
+            }, ct);
+        await WriteTargetTypesAsync(conn, id, request.EntityType, request.TargetResourceTypeKeys ?? [], ct);
+
+        await tx.CommitAsync(ct);
+        return (await ReadAsync(conn, id, ct))!;
     }
 
     public async Task<Template?> UpdateAsync(Guid id, UpdateTemplateRequest request, CancellationToken ct = default)
@@ -106,15 +150,16 @@ public class TemplateRepository : ITemplateRepository
             throw new ArgumentException($"Invalid entity type: {request.EntityType}");
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
-        return await conn.QuerySingleOrDefaultAsync($@"
+        var updated = await conn.ExecuteAsync(@"
             UPDATE templates SET
                 name = @Name, description = @Description, entity_type = @EntityType,
                 duration_value = @DurationValue, duration_unit = @DurationUnit,
                 fixed_start = @FixedStart, fixed_end = @FixedEnd, fixed_duration = @FixedDuration,
                 updated_at = NOW()
-            WHERE id = @Id
-            RETURNING {TemplateCols}",
+            WHERE id = @Id",
             p =>
             {
                 p.AddWithValue("Id", id);
@@ -126,14 +171,31 @@ public class TemplateRepository : ITemplateRepository
                 p.AddWithValue("FixedStart", request.FixedStart);
                 p.AddWithValue("FixedEnd", request.FixedEnd);
                 p.AddWithValue("FixedDuration", request.FixedDuration);
-            }, MapTemplate, ct);
+            }, ct);
+        if (updated == 0) return null;
+
+        // Null leaves the types alone; a list, empty included, replaces them.
+        if (request.TargetResourceTypeKeys is { } keys)
+            await WriteTargetTypesAsync(conn, id, request.EntityType, keys, ct);
+
+        await tx.CommitAsync(ct);
+        return await ReadAsync(conn, id, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        return await conn.ExecuteAsync("DELETE FROM templates WHERE id = @Id",
-            p => p.AddWithValue("Id", id), ct) > 0;
+        try
+        {
+            return await conn.ExecuteAsync("DELETE FROM templates WHERE id = @Id",
+                p => p.AddWithValue("Id", id), ct) > 0;
+        }
+        catch (PostgresException pg) when (pg.SqlState == PostgresErrorCodes.ForeignKeyViolation)
+        {
+            // routing_steps.operation_template_id is RESTRICT: a routing keeps its operations.
+            throw new ConflictException(
+                "This template is an operation in a routing. Remove it from the routing first.");
+        }
     }
 
     public async Task<List<TemplateItem>> GetTemplateItemsAsync(Guid templateId, CancellationToken ct = default)

@@ -14,6 +14,13 @@ public class Template
     public bool FixedEnd { get; set; } = false;
     public bool FixedDuration { get; set; } = true;
 
+    /// <summary>
+    /// The resource types a request made from this template needs, for request templates.
+    /// Copied onto the request when the template is applied, and what a routing step's
+    /// operation gets scheduled onto.
+    /// </summary>
+    public IReadOnlyList<string> TargetResourceTypeKeys { get; set; } = [];
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -46,6 +53,9 @@ public class CreateTemplateRequest
     public bool FixedStart { get; set; } = false;
     public bool FixedEnd { get; set; } = false;
     public bool FixedDuration { get; set; } = true;
+
+    /// <summary>Request templates only. Omit or empty for a template that targets nothing.</summary>
+    public IReadOnlyList<string>? TargetResourceTypeKeys { get; set; }
 }
 
 public class CreateTemplateItemRequest
@@ -66,4 +76,7 @@ public class UpdateTemplateRequest
     public bool FixedStart { get; set; } = false;
     public bool FixedEnd { get; set; } = false;
     public bool FixedDuration { get; set; } = true;
+
+    /// <summary>Request templates only. Null leaves the types as they are; empty clears them.</summary>
+    public IReadOnlyList<string>? TargetResourceTypeKeys { get; set; }
 }

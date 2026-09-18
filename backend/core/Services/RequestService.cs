@@ -20,6 +20,10 @@ public interface IRequestService
     Task<List<RequestInfo>> SearchAsync(string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default, CancellationToken ct = default);
     /// <summary>Returns the request with the given ID, or <c>null</c> if not found.</summary>
     Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default);
+    /// <summary>
+    /// Throws when <paramref name="parentId"/> cannot take children: not found, or a leaf.
+    /// </summary>
+    Task EnsureCanParentAsync(Guid parentId, CancellationToken ct = default);
     /// <summary>Bulk fetch by ids (used by the conflicted-requests filter).</summary>
     Task<List<RequestInfo>> GetByIdsAsync(IReadOnlyList<Guid> ids, bool includeRequirements = true, CancellationToken ct = default);
     /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
@@ -91,12 +95,15 @@ public class RequestService : IRequestService
     public async Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {
         if (request.ParentRequestId.HasValue)
-        {
-            var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value, ct);
-            if (parentMode == null) throw new NotFoundException("Parent request", request.ParentRequestId.Value);
-            if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot add children to a leaf request");
-        }
+            await EnsureCanParentAsync(request.ParentRequestId.Value, ct);
         return await _repository.CreateAsync(request, ct);
+    }
+
+    public async Task EnsureCanParentAsync(Guid parentId, CancellationToken ct = default)
+    {
+        var parentMode = await _repository.GetPlanningModeAsync(parentId, ct);
+        if (parentMode == null) throw new NotFoundException("Parent request", parentId);
+        if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot add children to a leaf request");
     }
 
     public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)

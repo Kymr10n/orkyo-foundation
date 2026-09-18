@@ -191,6 +191,9 @@ export const qk = {
    */
   templates: (entityType: string) => [`templates-${entityType}`] as const,
 
+  /** Every routing, with its steps (also its own invalidation prefix). */
+  routings: () => ["routings"] as const,
+
   users: {
     /** The tenant's user list (also its own invalidation prefix). */
     all: () => ["users"] as const,

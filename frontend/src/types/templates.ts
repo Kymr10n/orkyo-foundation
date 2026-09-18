@@ -12,6 +12,8 @@ export interface Template {
   entityType: 'request' | 'space' | 'group';
   durationValue?: number;
   durationUnit?: string;
+  /** Request templates: the resource types a request made from it needs. */
+  targetResourceTypeKeys?: string[];
   items?: TemplateItem[];
   createdAt?: string;
   updatedAt?: string;
@@ -23,6 +25,7 @@ export interface CreateTemplateRequest {
   entityType: 'request' | 'space' | 'group';
   durationValue?: number;
   durationUnit?: string;
+  targetResourceTypeKeys?: string[];
   items?: TemplateItem[];
 }
 
@@ -32,5 +35,7 @@ export interface UpdateTemplateRequest {
   entityType?: 'request' | 'space' | 'group';
   durationValue?: number;
   durationUnit?: string;
+  /** Omit to leave the types as they are; an empty list clears them. */
+  targetResourceTypeKeys?: string[];
   items?: TemplateItem[];
 }

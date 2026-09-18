@@ -21,6 +21,7 @@ function renderAt(initialPath: string) {
           <Route index element={<Navigate to="criteria" replace />} />
           <Route path="criteria" element={<Stub id="criteria-settings" />} />
           <Route path="templates" element={<Stub id="template-settings" />} />
+          <Route path="routings" element={<Stub id="routing-settings" />} />
           <Route path="presets" element={<Stub id="preset-settings" />} />
           <Route path="scheduling" element={<Stub id="scheduling-settings" />} />
         </Route>
@@ -40,9 +41,9 @@ describe('SettingsPage', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
   });
 
-  it('renders the four editor-open tabs (no role branching)', () => {
+  it('renders the five editor-open tabs (no role branching)', () => {
     renderAt('/settings/criteria');
-    for (const label of ['Criteria', 'Templates', 'Presets', 'Scheduling']) {
+    for (const label of ['Criteria', 'Templates', 'Routings', 'Presets', 'Scheduling']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
   });
@@ -62,6 +63,7 @@ describe('SettingsPage', () => {
   it.each([
     ['/settings/criteria', 'criteria-settings'],
     ['/settings/templates', 'template-settings'],
+    ['/settings/routings', 'routing-settings'],
     ['/settings/presets', 'preset-settings'],
     ['/settings/scheduling', 'scheduling-settings'],
   ])('deep-links %s renders the right child', (path, id) => {

@@ -80,6 +80,16 @@ public interface IRequestRepository
     /// </summary>
     Task<int> BatchApplyPlacementsAsync(IReadOnlyList<PlacementWrite> placements, CancellationToken ct = default);
 
+    /// <summary>
+    /// Creates a parent with its children and the finish-to-start edges between them in one
+    /// transaction — nothing is written unless everything is. Edges name children by index.
+    /// </summary>
+    Task<(RequestInfo Parent, IReadOnlyList<Guid> ChildIds)> CreateChainAsync(
+        CreateRequestRequest parent,
+        IReadOnlyList<CreateRequestRequest> children,
+        IReadOnlyList<ChainEdge> edges,
+        CancellationToken ct = default);
+
     // ── Requirements ────────────────────────────────────────────────────────
 
     /// <summary>

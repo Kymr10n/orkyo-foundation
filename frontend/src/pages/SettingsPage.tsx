@@ -18,6 +18,7 @@ const LEGACY_TAB_TO_PATH: Record<string, string> = {
   // editor-open settings tabs (query-param → path)
   criteria: '/settings/criteria',
   templates: '/settings/templates',
+  routings: '/settings/routings',
   presets: '/settings/presets',
   scheduling: '/settings/scheduling',
   // governance tabs moved to the tenant-admin Administration page
@@ -39,6 +40,7 @@ export function SettingsPage() {
   const tabs = useMemo<PageTab[]>(() => [
     { value: 'criteria', label: 'Criteria' },
     { value: 'templates', label: 'Templates' },
+    { value: 'routings', label: 'Routings' },
     { value: 'presets', label: 'Presets' },
     { value: 'scheduling', label: 'Scheduling' },
   ], []);
@@ -47,7 +49,7 @@ export function SettingsPage() {
     <PageLayout>
       <PageHeader
         title="Settings"
-        description="Manage shared definitions: criteria, templates, presets, and scheduling"
+        description="Manage shared definitions: criteria, templates, routings, presets, and scheduling"
       />
       <PageTabs
         tabs={tabs}

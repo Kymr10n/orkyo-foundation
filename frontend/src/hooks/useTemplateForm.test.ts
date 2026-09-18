@@ -10,6 +10,7 @@ function makeState(overrides: Partial<TemplateFormState> = {}): TemplateFormStat
     description: '',
     durationValue: '1',
     durationUnit: 'days',
+    targetResourceTypeKeys: [],
     requirements: new Map(),
     ...overrides,
   };
@@ -128,6 +129,14 @@ describe('templateFormReducer', () => {
       expect(result.requirements.get('c1')).toBe('true');
     });
 
+    it('loads the target resource types the template names', () => {
+      const template: Template = {
+        id: 't1', name: 'Mill', entityType: 'request', targetResourceTypeKeys: ['mill', 'fixture'],
+      };
+      const result = templateFormReducer(makeState(), { type: 'LOAD_TEMPLATE', template });
+      expect(result.targetResourceTypeKeys).toEqual(['mill', 'fixture']);
+    });
+
     it('handles template without optional fields', () => {
       const template: Template = { id: 't1', name: 'Minimal', entityType: 'request' };
       const state = makeState({ name: 'Old', durationValue: '10' });
@@ -137,6 +146,7 @@ describe('templateFormReducer', () => {
       expect(result.durationValue).toBe('1');
       expect(result.durationUnit).toBe('hours');
       expect(result.requirements.size).toBe(0);
+      expect(result.targetResourceTypeKeys).toEqual([]);
     });
   });
 

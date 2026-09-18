@@ -454,83 +454,7 @@ public class RequestRepository : IRequestRepository
 
         try
         {
-            var cmd = new NpgsqlCommand(
-                $@"INSERT INTO requests (name, description, parent_request_id, planning_mode, sort_order,
-                                        site_id, request_item_id, icon,
-                                        start_ts, end_ts, earliest_start_ts, latest_end_ts,
-                                        minimal_duration_value, minimal_duration_unit,
-                                        actual_duration_value, actual_duration_unit,
-                                        status, scheduling_settings_apply)
-                   VALUES (@name, @description, @parent_request_id, @planning_mode, @sort_order,
-                           @site_id, @request_item_id, @icon,
-                           @start_ts, @end_ts, @earliest_start_ts, @latest_end_ts,
-                           @minimal_duration_value, @minimal_duration_unit,
-                           @actual_duration_value, @actual_duration_unit,
-                           @status, @scheduling_settings_apply)
-                   RETURNING id",
-                db, transaction);
-
-            cmd.Parameters.AddWithValue("name", request.Name);
-            cmd.Parameters.AddNullable("description", request.Description);
-            cmd.Parameters.AddNullable("parent_request_id", request.ParentRequestId);
-            cmd.Parameters.AddWithValue("planning_mode", EnumMapper.ToDbValue(request.PlanningMode));
-            cmd.Parameters.AddWithValue("sort_order", request.SortOrder);
-            cmd.Parameters.AddNullable("site_id", effectiveSiteId);
-            cmd.Parameters.AddNullable("request_item_id", request.RequestItemId);
-            cmd.Parameters.AddNullable("icon", request.Icon);
-            cmd.Parameters.AddNullable("start_ts", request.StartTs);
-            cmd.Parameters.AddNullable("end_ts", request.EndTs);
-            cmd.Parameters.AddNullable("earliest_start_ts", request.EarliestStartTs);
-            cmd.Parameters.AddNullable("latest_end_ts", request.LatestEndTs);
-            cmd.Parameters.AddWithValue("minimal_duration_value", request.MinimalDurationValue);
-            cmd.Parameters.AddWithValue("minimal_duration_unit", EnumMapper.ToDbValue(request.MinimalDurationUnit));
-            cmd.Parameters.AddNullable("actual_duration_value", request.ActualDurationValue);
-            cmd.Parameters.AddWithValue("actual_duration_unit", request.ActualDurationUnit.HasValue
-                ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value)
-                : (object)DBNull.Value);
-            cmd.Parameters.AddWithValue("status", EnumMapper.ToDbValue(request.Status));
-            cmd.Parameters.AddWithValue("scheduling_settings_apply", request.SchedulingSettingsApply);
-
-            using var reader = await cmd.ExecuteReaderAsync(ct);
-            await reader.ReadAsync(ct);
-            var requestId = reader.GetGuid(0);
-            reader.Close();
-
-            // Targets first: they are what the assignment write validates against.
-            //
-            // A caller that says nothing means "this needs a place" — ONE place. Targeting every
-            // placeable type would mean needing a room *and* a mill *and* a drill, which no
-            // request wants and nothing could satisfy. So: the tenant's single placeable type,
-            // preferring `space` where it still exists so the historical meaning is unchanged,
-            // and falling to the lowest key otherwise. Stated explicitly rather than left empty —
-            // an empty target list is a real state (a request needing no resource) and must not be
-            // reachable by omission.
-            var targets = request.TargetResourceTypeKeys
-                ?? await db.QueryListAsync(
-                    "SELECT key FROM resource_types WHERE has_geometry AND is_active "
-                    + "ORDER BY (key = 'space') DESC, key LIMIT 1",
-                    null, r => r.GetString(0), ct);
-            // With no types activated yet the fallback finds nothing — refuse rather than
-            // write the empty list the comment above rules out.
-            if (request.TargetResourceTypeKeys is null && targets.Count == 0)
-                throw new ArgumentException(
-                    "No active placeable resource type exists. Activate one under Configuration, "
-                    + "or specify target resource types explicitly.");
-            await WriteTargetResourceTypesAsync(db, transaction, requestId, targets, ct);
-
-            // Create resource assignment if a resource + time window was provided.
-            if (request.ResourceIds is { Count: > 0 } newResources
-                && request.StartTs.HasValue && request.EndTs.HasValue)
-            {
-                await WriteRequestResourcesAsync(
-                    db, transaction, requestId, newResources,
-                    request.StartTs.Value, request.EndTs.Value, ct);
-            }
-
-            if (request.Requirements is { Count: > 0 })
-            {
-                await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
-            }
+            var requestId = await InsertRequestAsync(db, transaction, request, effectiveSiteId, ct);
 
             await transaction.CommitAsync(ct);
 
@@ -553,6 +477,137 @@ public class RequestRepository : IRequestRepository
             }
 
             return createdRequest;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(ct);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The INSERT of one request with its targets, resources and requirements, inside the
+    /// caller's transaction. <see cref="CreateAsync"/> wraps it for a single request;
+    /// <see cref="CreateChainAsync"/> calls it once per member of a chain.
+    /// </summary>
+    private static async Task<Guid> InsertRequestAsync(
+        NpgsqlConnection db, NpgsqlTransaction transaction, CreateRequestRequest request,
+        Guid? effectiveSiteId, CancellationToken ct)
+    {
+        var cmd = new NpgsqlCommand(
+            $@"INSERT INTO requests (name, description, parent_request_id, planning_mode, sort_order,
+                                        site_id, request_item_id, icon,
+                                        start_ts, end_ts, earliest_start_ts, latest_end_ts,
+                                        minimal_duration_value, minimal_duration_unit,
+                                        actual_duration_value, actual_duration_unit,
+                                        status, scheduling_settings_apply)
+                   VALUES (@name, @description, @parent_request_id, @planning_mode, @sort_order,
+                           @site_id, @request_item_id, @icon,
+                           @start_ts, @end_ts, @earliest_start_ts, @latest_end_ts,
+                           @minimal_duration_value, @minimal_duration_unit,
+                           @actual_duration_value, @actual_duration_unit,
+                           @status, @scheduling_settings_apply)
+                   RETURNING id",
+            db, transaction);
+
+        cmd.Parameters.AddWithValue("name", request.Name);
+        cmd.Parameters.AddNullable("description", request.Description);
+        cmd.Parameters.AddNullable("parent_request_id", request.ParentRequestId);
+        cmd.Parameters.AddWithValue("planning_mode", EnumMapper.ToDbValue(request.PlanningMode));
+        cmd.Parameters.AddWithValue("sort_order", request.SortOrder);
+        cmd.Parameters.AddNullable("site_id", effectiveSiteId);
+        cmd.Parameters.AddNullable("request_item_id", request.RequestItemId);
+        cmd.Parameters.AddNullable("icon", request.Icon);
+        cmd.Parameters.AddNullable("start_ts", request.StartTs);
+        cmd.Parameters.AddNullable("end_ts", request.EndTs);
+        cmd.Parameters.AddNullable("earliest_start_ts", request.EarliestStartTs);
+        cmd.Parameters.AddNullable("latest_end_ts", request.LatestEndTs);
+        cmd.Parameters.AddWithValue("minimal_duration_value", request.MinimalDurationValue);
+        cmd.Parameters.AddWithValue("minimal_duration_unit", EnumMapper.ToDbValue(request.MinimalDurationUnit));
+        cmd.Parameters.AddNullable("actual_duration_value", request.ActualDurationValue);
+        cmd.Parameters.AddWithValue("actual_duration_unit", request.ActualDurationUnit.HasValue
+            ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value)
+            : (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("status", EnumMapper.ToDbValue(request.Status));
+        cmd.Parameters.AddWithValue("scheduling_settings_apply", request.SchedulingSettingsApply);
+
+        using var reader = await cmd.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
+        var requestId = reader.GetGuid(0);
+        reader.Close();
+
+        // Targets first: they are what the assignment write validates against.
+        //
+        // A caller that says nothing means "this needs a place" — ONE place. Targeting every
+        // placeable type would mean needing a room *and* a mill *and* a drill, which no
+        // request wants and nothing could satisfy. So: the tenant's single placeable type,
+        // preferring `space` where it still exists so the historical meaning is unchanged,
+        // and falling to the lowest key otherwise. Stated explicitly rather than left empty —
+        // an empty target list is a real state (a request needing no resource) and must not be
+        // reachable by omission.
+        var targets = request.TargetResourceTypeKeys
+            ?? await db.QueryListAsync(
+                "SELECT key FROM resource_types WHERE has_geometry AND is_active "
+                + "ORDER BY (key = 'space') DESC, key LIMIT 1",
+                null, r => r.GetString(0), ct);
+        // With no types activated yet the fallback finds nothing — refuse rather than
+        // write the empty list the comment above rules out.
+        if (request.TargetResourceTypeKeys is null && targets.Count == 0)
+            throw new ArgumentException(
+                "No active placeable resource type exists. Activate one under Configuration, "
+                + "or specify target resource types explicitly.");
+        await WriteTargetResourceTypesAsync(db, transaction, requestId, targets, ct);
+
+        // Create resource assignment if a resource + time window was provided.
+        if (request.ResourceIds is { Count: > 0 } newResources
+            && request.StartTs.HasValue && request.EndTs.HasValue)
+        {
+            await WriteRequestResourcesAsync(
+                db, transaction, requestId, newResources,
+                request.StartTs.Value, request.EndTs.Value, ct);
+        }
+
+        if (request.Requirements is { Count: > 0 })
+        {
+            await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
+        }
+
+        return requestId;
+    }
+
+    public async Task<(RequestInfo Parent, IReadOnlyList<Guid> ChildIds)> CreateChainAsync(
+        CreateRequestRequest parent,
+        IReadOnlyList<CreateRequestRequest> children,
+        IReadOnlyList<ChainEdge> edges,
+        CancellationToken ct = default)
+    {
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+
+        if (parent.SiteId.HasValue && !await db.ExistsAsync("sites", parent.SiteId.Value, ct))
+            throw new ArgumentException("Invalid site_id: site does not exist");
+
+        await using var transaction = await db.BeginTransactionAsync(ct);
+
+        try
+        {
+            var parentId = await InsertRequestAsync(db, transaction, parent, parent.SiteId, ct);
+
+            var childIds = new List<Guid>(children.Count);
+            foreach (var child in children)
+                childIds.Add(await InsertRequestAsync(
+                    db, transaction, child with { ParentRequestId = parentId }, child.SiteId, ct));
+
+            // The edges are between rows that did not exist a moment ago, so the service-level
+            // rules (leaves only, no duplicate, no cycle) hold by construction of the chain.
+            foreach (var edge in edges)
+                await RequestDependencyRepository.InsertEdgeAsync(
+                    db, childIds[edge.PredecessorIndex], childIds[edge.SuccessorIndex],
+                    DependencyTypes.FinishToStart, edge.LagMinutes, ct);
+
+            await transaction.CommitAsync(ct);
+
+            return (await ReadByIdAsync(db, parentId, ct), childIds);
         }
         catch
         {

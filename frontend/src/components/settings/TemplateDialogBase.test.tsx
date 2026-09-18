@@ -65,6 +65,21 @@ vi.mock('@foundation/src/lib/api/criteria-api', () => ({
   getCriteria: () => mockGetCriteria(),
 }));
 
+// Two targetable types and one directory type, which the field must not offer.
+vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
+  useResourceTypes: () => ({
+    data: [
+      { id: 'rt1', key: 'mill', displayName: 'Mill', hasDirectoryProfile: false },
+      { id: 'rt2', key: 'saw', displayName: 'Saw', hasDirectoryProfile: false },
+      { id: 'rt3', key: 'person', displayName: 'Person', hasDirectoryProfile: true },
+    ],
+  }),
+}));
+
+vi.mock('@foundation/src/components/resources/resource-type-icon', () => ({
+  resourceTypeIcon: () => () => null,
+}));
+
 vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, getDataTypeColor: () => 'bg-blue-100 text-blue-800' };
@@ -200,6 +215,49 @@ describe('TemplateDialogBase', () => {
       }));
     });
     expect(defaultProps.onSuccess).toHaveBeenCalled();
+  });
+
+  // ── Target resource types ─────────────────────────────
+  it('offers the targetable resource types on a request template and sends the ticked ones', async () => {
+    render(<TemplateDialogBase {...defaultProps} />);
+    await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
+
+    expect(screen.getByLabelText('Mill')).toBeInTheDocument();
+    expect(screen.getByLabelText('Saw')).toBeInTheDocument();
+    // Directory types carry people, which attach many-to-one elsewhere.
+    expect(screen.queryByLabelText('Person')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText(/Standard Week/), { target: { value: 'Milling' } });
+    fireEvent.click(screen.getByLabelText('Mill'));
+    submit();
+
+    await waitFor(() => {
+      expect(mockCreateTemplate).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'Milling',
+        targetResourceTypeKeys: ['mill'],
+      }));
+    });
+  });
+
+  it('pre-ticks the types an existing template names and keeps them on save', async () => {
+    render(<TemplateDialogBase {...defaultProps} template={{ ...existingTemplate, targetResourceTypeKeys: ['saw'] }} />);
+    await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
+
+    expect(screen.getByLabelText('Saw')).toBeChecked();
+    expect(screen.getByLabelText('Mill')).not.toBeChecked();
+    submit();
+
+    await waitFor(() => {
+      expect(mockUpdateTemplate).toHaveBeenCalledWith('tpl-1', expect.objectContaining({
+        targetResourceTypeKeys: ['saw'],
+      }));
+    });
+  });
+
+  it('does not offer resource types on a space template', async () => {
+    render(<TemplateDialogBase {...defaultProps} entityType="space" />);
+    await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
+    expect(screen.queryByText('Needs')).not.toBeInTheDocument();
   });
 
   // ── Submit – edit mode ────────────────────────────────

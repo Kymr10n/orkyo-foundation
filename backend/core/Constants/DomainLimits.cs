@@ -37,6 +37,12 @@ public static class DomainLimits
     /// <summary>Maximum length for template descriptions</summary>
     public const int TemplateDescriptionMaxLength = 1000;
 
+    /// <summary>routings.name varchar(255).</summary>
+    public const int RoutingNameMaxLength = 255;
+
+    /// <summary>routings.description; text in the schema, capped like a template's.</summary>
+    public const int RoutingDescriptionMaxLength = 1000;
+
     /// <summary>Maximum length for resource group names</summary>
     public const int ResourceGroupNameMaxLength = 255;
 

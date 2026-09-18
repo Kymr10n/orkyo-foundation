@@ -8,6 +8,8 @@ export interface TemplateFormState {
   description: string;
   durationValue: string;
   durationUnit: DurationUnit;
+  /** The resource types a request made from this template needs. */
+  targetResourceTypeKeys: string[];
   requirements: Map<string, CriterionValue | null>;
 }
 
@@ -67,6 +69,7 @@ export function templateFormReducer(
         description: action.template.description || "",
         durationValue: action.template.durationValue?.toString() || "1",
         durationUnit: (action.template.durationUnit || "hours") as DurationUnit,
+        targetResourceTypeKeys: action.template.targetResourceTypeKeys ?? [],
         requirements: reqMap,
       };
     }
@@ -85,6 +88,7 @@ const initialState: TemplateFormState = {
   description: "",
   durationValue: "1",
   durationUnit: "days",
+  targetResourceTypeKeys: [],
   requirements: new Map(),
 };
 

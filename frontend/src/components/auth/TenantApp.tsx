@@ -62,6 +62,7 @@ const ResourceListTab = lazy(() => import('@foundation/src/components/resources/
 const ResourceGroupsTab = lazy(() => import('@foundation/src/components/resources/ResourceTypeTabs').then(m => ({ default: m.ResourceGroupsTab })));
 const SiteSettings = lazy(() => import('@foundation/src/components/settings/SiteSettings').then(m => ({ default: m.SiteSettings })));
 const TemplateSettings = lazy(() => import('@foundation/src/components/settings/TemplateSettings').then(m => ({ default: m.TemplateSettings })));
+const RoutingSettings = lazy(() => import('@foundation/src/components/settings/RoutingSettings').then(m => ({ default: m.RoutingSettings })));
 const PresetSettings = lazy(() => import('@foundation/src/components/settings/PresetSettings').then(m => ({ default: m.PresetSettings })));
 const UserSettings = lazy(() => import('@foundation/src/components/settings/UserSettings').then(m => ({ default: m.UserSettings })));
 const OrganizationSettings = lazy(() => import('@foundation/src/components/settings/OrganizationSettings').then(m => ({ default: m.OrganizationSettings })));
@@ -231,6 +232,7 @@ export function TenantApp({
             <Route index element={<Navigate to="criteria" replace />} />
             <Route path="criteria" element={<CriteriaSettings />} />
             <Route path="templates" element={<TemplateSettings entityType="request" />} />
+            <Route path="routings" element={<RoutingSettings />} />
             <Route path="presets" element={<PresetSettings />} />
             <Route path="scheduling" element={<SchedulingSettings />} />
           </Route>

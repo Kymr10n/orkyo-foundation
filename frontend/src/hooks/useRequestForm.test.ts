@@ -134,6 +134,22 @@ describe('formReducer', () => {
       expect(result.requirements.get('c2')).toEqual({ value: 'high' });
     });
 
+    it('brings the template\'s target resource types along', () => {
+      const template: Template = {
+        id: 't1', name: 'Mill', entityType: 'request', targetResourceTypeKeys: ['mill'],
+      };
+      const state = makeState({ targetResourceTypeKeys: ['space'] });
+      const result = formReducer(state, { type: 'APPLY_TEMPLATE', template });
+      expect(result.targetResourceTypeKeys).toEqual(['mill']);
+    });
+
+    it('leaves the request\'s own types alone when the template names none', () => {
+      const template: Template = { id: 't1', name: 'Plain', entityType: 'request', targetResourceTypeKeys: [] };
+      const state = makeState({ targetResourceTypeKeys: ['space'] });
+      const result = formReducer(state, { type: 'APPLY_TEMPLATE', template });
+      expect(result.targetResourceTypeKeys).toEqual(['space']);
+    });
+
     it('defaults duration when template has no duration', () => {
       const template: Template = {
         id: 't1',
