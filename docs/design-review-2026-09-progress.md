@@ -9,11 +9,11 @@
 
 | PR | Repository | State | Commits | CI |
 |---|---|---|---|---|
-| PR-1 | orkyo-foundation | **merged** 2026-09-15, [#188](https://github.com/Kymr10n/orkyo-foundation/pull/188), squash `02017f9` | 17 of 17 planned packages minus WP-22, plus the review correction, the progress doc, two test fixes and two WP-11 follow-ups | green; shipped as `0.24.2-nightly.20260916.02017f9` |
-| PR-4 | orkyo-infra | **open**, [#45](https://github.com/Kymr10n/orkyo-infra/pull/45) | 4 of 5 (WP-22 blocked) | pending; commit 4 needs the migration-gate approval |
+| PR-1 | orkyo-foundation | **merged** 2026-09-15, [#188](https://github.com/Kymr10n/orkyo-foundation/pull/188), squash `02017f9` | 16 of 16 planned packages (WP-22 withdrawn), plus the review correction, the progress doc, two test fixes and two WP-11 follow-ups | green; shipped as `0.24.2-nightly.20260916.02017f9` |
+| PR-4 | orkyo-infra | **open**, [#45](https://github.com/Kymr10n/orkyo-infra/pull/45) | 4 of 4 (WP-22 withdrawn) | pending; commit 4 needs the migration-gate approval |
 | PR-5 | orkyo-documentation | **open**, [#17](https://github.com/Kymr10n/orkyo-documentation/pull/17) | 2 of 2 | pending |
-| PR-2 | orkyo-saas | **open**, [#259](https://github.com/Kymr10n/orkyo-saas/pull/259) | 11 of 12 (WP-22 blocked) | first run pending; the branch pins the nightly that carries PR-1 |
-| PR-3 | orkyo-community | **open**, [#130](https://github.com/Kymr10n/orkyo-community/pull/130) | 11 of 12 (WP-22 blocked) | first run pending; the branch pins the nightly that carries PR-1 |
+| PR-2 | orkyo-saas | **open**, [#259](https://github.com/Kymr10n/orkyo-saas/pull/259) | 11 of 11 (WP-22 withdrawn) | first run pending; the branch pins the nightly that carries PR-1 |
+| PR-3 | orkyo-community | **open**, [#130](https://github.com/Kymr10n/orkyo-community/pull/130) | 11 of 11 (WP-22 withdrawn) | first run pending; the branch pins the nightly that carries PR-1 |
 
 All branches are `claude/orkyo-design-review-a6t5ij`. One commit per work package; the subject
 names the package.
@@ -43,7 +43,8 @@ names the package.
 | fix(tenancy): tenant settings construct without a tenant | WP-11 | Found in the first local SaaS run: every request without a tenant, `/health` too, returned 500. `TenantSettingsRepository` now takes `IOrgContextAccessor`. CI did not see it because the test host always has a tenant |
 | test: hold the keepalive tests on the wire, not a timer | — | `AiChatStreamTests` held a silent turn on a 260 ms timer and expected two 40 ms beats; a loaded runner fitted one. The turn now waits until the body has carried the expected number of keepalives |
 
-Not in PR-1: **WP-22** (per-purpose GitHub tokens). See §6.
+Not in PR-1: **WP-22** (per-purpose GitHub tokens), and now in no PR at all — withdrawn
+2026-09-16. See §6.
 
 Verification: the frontend was linted, type-checked and tested locally (326 files, 4,163 tests).
 The backend could not be compiled in the authoring environment (no .NET SDK, no Docker daemon);
@@ -89,7 +90,7 @@ with green CI, each branch merged that main, and the PRs opened at 02:45Z.
 | WP-21 dev.sh / compose | done | done |
 | WP-30 dead dependencies | done; `check-dedupe-sync.mjs` flags unused deps (synced file, identical in both) | done |
 | WP-19 + WP-20 CI swap | done; the inline jobs became one `product-ci` call | done; the nightly no-change skip rides the audits' `needs` |
-| WP-22 tokens | blocked | blocked |
+| WP-22 tokens | withdrawn 2026-09-16 | withdrawn 2026-09-16 |
 
 The product backend and shell changes are not compiled or run locally. `bash -n`, `./dev.sh help`,
 the YAML loads, `check-dedupe-sync.mjs` and the synced-files check pass.
@@ -101,10 +102,11 @@ the YAML loads, `check-dedupe-sync.mjs` and the synced-files check pass.
    The product rulesets need the same edit when PR-2 and PR-3 merge: `backend-ci`, `frontend-ci`,
    `smoke-tests` and `Build Images (…)` become `product-ci / …`.
 2. **Approve PR-4's fourth commit** (one comment marker in `infra/deploy/check_migration_classification.sh`).
-3. **Create the three tokens for WP-22**, then it can be written: `GHCR_PULL_TOKEN` (packages:
-   read), `DISPATCH_TOKEN` (actions: write and contents: read on the three product repos),
-   `RELEASE_PUSH_TOKEN` (contents: write with the ruleset bypass). `GHCR_TOKEN` stays until one
-   release train on staging succeeds with the new secrets.
+3. ~~Create the three tokens for WP-22.~~ **Closed 2026-09-16: the owner declined the split.**
+   No token to create, nothing to revoke, and no workflow in any repository ever referenced the
+   per-purpose names. Finding X4 is accepted rather than remediated; the reasoning is recorded in
+   `design-review-2026-09.md` under Finding X4, and it repeats the same decision made in
+   `docs/plans/structural-hardening-2026-05.md:45`.
 4. **Review and merge PR-2 and PR-3.** Their CI is the first build of the product backend
    changes against the package that carries PR-1.
 5. **Record the Keycloak and MailHog image digests** for the two `compose.local.yml` files; the

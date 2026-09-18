@@ -47,7 +47,7 @@ Each decision has a default. A commit that depends on a decision names it.
 |---|---|---|---|---|
 | D-A | Calendar-feed token scope: document "site or tenant", or filter to the token owner's assignments | Filter to the owner. The token table already stores `user_id`. The comment already promises it | S2 | WP-09 |
 | D-B | Fate of `backend/migrations-foundation/revert/` (23 files, no consumer) | Delete, and record in `orkyo-infra/docs/migrations/classification.md` that rollback is snapshot-based | B7 | WP-08 |
-| D-C | One `GHCR_TOKEN` or per-purpose tokens | Per-purpose: one for GHCR pulls, one for cross-repo dispatch, one for the ruleset-bypass push. Three secrets, three rotations. The secrets exist before PR-1 opens | X4 | WP-22 |
+| D-C | One `GHCR_TOKEN` or per-purpose tokens | **Decided 2026-09-16: one token.** Three secrets mean three rotations on a stack one person operates, and the missed rotation is the failure this project has actually had. WP-22 is withdrawn | X4 | ~~WP-22~~ |
 | D-D | Pagination or virtualization per unpaged list | Paged for admin-shaped lists (users, sites, criteria, templates, resource types). Virtualized for resource instances | F4 | WP-24 |
 | D-E | Extend the no-silent-defaults linter into `infra/deploy/**` | Yes, with markers on the deliberate fallbacks first | S6 | WP-23 |
 
@@ -282,17 +282,15 @@ against the sibling checkouts and is wired into `template-sync-check.yml`.
 
 Checks: `check-claude-dir.sh` exits 0 on the current tree.
 
-### WP-22 · Per-purpose GitHub tokens (foundation half)
+### WP-22 · Per-purpose GitHub tokens — **withdrawn 2026-09-16**
 
-Commit 17 of 17 · Closes: X4 (token row, foundation side) · Size: S · Risk: medium · Waits for: D-C
-and the secrets
+Not written, in any repository. D-C was decided the other way: the stack keeps one `GHCR_TOKEN`,
+and X4 is accepted rather than remediated — see the decision note in `design-review-2026-09.md`
+under Finding X4.
 
-Changes (default D-C): `release-ci.yml:742`, `advance-classification-baseline.yml:30`,
-`template-sync-check.yml:48` and the reusable workflows reference `GHCR_PULL_TOKEN`,
-`DISPATCH_TOKEN` or `RELEASE_PUSH_TOKEN` per job. `GHCR_TOKEN` stays defined until PR-4 completes
-the rotation, so nothing breaks between merges.
-
-Checks: one nightly publish on `main` after merge uses the new secrets.
+Nothing was half-done: no workflow in any of the four repositories ever referenced
+`GHCR_PULL_TOKEN`, `DISPATCH_TOKEN` or `RELEASE_PUSH_TOKEN`, so there is nothing to revert and no
+secret to create. The PRs that listed this package as blocked are complete without it.
 
 ## 4. PR-2 · orkyo-saas
 
@@ -388,11 +386,9 @@ Commit 10 of 11 · Closes: F9 (saas share) · Size: S · Risk: none
 Changes: `frontend/package.json:44,48` drop `@radix-ui/react-label` and `@radix-ui/react-separator`.
 `scripts/check-dedupe-sync.mjs` flags product dependencies that no source file imports.
 
-### WP-22 · Token references
+### WP-22 · Token references — **withdrawn 2026-09-16**
 
-Commit 11 of 11 · Closes: X4 (saas share) · Size: S · Risk: low · Waits for: D-C
-
-Changes: workflow jobs reference the per-purpose secret each needs.
+Not written. D-C was decided the other way: one `GHCR_TOKEN` stays. This PR is complete without it.
 
 ## 5. PR-3 · orkyo-community
 
@@ -484,9 +480,9 @@ Commit 11 of 12 · Closes: F9 (community share) · Size: S · Risk: none
 
 Changes: `frontend/package.json:43,47` drop the two radix packages.
 
-### WP-22 · Token references
+### WP-22 · Token references — **withdrawn 2026-09-16**
 
-Commit 12 of 12 · Closes: X4 (community share) · Size: S · Risk: low · Waits for: D-C
+Not written. D-C was decided the other way: one `GHCR_TOKEN` stays. This PR is complete without it.
 
 ## 6. PR-4 · orkyo-infra
 
@@ -538,14 +534,11 @@ Changes: `lint-default-ok` markers on the deliberate fallbacks named in
 
 Checks: `pr-checks.yml` lint job green. A scratch `${X:-y}` in `infra/deploy/` turns it red.
 
-### WP-22 · Per-purpose GitHub tokens
+### WP-22 · Per-purpose GitHub tokens — **withdrawn 2026-09-16**
 
-Commit 5 of 5 · Closes: X4 (token row) · Size: M · Risk: medium · Waits for: D-C · **Needs approval**
-
-Changes (default D-C): `release.yml:41`, `pr-checks.yml:226`, `deploy.yml` and the composite actions
-reference `GHCR_PULL_TOKEN`, `DISPATCH_TOKEN` or `RELEASE_PUSH_TOKEN` per job.
-`docs/deploy-env-vars.md` and `docs/runbooks/secret-rotation.md` list the three. `GHCR_TOKEN` is
-revoked only after one full release train on staging succeeds with the new secrets.
+Not written. D-C was decided the other way: one `GHCR_TOKEN` stays, and `GHCR_TOKEN` is not revoked.
+The rotation runbook keeps describing the one secret it always described. This PR is complete
+without it.
 
 Checks: one staging release train.
 
@@ -629,7 +622,7 @@ what makes that load tractable.
 | X1 | PR-1, PR-2, PR-3 / WP-02 | B8 | PR-1 / WP-08 | F8 | PR-1 / WP-12 |
 | X2 | PR-1 / WP-18, WP-19 → PR-2, PR-3 | D1 | PR-1 / WP-01; PR-2–5 / WP-03 | F9 | PR-2, PR-3 / WP-30 |
 | X3 | PR-1 / WP-21 → PR-2, PR-3 | | | F10 | on touch / WP-28 |
-| X4 | PR-1–4 / WP-22 (token); rest is a register | | | F11 | on touch / WP-31 |
+| X4 | accepted 2026-09-16, WP-22 withdrawn; the rest is a register | | | F11 | on touch / WP-31 |
 | X5 | PR-4 / WP-03 | | | F12 | PR-1 / WP-01 |
 
 ## 12. Not in this plan
