@@ -67,11 +67,22 @@ public class SchedulingProblemBuilderOccupancyTests
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(scheduled);
 
+        // The booked resource is in the run's pool: only bookings on pool resources occupy it.
         var resources = new Mock<IResourceRepository>();
-        resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
         resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
+            .ReturnsAsync([new ResourceInfo
+            {
+                Id = ResourceId,
+                ResourceTypeId = Guid.NewGuid(),
+                ResourceTypeKey = ResourceTypeKeys.Space,
+                Name = "Room",
+                AllocationMode = AllocationModes.Exclusive,
+                BaseAvailabilityPercent = 100,
+                IsActive = true,
+                CrossSiteAllowed = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            }]);
 
         var capabilities = new Mock<IResourceCapabilityRepository>();
         capabilities.Setup(c => c.GetByResourcesAsync(
@@ -92,14 +103,17 @@ public class SchedulingProblemBuilderOccupancyTests
                 It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
+        var criteria = new Mock<ICriteriaRepository>();
+        criteria.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
         return new SchedulingProblemBuilder(
             requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object);
+            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object);
     }
 
     private static AutoSchedulePreviewRequest Preview() => new(
         SiteId, new DateOnly(2026, 3, 1), new DateOnly(2026, 3, 31),
-        ResourceTypeKey: ResourceTypeKeys.Space);
+        ResourceTypeKeys: [ResourceTypeKeys.Space]);
 
     private static readonly SchedulingSettingsInfo Weekdays = SchedulingSettingsInfo.Default(SiteId) with
     {

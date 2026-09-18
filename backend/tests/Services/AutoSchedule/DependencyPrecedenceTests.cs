@@ -34,16 +34,16 @@ public class DependencyPrecedenceTests
             ],
             spaces:
             [
-                new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>()),
-                new ResourceNode(succResource, "Cell B", new HashSet<Guid>())
+                MakeSpace(ResourceA, "Cell A"),
+                MakeSpace(succResource, "Cell B")
             ],
             dependencies: edges);
 
         return new AnalyzedSchedulingProblem(
             problem,
             [
-                new SchedulingCandidate(Pred, ResourceA, 0, horizonMinutes, durationMinutes, 0, [window]),
-                new SchedulingCandidate(Succ, succResource, 0, horizonMinutes, durationMinutes, 0, [window])
+                new SchedulingCandidate(Pred, ResourceA, Space, 0, horizonMinutes, durationMinutes, 0, [window]),
+                new SchedulingCandidate(Succ, succResource, Space, 0, horizonMinutes, durationMinutes, 0, [window])
             ],
             [],
             []);
@@ -110,14 +110,14 @@ public class DependencyPrecedenceTests
         // being placed in violation of the edge.
         var problem = MakeProblem(
             requests: [MakeRequest(Pred, "Mill", 60, priority: 0), MakeRequest(Succ, "Grind", 60, priority: 0)],
-            spaces: [new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>())],
+            spaces: [MakeSpace(ResourceA, "Cell A")],
             dependencies: [new DependencyEdge(Pred, Succ, 0)]);
 
         var analyzed = new AnalyzedSchedulingProblem(
             problem,
             [
-                new SchedulingCandidate(Pred, ResourceA, 0, 60, 60, 0, [new StartWindow(0, 1)]),
-                new SchedulingCandidate(Succ, ResourceA, 0, 60, 60, 0, [new StartWindow(0, 1)])
+                new SchedulingCandidate(Pred, ResourceA, Space, 0, 60, 60, 0, [new StartWindow(0, 1)]),
+                new SchedulingCandidate(Succ, ResourceA, Space, 0, 60, 60, 0, [new StartWindow(0, 1)])
             ],
             [],
             []);
@@ -136,7 +136,7 @@ public class DependencyPrecedenceTests
         // Placing them in an arbitrary order beats losing them silently.
         var problem = MakeProblem(
             requests: [MakeRequest(Pred, "A", 60, priority: 0), MakeRequest(Succ, "B", 60, priority: 0)],
-            spaces: [new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>())],
+            spaces: [MakeSpace(ResourceA, "Cell A")],
             dependencies:
             [
                 new DependencyEdge(Pred, Succ, 0),
@@ -147,8 +147,8 @@ public class DependencyPrecedenceTests
         var analyzed = new AnalyzedSchedulingProblem(
             problem,
             [
-                new SchedulingCandidate(Pred, ResourceA, 0, Day(10), 60, 0, [window]),
-                new SchedulingCandidate(Succ, ResourceA, 0, Day(10), 60, 0, [window])
+                new SchedulingCandidate(Pred, ResourceA, Space, 0, Day(10), 60, 0, [window]),
+                new SchedulingCandidate(Succ, ResourceA, Space, 0, Day(10), 60, 0, [window])
             ],
             [],
             []);
@@ -170,13 +170,13 @@ public class DependencyPrecedenceTests
         // happens — the conditional bound alone is satisfied vacuously.
         var problem = MakeProblem(
             requests: [MakeRequest(Pred, "Mill", 60, priority: 0), MakeRequest(Succ, "Grind", 60, priority: 0)],
-            spaces: [new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>())],
+            spaces: [MakeSpace(ResourceA, "Cell A")],
             dependencies: [new DependencyEdge(Pred, Succ, 0)]);
 
         // Only the successor has a candidate; the predecessor has none.
         var analyzed = new AnalyzedSchedulingProblem(
             problem,
-            [new SchedulingCandidate(Succ, ResourceA, 0, Day(5), 60, 0, [new StartWindow(0, Day(5))])],
+            [new SchedulingCandidate(Succ, ResourceA, Space, 0, Day(5), 60, 0, [new StartWindow(0, Day(5))])],
             [],
             []);
 

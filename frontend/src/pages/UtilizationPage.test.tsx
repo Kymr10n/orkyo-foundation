@@ -658,9 +658,9 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("solves for the single filtered type, in preview and apply alike", async () => {
-    // The filter names the type, and the button is live only while it names exactly one, so
-    // preview and apply cannot disagree about which type was solved for.
+  it("solves for the filtered types, in preview and apply alike", async () => {
+    // The filter names the types, so preview and apply cannot disagree about which set was
+    // solved for.
     mockUseAutoScheduleAvailable.mockReturnValue(true);
     const Wrapper = createWrapper("assets", "tool");
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -668,14 +668,30 @@ describe("UtilizationPage", () => {
     fireEvent.click(screen.getByTestId("auto-schedule-btn"));
     await waitFor(() => {
       expect(mockPreviewMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ resourceTypeKey: "tool" }),
+        expect.objectContaining({ resourceTypeKeys: ["tool"] }),
       );
     });
 
     fireEvent.click(screen.getByTestId("apply-schedule"));
     await waitFor(() => {
       expect(mockApplyMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ resourceTypeKey: "tool" }),
+        expect.objectContaining({ resourceTypeKeys: ["tool"] }),
+      );
+    });
+  });
+
+  it("solves for every type when the filter names none", async () => {
+    // One click fills a saw, a mill and a bench for the same part: with no filter the run
+    // covers every type, and the backend decides which ones a request needs.
+    mockUseAutoScheduleAvailable.mockReturnValue(true);
+    const Wrapper = createWrapper("assets");
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    expect(screen.getByTestId("auto-schedule-btn")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
+    await waitFor(() => {
+      expect(mockPreviewMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ resourceTypeKeys: undefined }),
       );
     });
   });

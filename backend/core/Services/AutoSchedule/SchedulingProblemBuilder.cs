@@ -13,6 +13,7 @@ public class SchedulingProblemBuilder
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IAvailabilityResolver _resolver;
     private readonly IRequestDependencyRepository _dependencyRepository;
+    private readonly ICriteriaRepository _criteriaRepository;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
@@ -20,7 +21,8 @@ public class SchedulingProblemBuilder
         IResourceCapabilityRepository capabilityRepository,
         ISchedulingRepository schedulingRepository,
         IAvailabilityResolver resolver,
-        IRequestDependencyRepository dependencyRepository)
+        IRequestDependencyRepository dependencyRepository,
+        ICriteriaRepository criteriaRepository)
     {
         _requestRepository = requestRepository;
         _resourceRepository = resourceRepository;
@@ -28,6 +30,7 @@ public class SchedulingProblemBuilder
         _schedulingRepository = schedulingRepository;
         _dependencyRepository = dependencyRepository;
         _resolver = resolver;
+        _criteriaRepository = criteriaRepository;
     }
 
     public virtual async Task<SchedulingProblem> BuildAsync(
@@ -55,28 +58,34 @@ public class SchedulingProblemBuilder
         var partiallyScheduled = await _requestRepository.GetPartiallyScheduledLeavesAsync(
             includeRequirements: true, ct: cancellationToken);
 
-        // One run solves one resource type: the pool is a single type, and the solver's
-        // no-overlap-per-node model has nothing to say about matching a room to a van. A request
-        // needing both is scheduled by two runs, one per type, each filling its own slot.
-        // The type is resolved by AutoScheduleService before this is called; a null here means a
-        // caller skipped that resolution, and guessing a default would hide it.
-        var targetTypeKey = request.ResourceTypeKey
-            ?? throw new ArgumentException(
-                "ResourceTypeKey must be resolved before building the problem.", nameof(request));
+        // The types the run fills are resolved by AutoScheduleService before this is called; an
+        // empty set here means a caller skipped that resolution, and guessing would hide it.
+        var runTypes = request.ResourceTypeKeys is { Count: > 0 } keys
+            ? keys.ToHashSet(StringComparer.Ordinal)
+            : throw new ArgumentException(
+                "ResourceTypeKeys must be resolved before building the problem.", nameof(request));
 
+        var horizonFrom = request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var horizonTo = request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+        // A request is in the run when it wants at least one of the run's types and has not
+        // already got a resource of it. Without the second test a request whose room is already
+        // booked would be offered another one. A request with a window already chosen is in the
+        // run only when that window lies inside the horizon: its window is pinned (below), and a
+        // window from last month pinned onto this horizon's axis would be dragged into it.
         var eligibleRequests = unscheduled
             .Concat(partiallyScheduled)
             .Where(r => r.Status is RequestStatus.New or RequestStatus.InProgress)
             .Where(r => r.MinimalDurationValue > 0)
-            // Only requests that want this type and have not already got one. Without the second
-            // test a request whose room is already booked would be offered another one.
-            .Where(r => r.TargetResourceTypeKeys.Contains(targetTypeKey))
-            .Where(r => r.GetResourceIdForType(targetTypeKey) is null);
+            .Where(r => OpenTypes(r, runTypes).Count > 0)
+            .Where(r => r.StartTs is null || r.EndTs is null
+                        || (r.StartTs >= horizonFrom && r.EndTs <= horizonTo))
+            .ToList();
 
         if (request.RequestIds is { Count: > 0 })
         {
             var requestIdSet = request.RequestIds.ToHashSet();
-            eligibleRequests = eligibleRequests.Where(r => requestIdSet.Contains(r.Id));
+            eligibleRequests = eligibleRequests.Where(r => requestIdSet.Contains(r.Id)).ToList();
         }
 
         // Window the site filter to the horizon. Without it the filter resolves a travelling
@@ -85,23 +94,44 @@ public class SchedulingProblemBuilder
         // produced a different pool, and a different fingerprint.
         // Every candidate: a pool silently cut at 1000 would make the solver produce a valid
         // schedule over the wrong set, and change the run fingerprint for no visible reason.
-        var candidates = await _resourceRepository.GetEveryAsync(
-            new ResourceListFilter
-            {
-                ResourceTypeKey = targetTypeKey,
-                SiteId = request.SiteId,
-                SiteWindowFrom = request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                SiteWindowTo = request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                IsActive = true,
-            },
-            cancellationToken);
+        // One read per type, in key order so the pool — and the fingerprint — is stable.
+        var candidates = new List<ResourceInfo>();
+        foreach (var typeKey in runTypes.Order(StringComparer.Ordinal))
+        {
+            candidates.AddRange(await _resourceRepository.GetEveryAsync(
+                new ResourceListFilter
+                {
+                    ResourceTypeKey = typeKey,
+                    SiteId = request.SiteId,
+                    SiteWindowFrom = horizonFrom,
+                    SiteWindowTo = horizonTo,
+                    IsActive = true,
+                },
+                cancellationToken));
+        }
         var capabilitiesByResource = (await _capabilityRepository.GetByResourcesAsync(
                 candidates.Select(c => c.Id).ToList(), cancellationToken))
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => g.Select(c => c.CriterionId).ToHashSet());
         var resourceNodes = candidates
-            .Select(c => new ResourceNode(c.Id, c.Name, capabilitiesByResource.GetValueOrDefault(c.Id) ?? []))
+            .Select(c => new ResourceNode(
+                c.Id, c.Name, c.ResourceTypeKey, capabilitiesByResource.GetValueOrDefault(c.Id) ?? []))
             .ToList();
+
+        // A criterion is scoped to resource types, so a requirement written for the mill must
+        // not be demanded of the van the same request also needs. Read once for the criteria
+        // the backlog actually requires.
+        var requiredCriterionIds = eligibleRequests
+            .SelectMany(r => r.Requirements ?? [])
+            .Select(q => q.CriterionId)
+            .ToHashSet();
+        var criterionTypeScopes = requiredCriterionIds.Count == 0
+            ? new Dictionary<Guid, IReadOnlySet<string>>()
+            : (await _criteriaRepository.GetAllAsync(cancellationToken))
+                .Where(c => requiredCriterionIds.Contains(c.Id))
+                .ToDictionary(
+                    c => c.Id,
+                    c => (IReadOnlySet<string>)c.ResourceTypeKeys.ToHashSet(StringComparer.Ordinal));
 
         var candidateIds = resourceNodes.Select(n => n.ResourceId).ToList();
         var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(
@@ -110,15 +140,36 @@ public class SchedulingProblemBuilder
         var requestNodes = new List<RequestNode>();
         foreach (var r in eligibleRequests)
         {
+            int? earliest, latest;
+            int duration;
+            if (r.StartTs is { } pinnedStart && r.EndTs is { } pinnedEnd)
+            {
+                // A window someone already chose is a fact about the plan, not an estimate:
+                // the run fills the open types at exactly that window. Moving it would also
+                // move the resources already booked on it, past whatever else they hold.
+                var start = axis.ToOffset(pinnedStart);
+                var end = Math.Max(start + 1, axis.ToOffsetEnd(pinnedEnd));
+                earliest = start;
+                latest = end;
+                duration = end - start;
+            }
+            else
+            {
+                earliest = r.EarliestStartTs is { } earliestTs ? axis.ToOffset(earliestTs) : null;
+                latest = r.LatestEndTs is { } latestTs ? axis.ToOffset(latestTs) : null;
+                // At least a minute: a zero-length placement would have no window to write.
+                duration = Math.Max(1, SchedulingEngine.DurationToMinutes(r.MinimalDurationValue, r.MinimalDurationUnit));
+            }
+
             requestNodes.Add(new RequestNode(
                 r.Id,
                 r.Name,
-                r.EarliestStartTs is { } earliestTs ? axis.ToOffset(earliestTs) : null,
-                r.LatestEndTs is { } latestTs ? axis.ToOffset(latestTs) : null,
-                // At least a minute: a zero-length placement would have no window to write.
-                Math.Max(1, SchedulingEngine.DurationToMinutes(r.MinimalDurationValue, r.MinimalDurationUnit)),
+                earliest,
+                latest,
+                duration,
                 Priority: (int)r.Status,
-                r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>()));
+                r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>(),
+                OpenTypes(r, runTypes)));
         }
 
         // Fixed occupancies: requests in this site whose bar can touch the horizon. The solvers
@@ -127,25 +178,24 @@ public class SchedulingProblemBuilder
         // is exclusive-day so an assignment starting late on the last horizon day is still seen.
         // No scheduling_settings_apply filter — manually scheduled requests occupy resources too.
         var scheduled = await _requestRepository.GetScheduledBySiteWindowAsync(
-            request.SiteId,
-            request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-            request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-            cancellationToken);
-        // Holding a resource of this type is what occupies it — not being fully scheduled. A
-        // request still waiting on its technician has its room booked all the same, and offering
-        // that room to someone else would double-book it.
+            request.SiteId, horizonFrom, horizonTo, cancellationToken);
+        // Holding a resource is what occupies it — not being fully scheduled. A request still
+        // waiting on its technician has its room booked all the same, and offering that room to
+        // someone else would double-book it. Every booking on a pool resource counts, including
+        // those of requests in this run: their booked types are not open, so the booking blocks
+        // others without constraining them.
         // Kept even when the window collapses to a point (a hand-made Saturday booking on a
         // weekday-only axis): a placement may touch that point but must not span it, because
         // the booking still covers the calendar weekend the axis compressed away.
+        var poolIds = resourceNodes.Select(n => n.ResourceId).ToHashSet();
         var fixedAssignments = scheduled
-            .Where(r => r.StartTs.HasValue && r.EndTs.HasValue)
-            .Select(r => (Request: r, ResourceId: r.GetResourceIdForType(targetTypeKey)))
-            .Where(x => x.ResourceId.HasValue)
-            .Select(x => new FixedOccupancy(
-                x.Request.Id,
-                x.ResourceId!.Value,
-                axis.ToOffset(x.Request.StartTs!.Value),
-                axis.ToOffsetEnd(x.Request.EndTs!.Value)))
+            .SelectMany(r => r.Assignments)
+            .Where(a => poolIds.Contains(a.ResourceId))
+            .Select(a => new FixedOccupancy(
+                a.RequestId,
+                a.ResourceId,
+                axis.ToOffset(a.StartUtc),
+                axis.ToOffsetEnd(a.EndUtc)))
             .ToList();
 
         // A resource's own blocked periods (absences, maintenance) occupy it like a booking
@@ -378,6 +428,12 @@ public class SchedulingProblemBuilder
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd, axis,
             requestNodes, resourceNodes, fixedAssignments,
-            solverEdges, withheld, joinConditions);
+            solverEdges, withheld, joinConditions, criterionTypeScopes);
     }
+
+    /// <summary>The run's types this request targets and has no resource of yet.</summary>
+    private static IReadOnlySet<string> OpenTypes(RequestInfo r, IReadOnlySet<string> runTypes)
+        => r.TargetResourceTypeKeys
+            .Where(t => runTypes.Contains(t) && r.GetResourceIdForType(t) is null)
+            .ToHashSet(StringComparer.Ordinal);
 }

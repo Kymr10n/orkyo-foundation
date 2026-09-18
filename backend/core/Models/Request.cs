@@ -388,6 +388,17 @@ public record ScheduleRequestRequest
 }
 
 /// <summary>
+/// One auto-scheduled placement to write: the request's window and every resource it is
+/// booked on, one per targeted type. The repository keeps one resource per type by cancelling
+/// whatever held that type before.
+/// </summary>
+public sealed record PlacementWrite(
+    Guid RequestId,
+    DateTime StartTs,
+    DateTime EndTs,
+    IReadOnlyList<Guid> ResourceIds);
+
+/// <summary>
 /// Request to move/reparent a request in the tree.
 /// </summary>
 public record MoveRequestRequest

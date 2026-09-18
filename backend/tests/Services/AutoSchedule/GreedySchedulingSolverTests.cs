@@ -18,7 +18,7 @@ public class GreedySchedulingSolverTests
         var result = await _solver.SolveAsync(MakeAnalyzed([candidate]), CancellationToken.None);
 
         result.Assignments.Should().ContainSingle(a =>
-            a.RequestId == reqId && a.ResourceId == resourceId);
+            a.RequestId == reqId && a.ResourceId() == resourceId);
         result.Status.Should().Be(SolverStatus.Feasible);
         result.SolverUsed.Should().Be(SolverKind.Greedy);
     }

@@ -12,6 +12,13 @@ internal static class AutoScheduleTestHelpers
 {
     internal const int MinutesPerDay = 24 * 60;
 
+    /// <summary>The one type every fixture uses unless it says otherwise.</summary>
+    internal const string Space = "space";
+
+    /// <summary>The resource a single-type placement landed on.</summary>
+    internal static Guid ResourceId(this ScheduledPlacement placement)
+        => placement.Resources.Single().ResourceId;
+
     internal static readonly DateOnly DefaultHorizonStart = new(2026, 4, 14);
     internal static readonly DateOnly DefaultHorizonEnd = new(2026, 7, 14);
 
@@ -27,7 +34,8 @@ internal static class AutoScheduleTestHelpers
         DateOnly? horizonStart = null,
         DateOnly? horizonEnd = null,
         WorkingTimeAxis? axis = null,
-        IReadOnlyList<DependencyEdge>? dependencies = null)
+        IReadOnlyList<DependencyEdge>? dependencies = null,
+        IReadOnlyDictionary<Guid, IReadOnlySet<string>>? criterionTypeScopes = null)
         => new(
             SiteId: Guid.NewGuid(),
             HorizonStart: horizonStart ?? DefaultHorizonStart,
@@ -36,7 +44,8 @@ internal static class AutoScheduleTestHelpers
             Requests: requests,
             Resources: spaces,
             FixedAssignments: fixedAssignments ?? [],
-            Dependencies: dependencies);
+            Dependencies: dependencies,
+            CriterionTypeScopes: criterionTypeScopes);
 
     internal static AnalyzedSchedulingProblem MakeAnalyzed(
         IReadOnlyList<SchedulingCandidate> candidates,
@@ -57,12 +66,14 @@ internal static class AutoScheduleTestHelpers
         Guid? resourceId = null,
         int durationMinutes = 3 * MinutesPerDay,
         int priority = 1,
-        IReadOnlyList<StartWindow>? windows = null)
+        IReadOnlyList<StartWindow>? windows = null,
+        string typeKey = Space)
     {
         var starts = windows ?? [new StartWindow(0, Day(30))];
         return new(
             RequestId: requestId ?? Guid.NewGuid(),
             ResourceId: resourceId ?? Guid.NewGuid(),
+            ResourceTypeKey: typeKey,
             EarliestStart: starts.Min(w => w.From),
             LatestEnd: starts.Max(w => w.To) - 1 + durationMinutes,
             DurationMinutes: durationMinutes,
@@ -77,7 +88,8 @@ internal static class AutoScheduleTestHelpers
         int priority = 1,
         int? earliest = null,
         int? latest = null,
-        IReadOnlySet<Guid>? criteria = null)
+        IReadOnlySet<Guid>? criteria = null,
+        IReadOnlySet<string>? openTypes = null)
         => new(
             RequestId: id ?? Guid.NewGuid(),
             DisplayName: name,
@@ -85,14 +97,17 @@ internal static class AutoScheduleTestHelpers
             LatestEnd: latest,
             DurationMinutes: durationMinutes,
             Priority: priority,
-            RequiredCriterionIds: criteria ?? new HashSet<Guid>());
+            RequiredCriterionIds: criteria ?? new HashSet<Guid>(),
+            OpenTypeKeys: openTypes ?? new HashSet<string> { Space });
 
     internal static ResourceNode MakeSpace(
         Guid? id = null,
         string name = "Test Space",
-        IReadOnlySet<Guid>? criteria = null)
+        IReadOnlySet<Guid>? criteria = null,
+        string typeKey = Space)
         => new(
             ResourceId: id ?? Guid.NewGuid(),
             DisplayName: name,
+            ResourceTypeKey: typeKey,
             CriterionIds: criteria ?? new HashSet<Guid>());
 }

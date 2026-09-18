@@ -9,8 +9,9 @@ namespace Api.Services.AutoSchedule;
 ///
 /// One start variable per request, on the working-minute axis, and one optional interval per
 /// request→resource candidate sharing that start. Enforces no-overlap per resource (fixed
-/// occupancy included), at most one resource per request, precedence between requests, and
-/// maximizes a weighted objective (throughput → priority → early start).
+/// occupancy included), exactly one resource per open type when a request is placed,
+/// precedence between requests, and maximizes a weighted objective (throughput → priority →
+/// early start).
 /// </summary>
 public sealed class OrToolsSchedulingSolver : ISchedulingSolver
 {
@@ -65,13 +66,11 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
             durations[requestId] = candidates[0].DurationMinutes;
             priorities[requestId] = candidates[0].Priority;
 
-            var presences = new List<BoolVar>(candidates.Count);
             foreach (var candidate in candidates)
             {
                 var key = (candidate.RequestId, candidate.ResourceId);
                 var present = model.NewBoolVar($"assign_{candidate.RequestId}_{candidate.ResourceId}");
                 presence[key] = present;
-                presences.Add(present);
 
                 // On this resource, only this candidate's windows are open.
                 var own = Domain.FromIntervals(candidate.FeasibleStartWindows
@@ -84,8 +83,14 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
                     $"interval_{candidate.RequestId}_{candidate.ResourceId}");
             }
 
-            // Placed on exactly one resource, or on none.
-            model.Add(LinearExpr.Sum(presences) == isScheduled);
+            // Placed on exactly one resource of every type it has open, or on none: a request
+            // needing a mill and a fixture is placed with both at the same start, or stays in
+            // the backlog.
+            foreach (var typeGroup in candidates.GroupBy(c => c.ResourceTypeKey, StringComparer.Ordinal))
+            {
+                var typePresences = typeGroup.Select(c => presence[(c.RequestId, c.ResourceId)]).ToList();
+                model.Add(LinearExpr.Sum(typePresences) == isScheduled);
+            }
         }
 
         // Constraint: precedence. A successor may not start until its predecessor has finished
@@ -217,18 +222,21 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
         var assignments = new List<ScheduledPlacement>();
         var scheduledRequestIds = new HashSet<Guid>();
 
-        foreach (var candidate in problem.Candidates)
+        foreach (var (requestId, candidates) in candidatesByRequest)
         {
-            var key = (candidate.RequestId, candidate.ResourceId);
-            if (!solver.BooleanValue(presence[key])) continue;
+            if (!solver.BooleanValue(scheduled[requestId])) continue;
 
-            var start = (int)solver.Value(starts[candidate.RequestId]);
+            var chosen = candidates
+                .Where(c => solver.BooleanValue(presence[(c.RequestId, c.ResourceId)]))
+                .Select(c => new PlacedResource(c.ResourceTypeKey, c.ResourceId))
+                .ToList();
+            var start = (int)solver.Value(starts[requestId]);
             assignments.Add(new ScheduledPlacement(
-                candidate.RequestId, candidate.ResourceId,
-                start, start + candidate.DurationMinutes,
-                candidate.DurationMinutes, candidate.Priority));
+                requestId, chosen,
+                start, start + durations[requestId],
+                durations[requestId], priorities[requestId]));
 
-            scheduledRequestIds.Add(candidate.RequestId);
+            scheduledRequestIds.Add(requestId);
         }
 
         // Unscheduled: requests not assigned by solver + rejected during feasibility

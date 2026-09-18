@@ -49,10 +49,11 @@ public enum SchedulingReasonCode
 
 // ── Request / Response DTOs ────────────────────────────────────────
 
-/// <param name="ResourceTypeKey">
-/// Which resource type to schedule. One run fills one type's slot, because the solver's model —
-/// no overlap per node, at most one node per request — has nothing to say about matching a room
-/// to a van. NULL means spaces, which is what every run meant before types were selectable.
+/// <param name="ResourceTypeKeys">
+/// Which resource types the run fills. A request is placed with one resource of every type it
+/// targets in this set, all at the same time. NULL means every active type a request can
+/// target — people are attached on the request's own tab, many per request, and are never a
+/// slot the solver fills.
 /// </param>
 public sealed record AutoSchedulePreviewRequest(
     Guid SiteId,
@@ -60,7 +61,7 @@ public sealed record AutoSchedulePreviewRequest(
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
-    string? ResourceTypeKey = null);
+    IReadOnlyCollection<string>? ResourceTypeKeys = null);
 
 public sealed record AutoScheduleApplyRequest(
     Guid SiteId,
@@ -69,7 +70,7 @@ public sealed record AutoScheduleApplyRequest(
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
     string? PreviewFingerprint = null,
-    string? ResourceTypeKey = null);
+    IReadOnlyCollection<string>? ResourceTypeKeys = null);
 
 public sealed record AutoSchedulePreviewResponse(
     SolverKind SolverUsed,
@@ -90,17 +91,22 @@ public sealed record AutoScheduleScore(
     int PriorityScore);
 
 /// <summary>
-/// One proposed placement. <see cref="Start"/> and <see cref="End"/> are the half-open UTC
-/// window the apply would write; <see cref="DurationMinutes"/> is the working time inside it.
+/// One proposed placement: one resource per type the request needed, all occupied together.
+/// <see cref="Start"/> and <see cref="End"/> are the half-open UTC window the apply would
+/// write; <see cref="DurationMinutes"/> is the working time inside it.
 /// </summary>
 public sealed record ProposedAssignmentDto(
     Guid RequestId,
     string RequestName,
-    Guid ResourceId,
-    string ResourceName,
+    IReadOnlyList<ProposedResourceDto> Resources,
     DateTime Start,
     DateTime End,
     int DurationMinutes);
+
+public sealed record ProposedResourceDto(
+    string TypeKey,
+    Guid ResourceId,
+    string ResourceName);
 
 public sealed record UnscheduledRequestDto(
     Guid RequestId,
@@ -126,7 +132,11 @@ public sealed record SchedulingProblem(
     /// <summary>The join condition of every request that has incoming edges. Part of the
     /// preview's identity: changing a condition changes what a valid plan is, so it belongs in
     /// the fingerprint alongside the edges.</summary>
-    IReadOnlyDictionary<Guid, JoinCondition>? JoinConditions = null);
+    IReadOnlyDictionary<Guid, JoinCondition>? JoinConditions = null,
+    /// <summary>Which resource types each required criterion applies to, so a criterion scoped
+    /// to mills is not demanded of the van the same request also needs. Absent or empty means
+    /// every type.</summary>
+    IReadOnlyDictionary<Guid, IReadOnlySet<string>>? CriterionTypeScopes = null);
 
 /// <summary>
 /// A request kept out of the solve set because a dependency makes it unplaceable in this run:
@@ -154,6 +164,8 @@ public sealed record DependencyEdge(
 /// <summary>
 /// A request to place. <see cref="EarliestStart"/> and <see cref="LatestEnd"/> are offsets on
 /// the axis (null = the horizon edge); <see cref="DurationMinutes"/> is working time.
+/// <see cref="OpenTypeKeys"/> are the resource types this run must fill for it — every one of
+/// them, at the same start, or none.
 /// </summary>
 public sealed record RequestNode(
     Guid RequestId,
@@ -162,11 +174,13 @@ public sealed record RequestNode(
     int? LatestEnd,
     int DurationMinutes,
     int Priority,
-    IReadOnlySet<Guid> RequiredCriterionIds);
+    IReadOnlySet<Guid> RequiredCriterionIds,
+    IReadOnlySet<string> OpenTypeKeys);
 
 public sealed record ResourceNode(
     Guid ResourceId,
     string DisplayName,
+    string ResourceTypeKey,
     IReadOnlySet<Guid> CriterionIds);
 
 /// <summary>
@@ -189,12 +203,14 @@ public readonly record struct StartWindow(int From, int To)
 }
 
 /// <summary>
-/// A feasible request→resource candidate with the windows its start may fall in: the request's
-/// own window minus everything the resource is already taken for.
+/// A feasible request→resource candidate for one of the request's open types, with the windows
+/// its start may fall in: the request's own window minus everything the resource is already
+/// taken for. A request reaches the solvers only with candidates for every open type.
 /// </summary>
 public sealed record SchedulingCandidate(
     Guid RequestId,
     Guid ResourceId,
+    string ResourceTypeKey,
     int EarliestStart,
     int LatestEnd,
     int DurationMinutes,
@@ -249,14 +265,14 @@ public sealed record SchedulingSolution(
     /// the edges alone still describe perfectly.
     /// </param>
     public string ComputeFingerprint(
-        string resourceTypeKey,
+        IEnumerable<string> resourceTypeKeys,
         IEnumerable<DependencyEdge> edges,
         IReadOnlyDictionary<Guid, JoinCondition>? joinConditions = null)
     {
-        // The type is part of the identity, not just the assignments: an empty solution hashes
-        // the same for every type, so without it a preview that proposed nothing would match
-        // an apply for any type.
-        var sb = new StringBuilder(resourceTypeKey).Append('#');
+        // The type set is part of the identity, not just the assignments: an empty solution
+        // hashes the same for every set, so without it a preview that proposed nothing would
+        // match an apply for any set.
+        var sb = new StringBuilder(string.Join(',', resourceTypeKeys.Order())).Append('#');
         foreach (var e in edges.OrderBy(e => e.PredecessorRequestId).ThenBy(e => e.SuccessorRequestId))
         {
             sb.Append(e.PredecessorRequestId).Append('>')
@@ -274,10 +290,12 @@ public sealed record SchedulingSolution(
               .Append(condition.K).Append(';');
         }
         sb.Append('#');
-        foreach (var a in Assignments.OrderBy(a => a.RequestId).ThenBy(a => a.ResourceId))
+        foreach (var a in Assignments.OrderBy(a => a.RequestId))
         {
-            sb.Append(a.RequestId).Append('|')
-              .Append(a.ResourceId).Append('|')
+            sb.Append(a.RequestId).Append('|');
+            foreach (var r in a.Resources.OrderBy(r => r.TypeKey, StringComparer.Ordinal))
+                sb.Append(r.TypeKey).Append(':').Append(r.ResourceId).Append(',');
+            sb.Append('|')
               .Append(a.Start).Append('|')
               .Append(a.End).Append(';');
         }
@@ -286,14 +304,19 @@ public sealed record SchedulingSolution(
     }
 }
 
-/// <summary>A placement on the axis: half-open <c>[Start, End)</c>, <c>End == Start + DurationMinutes</c>.</summary>
+/// <summary>
+/// A placement on the axis: half-open <c>[Start, End)</c>, <c>End == Start + DurationMinutes</c>,
+/// on one resource per type the request had open.
+/// </summary>
 public sealed record ScheduledPlacement(
     Guid RequestId,
-    Guid ResourceId,
+    IReadOnlyList<PlacedResource> Resources,
     int Start,
     int End,
     int DurationMinutes,
     int Priority);
+
+public sealed record PlacedResource(string TypeKey, Guid ResourceId);
 
 public sealed record UnscheduledPlacement(
     Guid RequestId,

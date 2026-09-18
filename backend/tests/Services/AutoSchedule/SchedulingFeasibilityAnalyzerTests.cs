@@ -55,6 +55,42 @@ public class SchedulingFeasibilityAnalyzerTests
     }
 
     [Fact]
+    public void ARequirement_IsDemandedOnlyOfTheTypesItIsScopedTo()
+    {
+        // The tolerance criterion applies to mills. The van the same request needs must not be
+        // asked for it, or no van would ever qualify.
+        var tolerance = Guid.NewGuid();
+        var request = MakeRequest(criteria: new HashSet<Guid> { tolerance },
+            openTypes: new HashSet<string> { "mill", "van" });
+        var preciseMill = MakeSpace(name: "Precise", criteria: new HashSet<Guid> { tolerance }, typeKey: "mill");
+        var roughMill = MakeSpace(name: "Rough", typeKey: "mill");
+        var van = MakeSpace(name: "Van", typeKey: "van");
+
+        var result = _analyzer.Analyze(MakeProblem([request], [preciseMill, roughMill, van],
+            criterionTypeScopes: new Dictionary<Guid, IReadOnlySet<string>>
+            {
+                [tolerance] = new HashSet<string> { "mill" },
+            }));
+
+        result.Candidates.Select(c => c.ResourceId).Should()
+            .BeEquivalentTo([preciseMill.ResourceId, van.ResourceId]);
+    }
+
+    [Fact]
+    public void ARequestWithATypeNothingCanFill_GetsNoCandidatesAtAll()
+    {
+        // Candidates for the room alone would let a solver place the request half-filled.
+        var request = MakeRequest(openTypes: new HashSet<string> { "space", "van" });
+        var room = MakeSpace(typeKey: "space");
+
+        var result = _analyzer.Analyze(MakeProblem([request], [room]));
+
+        result.Candidates.Should().BeEmpty();
+        result.Rejections.Should().ContainSingle(r => r.ReasonCode == SchedulingReasonCode.NoCompatibleResource)
+            .Which.Message.Should().Contain("van");
+    }
+
+    [Fact]
     public void NoRequiredCapabilities_MatchesAnySpace()
     {
         var request = MakeRequest(criteria: new HashSet<Guid>());
@@ -228,6 +264,6 @@ public class SchedulingFeasibilityAnalyzerTests
 
         var result = _analyzer.Analyze(MakeProblem([r1, r2], []));
 
-        result.Diagnostics.Should().Contain(d => d.Contains("2 request(s) removed"));
+        result.Diagnostics.Should().Contain(d => d.Contains("2 request type(s) removed"));
     }
 }

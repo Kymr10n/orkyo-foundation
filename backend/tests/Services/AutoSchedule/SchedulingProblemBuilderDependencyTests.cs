@@ -117,13 +117,16 @@ public class SchedulingProblemBuilderDependencyTests
                 It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(edges);
 
+        var criteria = new Mock<ICriteriaRepository>();
+        criteria.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
         return new SchedulingProblemBuilder(
             requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object);
+            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object);
     }
 
     private static AutoSchedulePreviewRequest Preview() =>
-        new(SiteId, HorizonStart, HorizonEnd, ResourceTypeKey: ResourceTypeKeys.Space);
+        new(SiteId, HorizonStart, HorizonEnd, ResourceTypeKeys: [ResourceTypeKeys.Space]);
 
     [Fact]
     public async Task PredecessorFinishedBeforeTheHorizon_BoundsTheSuccessorInsteadOfWithholdingIt()

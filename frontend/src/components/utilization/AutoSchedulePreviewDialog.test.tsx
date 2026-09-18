@@ -15,8 +15,10 @@ const mockPreview: AutoSchedulePreviewResponse = {
     {
       requestId: 'r-1',
       requestName: 'Task Alpha',
-      resourceId: 'sp-1',
-      resourceName: 'Room A',
+      resources: [
+        { typeKey: 'space', resourceId: 'sp-1', resourceName: 'Room A' },
+        { typeKey: 'tool', resourceId: 't-1', resourceName: 'Van 3' },
+      ],
       start: '2026-03-02T08:00:00Z',
       end: '2026-03-02T11:20:00Z',
       durationMinutes: 200,
@@ -24,8 +26,7 @@ const mockPreview: AutoSchedulePreviewResponse = {
     {
       requestId: 'r-2',
       requestName: 'Task Beta',
-      resourceId: 'sp-2',
-      resourceName: 'Room B',
+      resources: [{ typeKey: 'space', resourceId: 'sp-2', resourceName: 'Room B' }],
       start: '2026-03-02T08:00:00Z',
       end: '2026-03-03T17:00:00Z',
       durationMinutes: 2 * 540,
@@ -101,7 +102,9 @@ describe('AutoSchedulePreviewDialog', () => {
     renderDialog();
     expect(screen.getByText('Assignments (2)')).toBeInTheDocument();
     expect(screen.getByText('Task Alpha')).toBeInTheDocument();
-    expect(screen.getByText('Room A')).toBeInTheDocument();
+    // Every resource the request needs, on one row.
+    expect(screen.getByText('Room A, Van 3')).toBeInTheDocument();
+    expect(screen.getByTitle('space: Room A, tool: Van 3')).toBeInTheDocument();
     expect(screen.getByText('Task Beta')).toBeInTheDocument();
     // Timestamps to the minute and a working-time duration, not whole days.
     expect(screen.getByText('3h 20m')).toBeInTheDocument();

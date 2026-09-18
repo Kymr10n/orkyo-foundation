@@ -13,11 +13,24 @@ public class AutoScheduleServiceTests
     private static TenantSettings MakeSettings(bool autoScheduleEnabled = true)
         => new() { AutoSchedule_Enabled = autoScheduleEnabled };
 
+    private static ResourceTypeInfo Type(string key, bool active = true, bool directory = false) => new()
+    {
+        Id = Guid.NewGuid(),
+        Key = key,
+        DisplayName = key,
+        DisplayNamePlural = key,
+        HasGeometry = !directory,
+        HasDirectoryProfile = directory,
+        SingleGroupMembership = false,
+        IsSystem = false,
+        IsActive = active,
+    };
+
     private static AutoScheduleService CreateService(
         IFeatureGate? featureGate = null,
         TenantSettings? settings = null,
         IEnumerable<ISchedulingSolver>? solvers = null,
-        IReadOnlyList<string>? placeableKeys = null,
+        IReadOnlyList<ResourceTypeInfo>? types = null,
         IReadOnlyList<WithheldRequestNode>? withheld = null,
         IRequestRepository? requestRepository = null,
         WorkingTimeAxis? axis = null)
@@ -28,7 +41,8 @@ public class AutoScheduleServiceTests
             Mock.Of<IResourceCapabilityRepository>(),
             Mock.Of<ISchedulingRepository>(),
             Mock.Of<IAvailabilityResolver>(),
-            Mock.Of<IRequestDependencyRepository>());
+            Mock.Of<IRequestDependencyRepository>(),
+            Mock.Of<ICriteriaRepository>());
 
         var problem = new SchedulingProblem(
             Guid.NewGuid(),
@@ -52,10 +66,10 @@ public class AutoScheduleServiceTests
         // Default: all features enabled (mirrors Community / foundation standalone behaviour)
         var gate = featureGate ?? new AllFeaturesEnabledGate();
 
-        // A single placeable type by default, so an omitted resourceTypeKey resolves cleanly.
+        // One schedulable type by default, so an omitted resourceTypeKeys resolves cleanly.
         var typeRepo = new Mock<IResourceTypeRepository>();
-        typeRepo.Setup(r => r.GetPlaceableKeysAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(placeableKeys ?? ["space"]);
+        typeRepo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((types ?? [Type("space")]).ToList());
 
         return new AutoScheduleService(
             mockProblemBuilder.Object,
@@ -90,7 +104,7 @@ public class AutoScheduleServiceTests
         var service = CreateService(withheld: [new WithheldRequestNode(blockedId, "Grind")]);
         var request = new AutoSchedulePreviewRequest(
             Guid.NewGuid(), new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14),
-            ResourceTypeKey: ResourceTypeKeys.Space);
+            ResourceTypeKeys: [ResourceTypeKeys.Space]);
 
         var result = await service.PreviewAsync(request, CancellationToken.None);
 
@@ -217,44 +231,46 @@ public class AutoScheduleServiceTests
     }
 
     [Fact]
-    public async Task Preview_OmittedType_ResolvesTheSinglePlaceableType()
+    public async Task Preview_OmittedTypes_ResolveToEveryActiveTypeARequestCanTarget()
     {
-        // The old behaviour was a hardcoded `?? space` applied twice, independently. Now it is
-        // one resolution: the tenant's only placeable type, whatever its key. The fingerprint is
-        // a hash namespaced by the resolved type, so the same solve under a different resolved
-        // type must fingerprint differently — that is what proves the resolution reached it.
+        // Every active type except people: they are attached on the request's own tab, many
+        // per request, and are not a slot the solver fills. The fingerprint is a hash namespaced
+        // by the resolved set, so the same solve under a different set must fingerprint
+        // differently — that is what proves the resolution reached it.
         var request = new AutoSchedulePreviewRequest(Guid.NewGuid(),
             DateOnly.FromDateTime(DateTime.UtcNow),
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)));
 
-        var boothTenant = await CreateService(placeableKeys: ["booth"])
+        var shop = await CreateService(types: [Type("mill"), Type("saw"), Type("person", directory: true), Type("lathe", active: false)])
             .PreviewAsync(request, CancellationToken.None);
-        var spaceTenant = await CreateService(placeableKeys: ["space"])
+        var millsOnly = await CreateService(types: [Type("mill")])
+            .PreviewAsync(request, CancellationToken.None);
+        var sawsAndMills = await CreateService(types: [Type("saw"), Type("mill")])
             .PreviewAsync(request, CancellationToken.None);
 
-        Assert.NotEqual(spaceTenant.Fingerprint, boothTenant.Fingerprint);
+        Assert.NotEqual(millsOnly.Fingerprint, shop.Fingerprint);
+        Assert.Equal(sawsAndMills.Fingerprint, shop.Fingerprint);
     }
 
     [Fact]
-    public async Task Preview_OmittedType_WithSeveralPlaceableTypes_RefusesToGuess()
+    public async Task Preview_GivenTypes_RejectsOneThatIsUnknownOrInactive()
     {
-        // "Which pool?" has no single answer for a tenant with two placeable types, and guessing
-        // one means silently solving for the wrong machines.
-        var service = CreateService(placeableKeys: ["space", "mill"]);
+        var service = CreateService(types: [Type("space"), Type("lathe", active: false)]);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.PreviewAsync(
             new AutoSchedulePreviewRequest(Guid.NewGuid(),
                 DateOnly.FromDateTime(DateTime.UtcNow),
-                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))),
+                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+                ResourceTypeKeys: ["space", "lathe", "cnc"]),
             CancellationToken.None));
 
-        Assert.Contains("resourceTypeKey", ex.Message);
+        Assert.Contains("cnc, lathe", ex.Message);
     }
 
     [Fact]
-    public async Task Preview_OmittedType_WithNoPlaceableTypes_SaysSo()
+    public async Task Preview_OmittedTypes_WithNoSchedulableTypes_SaysSo()
     {
-        var service = CreateService(placeableKeys: []);
+        var service = CreateService(types: [Type("person", directory: true)]);
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.PreviewAsync(
             new AutoSchedulePreviewRequest(Guid.NewGuid(),
@@ -264,7 +280,7 @@ public class AutoScheduleServiceTests
     }
 
     /// <summary>Returns one fixed placement, so a test can pin the window that reaches the write.</summary>
-    private sealed class StubSolver(int start, int end, Guid requestId, Guid resourceId)
+    private sealed class StubSolver(int start, int end, Guid requestId, IReadOnlyList<PlacedResource> resources)
         : ISchedulingSolver
     {
         public SolverKind Kind => SolverKind.Greedy;
@@ -274,24 +290,24 @@ public class AutoScheduleServiceTests
             AnalyzedSchedulingProblem problem, CancellationToken cancellationToken)
             => Task.FromResult(new SchedulingSolution(
                 SolverKind.Greedy, SolverStatus.Optimal,
-                [new ScheduledPlacement(requestId, resourceId, start, end,
+                [new ScheduledPlacement(requestId, resources, start, end,
                     DurationMinutes: end - start, Priority: 1)],
                 [], []));
     }
 
-    private async Task<ScheduleRequestRequest> ApplyAndCaptureWindowAsync(int start, int end, WorkingTimeAxis? axis = null)
+    private async Task<PlacementWrite> ApplyAndCaptureWindowAsync(
+        int start, int end, WorkingTimeAxis? axis = null, IReadOnlyList<PlacedResource>? resources = null)
     {
         var requestId = Guid.NewGuid();
-        List<(Guid Id, ScheduleRequestRequest Data)>? captured = null;
+        List<PlacementWrite>? captured = null;
         var repo = new Mock<IRequestRepository>();
-        repo.Setup(r => r.BatchUpdateSchedulesAsync(
-                It.IsAny<IReadOnlyList<(Guid, ScheduleRequestRequest)>>(), It.IsAny<CancellationToken>()))
-            .Callback<IReadOnlyList<(Guid, ScheduleRequestRequest)>, CancellationToken>(
-                (u, _) => captured = [.. u])
+        repo.Setup(r => r.BatchApplyPlacementsAsync(
+                It.IsAny<IReadOnlyList<PlacementWrite>>(), It.IsAny<CancellationToken>()))
+            .Callback<IReadOnlyList<PlacementWrite>, CancellationToken>((u, _) => captured = [.. u])
             .ReturnsAsync(1);
 
         var service = CreateService(
-            solvers: [new StubSolver(start, end, requestId, Guid.NewGuid())],
+            solvers: [new StubSolver(start, end, requestId, resources ?? [new PlacedResource("space", Guid.NewGuid())])],
             requestRepository: repo.Object,
             axis: axis);
 
@@ -300,7 +316,19 @@ public class AutoScheduleServiceTests
             CancellationToken.None);
 
         captured.Should().NotBeNull();
-        return captured!.Single().Data;
+        return captured!.Single();
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WritesEveryResourceThePlacementNamed()
+    {
+        var room = Guid.NewGuid();
+        var van = Guid.NewGuid();
+
+        var write = await ApplyAndCaptureWindowAsync(0, 60,
+            resources: [new PlacedResource("space", room), new PlacedResource("van", van)]);
+
+        write.ResourceIds.Should().BeEquivalentTo([room, van]);
     }
 
     [Fact]

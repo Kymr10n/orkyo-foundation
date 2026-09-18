@@ -34,7 +34,7 @@ public class SchedulingScenarioTests
 
     private static void AssertNoOverlaps(SchedulingSolution solution)
     {
-        var bySpace = solution.Assignments.GroupBy(a => a.ResourceId);
+        var bySpace = solution.Assignments.GroupBy(a => a.ResourceId());
         foreach (var group in bySpace)
         {
             var sorted = group.OrderBy(a => a.Start).ToList();
@@ -94,7 +94,7 @@ public class SchedulingScenarioTests
 
         var labPlacement = result.Assignments.FirstOrDefault(a => a.RequestId == labRequest.RequestId);
         labPlacement.Should().NotBeNull("lab request should be scheduled");
-        labPlacement!.ResourceId.Should().Be(specializedSpace.ResourceId,
+        labPlacement!.ResourceId().Should().Be(specializedSpace.ResourceId,
             "lab request must go to the only compatible space");
 
         result.Assignments.Should().HaveCount(3);
@@ -145,7 +145,7 @@ public class SchedulingScenarioTests
     public async Task FixedAssignments_AreRespected(string solverName)
     {
         var resourceId = Guid.NewGuid();
-        var space = new ResourceNode(resourceId, "Room", new HashSet<Guid>());
+        var space = MakeSpace(resourceId, "Room");
 
         var fixedOcc = new FixedOccupancy(Guid.NewGuid(), resourceId, Day(0), Day(15));
         var newReq = Req("New Task", Day(5));
@@ -180,7 +180,7 @@ public class SchedulingScenarioTests
         result.Assignments.Should().HaveCount(3);
 
         var abPlacement = result.Assignments.First(a => a.RequestId == reqAB.RequestId);
-        abPlacement.ResourceId.Should().Be(spaceAB.ResourceId);
+        abPlacement.ResourceId().Should().Be(spaceAB.ResourceId);
 
         AssertNoOverlaps(result);
     }
@@ -221,9 +221,9 @@ public class SchedulingScenarioTests
     }
 
     // ── The machine shop ──────────────────────────────────────────────────────
-    // Saw 20 min → mill 3 h → deburr 45 min, each on its own station, in a site that works
-    // 08:00–17:00 on weekdays. Under day resolution this took three days at minimum; the point
-    // of the minute axis is that it finishes before lunch.
+    // Saw 20 min → mill 3 h → deburr 45 min, each on its own station type, in a site that works
+    // 08:00–17:00 on weekdays. Under day resolution this took three days at minimum, and under
+    // one-type-per-run it took three runs; one run on the minute axis finishes it before lunch.
 
     private static readonly Guid SawId = Guid.NewGuid();
     private static readonly Guid MillId = Guid.NewGuid();
@@ -243,22 +243,19 @@ public class SchedulingScenarioTests
         // Monday 13 April 2026 to Friday 17 April: one working week, 45 working hours.
         var start = new DateOnly(2026, 4, 13);
         var end = new DateOnly(2026, 4, 17);
-        var sawCrit = Guid.NewGuid();
-        var millCrit = Guid.NewGuid();
-        var benchCrit = Guid.NewGuid();
 
         return MakeProblem(
             requests:
             [
-                MakeRequest(SawId, "Saw", 20, criteria: new HashSet<Guid> { sawCrit }),
-                MakeRequest(MillId, "Mill", 180, criteria: new HashSet<Guid> { millCrit }),
-                MakeRequest(DeburrId, "Deburr", 45, criteria: new HashSet<Guid> { benchCrit }),
+                MakeRequest(SawId, "Saw", 20, openTypes: new HashSet<string> { "saw" }),
+                MakeRequest(MillId, "Mill", 180, openTypes: new HashSet<string> { "mill" }),
+                MakeRequest(DeburrId, "Deburr", 45, openTypes: new HashSet<string> { "bench" }),
             ],
             spaces:
             [
-                Space("Band saw", sawCrit),
-                Space("Mill", millCrit),
-                Space("Deburr bench", benchCrit),
+                MakeSpace(name: "Band saw", typeKey: "saw"),
+                MakeSpace(name: "Mill", typeKey: "mill"),
+                MakeSpace(name: "Deburr bench", typeKey: "bench"),
             ],
             horizonStart: start, horizonEnd: end,
             axis: WeekdayAxis(start, end),
@@ -292,6 +289,77 @@ public class SchedulingScenarioTests
         // In calendar terms: Monday 08:00 to Monday 12:05.
         problem.Axis.StartAt(saw.Start).Should().Be(new DateTime(2026, 4, 13, 8, 0, 0, DateTimeKind.Utc));
         problem.Axis.EndAt(deburr.End).Should().Be(new DateTime(2026, 4, 13, 12, 5, 0, DateTimeKind.Utc));
+
+        // Each on its own station type, all in the one run.
+        saw.Resources.Single().TypeKey.Should().Be("saw");
+        mill.Resources.Single().TypeKey.Should().Be("mill");
+        deburr.Resources.Single().TypeKey.Should().Be("bench");
+    }
+
+    [Theory]
+    [InlineData("Greedy")]
+    [InlineData("OrTools")]
+    public async Task ARequestNeedingTwoTypes_GetsOneOfEachAtTheSameTime(string solverName)
+    {
+        // An install needs a room and a van together. One room, two vans, and the first van is
+        // busy for the first hour: the placement must land on the room and the free van, or on
+        // the room and the busy van after it frees up — never on the room alone.
+        var room = MakeSpace(name: "Room", typeKey: "space");
+        var vanA = MakeSpace(name: "Van A", typeKey: "van");
+        var vanB = MakeSpace(name: "Van B", typeKey: "van");
+        var install = MakeRequest(name: "Install", durationMinutes: 120,
+            openTypes: new HashSet<string> { "space", "van" });
+
+        var problem = MakeProblem([install], [room, vanA, vanB],
+            fixedAssignments: [new FixedOccupancy(Guid.NewGuid(), vanA.ResourceId, 0, 60)]);
+
+        var result = await RunPipeline(problem, Solver(solverName));
+
+        var placement = result.Assignments.Should().ContainSingle().Subject;
+        placement.Resources.Select(r => r.TypeKey).Should().BeEquivalentTo(["space", "van"]);
+        placement.Resources.Should().Contain(r => r.ResourceId == room.ResourceId);
+        placement.Start.Should().Be(0, "Van B is free from the start");
+        placement.Resources.Should().Contain(r => r.ResourceId == vanB.ResourceId);
+    }
+
+    [Theory]
+    [InlineData("Greedy")]
+    [InlineData("OrTools")]
+    public async Task ARequestNeedingTwoTypes_WaitsForBothToBeFree(string solverName)
+    {
+        // The only van is busy for the first two hours: the room is free, but the request is
+        // not placed until the van is too.
+        var room = MakeSpace(name: "Room", typeKey: "space");
+        var van = MakeSpace(name: "Van", typeKey: "van");
+        var install = MakeRequest(name: "Install", durationMinutes: 60,
+            openTypes: new HashSet<string> { "space", "van" });
+
+        var problem = MakeProblem([install], [room, van],
+            fixedAssignments: [new FixedOccupancy(Guid.NewGuid(), van.ResourceId, 0, 120)]);
+
+        var result = await RunPipeline(problem, Solver(solverName));
+
+        var placement = result.Assignments.Should().ContainSingle().Subject;
+        placement.Start.Should().Be(120);
+        placement.Resources.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData("Greedy")]
+    [InlineData("OrTools")]
+    public async Task ARequestNeedingATypeWithNoResource_IsNotPlacedHalfway(string solverName)
+    {
+        // No van exists. Placing the room alone would report the request as scheduled with a
+        // slot silently unfilled; it stays in the backlog and says which type is missing.
+        var room = MakeSpace(name: "Room", typeKey: "space");
+        var install = MakeRequest(name: "Install", durationMinutes: 60,
+            openTypes: new HashSet<string> { "space", "van" });
+
+        var result = await RunPipeline(MakeProblem([install], [room]), Solver(solverName));
+
+        result.Assignments.Should().BeEmpty();
+        result.Unscheduled.Should().ContainSingle(u => u.RequestId == install.RequestId)
+            .Which.ReasonCodes.Should().Contain(SchedulingReasonCode.NoCompatibleResource);
     }
 
     [Theory]
@@ -324,7 +392,7 @@ public class SchedulingScenarioTests
         var twelveHours = MakeRequest(name: "Long", durationMinutes: 12 * 60, priority: 2);
         var nineHours = MakeRequest(name: "Day", durationMinutes: 9 * 60, priority: 1);
 
-        var problem = MakeProblem([twelveHours, nineHours], [new ResourceNode(resourceId, "Cell", new HashSet<Guid>())],
+        var problem = MakeProblem([twelveHours, nineHours], [MakeSpace(resourceId, "Cell")],
             horizonStart: start, horizonEnd: end, axis: WeekdayAxis(start, end));
 
         var result = await RunPipeline(problem, Solver(solverName));
@@ -367,7 +435,7 @@ public class SchedulingScenarioTests
         var fridayTaken = new FixedOccupancy(Guid.NewGuid(), resourceId, 4 * 9 * 60, 5 * 9 * 60);
         var tenHours = MakeRequest(name: "Long", durationMinutes: 10 * 60, earliest: 4 * 9 * 60 - 60);
 
-        var problem = MakeProblem([tenHours], [new ResourceNode(resourceId, "Cell", new HashSet<Guid>())],
+        var problem = MakeProblem([tenHours], [MakeSpace(resourceId, "Cell")],
             horizonStart: start, horizonEnd: end, axis: axis, fixedAssignments: [fridayTaken, booking]);
 
         var result = await RunPipeline(problem, Solver(solverName));

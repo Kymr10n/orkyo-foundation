@@ -3,8 +3,8 @@ using Api.Models;
 namespace Api.Services.AutoSchedule;
 
 /// <summary>
-/// Greedy earliest-fit solver. Assigns requests one at a time in priority order,
-/// picking the earliest feasible start on the first compatible resource.
+/// Greedy earliest-fit solver. Assigns requests one at a time in priority order, picking the
+/// earliest start at which one resource of every open type is free at once.
 /// Acts as fallback when OR-Tools is unavailable or times out.
 /// </summary>
 public sealed class GreedySchedulingSolver : ISchedulingSolver
@@ -83,33 +83,26 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
             // Whether any start at all survived the dependency floor. It separates "the
             // resource was busy" from "the predecessor finishes too late to leave room", which
             // are different problems for the reader even though both end in no placement.
-            var anyStartAfterFloor = !hasFloor;
+            var anyStartAfterFloor = !hasFloor
+                || requestGroup.Any(c => c.FeasibleStartWindows.Any(w => w.To > dependencyFloor));
 
-            foreach (var candidate in requestGroup.OrderBy(TotalWindow))
+            var chosen = EarliestCommonFit(requestGroup, reserved, dependencyFloor);
+            if (chosen is { } fit)
             {
-                if (hasFloor && candidate.FeasibleStartWindows.Any(w => w.To > dependencyFloor))
-                    anyStartAfterFloor = true;
-
-                if (!reserved.TryGetValue(candidate.ResourceId, out var reservations))
-                    reserved[candidate.ResourceId] = reservations = [];
-
-                var start = StartWindows.EarliestFit(
-                    candidate.FeasibleStartWindows, reservations, candidate.DurationMinutes, dependencyFloor);
-                if (start is not { } s) continue;
-
-                var end = s + candidate.DurationMinutes;
-                reservations.Add((s, end));
+                var duration = requestGroup.First().DurationMinutes;
+                var end = fit.Start + duration;
+                foreach (var candidate in fit.Candidates)
+                    reserved[candidate.ResourceId].Add((fit.Start, end));
 
                 assignments.Add(new ScheduledPlacement(
-                    candidate.RequestId,
-                    candidate.ResourceId,
-                    s, end,
-                    candidate.DurationMinutes,
-                    candidate.Priority));
+                    requestGroup.Key,
+                    fit.Candidates.Select(c => new PlacedResource(c.ResourceTypeKey, c.ResourceId)).ToList(),
+                    fit.Start, end,
+                    duration,
+                    requestGroup.First().Priority));
 
                 placed = true;
-                placedEnds[candidate.RequestId] = end;
-                break;
+                placedEnds[requestGroup.Key] = end;
             }
 
             if (!placed)
@@ -149,6 +142,58 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
     /// <summary>How much room a candidate has: the minutes its start may fall in.</summary>
     private static int TotalWindow(SchedulingCandidate candidate)
         => candidate.FeasibleStartWindows.Sum(w => w.Length);
+
+    /// <summary>
+    /// The earliest start at or after <paramref name="bound"/> at which every open type has a
+    /// free resource, and which resource that is per type. A fixpoint sweep: each type's
+    /// earliest fit at the current start is found, the latest of them becomes the new start,
+    /// and the sweep ends when nothing moves. Monotone and bounded by the windows, so it
+    /// terminates. Null when some type never fits.
+    /// </summary>
+    private static (int Start, List<SchedulingCandidate> Candidates)? EarliestCommonFit(
+        IGrouping<Guid, SchedulingCandidate> requestGroup,
+        Dictionary<Guid, List<(int Start, int End)>> reserved,
+        int bound)
+    {
+        var byType = requestGroup
+            .GroupBy(c => c.ResourceTypeKey, StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => g.OrderBy(TotalWindow).ToList())
+            .ToList();
+        var duration = requestGroup.First().DurationMinutes;
+
+        var start = bound;
+        while (true)
+        {
+            var picks = new List<SchedulingCandidate>(byType.Count);
+            var next = start;
+
+            foreach (var candidatesOfType in byType)
+            {
+                SchedulingCandidate? best = null;
+                var bestStart = int.MaxValue;
+                foreach (var candidate in candidatesOfType)
+                {
+                    if (!reserved.TryGetValue(candidate.ResourceId, out var reservations))
+                        reserved[candidate.ResourceId] = reservations = [];
+
+                    var fit = StartWindows.EarliestFit(candidate.FeasibleStartWindows, reservations, duration, start);
+                    if (fit is { } s && s < bestStart)
+                    {
+                        best = candidate;
+                        bestStart = s;
+                    }
+                }
+
+                if (best is null) return null;
+                picks.Add(best);
+                if (bestStart > next) next = bestStart;
+            }
+
+            if (next == start) return (start, picks);
+            start = next;
+        }
+    }
 
     /// <summary>
     /// Kahn's algorithm over the solve set, keeping the incoming heuristic order as the

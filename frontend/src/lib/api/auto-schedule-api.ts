@@ -21,11 +21,12 @@ export interface AutoSchedulePreviewRequest {
   requestIds?: string[];
   respectSchedulingSettings?: boolean;
   /**
-   * Which of a request's targeted types this run fills — one run fills one type's slot.
-   * Omit for spaces. Apply inherits it and must repeat the value the preview used, or the
-   * backend re-solves for a different type than the one the user saw.
+   * Which resource types this run fills. A request is placed with one resource of every type
+   * it needs from this set, all at the same time. Omit to fill every type a request can
+   * target. Apply inherits it and must repeat the value the preview used, or the backend
+   * re-solves for a different set than the one the user saw.
    */
-  resourceTypeKey?: string;
+  resourceTypeKeys?: string[];
 }
 
 export interface AutoScheduleApplyRequest extends AutoSchedulePreviewRequest {
@@ -38,11 +39,17 @@ export interface AutoScheduleScore {
   priorityScore: number;
 }
 
+export interface ProposedResourceDto {
+  typeKey: string;
+  resourceId: string;
+  resourceName: string;
+}
+
 export interface ProposedAssignmentDto {
   requestId: string;
   requestName: string;
-  resourceId: string;
-  resourceName: string;
+  /** One resource per type the request needed, all occupied together. */
+  resources: ProposedResourceDto[];
   /** ISO-8601 UTC timestamps: the half-open window the apply writes. */
   start: string;
   end: string;

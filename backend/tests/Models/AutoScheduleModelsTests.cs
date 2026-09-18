@@ -58,7 +58,7 @@ public class AutoScheduleModelsTests
             Status: SolverStatus.Feasible,
             Assignments: new List<ScheduledPlacement>
             {
-                new(RequestId: req1, ResourceId: space, Start: start, End: end, DurationMinutes: 2 * 1440, Priority: 10)
+                new(RequestId: req1, Resources: [new PlacedResource("space", space)], Start: start, End: end, DurationMinutes: 2 * 1440, Priority: 10)
             },
             Unscheduled: new List<UnscheduledPlacement>
             {
@@ -104,9 +104,9 @@ public class AutoScheduleModelsTests
         var a = Guid.NewGuid();
         var b = Guid.NewGuid();
 
-        var withoutEdges = solution.ComputeFingerprint(ResourceTypeKeys.Space, []);
-        var withEdge = solution.ComputeFingerprint(ResourceTypeKeys.Space, [new DependencyEdge(a, b, 0)]);
-        var withLonger = solution.ComputeFingerprint(ResourceTypeKeys.Space, [new DependencyEdge(a, b, 5)]);
+        var withoutEdges = solution.ComputeFingerprint([ResourceTypeKeys.Space], []);
+        var withEdge = solution.ComputeFingerprint([ResourceTypeKeys.Space], [new DependencyEdge(a, b, 0)]);
+        var withLonger = solution.ComputeFingerprint([ResourceTypeKeys.Space], [new DependencyEdge(a, b, 5)]);
 
         withEdge.Should().NotBe(withoutEdges);
         withLonger.Should().NotBe(withEdge, "the lag is part of what makes a plan valid");
@@ -124,13 +124,13 @@ public class AutoScheduleModelsTests
         var b = Guid.NewGuid();
         DependencyEdge[] edges = [new DependencyEdge(a, b, 0)];
 
-        var asAll = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+        var asAll = solution.ComputeFingerprint([ResourceTypeKeys.Space], edges,
             new Dictionary<Guid, JoinCondition> { [b] = JoinCondition.All });
-        var asAny = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+        var asAny = solution.ComputeFingerprint([ResourceTypeKeys.Space], edges,
             new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.Any, null) });
-        var asTwoOfN = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+        var asTwoOfN = solution.ComputeFingerprint([ResourceTypeKeys.Space], edges,
             new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.KOfN, 2) });
-        var asThreeOfN = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+        var asThreeOfN = solution.ComputeFingerprint([ResourceTypeKeys.Space], edges,
             new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.KOfN, 3) });
 
         asAny.Should().NotBe(asAll);
@@ -148,12 +148,12 @@ public class AutoScheduleModelsTests
         var b = Guid.NewGuid();
         DependencyEdge[] edges = [new DependencyEdge(Guid.NewGuid(), b, 0)];
 
-        var fingerprint = solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+        var fingerprint = solution.ComputeFingerprint([ResourceTypeKeys.Space], edges,
             new Dictionary<Guid, JoinCondition> { [b] = new(PredecessorLogic.KOfN, 2) });
 
         // Same inputs described the DB way must hash identically — proving the DB string is what
         // went in. (A direct string assertion is impossible: the value is SHA-256'd.)
-        fingerprint.Should().Be(solution.ComputeFingerprint(ResourceTypeKeys.Space, edges,
+        fingerprint.Should().Be(solution.ComputeFingerprint([ResourceTypeKeys.Space], edges,
             new Dictionary<Guid, JoinCondition> { [b] = JoinCondition.Of(PredecessorLogic.KOfN, 2) }));
         EnumMapper.ToDbValue(PredecessorLogic.KOfN).Should().Be("k_of_n");
     }
@@ -166,8 +166,29 @@ public class AutoScheduleModelsTests
         var solution = new SchedulingSolution(
             SolverKind.Greedy, SolverStatus.Optimal, [], [], []);
 
-        solution.ComputeFingerprint(ResourceTypeKeys.Space, [])
-            .Should().Be(solution.ComputeFingerprint(ResourceTypeKeys.Space, [], new Dictionary<Guid, JoinCondition>()));
+        solution.ComputeFingerprint([ResourceTypeKeys.Space], [])
+            .Should().Be(solution.ComputeFingerprint([ResourceTypeKeys.Space], [], new Dictionary<Guid, JoinCondition>()));
+    }
+
+    [Fact]
+    public void Fingerprint_ChangesWithTheTypeSetAndTheResourcesPlaced()
+    {
+        // A run over rooms and a run over rooms and vans are different plans even when they
+        // propose the same window; so are the same window on a different van.
+        var request = Guid.NewGuid();
+        var room = Guid.NewGuid();
+        var vanA = Guid.NewGuid();
+        var vanB = Guid.NewGuid();
+
+        var onVanA = MakeSolution(new ScheduledPlacement(
+            request, [new PlacedResource("space", room), new PlacedResource("van", vanA)], 0, 60, 60, 1));
+        var onVanB = MakeSolution(new ScheduledPlacement(
+            request, [new PlacedResource("space", room), new PlacedResource("van", vanB)], 0, 60, 60, 1));
+
+        onVanA.ComputeFingerprint(["space", "van"], []).Should().NotBe(onVanB.ComputeFingerprint(["space", "van"], []));
+        onVanA.ComputeFingerprint(["space", "van"], []).Should().NotBe(onVanA.ComputeFingerprint(["space"], []));
+        // The set is unordered.
+        onVanA.ComputeFingerprint(["van", "space"], []).Should().Be(onVanA.ComputeFingerprint(["space", "van"], []));
     }
 
     [Fact]
@@ -179,11 +200,11 @@ public class AutoScheduleModelsTests
         var e1 = new DependencyEdge(Guid.NewGuid(), Guid.NewGuid(), 1);
         var e2 = new DependencyEdge(Guid.NewGuid(), Guid.NewGuid(), 2);
 
-        solution.ComputeFingerprint(ResourceTypeKeys.Space, [e1, e2])
-            .Should().Be(solution.ComputeFingerprint(ResourceTypeKeys.Space, [e2, e1]));
+        solution.ComputeFingerprint([ResourceTypeKeys.Space], [e1, e2])
+            .Should().Be(solution.ComputeFingerprint([ResourceTypeKeys.Space], [e2, e1]));
     }
 
-    // ── SchedulingSolution.ComputeFingerprint(ResourceTypeKeys.Space, []) ────────────────────────────
+    // ── SchedulingSolution.ComputeFingerprint([ResourceTypeKeys.Space], []) ────────────────────────────
 
     [Fact]
     public void ComputeFingerprint_EmptySolution_ProducesConsistentHash()
@@ -196,8 +217,8 @@ public class AutoScheduleModelsTests
             Diagnostics: new List<string>()
         );
 
-        var fp1 = solution.ComputeFingerprint(ResourceTypeKeys.Space, []);
-        var fp2 = solution.ComputeFingerprint(ResourceTypeKeys.Space, []);
+        var fp1 = solution.ComputeFingerprint([ResourceTypeKeys.Space], []);
+        var fp2 = solution.ComputeFingerprint([ResourceTypeKeys.Space], []);
 
         fp1.Should().Be(fp2);
         fp1.Should().HaveLength(64); // SHA-256 hex
@@ -211,10 +232,10 @@ public class AutoScheduleModelsTests
         var start = 0;
         var end = 4 * 1440;
 
-        var a = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4 * 1440, 5));
-        var b = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4 * 1440, 5));
+        var a = MakeSolution(new ScheduledPlacement(reqId, [new PlacedResource("space", resourceId)], start, end, 4 * 1440, 5));
+        var b = MakeSolution(new ScheduledPlacement(reqId, [new PlacedResource("space", resourceId)], start, end, 4 * 1440, 5));
 
-        a.ComputeFingerprint(ResourceTypeKeys.Space, []).Should().Be(b.ComputeFingerprint(ResourceTypeKeys.Space, []));
+        a.ComputeFingerprint([ResourceTypeKeys.Space], []).Should().Be(b.ComputeFingerprint([ResourceTypeKeys.Space], []));
     }
 
     [Fact]
@@ -226,10 +247,10 @@ public class AutoScheduleModelsTests
         var start = 0;
         var end = 4 * 1440;
 
-        var a = MakeSolution(new ScheduledPlacement(req1, resourceId, start, end, 4 * 1440, 5));
-        var b = MakeSolution(new ScheduledPlacement(req2, resourceId, start, end, 4 * 1440, 5));
+        var a = MakeSolution(new ScheduledPlacement(req1, [new PlacedResource("space", resourceId)], start, end, 4 * 1440, 5));
+        var b = MakeSolution(new ScheduledPlacement(req2, [new PlacedResource("space", resourceId)], start, end, 4 * 1440, 5));
 
-        a.ComputeFingerprint(ResourceTypeKeys.Space, []).Should().NotBe(b.ComputeFingerprint(ResourceTypeKeys.Space, []));
+        a.ComputeFingerprint([ResourceTypeKeys.Space], []).Should().NotBe(b.ComputeFingerprint([ResourceTypeKeys.Space], []));
     }
 
     [Fact]
@@ -241,8 +262,8 @@ public class AutoScheduleModelsTests
         var start = 0;
         var end = 4 * 1440;
 
-        var p1 = new ScheduledPlacement(req1, resourceId, start, end, 4 * 1440, 5);
-        var p2 = new ScheduledPlacement(req2, resourceId, start, end, 4 * 1440, 5);
+        var p1 = new ScheduledPlacement(req1, [new PlacedResource("space", resourceId)], start, end, 4 * 1440, 5);
+        var p2 = new ScheduledPlacement(req2, [new PlacedResource("space", resourceId)], start, end, 4 * 1440, 5);
 
         var ordered = new SchedulingSolution(SolverKind.Greedy, SolverStatus.Optimal,
             new List<ScheduledPlacement> { p1, p2 }, new List<UnscheduledPlacement>(), new List<string>());
@@ -250,7 +271,7 @@ public class AutoScheduleModelsTests
         var reversed = new SchedulingSolution(SolverKind.Greedy, SolverStatus.Optimal,
             new List<ScheduledPlacement> { p2, p1 }, new List<UnscheduledPlacement>(), new List<string>());
 
-        ordered.ComputeFingerprint(ResourceTypeKeys.Space, []).Should().Be(reversed.ComputeFingerprint(ResourceTypeKeys.Space, []));
+        ordered.ComputeFingerprint([ResourceTypeKeys.Space], []).Should().Be(reversed.ComputeFingerprint([ResourceTypeKeys.Space], []));
     }
 
     // ── RequestNode ────────────────────────────────────────────────────────
@@ -268,10 +289,12 @@ public class AutoScheduleModelsTests
             LatestEnd: 365 * 1440,
             DurationMinutes: 5 * 1440,
             Priority: 10,
-            RequiredCriterionIds: new HashSet<Guid> { criterionId });
+            RequiredCriterionIds: new HashSet<Guid> { criterionId },
+            OpenTypeKeys: new HashSet<string> { "space", "tool" });
 
         node.RequestId.Should().Be(reqId);
         node.DurationMinutes.Should().Be(5 * 1440);
+        node.OpenTypeKeys.Should().BeEquivalentTo(["space", "tool"]);
         node.Priority.Should().Be(10);
         node.RequiredCriterionIds.Should().Contain(criterionId);
     }
@@ -287,6 +310,7 @@ public class AutoScheduleModelsTests
         var node = new ResourceNode(
             ResourceId: resourceId,
             DisplayName: "Hall A",
+            ResourceTypeKey: "space",
             CriterionIds: new HashSet<Guid> { criterionId });
 
         node.ResourceId.Should().Be(resourceId);
@@ -345,6 +369,7 @@ public class AutoScheduleModelsTests
         var candidate = new SchedulingCandidate(
             RequestId: reqId,
             ResourceId: resourceId,
+            ResourceTypeKey: "space",
             EarliestStart: 0,
             LatestEnd: 180 * 1440,
             DurationMinutes: 5 * 1440,
@@ -426,7 +451,7 @@ public class AutoScheduleModelsTests
 
         var placement = new ScheduledPlacement(
             RequestId: reqId,
-            ResourceId: resourceId,
+            Resources: [new PlacedResource("space", resourceId)],
             Start: 31 * 1440,
             End: 35 * 1440,
             DurationMinutes: 4 * 1440,
