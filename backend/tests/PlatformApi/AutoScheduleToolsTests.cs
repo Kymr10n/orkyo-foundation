@@ -30,7 +30,9 @@ public class AutoScheduleToolsTests
 
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly DateOnly Start = new(2026, 6, 1);
+    private static readonly DateTime StartTs = new(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc);
     private static readonly DateOnly End = new(2026, 6, 30);
+    private static readonly DateTime EndTs = new(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc);
     private const string Fingerprint = "abc123fingerprint";
 
     public AutoScheduleToolsTests()
@@ -65,7 +67,7 @@ public class AutoScheduleToolsTests
         SolverKind.OrToolsCpSat,
         SolverStatus.Optimal,
         new AutoScheduleScore(3, 1, 30),
-        [new ProposedAssignmentDto(Guid.NewGuid(), "Mill", Guid.NewGuid(), "Bench 1", Start, End, 2)],
+        [new ProposedAssignmentDto(Guid.NewGuid(), "Mill", [new ProposedResourceDto("machine", Guid.NewGuid(), "Bench 1")], StartTs, EndTs, 540)],
         [new UnscheduledRequestDto(Guid.NewGuid(), "Weld", [SchedulingReasonCode.NoCompatibleResource])],
         ["solved in 1.2s"],
         fingerprint);
@@ -81,11 +83,11 @@ public class AutoScheduleToolsTests
     {
         SetupPreview();
 
-        await CreateTools().PreviewAsync(SiteId, Start, End, resourceTypeKey: "machine");
+        await CreateTools().PreviewAsync(SiteId, Start, End, resourceTypeKeys: ["machine"]);
 
         _service.Verify(s => s.PreviewAsync(It.Is<AutoSchedulePreviewRequest>(r =>
             r.SiteId == SiteId && r.HorizonStart == Start && r.HorizonEnd == End
-            && r.ResourceTypeKey == "machine"), It.IsAny<CancellationToken>()), Times.Once);
+            && r.ResourceTypeKeys!.Contains("machine")), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -98,14 +100,14 @@ public class AutoScheduleToolsTests
         var requestIds = new[] { Guid.NewGuid() };
 
         var result = await CreateTools().PreviewAsync(
-            SiteId, Start, End, requestIds, "machine", respectSchedulingSettings: false);
+            SiteId, Start, End, requestIds, ["machine"], respectSchedulingSettings: false);
 
         var echo = result.ApplyArguments;
         echo.SiteId.Should().Be(SiteId);
         echo.HorizonStart.Should().Be(Start);
         echo.HorizonEnd.Should().Be(End);
         echo.RequestIds.Should().BeEquivalentTo(requestIds);
-        echo.ResourceTypeKey.Should().Be("machine");
+        echo.ResourceTypeKeys.Should().BeEquivalentTo(["machine"]);
         echo.RespectSchedulingSettings.Should().BeFalse();
         echo.PreviewFingerprint.Should().Be(Fingerprint);
     }
@@ -253,19 +255,18 @@ public class AutoScheduleToolsTests
     }
 
     [Fact]
-    public async Task Preview_SurfacesTheServicesGuidanceWhenTheTypeIsAmbiguous()
+    public async Task Preview_SurfacesTheServicesGuidanceWhenATypeIsUnknown()
     {
-        // A tenant with several placeable types must say which one to fill. The service says so
-        // precisely, naming the valid keys — that message is the agent's only route to success, so
-        // it must not be flattened into a generic failure.
+        // The service names the key it could not resolve — that message is the agent's only
+        // route to success, so it must not be flattened into a generic failure.
         _service.Setup(s => s.PreviewAsync(It.IsAny<AutoSchedulePreviewRequest>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new ArgumentException(
-                "Several placeable resource types exist (cnc, lathe, mill); specify resourceTypeKey."));
+                "Unknown or inactive resource type(s): lathe."));
 
         var thrown = await Assert.ThrowsAsync<McpException>(
-            () => CreateTools().PreviewAsync(SiteId, Start, End));
+            () => CreateTools().PreviewAsync(SiteId, Start, End, resourceTypeKeys: ["lathe"]));
 
-        thrown.Message.Should().Contain("specify resourceTypeKey");
-        thrown.Message.Should().Contain("cnc, lathe, mill");
+        thrown.Message.Should().Contain("Unknown or inactive resource type(s)");
+        thrown.Message.Should().Contain("lathe");
     }
 }

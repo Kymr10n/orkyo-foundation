@@ -21,6 +21,9 @@ public class CreateTemplateRequestValidator : AbstractValidator<CreateTemplateRe
             .WithMessage($"EntityType must be one of: {string.Join(", ", TemplateEntityTypes.All)}");
         RuleFor(x => x.DurationValue!.Value).GreaterThan(0)
             .When(x => x.DurationValue.HasValue);
+        RuleForEach(x => x.TargetResourceTypeKeys!).NotEmpty()
+            .WithMessage("TargetResourceTypeKeys must not contain empty keys")
+            .When(x => x.TargetResourceTypeKeys is not null);
     }
 }
 
@@ -36,6 +39,9 @@ public class UpdateTemplateRequestValidator : AbstractValidator<UpdateTemplateRe
             .WithMessage($"EntityType must be one of: {string.Join(", ", TemplateEntityTypes.All)}");
         RuleFor(x => x.DurationValue!.Value).GreaterThan(0)
             .When(x => x.DurationValue.HasValue);
+        RuleForEach(x => x.TargetResourceTypeKeys!).NotEmpty()
+            .WithMessage("TargetResourceTypeKeys must not contain empty keys")
+            .When(x => x.TargetResourceTypeKeys is not null);
     }
 }
 

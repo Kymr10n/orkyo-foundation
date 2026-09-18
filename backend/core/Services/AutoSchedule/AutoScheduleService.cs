@@ -46,11 +46,9 @@ public sealed class AutoScheduleService : IAutoScheduleService
         await EnsureAutoScheduleAvailableAsync();
         Validate(request.HorizonStart, request.HorizonEnd);
 
-        // One run solves one resource type. When the caller does not say which, resolve it from
-        // what the tenant can place: a single placeable type is an unambiguous answer, several is
-        // a question only the caller can settle. Resolved once, here — the builder and the
-        // fingerprint used to each apply their own `?? space`, which agreed only by luck.
-        request = request with { ResourceTypeKey = await ResolveTargetTypeAsync(request.ResourceTypeKey, cancellationToken) };
+        // Which types the run fills is resolved once, here, so the builder and the fingerprint
+        // see the same set. Omitted means every type a request can target.
+        request = request with { ResourceTypeKeys = await ResolveTargetTypesAsync(request.ResourceTypeKeys, cancellationToken) };
 
         var problem = await _problemBuilder.BuildAsync(request, cancellationToken);
         var analyzed = _feasibilityAnalyzer.Analyze(problem);
@@ -64,10 +62,16 @@ public sealed class AutoScheduleService : IAutoScheduleService
             solution.Status,
             solution.ToScore(),
             solution.Assignments
+                // Offsets become timestamps here and nowhere else. Start snaps forward at a
+                // boundary and End backward, so a job ending at close of business is written
+                // as ending then rather than at the next morning's opening.
                 .Select(x => new ProposedAssignmentDto(
                     x.RequestId, requestNames.GetValueOrDefault(x.RequestId, "Unknown"),
-                    x.ResourceId, resourceNames.GetValueOrDefault(x.ResourceId, "Unknown"),
-                    x.Start, x.End, x.DurationDays))
+                    x.Resources
+                        .Select(r => new ProposedResourceDto(
+                            r.TypeKey, r.ResourceId, resourceNames.GetValueOrDefault(r.ResourceId, "Unknown")))
+                        .ToList(),
+                    problem.Axis.StartAt(x.Start), problem.Axis.EndAt(x.End), x.DurationMinutes))
                 .ToList(),
             solution.Unscheduled
                 .Select(x => new UnscheduledRequestDto(
@@ -82,7 +86,7 @@ public sealed class AutoScheduleService : IAutoScheduleService
                         [SchedulingReasonCode.PredecessorUnscheduled])))
                 .ToList(),
             solution.Diagnostics,
-            solution.ComputeFingerprint(request.ResourceTypeKey!, problem.Dependencies ?? [], problem.JoinConditions));
+            solution.ComputeFingerprint(request.ResourceTypeKeys!, problem.Dependencies ?? [], problem.JoinConditions));
     }
 
     public async Task<AutoScheduleApplyResponse> ApplyAsync(
@@ -92,13 +96,13 @@ public sealed class AutoScheduleService : IAutoScheduleService
         await EnsureAutoScheduleAvailableAsync();
         Validate(request.HorizonStart, request.HorizonEnd);
 
-        // ResourceTypeKey must cross into the rebuilt preview. Drop it and apply would silently
-        // re-solve for spaces, so a preview of van assignments would be applied as room ones —
-        // and the fingerprint would not catch it, being computed from whatever this call solved.
+        // ResourceTypeKeys must cross into the rebuilt preview. Drop them and apply would silently
+        // re-solve for every type, so a preview of van assignments would be applied with rooms
+        // too — and the fingerprint would not catch it, being computed from whatever this call solved.
         var preview = await PreviewAsync(
             new AutoSchedulePreviewRequest(
                 request.SiteId, request.HorizonStart, request.HorizonEnd,
-                request.RequestIds, request.RespectSchedulingSettings, request.ResourceTypeKey),
+                request.RequestIds, request.RespectSchedulingSettings, request.ResourceTypeKeys),
             cancellationToken);
 
         if (!string.IsNullOrEmpty(request.PreviewFingerprint) &&
@@ -115,26 +119,13 @@ public sealed class AutoScheduleService : IAutoScheduleService
         if (preview.Assignments.Count == 0)
             return new AutoScheduleApplyResponse(CreatedAssignments: 0, UnscheduledCount: preview.Unscheduled.Count);
 
-        var updates = preview.Assignments
-            .Select(a => (
-                a.RequestId,
-                new ScheduleRequestRequest
-                {
-                    ResourceId = a.ResourceId,
-                    StartTs = a.Start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                    // The solver's End is INCLUSIVE — both solvers compute it as
-                    // start.AddDays(DurationDays - 1), so a one-day placement has Start == End.
-                    // The schedule window is a half-open timestamp range, so the exclusive end is
-                    // the day after. Without the AddDays(1) a one-day placement produced a
-                    // zero-length window, and BatchUpdateSchedulesAsync derives
-                    // actual_duration_value from End - Start, so it wrote 0 and tripped the
-                    // requests_actual_duration_value_check constraint; every multi-day placement
-                    // was silently written one day short.
-                    EndTs = a.End.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                }))
+        // Already the half-open timestamp window the preview showed.
+        var placements = preview.Assignments
+            .Select(a => new PlacementWrite(
+                a.RequestId, a.Start, a.End, a.Resources.Select(r => r.ResourceId).ToList()))
             .ToList();
 
-        var created = await _requestRepository.BatchUpdateSchedulesAsync(updates, cancellationToken);
+        var created = await _requestRepository.BatchApplyPlacementsAsync(placements, cancellationToken);
 
         _logger.LogInformation("Auto-schedule applied: {Count} assignments created for site {SiteId}",
             created, request.SiteId);
@@ -180,20 +171,31 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 "Auto-scheduling is not enabled. A tenant administrator can enable it in Settings > Configuration.");
     }
 
-    private async Task<string> ResolveTargetTypeAsync(string? requested, CancellationToken ct)
+    /// <summary>
+    /// The sorted, distinct set of type keys the run fills. Given keys must name active types;
+    /// none given means every active type a request can target. People carry a directory
+    /// profile and are attached on the request's own tab, many per request — not a slot.
+    /// </summary>
+    private async Task<IReadOnlyCollection<string>> ResolveTargetTypesAsync(
+        IReadOnlyCollection<string>? requested, CancellationToken ct)
     {
-        if (requested is not null) return requested;
+        var active = (await _resourceTypeRepository.GetAllAsync(ct)).Where(t => t.IsActive).ToList();
 
-        var placeable = await _resourceTypeRepository.GetPlaceableKeysAsync(ct);
-        return placeable.Count switch
+        if (requested is { Count: > 0 })
         {
-            1 => placeable[0],
-            0 => throw new ArgumentException(
-                "No placeable resource types exist, so there is nothing to schedule onto."),
-            _ => throw new ArgumentException(
-                "Several placeable resource types exist "
-                + $"({string.Join(", ", placeable)}); specify resourceTypeKey."),
-        };
+            var known = active.Select(t => t.Key).ToHashSet(StringComparer.Ordinal);
+            var unknown = requested.Where(k => !known.Contains(k)).Distinct().Order().ToList();
+            if (unknown.Count > 0)
+                throw new ArgumentException(
+                    $"Unknown or inactive resource type(s): {string.Join(", ", unknown)}.");
+            return requested.Distinct().Order().ToList();
+        }
+
+        var keys = active.Where(t => !t.HasDirectoryProfile).Select(t => t.Key).Order().ToList();
+        if (keys.Count == 0)
+            throw new ArgumentException(
+                "No schedulable resource types exist, so there is nothing to schedule onto.");
+        return keys;
     }
 
     private static void Validate(DateOnly start, DateOnly end)

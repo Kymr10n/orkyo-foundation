@@ -10,22 +10,6 @@ namespace Api.Services;
 public static class SchedulingEngine
 {
     /// <summary>
-    /// The last calendar day a scheduled window actually occupies.
-    ///
-    /// Schedule windows are half-open timestamps: a one-day placement applied on 2026-03-02 is
-    /// stored as <c>[03-02 00:00, 03-03 00:00)</c>. The day-bucket consumers (the solver's fixed
-    /// occupancies, dependency fold-ins, the conflict engine's precedence check, critical-path
-    /// durations) all reason in INCLUSIVE last days, and a naive
-    /// <c>DateOnly.FromDateTime(endTs)</c> on a midnight-exclusive end lands one day too far —
-    /// phantom-occupying capacity, delaying successors, and inflating durations. An end at exactly
-    /// midnight, under the half-open convention, means the window never entered that day.
-    /// </summary>
-    public static DateOnly InclusiveLastDay(DateTime endTs)
-        => endTs.TimeOfDay == TimeSpan.Zero
-            ? DateOnly.FromDateTime(endTs).AddDays(-1)
-            : DateOnly.FromDateTime(endTs);
-
-    /// <summary>
     /// Result of a scheduling calculation.
     /// </summary>
     public record ScheduleResult
@@ -141,12 +125,33 @@ public static class SchedulingEngine
         DateTime fromUtc,
         DateTime toUtc,
         SchedulingSettingsInfo? settings)
+        => WorkingSegments(fromUtc, toUtc, settings)
+            .Sum(s => (s.EndUtc - s.StartUtc).TotalMinutes);
+
+    /// <summary>
+    /// The working time inside <c>[fromUtc, toUtc)</c> as sorted, disjoint, half-open UTC
+    /// segments, clipped to the window. One segment per local working day — or the whole
+    /// window as a single segment when nothing masks it (null settings, or working hours off
+    /// with weekends on). The auto-scheduler's working-time axis is built from these, and
+    /// <see cref="WorkingMinutesInWindow"/> sums them, so both agree on what a working
+    /// minute is by construction.
+    ///
+    /// Off-times and absences are deliberately NOT applied here; see
+    /// <see cref="WorkingMinutesInWindow"/>.
+    /// </summary>
+    public static IEnumerable<(DateTime StartUtc, DateTime EndUtc)> WorkingSegments(
+        DateTime fromUtc,
+        DateTime toUtc,
+        SchedulingSettingsInfo? settings)
     {
         if (toUtc <= fromUtc)
-            return 0;
+            yield break;
 
         if (settings is null || (!settings.WorkingHoursEnabled && settings.WeekendsEnabled))
-            return (toUtc - fromUtc).TotalMinutes;
+        {
+            yield return (fromUtc, toUtc);
+            yield break;
+        }
 
         var tz = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZone);
 
@@ -156,7 +161,6 @@ public static class SchedulingEngine
         var firstDay = DateOnly.FromDateTime(ToLocal(fromUtc, tz)).AddDays(-1);
         var lastDay = DateOnly.FromDateTime(ToLocal(toUtc, tz)).AddDays(1);
 
-        var total = 0.0;
         for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
         {
             if (!settings.WeekendsEnabled && IsWeekend(day.ToDateTime(TimeOnly.MinValue)))
@@ -183,10 +187,8 @@ public static class SchedulingEngine
             var overlapStart = startUtc > fromUtc ? startUtc : fromUtc;
             var overlapEnd = endUtc < toUtc ? endUtc : toUtc;
             if (overlapEnd > overlapStart)
-                total += (overlapEnd - overlapStart).TotalMinutes;
+                yield return (overlapStart, overlapEnd);
         }
-
-        return total;
     }
 
     /// <summary>

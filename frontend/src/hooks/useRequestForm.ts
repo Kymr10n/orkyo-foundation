@@ -121,10 +121,16 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
       action.template.items?.forEach((item) => {
         reqMap.set(item.criterionId, { value: item.value });
       });
+      // A template that names types brings them along; one that names none leaves the
+      // request's own choice alone.
+      const targetResourceTypeKeys = action.template.targetResourceTypeKeys?.length
+        ? action.template.targetResourceTypeKeys
+        : state.targetResourceTypeKeys;
       return {
         ...state,
         durationValue: action.template.durationValue || 1,
         durationUnit: (action.template.durationUnit || 'hours') as DurationUnit,
+        targetResourceTypeKeys,
         requirements: reqMap,
       };
     }

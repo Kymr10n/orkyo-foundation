@@ -19,6 +19,9 @@ public class AutoSchedulePreviewRequestValidator : AbstractValidator<AutoSchedul
         RuleForEach(x => x.RequestIds!).NotEmpty()
             .WithMessage("RequestIds must not contain empty GUIDs")
             .When(x => x.RequestIds is not null);
+        RuleForEach(x => x.ResourceTypeKeys!).NotEmpty()
+            .WithMessage("ResourceTypeKeys must not contain empty keys")
+            .When(x => x.ResourceTypeKeys is not null);
     }
 }
 
@@ -32,6 +35,9 @@ public class AutoScheduleApplyRequestValidator : AbstractValidator<AutoScheduleA
         RuleForEach(x => x.RequestIds!).NotEmpty()
             .WithMessage("RequestIds must not contain empty GUIDs")
             .When(x => x.RequestIds is not null);
+        RuleForEach(x => x.ResourceTypeKeys!).NotEmpty()
+            .WithMessage("ResourceTypeKeys must not contain empty keys")
+            .When(x => x.ResourceTypeKeys is not null);
     }
 }
 

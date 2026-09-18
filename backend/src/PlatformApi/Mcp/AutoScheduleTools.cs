@@ -63,15 +63,16 @@ public sealed class AutoScheduleTools
         [Description("Last day of the horizon, YYYY-MM-DD.")] DateOnly horizonEnd,
         [Description("Limit the solve to these requests. Omit to consider the site's whole backlog.")]
         IReadOnlyCollection<Guid>? requestIds = null,
-        [Description("Which resource type to fill, e.g. 'machine'. One run fills one type. "
-            + "Omit for the tenant's placeable default.")]
-        string? resourceTypeKey = null,
+        [Description("Which resource types to fill, e.g. ['saw', 'mill']. A request is placed with "
+            + "one resource of every type it needs from this set, all at the same time. Omit to "
+            + "fill every type a request can target.")]
+        IReadOnlyCollection<string>? resourceTypeKeys = null,
         [Description("Honour the tenant's scheduling settings (working days, hours). Default true.")]
         bool respectSchedulingSettings = true,
         CancellationToken ct = default)
     {
         var request = new AutoSchedulePreviewRequest(
-            siteId, horizonStart, horizonEnd, requestIds, respectSchedulingSettings, resourceTypeKey);
+            siteId, horizonStart, horizonEnd, requestIds, respectSchedulingSettings, resourceTypeKeys);
         await McpToolGuards.EnsureValidAsync(_previewValidator, request, ct);
 
         using var _ = await _throttle.AcquireAsync(_tenant.TenantId, ct);
@@ -87,10 +88,10 @@ public sealed class AutoScheduleTools
         }
         catch (ArgumentException ex)
         {
-            // The service raises this to say exactly what the caller must supply — most often
-            // "several placeable resource types exist; specify resourceTypeKey", complete with the
-            // valid keys. Letting it escape as an unhandled exception would replace the one message
-            // that tells the agent how to succeed with a generic failure it can only retry blindly.
+            // The service raises this to say exactly what the caller must supply — an unknown
+            // type key, named. Letting it escape as an unhandled exception would replace the one
+            // message that tells the agent how to succeed with a generic failure it can only
+            // retry blindly.
             throw new McpException(ex.Message);
         }
 
@@ -98,10 +99,10 @@ public sealed class AutoScheduleTools
         // whatever it is given, so a fingerprint paired with a drifted horizon or a different
         // resource type produces a different solve and a stale-plan refusal the agent would read
         // as "the data changed" when it actually mistyped a parameter. Echoing removes that class
-        // of failure. The type is echoed as supplied, not as resolved — re-resolution is
+        // of failure. The types are echoed as supplied, not as resolved — re-resolution is
         // deterministic against the same tenant state, and the fingerprint catches it if it is not.
         var applyArguments = new AutoScheduleApplyArguments(
-            siteId, horizonStart, horizonEnd, requestIds, resourceTypeKey,
+            siteId, horizonStart, horizonEnd, requestIds, resourceTypeKeys,
             respectSchedulingSettings, plan.Fingerprint);
 
         return new AutoSchedulePreviewResult(plan, applyArguments);
@@ -123,8 +124,8 @@ public sealed class AutoScheduleTools
         string previewFingerprint,
         [Description("The same request ids passed to the preview, if any.")]
         IReadOnlyCollection<Guid>? requestIds = null,
-        [Description("The same resource type key passed to the preview, if any.")]
-        string? resourceTypeKey = null,
+        [Description("The same resource type keys passed to the preview, if any.")]
+        IReadOnlyCollection<string>? resourceTypeKeys = null,
         [Description("The same value passed to the preview. Default true.")]
         bool respectSchedulingSettings = true,
         CancellationToken ct = default)
@@ -133,7 +134,7 @@ public sealed class AutoScheduleTools
 
         var request = new AutoScheduleApplyRequest(
             siteId, horizonStart, horizonEnd, requestIds, respectSchedulingSettings,
-            previewFingerprint, resourceTypeKey);
+            previewFingerprint, resourceTypeKeys);
         await McpToolGuards.EnsureValidAsync(_applyValidator, request, ct);
 
         using var _ = await _throttle.AcquireAsync(_tenant.TenantId, ct);
@@ -185,6 +186,6 @@ public sealed record AutoScheduleApplyArguments(
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds,
-    string? ResourceTypeKey,
+    IReadOnlyCollection<string>? ResourceTypeKeys,
     bool RespectSchedulingSettings,
     string PreviewFingerprint);

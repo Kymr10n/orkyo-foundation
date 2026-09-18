@@ -3,8 +3,8 @@ using Api.Models;
 namespace Api.Services.AutoSchedule;
 
 /// <summary>
-/// Greedy earliest-fit solver. Assigns requests one at a time in priority order,
-/// picking the first feasible start day on the first compatible resource.
+/// Greedy earliest-fit solver. Assigns requests one at a time in priority order, picking the
+/// earliest start at which one resource of every open type is free at once.
 /// Acts as fallback when OR-Tools is unavailable or times out.
 /// </summary>
 public sealed class GreedySchedulingSolver : ISchedulingSolver
@@ -22,20 +22,25 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
         // Group candidates by request, order: least flexible first, then earliest deadline, then highest priority
         var grouped = problem.Candidates
             .GroupBy(x => x.RequestId)
-            .OrderBy(g => g.Min(c => c.FeasibleStartDays.Count))
-            .ThenBy(g => g.Min(c => c.LatestEnd.DayNumber))
+            .OrderBy(g => g.Min(c => TotalWindow(c)))
+            .ThenBy(g => g.Min(c => c.LatestEnd))
             .ThenByDescending(g => g.Max(c => c.Priority))
             .ToList();
 
         // Precedence overrides the flexibility heuristic: a successor placed before its
-        // predecessor has no end date to respect yet. Sort into dependency order first and keep
+        // predecessor has no end to respect yet. Sort into dependency order first and keep
         // the heuristic as the tie-break within each layer.
         var dependencies = problem.Problem.Dependencies ?? [];
         if (dependencies.Count > 0)
             grouped = TopologicalOrder(grouped, dependencies);
 
-        var occupied = BuildOccupiedMap(problem.Problem.FixedAssignments);
-        var placedEnds = new Dictionary<Guid, DateOnly>();
+        // The candidate windows already exclude fixed occupancy; the reservations map carries
+        // this run's own placements on top of it. Seeding it with the fixed occupancy costs
+        // nothing and keeps the earliest-fit honest even if a window were ever loose.
+        var reserved = problem.Problem.FixedAssignments
+            .GroupBy(x => x.ResourceId)
+            .ToDictionary(g => g.Key, g => g.Select(x => (x.Start, x.End)).ToList());
+        var placedEnds = new Dictionary<Guid, int>();
         var predecessorsOf = dependencies
             .GroupBy(e => e.SuccessorRequestId)
             .ToDictionary(g => g.Key, g => g.ToList());
@@ -47,8 +52,10 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
             var placed = false;
 
             // The earliest this request may start, given whatever its predecessors got.
-            // Topological order guarantees they were attempted before this point.
-            DateOnly? dependencyFloor = null;
+            // Topological order guarantees they were attempted before this point. A successor
+            // may start the very minute its predecessor ends, plus the lag.
+            var dependencyFloor = 0;
+            var hasFloor = false;
             var predecessorMissing = false;
             if (predecessorsOf.TryGetValue(requestGroup.Key, out var incoming))
             {
@@ -59,8 +66,9 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
                         predecessorMissing = true;
                         break;
                     }
-                    var bound = predEnd.AddDays(1 + edge.LagDays);
-                    if (dependencyFloor is null || bound > dependencyFloor.Value) dependencyFloor = bound;
+                    var bound = predEnd + edge.LagMinutes;
+                    if (!hasFloor || bound > dependencyFloor) dependencyFloor = bound;
+                    hasFloor = true;
                 }
             }
 
@@ -72,50 +80,40 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
                 continue;
             }
 
-            // Whether any day at all survived the dependency floor. It separates "the resource
-            // was busy" from "the predecessor finishes too late to leave room", which are
-            // different problems for the reader even though both end in no placement.
-            var anyDayAfterFloor = dependencyFloor is null;
+            // Whether any start at all survived the dependency floor. It separates "the
+            // resource was busy" from "the predecessor finishes too late to leave room", which
+            // are different problems for the reader even though both end in no placement.
+            var anyStartAfterFloor = !hasFloor
+                || requestGroup.Any(c => c.FeasibleStartWindows.Any(w => w.To > dependencyFloor));
 
-            foreach (var candidate in requestGroup.OrderBy(c => c.FeasibleStartDays.Count))
+            var chosen = EarliestCommonFit(requestGroup, reserved, dependencyFloor);
+            if (chosen is { } fit)
             {
-                foreach (var start in candidate.FeasibleStartDays.OrderBy(x => x.DayNumber))
-                {
-                    if (dependencyFloor is { } floor && start < floor)
-                        continue;
+                var duration = requestGroup.First().DurationMinutes;
+                var end = fit.Start + duration;
+                foreach (var candidate in fit.Candidates)
+                    reserved[candidate.ResourceId].Add((fit.Start, end));
 
-                    anyDayAfterFloor = true;
+                assignments.Add(new ScheduledPlacement(
+                    requestGroup.Key,
+                    fit.Candidates.Select(c => new PlacedResource(c.ResourceTypeKey, c.ResourceId)).ToList(),
+                    fit.Start, end,
+                    duration,
+                    requestGroup.First().Priority));
 
-                    var end = start.AddDays(candidate.DurationDays - 1);
-                    if (Conflicts(occupied, candidate.ResourceId, start, end))
-                        continue;
-
-                    Reserve(occupied, candidate.ResourceId, start, end);
-
-                    assignments.Add(new ScheduledPlacement(
-                        candidate.RequestId,
-                        candidate.ResourceId,
-                        start, end,
-                        candidate.DurationDays,
-                        candidate.Priority));
-
-                    placed = true;
-                    placedEnds[candidate.RequestId] = end;
-                    break;
-                }
-
-                if (placed) break;
+                placed = true;
+                placedEnds[requestGroup.Key] = end;
             }
 
             if (!placed)
             {
                 // Every predecessor was placed (the missing case returned above), so the reason
-                // turns on whether the dependency left any day to try: if it did, the resource
+                // turns on whether the dependency left any start to try: if it did, the resource
                 // was simply busy, and blaming the predecessor would send the reader after a
                 // problem that does not exist.
                 unscheduled.Add(new UnscheduledPlacement(
                     requestGroup.Key,
-                    [anyDayAfterFloor
+                    [anyStartAfterFloor
                         ? SchedulingReasonCode.BlockedByFixedAssignments
                         : SchedulingReasonCode.PredecessorUnscheduled]));
             }
@@ -139,6 +137,62 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
             Assignments: assignments,
             Unscheduled: unscheduled,
             Diagnostics: [.. problem.Diagnostics]));
+    }
+
+    /// <summary>How much room a candidate has: the minutes its start may fall in.</summary>
+    private static int TotalWindow(SchedulingCandidate candidate)
+        => candidate.FeasibleStartWindows.Sum(w => w.Length);
+
+    /// <summary>
+    /// The earliest start at or after <paramref name="bound"/> at which every open type has a
+    /// free resource, and which resource that is per type. A fixpoint sweep: each type's
+    /// earliest fit at the current start is found, the latest of them becomes the new start,
+    /// and the sweep ends when nothing moves. Monotone and bounded by the windows, so it
+    /// terminates. Null when some type never fits.
+    /// </summary>
+    private static (int Start, List<SchedulingCandidate> Candidates)? EarliestCommonFit(
+        IGrouping<Guid, SchedulingCandidate> requestGroup,
+        Dictionary<Guid, List<(int Start, int End)>> reserved,
+        int bound)
+    {
+        var byType = requestGroup
+            .GroupBy(c => c.ResourceTypeKey, StringComparer.Ordinal)
+            .OrderBy(g => g.Key, StringComparer.Ordinal)
+            .Select(g => g.OrderBy(TotalWindow).ToList())
+            .ToList();
+        var duration = requestGroup.First().DurationMinutes;
+
+        var start = bound;
+        while (true)
+        {
+            var picks = new List<SchedulingCandidate>(byType.Count);
+            var next = start;
+
+            foreach (var candidatesOfType in byType)
+            {
+                SchedulingCandidate? best = null;
+                var bestStart = int.MaxValue;
+                foreach (var candidate in candidatesOfType)
+                {
+                    if (!reserved.TryGetValue(candidate.ResourceId, out var reservations))
+                        reserved[candidate.ResourceId] = reservations = [];
+
+                    var fit = StartWindows.EarliestFit(candidate.FeasibleStartWindows, reservations, duration, start);
+                    if (fit is { } s && s < bestStart)
+                    {
+                        best = candidate;
+                        bestStart = s;
+                    }
+                }
+
+                if (best is null) return null;
+                picks.Add(best);
+                if (bestStart > next) next = bestStart;
+            }
+
+            if (next == start) return (start, picks);
+            start = next;
+        }
     }
 
     /// <summary>
@@ -187,34 +241,5 @@ public sealed class GreedySchedulingSolver : ISchedulingSolver
 
         ordered.AddRange(remaining);
         return ordered;
-    }
-
-    private static Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> BuildOccupiedMap(
-        IReadOnlyList<FixedOccupancy> fixedAssignments)
-        => fixedAssignments
-            .GroupBy(x => x.ResourceId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(x => (x.Start, x.End)).ToList());
-
-    private static bool Conflicts(
-        Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> occupied,
-        Guid resourceId, DateOnly start, DateOnly end)
-    {
-        if (!occupied.TryGetValue(resourceId, out var ranges))
-            return false;
-        return ranges.Any(x => !(end < x.Start || start > x.End));
-    }
-
-    private static void Reserve(
-        Dictionary<Guid, List<(DateOnly Start, DateOnly End)>> occupied,
-        Guid resourceId, DateOnly start, DateOnly end)
-    {
-        if (!occupied.TryGetValue(resourceId, out var ranges))
-        {
-            ranges = [];
-            occupied[resourceId] = ranges;
-        }
-        ranges.Add((start, end));
     }
 }

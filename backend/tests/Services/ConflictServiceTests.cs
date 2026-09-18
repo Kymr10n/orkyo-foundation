@@ -520,37 +520,37 @@ public class ConflictServiceTests
     }
 
     [Fact]
-    public async Task ASuccessorStartingTheSameDayItsPredecessorEndsIsAViolation()
+    public async Task ASuccessorStartingTheMinuteItsPredecessorEndsIsClean()
     {
-        // The whole point of the calendar-day rule: raw timestamps would call 09:00-after-08:00
-        // clean, while the scheduler and the critical path both treat the day as taken. A green
-        // Conflicts page contradicting a red critical path is the bug this guards.
+        // Finish-to-start at minute resolution: the successor may start the instant the
+        // predecessor is done. The scheduler places work exactly like this, so flagging it
+        // would make every applied plan red on arrival.
         var conflicts = await DependencyConflictsAsync(
-            predecessorEnd: Start.AddHours(1), successorStart: Start.AddHours(6));
-
-        Assert.Contains(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
-    }
-
-    [Fact]
-    public async Task ASuccessorStartingTheNextDayIsClean()
-    {
-        var conflicts = await DependencyConflictsAsync(
-            predecessorEnd: Start, successorStart: Start.AddDays(1));
+            predecessorEnd: Start.AddHours(1), successorStart: Start.AddHours(1));
 
         Assert.DoesNotContain(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
     }
 
     [Fact]
-    public async Task LagIsCeilingedToWholeDaysSoItNeverLetsASuccessorStartEarly()
+    public async Task ASuccessorStartingAMinuteEarlyIsAViolation()
     {
-        // 90 minutes of lag ceilings to one whole day, so the next day is still too early.
+        var conflicts = await DependencyConflictsAsync(
+            predecessorEnd: Start.AddHours(1), successorStart: Start.AddMinutes(59));
+
+        Assert.Contains(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
+    }
+
+    [Fact]
+    public async Task LagIsElapsedTimeAndIsAppliedToTheMinute()
+    {
+        // 90 minutes of lag: 89 minutes after the finish is too early, 90 is clean.
         var tooEarly = await DependencyConflictsAsync(
-            predecessorEnd: Start, successorStart: Start.AddDays(1), lagMinutes: 90);
+            predecessorEnd: Start, successorStart: Start.AddMinutes(89), lagMinutes: 90);
         Assert.Contains(tooEarly, c => c.Kind == ConflictKinds.DependencyViolation);
         Assert.Contains("gap", Assert.Single(tooEarly, c => c.Kind == ConflictKinds.DependencyViolation).Message);
 
         var clean = await DependencyConflictsAsync(
-            predecessorEnd: Start, successorStart: Start.AddDays(2), lagMinutes: 90);
+            predecessorEnd: Start, successorStart: Start.AddMinutes(90), lagMinutes: 90);
         Assert.DoesNotContain(clean, c => c.Kind == ConflictKinds.DependencyViolation);
     }
 

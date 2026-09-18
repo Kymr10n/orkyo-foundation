@@ -220,4 +220,42 @@ public class SchedulingValidatorTests
         var result = _updateAbsenceValidator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Title);
     }
+
+    // ── Auto-schedule preview / apply: resource type keys ────────────
+
+    private static readonly Guid Site = Guid.NewGuid();
+    private static readonly DateOnly From = new(2026, 3, 1);
+    private static readonly DateOnly To = new(2026, 3, 31);
+
+    [Fact]
+    public void Preview_NoTypeKeys_Passes()
+    {
+        var result = new AutoSchedulePreviewRequestValidator()
+            .TestValidate(new AutoSchedulePreviewRequest(Site, From, To));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Preview_EmptyTypeKey_Fails()
+    {
+        var result = new AutoSchedulePreviewRequestValidator()
+            .TestValidate(new AutoSchedulePreviewRequest(Site, From, To, ResourceTypeKeys: ["mill", ""]));
+        Assert.Contains(result.Errors, e => e.ErrorMessage == "ResourceTypeKeys must not contain empty keys");
+    }
+
+    [Fact]
+    public void Apply_TypeKeysNamed_Passes()
+    {
+        var result = new AutoScheduleApplyRequestValidator()
+            .TestValidate(new AutoScheduleApplyRequest(Site, From, To, ResourceTypeKeys: ["mill", "van"]));
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void Apply_EmptyTypeKey_Fails()
+    {
+        var result = new AutoScheduleApplyRequestValidator()
+            .TestValidate(new AutoScheduleApplyRequest(Site, From, To, ResourceTypeKeys: [""]));
+        Assert.Contains(result.Errors, e => e.ErrorMessage == "ResourceTypeKeys must not contain empty keys");
+    }
 }

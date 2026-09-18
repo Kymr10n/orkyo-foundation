@@ -107,7 +107,24 @@ public class RequestDependencyRepository : IRequestDependencyRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        var id = await db.ExecuteScalarAsync<Guid>(
+        var id = await InsertEdgeAsync(db, predecessorId, successorId, dependencyType, lagMinutes, ct);
+
+        var created = await db.QuerySingleOrDefaultAsync(
+            SelectSql + " WHERE d.id = @id",
+            p => p.AddWithValue("id", id), Map, ct);
+
+        // The row was just inserted on this connection, so absence is not a normal outcome.
+        return created ?? throw new InvalidOperationException("Dependency vanished after insert");
+    }
+
+    /// <summary>
+    /// The one INSERT for an edge, on a caller's connection so a chain of requests and its
+    /// edges can be written in the caller's transaction (RequestRepository.CreateChainAsync).
+    /// </summary>
+    internal static Task<Guid> InsertEdgeAsync(
+        NpgsqlConnection conn, Guid predecessorId, Guid successorId, string dependencyType, int lagMinutes,
+        CancellationToken ct)
+        => conn.ExecuteScalarAsync<Guid>(
             @"INSERT INTO request_dependencies
                   (predecessor_request_id, successor_request_id, dependency_type, lag_minutes)
               VALUES (@predecessor_id, @successor_id, @dependency_type, @lag_minutes)
@@ -119,14 +136,6 @@ public class RequestDependencyRepository : IRequestDependencyRepository
                 p.AddWithValue("dependency_type", dependencyType);
                 p.AddWithValue("lag_minutes", lagMinutes);
             }, ct);
-
-        var created = await db.QuerySingleOrDefaultAsync(
-            SelectSql + " WHERE d.id = @id",
-            p => p.AddWithValue("id", id), Map, ct);
-
-        // The row was just inserted on this connection, so absence is not a normal outcome.
-        return created ?? throw new InvalidOperationException("Dependency vanished after insert");
-    }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
     {

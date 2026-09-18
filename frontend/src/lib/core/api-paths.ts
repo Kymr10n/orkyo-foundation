@@ -109,6 +109,11 @@ export const API_PATHS = {
   templatesWithType: (entityType: string) => `/api/templates?entityType=${entityType}`,
   template: (templateId: string) => `/api/templates/${templateId}`,
 
+  // Routings
+  ROUTINGS: '/api/routings',
+  routing: (routingId: string) => `/api/routings/${routingId}`,
+  routingInstantiate: (routingId: string) => `/api/routings/${routingId}/instantiate`,
+
   // Criteria
   CRITERIA: '/api/criteria',
   criterion: (criterionId: string) => `/api/criteria/${criterionId}`,

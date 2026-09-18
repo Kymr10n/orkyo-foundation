@@ -1,13 +1,17 @@
 using Api.Models;
 using Google.OrTools.Sat;
+using Google.OrTools.Util;
 
 namespace Api.Services.AutoSchedule;
 
 /// <summary>
 /// CP-SAT constraint programming solver using Google OR-Tools.
-/// Models each request-resource candidate as an optional interval variable,
-/// enforces no-overlap per resource and at-most-one assignment per request,
-/// and maximizes a weighted objective (throughput → priority → early completion).
+///
+/// One start variable per request, on the working-minute axis, and one optional interval per
+/// request→resource candidate sharing that start. Enforces no-overlap per resource (fixed
+/// occupancy included), exactly one resource per open type when a request is placed,
+/// precedence between requests, and maximizes a weighted objective (throughput → priority →
+/// early start).
 /// </summary>
 public sealed class OrToolsSchedulingSolver : ISchedulingSolver
 {
@@ -15,13 +19,6 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
 
     /// <summary>Solver time limit for interactive preview responsiveness.</summary>
     private static readonly TimeSpan SolverTimeLimit = TimeSpan.FromSeconds(5);
-
-    // Objective function weights — throughput >> priority >> early completion.
-    // Rationale: 100_000 per scheduled request ensures throughput dominates;
-    // 1_000 * priority differentiates between placements of equal count;
-    // -1 * startOffset is a tiebreaker favouring earlier completion.
-    private const int ThroughputWeight = 100_000;
-    private const int PriorityWeight = 1_000;
 
     public SolverKind Kind => SolverKind.OrToolsCpSat;
     public int Priority => 100;
@@ -36,148 +33,145 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
         CancellationToken cancellationToken)
     {
         var model = new CpModel();
-        var horizonStart = problem.Problem.HorizonStart;
-        var horizonLength = problem.Problem.HorizonEnd.DayNumber - horizonStart.DayNumber;
+        var horizonMinutes = problem.Problem.Axis.Length;
 
-        // Group candidates by request and by resource
-        var candidatesByRequest = problem.Candidates.GroupBy(c => c.RequestId).ToList();
-        var candidatesBySpace = problem.Candidates.GroupBy(c => c.ResourceId).ToList();
+        var candidatesByRequest = problem.Candidates
+            .GroupBy(c => c.RequestId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var candidatesByResource = problem.Candidates.GroupBy(c => c.ResourceId).ToList();
 
-        // Decision variables: one BoolVar per candidate (request → resource assignment)
-        var candidateVars = new Dictionary<(Guid RequestId, Guid ResourceId), BoolVar>();
-        var candidateStarts = new Dictionary<(Guid RequestId, Guid ResourceId), IntVar>();
-        var candidateIntervals = new Dictionary<(Guid RequestId, Guid ResourceId), IntervalVar>();
+        // Decision variables. Per request: where it starts and whether it is placed at all.
+        // Per candidate: whether this is the resource it is placed on.
+        var starts = new Dictionary<Guid, IntVar>();
+        var scheduled = new Dictionary<Guid, BoolVar>();
+        var durations = new Dictionary<Guid, int>();
+        var priorities = new Dictionary<Guid, int>();
+        var presence = new Dictionary<(Guid RequestId, Guid ResourceId), BoolVar>();
+        var intervals = new Dictionary<(Guid RequestId, Guid ResourceId), IntervalVar>();
 
-        foreach (var candidate in problem.Candidates)
+        foreach (var (requestId, candidates) in candidatesByRequest)
         {
-            var key = (candidate.RequestId, candidate.ResourceId);
-            var presence = model.NewBoolVar($"assign_{candidate.RequestId}_{candidate.ResourceId}");
-            candidateVars[key] = presence;
+            // The start may fall anywhere one of its candidates allows; which candidate is
+            // chosen narrows it further below. A domain of allowed ranges rather than an
+            // enumerated table: at minute resolution a table would list every minute.
+            var union = Domain.FromIntervals(candidates
+                .SelectMany(c => c.FeasibleStartWindows)
+                .Select(w => new long[] { w.From, w.To - 1 })
+                .ToArray());
+            var start = model.NewIntVarFromDomain(union, $"start_{requestId}");
+            var isScheduled = model.NewBoolVar($"scheduled_{requestId}");
 
-            // Start variable bounded by feasible range
-            var minStart = candidate.FeasibleStartDays.Min(d => d.DayNumber) - horizonStart.DayNumber;
-            var maxStart = candidate.FeasibleStartDays.Max(d => d.DayNumber) - horizonStart.DayNumber;
-            var startVar = model.NewIntVar(minStart, maxStart, $"start_{candidate.RequestId}_{candidate.ResourceId}");
-            candidateStarts[key] = startVar;
+            starts[requestId] = start;
+            scheduled[requestId] = isScheduled;
+            durations[requestId] = candidates[0].DurationMinutes;
+            priorities[requestId] = candidates[0].Priority;
 
-            // Constrain start to only feasible days
-            var table = model.AddAllowedAssignments([startVar]);
-            foreach (var day in candidate.FeasibleStartDays)
+            foreach (var candidate in candidates)
             {
-                table.AddTuple(new[] { (long)(day.DayNumber - horizonStart.DayNumber) });
+                var key = (candidate.RequestId, candidate.ResourceId);
+                var present = model.NewBoolVar($"assign_{candidate.RequestId}_{candidate.ResourceId}");
+                presence[key] = present;
+
+                // On this resource, only this candidate's windows are open.
+                var own = Domain.FromIntervals(candidate.FeasibleStartWindows
+                    .Select(w => new long[] { w.From, w.To - 1 })
+                    .ToArray());
+                model.AddLinearExpressionInDomain(start, own).OnlyEnforceIf(present);
+
+                intervals[key] = model.NewOptionalFixedSizeIntervalVar(
+                    start, candidate.DurationMinutes, present,
+                    $"interval_{candidate.RequestId}_{candidate.ResourceId}");
             }
 
-            // Optional interval: active only when presence is true
-            var interval = model.NewOptionalFixedSizeIntervalVar(
-                startVar, candidate.DurationDays, presence,
-                $"interval_{candidate.RequestId}_{candidate.ResourceId}");
-            candidateIntervals[key] = interval;
-        }
-
-        // Constraint: each request assigned at most once
-        foreach (var group in candidatesByRequest)
-        {
-            var vars = group.Select(c => candidateVars[(c.RequestId, c.ResourceId)]).ToArray();
-            model.Add(LinearExpr.Sum(vars) <= 1);
+            // Placed on exactly one resource of every type it has open, or on none: a request
+            // needing a mill and a fixture is placed with both at the same start, or stays in
+            // the backlog.
+            foreach (var typeGroup in candidates.GroupBy(c => c.ResourceTypeKey, StringComparer.Ordinal))
+            {
+                var typePresences = typeGroup.Select(c => presence[(c.RequestId, c.ResourceId)]).ToList();
+                model.Add(LinearExpr.Sum(typePresences) == isScheduled);
+            }
         }
 
         // Constraint: precedence. A successor may not start until its predecessor has finished
-        // plus the lag. Conditional on both candidates being chosen, because either may go
-        // unscheduled — an unconditional bound would force both in or make the model infeasible.
+        // plus the lag — the same minute is fine. Conditional on both being placed, because
+        // either may go unscheduled; an unconditional bound would force both in or make the
+        // model infeasible. And a successor cannot be placed while its predecessor is not:
+        // otherwise the conditional bound is vacuously satisfied by leaving the predecessor out.
         //
-        // Pairwise over candidate resources: the start variables are per (request, resource), so
-        // the bound has to hold for whichever pair the solver picks.
         // Successors the precedence block forces out. Without this the reason falls through to
         // the generic capacity default below, and the same input reports "insufficient capacity"
         // here while the greedy fallback reports "predecessor unscheduled".
         var precedenceBlocked = new HashSet<Guid>();
 
-        if (problem.Problem.Dependencies is { Count: > 0 } dependencies)
+        foreach (var edge in problem.Problem.Dependencies ?? [])
         {
-            var candidatesByRequestId = problem.Candidates
-                .GroupBy(c => c.RequestId)
-                .ToDictionary(g => g.Key, g => g.ToList());
+            // No successor candidates means nothing to constrain.
+            if (!scheduled.TryGetValue(edge.SuccessorRequestId, out var succScheduled)) continue;
 
-            foreach (var edge in dependencies)
+            if (!scheduled.TryGetValue(edge.PredecessorRequestId, out var predScheduled))
             {
-                // No successor candidates means nothing to constrain.
-                if (!candidatesByRequestId.TryGetValue(edge.SuccessorRequestId, out var succs)) continue;
-
-                var succPresences = succs.Select(c => candidateVars[(c.RequestId, c.ResourceId)]).ToArray();
-
-                if (!candidatesByRequestId.TryGetValue(edge.PredecessorRequestId, out var preds))
-                {
-                    // The predecessor has no feasible resource at all, so it cannot be placed in
-                    // this run. Skipping the edge here would leave the successor free to schedule
-                    // ahead of work that never happens — forbid it instead, matching what the
-                    // greedy solver does with the same situation.
-                    model.Add(LinearExpr.Sum(succPresences) == 0);
-                    precedenceBlocked.Add(edge.SuccessorRequestId);
-                    continue;
-                }
-
-                foreach (var pred in preds)
-                {
-                    var predKey = (pred.RequestId, pred.ResourceId);
-                    foreach (var succ in succs)
-                    {
-                        var succKey = (succ.RequestId, succ.ResourceId);
-                        model.Add(candidateStarts[succKey]
-                                  >= candidateStarts[predKey] + pred.DurationDays + edge.LagDays)
-                             .OnlyEnforceIf([candidateVars[predKey], candidateVars[succKey]]);
-                    }
-                }
-
-                // A successor cannot be scheduled while its predecessor is not: otherwise the
-                // conditional bound above is vacuously satisfied by leaving the predecessor out.
-                var predPresences = preds.Select(c => candidateVars[(c.RequestId, c.ResourceId)]).ToArray();
-                model.Add(LinearExpr.Sum(predPresences) >= LinearExpr.Sum(succPresences));
+                // The predecessor has no feasible resource at all, so it cannot be placed in
+                // this run. Skipping the edge here would leave the successor free to schedule
+                // ahead of work that never happens — forbid it instead, matching what the
+                // greedy solver does with the same situation.
+                model.Add(succScheduled == 0);
+                precedenceBlocked.Add(edge.SuccessorRequestId);
+                continue;
             }
+
+            model.Add(starts[edge.SuccessorRequestId]
+                      >= starts[edge.PredecessorRequestId] + durations[edge.PredecessorRequestId] + edge.LagMinutes)
+                 .OnlyEnforceIf([predScheduled, succScheduled]);
+            model.Add(succScheduled <= predScheduled);
         }
 
-        // Constraint: no-overlap per resource (including fixed occupancy)
-        foreach (var resourceGroup in candidatesBySpace)
+        // Constraint: no-overlap per resource (including fixed occupancy). A fixed occupancy
+        // of size zero is a point the axis compressed a booking to; NoOverlap lets an interval
+        // touch it but not span it, which is exactly what that booking still means.
+        var fixedByResource = problem.Problem.FixedAssignments
+            .GroupBy(a => a.ResourceId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var resourceGroup in candidatesByResource)
         {
             var resourceId = resourceGroup.Key;
-            var intervals = resourceGroup
-                .Select(c => candidateIntervals[(c.RequestId, c.ResourceId)])
+            var onResource = resourceGroup
+                .Select(c => intervals[(c.RequestId, c.ResourceId)])
                 .ToList();
 
-            // Add fixed occupancy as mandatory intervals
-            var fixedOnResource = problem.Problem.FixedAssignments
-                .Where(a => a.ResourceId == resourceId)
-                .ToList();
-
-            foreach (var fixedOcc in fixedOnResource)
+            if (fixedByResource.TryGetValue(resourceId, out var fixedOnResource))
             {
-                var fixedStart = fixedOcc.Start.DayNumber - horizonStart.DayNumber;
-                var fixedDuration = fixedOcc.End.DayNumber - fixedOcc.Start.DayNumber + 1;
-                var fixedInterval = model.NewFixedSizeIntervalVar(
-                    fixedStart, fixedDuration,
-                    $"fixed_{fixedOcc.RequestId}_{resourceId}");
-                intervals.Add(fixedInterval);
+                var n = 0;
+                foreach (var fixedOcc in fixedOnResource)
+                {
+                    onResource.Add(model.NewFixedSizeIntervalVar(
+                        fixedOcc.Start, fixedOcc.End - fixedOcc.Start,
+                        $"fixed_{resourceId}_{n++}"));
+                }
             }
 
-            if (intervals.Count > 1)
-            {
-                model.AddNoOverlap(intervals);
-            }
+            if (onResource.Count > 1)
+                model.AddNoOverlap(onResource);
         }
 
-        // Objective: maximize throughput, then priority, then early completion
+        // Objective: maximize throughput, then priority, then early start. The weights are
+        // derived from the problem, not constants: at minute resolution a start can be in the
+        // hundreds of thousands, and a fixed throughput weight below the sum of all possible
+        // start penalties would make the solver prefer leaving work unscheduled to placing it
+        // late. One priority unit outweighs every start penalty combined, and one placement
+        // outweighs every priority and start term combined.
+        var requestCount = Math.Max(1, starts.Count);
+        var maxPriority = Math.Max(0, priorities.Values.DefaultIfEmpty(0).Max());
+        var priorityWeight = (long)requestCount * horizonMinutes + 1;
+        var throughputWeight = requestCount * (maxPriority * priorityWeight + horizonMinutes) + 1;
+
         var objectiveTerms = new List<LinearExpr>();
-        foreach (var candidate in problem.Candidates)
+        foreach (var (requestId, isScheduled) in scheduled)
         {
-            var key = (candidate.RequestId, candidate.ResourceId);
-            var presence = candidateVars[key];
-            var startVar = candidateStarts[key];
-
-            objectiveTerms.Add(ThroughputWeight * presence);
-            objectiveTerms.Add(PriorityWeight * candidate.Priority * presence);
-
-            // Early completion: penalize late starts (negative contribution)
-            // Only active when presence is true — approximate with weighted start
-            objectiveTerms.Add(-1 * startVar);
+            objectiveTerms.Add(LinearExpr.Term(isScheduled, throughputWeight));
+            objectiveTerms.Add(LinearExpr.Term(isScheduled, priorityWeight * priorities[requestId]));
+            objectiveTerms.Add(LinearExpr.Term(starts[requestId], -1));
         }
 
         if (objectiveTerms.Count > 0)
@@ -189,8 +183,9 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
         var solver = new CpSolver();
         solver.StringParameters = $"max_time_in_seconds:{SolverTimeLimit.TotalSeconds:F1}";
 
-        _logger.LogInformation("Starting CP-SAT solve: {CandidateCount} candidates, {RequestCount} requests, horizon {Days} days",
-            problem.Candidates.Count, candidatesByRequest.Count, horizonLength);
+        _logger.LogInformation(
+            "Starting CP-SAT solve: {CandidateCount} candidates, {RequestCount} requests, horizon {Minutes} working minutes, weights throughput={Throughput} priority={Priority}",
+            problem.Candidates.Count, starts.Count, horizonMinutes, throughputWeight, priorityWeight);
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -227,22 +222,21 @@ public sealed class OrToolsSchedulingSolver : ISchedulingSolver
         var assignments = new List<ScheduledPlacement>();
         var scheduledRequestIds = new HashSet<Guid>();
 
-        foreach (var candidate in problem.Candidates)
+        foreach (var (requestId, candidates) in candidatesByRequest)
         {
-            var key = (candidate.RequestId, candidate.ResourceId);
-            if (solver.BooleanValue(candidateVars[key]))
-            {
-                var startOffset = (int)solver.Value(candidateStarts[key]);
-                var startDay = horizonStart.AddDays(startOffset);
-                var endDay = startDay.AddDays(candidate.DurationDays - 1);
+            if (!solver.BooleanValue(scheduled[requestId])) continue;
 
-                assignments.Add(new ScheduledPlacement(
-                    candidate.RequestId, candidate.ResourceId,
-                    startDay, endDay,
-                    candidate.DurationDays, candidate.Priority));
+            var chosen = candidates
+                .Where(c => solver.BooleanValue(presence[(c.RequestId, c.ResourceId)]))
+                .Select(c => new PlacedResource(c.ResourceTypeKey, c.ResourceId))
+                .ToList();
+            var start = (int)solver.Value(starts[requestId]);
+            assignments.Add(new ScheduledPlacement(
+                requestId, chosen,
+                start, start + durations[requestId],
+                durations[requestId], priorities[requestId]));
 
-                scheduledRequestIds.Add(candidate.RequestId);
-            }
+            scheduledRequestIds.Add(requestId);
         }
 
         // Unscheduled: requests not assigned by solver + rejected during feasibility

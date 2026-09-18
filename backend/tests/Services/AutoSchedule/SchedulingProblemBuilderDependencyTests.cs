@@ -22,6 +22,9 @@ public class SchedulingProblemBuilderDependencyTests
     private static readonly DateOnly HorizonStart = new(2026, 6, 1);
     private static readonly DateOnly HorizonEnd = new(2026, 6, 30);
 
+    /// <summary>Offset of a June midnight on the run's 24x7 axis.</summary>
+    private static int June(int day) => (day - 1) * 24 * 60;
+
     private static RequestInfo Leaf(Guid id, string name, DateTime? start = null, DateTime? end = null,
         PredecessorLogic logic = PredecessorLogic.All, int? k = null,
         RequestStatus status = RequestStatus.New) => new()
@@ -114,13 +117,16 @@ public class SchedulingProblemBuilderDependencyTests
                 It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(edges);
 
+        var criteria = new Mock<ICriteriaRepository>();
+        criteria.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
+
         return new SchedulingProblemBuilder(
             requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object);
+            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object);
     }
 
     private static AutoSchedulePreviewRequest Preview() =>
-        new(SiteId, HorizonStart, HorizonEnd, ResourceTypeKey: ResourceTypeKeys.Space);
+        new(SiteId, HorizonStart, HorizonEnd, ResourceTypeKeys: [ResourceTypeKeys.Space]);
 
     [Fact]
     public async Task PredecessorFinishedBeforeTheHorizon_BoundsTheSuccessorInsteadOfWithholdingIt()
@@ -143,8 +149,8 @@ public class SchedulingProblemBuilderDependencyTests
 
         var successor = problem.Requests.Should().ContainSingle(r => r.RequestId == succId).Subject;
 
-        // Bounded by the predecessor's finish, not dropped.
-        successor.EarliestStart.Should().Be(new DateOnly(2026, 5, 11));
+        // Bounded by the predecessor's finish, which is before the horizon: free from its start.
+        successor.EarliestStart.Should().Be(0);
         problem.Dependencies.Should().BeEmpty("the predecessor is fixed, so there is nothing for the solver to order");
     }
 
@@ -253,6 +259,28 @@ public class SchedulingProblemBuilderDependencyTests
     {
         var predId = Guid.NewGuid();
         var succId = Guid.NewGuid();
+        var finished = new DateTime(2026, 6, 5, 9, 0, 0, DateTimeKind.Utc);
+
+        var builder = Build(
+            backlog: [Leaf(succId, "Grind")],
+            edges: [Edge(predId, succId, lagMinutes: 4 * 60)],
+            offHorizon: [Leaf(predId, "Mill", finished, finished.AddHours(2))]);
+
+        var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
+
+        // Finishes 5 June 11:00; the successor may start four hours later, the same day.
+        problem.Requests.Single(r => r.RequestId == succId).EarliestStart
+            .Should().Be(June(5) + 15 * 60);
+    }
+
+    [Fact]
+    public async Task ALagAlreadyServedBeforeTheHorizon_DoesNotReachIntoIt()
+    {
+        // The lag is elapsed time. A predecessor that finished last month served a two-day lag
+        // long ago; adding the lag on the axis after clamping would push the successor two days
+        // into the horizon for nothing.
+        var predId = Guid.NewGuid();
+        var succId = Guid.NewGuid();
         var finished = new DateTime(2026, 5, 10, 0, 0, 0, DateTimeKind.Utc);
 
         var builder = Build(
@@ -262,9 +290,7 @@ public class SchedulingProblemBuilderDependencyTests
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
-        // Finish 10 May, +1 day finish-to-start, +2 days lag.
-        problem.Requests.Single(r => r.RequestId == succId).EarliestStart
-            .Should().Be(new DateOnly(2026, 5, 13));
+        problem.Requests.Single(r => r.RequestId == succId).EarliestStart.Should().Be(0);
     }
 
     // ── Join conditions ───────────────────────────────────────────────────────
@@ -272,8 +298,8 @@ public class SchedulingProblemBuilderDependencyTests
     // set. What matters is whether the successor reaches the solver, with what window, and
     // under how many constraints.
 
-    private static readonly DateTime Early = new(2026, 5, 10, 0, 0, 0, DateTimeKind.Utc);
-    private static readonly DateTime Late = new(2026, 5, 20, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Early = new(2026, 6, 10, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Late = new(2026, 6, 20, 0, 0, 0, DateTimeKind.Utc);
 
     [Fact]
     public async Task AnyJoin_TakesTheEarliestPlacedPredecessor()
@@ -291,16 +317,16 @@ public class SchedulingProblemBuilderDependencyTests
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
-        // Either delivery unblocks it, so the earlier one governs: 10 May + 1.
+        // Either delivery unblocks it, so the earlier one governs: the end of 10 June.
         problem.Requests.Single(r => r.RequestId == succ).EarliestStart
-            .Should().Be(new DateOnly(2026, 5, 11));
+            .Should().Be(June(11));
     }
 
     [Fact]
     public async Task KOfNJoin_TakesTheKthEarliestPlacedPredecessor()
     {
         Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid(), succ = Guid.NewGuid();
-        var middle = new DateTime(2026, 5, 15, 0, 0, 0, DateTimeKind.Utc);
+        var middle = new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc);
 
         var builder = Build(
             backlog: [Leaf(succ, "Assemble", logic: PredecessorLogic.KOfN, k: 2)],
@@ -314,9 +340,9 @@ public class SchedulingProblemBuilderDependencyTests
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
-        // Two of three: free once the second finishes — 15 May + 1, not 20 May + 1.
+        // Two of three: free once the second finishes — the end of 15 June, not of 20 June.
         problem.Requests.Single(r => r.RequestId == succ).EarliestStart
-            .Should().Be(new DateOnly(2026, 5, 16));
+            .Should().Be(June(16));
     }
 
     [Fact]
@@ -370,9 +396,9 @@ public class SchedulingProblemBuilderDependencyTests
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
-        // The cancelled predecessor's 20 May finish is ignored; the live one governs.
+        // The cancelled predecessor's 20 June finish is ignored; the live one governs.
         problem.Requests.Single(r => r.RequestId == succ).EarliestStart
-            .Should().Be(new DateOnly(2026, 5, 11));
+            .Should().Be(June(11));
     }
 
     [Fact]
@@ -434,9 +460,9 @@ public class SchedulingProblemBuilderDependencyTests
 
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
-        // A's bound binds (10 May + 1) and B stays a solver constraint: k=2 of 2 needs both.
+        // A's bound binds (the end of 10 June) and B stays a solver constraint: k=2 of 2 needs both.
         problem.Requests.Single(r => r.RequestId == succ).EarliestStart
-            .Should().Be(new DateOnly(2026, 5, 11));
+            .Should().Be(June(11));
         problem.Dependencies.Should().ContainSingle(e =>
             e.PredecessorRequestId == b && e.SuccessorRequestId == succ);
     }
@@ -461,7 +487,7 @@ public class SchedulingProblemBuilderDependencyTests
         var problem = await builder.BuildAsync(Preview(), CancellationToken.None);
 
         problem.Requests.Single(r => r.RequestId == succ).EarliestStart
-            .Should().Be(new DateOnly(2026, 5, 21));
+            .Should().Be(June(21));
         problem.Dependencies.Should().NotContain(e => e.SuccessorRequestId == succ);
     }
 

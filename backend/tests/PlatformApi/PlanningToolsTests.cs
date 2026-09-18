@@ -53,7 +53,7 @@ public class PlanningToolsTests
             {
                 Nodes = [],
                 Edges = [],
-                DurationDays = 0,
+                DurationMinutes = 0,
                 Diagnostics = [],
             });
 
@@ -74,15 +74,15 @@ public class PlanningToolsTests
                 new CriticalPathNode
                 {
                     RequestId = RequestId, Name = "Mill the bracket",
-                    EarliestStart = new DateOnly(2026, 6, 1),
-                    EarliestFinish = new DateOnly(2026, 6, 3),
-                    LatestStart = new DateOnly(2026, 6, 1),
-                    LatestFinish = new DateOnly(2026, 6, 3),
-                    TotalFloatDays = 0, IsCritical = true, IsScheduled = true,
+                    EarliestStart = new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc),
+                    EarliestFinish = new DateTime(2026, 6, 1, 11, 0, 0, DateTimeKind.Utc),
+                    LatestStart = new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc),
+                    LatestFinish = new DateTime(2026, 6, 1, 11, 0, 0, DateTimeKind.Utc),
+                    TotalFloatMinutes = 0, IsCritical = true, IsScheduled = true,
                 },
             ],
             Edges = [],
-            DurationDays = 12,
+            DurationMinutes = 12 * 60,
             Diagnostics = [],
         };
         _criticalPath.Setup(s => s.ComputeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))

@@ -126,6 +126,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISiteRepository, SiteRepository>();
         services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         services.AddScoped<ITemplateRepository, TemplateRepository>();
+        services.AddScoped<IRoutingRepository, RoutingRepository>();
         services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
         services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
@@ -165,6 +166,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IPresetService, PresetService>();
         services.AddScoped<IRequestService, RequestService>();
         services.AddScoped<IRequestDependencyService, RequestDependencyService>();
+        services.AddScoped<IRoutingService, RoutingService>();
         services.AddScoped<ICriticalPathService, CriticalPathService>();
         services.AddScoped<IRequestPlanService, RequestPlanService>();
         services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();

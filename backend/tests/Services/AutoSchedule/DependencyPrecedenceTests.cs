@@ -2,6 +2,7 @@ using Api.Models;
 using Api.Services.AutoSchedule;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using static Orkyo.Foundation.Tests.Services.AutoSchedule.AutoScheduleTestHelpers;
 
 namespace Api.Tests.Services.AutoSchedule;
 
@@ -12,44 +13,37 @@ namespace Api.Tests.Services.AutoSchedule;
 /// </summary>
 public class DependencyPrecedenceTests
 {
-    private static readonly DateOnly Start = new(2026, 6, 1);
     private static readonly Guid ResourceA = Guid.NewGuid();
     private static readonly Guid Pred = Guid.NewGuid();
     private static readonly Guid Succ = Guid.NewGuid();
 
     private static AnalyzedSchedulingProblem Problem(
         IReadOnlyList<DependencyEdge> edges,
-        int durationDays = 2,
-        int horizonDays = 20,
+        int durationMinutes = 120,
+        int horizonMinutes = 20 * 1440,
         Guid? successorResource = null)
     {
-        var days = Enumerable.Range(0, horizonDays).Select(Start.AddDays).ToList();
+        var window = new StartWindow(0, horizonMinutes - durationMinutes + 1);
         var succResource = successorResource ?? ResourceA;
 
-        var problem = new SchedulingProblem(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: Start,
-            HorizonEnd: Start.AddDays(horizonDays),
-            Requests:
+        var problem = MakeProblem(
+            requests:
             [
-                new RequestNode(Pred, "Mill", null, null, durationDays, 0, true, new HashSet<Guid>()),
-                new RequestNode(Succ, "Grind", null, null, durationDays, 0, true, new HashSet<Guid>())
+                MakeRequest(Pred, "Mill", durationMinutes, priority: 0),
+                MakeRequest(Succ, "Grind", durationMinutes, priority: 0)
             ],
-            Resources:
+            spaces:
             [
-                new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>()),
-                new ResourceNode(succResource, "Cell B", new HashSet<Guid>())
+                MakeSpace(ResourceA, "Cell A"),
+                MakeSpace(succResource, "Cell B")
             ],
-            FixedAssignments: [],
-            Settings: null,
-            BlockedPeriodsByResource: null,
-            Dependencies: edges);
+            dependencies: edges);
 
         return new AnalyzedSchedulingProblem(
             problem,
             [
-                new SchedulingCandidate(Pred, ResourceA, Start, Start.AddDays(horizonDays), durationDays, 0, days),
-                new SchedulingCandidate(Succ, succResource, Start, Start.AddDays(horizonDays), durationDays, 0, days)
+                new SchedulingCandidate(Pred, ResourceA, Space, 0, horizonMinutes, durationMinutes, 0, [window]),
+                new SchedulingCandidate(Succ, succResource, Space, 0, horizonMinutes, durationMinutes, 0, [window])
             ],
             [],
             []);
@@ -66,7 +60,7 @@ public class DependencyPrecedenceTests
     public async Task Successor_NeverStartsBeforePredecessorFinishes(ISchedulingSolver solver)
     {
         // Different resources, so nothing but the edge can separate them in time.
-        var problem = Problem([new DependencyEdge(Pred, Succ, LagDays: 0)], successorResource: Guid.NewGuid());
+        var problem = Problem([new DependencyEdge(Pred, Succ, LagMinutes: 0)], successorResource: Guid.NewGuid());
 
         var solution = await solver.SolveAsync(problem, CancellationToken.None);
 
@@ -75,25 +69,25 @@ public class DependencyPrecedenceTests
         Assert.NotNull(pred);
         Assert.NotNull(succ);
 
-        // Finish-to-start: the successor starts after the predecessor's last occupied day.
-        Assert.True(succ!.Start > pred!.End,
-            $"{solver.Kind}: successor started {succ.Start} but predecessor ends {pred.End}");
+        // Finish-to-start: the successor starts once the predecessor is done — and, since both
+        // prefer an early start, exactly then.
+        Assert.Equal(pred!.End, succ!.Start);
     }
 
     [Theory]
     [MemberData(nameof(Solvers))]
     public async Task Lag_PushesTheSuccessorFurtherOut(ISchedulingSolver solver)
     {
-        const int lag = 3;
-        var problem = Problem([new DependencyEdge(Pred, Succ, LagDays: lag)], successorResource: Guid.NewGuid());
+        const int lag = 240;
+        var problem = Problem([new DependencyEdge(Pred, Succ, LagMinutes: lag)], successorResource: Guid.NewGuid());
 
         var solution = await solver.SolveAsync(problem, CancellationToken.None);
 
         var pred = solution.Assignments.Single(a => a.RequestId == Pred);
         var succ = solution.Assignments.Single(a => a.RequestId == Succ);
 
-        Assert.True(succ.Start >= pred.End.AddDays(1 + lag),
-            $"{solver.Kind}: lag of {lag} days not honoured (pred ends {pred.End}, succ starts {succ.Start})");
+        Assert.True(succ.Start >= pred.End + lag,
+            $"{solver.Kind}: lag of {lag} minutes not honoured (pred ends {pred.End}, succ starts {succ.Start})");
     }
 
     [Theory]
@@ -114,27 +108,16 @@ public class DependencyPrecedenceTests
         // One shared resource and a horizon with room for only one placement forces the
         // predecessor to win; the successor must then report why it stayed behind rather than
         // being placed in violation of the edge.
-        var days = new List<DateOnly> { Start };
-        var problem = new SchedulingProblem(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: Start,
-            HorizonEnd: Start,
-            Requests:
-            [
-                new RequestNode(Pred, "Mill", null, null, 1, 0, true, new HashSet<Guid>()),
-                new RequestNode(Succ, "Grind", null, null, 1, 0, true, new HashSet<Guid>())
-            ],
-            Resources: [new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>())],
-            FixedAssignments: [],
-            Settings: null,
-            BlockedPeriodsByResource: null,
-            Dependencies: [new DependencyEdge(Pred, Succ, 0)]);
+        var problem = MakeProblem(
+            requests: [MakeRequest(Pred, "Mill", 60, priority: 0), MakeRequest(Succ, "Grind", 60, priority: 0)],
+            spaces: [MakeSpace(ResourceA, "Cell A")],
+            dependencies: [new DependencyEdge(Pred, Succ, 0)]);
 
         var analyzed = new AnalyzedSchedulingProblem(
             problem,
             [
-                new SchedulingCandidate(Pred, ResourceA, Start, Start, 1, 0, days),
-                new SchedulingCandidate(Succ, ResourceA, Start, Start, 1, 0, days)
+                new SchedulingCandidate(Pred, ResourceA, Space, 0, 60, 60, 0, [new StartWindow(0, 1)]),
+                new SchedulingCandidate(Succ, ResourceA, Space, 0, 60, 60, 0, [new StartWindow(0, 1)])
             ],
             [],
             []);
@@ -151,31 +134,21 @@ public class DependencyPrecedenceTests
     {
         // The service rejects cycles on write, so one here means the data changed underneath.
         // Placing them in an arbitrary order beats losing them silently.
-        var days = Enumerable.Range(0, 10).Select(Start.AddDays).ToList();
-        var problem = new SchedulingProblem(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: Start,
-            HorizonEnd: Start.AddDays(10),
-            Requests:
-            [
-                new RequestNode(Pred, "A", null, null, 1, 0, true, new HashSet<Guid>()),
-                new RequestNode(Succ, "B", null, null, 1, 0, true, new HashSet<Guid>())
-            ],
-            Resources: [new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>())],
-            FixedAssignments: [],
-            Settings: null,
-            BlockedPeriodsByResource: null,
-            Dependencies:
+        var problem = MakeProblem(
+            requests: [MakeRequest(Pred, "A", 60, priority: 0), MakeRequest(Succ, "B", 60, priority: 0)],
+            spaces: [MakeSpace(ResourceA, "Cell A")],
+            dependencies:
             [
                 new DependencyEdge(Pred, Succ, 0),
                 new DependencyEdge(Succ, Pred, 0)
             ]);
 
+        var window = new StartWindow(0, Day(10));
         var analyzed = new AnalyzedSchedulingProblem(
             problem,
             [
-                new SchedulingCandidate(Pred, ResourceA, Start, Start.AddDays(10), 1, 0, days),
-                new SchedulingCandidate(Succ, ResourceA, Start, Start.AddDays(10), 1, 0, days)
+                new SchedulingCandidate(Pred, ResourceA, Space, 0, Day(10), 60, 0, [window]),
+                new SchedulingCandidate(Succ, ResourceA, Space, 0, Day(10), 60, 0, [window])
             ],
             [],
             []);
@@ -195,26 +168,15 @@ public class DependencyPrecedenceTests
         // The predecessor is in the solve set but has no feasible resource, so it can never be
         // placed. Letting the successor through would schedule it ahead of work that never
         // happens — the conditional bound alone is satisfied vacuously.
-        var days = Enumerable.Range(0, 5).Select(Start.AddDays).ToList();
-        var problem = new SchedulingProblem(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: Start,
-            HorizonEnd: Start.AddDays(5),
-            Requests:
-            [
-                new RequestNode(Pred, "Mill", null, null, 1, 0, true, new HashSet<Guid>()),
-                new RequestNode(Succ, "Grind", null, null, 1, 0, true, new HashSet<Guid>())
-            ],
-            Resources: [new ResourceNode(ResourceA, "Cell A", new HashSet<Guid>())],
-            FixedAssignments: [],
-            Settings: null,
-            BlockedPeriodsByResource: null,
-            Dependencies: [new DependencyEdge(Pred, Succ, 0)]);
+        var problem = MakeProblem(
+            requests: [MakeRequest(Pred, "Mill", 60, priority: 0), MakeRequest(Succ, "Grind", 60, priority: 0)],
+            spaces: [MakeSpace(ResourceA, "Cell A")],
+            dependencies: [new DependencyEdge(Pred, Succ, 0)]);
 
         // Only the successor has a candidate; the predecessor has none.
         var analyzed = new AnalyzedSchedulingProblem(
             problem,
-            [new SchedulingCandidate(Succ, ResourceA, Start, Start.AddDays(5), 1, 0, days)],
+            [new SchedulingCandidate(Succ, ResourceA, Space, 0, Day(5), 60, 0, [new StartWindow(0, Day(5))])],
             [],
             []);
 
@@ -222,5 +184,7 @@ public class DependencyPrecedenceTests
             NullLogger<OrToolsSchedulingSolver>.Instance).SolveAsync(analyzed, CancellationToken.None);
 
         Assert.DoesNotContain(solution.Assignments, a => a.RequestId == Succ);
+        Assert.Contains(SchedulingReasonCode.PredecessorUnscheduled,
+            solution.Unscheduled.Single(u => u.RequestId == Succ).ReasonCodes);
     }
 }

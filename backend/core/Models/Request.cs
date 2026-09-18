@@ -388,6 +388,23 @@ public record ScheduleRequestRequest
 }
 
 /// <summary>
+/// One auto-scheduled placement to write: the request's window and every resource it is
+/// booked on, one per targeted type. The repository keeps one resource per type by cancelling
+/// whatever held that type before.
+/// </summary>
+public sealed record PlacementWrite(
+    Guid RequestId,
+    DateTime StartTs,
+    DateTime EndTs,
+    IReadOnlyList<Guid> ResourceIds);
+
+/// <summary>
+/// A finish-to-start edge between two requests of a chain being created together, by their
+/// position in the chain's child list. Resolved to ids once the rows exist.
+/// </summary>
+public sealed record ChainEdge(int PredecessorIndex, int SuccessorIndex, int LagMinutes);
+
+/// <summary>
 /// Request to move/reparent a request in the tree.
 /// </summary>
 public record MoveRequestRequest

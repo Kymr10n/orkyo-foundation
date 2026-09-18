@@ -35,6 +35,7 @@ import {
   TableRow,
 } from "@foundation/src/components/ui/table";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 import { format, parseISO } from "date-fns";
 
 /**
@@ -107,7 +108,7 @@ export function BottlenecksTab() {
             Critical path
             {criticalPath.data && criticalPath.data.nodes.length > 0 && (
               <span className="ml-2 font-normal text-muted-foreground">
-                {criticalPath.data.durationDays} days end to end
+                {formatMinutesHuman(criticalPath.data.durationMinutes)} end to end
               </span>
             )}
             <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -228,7 +229,7 @@ function CriticalPathBody({
     );
   }
 
-  const day = (iso: string) => format(parseISO(iso), DATE_FORMATS.DATE_MEDIUM);
+  const day = (iso: string) => format(parseISO(iso), DATE_FORMATS.DATETIME_MEDIUM);
 
   return (
     <div className="space-y-3">
@@ -290,7 +291,7 @@ function CriticalPathBody({
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   {/* Zero float is the definition of critical: any slip here moves the finish. */}
-                  {n.totalFloatDays <= 0 ? "—" : `${n.totalFloatDays} d`}
+                  {n.totalFloatMinutes <= 0 ? "—" : formatMinutesHuman(n.totalFloatMinutes)}
                 </TableCell>
               </TableRow>
             ))}

@@ -27,6 +27,8 @@ import { useMutation } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
+import { RequestTargetTypesField } from "../requests/RequestTargetTypesField";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useTemplateForm } from "@foundation/src/hooks/useTemplateForm";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -56,6 +58,10 @@ export function TemplateDialogBase({
     updateRequirement,
     reset,
   } = useTemplateForm(template, open);
+
+  // Only a request template names the resource types its requests need; a routing step
+  // cannot be scheduled without them.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
 
   const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
   const [isLoadingCriteria, setIsLoadingCriteria] = useState(false);
@@ -108,6 +114,7 @@ export function TemplateDialogBase({
           entityType: 'request',
           durationValue: durationVal,
           durationUnit: state.durationUnit,
+          targetResourceTypeKeys: state.targetResourceTypeKeys,
           items: state.requirements.size > 0
             ? Array.from(state.requirements.entries()).map(([criterionId, value]) => ({
                 id: `${template.id}-${criterionId}`,
@@ -124,6 +131,7 @@ export function TemplateDialogBase({
           entityType,
           durationValue: durationVal,
           durationUnit: state.durationUnit,
+          targetResourceTypeKeys: entityType === 'request' ? state.targetResourceTypeKeys : undefined,
         });
       }
     },
@@ -250,6 +258,16 @@ export function TemplateDialogBase({
                   </Select>
                 </div>
               </div>
+
+              {/* Target resource types (request templates only) */}
+              {entityType === 'request' && (
+                <RequestTargetTypesField
+                  resourceTypes={resourceTypes}
+                  selectedKeys={state.targetResourceTypeKeys}
+                  onChange={(keys) => setField('targetResourceTypeKeys', keys)}
+                  readOnly={isSubmitting}
+                />
+              )}
 
               {/* Criteria */}
               <div className="space-y-4">

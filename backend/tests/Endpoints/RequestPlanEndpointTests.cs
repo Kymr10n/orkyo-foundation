@@ -367,7 +367,10 @@ public class RequestPlanEndpointTests
             $"/api/requests/plan?siteId={await _site.Value}");
         sitePlan!.Edges.Should().ContainSingle(e =>
             e.PredecessorRequestId == a && e.SuccessorRequestId == b);
-        sitePlan.Groups.Select(g => g.Id).Should().BeEquivalentTo(new[] { parent1, parent2 });
+        // Contains, not equals: the site is shared with every other test in the class, and the
+        // routing tests instantiate containers of their own onto it. What this test is about is
+        // that both ends' bands are present.
+        sitePlan.Groups.Select(g => g.Id).Should().Contain(new[] { parent1, parent2 });
         sitePlan.Children.Single(c => c.Id == a).ParentRequestId.Should().Be(parent1);
         sitePlan.Children.Single(c => c.Id == b).ParentRequestId.Should().Be(parent2);
         // Nothing external any more: both ends are on the canvas.

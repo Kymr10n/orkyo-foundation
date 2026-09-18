@@ -13,13 +13,27 @@ public class AutoScheduleServiceTests
     private static TenantSettings MakeSettings(bool autoScheduleEnabled = true)
         => new() { AutoSchedule_Enabled = autoScheduleEnabled };
 
+    private static ResourceTypeInfo Type(string key, bool active = true, bool directory = false) => new()
+    {
+        Id = Guid.NewGuid(),
+        Key = key,
+        DisplayName = key,
+        DisplayNamePlural = key,
+        HasGeometry = !directory,
+        HasDirectoryProfile = directory,
+        SingleGroupMembership = false,
+        IsSystem = false,
+        IsActive = active,
+    };
+
     private static AutoScheduleService CreateService(
         IFeatureGate? featureGate = null,
         TenantSettings? settings = null,
         IEnumerable<ISchedulingSolver>? solvers = null,
-        IReadOnlyList<string>? placeableKeys = null,
+        IReadOnlyList<ResourceTypeInfo>? types = null,
         IReadOnlyList<WithheldRequestNode>? withheld = null,
-        IRequestRepository? requestRepository = null)
+        IRequestRepository? requestRepository = null,
+        WorkingTimeAxis? axis = null)
     {
         var mockProblemBuilder = new Mock<SchedulingProblemBuilder>(
             Mock.Of<IRequestRepository>(),
@@ -27,13 +41,15 @@ public class AutoScheduleServiceTests
             Mock.Of<IResourceCapabilityRepository>(),
             Mock.Of<ISchedulingRepository>(),
             Mock.Of<IAvailabilityResolver>(),
-            Mock.Of<IRequestDependencyRepository>());
+            Mock.Of<IRequestDependencyRepository>(),
+            Mock.Of<ICriteriaRepository>());
 
         var problem = new SchedulingProblem(
             Guid.NewGuid(),
             new DateOnly(2026, 4, 14),
             new DateOnly(2026, 7, 14),
-            [], [], [], null, null, null, withheld);
+            axis ?? WorkingTimeAxis.Identity(new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
+            [], [], [], null, withheld);
 
         mockProblemBuilder
             .Setup(x => x.BuildAsync(It.IsAny<AutoSchedulePreviewRequest>(), It.IsAny<CancellationToken>()))
@@ -50,10 +66,10 @@ public class AutoScheduleServiceTests
         // Default: all features enabled (mirrors Community / foundation standalone behaviour)
         var gate = featureGate ?? new AllFeaturesEnabledGate();
 
-        // A single placeable type by default, so an omitted resourceTypeKey resolves cleanly.
+        // One schedulable type by default, so an omitted resourceTypeKeys resolves cleanly.
         var typeRepo = new Mock<IResourceTypeRepository>();
-        typeRepo.Setup(r => r.GetPlaceableKeysAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(placeableKeys ?? ["space"]);
+        typeRepo.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((types ?? [Type("space")]).ToList());
 
         return new AutoScheduleService(
             mockProblemBuilder.Object,
@@ -88,7 +104,7 @@ public class AutoScheduleServiceTests
         var service = CreateService(withheld: [new WithheldRequestNode(blockedId, "Grind")]);
         var request = new AutoSchedulePreviewRequest(
             Guid.NewGuid(), new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14),
-            ResourceTypeKey: ResourceTypeKeys.Space);
+            ResourceTypeKeys: [ResourceTypeKeys.Space]);
 
         var result = await service.PreviewAsync(request, CancellationToken.None);
 
@@ -215,44 +231,46 @@ public class AutoScheduleServiceTests
     }
 
     [Fact]
-    public async Task Preview_OmittedType_ResolvesTheSinglePlaceableType()
+    public async Task Preview_OmittedTypes_ResolveToEveryActiveTypeARequestCanTarget()
     {
-        // The old behaviour was a hardcoded `?? space` applied twice, independently. Now it is
-        // one resolution: the tenant's only placeable type, whatever its key. The fingerprint is
-        // a hash namespaced by the resolved type, so the same solve under a different resolved
-        // type must fingerprint differently — that is what proves the resolution reached it.
+        // Every active type except people: they are attached on the request's own tab, many
+        // per request, and are not a slot the solver fills. The fingerprint is a hash namespaced
+        // by the resolved set, so the same solve under a different set must fingerprint
+        // differently — that is what proves the resolution reached it.
         var request = new AutoSchedulePreviewRequest(Guid.NewGuid(),
             DateOnly.FromDateTime(DateTime.UtcNow),
             DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)));
 
-        var boothTenant = await CreateService(placeableKeys: ["booth"])
+        var shop = await CreateService(types: [Type("mill"), Type("saw"), Type("person", directory: true), Type("lathe", active: false)])
             .PreviewAsync(request, CancellationToken.None);
-        var spaceTenant = await CreateService(placeableKeys: ["space"])
+        var millsOnly = await CreateService(types: [Type("mill")])
+            .PreviewAsync(request, CancellationToken.None);
+        var sawsAndMills = await CreateService(types: [Type("saw"), Type("mill")])
             .PreviewAsync(request, CancellationToken.None);
 
-        Assert.NotEqual(spaceTenant.Fingerprint, boothTenant.Fingerprint);
+        Assert.NotEqual(millsOnly.Fingerprint, shop.Fingerprint);
+        Assert.Equal(sawsAndMills.Fingerprint, shop.Fingerprint);
     }
 
     [Fact]
-    public async Task Preview_OmittedType_WithSeveralPlaceableTypes_RefusesToGuess()
+    public async Task Preview_GivenTypes_RejectsOneThatIsUnknownOrInactive()
     {
-        // "Which pool?" has no single answer for a tenant with two placeable types, and guessing
-        // one means silently solving for the wrong machines.
-        var service = CreateService(placeableKeys: ["space", "mill"]);
+        var service = CreateService(types: [Type("space"), Type("lathe", active: false)]);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.PreviewAsync(
             new AutoSchedulePreviewRequest(Guid.NewGuid(),
                 DateOnly.FromDateTime(DateTime.UtcNow),
-                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))),
+                DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7)),
+                ResourceTypeKeys: ["space", "lathe", "cnc"]),
             CancellationToken.None));
 
-        Assert.Contains("resourceTypeKey", ex.Message);
+        Assert.Contains("cnc, lathe", ex.Message);
     }
 
     [Fact]
-    public async Task Preview_OmittedType_WithNoPlaceableTypes_SaysSo()
+    public async Task Preview_OmittedTypes_WithNoSchedulableTypes_SaysSo()
     {
-        var service = CreateService(placeableKeys: []);
+        var service = CreateService(types: [Type("person", directory: true)]);
 
         await Assert.ThrowsAsync<ArgumentException>(() => service.PreviewAsync(
             new AutoSchedulePreviewRequest(Guid.NewGuid(),
@@ -262,7 +280,7 @@ public class AutoScheduleServiceTests
     }
 
     /// <summary>Returns one fixed placement, so a test can pin the window that reaches the write.</summary>
-    private sealed class StubSolver(DateOnly start, DateOnly end, Guid requestId, Guid resourceId)
+    private sealed class StubSolver(int start, int end, Guid requestId, IReadOnlyList<PlacedResource> resources)
         : ISchedulingSolver
     {
         public SolverKind Kind => SolverKind.Greedy;
@@ -272,58 +290,84 @@ public class AutoScheduleServiceTests
             AnalyzedSchedulingProblem problem, CancellationToken cancellationToken)
             => Task.FromResult(new SchedulingSolution(
                 SolverKind.Greedy, SolverStatus.Optimal,
-                [new ScheduledPlacement(requestId, resourceId, start, end,
-                    DurationDays: end.DayNumber - start.DayNumber + 1, Priority: 1)],
+                [new ScheduledPlacement(requestId, resources, start, end,
+                    DurationMinutes: end - start, Priority: 1)],
                 [], []));
     }
 
-    private async Task<ScheduleRequestRequest> ApplyAndCaptureWindowAsync(DateOnly start, DateOnly end)
+    private async Task<PlacementWrite> ApplyAndCaptureWindowAsync(
+        int start, int end, WorkingTimeAxis? axis = null, IReadOnlyList<PlacedResource>? resources = null)
     {
         var requestId = Guid.NewGuid();
-        List<(Guid Id, ScheduleRequestRequest Data)>? captured = null;
+        List<PlacementWrite>? captured = null;
         var repo = new Mock<IRequestRepository>();
-        repo.Setup(r => r.BatchUpdateSchedulesAsync(
-                It.IsAny<IReadOnlyList<(Guid, ScheduleRequestRequest)>>(), It.IsAny<CancellationToken>()))
-            .Callback<IReadOnlyList<(Guid, ScheduleRequestRequest)>, CancellationToken>(
-                (u, _) => captured = [.. u])
+        repo.Setup(r => r.BatchApplyPlacementsAsync(
+                It.IsAny<IReadOnlyList<PlacementWrite>>(), It.IsAny<CancellationToken>()))
+            .Callback<IReadOnlyList<PlacementWrite>, CancellationToken>((u, _) => captured = [.. u])
             .ReturnsAsync(1);
 
         var service = CreateService(
-            solvers: [new StubSolver(start, end, requestId, Guid.NewGuid())],
-            requestRepository: repo.Object);
+            solvers: [new StubSolver(start, end, requestId, resources ?? [new PlacedResource("space", Guid.NewGuid())])],
+            requestRepository: repo.Object,
+            axis: axis);
 
         await service.ApplyAsync(
             new AutoScheduleApplyRequest(Guid.NewGuid(), new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
             CancellationToken.None);
 
         captured.Should().NotBeNull();
-        return captured!.Single().Data;
+        return captured!.Single();
     }
 
     [Fact]
-    public async Task ApplyAsync_GivesASingleDayPlacementAFullDayWindow()
+    public async Task ApplyAsync_WritesEveryResourceThePlacementNamed()
     {
-        // The solver's End is inclusive: a one-day placement has Start == End. Converting both to
-        // midnight produced a zero-length window, and BatchUpdateSchedulesAsync derives
-        // actual_duration_value from End - Start — so it wrote 0 and Postgres rejected the row on
-        // requests_actual_duration_value_check. Every sub-day auto-schedule apply failed.
-        var day = new DateOnly(2026, 9, 4);
+        var room = Guid.NewGuid();
+        var van = Guid.NewGuid();
 
-        var window = await ApplyAndCaptureWindowAsync(day, day);
+        var write = await ApplyAndCaptureWindowAsync(0, 60,
+            resources: [new PlacedResource("space", room), new PlacedResource("van", van)]);
 
-        (window.EndTs!.Value - window.StartTs!.Value).Should().Be(TimeSpan.FromDays(1));
+        write.ResourceIds.Should().BeEquivalentTo([room, van]);
     }
 
     [Fact]
-    public async Task ApplyAsync_GivesAMultiDayPlacementItsFullSpan()
+    public async Task ApplyAsync_WritesThePlacementAsAHalfOpenTimestampWindow()
     {
-        // The same off-by-one silently shortened every longer placement by a day, which no
-        // constraint caught: a three-day job was written as two.
-        var start = new DateOnly(2026, 9, 1);
+        // Offsets on the identity axis are minutes since the horizon start, so a placement of
+        // [0, 1440) is the first horizon day, written as [14 Apr 00:00, 15 Apr 00:00).
+        var window = await ApplyAndCaptureWindowAsync(0, 1440);
 
-        var window = await ApplyAndCaptureWindowAsync(start, new DateOnly(2026, 9, 3));
+        window.StartTs.Should().Be(new DateTime(2026, 4, 14, 0, 0, 0, DateTimeKind.Utc));
+        window.EndTs.Should().Be(new DateTime(2026, 4, 15, 0, 0, 0, DateTimeKind.Utc));
+    }
 
-        window.StartTs.Should().Be(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
-        (window.EndTs!.Value - window.StartTs!.Value).Should().Be(TimeSpan.FromDays(3));
+    [Fact]
+    public async Task ApplyAsync_WritesASubDayPlacementToTheMinute()
+    {
+        var window = await ApplyAndCaptureWindowAsync(8 * 60 + 20, 8 * 60 + 20 + 180);
+
+        window.StartTs.Should().Be(new DateTime(2026, 4, 14, 8, 20, 0, DateTimeKind.Utc));
+        window.EndTs.Should().Be(new DateTime(2026, 4, 14, 11, 20, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public async Task ApplyAsync_SnapsAWorkingDayPlacementInsideTheWorkingDay()
+    {
+        // 14 April 2026 is a Tuesday. On a 08:00–17:00 axis the second working day is offsets
+        // [540, 1080): its start is Wednesday 08:00 and its end is Wednesday 17:00 — not
+        // Thursday 08:00, which names the same offset from the other side of the night.
+        var axis = WorkingTimeAxis.Build(new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14),
+            SchedulingSettingsInfo.Default(Guid.NewGuid()) with
+            {
+                WorkingHoursEnabled = true,
+                WorkingDayStart = new TimeOnly(8, 0),
+                WorkingDayEnd = new TimeOnly(17, 0),
+            }, respectSchedulingSettings: true);
+
+        var window = await ApplyAndCaptureWindowAsync(540, 1080, axis);
+
+        window.StartTs.Should().Be(new DateTime(2026, 4, 15, 8, 0, 0, DateTimeKind.Utc));
+        window.EndTs.Should().Be(new DateTime(2026, 4, 15, 17, 0, 0, DateTimeKind.Utc));
     }
 }

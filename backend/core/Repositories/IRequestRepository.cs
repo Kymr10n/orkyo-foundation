@@ -74,6 +74,22 @@ public interface IRequestRepository
     /// <summary>Applies schedule updates to a batch of requests in a single transaction.</summary>
     Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates, CancellationToken ct = default);
 
+    /// <summary>
+    /// Writes auto-scheduled placements: each request's window and one resource per targeted
+    /// type, in one transaction. Returns the number of requests updated.
+    /// </summary>
+    Task<int> BatchApplyPlacementsAsync(IReadOnlyList<PlacementWrite> placements, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a parent with its children and the finish-to-start edges between them in one
+    /// transaction — nothing is written unless everything is. Edges name children by index.
+    /// </summary>
+    Task<(RequestInfo Parent, IReadOnlyList<Guid> ChildIds)> CreateChainAsync(
+        CreateRequestRequest parent,
+        IReadOnlyList<CreateRequestRequest> children,
+        IReadOnlyList<ChainEdge> edges,
+        CancellationToken ct = default);
+
     // ── Requirements ────────────────────────────────────────────────────────
 
     /// <summary>

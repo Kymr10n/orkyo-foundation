@@ -244,11 +244,15 @@ export function UtilizationPage() {
     [gridTypes, assetKeys],
   );
 
-  // One solver run solves one type, and a grid tab now shows a set of them. So the button is
-  // live exactly when the filter names a single type, which generalizes the old rule (enabled
-  // when the tenant happened to have one placeable type) instead of guessing at a pool.
-  const autoScheduleTypeKey =
-    !isRequestCentricTab && selectedKeys.length === 1 ? selectedKeys[0] : null;
+  // One run fills every type a request needs at once. A narrowed type filter narrows the run
+  // to those types; the default selection (everything on the tab) sends no filter, so the run
+  // covers every type — which is what a shop with a saw, a mill and a bench wants from one
+  // click, whichever tab it is on.
+  const tabTypeCount = isSchedulerTab ? placeableTypes.length : gridTypes.length;
+  const autoScheduleTypeKeys =
+    !isRequestCentricTab && selectedKeys.length > 0 && selectedKeys.length < tabTypeCount
+      ? selectedKeys
+      : undefined;
 
   // Stations first, then assets with people at their head — the PDF sections rows by type, and
   // this is the order the two grid tabs present them in.
@@ -477,7 +481,7 @@ export function UtilizationPage() {
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
-        resourceTypeKey: autoScheduleTypeKey ?? undefined,
+        resourceTypeKeys: autoScheduleTypeKeys,
       });
       setAutoScheduleRequestIds(null);
       setAutoSchedulePreview(result);
@@ -485,7 +489,7 @@ export function UtilizationPage() {
     } catch {
       // Error handled by mutation state
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKeys, previewMutation]);
 
   // An accepted auto-scheduling proposal lands here: preview exactly the requests the
   // person approved and open the ordinary dialog. Keyed on the tick rather than the ids so
@@ -507,7 +511,7 @@ export function UtilizationPage() {
           horizonStart,
           horizonEnd,
           requestIds: proposedRequestIds,
-          resourceTypeKey: autoScheduleTypeKey ?? undefined,
+          resourceTypeKeys: autoScheduleTypeKeys,
         });
         setAutoScheduleRequestIds(proposedRequestIds);
         setAutoSchedulePreview(result);
@@ -516,7 +520,7 @@ export function UtilizationPage() {
         // Surfaced by the mutation's own error state, same as the toolbar run.
       }
     })();
-  }, [proposedRequestIds, clearAutoSchedule, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKey, previewMutation]);
+  }, [proposedRequestIds, clearAutoSchedule, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKeys, previewMutation]);
 
   // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
   // the success toast interpolates the preview's dynamic count, and the catch
@@ -525,14 +529,14 @@ export function UtilizationPage() {
     if (!selectedSiteId) return;
     setAutoScheduleError(null);
     try {
-      // resourceTypeKey must be the one the preview solved for — the fingerprint alone
-      // doesn't pin it, so a changed selector would re-solve for a different type.
+      // resourceTypeKeys must be the set the preview solved for — the fingerprint alone
+      // doesn't pin it, so a changed filter would re-solve for a different set.
       await applyMutation.mutateAsync({
         siteId: selectedSiteId,
         horizonStart,
         horizonEnd,
         requestIds: autoScheduleRequestIds ?? undefined,
-        resourceTypeKey: autoScheduleTypeKey ?? undefined,
+        resourceTypeKeys: autoScheduleTypeKeys,
         previewFingerprint: autoSchedulePreview?.fingerprint,
       });
       setIsPreviewDialogOpen(false);
@@ -554,7 +558,7 @@ export function UtilizationPage() {
         setAutoScheduleError(message);
       }
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKey, applyMutation, autoSchedulePreview, queryClient]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview, queryClient]);
 
   // One click = one whole period, on every tab. The grids used to pan by a sub-period, which
   // read as a broken control: on a week scale the arrow moved a day, so reaching next week took
@@ -824,7 +828,7 @@ export function UtilizationPage() {
         <AutoScheduleButton
           onClick={handleAutoScheduleClick}
           loading={previewMutation.isPending}
-          disabled={!selectedSiteId || !autoScheduleTypeKey}
+          disabled={!selectedSiteId}
         />
       )}
       {/* The structure view is time-independent, so the time controls would be dead weight

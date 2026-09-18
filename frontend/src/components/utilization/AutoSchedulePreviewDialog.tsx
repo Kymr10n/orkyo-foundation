@@ -1,6 +1,9 @@
+import { format, parseISO } from "date-fns";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
+import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 interface Props {
   open: boolean;
@@ -89,10 +92,10 @@ export function AutoSchedulePreviewDialog({
                     <thead>
                       <tr className="text-left text-muted-foreground">
                         <th className="pb-1">Request</th>
-                        <th className="pb-1">Space</th>
+                        <th className="pb-1">Resources</th>
                         <th className="pb-1">Start</th>
                         <th className="pb-1">End</th>
-                        <th className="pb-1">Days</th>
+                        <th className="pb-1">Duration</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -101,12 +104,15 @@ export function AutoSchedulePreviewDialog({
                           <td className="py-0.5 truncate max-w-[150px]" title={a.requestName}>
                             {a.requestName}
                           </td>
-                          <td className="py-0.5 truncate max-w-[120px]" title={a.resourceName}>
-                            {a.resourceName}
+                          <td
+                            className="py-0.5 truncate max-w-[160px]"
+                            title={a.resources.map((r) => `${r.typeKey}: ${r.resourceName}`).join(", ")}
+                          >
+                            {a.resources.map((r) => r.resourceName).join(", ")}
                           </td>
-                          <td className="py-0.5">{a.start}</td>
-                          <td className="py-0.5">{a.end}</td>
-                          <td className="py-0.5">{a.durationDays}</td>
+                          <td className="py-0.5 whitespace-nowrap">{format(parseISO(a.start), DATE_FORMATS.DATETIME_MEDIUM)}</td>
+                          <td className="py-0.5 whitespace-nowrap">{format(parseISO(a.end), DATE_FORMATS.DATETIME_MEDIUM)}</td>
+                          <td className="py-0.5">{formatMinutesHuman(a.durationMinutes)}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -61,6 +61,7 @@ public static class FoundationEndpointExtensions
         app.MapResourceGroupMemberEndpoints();
         app.MapResourceTypeEndpoints();
         app.MapResourceTypeCatalogEndpoints();
+        app.MapRoutingEndpoints();
         app.MapAvailabilityEventEndpoints();
         app.MapSchedulingEndpoints();
         app.MapSearchEndpoints();

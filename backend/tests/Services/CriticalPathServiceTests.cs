@@ -8,7 +8,7 @@ using Xunit;
 namespace Api.Tests.Services;
 
 /// <summary>
-/// The forward/backward pass: earliest and latest dates, float, and which requests end up on
+/// The forward/backward pass: earliest and latest instants, float, and which requests end up on
 /// the critical path. Persistence is mocked — what is under test is the arithmetic.
 /// </summary>
 public class CriticalPathServiceTests
@@ -24,8 +24,10 @@ public class CriticalPathServiceTests
         _service = new CriticalPathService(_dependencies.Object, _requests.Object);
     }
 
+    private const int Day = 24 * 60;
+
     // end is HALF-OPEN, matching what the product stores: a one-day request starting Day1
-    // carries end = Day1.AddDays(1). SchedulingEngine.InclusiveLastDay converts it back.
+    // carries end = Day1.AddDays(1).
     private static RequestInfo Request(Guid id, string name, int durationDays,
         DateTime? start = null, DateTime? end = null, DateTime? latestEnd = null,
         PredecessorLogic logic = PredecessorLogic.All, int? k = null,
@@ -75,7 +77,7 @@ public class CriticalPathServiceTests
         var result = await _service.ComputeAsync(null);
 
         Assert.Empty(result.Nodes);
-        Assert.Equal(0, result.DurationDays);
+        Assert.Equal(0, result.DurationMinutes);
     }
 
     [Fact]
@@ -92,28 +94,46 @@ public class CriticalPathServiceTests
         var nodeB = result.Nodes.Single(n => n.RequestId == b);
         var nodeC = result.Nodes.Single(n => n.RequestId == c);
 
-        // A is anchored 1–2 June, so B starts the 3rd and runs three days to the 5th.
-        Assert.Equal(new DateOnly(2026, 6, 3), nodeB.EarliestStart);
-        Assert.Equal(new DateOnly(2026, 6, 5), nodeB.EarliestFinish);
-        Assert.Equal(new DateOnly(2026, 6, 6), nodeC.EarliestStart);
+        // A is anchored 1–2 June, so B starts the moment it ends and runs three days.
+        Assert.Equal(Day1.AddDays(2), nodeB.EarliestStart);
+        Assert.Equal(Day1.AddDays(5), nodeB.EarliestFinish);
+        Assert.Equal(Day1.AddDays(5), nodeC.EarliestStart);
 
         // A single chain has no slack anywhere.
         Assert.All(result.Nodes, n => Assert.True(n.IsCritical));
-        Assert.Equal(6, result.DurationDays); // 1–6 June inclusive
+        Assert.Equal(6 * Day, result.DurationMinutes); // 1 June 00:00 to 7 June 00:00
     }
 
     [Fact]
     public async Task Lag_DelaysTheSuccessor()
     {
         Guid a = Guid.NewGuid(), b = Guid.NewGuid();
-        Setup([Edge(a, b, lagMinutes: 2 * 24 * 60)],
-            Request(a, "A", 1, start: Day1, end: Day1.AddDays(1)),
+        Setup([Edge(a, b, lagMinutes: 4 * 60)],
+            Request(a, "A", 1, start: Day1, end: Day1.AddHours(9)),
             Request(b, "B", 1));
 
         var result = await _service.ComputeAsync(null);
 
-        // A ends 1 June; +1 day for finish-to-start, +2 days lag.
-        Assert.Equal(new DateOnly(2026, 6, 4), result.Nodes.Single(n => n.RequestId == b).EarliestStart);
+        // A ends 1 June 09:00; four hours of lag, and B may start at 13:00 the same day.
+        Assert.Equal(Day1.AddHours(13), result.Nodes.Single(n => n.RequestId == b).EarliestStart);
+    }
+
+    [Fact]
+    public async Task ShortOperations_ChainWithinOneDay()
+    {
+        // Saw 20 min, mill 3 h, deburr 45 min: the critical path reports a 4 h 05 min network,
+        // not three days.
+        Guid saw = Guid.NewGuid(), mill = Guid.NewGuid(), deburr = Guid.NewGuid();
+        var sawRequest = Request(saw, "Saw", 1, start: Day1, end: Day1.AddMinutes(20));
+        var millRequest = Request(mill, "Mill", 1) with { MinimalDurationValue = 180 };
+        var deburrRequest = Request(deburr, "Deburr", 1) with { MinimalDurationValue = 45 };
+        Setup([Edge(saw, mill), Edge(mill, deburr)], sawRequest, millRequest, deburrRequest);
+
+        var result = await _service.ComputeAsync(null);
+
+        Assert.Equal(Day1.AddMinutes(20), result.Nodes.Single(n => n.RequestId == mill).EarliestStart);
+        Assert.Equal(Day1.AddMinutes(200), result.Nodes.Single(n => n.RequestId == deburr).EarliestStart);
+        Assert.Equal(245, result.DurationMinutes);
     }
 
     [Fact]
@@ -135,8 +155,8 @@ public class CriticalPathServiceTests
         Assert.False(result.Nodes.Single(n => n.RequestId == shortBranch).IsCritical);
 
         // Five days of work against two leaves three days of slack.
-        Assert.Equal(3, result.Nodes.Single(n => n.RequestId == shortBranch).TotalFloatDays);
-        Assert.Equal(0, result.Nodes.Single(n => n.RequestId == longBranch).TotalFloatDays);
+        Assert.Equal(3 * Day, result.Nodes.Single(n => n.RequestId == shortBranch).TotalFloatMinutes);
+        Assert.Equal(0, result.Nodes.Single(n => n.RequestId == longBranch).TotalFloatMinutes);
     }
 
     [Fact]
@@ -152,7 +172,7 @@ public class CriticalPathServiceTests
 
         var result = await _service.ComputeAsync(null);
 
-        Assert.Equal(DateOnly.FromDateTime(placedStart), result.Nodes.Single(n => n.RequestId == b).EarliestStart);
+        Assert.Equal(placedStart, result.Nodes.Single(n => n.RequestId == b).EarliestStart);
         Assert.True(result.Nodes.Single(n => n.RequestId == b).IsScheduled);
     }
 
@@ -162,12 +182,12 @@ public class CriticalPathServiceTests
         Guid a = Guid.NewGuid(), b = Guid.NewGuid();
         Setup([Edge(a, b)],
             Request(a, "A", 1, start: Day1, end: Day1.AddDays(1)),
-            // Due the day it can first run: no room to move.
-            Request(b, "B", 1, latestEnd: Day1.AddDays(1)));
+            // Due the moment it can first finish: no room to move.
+            Request(b, "B", 1, latestEnd: Day1.AddDays(2)));
 
         var result = await _service.ComputeAsync(null);
 
-        Assert.Equal(0, result.Nodes.Single(n => n.RequestId == b).TotalFloatDays);
+        Assert.Equal(0, result.Nodes.Single(n => n.RequestId == b).TotalFloatMinutes);
     }
 
     [Fact]
@@ -215,7 +235,7 @@ public class CriticalPathServiceTests
             [Edge(early, succ), Edge(late, succ)]);
     }
 
-    private DateOnly EarliestStartOf(CriticalPathResult result, Guid id) =>
+    private DateTime EarliestStartOf(CriticalPathResult result, Guid id) =>
         result.Nodes.Single(n => n.RequestId == id).EarliestStart;
 
     [Fact]
@@ -226,8 +246,8 @@ public class CriticalPathServiceTests
 
         var result = await _service.ComputeAsync(null);
 
-        // Day1 + 5 days, then the day after: the late predecessor governs.
-        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(5)));
+        // Day1 + 5 days: the late predecessor governs.
+        EarliestStartOf(result, succ).Should().Be(Day1.AddDays(5));
     }
 
     [Fact]
@@ -239,7 +259,7 @@ public class CriticalPathServiceTests
         var result = await _service.ComputeAsync(null);
 
         // One predecessor is enough, so the early one frees it four days sooner.
-        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(1)));
+        EarliestStartOf(result, succ).Should().Be(Day1.AddDays(1));
     }
 
     [Fact]
@@ -251,7 +271,7 @@ public class CriticalPathServiceTests
         var result = await _service.ComputeAsync(null);
 
         // 2 of 2 is "all" by another name.
-        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(5)));
+        EarliestStartOf(result, succ).Should().Be(Day1.AddDays(5));
     }
 
     [Fact]
@@ -262,7 +282,7 @@ public class CriticalPathServiceTests
 
         var result = await _service.ComputeAsync(null);
 
-        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(1)));
+        EarliestStartOf(result, succ).Should().Be(Day1.AddDays(1));
     }
 
     [Fact]
@@ -298,7 +318,7 @@ public class CriticalPathServiceTests
 
         // "Any" is satisfied by the quick branch, so the slow one carries real float.
         var slowNode = result.Nodes.Single(n => n.RequestId == slow);
-        slowNode.TotalFloatDays.Should().BeGreaterThan(0);
+        slowNode.TotalFloatMinutes.Should().BeGreaterThan(0);
         slowNode.IsCritical.Should().BeFalse();
 
         // …and the branch the join actually waited for is still on the path.
@@ -335,7 +355,25 @@ public class CriticalPathServiceTests
         var result = await _service.ComputeAsync(null);
 
         // Without the exclusion the successor would wait five days for work that will never run.
-        EarliestStartOf(result, succ).Should().Be(DateOnly.FromDateTime(Day1.AddDays(1)));
+        EarliestStartOf(result, succ).Should().Be(Day1.AddDays(1));
         result.Diagnostics.Should().ContainSingle(d => d.Contains("cancelled or deferred"));
+    }
+
+    [Fact]
+    public async Task ADeadlineOfItsOwn_TightensTheLatestFinish()
+    {
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+        // A runs 1–3 June; B needs three days and must end by 5 June — a day earlier than
+        // the network alone would allow, so its float goes negative rather than to zero.
+        Setup([Edge(a, b)],
+            Request(a, "A", 2, start: Day1, end: Day1.AddDays(2)),
+            Request(b, "B", 3, latestEnd: Day1.AddDays(4)));
+
+        var result = await _service.ComputeAsync(null);
+
+        var nodeB = result.Nodes.Single(n => n.RequestId == b);
+        Assert.Equal(Day1.AddDays(4), nodeB.LatestFinish);
+        Assert.Equal(Day1.AddDays(1), nodeB.LatestStart);
+        Assert.Equal(-1 * Day, nodeB.TotalFloatMinutes);
     }
 }
