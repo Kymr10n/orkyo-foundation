@@ -30,21 +30,18 @@ public class OrToolsSchedulingSolverTests
         var resourceId = Guid.NewGuid();
         var r1 = Guid.NewGuid();
         var r2 = Guid.NewGuid();
+        var windows = new[] { new StartWindow(0, Day(20)) };
 
-        var starts = Enumerable.Range(0, 20)
-            .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
-            .ToList();
-
-        var c1 = MakeCandidate(requestId: r1, resourceId: resourceId, durationDays: 5, feasibleStarts: starts);
-        var c2 = MakeCandidate(requestId: r2, resourceId: resourceId, durationDays: 5, feasibleStarts: starts);
+        var c1 = MakeCandidate(requestId: r1, resourceId: resourceId, durationMinutes: Day(5), windows: windows);
+        var c2 = MakeCandidate(requestId: r2, resourceId: resourceId, durationMinutes: Day(5), windows: windows);
 
         var result = await _solver.SolveAsync(MakeAnalyzed([c1, c2]), CancellationToken.None);
 
         result.Status.Should().BeOneOf(SolverStatus.Optimal, SolverStatus.Feasible);
 
         var assignments = result.Assignments.OrderBy(a => a.Start).ToList();
-        if (assignments.Count == 2)
-            assignments[0].End.Should().BeBefore(assignments[1].Start);
+        assignments.Should().HaveCount(2);
+        assignments[0].End.Should().BeLessThanOrEqualTo(assignments[1].Start);
     }
 
     [Fact]
@@ -54,42 +51,55 @@ public class OrToolsSchedulingSolverTests
         var space1 = Guid.NewGuid();
         var space2 = Guid.NewGuid();
 
-        var starts = Enumerable.Range(0, 20)
-            .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
-            .ToList();
-
-        var c1 = MakeCandidate(requestId: reqId, resourceId: space1, durationDays: 3, feasibleStarts: starts);
-        var c2 = MakeCandidate(requestId: reqId, resourceId: space2, durationDays: 3, feasibleStarts: starts);
+        var c1 = MakeCandidate(requestId: reqId, resourceId: space1, durationMinutes: Day(3));
+        var c2 = MakeCandidate(requestId: reqId, resourceId: space2, durationMinutes: Day(3));
 
         var result = await _solver.SolveAsync(MakeAnalyzed([c1, c2]), CancellationToken.None);
 
-        result.Assignments.Count(a => a.RequestId == reqId).Should().BeLessThanOrEqualTo(1);
+        result.Assignments.Count(a => a.RequestId == reqId).Should().Be(1);
     }
 
     [Fact]
     public async Task FixedOccupancy_IsRespected()
     {
         var resourceId = Guid.NewGuid();
-        var fixedOcc = new FixedOccupancy(
-            Guid.NewGuid(), resourceId,
-            new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 18));
+        var fixedOcc = new FixedOccupancy(Guid.NewGuid(), resourceId, Day(0), Day(5));
 
         var reqId = Guid.NewGuid();
-        var starts = Enumerable.Range(0, 20)
-            .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
-            .ToList();
-        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId, durationDays: 3, feasibleStarts: starts);
+        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId, durationMinutes: Day(3));
 
         var result = await _solver.SolveAsync(
             MakeAnalyzed([candidate], fixedAssignments: [fixedOcc]),
             CancellationToken.None);
 
-        if (result.Assignments.Any(a => a.RequestId == reqId))
-        {
-            var placement = result.Assignments.First(a => a.RequestId == reqId);
-            var overlaps = !(placement.End < fixedOcc.Start || placement.Start > fixedOcc.End);
-            overlaps.Should().BeFalse("solver must not overlap with fixed occupancy");
-        }
+        var placement = result.Assignments.Should().ContainSingle(a => a.RequestId == reqId).Subject;
+        var overlaps = placement.Start < fixedOcc.End && placement.End > fixedOcc.Start;
+        overlaps.Should().BeFalse("solver must not overlap with fixed occupancy");
+    }
+
+    [Fact]
+    public async Task ZeroLengthOccupancy_CanBeTouchedButNotSpanned()
+    {
+        // A hand-made Saturday booking on a weekday-only axis collapses to a point. A placement
+        // may end there or start there, but a job that runs across it would cover the calendar
+        // weekend the booking already holds.
+        var resourceId = Guid.NewGuid();
+        var point = new FixedOccupancy(Guid.NewGuid(), resourceId, 100, 100);
+
+        // Only starts strictly spanning the point are open: [1, 99]. Every one collides.
+        var spanning = MakeCandidate(resourceId: resourceId, durationMinutes: 100,
+            windows: [new StartWindow(1, 100)]);
+        var blocked = await _solver.SolveAsync(
+            MakeAnalyzed([spanning], fixedAssignments: [point]), CancellationToken.None);
+        blocked.Assignments.Should().BeEmpty();
+
+        // Touching from either side is fine.
+        var touching = MakeCandidate(resourceId: resourceId, durationMinutes: 100,
+            windows: [new StartWindow(0, 1), new StartWindow(100, 101)]);
+        var placed = await _solver.SolveAsync(
+            MakeAnalyzed([touching], fixedAssignments: [point]), CancellationToken.None);
+        placed.Assignments.Should().ContainSingle()
+            .Which.Start.Should().BeOneOf(0, 100);
     }
 
     [Fact]
@@ -107,16 +117,27 @@ public class OrToolsSchedulingSolverTests
         var r1 = Guid.NewGuid();
         var r2 = Guid.NewGuid();
 
-        var starts = Enumerable.Range(0, 30)
-            .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
-            .ToList();
-
-        var c1 = MakeCandidate(requestId: r1, resourceId: resourceId, durationDays: 5, priority: 1, feasibleStarts: starts);
-        var c2 = MakeCandidate(requestId: r2, resourceId: resourceId, durationDays: 5, priority: 2, feasibleStarts: starts);
+        var c1 = MakeCandidate(requestId: r1, resourceId: resourceId, durationMinutes: Day(5), priority: 1);
+        var c2 = MakeCandidate(requestId: r2, resourceId: resourceId, durationMinutes: Day(5), priority: 2);
 
         var result = await _solver.SolveAsync(MakeAnalyzed([c1, c2]), CancellationToken.None);
 
         result.Assignments.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task ALateStartIsStillWorthScheduling()
+    {
+        // At minute resolution a start offset runs into the hundreds of thousands. With a fixed
+        // throughput weight the start penalty would outweigh placing the request at all, and
+        // the solver would leave it unscheduled rather than place it late.
+        var resourceId = Guid.NewGuid();
+        var late = MakeCandidate(resourceId: resourceId, durationMinutes: 60,
+            windows: [new StartWindow(Day(85), Day(85) + 1)]);
+
+        var result = await _solver.SolveAsync(MakeAnalyzed([late]), CancellationToken.None);
+
+        result.Assignments.Should().ContainSingle().Which.Start.Should().Be(Day(85));
     }
 
     [Fact]

@@ -13,7 +13,7 @@ public class GreedySchedulingSolverTests
     {
         var reqId = Guid.NewGuid();
         var resourceId = Guid.NewGuid();
-        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId, durationDays: 3);
+        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId, durationMinutes: Day(3));
 
         var result = await _solver.SolveAsync(MakeAnalyzed([candidate]), CancellationToken.None);
 
@@ -27,18 +27,10 @@ public class GreedySchedulingSolverTests
     public async Task RespectsFixedAssignments_NoOverlap()
     {
         var resourceId = Guid.NewGuid();
-        var fixedOcc = new FixedOccupancy(
-            Guid.NewGuid(), resourceId,
-            new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 18));
+        var fixedOcc = new FixedOccupancy(Guid.NewGuid(), resourceId, Day(0), Day(5));
 
         var reqId = Guid.NewGuid();
-        var candidate = MakeCandidate(
-            requestId: reqId,
-            resourceId: resourceId,
-            durationDays: 3,
-            feasibleStarts: Enumerable.Range(0, 30)
-                .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
-                .ToList());
+        var candidate = MakeCandidate(requestId: reqId, resourceId: resourceId, durationMinutes: Day(3));
 
         var result = await _solver.SolveAsync(
             MakeAnalyzed([candidate], fixedAssignments: [fixedOcc]),
@@ -46,8 +38,24 @@ public class GreedySchedulingSolverTests
 
         result.Assignments.Should().ContainSingle();
         var placement = result.Assignments[0];
-        var overlaps = !(placement.End < fixedOcc.Start || placement.Start > fixedOcc.End);
+        var overlaps = placement.Start < fixedOcc.End && placement.End > fixedOcc.Start;
         overlaps.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task PlacesRightAfterAFixedOccupancy_NotADayLater()
+    {
+        // The whole point of minute resolution: the next job starts the minute the resource
+        // frees up, not the next morning.
+        var resourceId = Guid.NewGuid();
+        var fixedOcc = new FixedOccupancy(Guid.NewGuid(), resourceId, 0, 20);
+        var candidate = MakeCandidate(resourceId: resourceId, durationMinutes: 180);
+
+        var result = await _solver.SolveAsync(
+            MakeAnalyzed([candidate], fixedAssignments: [fixedOcc]),
+            CancellationToken.None);
+
+        result.Assignments.Single().Start.Should().Be(20);
     }
 
     [Fact]
@@ -59,16 +67,10 @@ public class GreedySchedulingSolverTests
         var candidate = MakeCandidate(
             requestId: reqId,
             resourceId: resourceId,
-            durationDays: 5,
-            feasibleStarts: [
-                new DateOnly(2026, 4, 14),
-                new DateOnly(2026, 4, 15),
-                new DateOnly(2026, 4, 16)
-            ]);
+            durationMinutes: Day(5),
+            windows: [new StartWindow(Day(0), Day(3))]);
 
-        var fixedOcc = new FixedOccupancy(
-            Guid.NewGuid(), resourceId,
-            new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 25));
+        var fixedOcc = new FixedOccupancy(Guid.NewGuid(), resourceId, Day(0), Day(12));
 
         var result = await _solver.SolveAsync(
             MakeAnalyzed([candidate], fixedAssignments: [fixedOcc]),
@@ -89,17 +91,14 @@ public class GreedySchedulingSolverTests
         var constrained = MakeCandidate(
             requestId: constrainedId,
             resourceId: resourceId,
-            durationDays: 3,
-            feasibleStarts: [new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 15)]);
+            durationMinutes: Day(3),
+            windows: [new StartWindow(Day(0), Day(2))]);
 
         var flexibleId = Guid.NewGuid();
         var flexible = MakeCandidate(
             requestId: flexibleId,
             resourceId: resourceId,
-            durationDays: 3,
-            feasibleStarts: Enumerable.Range(0, 30)
-                .Select(i => new DateOnly(2026, 4, 14).AddDays(i))
-                .ToList());
+            durationMinutes: Day(3));
 
         var result = await _solver.SolveAsync(
             MakeAnalyzed([flexible, constrained]),
@@ -110,7 +109,7 @@ public class GreedySchedulingSolverTests
         result.Assignments.Should().Contain(a => a.RequestId == flexibleId);
 
         var placements = result.Assignments.OrderBy(a => a.Start).ToList();
-        placements[0].End.Should().BeBefore(placements[1].Start);
+        placements[0].End.Should().BeLessThanOrEqualTo(placements[1].Start);
     }
 
     [Fact]

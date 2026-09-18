@@ -64,10 +64,13 @@ public sealed class AutoScheduleService : IAutoScheduleService
             solution.Status,
             solution.ToScore(),
             solution.Assignments
+                // Offsets become timestamps here and nowhere else. Start snaps forward at a
+                // boundary and End backward, so a job ending at close of business is written
+                // as ending then rather than at the next morning's opening.
                 .Select(x => new ProposedAssignmentDto(
                     x.RequestId, requestNames.GetValueOrDefault(x.RequestId, "Unknown"),
                     x.ResourceId, resourceNames.GetValueOrDefault(x.ResourceId, "Unknown"),
-                    x.Start, x.End, x.DurationDays))
+                    problem.Axis.StartAt(x.Start), problem.Axis.EndAt(x.End), x.DurationMinutes))
                 .ToList(),
             solution.Unscheduled
                 .Select(x => new UnscheduledRequestDto(
@@ -121,16 +124,9 @@ public sealed class AutoScheduleService : IAutoScheduleService
                 new ScheduleRequestRequest
                 {
                     ResourceId = a.ResourceId,
-                    StartTs = a.Start.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                    // The solver's End is INCLUSIVE — both solvers compute it as
-                    // start.AddDays(DurationDays - 1), so a one-day placement has Start == End.
-                    // The schedule window is a half-open timestamp range, so the exclusive end is
-                    // the day after. Without the AddDays(1) a one-day placement produced a
-                    // zero-length window, and BatchUpdateSchedulesAsync derives
-                    // actual_duration_value from End - Start, so it wrote 0 and tripped the
-                    // requests_actual_duration_value_check constraint; every multi-day placement
-                    // was silently written one day short.
-                    EndTs = a.End.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                    // Already the half-open timestamp window the preview showed.
+                    StartTs = a.Start,
+                    EndTs = a.End,
                 }))
             .ToList();
 

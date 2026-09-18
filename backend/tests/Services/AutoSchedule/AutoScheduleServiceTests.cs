@@ -19,7 +19,8 @@ public class AutoScheduleServiceTests
         IEnumerable<ISchedulingSolver>? solvers = null,
         IReadOnlyList<string>? placeableKeys = null,
         IReadOnlyList<WithheldRequestNode>? withheld = null,
-        IRequestRepository? requestRepository = null)
+        IRequestRepository? requestRepository = null,
+        WorkingTimeAxis? axis = null)
     {
         var mockProblemBuilder = new Mock<SchedulingProblemBuilder>(
             Mock.Of<IRequestRepository>(),
@@ -33,7 +34,8 @@ public class AutoScheduleServiceTests
             Guid.NewGuid(),
             new DateOnly(2026, 4, 14),
             new DateOnly(2026, 7, 14),
-            [], [], [], null, null, null, withheld);
+            axis ?? WorkingTimeAxis.Identity(new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
+            [], [], [], null, withheld);
 
         mockProblemBuilder
             .Setup(x => x.BuildAsync(It.IsAny<AutoSchedulePreviewRequest>(), It.IsAny<CancellationToken>()))
@@ -262,7 +264,7 @@ public class AutoScheduleServiceTests
     }
 
     /// <summary>Returns one fixed placement, so a test can pin the window that reaches the write.</summary>
-    private sealed class StubSolver(DateOnly start, DateOnly end, Guid requestId, Guid resourceId)
+    private sealed class StubSolver(int start, int end, Guid requestId, Guid resourceId)
         : ISchedulingSolver
     {
         public SolverKind Kind => SolverKind.Greedy;
@@ -273,11 +275,11 @@ public class AutoScheduleServiceTests
             => Task.FromResult(new SchedulingSolution(
                 SolverKind.Greedy, SolverStatus.Optimal,
                 [new ScheduledPlacement(requestId, resourceId, start, end,
-                    DurationDays: end.DayNumber - start.DayNumber + 1, Priority: 1)],
+                    DurationMinutes: end - start, Priority: 1)],
                 [], []));
     }
 
-    private async Task<ScheduleRequestRequest> ApplyAndCaptureWindowAsync(DateOnly start, DateOnly end)
+    private async Task<ScheduleRequestRequest> ApplyAndCaptureWindowAsync(int start, int end, WorkingTimeAxis? axis = null)
     {
         var requestId = Guid.NewGuid();
         List<(Guid Id, ScheduleRequestRequest Data)>? captured = null;
@@ -290,7 +292,8 @@ public class AutoScheduleServiceTests
 
         var service = CreateService(
             solvers: [new StubSolver(start, end, requestId, Guid.NewGuid())],
-            requestRepository: repo.Object);
+            requestRepository: repo.Object,
+            axis: axis);
 
         await service.ApplyAsync(
             new AutoScheduleApplyRequest(Guid.NewGuid(), new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
@@ -301,29 +304,42 @@ public class AutoScheduleServiceTests
     }
 
     [Fact]
-    public async Task ApplyAsync_GivesASingleDayPlacementAFullDayWindow()
+    public async Task ApplyAsync_WritesThePlacementAsAHalfOpenTimestampWindow()
     {
-        // The solver's End is inclusive: a one-day placement has Start == End. Converting both to
-        // midnight produced a zero-length window, and BatchUpdateSchedulesAsync derives
-        // actual_duration_value from End - Start — so it wrote 0 and Postgres rejected the row on
-        // requests_actual_duration_value_check. Every sub-day auto-schedule apply failed.
-        var day = new DateOnly(2026, 9, 4);
+        // Offsets on the identity axis are minutes since the horizon start, so a placement of
+        // [0, 1440) is the first horizon day, written as [14 Apr 00:00, 15 Apr 00:00).
+        var window = await ApplyAndCaptureWindowAsync(0, 1440);
 
-        var window = await ApplyAndCaptureWindowAsync(day, day);
-
-        (window.EndTs!.Value - window.StartTs!.Value).Should().Be(TimeSpan.FromDays(1));
+        window.StartTs.Should().Be(new DateTime(2026, 4, 14, 0, 0, 0, DateTimeKind.Utc));
+        window.EndTs.Should().Be(new DateTime(2026, 4, 15, 0, 0, 0, DateTimeKind.Utc));
     }
 
     [Fact]
-    public async Task ApplyAsync_GivesAMultiDayPlacementItsFullSpan()
+    public async Task ApplyAsync_WritesASubDayPlacementToTheMinute()
     {
-        // The same off-by-one silently shortened every longer placement by a day, which no
-        // constraint caught: a three-day job was written as two.
-        var start = new DateOnly(2026, 9, 1);
+        var window = await ApplyAndCaptureWindowAsync(8 * 60 + 20, 8 * 60 + 20 + 180);
 
-        var window = await ApplyAndCaptureWindowAsync(start, new DateOnly(2026, 9, 3));
+        window.StartTs.Should().Be(new DateTime(2026, 4, 14, 8, 20, 0, DateTimeKind.Utc));
+        window.EndTs.Should().Be(new DateTime(2026, 4, 14, 11, 20, 0, DateTimeKind.Utc));
+    }
 
-        window.StartTs.Should().Be(new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc));
-        (window.EndTs!.Value - window.StartTs!.Value).Should().Be(TimeSpan.FromDays(3));
+    [Fact]
+    public async Task ApplyAsync_SnapsAWorkingDayPlacementInsideTheWorkingDay()
+    {
+        // 14 April 2026 is a Tuesday. On a 08:00–17:00 axis the second working day is offsets
+        // [540, 1080): its start is Wednesday 08:00 and its end is Wednesday 17:00 — not
+        // Thursday 08:00, which names the same offset from the other side of the night.
+        var axis = WorkingTimeAxis.Build(new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14),
+            SchedulingSettingsInfo.Default(Guid.NewGuid()) with
+            {
+                WorkingHoursEnabled = true,
+                WorkingDayStart = new TimeOnly(8, 0),
+                WorkingDayEnd = new TimeOnly(17, 0),
+            }, respectSchedulingSettings: true);
+
+        var window = await ApplyAndCaptureWindowAsync(540, 1080, axis);
+
+        window.StartTs.Should().Be(new DateTime(2026, 4, 15, 8, 0, 0, DateTimeKind.Utc));
+        window.EndTs.Should().Be(new DateTime(2026, 4, 15, 17, 0, 0, DateTimeKind.Utc));
     }
 }

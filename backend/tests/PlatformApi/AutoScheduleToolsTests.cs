@@ -30,7 +30,9 @@ public class AutoScheduleToolsTests
 
     private static readonly Guid SiteId = Guid.NewGuid();
     private static readonly DateOnly Start = new(2026, 6, 1);
+    private static readonly DateTime StartTs = new(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc);
     private static readonly DateOnly End = new(2026, 6, 30);
+    private static readonly DateTime EndTs = new(2026, 6, 1, 17, 0, 0, DateTimeKind.Utc);
     private const string Fingerprint = "abc123fingerprint";
 
     public AutoScheduleToolsTests()
@@ -65,7 +67,7 @@ public class AutoScheduleToolsTests
         SolverKind.OrToolsCpSat,
         SolverStatus.Optimal,
         new AutoScheduleScore(3, 1, 30),
-        [new ProposedAssignmentDto(Guid.NewGuid(), "Mill", Guid.NewGuid(), "Bench 1", Start, End, 2)],
+        [new ProposedAssignmentDto(Guid.NewGuid(), "Mill", Guid.NewGuid(), "Bench 1", StartTs, EndTs, 540)],
         [new UnscheduledRequestDto(Guid.NewGuid(), "Weld", [SchedulingReasonCode.NoCompatibleResource])],
         ["solved in 1.2s"],
         fingerprint);

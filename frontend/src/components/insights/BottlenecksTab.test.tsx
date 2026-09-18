@@ -63,17 +63,17 @@ const emptyBottlenecks = {
   metadata: { calculatedAt: "2026-01-01T00:00:00Z", sourceMode: "live" },
 };
 
-const emptyPath = { nodes: [], edges: [], durationDays: 0, diagnostics: [] };
+const emptyPath = { nodes: [], edges: [], durationMinutes: 0, diagnostics: [] };
 
 function node(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     requestId: "r1",
     name: "Mill the bracket",
-    earliestStart: "2026-06-01",
-    earliestFinish: "2026-06-02",
-    latestStart: "2026-06-01",
-    latestFinish: "2026-06-02",
-    totalFloatDays: 0,
+    earliestStart: "2026-06-01T08:00:00Z",
+    earliestFinish: "2026-06-01T11:20:00Z",
+    latestStart: "2026-06-01T08:00:00Z",
+    latestFinish: "2026-06-01T11:20:00Z",
+    totalFloatMinutes: 0,
     isCritical: true,
     isScheduled: false,
     ...overrides,
@@ -155,10 +155,10 @@ describe("BottlenecksTab", () => {
   it("marks the critical work and shows float for the rest", async () => {
     (getCriticalPath as Mock).mockResolvedValue({
       ...emptyPath,
-      durationDays: 6,
+      durationMinutes: 6 * 1440,
       nodes: [
         node(),
-        node({ requestId: "r2", name: "Grind", totalFloatDays: 3, isCritical: false, isScheduled: true }),
+        node({ requestId: "r2", name: "Grind", totalFloatMinutes: 3 * 1440 + 120, isCritical: false, isScheduled: true }),
       ],
     });
 
@@ -167,8 +167,8 @@ describe("BottlenecksTab", () => {
     await waitFor(() => expect(screen.getByText("Mill the bracket")).toBeInTheDocument());
     expect(screen.getByText("Critical")).toBeInTheDocument();
     expect(screen.getByText("Scheduled")).toBeInTheDocument();
-    expect(screen.getByText("3 d")).toBeInTheDocument();
-    expect(screen.getByText(/6 days end to end/i)).toBeInTheDocument();
+    expect(screen.getByText("3d 2h")).toBeInTheDocument();
+    expect(screen.getByText(/6d end to end/i)).toBeInTheDocument();
   });
 
   it("opens the request behind a critical-path row, with its conflicts", async () => {

@@ -10,7 +10,7 @@ namespace Api.Services;
 public interface ICriticalPathService
 {
     /// <summary>
-    /// Computes earliest/latest dates and float for every request that takes part in a
+    /// Computes earliest/latest instants and float for every request that takes part in a
     /// dependency, optionally scoped to a site. Throws <see cref="ConflictException"/> when the
     /// graph contains a cycle, because a cycle has no forward pass.
     /// </summary>
@@ -18,8 +18,8 @@ public interface ICriticalPathService
 }
 
 /// <summary>
-/// Classic CPM — a forward pass for earliest dates, a backward pass for latest dates, float as
-/// the difference — over the leaves that carry dependency edges.
+/// Classic CPM — a forward pass for earliest instants, a backward pass for latest instants,
+/// float as the difference — over the leaves that carry dependency edges.
 ///
 /// Two things make this Orkyo's version rather than a textbook one:
 ///
@@ -27,7 +27,9 @@ public interface ICriticalPathService
 /// facts about the plan, and the pass takes them as given rather than proposing something
 /// earlier. Only unscheduled work floats to where its predecessors allow.
 ///
-/// Everything is in whole days, because that is the granularity the whole scheduler works in.
+/// Everything is in calendar minutes. Minutes because that is the resolution the scheduler
+/// plans in; calendar rather than one site's working hours because the network can span sites
+/// that keep different hours, and a lag is elapsed time.
 /// </summary>
 public class CriticalPathService : ICriticalPathService
 {
@@ -95,20 +97,20 @@ public class CriticalPathService : ICriticalPathService
         var predecessorsOf = usable.GroupBy(e => e.SuccessorRequestId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
-        var duration = nodeIds.ToDictionary(id => id, id => DurationDays(requests[id]));
+        var duration = nodeIds.ToDictionary(id => id, id => DurationMinutes(requests[id]));
 
         // ── Forward pass ────────────────────────────────────────────────────────
-        var earliestStart = new Dictionary<Guid, DateOnly>();
-        var earliestFinish = new Dictionary<Guid, DateOnly>();
+        var earliestStart = new Dictionary<Guid, DateTime>();
+        var earliestFinish = new Dictionary<Guid, DateTime>();
 
-        // Unanchored work has to start somewhere; the network's own earliest known date is the
-        // honest floor — it keeps the numbers relative to the plan rather than to "today", which
-        // would make the same graph report differently on different days.
+        // Unanchored work has to start somewhere; the network's own earliest known instant is
+        // the honest floor — it keeps the numbers relative to the plan rather than to "now",
+        // which would make the same graph report differently on different days.
         var floor = nodeIds
             .Select(id => Anchor(requests[id]))
             .Where(d => d.HasValue)
             .Select(d => d!.Value)
-            .DefaultIfEmpty(DateOnly.FromDateTime(DateTime.UtcNow))
+            .DefaultIfEmpty(ThisMinute(DateTime.UtcNow))
             .Min();
 
         // Which incoming edges actually held a request back. Under "all" that is all of them, so
@@ -126,7 +128,7 @@ public class CriticalPathService : ICriticalPathService
                 // One candidate start per predecessor, folded by the request's join condition:
                 // the latest for "all", the earliest for "any", the k-th earliest for k_of_n.
                 var bounds = incoming
-                    .Select(edge => earliestFinish[edge.PredecessorRequestId].AddDays(1 + LagDays(edge)))
+                    .Select(edge => earliestFinish[edge.PredecessorRequestId].AddMinutes(edge.LagMinutes))
                     .ToList();
 
                 var condition = JoinCondition.Of(requests[id]);
@@ -148,7 +150,7 @@ public class CriticalPathService : ICriticalPathService
             }
 
             earliestStart[id] = start;
-            earliestFinish[id] = start.AddDays(duration[id] - 1);
+            earliestFinish[id] = start.AddMinutes(duration[id]);
         }
 
         var projectFinish = earliestFinish.Values.Max();
@@ -160,8 +162,8 @@ public class CriticalPathService : ICriticalPathService
                 + "the join did not wait for carries float rather than lying on the critical path.");
 
         // ── Backward pass ───────────────────────────────────────────────────────
-        var latestFinish = new Dictionary<Guid, DateOnly>();
-        var latestStart = new Dictionary<Guid, DateOnly>();
+        var latestFinish = new Dictionary<Guid, DateTime>();
+        var latestStart = new Dictionary<Guid, DateTime>();
 
         // The backward pass folds against the BINDING successors only — the ones whose join
         // actually waited for this request. Folding against every successor would treat an "any"
@@ -174,25 +176,22 @@ public class CriticalPathService : ICriticalPathService
             if (bindingSuccessorsOf.TryGetValue(id, out var outgoing))
                 foreach (var edge in outgoing)
                 {
-                    var bound = latestStart[edge.SuccessorRequestId].AddDays(-(1 + LagDays(edge)));
+                    var bound = latestStart[edge.SuccessorRequestId].AddMinutes(-edge.LagMinutes);
                     if (bound < finish) finish = bound;
                 }
 
             // A deadline of its own can only tighten the answer, never loosen it.
-            if (requests[id].LatestEndTs is { } latest)
-            {
-                var deadline = DateOnly.FromDateTime(latest);
-                if (deadline < finish) finish = deadline;
-            }
+            if (requests[id].LatestEndTs is { } deadline && deadline < finish)
+                finish = deadline;
 
             latestFinish[id] = finish;
-            latestStart[id] = finish.AddDays(-(duration[id] - 1));
+            latestStart[id] = finish.AddMinutes(-duration[id]);
         }
 
         var nodes = nodeIds
             .Select(id =>
             {
-                var floatDays = latestStart[id].DayNumber - earliestStart[id].DayNumber;
+                var floatMinutes = (int)(latestStart[id] - earliestStart[id]).TotalMinutes;
                 return new CriticalPathNode
                 {
                     RequestId = id,
@@ -201,8 +200,8 @@ public class CriticalPathService : ICriticalPathService
                     EarliestFinish = earliestFinish[id],
                     LatestStart = latestStart[id],
                     LatestFinish = latestFinish[id],
-                    TotalFloatDays = floatDays,
-                    IsCritical = floatDays <= 0,
+                    TotalFloatMinutes = floatMinutes,
+                    IsCritical = floatMinutes <= 0,
                     IsScheduled = Anchor(requests[id]).HasValue,
                 };
             })
@@ -219,7 +218,7 @@ public class CriticalPathService : ICriticalPathService
         {
             Nodes = nodes,
             Edges = usable,
-            DurationDays = projectFinish.DayNumber - networkStart.DayNumber + 1,
+            DurationMinutes = (int)(projectFinish - networkStart).TotalMinutes,
             Diagnostics = diagnostics,
         };
     }
@@ -233,36 +232,28 @@ public class CriticalPathService : ICriticalPathService
         {
             Nodes = [],
             Edges = [],
-            DurationDays = 0,
+            DurationMinutes = 0,
             Diagnostics = diagnostics ?? [],
         };
 
     /// <summary>The placed start when the request is scheduled, otherwise null.</summary>
-    private static DateOnly? Anchor(RequestInfo request)
-        => request.StartTs.HasValue ? DateOnly.FromDateTime(request.StartTs.Value) : null;
+    private static DateTime? Anchor(RequestInfo request) => request.StartTs;
 
     /// <summary>
-    /// How many days the request occupies: its actual span when placed, otherwise its minimal
-    /// duration. Always at least one — a zero-length node would make float meaningless.
+    /// How many minutes the request occupies: its actual span when placed, otherwise its
+    /// minimal duration. Always at least one — a zero-length node would make float meaningless.
     /// </summary>
-    private static int DurationDays(RequestInfo request)
+    private static int DurationMinutes(RequestInfo request)
     {
         if (request.StartTs is { } start && request.EndTs is { } end)
-            // Inclusive last day (end_ts is half-open): the raw date of a midnight end would
-            // report every applied one-day placement as two days on the critical path.
-            return Math.Max(1, SchedulingEngine.InclusiveLastDay(end).DayNumber - DateOnly.FromDateTime(start).DayNumber + 1);
+            return Math.Max(1, (int)(end - start).TotalMinutes);
 
-        var minutes = SchedulingEngine.DurationToMinutes(request.MinimalDurationValue, request.MinimalDurationUnit);
-        return Math.Max(1, (int)Math.Ceiling(minutes / (double)(24 * 60)));
+        return Math.Max(1, SchedulingEngine.DurationToMinutes(request.MinimalDurationValue, request.MinimalDurationUnit));
     }
 
-    /// <summary>
-    /// Lag in whole days, ceilinged so it never lets a successor start early. Working hours are
-    /// not applied here: the critical path spans calendar days across sites that can keep
-    /// different hours, and one site's working day is not a property of the network.
-    /// </summary>
-    private static int LagDays(RequestDependencyInfo edge)
-        => edge.LagMinutes <= 0 ? 0 : (int)Math.Ceiling(edge.LagMinutes / (double)(24 * 60));
+    /// <summary>"Now" at minute precision, so an unanchored network reports stable numbers within a minute.</summary>
+    private static DateTime ThisMinute(DateTime utc)
+        => new(utc.Ticks - utc.Ticks % TimeSpan.TicksPerMinute, DateTimeKind.Utc);
 
     /// <summary>Kahn's algorithm. Returns null when a cycle leaves nodes unresolvable.</summary>
     private static List<Guid>? TopologicalOrder(

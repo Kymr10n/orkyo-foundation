@@ -3,8 +3,10 @@ using Api.Models;
 namespace Api.Services.AutoSchedule;
 
 /// <summary>
-/// Expands request→resource candidates, rejects impossible ones, and
-/// enumerates feasible start days. Output feeds directly into the solver.
+/// Expands request→resource candidates, rejects impossible ones, and computes the start
+/// windows each survivor may begin in: the request's own window on the axis, minus every
+/// start that would collide with what the resource is already taken for. Output feeds
+/// directly into the solvers.
 /// </summary>
 public sealed class SchedulingFeasibilityAnalyzer
 {
@@ -14,14 +16,18 @@ public sealed class SchedulingFeasibilityAnalyzer
         var rejections = new List<CandidateRejection>();
         var diagnostics = new List<string>();
 
+        var occupancyByResource = problem.FixedAssignments
+            .GroupBy(a => a.ResourceId)
+            .ToDictionary(g => g.Key, g => g.Select(a => (a.Start, a.End)).ToList());
+
         foreach (var request in problem.Requests)
         {
-            if (request.DurationDays <= 0)
+            if (request.DurationMinutes <= 0)
             {
                 rejections.Add(new CandidateRejection(
                     request.RequestId, null,
                     SchedulingReasonCode.InvalidDuration,
-                    "Duration must be > 0 days."));
+                    "Duration must be > 0 minutes."));
                 continue;
             }
 
@@ -39,27 +45,36 @@ public sealed class SchedulingFeasibilityAnalyzer
                 continue;
             }
 
+            var earliest = request.EarliestStart ?? 0;
+            var latestEnd = request.LatestEnd ?? problem.Axis.Length;
+            var lastStart = latestEnd - request.DurationMinutes;
+
             foreach (var resource in compatibleResources)
             {
-                var feasibleStartDays = EnumerateFeasibleStarts(problem, request, resource).ToList();
+                var windows = lastStart < earliest
+                    ? []
+                    : StartWindows.Subtract(
+                        earliest, lastStart + 1,
+                        occupancyByResource.GetValueOrDefault(resource.ResourceId) ?? [],
+                        request.DurationMinutes);
 
-                if (feasibleStartDays.Count == 0)
+                if (windows.Count == 0)
                 {
                     rejections.Add(new CandidateRejection(
                         request.RequestId, resource.ResourceId,
                         SchedulingReasonCode.InsufficientCapacity,
-                        "No feasible start day within the horizon for this resource."));
+                        "No feasible start within the horizon for this resource."));
                     continue;
                 }
 
                 candidates.Add(new SchedulingCandidate(
                     request.RequestId,
                     resource.ResourceId,
-                    request.EarliestStart ?? problem.HorizonStart,
-                    request.LatestEnd ?? problem.HorizonEnd,
-                    request.DurationDays,
+                    earliest,
+                    latestEnd,
+                    request.DurationMinutes,
                     request.Priority,
-                    feasibleStartDays));
+                    windows));
             }
         }
 
@@ -70,63 +85,8 @@ public sealed class SchedulingFeasibilityAnalyzer
 
         var tightWindowCount = rejections.Count(r => r.ReasonCode == SchedulingReasonCode.InsufficientCapacity);
         if (tightWindowCount > 0)
-            diagnostics.Add($"{tightWindowCount} request-resource pair(s) removed: no feasible start day.");
+            diagnostics.Add($"{tightWindowCount} request-resource pair(s) removed: no feasible start.");
 
         return new AnalyzedSchedulingProblem(problem, candidates, rejections, diagnostics);
-    }
-
-    private static IEnumerable<DateOnly> EnumerateFeasibleStarts(
-        SchedulingProblem problem,
-        RequestNode request,
-        ResourceNode resource)
-    {
-        var earliest = request.EarliestStart ?? problem.HorizonStart;
-        var latestFinish = request.LatestEnd ?? problem.HorizonEnd;
-        var latestStart = latestFinish.AddDays(-(request.DurationDays - 1));
-
-        if (latestStart < earliest) yield break;
-
-        // Pre-compute fixed occupancy intervals for this resource
-        var resourceOccupancy = problem.FixedAssignments
-            .Where(a => a.ResourceId == resource.ResourceId)
-            .Select(a => (a.Start, a.End))
-            .ToList();
-
-        // Pre-compute blocked date ranges for this resource if scheduling settings apply
-        var offDates = new HashSet<DateOnly>();
-        if (request.RespectSchedulingSettings && problem.BlockedPeriodsByResource != null)
-        {
-            var periods = problem.BlockedPeriodsByResource.GetValueOrDefault(resource.ResourceId, []);
-            foreach (var p in periods)
-            {
-                var pStart = DateOnly.FromDateTime(p.StartTs);
-                var pEnd = DateOnly.FromDateTime(p.EndTs);
-                for (var d = pStart; d <= pEnd; d = d.AddDays(1))
-                    offDates.Add(d);
-            }
-        }
-
-        for (var day = earliest; day <= latestStart; day = day.AddDays(1))
-        {
-            // Skip weekends if scheduling settings apply and weekends are excluded
-            if (request.RespectSchedulingSettings && problem.Settings is { WeekendsEnabled: false })
-            {
-                var dow = day.DayOfWeek;
-                if (dow is DayOfWeek.Saturday or DayOfWeek.Sunday)
-                    continue;
-            }
-
-            // Skip off-time days
-            if (offDates.Contains(day))
-                continue;
-
-            // Check that the entire placement interval doesn't conflict with fixed occupancy
-            var end = day.AddDays(request.DurationDays - 1);
-            var conflicts = resourceOccupancy.Any(occ => !(end < occ.Start || day > occ.End));
-            if (conflicts)
-                continue;
-
-            yield return day;
-        }
     }
 }

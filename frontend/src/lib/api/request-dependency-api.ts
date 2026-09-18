@@ -52,12 +52,13 @@ export function deleteRequestDependency(requestId: string, dependencyId: string)
 export interface CriticalPathNode {
   requestId: string;
   name: string;
+  /** ISO-8601 UTC timestamps at minute precision. */
   earliestStart: string;
   earliestFinish: string;
   latestStart: string;
   latestFinish: string;
-  /** Days of slack. Zero means any delay here delays everything downstream. */
-  totalFloatDays: number;
+  /** Minutes of slack. Zero means any delay here delays everything downstream. */
+  totalFloatMinutes: number;
   isCritical: boolean;
   isScheduled: boolean;
 }
@@ -65,7 +66,8 @@ export interface CriticalPathNode {
 export interface CriticalPathResult {
   nodes: CriticalPathNode[];
   edges: RequestDependency[];
-  durationDays: number;
+  /** Minutes from the network's earliest start to its latest finish. */
+  durationMinutes: number;
   diagnostics: string[];
 }
 

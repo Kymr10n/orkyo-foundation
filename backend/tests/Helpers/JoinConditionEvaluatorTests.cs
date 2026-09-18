@@ -100,7 +100,7 @@ public class JoinConditionEvaluatorTests
 
     [Fact]
     public void Fold_WithNoBounds_ConstrainsNothing() =>
-        JoinConditionEvaluator.FoldEarliestStart(JoinCondition.All, []).Should().BeNull();
+        JoinConditionEvaluator.FoldEarliestStart<int>(JoinCondition.All, []).Should().BeNull();
 
     [Fact]
     public void Fold_DoesNotReorderTheCallersList()

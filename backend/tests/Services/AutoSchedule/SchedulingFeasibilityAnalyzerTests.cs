@@ -8,6 +8,9 @@ public class SchedulingFeasibilityAnalyzerTests
 {
     private readonly SchedulingFeasibilityAnalyzer _analyzer = new();
 
+    private static IEnumerable<int> Starts(AnalyzedSchedulingProblem result)
+        => result.Candidates.SelectMany(c => c.FeasibleStartWindows).SelectMany(w => Enumerable.Range(w.From, w.Length));
+
     [Fact]
     public void ExactCapabilityFit_ProducesCandidates()
     {
@@ -65,53 +68,59 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void StartOnlyConstraint_RespectsEarliestStart()
     {
-        var request = MakeRequest(durationDays: 3, earliest: new DateOnly(2026, 5, 1));
+        var request = MakeRequest(durationMinutes: Day(3), earliest: Day(17));
         var space = MakeSpace();
 
         var result = _analyzer.Analyze(MakeProblem([request], [space]));
 
-        result.Candidates.Should().NotBeEmpty();
-        result.Candidates.SelectMany(c => c.FeasibleStartDays)
-            .Should().OnlyContain(d => d >= new DateOnly(2026, 5, 1));
+        result.Candidates.Should().ContainSingle()
+            .Which.FeasibleStartWindows.Should().ContainSingle()
+            .Which.From.Should().Be(Day(17));
     }
 
     [Fact]
     public void EndOnlyConstraint_RespectsLatestEnd()
     {
-        var request = MakeRequest(durationDays: 3, latest: new DateOnly(2026, 4, 20));
+        var request = MakeRequest(durationMinutes: Day(3), latest: Day(7));
         var space = MakeSpace();
 
         var result = _analyzer.Analyze(MakeProblem([request], [space]));
 
-        result.Candidates.Should().NotBeEmpty();
-        result.Candidates.SelectMany(c => c.FeasibleStartDays)
-            .Should().OnlyContain(d => d.AddDays(2) <= new DateOnly(2026, 4, 20));
+        // The last start still ends by the deadline: To is exclusive, so Day(4) + 1.
+        result.Candidates.Should().ContainSingle()
+            .Which.FeasibleStartWindows.Should().ContainSingle()
+            .Which.To.Should().Be(Day(4) + 1);
+    }
+
+    [Fact]
+    public void NoConstraint_TheWholeHorizonIsOpen()
+    {
+        var request = MakeRequest(durationMinutes: 60);
+        var space = MakeSpace();
+
+        var result = _analyzer.Analyze(MakeProblem([request], [space]));
+
+        var window = result.Candidates.Single().FeasibleStartWindows.Single();
+        window.From.Should().Be(0);
+        window.To.Should().Be(Day(92) - 60 + 1, "14 Apr to 14 Jul inclusive is 92 days");
     }
 
     [Fact]
     public void BothStartAndEndConstraint_NarrowsWindow()
     {
-        var request = MakeRequest(
-            durationDays: 3,
-            earliest: new DateOnly(2026, 5, 1),
-            latest: new DateOnly(2026, 5, 5));
+        var request = MakeRequest(durationMinutes: Day(3), earliest: Day(17), latest: Day(21));
         var space = MakeSpace();
 
         var result = _analyzer.Analyze(MakeProblem([request], [space]));
 
-        result.Candidates.Should().NotBeEmpty();
-        var starts = result.Candidates.SelectMany(c => c.FeasibleStartDays).ToList();
-        starts.Should().OnlyContain(d => d >= new DateOnly(2026, 5, 1));
-        starts.Should().OnlyContain(d => d.AddDays(2) <= new DateOnly(2026, 5, 5));
+        result.Candidates.Single().FeasibleStartWindows.Should()
+            .ContainSingle().Which.Should().Be(new StartWindow(Day(17), Day(18) + 1));
     }
 
     [Fact]
-    public void ImpossibleDateWindow_ProducesNoFeasibleStarts()
+    public void ImpossibleWindow_ProducesNoFeasibleStarts()
     {
-        var request = MakeRequest(
-            durationDays: 10,
-            earliest: new DateOnly(2026, 5, 1),
-            latest: new DateOnly(2026, 5, 3));
+        var request = MakeRequest(durationMinutes: Day(10), earliest: Day(17), latest: Day(19));
         var space = MakeSpace();
 
         var result = _analyzer.Analyze(MakeProblem([request], [space]));
@@ -123,7 +132,7 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void ZeroDuration_RejectsWithInvalidDuration()
     {
-        var request = MakeRequest(durationDays: 0);
+        var request = MakeRequest(durationMinutes: 0);
         var space = MakeSpace();
 
         var result = _analyzer.Analyze(MakeProblem([request], [space]));
@@ -137,25 +146,22 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void OverlappingFixedAssignment_BlocksFeasibleStarts()
     {
+        // Busy for the first five days, due by the end of the eighth: the only start that fits
+        // a three-day job is the minute the occupancy ends.
         var resourceId = Guid.NewGuid();
-        var request = MakeRequest(
-            durationDays: 3,
-            earliest: new DateOnly(2026, 4, 14),
-            latest: new DateOnly(2026, 4, 20));
+        var request = MakeRequest(durationMinutes: Day(3), earliest: Day(0), latest: Day(8));
         var space = MakeSpace(id: resourceId);
 
-        var fixed1 = new FixedOccupancy(
-            Guid.NewGuid(), resourceId,
-            new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 18));
+        var fixed1 = new FixedOccupancy(Guid.NewGuid(), resourceId, Day(0), Day(5));
 
-        var result = _analyzer.Analyze(MakeProblem(
-            [request], [space], fixedAssignments: [fixed1]));
+        var result = _analyzer.Analyze(MakeProblem([request], [space], fixedAssignments: [fixed1]));
 
-        var starts = result.Candidates.SelectMany(c => c.FeasibleStartDays).ToList();
-        foreach (var start in starts)
+        result.Candidates.Single().FeasibleStartWindows.Should()
+            .ContainSingle().Which.Should().Be(new StartWindow(Day(5), Day(5) + 1));
+        foreach (var start in Starts(result))
         {
-            var end = start.AddDays(2);
-            var conflicts = !(end < new DateOnly(2026, 4, 14) || start > new DateOnly(2026, 4, 18));
+            var end = start + Day(3);
+            var conflicts = start < fixed1.End && end > fixed1.Start;
             conflicts.Should().BeFalse($"start {start} should not conflict with fixed occupancy");
         }
     }
@@ -163,36 +169,42 @@ public class SchedulingFeasibilityAnalyzerTests
     [Fact]
     public void AdjacentAssignments_AreAllowed()
     {
+        // The minute the occupancy ends is a valid start; the minute before it is not.
         var resourceId = Guid.NewGuid();
-        var fixed1 = new FixedOccupancy(
-            Guid.NewGuid(), resourceId,
-            new DateOnly(2026, 4, 14), new DateOnly(2026, 4, 16));
-        var request = MakeRequest(
-            durationDays: 2,
-            earliest: new DateOnly(2026, 4, 17),
-            latest: new DateOnly(2026, 4, 20));
+        var fixed1 = new FixedOccupancy(Guid.NewGuid(), resourceId, 0, 90);
+        var request = MakeRequest(durationMinutes: 30, latest: Day(1));
         var space = MakeSpace(id: resourceId);
 
-        var result = _analyzer.Analyze(MakeProblem(
-            [request], [space], fixedAssignments: [fixed1]));
+        var result = _analyzer.Analyze(MakeProblem([request], [space], fixedAssignments: [fixed1]));
 
-        result.Candidates.Should().NotBeEmpty();
-        result.Candidates.SelectMany(c => c.FeasibleStartDays)
-            .Should().Contain(new DateOnly(2026, 4, 17));
+        result.Candidates.Single().FeasibleStartWindows.Should()
+            .ContainSingle().Which.From.Should().Be(90);
+    }
+
+    [Fact]
+    public void AnOccupancyInTheMiddle_SplitsTheWindowInTwo()
+    {
+        var resourceId = Guid.NewGuid();
+        var busy = new FixedOccupancy(Guid.NewGuid(), resourceId, 100, 200);
+        var request = MakeRequest(durationMinutes: 30, latest: 300);
+        var space = MakeSpace(id: resourceId);
+
+        var result = _analyzer.Analyze(MakeProblem([request], [space], fixedAssignments: [busy]));
+
+        result.Candidates.Single().FeasibleStartWindows.Should().Equal(
+            new StartWindow(0, 71),
+            new StartWindow(200, 271));
     }
 
     [Fact]
     public void CandidateRemovedWhenDurationCannotFitAnySlot()
     {
         var resourceId = Guid.NewGuid();
-        var fixed1 = new FixedOccupancy(
-            Guid.NewGuid(), resourceId,
-            new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14));
-        var request = MakeRequest(durationDays: 5);
+        var fixed1 = new FixedOccupancy(Guid.NewGuid(), resourceId, Day(0), Day(92));
+        var request = MakeRequest(durationMinutes: Day(5));
         var space = MakeSpace(id: resourceId);
 
-        var result = _analyzer.Analyze(MakeProblem(
-            [request], [space], fixedAssignments: [fixed1]));
+        var result = _analyzer.Analyze(MakeProblem([request], [space], fixedAssignments: [fixed1]));
 
         result.Candidates.Should().BeEmpty();
     }
@@ -217,30 +229,5 @@ public class SchedulingFeasibilityAnalyzerTests
         var result = _analyzer.Analyze(MakeProblem([r1, r2], []));
 
         result.Diagnostics.Should().Contain(d => d.Contains("2 request(s) removed"));
-    }
-
-    [Fact]
-    public void WeekendsExcluded_WhenSettingsDisableWeekends()
-    {
-        var settings = new SchedulingSettingsInfo
-        {
-            Id = Guid.NewGuid(),
-            SiteId = Guid.NewGuid(),
-            WeekendsEnabled = false,
-            WorkingHoursEnabled = false,
-            WorkingDayStart = new TimeOnly(8, 0),
-            WorkingDayEnd = new TimeOnly(17, 0),
-            PublicHolidaysEnabled = false,
-            TimeZone = "UTC"
-        };
-        var request = MakeRequest(durationDays: 1, respectSettings: true);
-        var space = MakeSpace();
-
-        var result = _analyzer.Analyze(MakeProblem(
-            [request], [space], settings: settings));
-
-        var starts = result.Candidates.SelectMany(c => c.FeasibleStartDays).ToList();
-        starts.Should().NotContain(d =>
-            d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday);
     }
 }

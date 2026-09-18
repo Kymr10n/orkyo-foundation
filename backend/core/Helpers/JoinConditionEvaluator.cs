@@ -62,11 +62,13 @@ public static class JoinConditionEvaluator
         => metCount >= RequiredCount(condition, liveCount);
 
     /// <summary>
-    /// Folds one candidate earliest-start per live predecessor into the single date this request
-    /// may start on: the latest of them for "all", the earliest for "any", and the k-th earliest
-    /// for k_of_n — the day the k-th predecessor frees it. Null when nothing constrains it.
+    /// Folds one candidate earliest-start per live predecessor into the single point this request
+    /// may start at: the latest of them for "all", the earliest for "any", and the k-th earliest
+    /// for k_of_n — the moment the k-th predecessor frees it. Null when nothing constrains it.
+    /// Generic over the unit: the scheduler folds axis offsets, the critical path timestamps.
     /// </summary>
-    public static DateOnly? FoldEarliestStart(JoinCondition condition, IReadOnlyList<DateOnly> bounds)
+    public static T? FoldEarliestStart<T>(JoinCondition condition, IReadOnlyList<T> bounds)
+        where T : struct, IComparable<T>
     {
         if (bounds.Count == 0) return null;
 

@@ -43,9 +43,11 @@ export interface ProposedAssignmentDto {
   requestName: string;
   resourceId: string;
   resourceName: string;
+  /** ISO-8601 UTC timestamps: the half-open window the apply writes. */
   start: string;
   end: string;
-  durationDays: number;
+  /** Working minutes inside the window. */
+  durationMinutes: number;
 }
 
 export interface UnscheduledRequestDto {

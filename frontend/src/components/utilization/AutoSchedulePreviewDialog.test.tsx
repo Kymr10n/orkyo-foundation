@@ -17,18 +17,18 @@ const mockPreview: AutoSchedulePreviewResponse = {
       requestName: 'Task Alpha',
       resourceId: 'sp-1',
       resourceName: 'Room A',
-      start: '2026-03-01',
-      end: '2026-03-05',
-      durationDays: 4,
+      start: '2026-03-02T08:00:00Z',
+      end: '2026-03-02T11:20:00Z',
+      durationMinutes: 200,
     },
     {
       requestId: 'r-2',
       requestName: 'Task Beta',
       resourceId: 'sp-2',
       resourceName: 'Room B',
-      start: '2026-03-01',
-      end: '2026-03-03',
-      durationDays: 2,
+      start: '2026-03-02T08:00:00Z',
+      end: '2026-03-03T17:00:00Z',
+      durationMinutes: 2 * 540,
     },
   ],
   unscheduled: [
@@ -103,6 +103,10 @@ describe('AutoSchedulePreviewDialog', () => {
     expect(screen.getByText('Task Alpha')).toBeInTheDocument();
     expect(screen.getByText('Room A')).toBeInTheDocument();
     expect(screen.getByText('Task Beta')).toBeInTheDocument();
+    // Timestamps to the minute and a working-time duration, not whole days.
+    expect(screen.getByText('3h 20m')).toBeInTheDocument();
+    expect(screen.getByText('18h')).toBeInTheDocument();
+    expect(screen.getAllByText(/Mar 2, 2026 \d\d:00/).length).toBeGreaterThan(0);
   });
 
   it('shows "No assignments proposed" when empty', () => {

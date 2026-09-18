@@ -41,7 +41,7 @@ public enum SchedulingReasonCode
 
     /// <summary>
     /// The request waits for a predecessor that this run cannot place: it is unscheduled and
-    /// outside the solve set, or its finish leaves the successor no feasible day. Scheduling
+    /// outside the solve set, or its finish leaves the successor no room in its window. Scheduling
     /// it anyway would knowingly produce a dependency violation.
     /// </summary>
     PredecessorUnscheduled = 8
@@ -89,14 +89,18 @@ public sealed record AutoScheduleScore(
     int UnscheduledCount,
     int PriorityScore);
 
+/// <summary>
+/// One proposed placement. <see cref="Start"/> and <see cref="End"/> are the half-open UTC
+/// window the apply would write; <see cref="DurationMinutes"/> is the working time inside it.
+/// </summary>
 public sealed record ProposedAssignmentDto(
     Guid RequestId,
     string RequestName,
     Guid ResourceId,
     string ResourceName,
-    DateOnly Start,
-    DateOnly End,
-    int DurationDays);
+    DateTime Start,
+    DateTime End,
+    int DurationMinutes);
 
 public sealed record UnscheduledRequestDto(
     Guid RequestId,
@@ -106,17 +110,17 @@ public sealed record UnscheduledRequestDto(
 // ── Internal domain types (solver input/output) ────────────────────
 
 /// <summary>
-/// Canonical scheduling problem — solver-agnostic input.
+/// Canonical scheduling problem — solver-agnostic input. Every offset, duration and lag in it
+/// is in working minutes on <see cref="Axis"/>; only the service converts back to timestamps.
 /// </summary>
 public sealed record SchedulingProblem(
     Guid SiteId,
     DateOnly HorizonStart,
     DateOnly HorizonEnd,
+    Services.AutoSchedule.WorkingTimeAxis Axis,
     IReadOnlyList<RequestNode> Requests,
     IReadOnlyList<ResourceNode> Resources,
     IReadOnlyList<FixedOccupancy> FixedAssignments,
-    SchedulingSettingsInfo? Settings,
-    Dictionary<Guid, List<BlockedPeriod>>? BlockedPeriodsByResource,
     IReadOnlyList<DependencyEdge>? Dependencies = null,
     IReadOnlyList<WithheldRequestNode>? Withheld = null,
     /// <summary>The join condition of every request that has incoming edges. Part of the
@@ -138,22 +142,26 @@ public sealed record WithheldRequestNode(Guid RequestId, string DisplayName);
 /// A precedence edge the solver must honour: the successor may not start until the
 /// predecessor has finished, plus the lag. Both endpoints are in this run's solve set —
 /// an edge whose predecessor is already placed is folded into the successor's feasible
-/// days instead, and one whose predecessor is absent rejects the successor outright.
-/// Lag is in whole days here, ceilinged from minutes exactly as durations are.
+/// window instead, and one whose predecessor is absent rejects the successor outright.
+/// Lag is in working minutes on the axis, like every other quantity the solver sees: it
+/// can only ever delay the successor, never let it start before the gap has elapsed.
 /// </summary>
 public sealed record DependencyEdge(
     Guid PredecessorRequestId,
     Guid SuccessorRequestId,
-    int LagDays);
+    int LagMinutes);
 
+/// <summary>
+/// A request to place. <see cref="EarliestStart"/> and <see cref="LatestEnd"/> are offsets on
+/// the axis (null = the horizon edge); <see cref="DurationMinutes"/> is working time.
+/// </summary>
 public sealed record RequestNode(
     Guid RequestId,
     string DisplayName,
-    DateOnly? EarliestStart,
-    DateOnly? LatestEnd,
-    int DurationDays,
+    int? EarliestStart,
+    int? LatestEnd,
+    int DurationMinutes,
     int Priority,
-    bool RespectSchedulingSettings,
     IReadOnlySet<Guid> RequiredCriterionIds);
 
 public sealed record ResourceNode(
@@ -161,23 +169,37 @@ public sealed record ResourceNode(
     string DisplayName,
     IReadOnlySet<Guid> CriterionIds);
 
+/// <summary>
+/// Time a resource is already taken, as a half-open <c>[Start, End)</c> on the axis. A range
+/// that lies entirely in non-working time collapses to a point (<c>Start == End</c>); it is
+/// kept, because a placement may touch that point but must not span it — the booking still
+/// covers the calendar weekend the axis compressed away. <see cref="RequestId"/> is
+/// <see cref="Guid.Empty"/> for a resource's own blocked period rather than a request.
+/// </summary>
 public sealed record FixedOccupancy(
     Guid RequestId,
     Guid ResourceId,
-    DateOnly Start,
-    DateOnly End);
+    int Start,
+    int End);
+
+/// <summary>A half-open range of start offsets, <c>[From, To)</c>.</summary>
+public readonly record struct StartWindow(int From, int To)
+{
+    public int Length => To - From;
+}
 
 /// <summary>
-/// A feasible request→resource candidate with enumerated start days.
+/// A feasible request→resource candidate with the windows its start may fall in: the request's
+/// own window minus everything the resource is already taken for.
 /// </summary>
 public sealed record SchedulingCandidate(
     Guid RequestId,
     Guid ResourceId,
-    DateOnly EarliestStart,
-    DateOnly LatestEnd,
-    int DurationDays,
+    int EarliestStart,
+    int LatestEnd,
+    int DurationMinutes,
     int Priority,
-    IReadOnlyList<DateOnly> FeasibleStartDays);
+    IReadOnlyList<StartWindow> FeasibleStartWindows);
 
 public sealed record CandidateRejection(
     Guid RequestId,
@@ -239,7 +261,7 @@ public sealed record SchedulingSolution(
         {
             sb.Append(e.PredecessorRequestId).Append('>')
               .Append(e.SuccessorRequestId).Append('+')
-              .Append(e.LagDays).Append(';');
+              .Append(e.LagMinutes).Append(';');
         }
         sb.Append('#');
         foreach (var (requestId, condition) in (joinConditions ?? new Dictionary<Guid, JoinCondition>())
@@ -264,12 +286,13 @@ public sealed record SchedulingSolution(
     }
 }
 
+/// <summary>A placement on the axis: half-open <c>[Start, End)</c>, <c>End == Start + DurationMinutes</c>.</summary>
 public sealed record ScheduledPlacement(
     Guid RequestId,
     Guid ResourceId,
-    DateOnly Start,
-    DateOnly End,
-    int DurationDays,
+    int Start,
+    int End,
+    int DurationMinutes,
     int Priority);
 
 public sealed record UnscheduledPlacement(

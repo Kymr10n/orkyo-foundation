@@ -36,6 +36,12 @@ public class SchedulingProblemBuilder
     {
         var settings = await _schedulingRepository.GetSettingsAsync(request.SiteId, cancellationToken);
 
+        // Everything the solver sees is in working minutes on this axis: durations, lags,
+        // windows, occupancies. Non-working time does not exist on it, so a job spans nights
+        // on its own and a twenty-minute operation costs twenty minutes, not a day.
+        var axis = WorkingTimeAxis.Build(
+            request.HorizonStart, request.HorizonEnd, settings, request.RespectSchedulingSettings);
+
         // The schedulable backlog is every leaf that isn't fully scheduled, in two disjoint fetches
         // that together reproduce the old tenant-wide `!IsScheduled` leaf filter without the heavy
         // GetAllAsync (which pulled every request, groups and finished ones included):
@@ -104,17 +110,14 @@ public class SchedulingProblemBuilder
         var requestNodes = new List<RequestNode>();
         foreach (var r in eligibleRequests)
         {
-            var durationDays = DurationToDays(r.MinimalDurationValue, r.MinimalDurationUnit, settings);
-            if (durationDays <= 0) continue;
-
             requestNodes.Add(new RequestNode(
                 r.Id,
                 r.Name,
-                r.EarliestStartTs.HasValue ? DateOnly.FromDateTime(r.EarliestStartTs.Value) : (DateOnly?)null,
-                r.LatestEndTs.HasValue ? DateOnly.FromDateTime(r.LatestEndTs.Value) : (DateOnly?)null,
-                durationDays,
+                r.EarliestStartTs is { } earliestTs ? axis.ToOffset(earliestTs) : null,
+                r.LatestEndTs is { } latestTs ? axis.ToOffset(latestTs) : null,
+                // At least a minute: a zero-length placement would have no window to write.
+                Math.Max(1, SchedulingEngine.DurationToMinutes(r.MinimalDurationValue, r.MinimalDurationUnit)),
                 Priority: (int)r.Status,
-                r.SchedulingSettingsApply,
                 r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>()));
         }
 
@@ -131,6 +134,9 @@ public class SchedulingProblemBuilder
         // Holding a resource of this type is what occupies it — not being fully scheduled. A
         // request still waiting on its technician has its room booked all the same, and offering
         // that room to someone else would double-book it.
+        // Kept even when the window collapses to a point (a hand-made Saturday booking on a
+        // weekday-only axis): a placement may touch that point but must not span it, because
+        // the booking still covers the calendar weekend the axis compressed away.
         var fixedAssignments = scheduled
             .Where(r => r.StartTs.HasValue && r.EndTs.HasValue)
             .Select(r => (Request: r, ResourceId: r.GetResourceIdForType(targetTypeKey)))
@@ -138,12 +144,23 @@ public class SchedulingProblemBuilder
             .Select(x => new FixedOccupancy(
                 x.Request.Id,
                 x.ResourceId!.Value,
-                DateOnly.FromDateTime(x.Request.StartTs!.Value),
-                // Inclusive last day, not the raw end date: end_ts is half-open, and the
-                // analyzer's overlap check treats occupancy End inclusively. The raw date of a
-                // midnight end would phantom-occupy one extra day per applied placement.
-                SchedulingEngine.InclusiveLastDay(x.Request.EndTs!.Value)))
+                axis.ToOffset(x.Request.StartTs!.Value),
+                axis.ToOffsetEnd(x.Request.EndTs!.Value)))
             .ToList();
+
+        // A resource's own blocked periods (absences, maintenance) occupy it like a booking
+        // does. One that lies entirely in non-working time costs no working capacity, so it is
+        // dropped rather than kept as a point: nothing can be scheduled across it anyway.
+        foreach (var (resourceId, periods) in blockedPeriodsByResource)
+        {
+            foreach (var period in periods)
+            {
+                var start = axis.ToOffset(period.StartTs);
+                var end = axis.ToOffsetEnd(period.EndTs);
+                if (end > start)
+                    fixedAssignments.Add(new FixedOccupancy(Guid.Empty, resourceId, start, end));
+            }
+        }
 
         // Precedence edges pointing at anything this run might place. One read for the whole
         // solve set — asking per request would be an N+1 over the backlog.
@@ -161,10 +178,7 @@ public class SchedulingProblemBuilder
         // the run from refusing to place work whose prerequisite is already done.
         var placedEnds = scheduled
             .Where(r => r.EndTs.HasValue)
-            // Inclusive last day: the fold-in below starts successors "the day after the
-            // predecessor ends", so a raw midnight-exclusive date would cost every successor of
-            // an applied placement one extra idle day.
-            .ToDictionary(r => r.Id, r => SchedulingEngine.InclusiveLastDay(r.EndTs!.Value));
+            .ToDictionary(r => r.Id, r => r.EndTs!.Value);
 
         var unresolved = edges
             .Select(e => e.PredecessorRequestId)
@@ -182,11 +196,11 @@ public class SchedulingProblemBuilder
             {
                 predecessorState[predecessor.Id] = predecessor;
                 if (predecessor.EndTs is { } end)
-                    placedEnds[predecessor.Id] = SchedulingEngine.InclusiveLastDay(end);
+                    placedEnds[predecessor.Id] = end;
             }
 
         var solverEdges = new List<DependencyEdge>();
-        var earliestFromPredecessor = new Dictionary<Guid, DateOnly>();
+        var earliestFromPredecessor = new Dictionary<Guid, int>();
         var blockedBySet = new HashSet<Guid>();
         var joinConditions = new Dictionary<Guid, JoinCondition>();
         var nodesById = requestNodes.ToDictionary(n => n.RequestId);
@@ -216,23 +230,23 @@ public class SchedulingProblemBuilder
                               && JoinConditionEvaluator.IsAbandoned(p, now)))
                 .ToList();
 
-            var placedBounds = new List<DateOnly>();
+            var placedBounds = new List<int>();
             var edgesForSolver = new List<DependencyEdge>();
 
             foreach (var edge in live)
             {
-                var lagDays = LagToDays(edge.LagMinutes, settings);
-
                 if (solveSet.Contains(edge.PredecessorRequestId))
                 {
                     // Both ends move together in this run: a candidate constraint for the solver.
-                    edgesForSolver.Add(new DependencyEdge(edge.PredecessorRequestId, successorId, lagDays));
+                    edgesForSolver.Add(new DependencyEdge(edge.PredecessorRequestId, successorId, edge.LagMinutes));
                 }
                 else if (placedEnds.TryGetValue(edge.PredecessorRequestId, out var predEnd))
                 {
-                    // Finish-to-start: the successor may start the day after the predecessor
-                    // ends, plus lag.
-                    placedBounds.Add(predEnd.AddDays(1 + lagDays));
+                    // Finish-to-start: the successor may start the minute the predecessor
+                    // ends, plus lag. The lag is elapsed time here — a predecessor that
+                    // finished last month has long served it — so it is added before the
+                    // instant is put on the axis, where anything before the horizon is 0.
+                    placedBounds.Add(axis.ToOffsetEnd(predEnd.AddMinutes(edge.LagMinutes)));
                 }
                 // else: not in this run and with no end date to bound against — it can satisfy
                 // nothing, so it simply does not count towards the condition below.
@@ -246,13 +260,13 @@ public class SchedulingProblemBuilder
                 continue;
             }
 
-            // The last day this successor could still start. A bound past it is a dependency
+            // The last minute this successor could still start. A bound past it is a dependency
             // problem, not a capacity one — the feasibility analyzer would otherwise drop every
-            // candidate and report "no feasible start day", sending the planner to look at
-            // resource load for something a predecessor's finish date caused.
+            // candidate and report "no feasible start", sending the planner to look at
+            // resource load for something a predecessor's finish caused.
             var lastStart = nodesById.TryGetValue(successorId, out var node)
-                ? (node.LatestEnd ?? request.HorizonEnd).AddDays(-(node.DurationDays - 1))
-                : (DateOnly?)null;
+                ? (node.LatestEnd ?? axis.Length) - node.DurationMinutes
+                : (int?)null;
 
             var placedFold = JoinConditionEvaluator.FoldEarliestStart(condition, placedBounds);
             var placedAlone = placedBounds.Count >= required
@@ -306,7 +320,7 @@ public class SchedulingProblemBuilder
         {
             if (!nodesById.TryGetValue(requestId, out var node)) continue;
 
-            var lastStart = (node.LatestEnd ?? request.HorizonEnd).AddDays(-(node.DurationDays - 1));
+            var lastStart = (node.LatestEnd ?? axis.Length) - node.DurationMinutes;
             if (bound > lastStart) blockedBySet.Add(requestId);
         }
 
@@ -362,48 +376,8 @@ public class SchedulingProblemBuilder
         }
 
         return new SchedulingProblem(
-            request.SiteId, request.HorizonStart, request.HorizonEnd,
+            request.SiteId, request.HorizonStart, request.HorizonEnd, axis,
             requestNodes, resourceNodes, fixedAssignments,
-            settings, blockedPeriodsByResource, solverEdges, withheld, joinConditions);
-    }
-
-    /// <summary>
-    /// Lag in whole days, ceilinged. Rounding down would let a successor start before the gap
-    /// the user asked for has elapsed; a lag can only ever push work later.
-    /// </summary>
-    private static int LagToDays(int lagMinutes, SchedulingSettingsInfo? settings)
-    {
-        if (lagMinutes <= 0) return 0;
-        var minutesPerDay = MinutesPerDay(settings);
-        return (int)Math.Ceiling(lagMinutes / (double)minutesPerDay);
-    }
-
-    /// <summary>
-    /// How many minutes one planning day holds — the whole day, or the working window when
-    /// working hours are on. Shared by duration and lag conversion so the two can never
-    /// disagree about how long a day is.
-    /// </summary>
-    private static int MinutesPerDay(SchedulingSettingsInfo? settings)
-    {
-        if (settings is not { WorkingHoursEnabled: true }) return 24 * 60;
-
-        // Compare before subtracting: TimeOnly subtraction is elapsed time and wraps at
-        // midnight, so 09:00 - 17:00 is 16 hours, not -8. Subtracting first would let an
-        // end-before-start setting through as a plausible-looking positive day length.
-        if (settings.WorkingDayEnd <= settings.WorkingDayStart)
-        {
-            // SchedulingValidators rejects end <= start at the boundary, so this is
-            // corrupt stored data — fail rather than silently invent an 8-hour day.
-            throw new InvalidOperationException(
-                $"Working hours are enabled but WorkingDayEnd ({settings.WorkingDayEnd}) "
-                + $"is not after WorkingDayStart ({settings.WorkingDayStart}).");
-        }
-        return (int)(settings.WorkingDayEnd - settings.WorkingDayStart).TotalMinutes;
-    }
-
-    private static int DurationToDays(int value, DurationUnit unit, SchedulingSettingsInfo? settings)
-    {
-        var totalMinutes = SchedulingEngine.DurationToMinutes(value, unit);
-        return Math.Max(1, (int)Math.Ceiling((double)totalMinutes / MinutesPerDay(settings)));
+            solverEdges, withheld, joinConditions);
     }
 }

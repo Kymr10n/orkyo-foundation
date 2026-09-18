@@ -50,15 +50,15 @@ public class AutoScheduleModelsTests
         var req1 = Guid.NewGuid();
         var req2 = Guid.NewGuid();
         var space = Guid.NewGuid();
-        var start = new DateOnly(2026, 1, 5);
-        var end = new DateOnly(2026, 1, 7);
+        var start = 4 * 1440;
+        var end = 6 * 1440;
 
         var solution = new SchedulingSolution(
             SolverUsed: SolverKind.Greedy,
             Status: SolverStatus.Feasible,
             Assignments: new List<ScheduledPlacement>
             {
-                new(RequestId: req1, ResourceId: space, Start: start, End: end, DurationDays: 2, Priority: 10)
+                new(RequestId: req1, ResourceId: space, Start: start, End: end, DurationMinutes: 2 * 1440, Priority: 10)
             },
             Unscheduled: new List<UnscheduledPlacement>
             {
@@ -208,11 +208,11 @@ public class AutoScheduleModelsTests
     {
         var reqId = Guid.NewGuid();
         var resourceId = Guid.NewGuid();
-        var start = new DateOnly(2026, 3, 1);
-        var end = new DateOnly(2026, 3, 5);
+        var start = 0;
+        var end = 4 * 1440;
 
-        var a = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
-        var b = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4, 5));
+        var a = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4 * 1440, 5));
+        var b = MakeSolution(new ScheduledPlacement(reqId, resourceId, start, end, 4 * 1440, 5));
 
         a.ComputeFingerprint(ResourceTypeKeys.Space, []).Should().Be(b.ComputeFingerprint(ResourceTypeKeys.Space, []));
     }
@@ -223,11 +223,11 @@ public class AutoScheduleModelsTests
         var req1 = Guid.NewGuid();
         var req2 = Guid.NewGuid();
         var resourceId = Guid.NewGuid();
-        var start = new DateOnly(2026, 3, 1);
-        var end = new DateOnly(2026, 3, 5);
+        var start = 0;
+        var end = 4 * 1440;
 
-        var a = MakeSolution(new ScheduledPlacement(req1, resourceId, start, end, 4, 5));
-        var b = MakeSolution(new ScheduledPlacement(req2, resourceId, start, end, 4, 5));
+        var a = MakeSolution(new ScheduledPlacement(req1, resourceId, start, end, 4 * 1440, 5));
+        var b = MakeSolution(new ScheduledPlacement(req2, resourceId, start, end, 4 * 1440, 5));
 
         a.ComputeFingerprint(ResourceTypeKeys.Space, []).Should().NotBe(b.ComputeFingerprint(ResourceTypeKeys.Space, []));
     }
@@ -238,11 +238,11 @@ public class AutoScheduleModelsTests
         var req1 = new Guid("00000000-0000-0000-0000-000000000001");
         var req2 = new Guid("00000000-0000-0000-0000-000000000002");
         var resourceId = Guid.NewGuid();
-        var start = new DateOnly(2026, 3, 1);
-        var end = new DateOnly(2026, 3, 5);
+        var start = 0;
+        var end = 4 * 1440;
 
-        var p1 = new ScheduledPlacement(req1, resourceId, start, end, 4, 5);
-        var p2 = new ScheduledPlacement(req2, resourceId, start, end, 4, 5);
+        var p1 = new ScheduledPlacement(req1, resourceId, start, end, 4 * 1440, 5);
+        var p2 = new ScheduledPlacement(req2, resourceId, start, end, 4 * 1440, 5);
 
         var ordered = new SchedulingSolution(SolverKind.Greedy, SolverStatus.Optimal,
             new List<ScheduledPlacement> { p1, p2 }, new List<UnscheduledPlacement>(), new List<string>());
@@ -264,15 +264,14 @@ public class AutoScheduleModelsTests
         var node = new RequestNode(
             RequestId: reqId,
             DisplayName: "Install HVAC",
-            EarliestStart: new DateOnly(2026, 1, 1),
-            LatestEnd: new DateOnly(2026, 12, 31),
-            DurationDays: 5,
+            EarliestStart: 0,
+            LatestEnd: 365 * 1440,
+            DurationMinutes: 5 * 1440,
             Priority: 10,
-            RespectSchedulingSettings: true,
             RequiredCriterionIds: new HashSet<Guid> { criterionId });
 
         node.RequestId.Should().Be(reqId);
-        node.DurationDays.Should().Be(5);
+        node.DurationMinutes.Should().Be(5 * 1440);
         node.Priority.Should().Be(10);
         node.RequiredCriterionIds.Should().Contain(criterionId);
     }
@@ -302,8 +301,8 @@ public class AutoScheduleModelsTests
     {
         var reqId = Guid.NewGuid();
         var resourceId = Guid.NewGuid();
-        var start = new DateOnly(2026, 5, 1);
-        var end = new DateOnly(2026, 5, 10);
+        var start = 120 * 1440;
+        var end = 129 * 1440;
 
         var occ = new FixedOccupancy(reqId, resourceId, start, end);
 
@@ -326,11 +325,10 @@ public class AutoScheduleModelsTests
             SiteId: siteId,
             HorizonStart: start,
             HorizonEnd: end,
+            Axis: Api.Services.AutoSchedule.WorkingTimeAxis.Identity(start, end),
             Requests: new List<RequestNode>(),
             Resources: new List<ResourceNode>(),
-            FixedAssignments: new List<FixedOccupancy>(),
-            Settings: null,
-            BlockedPeriodsByResource: null);
+            FixedAssignments: new List<FixedOccupancy>());
 
         problem.SiteId.Should().Be(siteId);
         problem.HorizonStart.Should().Be(start);
@@ -347,14 +345,14 @@ public class AutoScheduleModelsTests
         var candidate = new SchedulingCandidate(
             RequestId: reqId,
             ResourceId: resourceId,
-            EarliestStart: new DateOnly(2026, 1, 1),
-            LatestEnd: new DateOnly(2026, 6, 30),
-            DurationDays: 5,
+            EarliestStart: 0,
+            LatestEnd: 180 * 1440,
+            DurationMinutes: 5 * 1440,
             Priority: 7,
-            FeasibleStartDays: new List<DateOnly> { new(2026, 1, 5), new(2026, 1, 6) });
+            FeasibleStartWindows: new List<StartWindow> { new(0, 1440), new(2880, 4320) });
 
         candidate.RequestId.Should().Be(reqId);
-        candidate.FeasibleStartDays.Should().HaveCount(2);
+        candidate.FeasibleStartWindows.Should().HaveCount(2);
     }
 
     // ── CandidateRejection ─────────────────────────────────────────────────
@@ -403,11 +401,10 @@ public class AutoScheduleModelsTests
             SiteId: siteId,
             HorizonStart: start,
             HorizonEnd: end,
+            Axis: Api.Services.AutoSchedule.WorkingTimeAxis.Identity(start, end),
             Requests: new List<RequestNode>(),
             Resources: new List<ResourceNode>(),
-            FixedAssignments: new List<FixedOccupancy>(),
-            Settings: null,
-            BlockedPeriodsByResource: null);
+            FixedAssignments: new List<FixedOccupancy>());
 
         var analyzed = new AnalyzedSchedulingProblem(
             Problem: problem,
@@ -430,13 +427,13 @@ public class AutoScheduleModelsTests
         var placement = new ScheduledPlacement(
             RequestId: reqId,
             ResourceId: resourceId,
-            Start: new DateOnly(2026, 2, 1),
-            End: new DateOnly(2026, 2, 5),
-            DurationDays: 4,
+            Start: 31 * 1440,
+            End: 35 * 1440,
+            DurationMinutes: 4 * 1440,
             Priority: 9);
 
         placement.RequestId.Should().Be(reqId);
-        placement.DurationDays.Should().Be(4);
+        placement.DurationMinutes.Should().Be(4 * 1440);
         placement.Priority.Should().Be(9);
     }
 

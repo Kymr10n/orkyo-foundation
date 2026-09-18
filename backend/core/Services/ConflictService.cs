@@ -276,7 +276,7 @@ public class ConflictService(
         var satisfied = edges.Count(e =>
             byId.TryGetValue(e.PredecessorRequestId, out var p)
             && p.EndTs is { } end
-            && DateOnly.FromDateTime(start) >= EarliestStartAfter(end, e.LagMinutes));
+            && start >= EarliestStartAfter(end, e.LagMinutes));
 
         if (satisfied >= required) yield break;
 
@@ -327,14 +327,8 @@ public class ConflictService(
                 continue;
             }
 
-            // Whole days, matching the critical path. The scheduler and the CPM pass both work
-            // in day buckets, so a successor starting the same calendar day its predecessor ends
-            // is a violation to them; comparing raw timestamps here would report it clean and
-            // leave the Conflicts page contradicting the critical-path view.
-            // Inclusive last day (end_ts is half-open): the raw date of a midnight end would
-            // flag a successor correctly placed the very next day as a violation.
             var earliest = EarliestStartAfter(predecessorEnd, edge.LagMinutes);
-            if (DateOnly.FromDateTime(start) < earliest)
+            if (start < earliest)
             {
                 yield return new ConflictInfo
                 {
@@ -351,17 +345,13 @@ public class ConflictService(
     }
 
     /// <summary>
-    /// The first day a successor may start after a predecessor ending at <paramref name="predecessorEnd"/>.
-    ///
-    /// Whole days, matching the critical path. The scheduler and the CPM pass both work in day
-    /// buckets, so a successor starting the same calendar day its predecessor ends is a violation
-    /// to them; comparing raw timestamps here would report it clean and leave the Conflicts page
-    /// contradicting the critical-path view. Inclusive last day (end_ts is half-open): the raw
-    /// date of a midnight end would flag a successor correctly placed the very next day.
+    /// The first instant a successor may start after a predecessor ending at
+    /// <paramref name="predecessorEnd"/>: the end itself, plus the lag as elapsed time. Matches
+    /// the critical path, which measures the same calendar minutes. The scheduler applies the
+    /// lag in working minutes, which is never earlier, so nothing it places is flagged here.
     /// </summary>
-    private static DateOnly EarliestStartAfter(DateTime predecessorEnd, int lagMinutes)
-        => SchedulingEngine.InclusiveLastDay(predecessorEnd)
-            .AddDays(1 + (int)Math.Ceiling(lagMinutes / (double)(24 * 60)));
+    private static DateTime EarliestStartAfter(DateTime predecessorEnd, int lagMinutes)
+        => predecessorEnd.AddMinutes(lagMinutes);
 
     /// <summary>Request-intrinsic checks computed directly from the request's own fields.</summary>
     private static IEnumerable<ConflictInfo> IntrinsicConflicts(RequestInfo request)
