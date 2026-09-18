@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { NewFromRoutingDialog, buildInstantiateRequest } from './NewFromRoutingDialog';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 import { makeRequest } from '@foundation/src/test-utils/request-fixtures';
 import { getRoutings, instantiateRouting } from '@foundation/src/lib/api/routing-api';
 import { getSites } from '@foundation/src/lib/api/site-api';
@@ -25,18 +25,7 @@ vi.mock('@foundation/src/lib/api/site-api', () => ({
   deleteSite: vi.fn(),
 }));
 
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  useFullScreenOnPhone: () => undefined,
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
 vi.mock('@foundation/src/components/ui/select', () => ({
   Select: ({ value, onValueChange, children }: { value: string; onValueChange: (v: string) => void; children: ReactNode }) => (
@@ -61,7 +50,7 @@ vi.mock('@foundation/src/components/ui/date-time-picker', () => ({
 const bracket: Routing = { id: 'r1', name: 'Bracket BR-100', steps: [] };
 
 function renderDialog(props: Partial<Parameters<typeof NewFromRoutingDialog>[0]> = {}) {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <NewFromRoutingDialog open onOpenChange={vi.fn()} requests={[]} {...props} />

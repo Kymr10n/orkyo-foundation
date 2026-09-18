@@ -93,7 +93,7 @@ mechanism.)
 ## Tests
 
 Components whose save flows through `useMutation` must render under
-`createFeedbackTestQueryWrapper()` ([test-utils.tsx](../frontend/src/test-utils.tsx)) so the
+`createTestQueryWrapper({ feedback: true })` ([test-utils.tsx](../frontend/src/test-utils.tsx)) so the
 MutationCache fires in tests exactly as in production. Mock `sonner` and assert `toast.success`/
 `toast.error` as before — the toast now originates from the cache, not the component. The mechanism
 itself is covered by [query-client.test.ts](../frontend/src/lib/core/query-client.test.ts).

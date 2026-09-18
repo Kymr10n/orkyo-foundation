@@ -4,7 +4,7 @@ import { render as rtlRender, screen, waitFor, type RenderOptions } from "@testi
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { GroupCapabilitiesEditor } from "./GroupCapabilitiesEditor";
-import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
+import { createTestQueryWrapper } from "@foundation/src/test-utils";
 import * as criteriaApi from "@foundation/src/lib/api/criteria-api";
 import * as groupCapApi from "@foundation/src/lib/api/group-capability-api";
 import type { Criterion } from "@foundation/src/types/criterion";
@@ -22,7 +22,7 @@ vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(.
 // The editor now saves via useMutation; render under a QueryClientProvider whose
 // MutationCache mirrors production so meta-driven toasts fire in tests.
 const render = (ui: ReactElement, options?: RenderOptions) =>
-  rtlRender(ui, { wrapper: createFeedbackTestQueryWrapper(), ...options });
+  rtlRender(ui, { wrapper: createTestQueryWrapper({ feedback: true }), ...options });
 
 const mockCriteria: Criterion[] = [
   { id: "c1", name: "HasProjector", dataType: "Boolean", resourceTypeKeys: ['space'], createdAt: "2024-01-01T00:00:00Z", updatedAt: "2024-01-01T00:00:00Z" },

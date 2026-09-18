@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { TemplateSettings } from './TemplateSettings';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { getTemplates, deleteTemplate } from '@foundation/src/lib/api/template-api';
 
 const toastError = vi.fn();
@@ -48,7 +48,7 @@ function renderTemplateSettings(initialEntries: string[] = ['/settings/templates
   // the router context the ?edit= deep-link hook needs.
   return render(
     <MemoryRouter initialEntries={initialEntries}><TemplateSettings /></MemoryRouter>,
-    { wrapper: createFeedbackTestQueryWrapper() },
+    { wrapper: createTestQueryWrapper({ feedback: true }) },
   );
 }
 

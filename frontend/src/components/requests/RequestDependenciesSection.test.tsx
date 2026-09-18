@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
+import { createTestQueryWrapper } from "@foundation/src/test-utils";
 import { toast } from "sonner";
 import { RequestDependenciesSection } from "./RequestDependenciesSection";
 import {
@@ -45,7 +45,7 @@ function edge(overrides: Partial<Record<string, unknown>> = {}) {
 // The production feedback cache, so meta.successMessage / meta.invalidates behave as they do
 // at runtime rather than being silently inert in tests.
 function renderSection(readOnly = false, allCandidates = candidates, subject: Request = request) {
-  const Wrapper = createFeedbackTestQueryWrapper();
+  const Wrapper = createTestQueryWrapper({ feedback: true });
   return render(
     <Wrapper>
       <RequestDependenciesSection request={subject} readOnly={readOnly} candidates={allCandidates} />

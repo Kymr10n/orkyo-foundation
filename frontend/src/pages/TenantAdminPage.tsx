@@ -8,22 +8,6 @@ import { PageLayout, PageHeader, PageTabs, type PageTab } from '@foundation/src/
 import { ROUTE_TENANT_ADMIN } from '@foundation/src/constants/auth';
 import { useActiveTab } from '@foundation/src/hooks/useActiveTab';
 import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
-import { useLegacyTabRedirect } from '@foundation/src/hooks/useLegacyTabRedirect';
-
-// Map legacy ?tab= values and pre-split /settings/<tab> bookmarks to the new
-// /tenant-admin path segment. The corresponding /settings/<tab> → /tenant-admin
-// redirects live in TenantApp routing. TODO 2026-09-07: remove after one release.
-const LEGACY_TAB_TO_PATH: Record<string, string> = {
-  sites: '/tenant-admin/sites',
-  users: '/tenant-admin/users',
-  organization: '/tenant-admin/organization',
-  configuration: '/tenant-admin/configuration',
-  integrations: '/tenant-admin/integrations',
-  'api-access': '/tenant-admin/api-access',
-  'audit-log': '/tenant-admin/audit-log',
-  'usage-limits': '/tenant-admin/usage-limits',
-  'resource-types': '/configuration/resource-types',
-};
 
 export function TenantAdminPage() {
   usePageTitle('Administration');
@@ -34,9 +18,6 @@ export function TenantAdminPage() {
 
   const active = useActiveTab('sites');
   const navigate = useNavigate();
-
-  // Backward-compat: redirect legacy ?tab= to the path-based route.
-  useLegacyTabRedirect(LEGACY_TAB_TO_PATH);
 
   const tabs = useMemo<PageTab[]>(() => {
     return [

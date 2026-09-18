@@ -1,30 +1,13 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from './useSites';
 import * as siteApi from '@foundation/src/lib/api/site-api';
 import type { Site } from '@foundation/src/lib/api/site-api';
-import { createTestQueryWrapper } from '@foundation/src/test-utils';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
+import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/site-api');
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
-// Mutations route invalidation through the meta-driven MutationCache, so the test
-// client must be wired with it (like production) for the invalidation spy to fire.
-function createFeedbackClientWithSpy() {
-  const client: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => client),
-  });
-  const spy = vi.spyOn(client, 'invalidateQueries');
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-  return { client, spy, wrapper };
-}
 
 const mockSite: Site = {
   id: 'site-1',
@@ -73,7 +56,7 @@ describe('useSites', () => {
       vi.mocked(siteApi.createSite).mockResolvedValue(newSite);
       vi.mocked(siteApi.getSites).mockResolvedValue([mockSite, newSite]);
 
-      const { wrapper } = createFeedbackClientWithSpy();
+      const { wrapper } = createTestQueryClient({ feedback: true });
       const { result: createResult } = renderHook(() => useCreateSite(), { wrapper });
       const { result: queryResult } = renderHook(() => useSites(), { wrapper });
 
@@ -98,7 +81,7 @@ describe('useSites', () => {
         .mockResolvedValueOnce([mockSite])  // Initial fetch
         .mockResolvedValueOnce([updatedSite]);  // After update
 
-      const { wrapper } = createFeedbackClientWithSpy();
+      const { wrapper } = createTestQueryClient({ feedback: true });
       const { result: updateResult } = renderHook(() => useUpdateSite(), { wrapper });
       const { result: queryResult } = renderHook(() => useSites(), { wrapper });
 
@@ -116,7 +99,7 @@ describe('useSites', () => {
 
   describe('useDeleteSite', () => {
     it('deletes a site and invalidates all related caches', async () => {
-      const { spy, wrapper } = createFeedbackClientWithSpy();
+      const { spy, wrapper } = createTestQueryClient({ feedback: true });
 
       vi.mocked(siteApi.deleteSite).mockResolvedValue();
 

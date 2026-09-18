@@ -51,7 +51,8 @@ import { formatDateForInput } from "@foundation/src/lib/utils";
 import { logger } from "@foundation/src/lib/core/logger";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
-import { useDataExportAvailable } from "@foundation/src/hooks/useDataExportAvailable";
+import { FeatureKeys } from "@foundation/contracts/plans";
+import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 
 interface OrganizationSettingsProps {
   /** Where the export upsell's CTA points when the plan lacks the feature. Omit to hide the CTA. */
@@ -62,7 +63,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   const { membership, appUser, clearMembership } = useAuth();
   // Server-enforced too (FeatureKeys.DataExport → 403); this just keeps the card
   // from offering a button that can only fail.
-  const dataExportAvailable = useDataExportAvailable();
+  const dataExportAvailable = useFeatureEnabled(FeatureKeys.DataExport);
 
   const [displayName, setDisplayName] = useState("");
   const [originalName, setOriginalName] = useState("");

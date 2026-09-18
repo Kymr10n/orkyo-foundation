@@ -1,18 +1,14 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Npgsql;
-using Orkyo.Foundation.Migrations;
 using Orkyo.Migrations.Abstractions;
-using Orkyo.Migrator;
-using Testcontainers.PostgreSql;
 
 namespace Orkyo.Foundation.Tests.Integration;
 
 /// <summary>
-/// Integration-test Postgres fixture for the foundation repo: boots a containerized
-/// PostgreSQL 16 instance and applies the foundation <see cref="IMigrationModule"/> set
-/// (currently empty by design — see migration inventory) to a control-plane and a
-/// tenant database.
+/// Integration-test Postgres fixture for repository and service tests that need a schema
+/// but no HTTP host: two databases of its own (control plane + tenant) on the server
+/// <see cref="TestPostgresBootstrap"/> shares with <see cref="DatabaseFixture"/>, with the
+/// full foundation <see cref="IMigrationModule"/> set applied to each. The databases are
+/// separate from the endpoint suite's so neither collection sees the other's rows.
 /// </summary>
 /// <remarks>
 /// The fixture intentionally does NOT load SaaS migrations: the test-placement rule
@@ -23,31 +19,25 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// </remarks>
 public sealed class PostgresFixture : IAsyncLifetime
 {
-    public const string ControlPlaneDatabase = "control_plane";
+    public const string ControlPlaneDatabase = "control_plane_integration";
     public const string TestTenantDatabase = "test_tenant";
 
-    private readonly PostgreSqlContainer _container = new PostgreSqlBuilder("postgres:16-alpine")
-        .WithUsername("orkyo")
-        .WithPassword("orkyo-test")
-        .WithDatabase("postgres")
-        .Build();
+    private TestPostgresServer _server = null!;
 
-    public string AdminConnectionString => _container.GetConnectionString();
+    public string AdminConnectionString => _server.AdminConnectionString;
 
-    public string ControlPlaneConnectionString =>
-        BuildConnectionString(AdminConnectionString, ControlPlaneDatabase);
+    public string ControlPlaneConnectionString => _server.ConnectionStringFor(ControlPlaneDatabase);
 
-    public string TestTenantConnectionString =>
-        BuildConnectionString(AdminConnectionString, TestTenantDatabase);
+    public string TestTenantConnectionString => _server.ConnectionStringFor(TestTenantDatabase);
 
     public async Task InitializeAsync()
     {
-        await _container.StartAsync();
+        _server = await TestPostgresBootstrap.GetAsync();
 
-        await CreateDatabaseAsync(ControlPlaneDatabase);
-        await CreateDatabaseAsync(TestTenantDatabase);
+        await TestPostgresBootstrap.EnsureDatabaseAsync(_server, ControlPlaneDatabase);
+        await TestPostgresBootstrap.EnsureDatabaseAsync(_server, TestTenantDatabase);
 
-        var runner = BuildRunner();
+        var runner = TestPostgresBootstrap.BuildFoundationRunner();
         await runner.RunAsync(ControlPlaneConnectionString, MigrationTargetDatabase.ControlPlane,
             "orkyo:control-plane");
         await runner.RunAsync(TestTenantConnectionString, MigrationTargetDatabase.Tenant,
@@ -59,7 +49,8 @@ public sealed class PostgresFixture : IAsyncLifetime
         await TestResourceTypes.EnsureAsync(tenantConn);
     }
 
-    public Task DisposeAsync() => _container.DisposeAsync().AsTask();
+    // The server outlives every fixture; see TestPostgresBootstrap.
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public TestDbConnectionFactory CreateConnectionFactory() =>
         new(ControlPlaneConnectionString, TestTenantConnectionString, AdminConnectionString);
@@ -77,30 +68,6 @@ public sealed class PostgresFixture : IAsyncLifetime
         await conn.OpenAsync();
         return conn;
     }
-
-    private async Task CreateDatabaseAsync(string dbName)
-    {
-        await using var conn = new NpgsqlConnection(AdminConnectionString);
-        await conn.OpenAsync();
-        await using var check = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @n", conn);
-        check.Parameters.AddWithValue("n", dbName);
-        if (await check.ExecuteScalarAsync() is not null) return;
-        await using var create = new NpgsqlCommand($"CREATE DATABASE \"{dbName}\"", conn);
-        await create.ExecuteNonQueryAsync();
-    }
-
-    private static MigrationRunner BuildRunner()
-    {
-        var services = new ServiceCollection()
-            .AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning))
-            .AddOrkyoMigrationPlatform()
-            .AddFoundationMigrations()
-            .BuildServiceProvider();
-        return services.GetRequiredService<MigrationRunner>();
-    }
-
-    private static string BuildConnectionString(string baseConnectionString, string database) =>
-        new NpgsqlConnectionStringBuilder(baseConnectionString) { Database = database }.ConnectionString;
 }
 
 [CollectionDefinition(Name)]

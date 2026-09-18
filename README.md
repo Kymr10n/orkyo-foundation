@@ -73,7 +73,6 @@ frontend/
   src/                    ← Shared domain components, hooks, pages, route tree
   contracts/              ← wire constants (headers, claims, error codes, roles, plans)
   docs/                   ← UI guidelines, UX audit, coverage policy
-  e2e/                    ← Playwright specs
   vitest.config.ts
 ```
 

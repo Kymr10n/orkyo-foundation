@@ -21,7 +21,7 @@ vi.mock('@foundation/src/hooks/useImportExport', () => ({
 
 import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@foundation/src/hooks/useSites';
 import { useImportHandler } from '@foundation/src/hooks/useImportExport';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('./SiteEditDialog', () => ({
   SiteEditDialog: ({ open, site }: any) =>
@@ -64,7 +64,7 @@ describe('SiteSettings', () => {
 
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
-    ({ queryClient } = createFeedbackTestQueryClientWithSpy());
+    ({ queryClient } = createTestQueryClient({ feedback: true }));
     vi.clearAllMocks();
 
     vi.mocked(useSites).mockReturnValue({

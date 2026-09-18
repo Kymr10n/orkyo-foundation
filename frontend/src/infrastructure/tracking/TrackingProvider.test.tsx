@@ -21,25 +21,6 @@ describe("TrackingProvider", () => {
     expect(container.textContent).toBe("Test Content");
   });
 
-  it("accepts optional config prop", () => {
-    const config = {
-      enabled: false,
-      providers: {
-        googleAnalytics: {
-          measurementId: "G-XXXXXXXXXX",
-        },
-      },
-    };
-
-    const { container } = render(
-      <TrackingProvider config={config}>
-        <div>Content</div>
-      </TrackingProvider>,
-    );
-
-    expect(container.textContent).toBe("Content");
-  });
-
   it("renders nested children correctly", () => {
     const { container } = render(
       <TrackingProvider>

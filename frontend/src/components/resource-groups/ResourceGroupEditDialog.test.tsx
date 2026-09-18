@@ -13,7 +13,7 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
 }));
 
 import { createResourceGroup, updateResourceGroup } from '@foundation/src/lib/api/resource-groups-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 const mockGroup: ResourceGroupInfo = {
   id: 'g-1',
@@ -30,7 +30,7 @@ type DialogProps = React.ComponentProps<typeof ResourceGroupEditDialog>;
 
 function renderDialog(props: Partial<DialogProps> = {}) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <ResourceGroupEditDialog

@@ -29,7 +29,7 @@ const banToLocaleDateTime = [
   },
 ];
 
-// Mutation-feedback guardrail (G1, deferred from Wave 0 to the Wave 2 flip):
+// Mutation-feedback guardrail (G1):
 // toast/invalidation inside useMutation callbacks belongs in meta
 // {successMessage, errorMessage, invalidates} — the central MutationCache fires
 // it once. onSuccess/onError stay for non-feedback side effects only. The
@@ -250,12 +250,9 @@ export default defineConfig(
     rules: { 'orkyo/ui-primitives': 'error' },
   },
 
-  // ── Convention guardrails (enforcing since the Wave 2 sweep) ───────────────
-  // Dialog-shell + native-dialog + heavy-dep import bans. Landed as `warn` in
-  // Wave 0; flipped to `error` after the Wave 2 convention sweep converged the
-  // violators (alert() eradicated, form dialogs on FormDialog/ConfirmDialog) and
-  // the W1.2 barrel fix (jspdf). The triaged genuinely-special dialogs are
-  // enumerated in the exemption block below. These use `no-restricted-imports` /
+  // ── Convention guardrails ──────────────────────────────────────────────────
+  // Dialog-shell + native-dialog + heavy-dep import bans. The triaged
+  // genuinely-special dialogs are enumerated in the exemption block below. These use `no-restricted-imports` /
   // `no-restricted-globals`, distinct rules from the `no-restricted-syntax`
   // colour/date bans above, so they compose without the flat-config
   // last-match-wins clobber.
@@ -297,8 +294,8 @@ export default defineConfig(
       'no-restricted-imports': 'off',
     },
   },
-  // Triaged raw-Dialog consumers (G1 exemption list, enumerated at the Wave 2
-  // flip per docs/dialog-feedback.md's "genuinely special" categories). Adding a
+  // Triaged raw-Dialog consumers (G1 exemption list, per docs/dialog-feedback.md's
+  // "genuinely special" categories). Adding a
   // file here requires the same triage — most new dialogs belong on FormDialog /
   // ScaffoldDialog / ConfirmDialog.
   {

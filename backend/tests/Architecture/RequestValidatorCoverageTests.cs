@@ -8,21 +8,19 @@ namespace Orkyo.Foundation.Tests.Architecture;
 /// Every public <c>*Request</c> DTO (the objects that carry untrusted client input across the API
 /// boundary) must declare its shape invariants through a closed <see cref="AbstractValidator{T}"/>,
 /// applied via <c>EndpointHelpers.ExecuteAsync(request, validator, handler)</c>. A request type with
-/// no validator forces handlers to improvise ad-hoc guards — the exact drift Wave 3.4 of the
-/// optimization program exists to remove. The only sanctioned escape is an explicit
+/// no validator forces handlers to improvise ad-hoc guards. The only sanctioned escape is an explicit
 /// <see cref="NoShapeValidationNeeded"/> entry with a justifying comment (pure paging/query filters,
 /// single-flag toggles — nothing with a cross-field or format invariant).
 ///
 /// This is a <b>ratchet</b>: adding a new <c>*Request</c> type fails the test until it either gets a
 /// validator or a justified allowlist entry, and an allowlist entry that later gains a validator must
-/// be removed. The baseline is today's transitional state; Wave 3.4 shrinks the allowlist. See
-/// docs/optimization-plan-2026-07.md (G2b, W3.4).
+/// be removed. See orkyo-infra/docs/plans/optimization-plan-2026-07.md (G2b).
 /// </summary>
 public class RequestValidatorCoverageTests
 {
     // Request DTOs that legitimately need no AbstractValidator<T>, keyed by full type name.
     // Each entry must name a real, currently-unvalidated *Request type; the second test below
-    // fails if an entry goes stale (renamed away, or gained a validator). Wave 3.4 shrinks this.
+    // fails if an entry goes stale (renamed away, or gained a validator).
     private static readonly HashSet<string> NoShapeValidationNeeded = new(StringComparer.Ordinal)
     {
         // --- pure paging / single-field payloads: no cross-field or format invariant exists ---

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CreateTemplateDialog } from './CreateTemplateDialog';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
 vi.mock('@foundation/src/lib/api/template-api');
@@ -13,7 +13,7 @@ describe('CreateTemplateDialog', () => {
 
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
-    ({ queryClient } = createFeedbackTestQueryClientWithSpy());
+    ({ queryClient } = createTestQueryClient({ feedback: true }));
     vi.clearAllMocks();
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue([]);
   });

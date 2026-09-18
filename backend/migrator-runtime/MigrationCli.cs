@@ -67,22 +67,12 @@ public static class MigrationCli
             var appVersion = options.AppVersion;
             var lockTimeout = options.LockTimeoutSeconds;
 
-            LegacyAdoptionBaseline? baseline = null;
-            if (parsed.AdoptLegacyPath is { } adoptPath)
-            {
-                baseline = LegacyAdoptionBaseline.LoadFromFile(adoptPath);
-                logger.LogWarning(
-                    "Legacy adoption ENABLED: marking {Cp} control-plane + {Tn} tenant migration ids as already-applied " +
-                    "before this run. Source: {Path}",
-                    baseline.ControlPlaneIds.Count, baseline.TenantIds.Count, adoptPath);
-            }
-
-            var baseOptions = new MigrationOptions
+            var migrationOptions = new MigrationOptions
             {
                 Mode = parsed.Command == CliCommand.Validate
                     ? MigrationExecutionMode.ValidateOnly
                     : MigrationExecutionMode.Apply,
-                AppliedByVersion = baseline?.AppliedByVersion ?? appVersion,
+                AppliedByVersion = appVersion,
                 LockTimeoutSeconds = lockTimeout,
             };
 
@@ -91,12 +81,9 @@ public static class MigrationCli
             // Control-plane phase
             if (parsed.Target is CliTarget.All or CliTarget.ControlPlane)
             {
-                var cpOptions = baseline is null
-                    ? baseOptions
-                    : baseOptions with { AdoptIds = baseline.ControlPlaneIds };
-                logger.LogInformation("== Control-plane migrations ({Mode}) ==", cpOptions.Mode);
+                logger.LogInformation("== Control-plane migrations ({Mode}) ==", migrationOptions.Mode);
                 var cpResults = await runner.RunAsync(
-                    connectionString, MigrationTargetDatabase.ControlPlane, ControlPlaneLockKey, cpOptions, cancellationToken);
+                    connectionString, MigrationTargetDatabase.ControlPlane, ControlPlaneLockKey, migrationOptions, cancellationToken);
                 ReportRun(logger, "control-plane", cpResults);
             }
 
@@ -111,12 +98,8 @@ public static class MigrationCli
                 var tenants = await registry.ListActiveTenantsAsync(connectionString, cancellationToken);
                 tenants = ApplyTenantFilter(tenants, parsed);
 
-                var tenantOptions = baseline is null
-                    ? baseOptions
-                    : baseOptions with { AdoptIds = baseline.TenantIds };
-
                 logger.LogInformation("== Tenant migrations ({Mode}): {Count} tenant(s) ==",
-                    tenantOptions.Mode, tenants.Count);
+                    migrationOptions.Mode, tenants.Count);
 
                 foreach (var tenant in tenants)
                 {
@@ -137,13 +120,13 @@ public static class MigrationCli
                         tenant.ConnectionString,
                         MigrationTargetDatabase.Tenant,
                         $"orkyo:tenant:{tenantDbName}",
-                        tenantOptions,
+                        migrationOptions,
                         cancellationToken);
                     ReportRun(logger, $"tenant:{tenant.Slug}", tResults);
                 }
             }
 
-            if (baseOptions.Mode == MigrationExecutionMode.ValidateOnly)
+            if (migrationOptions.Mode == MigrationExecutionMode.ValidateOnly)
             {
                 // Failures already produced a non-zero exit: ReportRun throws on any Failed
                 // entry per call. Reaching this line means every call validated clean.
@@ -219,8 +202,7 @@ internal sealed record CliArgs(
     CliCommand Command,
     CliTarget Target,
     string? TenantSlug,
-    string? TenantId,
-    string? AdoptLegacyPath)
+    string? TenantId)
 {
     public static CliArgs Parse(string[] args)
     {
@@ -236,7 +218,6 @@ internal sealed record CliArgs(
         CliTarget? target = null;
         string? slug = null;
         string? id = null;
-        string? adoptLegacyPath = null;
 
         for (var i = 1; i < args.Length; i++)
         {
@@ -257,9 +238,6 @@ internal sealed record CliArgs(
                 case "--tenant-id":
                     id = ReadValue(args, ref i, "--tenant-id");
                     break;
-                case "--adopt-legacy":
-                    adoptLegacyPath = ReadValue(args, ref i, "--adopt-legacy");
-                    break;
                 default:
                     throw new CliUsageException($"Unknown argument '{args[i]}'.");
             }
@@ -270,10 +248,8 @@ internal sealed record CliArgs(
             throw new CliUsageException("Use either --tenant-slug or --tenant-id, not both.");
         if ((slug is not null || id is not null) && target != CliTarget.Tenant)
             throw new CliUsageException("--tenant-slug / --tenant-id only valid with --target tenant.");
-        if (adoptLegacyPath is not null && cmd != CliCommand.Migrate)
-            throw new CliUsageException("--adopt-legacy is only valid with the 'migrate' command.");
 
-        return new CliArgs(cmd, target.Value, slug, id, adoptLegacyPath);
+        return new CliArgs(cmd, target.Value, slug, id);
     }
 
     private static string ReadValue(string[] args, ref int i, string flag)
@@ -293,13 +269,7 @@ internal static class CliUsage
     public const string Text = """
         Usage:
           migrator migrate  --target all|control-plane|tenant [--tenant-slug SLUG | --tenant-id ID]
-                            [--adopt-legacy /path/to/baseline.json]
           migrator validate --target all|control-plane|tenant [--tenant-slug SLUG | --tenant-id ID]
-
-        --adopt-legacy is a one-time cutover flag: marks the listed migration ids as
-        already-applied (idempotently) before the run, so a database that was previously
-        migrated by a different runner is not re-migrated. See requirements/orkyo-dbup-
-        migration-spec-for-copilot.md for the baseline.json shape.
 
         Required env:
           ConnectionStrings__ControlPlane (legacy alias: CONTROL_PLANE_CONNECTION_STRING)

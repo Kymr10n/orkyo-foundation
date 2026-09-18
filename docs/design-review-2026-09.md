@@ -481,10 +481,9 @@ untested SQL files that claim to undo applied migrations are a liability if some
 Severity: Low · Category: Defer · Area: Tests · Migration risk: Low
 
 Current state: `tests/Migrations/MigrationAbstractionsContractTests.cs` covers the value objects.
-`AdvisoryLock`, `ChecksumPolicy`, `MigrationOrderer` and `LegacyAdoptionBaseline` (1,239 lines) are
-covered end-to-end downstream (`saas tests/Migrations/MigratorEndToEndTests.cs`,
-`tests/Integration/LegacyAdoptionTests.cs`). A checksum-policy regression surfaces in SaaS CI, not
-where the code lives.
+`AdvisoryLock`, `ChecksumPolicy` and `MigrationOrderer` are covered end-to-end downstream
+(`saas tests/Migrations/MigratorEndToEndTests.cs`). A checksum-policy regression surfaces in SaaS CI,
+not where the code lives.
 
 Recommended target state: unit tests for `ChecksumPolicy` and `MigrationOrderer` in foundation on the
 next change to either. Not a sweep.

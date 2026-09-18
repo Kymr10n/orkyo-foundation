@@ -36,7 +36,7 @@ import {
   getResourceGroupMembers,
   setResourceGroupMembers,
 } from "@foundation/src/lib/api/resource-groups-api";
-import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
+import { createTestQueryWrapper } from "@foundation/src/test-utils";
 
 function makeResource(id: string, name: string, typeKey = "person"): ResourceInfo {
   return {
@@ -73,7 +73,7 @@ function makeResourcesResponse(items: ResourceInfo[]): ResourcesResponse {
 
 function createWrapper() {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  return createFeedbackTestQueryWrapper();
+  return createTestQueryWrapper({ feedback: true });
 }
 
 describe("ResourceGroupMembersEditor", () => {

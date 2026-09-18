@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
+import { createTestQueryWrapper } from "@foundation/src/test-utils";
+import { edge } from "@foundation/src/test-utils/dependency-fixtures";
 import { RequestPlanPanel } from "./RequestPlanPanel";
 import { getRequestPlan } from "@foundation/src/lib/api/request-plan-api";
 import { createChildRequest } from "@foundation/src/lib/api/request-api";
@@ -60,19 +61,6 @@ function plan(overrides: Partial<RequestPlan> = {}): RequestPlan {
   };
 }
 
-function edge(predecessor: string, successor: string) {
-  return {
-    id: `${predecessor}->${successor}`,
-    predecessorRequestId: predecessor,
-    successorRequestId: successor,
-    predecessorName: predecessor,
-    successorName: successor,
-    dependencyType: "finish_to_start" as const,
-    lagMinutes: 0,
-    createdAt: "2026-06-01T00:00:00Z",
-  };
-}
-
 /** The default two children, already sequenced — the shape most canvas tests need. */
 function linkedPlan(overrides: Partial<RequestPlan> = {}): RequestPlan {
   return plan({ edges: [edge("Cut", "Weld")], ...overrides });
@@ -112,7 +100,7 @@ function pointerEvent(type: string, at: { clientX: number; clientY: number }) {
 }
 
 function renderPanel(onOpenRequest?: (id: string) => void) {
-  const Wrapper = createFeedbackTestQueryWrapper();
+  const Wrapper = createTestQueryWrapper({ feedback: true });
   return render(
     <Wrapper>
       <RequestPlanPanel requestId="p1" onOpenRequest={onOpenRequest} />

@@ -1,30 +1,14 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import { usePreferences, useUpdatePreferences, type UserPreferences } from "./usePreferences";
-import { createTestQueryWrapper } from "@foundation/src/test-utils";
-import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
+import { createTestQueryClient, createTestQueryWrapper } from "@foundation/src/test-utils";
 
 vi.mock("@foundation/src/lib/core/api-client", () => ({
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
-// The update mutation invalidates through the meta-driven MutationCache.
-function createFeedbackClientWithSpy() {
-  const client: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => client),
-  });
-  const spy = vi.spyOn(client, "invalidateQueries");
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-  return { client, spy, wrapper };
-}
 
 import * as apiClient from "@foundation/src/lib/core/api-client";
 
@@ -104,7 +88,7 @@ describe("usePreferences", () => {
     it("calls apiPut with the correct path and payload", async () => {
       vi.mocked(apiClient.apiPut).mockResolvedValue(undefined);
 
-      const { wrapper } = createFeedbackClientWithSpy();
+      const { wrapper } = createTestQueryClient({ feedback: true });
 
       const { result } = renderHook(() => useUpdatePreferences(), { wrapper });
 
@@ -121,7 +105,7 @@ describe("usePreferences", () => {
     it("invalidates the preferences query key on success", async () => {
       vi.mocked(apiClient.apiPut).mockResolvedValue(undefined);
 
-      const { spy, wrapper } = createFeedbackClientWithSpy();
+      const { spy, wrapper } = createTestQueryClient({ feedback: true });
 
       const { result } = renderHook(() => useUpdatePreferences(), { wrapper });
 
@@ -135,7 +119,7 @@ describe("usePreferences", () => {
     it("does not invalidate if apiPut rejects", async () => {
       vi.mocked(apiClient.apiPut).mockRejectedValue(new Error("Save failed"));
 
-      const { spy, wrapper } = createFeedbackClientWithSpy();
+      const { spy, wrapper } = createTestQueryClient({ feedback: true });
 
       const { result } = renderHook(() => useUpdatePreferences(), { wrapper });
 

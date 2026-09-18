@@ -4,7 +4,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AvailabilityEventDialog } from './AvailabilityEventDialog';
 import type { AvailabilityEventInfo } from '@foundation/src/lib/api/availability-events-api';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // ── API mocks ─────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ vi.mock('@foundation/src/components/ui/combobox', () => ({
 function renderDialog(props: Partial<Parameters<typeof AvailabilityEventDialog>[0]> = {}) {
   // Production-identical feedback MutationCache (dialog-feedback.md); the dialog's
   // scope mutations run through the same cache as at runtime.
-  const Wrapper = createFeedbackTestQueryWrapper();
+  const Wrapper = createTestQueryWrapper({ feedback: true });
   return render(
     <Wrapper>
       <AvailabilityEventDialog

@@ -25,16 +25,46 @@ public static class TestConstants
     /// <paramref name="role"/> ("admin" | "editor" | "viewer"). Used by authorization
     /// boundary tests to exercise role-gated endpoints.
     /// </summary>
-    public static string BearerTokenForRole(string role) => Convert.ToBase64String(
+    public static string BearerTokenForRole(string role) => BearerToken(
+        userId: "11111111-1111-1111-1111-111111111111",
+        email: "test@orkyo.example",
+        displayName: "Test User",
+        tenantId: "00000000-0000-0000-0000-000000000001",
+        tenantSlug: TenantSlug,
+        isTenantAdmin: false,
+        role: role);
+
+    /// <summary>
+    /// Builds a Bearer token for an arbitrary test identity. The payload is the JSON shape
+    /// <see cref="TestAuthHandler"/> decodes, so a test that needs a distinct user, tenant
+    /// or Keycloak subject composes it here instead of hand-serialising the same object.
+    /// </summary>
+    /// <param name="sub">Keycloak subject claim; omitted from the token when null.</param>
+    /// <param name="sid">Keycloak session id claim; omitted from the token when null.</param>
+    /// <param name="realmRoles">Realm roles emitted as a <c>realm_access</c> claim; omitted when null or empty.</param>
+    public static string BearerToken(
+        string userId,
+        string email,
+        string displayName,
+        string tenantId,
+        string tenantSlug,
+        bool isTenantAdmin,
+        string role,
+        string? sub = null,
+        string? sid = null,
+        string[]? realmRoles = null) => Convert.ToBase64String(
         System.Text.Encoding.UTF8.GetBytes(
             System.Text.Json.JsonSerializer.Serialize(new
             {
-                UserId = "11111111-1111-1111-1111-111111111111",
-                Email = "test@orkyo.example",
-                DisplayName = "Test User",
-                TenantId = "00000000-0000-0000-0000-000000000001",
-                TenantSlug = "test",
-                IsTenantAdmin = false,
-                Role = role
+                UserId = userId,
+                Email = email,
+                DisplayName = displayName,
+                TenantId = tenantId,
+                TenantSlug = tenantSlug,
+                IsTenantAdmin = isTenantAdmin,
+                Role = role,
+                Sub = sub,
+                Sid = sid,
+                RealmRoles = realmRoles
             })));
 }

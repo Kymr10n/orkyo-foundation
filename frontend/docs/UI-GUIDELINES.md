@@ -484,8 +484,7 @@ side panel, peek, or secondary detail surface alongside it.
 ## 16. Phone density — the chrome budget
 
 On phones (`< md`) the vertical chrome above page content is a budget, not an accident:
-TopBar `h-14` → PageLayout `p-3` → title row → `mb-2` → tab strip → `mb-2`. The e2e suite
-asserts it (`e2e/mobile.spec.ts`, "phone density budget").
+TopBar `h-14` → PageLayout `p-3` → title row → `mb-2` → tab strip → `mb-2`.
 
 - **One padding owner.** `PageLayout` / `FocusedPageLayout` own page padding; `AppLayout`'s
   `<main>` pads only from `md:` up. Never add a second padding layer around a page.

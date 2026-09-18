@@ -17,7 +17,7 @@ import {
   createResourceCustomField,
   updateResourceCustomField,
 } from '@foundation/src/lib/api/resource-custom-fields-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 const existing: ResourceCustomField = {
   id: 'field-1',
@@ -34,7 +34,7 @@ const existing: ResourceCustomField = {
 };
 
 function renderDialog(field: ResourceCustomField | null = null) {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <CustomFieldEditDialog

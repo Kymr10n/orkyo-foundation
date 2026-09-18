@@ -216,7 +216,7 @@ export function utilizationGranularityForScale(scale: TimeScale): string {
   }
 }
 
-export function formatTimeColumn(date: Date, granularity: string): string {
+function formatTimeColumn(date: Date, granularity: string): string {
   // Locale-aware labels (follow USER_LOCALE) so the grid matches the calendar in every locale:
   // hour/minute share formatCompactTime with the calendar's slot-axis ("1am"/"13:00"); the day/week
   // headers share GRID_DAY/WEEK_HEADER_OPTS with the calendar's dayHeaderFormat.

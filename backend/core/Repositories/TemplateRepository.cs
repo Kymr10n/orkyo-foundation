@@ -76,6 +76,19 @@ public class TemplateRepository : ITemplateRepository
         return await ReadAsync(conn, id, ct);
     }
 
+    private static TemplateItem MapTemplateItem(NpgsqlDataReader r) => new()
+    {
+        Id = r.GetGuid(0),
+        TemplateId = r.GetGuid(1),
+        CriterionId = r.GetGuid(2),
+        Value = r.GetString(3),
+        CreatedAt = r.GetDateTime(4),
+        UpdatedAt = r.GetDateTime(5),
+        CriterionName = r.GetString(6),
+        CriterionDataType = r.GetString(7),
+        CriterionCategory = null
+    };
+
     private static Task<Template?> ReadAsync(NpgsqlConnection conn, Guid id, CancellationToken ct)
         => conn.QuerySingleOrDefaultAsync(
             $"SELECT {TemplateCols} FROM templates WHERE id = @Id",
@@ -210,18 +223,7 @@ public class TemplateRepository : ITemplateRepository
             WHERE ti.template_id = @TemplateId
             ORDER BY c.name",
             p => p.AddWithValue("TemplateId", templateId),
-            r => new TemplateItem
-            {
-                Id = r.GetGuid(0),
-                TemplateId = r.GetGuid(1),
-                CriterionId = r.GetGuid(2),
-                Value = r.GetString(3),
-                CreatedAt = r.GetDateTime(4),
-                UpdatedAt = r.GetDateTime(5),
-                CriterionName = r.GetString(6),
-                CriterionDataType = r.GetString(7),
-                CriterionCategory = null
-            }, ct);
+            MapTemplateItem, ct);
     }
 
     public async Task<Dictionary<Guid, List<TemplateItem>>> GetTemplateItemsByTemplatesAsync(IReadOnlyList<Guid> templateIds, CancellationToken ct = default)
@@ -238,18 +240,7 @@ public class TemplateRepository : ITemplateRepository
             WHERE ti.template_id = ANY(@ids)
             ORDER BY ti.template_id, c.name",
             p => p.AddWithValue("ids", templateIds.ToArray()),
-            r => new TemplateItem
-            {
-                Id = r.GetGuid(0),
-                TemplateId = r.GetGuid(1),
-                CriterionId = r.GetGuid(2),
-                Value = r.GetString(3),
-                CreatedAt = r.GetDateTime(4),
-                UpdatedAt = r.GetDateTime(5),
-                CriterionName = r.GetString(6),
-                CriterionDataType = r.GetString(7),
-                CriterionCategory = null
-            }, ct);
+            MapTemplateItem, ct);
 
         var map = new Dictionary<Guid, List<TemplateItem>>();
         foreach (var item in items)

@@ -1,23 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render as rtlRender, screen, fireEvent, waitFor, type RenderOptions } from '@testing-library/react';
-import type { ReactElement, ReactNode } from 'react';
+import type { ReactElement } from 'react';
 import { TemplateDialogBase } from './TemplateDialogBase';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // ── UI mocks ──────────────────────────────────────────
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  // The scaffolds ask for the phone override; this stub is always above that breakpoint.
-  useFullScreenOnPhone: () => undefined,
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
 vi.mock('@foundation/src/components/ui/ErrorAlert', () => ({
   ErrorAlert: ({ message }: { message: string | null }) =>
@@ -92,7 +81,7 @@ vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(.
 // The dialog now saves via useMutation; render under a QueryClientProvider whose
 // MutationCache mirrors production so meta-driven toasts/invalidation fire.
 const render = (ui: ReactElement, options?: RenderOptions) =>
-  rtlRender(ui, { wrapper: createFeedbackTestQueryWrapper(), ...options });
+  rtlRender(ui, { wrapper: createTestQueryWrapper({ feedback: true }), ...options });
 
 // ── Template fixture ───────────────────────────────────
 const existingTemplate = {

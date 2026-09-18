@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from './tabs';
  * These assert the overflow contract from UI-GUIDELINES §1: a tab strip that is wider
  * than its container scrolls *itself*, and never clips a tab off the left edge where it
  * would be unreachable. jsdom does no layout, so we assert the classes that encode the
- * contract; `e2e/mobile.spec.ts` proves the resulting scroll behaviour in a real viewport.
+ * contract.
  */
 function renderTabs(listClassName?: string) {
   return render(

@@ -504,8 +504,10 @@
       "orkyo.foundation.testsupport": {
         "type": "Project",
         "dependencies": {
+          "Microsoft.AspNetCore.Mvc.Testing": "[10.0.11, )",
           "Npgsql": "[10.0.3, )",
-          "Orkyo.Foundation.Core": "[0.1.0, )"
+          "Orkyo.Foundation.Core": "[0.1.0, )",
+          "Orkyo.Migrator": "[0.1.0, )"
         }
       },
       "orkyo.foundation.web": {

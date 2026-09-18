@@ -1,31 +1,21 @@
 using Npgsql;
-using Orkyo.Foundation.Migrations;
 using Orkyo.Migrations.Abstractions;
-using Orkyo.Migrator;
-using Testcontainers.PostgreSql;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests;
 
 /// <summary>
-/// Shared database fixture that provides PostgreSQL for integration tests.
-/// In CI (when CI=true and a service container is available on port 5432),
-/// connects directly to the pre-existing database — skipping Testcontainers
-/// startup. Locally, spins up a Testcontainers PostgreSQL instance.
+/// Shared database fixture for the endpoint suite: two databases (control plane + test
+/// tenant) on the server <see cref="TestPostgresBootstrap"/> provides, migrated and seeded
+/// once, with a <see cref="FoundationWebApplicationFactory"/> over them.
 /// </summary>
 public class DatabaseFixture : IAsyncLifetime
 {
-    private PostgreSqlContainer? _postgresContainer;
-
     /// <summary>Gets the port on which the test database is listening.</summary>
     public int DatabasePort { get; private set; }
 
     /// <summary>Gets the shared web application factory for all tests.</summary>
     public FoundationWebApplicationFactory Factory { get; private set; } = null!;
-
-    private bool UseCiDatabase =>
-        Environment.GetEnvironmentVariable("CI") == "true"
-        && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__Postgres"));
 
     /// <summary>
     /// Creates an <see cref="HttpClient"/> with the standard test tenant slug and
@@ -53,37 +43,17 @@ public class DatabaseFixture : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        if (UseCiDatabase)
-        {
-            DatabasePort = 5432;
-            Console.WriteLine("⚡ CI detected — using service container on port 5432 (skipping Testcontainers)");
-        }
-        else
-        {
-            Console.WriteLine("🚀 Starting PostgreSQL test container...");
-
-            _postgresContainer = new PostgreSqlBuilder("postgres:16-alpine")
-                .WithImage("postgres:16-alpine")
-                .WithUsername("postgres")
-                .WithPassword("postgres")
-                .WithCleanUp(true)
-                .Build();
-
-            await _postgresContainer.StartAsync();
-
-            DatabasePort = _postgresContainer.GetMappedPublicPort(5432);
-            Console.WriteLine($"  ✓ PostgreSQL container started on port {DatabasePort}");
-        }
+        var server = await TestPostgresBootstrap.GetAsync();
+        DatabasePort = server.Port;
 
         // Store the port for helpers that need direct DB connections
         DatabaseTestUtils.SetDatabasePort(DatabasePort);
 
-        await CreateAndMigrateDatabasesAsync();
+        await CreateAndMigrateDatabasesAsync(server);
 
-        var tenantCs = $"Host=localhost;Port={DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
-        var controlPlaneCs = $"Host=localhost;Port={DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
-
-        Factory = await FoundationWebApplicationFactory.CreateAsync(tenantCs, controlPlaneCs);
+        Factory = await FoundationWebApplicationFactory.CreateAsync(
+            server.ConnectionStringFor(TestConstants.TenantDatabase),
+            server.ConnectionStringFor("control_plane"));
         Console.WriteLine("✅ Test database ready — all tests will share this clean state");
     }
 
@@ -91,47 +61,21 @@ public class DatabaseFixture : IAsyncLifetime
     {
         if (Factory is not null)
             await Factory.DisposeAsync();
-
-        if (_postgresContainer is not null)
-        {
-            Console.WriteLine("🛑 Stopping PostgreSQL test container...");
-            await _postgresContainer.DisposeAsync();
-            Console.WriteLine("✅ Test container stopped and cleaned up");
-        }
     }
 
     // ── DB setup ──────────────────────────────────────────────────────────────
 
-    private async Task CreateAndMigrateDatabasesAsync()
+    private static async Task CreateAndMigrateDatabasesAsync(TestPostgresServer server)
     {
         Console.WriteLine("  🗑️  Creating databases...");
+        await TestPostgresBootstrap.EnsureDatabaseAsync(server, "control_plane");
+        await TestPostgresBootstrap.EnsureDatabaseAsync(server, TestConstants.TenantDatabase);
 
-        var postgresConn = $"Host=localhost;Port={DatabasePort};Database=postgres;Username=postgres;Password=postgres";
-        await using var conn = new NpgsqlConnection(postgresConn);
-        await conn.OpenAsync();
-
-        foreach (var db in new[] { "control_plane", TestConstants.TenantDatabase })
-        {
-            await using var checkCmd = new NpgsqlCommand(
-                $"SELECT 1 FROM pg_database WHERE datname = '{db}'", conn);
-            var exists = await checkCmd.ExecuteScalarAsync() != null;
-
-            if (!exists)
-            {
-                await using var cmd = new NpgsqlCommand($"CREATE DATABASE {db}", conn);
-                await cmd.ExecuteNonQueryAsync();
-                Console.WriteLine($"    ✓ Created {db}");
-            }
-            else
-            {
-                Console.WriteLine($"    ✓ Database {db} already exists");
-            }
-        }
-
-        await ApplyMigrationsAsync();
+        var cpCs = server.ConnectionStringFor("control_plane");
+        var tenantCs = server.ConnectionStringFor(TestConstants.TenantDatabase);
+        await ApplyMigrationsAsync(cpCs, tenantCs);
 
         // Seed control plane test data
-        var cpCs = $"Host=localhost;Port={DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
         await using var seedConn = new NpgsqlConnection(cpCs);
         await seedConn.OpenAsync();
 
@@ -166,7 +110,6 @@ public class DatabaseFixture : IAsyncLifetime
         Console.WriteLine($"    ✓ Test user seeded as admin of tenant '{TestConstants.TenantSlug}'");
 
         // Seed one criterion of each data type into the tenant database
-        var tenantCs = $"Host=localhost;Port={DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
         await using var tenantSeedConn = new NpgsqlConnection(tenantCs);
         await tenantSeedConn.OpenAsync();
 
@@ -211,18 +154,16 @@ public class DatabaseFixture : IAsyncLifetime
         Console.WriteLine("    ✓ Test user mirrored into tenant database");
     }
 
-    private async Task ApplyMigrationsAsync()
+    private static async Task ApplyMigrationsAsync(string cpCs, string tenantCs)
     {
         Console.WriteLine("  📊 Applying migrations...");
         try
         {
-            var runner = new MigrationRunner([new FoundationMigrationModule()]);
+            var runner = TestPostgresBootstrap.BuildFoundationRunner();
 
-            var cpCs = $"Host=localhost;Port={DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
             await runner.RunAsync(cpCs, MigrationTargetDatabase.ControlPlane, "foundation-test-cp");
             Console.WriteLine("    ✓ ControlPlane migrations applied");
 
-            var tenantCs = $"Host=localhost;Port={DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
             await runner.RunAsync(tenantCs, MigrationTargetDatabase.Tenant, "foundation-test-tenant");
             Console.WriteLine("    ✓ Tenant migrations applied");
         }

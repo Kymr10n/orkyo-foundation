@@ -6,26 +6,8 @@
 # Policy: time-bound only. Review date must be within 14 days of added date.
 # Remove entries once the upstream fix is available.
 #
-# Reviewed 2026-05-21: upgraded to KC 26.6.2 — removed netty 4.1.132 CVEs
-# (CVE-2026-33870/33871 resolved) and CVE-2026-22016 (JDK 21.0.11 resolved).
-# Reviewed 2026-06-09: renewed expired entries; added netty 4.1.132 → 4.1.135 CVEs
-# (CVE-2026-44893/44249/45416/45674/47691) newly appearing in Trivy Java DB.
-# Reviewed 2026-06-14: added CVE-2026-48059 (netty-codec-haproxy PROXY v2 DoS, also
-# fixed in 4.1.135) — newly appearing in Trivy Java DB; same KC-ships-4.1.132 situation.
-# Reviewed 2026-06-16: upgraded to KC 26.6.3 (netty 4.1.132 → 4.1.133). Resolved &
-# removed CVE-2026-4282/4634/4636 (KC app), CVE-2026-42579/42583/42584/42587 (netty
-# 4.1.133) and CVE-2026-34282 (openjdk). Remaining netty CVEs require 4.1.135.
-# Verified by a Trivy 0.70.0 scan of the 26.6.3 image.
-# Reviewed 2026-06-24: added CVE-2026-54512/54513 (jackson-databind 2.21.2 PolymorphicTypeValidator
-# bypasses) newly appearing in Trivy Java DB. KC 26.6.3 bundles jackson-databind 2.21.2; fix requires
-# 2.21.4, not yet shipped in a Keycloak release. Revisit the pinned digest when one lands.
-
-# ── Keycloak embedded JARs ────────────────────────────────────────────────────
-# 2026-09-03: the nine entries that stood here (7 netty requiring 4.1.135, 2
-# jackson-databind requiring 2.21.4) were all written against KC 26.6.3. keycloak/Dockerfile
-# now pins 26.7.2, which ships the fixed versions. Verified by scanning the pinned digest with
-# CI's own flags (--ignore-unfixed, HIGH/CRITICAL, no ignorefile): 1 finding total, the
-# mssql-jdbc false positive below. Their review dates had lapsed in June/July.
+# Reviewed 2026-09-03: every Keycloak 26.6.x netty/jackson exception was cleared by the
+# 26.7.2 pin (git history has the per-review narrative). Live entries follow.
 
 # ── Trivy false positive ───────────────────────────────────────────────────────
 # Renewed on a 14-day cadence while it stays a false positive; a permanent-exception

@@ -4,6 +4,7 @@ using Api.Security;
 using Api.Services;
 using Api.Services.Ai;
 using Microsoft.Extensions.Logging.Abstractions;
+using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Services.Ai;
 
@@ -17,7 +18,7 @@ public class AiChatServiceTests
 {
     private static readonly Guid UserId = Guid.NewGuid();
 
-    private readonly FakeAnthropicGateway _gateway = new();
+    private readonly StubAnthropicGateway _gateway = new();
     private readonly Mock<IAiCredentialService> _credentials = new();
     private readonly Mock<IAiAccessService> _access = new();
     private readonly Mock<IAuthorizationContext> _authorization = new();
@@ -424,29 +425,6 @@ public class AiChatServiceTests
         Name = name,
         InputJson = inputJson,
     };
-
-    /// <summary>Replays a scripted sequence of provider responses and records what it was sent.</summary>
-    private sealed class FakeAnthropicGateway : IAnthropicGateway
-    {
-        private readonly Queue<AiGatewayResponse> _responses = new();
-
-        public int CallCount { get; private set; }
-        public AiGatewayRequest? LastRequest { get; private set; }
-
-        public void Enqueue(AiGatewayResponse response) => _responses.Enqueue(response);
-
-        public Task<AiGatewayResponse> SendAsync(AiGatewayRequest request, CancellationToken ct = default)
-        {
-            CallCount++;
-            LastRequest = request;
-            return Task.FromResult(_responses.Count > 0
-                ? _responses.Dequeue()
-                : new AiGatewayResponse { Blocks = [], StopReason = "end_turn" });
-        }
-
-        public Task<AiCredentialTestResult> TestAsync(string apiKey, string model, CancellationToken ct = default) =>
-            Task.FromResult(new AiCredentialTestResult { Ok = true });
-    }
 
     private sealed class FakeTool : IAiTool
     {

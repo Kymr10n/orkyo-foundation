@@ -936,7 +936,7 @@ public class RequestRepository : IRequestRepository
         if (!await db.ExistsAsync("criteria", requirement.CriterionId, ct))
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");
 
-        // Phase 3: Validate criterion is applicable to requests
+        // Validate criterion is applicable to requests
         var applicableToRequests = await db.ExecuteScalarAsync<bool?>(
             "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId",
             p => p.AddWithValue("criterionId", requirement.CriterionId), ct);

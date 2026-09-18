@@ -40,10 +40,11 @@ utilization, insights, settings, tenant admin, account.
 - authenticated → render `TenantApp` (exactly as on a tenant subdomain)
 - one state machine, zero route duplication
 
-## The reference shell: `src/App.tsx`
+## The product shell: `App.tsx`
 
-Foundation's `src/App.tsx` is the reference composition. Each product carries its own copy of the
-same shape and adds its slots (below).
+Each product composes the shell in its own `src/App.tsx` (`orkyo-saas/frontend/src/App.tsx`,
+`orkyo-community/frontend/src/App.tsx`) and adds its slots (below). Foundation ships the parts,
+not an `App`. The shape is the same in both:
 
 ```typescript
 function App() {

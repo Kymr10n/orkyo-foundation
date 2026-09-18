@@ -6,86 +6,42 @@ import { type ReactNode } from "react";
 import { vi } from "vitest";
 import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
 
-/**
- * Create a test QueryClient wrapper with retry disabled.
- * Useful for testing React Query hooks in isolation.
- */
-export function createTestQueryWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+export interface TestQueryClientOptions {
+  /**
+   * Wire the same meta-driven feedback MutationCache as production
+   * (`createFeedbackMutationCache`). Use this for components whose mutations declare
+   * `meta.successMessage`/`invalidates` so the central toast + invalidation fire in tests
+   * exactly as they do at runtime. `toast` is resolved from the (mocked) `sonner` module
+   * the test sets up. Note the cache invalidates prefix-style: assert
+   * `{ queryKey, exact: false }`.
+   */
+  feedback?: boolean;
 }
 
 /**
- * Create a test QueryClient wrapper wired with the same meta-driven feedback
- * MutationCache as production (`createFeedbackMutationCache`). Use this for
- * components whose mutations declare `meta.successMessage`/`invalidates` so the
- * central toast + invalidation fire in tests exactly as they do at runtime.
- * `toast` is resolved from the (mocked) `sonner` module the test sets up.
+ * Create a test QueryClient (retry disabled) with an `invalidateQueries` spy and a wrapper
+ * component. Use this when the test needs the client instance or asserts which cache keys
+ * a mutation invalidates; otherwise `createTestQueryWrapper` is enough.
  */
-export function createFeedbackTestQueryWrapper() {
-  const client: QueryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-    mutationCache: createFeedbackMutationCache(() => client),
-  });
-
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-}
-
-/**
- * Create a QueryClient for tests (without wrapper).
- * Useful when you need the client instance directly.
- */
-function createTestQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-}
-
-/**
- * Create a QueryClient with an invalidateQueries spy and a wrapper component.
- * Useful for testing that mutations invalidate the correct cache keys.
- */
-export function createTestQueryClientWithSpy() {
-  const queryClient = createTestQueryClient();
-  const spy = vi.spyOn(queryClient, "invalidateQueries");
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  return { queryClient, spy, wrapper };
-}
-
-/**
- * Like createTestQueryClientWithSpy, but with the central feedback MutationCache
- * attached, so a mutation's `meta.invalidates` declarations fire in tests. Note the
- * cache invalidates prefix-style: assert `{ queryKey, exact: false }`.
- */
-export function createFeedbackTestQueryClientWithSpy() {
+export function createTestQueryClient({ feedback = false }: TestQueryClientOptions = {}) {
   const queryClient: QueryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
     },
-    mutationCache: createFeedbackMutationCache(() => queryClient),
+    ...(feedback && { mutationCache: createFeedbackMutationCache(() => queryClient) }),
   });
   const spy = vi.spyOn(queryClient, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
   return { queryClient, spy, wrapper };
+}
+
+/**
+ * Create a test QueryClient wrapper with retry disabled.
+ * Useful for testing React Query hooks in isolation.
+ */
+export function createTestQueryWrapper(options: TestQueryClientOptions = {}) {
+  return createTestQueryClient(options).wrapper;
 }

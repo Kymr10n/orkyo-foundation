@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { CalendarFeedDialog } from './CalendarFeedDialog';
+import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import {
   createCalendarSubscription,
   getCalendarSubscriptions,
@@ -19,8 +20,8 @@ vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 let mockAvailable = true;
-vi.mock('@foundation/src/hooks/useCalendarFeedAvailable', () => ({
-  useCalendarFeedAvailable: () => mockAvailable,
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.CalendarFeed && mockAvailable,
 }));
 
 let mockSelectedSiteId: string | null = 'site-1';

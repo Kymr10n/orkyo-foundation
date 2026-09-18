@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createFeedbackTestQueryWrapper } from "@foundation/src/test-utils";
+import { createTestQueryWrapper } from "@foundation/src/test-utils";
+import { edge } from "@foundation/src/test-utils/dependency-fixtures";
 import { SitePlanCanvas } from "./SitePlanCanvas";
 import { getSitePlan } from "@foundation/src/lib/api/request-plan-api";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
@@ -31,19 +32,6 @@ function child(id: string, parentRequestId: string | null, overrides: Partial<Re
     externalPredecessorCount: 0,
     externalSuccessorCount: 0,
     ...overrides,
-  };
-}
-
-function edge(predecessor: string, successor: string) {
-  return {
-    id: `${predecessor}->${successor}`,
-    predecessorRequestId: predecessor,
-    successorRequestId: successor,
-    predecessorName: predecessor,
-    successorName: successor,
-    dependencyType: "finish_to_start" as const,
-    lagMinutes: 0,
-    createdAt: "2026-06-01T00:00:00Z",
   };
 }
 
@@ -79,7 +67,7 @@ function renderCanvas(props: Partial<React.ComponentProps<typeof SitePlanCanvas>
       onOpenGroupPlanner={vi.fn()}
       {...props}
     />,
-    { wrapper: createFeedbackTestQueryWrapper() },
+    { wrapper: createTestQueryWrapper({ feedback: true }) },
   );
 }
 

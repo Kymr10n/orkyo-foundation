@@ -54,7 +54,7 @@ export interface TokenSummaryLike {
 
 export type ExpiryMode = "7" | "30" | "60" | "90" | "custom" | "none";
 
-export const EXPIRY_PRESETS: { value: ExpiryMode; days: number; label: string }[] = [
+const EXPIRY_PRESETS: { value: ExpiryMode; days: number; label: string }[] = [
   { value: "7", days: 7, label: "7 days" },
   { value: "30", days: 30, label: "30 days" },
   { value: "60", days: 60, label: "60 days" },
@@ -82,7 +82,7 @@ export function getPresetExpiry(days: number): string {
   return toDateOnly(addLocalDays(new Date(), days));
 }
 
-export function formatExpiryLabel(dateOnly: string): string {
+function formatExpiryLabel(dateOnly: string): string {
   const date = fromDateOnly(dateOnly);
   if (!date) return "";
   return formatLocalized(date, { month: "short", day: "2-digit", year: "numeric" });
@@ -110,7 +110,7 @@ export function tokenStatus(token: TokenSummaryLike): TokenStatus {
   return "active";
 }
 
-export const TOKEN_STATUS_LABEL: Record<TokenStatus, string> = {
+const TOKEN_STATUS_LABEL: Record<TokenStatus, string> = {
   revoked: "Revoked",
   expired: "Expired",
   active: "Active",
@@ -122,7 +122,7 @@ const TOKEN_STATUS_TINT: Record<TokenStatus, string> = {
   active: "active",
 };
 
-export function TokenStatusBadge({ token }: { token: TokenSummaryLike }) {
+function TokenStatusBadge({ token }: { token: TokenSummaryLike }) {
   const status = tokenStatus(token);
   return <StatusBadge status={TOKEN_STATUS_TINT[status]} label={TOKEN_STATUS_LABEL[status]} />;
 }

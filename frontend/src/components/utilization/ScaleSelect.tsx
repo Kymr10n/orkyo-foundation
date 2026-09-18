@@ -18,7 +18,7 @@ const SCALE_LABELS: Record<TimeScale, string> = {
 };
 
 /** Widest to narrowest, the order the toolbar has always shown. */
-export const ALL_SCALES: readonly TimeScale[] = ["year", "month", "week", "day", "hour"];
+const ALL_SCALES: readonly TimeScale[] = ["year", "month", "week", "day", "hour"];
 
 interface ScaleSelectProps {
   value: TimeScale;

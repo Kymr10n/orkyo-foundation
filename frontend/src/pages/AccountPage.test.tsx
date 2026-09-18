@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { AccountPage } from "@foundation/src/pages/AccountPage";
-import { createFeedbackTestQueryClientWithSpy } from "@foundation/src/test-utils";
+import { createTestQueryClient } from "@foundation/src/test-utils";
 
 const { mockToastSuccess, mockToastError, mockRefresh } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
@@ -125,7 +125,7 @@ const mockMemberships = [
 
 const createWrapper = (initialPath = "/account") => {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
 
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>

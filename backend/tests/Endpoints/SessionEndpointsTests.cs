@@ -1,7 +1,6 @@
 using System.Net;
 using System.Text.Json;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -26,10 +25,7 @@ public class SessionEndpointsTests
     public SessionEndpointsTests(DatabaseFixture databaseFixture)
     {
         _factory = databaseFixture.Factory;
-        _client = databaseFixture.Factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        _client = databaseFixture.Factory.CreateClient();
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────

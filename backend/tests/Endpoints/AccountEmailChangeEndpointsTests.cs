@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 using Xunit;
@@ -28,10 +27,7 @@ public class AccountEmailChangeEndpointsTests
         _mockEmail.Reset();
         _cpConnectionString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
 
-        _client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        _client = factory.CreateClient();
         _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
     }
@@ -316,10 +312,7 @@ public class AccountEmailChangeEndpointsTests
     [Fact]
     public async Task RequestEmailChange_WithoutAuth_Returns401()
     {
-        var anonClient = _factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        var anonClient = _factory.CreateClient();
 
         var response = await anonClient.SendAsync(
             new HttpRequestMessage(HttpMethod.Post, "/api/account/email")
@@ -514,10 +507,7 @@ public class AccountEmailChangeEndpointsTests
     public async Task ConfirmEmail_IsAccessibleWithoutAuthentication()
     {
         // The endpoint is [AllowAnonymous] — must work without a Bearer token.
-        var anonClient = _factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        var anonClient = _factory.CreateClient();
 
         var response = await anonClient.GetAsync(
             $"/api/account/confirm-email?token={Guid.NewGuid()}");

@@ -66,7 +66,7 @@ const typeBadgeVariants: Record<
 /** Built-in types keep their dedicated pages; everything else uses the generic one. */
 
 
-export function iconForResult(result: SearchResult): React.ReactNode {
+function iconForResult(result: SearchResult): React.ReactNode {
   if (result.type === "resource") {
     const Icon = resourceTypeIcon(result.resourceTypeKey);
     return <Icon className="h-4 w-4" />;
@@ -75,14 +75,14 @@ export function iconForResult(result: SearchResult): React.ReactNode {
 }
 
 /** Title-cases the type key so "delivery_van" reads as "Delivery van". */
-export function labelForResult(result: SearchResult): string {
+function labelForResult(result: SearchResult): string {
   if (result.type !== "resource") return typeLabels[result.type];
   const key = result.resourceTypeKey ?? "Resource";
   const words = key.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export function badgeVariantForResult(
+function badgeVariantForResult(
   result: SearchResult,
 ): "default" | "secondary" | "outline" {
   return result.type === "resource" ? "default" : typeBadgeVariants[result.type];
@@ -93,7 +93,7 @@ export function badgeVariantForResult(
  * the type key but not the class, so without them the only honest destination is the legacy route
  * that resolves it, at the cost of a redirect and a loading flash per hit.
  */
-export function editPathForResult(
+function editPathForResult(
   result: SearchResult,
   types: readonly ResourceTypeInfo[] = [],
 ): string {

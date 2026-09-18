@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RoutingEditDialog, toStepRequests } from './RoutingEditDialog';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 import { createRouting, updateRouting } from '@foundation/src/lib/api/routing-api';
 import { getTemplates } from '@foundation/src/lib/api/template-api';
 import type { Routing } from '@foundation/src/types/routings';
@@ -21,18 +21,7 @@ vi.mock('@foundation/src/lib/api/template-api', () => ({
   getTemplates: vi.fn(),
 }));
 
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  useFullScreenOnPhone: () => undefined,
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
 // Radix Select does not drive in jsdom; a native select carries the same contract.
 vi.mock('@foundation/src/components/ui/select', () => ({
@@ -64,7 +53,7 @@ const bracket: Routing = {
 };
 
 function renderDialog(props: Partial<Parameters<typeof RoutingEditDialog>[0]> = {}) {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <RoutingEditDialog routing={null} open onOpenChange={vi.fn()} {...props} />

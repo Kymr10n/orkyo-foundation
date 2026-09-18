@@ -10,7 +10,8 @@ import { Label } from "@foundation/src/components/ui/label";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { SettingsPageHeader } from "@foundation/src/components/settings/SettingsPageHeader";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
-import { useAiAssistantAvailable } from "@foundation/src/hooks/useAiAssistantAvailable";
+import { FeatureKeys } from "@foundation/contracts/plans";
+import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import {
   useAiAllowances,
   useAiCredential,
@@ -39,7 +40,7 @@ export interface AiAssistantSettingsProps {
  * grants them a monthly budget.
  */
 export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = {}) {
-  const entitled = useAiAssistantAvailable();
+  const entitled = useFeatureEnabled(FeatureKeys.AiAssistant);
 
   const { data: credential, isLoading: credentialLoading } = useAiCredential(entitled);
   const { data: allowances, isLoading: allowancesLoading } = useAiAllowances(entitled);

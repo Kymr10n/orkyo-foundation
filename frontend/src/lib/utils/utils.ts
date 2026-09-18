@@ -114,6 +114,31 @@ export function formatStatusLabel(status: string): string {
 // Request form data → API payload helpers (shared between pages)
 // ---------------------------------------------------------------------------
 
+/** The fields create and update send identically; only requirements with a value travel. */
+function requestPayloadFields(data: RequestFormData) {
+  return {
+    name: data.name,
+    description: data.description,
+    icon: data.icon,
+    resourceIds: data.resourceIds,
+    targetResourceTypeKeys: data.targetResourceTypeKeys,
+    startTs: data.startTs,
+    endTs: data.endTs,
+    earliestStartTs: data.earliestStartTs,
+    latestEndTs: data.latestEndTs,
+    minimalDurationValue: data.duration.value,
+    minimalDurationUnit: data.duration.unit,
+    schedulingSettingsApply: data.schedulingSettingsApply,
+    requirements: data.requirements
+      .filter((req) => req.value !== null)
+      .map((req) => ({
+        criterionId: req.criterionId,
+        value: req.value!,
+        ...(req.operator !== undefined && { operator: req.operator }),
+      })),
+  };
+}
+
 /**
  * Build an UpdateRequestRequest from form data.
  *
@@ -138,28 +163,10 @@ export function buildUpdatePayload(
   const siteChanged =
     originalSiteId !== undefined && (data.siteId ?? null) !== (originalSiteId ?? null);
   return {
-    name: data.name,
-    description: data.description,
-    icon: data.icon,
     planningMode: planningModeChanged ? data.planningMode : undefined,
     siteId: siteChanged ? (data.siteId ?? null) : undefined,
     changeSiteId: siteChanged ? true : undefined,
-    resourceIds: data.resourceIds,
-    targetResourceTypeKeys: data.targetResourceTypeKeys,
-    startTs: data.startTs,
-    endTs: data.endTs,
-    earliestStartTs: data.earliestStartTs,
-    latestEndTs: data.latestEndTs,
-    minimalDurationValue: data.duration.value,
-    minimalDurationUnit: data.duration.unit,
-    schedulingSettingsApply: data.schedulingSettingsApply,
-    requirements: data.requirements
-      .filter((req) => req.value !== null)
-      .map((req) => ({
-        criterionId: req.criterionId,
-        value: req.value!,
-        ...(req.operator !== undefined && { operator: req.operator }),
-      })),
+    ...requestPayloadFields(data),
   };
 }
 
@@ -168,28 +175,10 @@ export function buildUpdatePayload(
  */
 export function buildCreatePayload(data: RequestFormData): CreateRequestRequest {
   return {
-    name: data.name,
-    description: data.description,
-    icon: data.icon,
     planningMode: data.planningMode,
     parentRequestId: data.parentRequestId,
     siteId: data.siteId ?? undefined,
-    resourceIds: data.resourceIds,
-    targetResourceTypeKeys: data.targetResourceTypeKeys,
-    startTs: data.startTs,
-    endTs: data.endTs,
-    earliestStartTs: data.earliestStartTs,
-    latestEndTs: data.latestEndTs,
-    minimalDurationValue: data.duration.value,
-    minimalDurationUnit: data.duration.unit,
-    schedulingSettingsApply: data.schedulingSettingsApply,
-    requirements: data.requirements
-      .filter((req) => req.value !== null)
-      .map((req) => ({
-        criterionId: req.criterionId,
-        value: req.value!,
-        ...(req.operator !== undefined && { operator: req.operator }),
-      })),
+    ...requestPayloadFields(data),
   };
 }
 

@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { RoutingSettings, describeSteps } from './RoutingSettings';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { getRoutings, deleteRouting } from '@foundation/src/lib/api/routing-api';
 import type { Routing } from '@foundation/src/types/routings';
 
@@ -40,7 +40,7 @@ const bracket: Routing = {
 function renderSettings() {
   return render(
     <MemoryRouter initialEntries={['/settings/routings']}><RoutingSettings /></MemoryRouter>,
-    { wrapper: createFeedbackTestQueryWrapper() },
+    { wrapper: createTestQueryWrapper({ feedback: true }) },
   );
 }
 

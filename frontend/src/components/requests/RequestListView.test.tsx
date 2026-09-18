@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestListView } from './RequestListView';
 import type { Request } from '@foundation/src/types/requests';
+import { makeRequest } from '@foundation/src/test-utils/request-fixtures';
 
 // Mock virtualizer so all items render in jsdom (no DOM measurements)
 vi.mock('@tanstack/react-virtual', () => ({
@@ -23,33 +24,6 @@ vi.mock('@tanstack/react-virtual', () => ({
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-
-function makeRequest(overrides: Partial<Request> = {}): Request {
-  return {
-    id: 'r-1',
-    name: 'Test Request',
-    description: null,
-    parentRequestId: null,
-    planningMode: 'leaf',
-    sortOrder: 0,
-    assignments: [],
-    startTs: null,
-    endTs: null,
-    earliestStartTs: null,
-    latestEndTs: null,
-    minimalDurationValue: 60,
-    minimalDurationUnit: 'minutes',
-    actualDurationValue: null,
-    actualDurationUnit: null,
-    durationMin: undefined,
-    schedulingSettingsApply: true,
-    status: 'new',
-    requirements: [],
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
 
 const parentReq = makeRequest({
   id: 'parent-1',

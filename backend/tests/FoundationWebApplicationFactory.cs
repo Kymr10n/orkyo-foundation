@@ -1,43 +1,34 @@
-using System.Text.Json.Serialization;
 using Api.Configuration;
-using Api.Endpoints;
-using Api.Endpoints.Admin;
-using Api.Endpoints.Reporting;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.PlatformApi.Auth;
-using Api.Reporting.Auth;
-using Api.Repositories;
 using Api.Security;
 using Api.Services;
-using Api.Services.AutoSchedule;
-using Api.Services.BffSession;
 using Api.Services.PlatformApi;
-using Api.Services.Reporting;
-using Api.Validators;
-using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Npgsql;
+using Orkyo.Foundation.Tests.Integration;
 using Orkyo.Foundation.Tests.Mocks;
 using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests;
 
 /// <summary>
-/// Builds an in-process <see cref="WebApplication"/> with all foundation services registered
-/// against a real test database. This mirrors orkyo-core's <c>ApiWebApplicationFactory</c>
-/// but works without a <c>Program.cs</c> entry point.
+/// Builds an in-process <see cref="WebApplication"/> against a real test database by composing
+/// over the same <c>AddFoundationServices</c> / <c>AddFoundationRateLimiting</c> /
+/// <c>MapFoundationEndpoints</c> extensions the products call from their <c>Program.cs</c>.
+/// Only the edition-owned registrations (connection factory, tenant/org context, quota, audit)
+/// and the test doubles for external systems are declared here, the way a product's
+/// <c>ApiWebApplicationFactory</c> layers them over production DI.
 ///
 /// Security context (principal, tenant, authorization) is populated by a lightweight
 /// test middleware rather than <c>ContextEnrichmentMiddleware</c>, which requires Keycloak.
@@ -72,45 +63,13 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     // ── Public surface ────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates an <see cref="HttpClient"/> with the standard test tenant slug and
-    /// bearer-token authorization headers preset.
+    /// Creates a bare <see cref="HttpClient"/> for the test server: no tenant or authorization
+    /// headers (see <see cref="DatabaseFixture.CreateAuthorizedClient"/> for those). TestServer
+    /// clients never follow redirects, so a test can assert on a <c>Location</c> header directly.
     /// </summary>
     public HttpClient CreateClient()
     {
         return _host.GetTestClient();
-    }
-
-    /// <summary>
-    /// Creates an <see cref="HttpClient"/> with the given options.
-    /// Supports <c>AllowAutoRedirect = false</c> for redirect-assertion tests.
-    /// </summary>
-    public HttpClient CreateClient(WebApplicationFactoryClientOptions options)
-    {
-        var testServer = _host.GetTestServer();
-        if (!options.AllowAutoRedirect)
-        {
-            var noRedirectClient = testServer.CreateClient();
-            noRedirectClient.DefaultRequestHeaders.Clear();
-            // Disable redirect following by replacing the inner handler
-            var client = new HttpClient(new NoRedirectDelegatingHandler(testServer.CreateHandler()))
-            {
-                BaseAddress = new Uri("http://localhost"),
-            };
-            return client;
-        }
-        return testServer.CreateClient();
-    }
-
-    private sealed class NoRedirectDelegatingHandler : DelegatingHandler
-    {
-        public NoRedirectDelegatingHandler(HttpMessageHandler inner) : base(inner) { }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var response = await base.SendAsync(request, cancellationToken);
-            return response;
-        }
     }
 
     public async ValueTask DisposeAsync()
@@ -159,6 +118,14 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["SMTP_FROM_EMAIL"] = "test@test.local",
             ["SMTP_FROM_NAME"] = "Test",
             ["FEEDBACK_NOTIFICATION_EMAIL"] = "feedback@test.local",
+            // Keycloak / OIDC — AddFoundationServices reads these for KeycloakOptions and the
+            // JWT bearer scheme. The values match the DeploymentConfig singleton below; no
+            // test ever reaches Keycloak (the admin client is mocked and the default auth
+            // scheme is the test handler), so the host only has to be well-formed.
+            [ConfigKeys.OidcAuthority] = "http://localhost:8080/realms/orkyo",
+            [ConfigKeys.KeycloakUrl] = "http://localhost:8080",
+            [ConfigKeys.KeycloakRealm] = "orkyo",
+            [ConfigKeys.KeycloakBackendClientId] = "test-backend",
             // ReportingTokenService refuses to start without a pepper source (no compiled
             // fallback — fail-early rule); tests use the same stand-in secret as the
             // DeploymentConfig singleton below.
@@ -178,178 +145,26 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             [ConfigKeys.DisableRateLimiting] = "true",
         });
 
-        // ── Auth ──────────────────────────────────────────────────────────────
+        // ── Production wiring ─────────────────────────────────────────────────
+        builder.Services.AddFoundationServices(builder.Configuration);
+        builder.Services.AddFoundationRateLimiting();
+
+        // ── Test auth — AFTER the extension so the defaults land on the test scheme ─
+        // AddOrkyoAuthentication has already registered the JWT / policy / reporting /
+        // API-token schemes; this only adds the test handler and makes it the default.
         builder.Services.AddAuthentication(options =>
         {
-            options.DefaultAuthenticateScheme = "TestScheme";
-            options.DefaultChallengeScheme = "TestScheme";
-            options.DefaultScheme = "TestScheme";
+            options.DefaultAuthenticateScheme = TestConstants.AuthScheme;
+            options.DefaultChallengeScheme = TestConstants.AuthScheme;
+            options.DefaultScheme = TestConstants.AuthScheme;
         })
-        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("TestScheme", _ => { })
-        .AddScheme<AuthenticationSchemeOptions, ReportingTokenAuthHandler>(
-            ReportingTokenAuthHandler.SchemeName, _ => { })
-        .AddScheme<AuthenticationSchemeOptions, ApiAccessTokenAuthHandler>(
-            ApiAccessTokenAuthHandler.SchemeName, _ => { });
+        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestConstants.AuthScheme, _ => { });
 
-        builder.Services.AddAuthorization(options =>
-        {
-            options.AddPolicy("ReportingToken", policy =>
-            {
-                policy.AddAuthenticationSchemes(ReportingTokenAuthHandler.SchemeName);
-                policy.RequireAuthenticatedUser();
-            });
-
-            options.AddPolicy(ApiAccessTokenAuthHandler.PolicyName, policy =>
-            {
-                policy.AddAuthenticationSchemes(ApiAccessTokenAuthHandler.SchemeName);
-                policy.RequireAuthenticatedUser();
-            });
-        });
-
-        // Rate limiting — disabled by DISABLE_RATE_LIMITING config in tests
-        builder.Services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.AddPolicy("mcp-api", ctx =>
-                System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                    ctx.User?.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 30,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 0,
-                    }));
-            options.AddPolicy("reporting-api", ctx =>
-                System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                    ctx.User?.Identity?.Name ?? ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 60,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst,
-                        QueueLimit = 0,
-                    }));
-        });
-
-        // ── Security context (real scoped impls populated by test middleware) ─
-        builder.Services.AddScoped<CurrentPrincipal>();
-        builder.Services.AddScoped<ICurrentPrincipal>(sp => sp.GetRequiredService<CurrentPrincipal>());
-        builder.Services.AddScoped<CurrentTenant>();
-        builder.Services.AddScoped<ICurrentTenant>(sp => sp.GetRequiredService<CurrentTenant>());
-        builder.Services.AddScoped<CurrentAuthorizationContext>();
-        builder.Services.AddScoped<IAuthorizationContext>(sp => sp.GetRequiredService<CurrentAuthorizationContext>());
-        // Toggleable guard (singleton) so tests can flip the account-locked paths (session privacy) on;
-        // defaults to unlocked, matching the foundation allow-all behavior so other tests are unaffected.
-        builder.Services.AddSingleton<IAccountMutationGuard>(accountGuard);
-
-        // ── DB connectivity ───────────────────────────────────────────────────
+        // ── Edition-owned registrations (what a product's Program.cs supplies) ─
         var orgId = new Guid("00000000-0000-0000-0000-000000000001");
         var tenantId = new Guid("00000000-0000-0000-0000-000000000001");
 
-        builder.Services.AddScoped(_ => new OrgContext
-        {
-            OrgId = orgId,
-            OrgSlug = TestConstants.TenantSlug,
-            DbConnectionString = tenantCs,
-        });
-        // Every scope in this host is the one test tenant, HTTP or not — the same contract
-        // the fixed OrgContext above has always given the services under test. The real
-        // HttpContext-backed accessor is covered by OrgContextServiceExtensionsTests.
-        builder.Services.AddScoped<IOrgContextAccessor>(sp => new FixedOrgContextAccessor(sp.GetRequiredService<OrgContext>()));
-
-        builder.Services.AddScoped(_ => new TenantContext
-        {
-            TenantId = tenantId,
-            TenantSlug = TestConstants.TenantSlug,
-            TenantDbConnectionString = tenantCs,
-            Status = "active",
-        });
-
-        var dbFactory = new TestDbConnectionFactory(controlPlaneCs, tenantCs);
-        builder.Services.AddSingleton<IDbConnectionFactory>(dbFactory);
-        builder.Services.AddSingleton<IOrgDbConnectionFactory>(dbFactory);
-
-        // ── Repositories ──────────────────────────────────────────────────────
-        builder.Services.AddScoped<ISiteRepository, SiteRepository>();
-        // ISpaceCapabilityRepository is served by IResourceCapabilityRepository (Phase 2)
-        builder.Services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
-        builder.Services.AddScoped<ICriteriaRepository, CriteriaRepository>();
-        builder.Services.AddScoped<IRequestRepository, RequestRepository>();
-        builder.Services.AddScoped<IRequestDependencyRepository, RequestDependencyRepository>();
-        builder.Services.AddScoped<ISchedulingRepository, SchedulingRepository>();
-        builder.Services.AddScoped<ITemplateRepository, TemplateRepository>();
-        builder.Services.AddScoped<IRoutingRepository, RoutingRepository>();
-        builder.Services.AddScoped<ISearchRepository, SearchRepository>();
-        builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
-        builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
-        builder.Services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
-        builder.Services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
-        builder.Services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
-        builder.Services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
-        builder.Services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
-
-        // ── Resource model (Phase 1) ──────────────────────────────────────────
-        builder.Services.AddScoped<IResourceTypeRepository, ResourceTypeRepository>();
-        builder.Services.AddScoped<ICalendarFeedTokenRepository, CalendarFeedTokenRepository>();
-        builder.Services.AddScoped<IResourceCustomFieldRepository, ResourceCustomFieldRepository>();
-        builder.Services.AddScoped<IListDefinitionRepository, ListDefinitionRepository>();
-        builder.Services.AddScoped<IListInstanceRepository, ListInstanceRepository>();
-        builder.Services.AddScoped<IResourceRepository, ResourceRepository>();
-        builder.Services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
-        builder.Services.AddScoped<IResourceCapabilityRepository, ResourceCapabilityRepository>();
-        builder.Services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
-        builder.Services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
-        builder.Services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
-
-        // ── Availability model ────────────────────────────────────────────────
-        builder.Services.AddScoped<IAvailabilityEventRepository, AvailabilityEventRepository>();
-        builder.Services.AddScoped<IResourceAbsenceRepository, ResourceAbsenceRepository>();
-        builder.Services.AddScoped<IAvailabilityResolver, AvailabilityResolver>();
-
-        // ── AI assistant ──────────────────────────────────────────────────────
-        builder.Services.AddScoped<IAiCredentialRepository, AiCredentialRepository>();
-        builder.Services.AddScoped<IAiAllowanceRepository, AiAllowanceRepository>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiCredentialService, Api.Services.Ai.AiCredentialService>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiAccessService, Api.Services.Ai.AiAccessService>();
-        // Stubbed, not real: the Anthropic gateway makes an outbound HTTPS call.
-        builder.Services.AddSingleton<StubAnthropicGateway>();
-        builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway>(
-            sp => sp.GetRequiredService<StubAnthropicGateway>());
-        builder.Services.AddScoped<Api.Services.Ai.IAiChatService, Api.Services.Ai.AiChatService>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetConflictsTool>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestsTool>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.GetRequestTool>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiTool, Api.Services.Ai.SearchTool>();
-        builder.Services.AddScoped<Api.Repositories.IAiConversationRepository, Api.Repositories.AiConversationRepository>();
-        builder.Services.AddScoped<Api.Services.Ai.IAiConversationService, Api.Services.Ai.AiConversationService>();
-
-        // ── Security + quota ─────────────────────────────────────────────────
-        builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
-        builder.Services.AddScoped<Api.Security.Quotas.IQuotaUsageRollup, Api.Security.Quotas.NoOpQuotaUsageRollup>();
-        // Same all-enabled behaviour as AllFeaturesEnabledGate, but a test can disable one
-        // key to reach an entitlement refusal that only SaaS would otherwise produce.
-        builder.Services.AddSingleton<StubFeatureGate>();
-        builder.Services.AddSingleton<Api.Security.Features.IFeatureGate>(
-            sp => sp.GetRequiredService<StubFeatureGate>());
-        builder.Services.AddScoped<Api.Security.Features.ITenantPlanInfoProvider, Api.Security.Features.SinglePlanInfoProvider>();
-        builder.Services.AddScoped<Api.Security.Features.ITenantEntitlementProvider, Api.Security.Features.AllFeaturesEntitlementProvider>();
-        builder.Services.AddScoped<Api.Security.Features.ITenantMembershipEnricher, Api.Security.Features.PassThroughTenantMembershipEnricher>();
-
-        // ── HTTP client factory ───────────────────────────────────────────────
-        builder.Services.AddHttpClient();
-
-        // ── Keycloak options (test stub — not used for real Keycloak calls) ───
-        builder.Services.AddSingleton(new Orkyo.Shared.Keycloak.KeycloakOptions
-        {
-            BaseUrl = "http://localhost:8080",
-            Realm = "orkyo",
-            BackendClientId = "test-backend",
-            BackendClientSecret = "test-secret",
-        });
-
-        // ── DeploymentConfig (test stub — required by diagnostic endpoints) ──
-        builder.Services.AddSingleton(new Api.Configuration.DeploymentConfig
+        builder.Services.AddSingleton(new DeploymentConfig
         {
             PublicUrl = "http://localhost:5000",
             AuthPublicUrl = "http://localhost:8080",
@@ -369,118 +184,33 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             MasterEncryptionKey = TestConstants.MasterEncryptionKey,
         });
 
-        // ── Encryption (mirrors FoundationServiceExtensions registration) ──
-        builder.Services.AddSingleton<Api.Security.Encryption.IEncryptionService>(sp =>
-            new Api.Security.Encryption.AesGcmEncryptionService(
-                sp.GetRequiredService<Api.Configuration.DeploymentConfig>().DecodeMasterEncryptionKey()));
+        builder.Services.AddScoped(_ => new TenantContext
+        {
+            TenantId = tenantId,
+            TenantSlug = TestConstants.TenantSlug,
+            TenantDbConnectionString = tenantCs,
+            Status = "active",
+        });
+        builder.Services.AddScoped(_ => new OrgContext
+        {
+            OrgId = orgId,
+            OrgSlug = TestConstants.TenantSlug,
+            DbConnectionString = tenantCs,
+        });
 
-        // ── Services ──────────────────────────────────────────────────────────
-        builder.Services.AddScoped<Api.Services.AutoSchedule.SchedulingProblemBuilder>();
-        builder.Services.AddScoped<Api.Services.AutoSchedule.SchedulingFeasibilityAnalyzer>();
-        builder.Services.AddScoped<Api.Services.AutoSchedule.ISchedulingSolver, Api.Services.AutoSchedule.GreedySchedulingSolver>();
-        builder.Services.AddScoped<IAssetRepository, AssetRepository>();
-        builder.Services.AddScoped<ISiteService, SiteService>();
-        builder.Services.AddScoped<ICriteriaService, CriteriaService>();
-        builder.Services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
-        builder.Services.AddScoped<IRequestService, RequestService>();
-        builder.Services.AddScoped<IRequestDependencyService, RequestDependencyService>();
-        builder.Services.AddScoped<IRoutingService, RoutingService>();
-        builder.Services.AddScoped<ICriticalPathService, CriticalPathService>();
-        builder.Services.AddScoped<IRequestPlanService, RequestPlanService>();
-        builder.Services.AddScoped<ISchedulingService, SchedulingService>();
-        builder.Services.AddScoped<IAutoScheduleService, AutoScheduleService>();
-        builder.Services.AddScoped<IExportService, ExportService>();
-        builder.Services.AddScoped<ICalendarFeedService, CalendarFeedService>();
-        builder.Services.AddScoped<IPresetService, PresetService>();
-        builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
-        builder.Services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
-        builder.Services.AddScoped<IResourceCustomFieldService, ResourceCustomFieldService>();
-        builder.Services.AddScoped<IListDefinitionService, ListDefinitionService>();
-        builder.Services.AddScoped<IListRowService, ListRowService>();
-        builder.Services.AddScoped<IResourceService, ResourceService>();
-        builder.Services.AddScoped<IResourceTypeService, ResourceTypeService>();
-        builder.Services.AddScoped<IResourceTypeCatalogService, ResourceTypeCatalogService>();
-        builder.Services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
-        builder.Services.AddScoped<IConflictService, ConflictService>();
-        builder.Services.AddScoped<IResourceAssignmentService, ResourceAssignmentService>();
-        builder.Services.AddScoped<IUtilizationService, UtilizationService>();
-        // NB: integration tests bind IInsightsService directly to the real service (no caching
-        // decorator) so seed→assert stays deterministic — a process-wide 60s cache keyed on the
-        // shared test OrgId would leak data between tests. The decorator is covered by its own unit
-        // test (CachingInsightsServiceTests); production wiring lives in FoundationServiceExtensions.
-        builder.Services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
-        // Uncached here too, for the same reason: an integration test asserting on freshly written
-        // data must not be answered from a 60-second-old timeline.
-        builder.Services.AddScoped<
-            Api.Services.Insights.IConflictTimelineProvider,
-            Api.Services.Insights.ConflictTimelineProvider>();
-        builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
-        builder.Services.AddScoped<ISessionService, SessionService>();
-        builder.Services.AddScoped<IUserSessionService, UserSessionService>();
-        builder.Services.AddSingleton<Api.Security.IClientIpAccessor, Api.Security.ClientIpAccessor>();
-        // No Turnstile key in tests — the NoOp provider mirrors the keyless production path.
-        builder.Services.AddSingleton<Api.Security.Challenge.IChallengeProvider, Api.Security.Challenge.NoOpChallengeProvider>();
-        builder.Services.AddScoped<Api.Security.IBffSessionEstablisher, Api.Security.BffSessionEstablisher>();
-        builder.Services.AddSingleton<Api.Security.IBffAuthClientRegistry, Api.Security.DefaultBffAuthClientRegistry>();
-        builder.Services.AddScoped<ISiteSettingsService, SiteSettingsService>();
-        builder.Services.AddScoped<ITenantSettingsService, TenantSettingsService>();
-        builder.Services.AddScoped<IStarterTemplateService, StarterTemplateService>();
-        builder.Services.AddScoped<ITenantUserService, TenantUserService>();
-        builder.Services.AddScoped<IPlatformTenantAuditWriter, PlatformTenantAuditWriter>();
-        builder.Services.AddScoped<ISignInAuditRecorder, SignInAuditRecorder>();
+        var dbFactory = new TestDbConnectionFactory(controlPlaneCs, tenantCs, controlPlaneCs);
+        builder.Services.AddSingleton<IDbConnectionFactory>(dbFactory);
+        builder.Services.AddSingleton<IOrgDbConnectionFactory>(dbFactory);
+
         // The platform audit writer resolves the target tenant's DB via ITenantResolver. Tests run a
         // single tenant, so a stub that returns the ambient TenantContext for any slug is sufficient.
         builder.Services.AddScoped<ITenantResolver>(sp => new TestTenantResolver(sp.GetRequiredService<TenantContext>()));
-        builder.Services.AddScoped<IUserManagementService, UserManagementService>();
-        builder.Services.AddScoped<IAssetStorageService, AssetStorageService>();
-        builder.Services.AddScoped<UserLifecycleService>();
-
-        // ── Reporting services ────────────────────────────────────────────────
-        builder.Services.AddScoped<IReportingTokenService, ReportingTokenService>();
-        builder.Services.AddScoped<IReportingQueryService, ReportingQueryService>();
-
-        // ── Platform API (MCP) ────────────────────────────────────────────────
-        // MapOrkyoMcpEndpoints throws without these, so the endpoint graph this factory builds
-        // would not include /api/mcp at all — and the authorization conformance test would pass by
-        // never seeing the route.
-        builder.Services.AddScoped<Api.Services.PlatformApi.IApiAccessTokenService,
-            Api.Services.PlatformApi.ApiAccessTokenService>();
-        builder.Services.AddSingleton<Api.PlatformApi.Mcp.McpSolveThrottle>();
-        builder.Services.AddMcpServer(options =>
-            {
-                options.ServerInfo = new() { Name = "orkyo-schedule", Version = "2.0.0" };
-            })
-            .WithHttpTransport(options =>
-                options.SessionMode = ModelContextProtocol.AspNetCore.HttpServerSessionMode.Stateless)
-            .WithTools<Api.PlatformApi.Mcp.ScheduleTools>()
-            .WithTools<Api.PlatformApi.Mcp.PlanningTools>()
-            .WithTools<Api.PlatformApi.Mcp.AutoScheduleTools>()
-            .WithTools<Api.PlatformApi.Mcp.LifecycleTools>()
-            // One filter around every tools/call: per-call attribution logging, and
-            // containment so raw exception text never reaches an outside LLM client.
-            .WithRequestFilters(filters =>
-                filters.AddCallToolFilter(Api.PlatformApi.Mcp.McpToolPipeline.AuditAndContainErrors));
-
-        // BFF auth — wires BffOptions binding, in-memory PKCE/session stores, DataProtection,
-        // TenantMiddlewareOptions, and (when BFF_ENABLED=true) the cookie auth scheme.
-        builder.Services.AddBffAuthentication(builder.Configuration);
-
-        // Services backed by external systems → mock
-        builder.Services.AddSingleton<IKeycloakAdminService>(mockKeycloak);
-        builder.Services.AddSingleton<IEmailService>(mockEmail);
-        // Programmable, not Mock.Of: with every call returning default, the revoke and resend
-        // SUCCESS paths were unreachable and only their not-found halves could be tested.
-        // Tests resolve this Mock from the factory, Setup the call, and Reset afterwards.
-        var invitations = new Mock<IInvitationService>();
-        builder.Services.AddSingleton(invitations);
-        builder.Services.AddScoped<IInvitationService>(sp => invitations.Object);
+        builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
         builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
-        builder.Services.AddScoped<IBreakGlassSessionStore>(sp => Mock.Of<IBreakGlassSessionStore>());
-        // Singleton, not Mock.Of: tests drive the /api/session/bootstrap branches by
-        // setting LinkResult on the instance they resolve from the factory.
-        builder.Services.AddSingleton<StubIdentityLinkService>();
-        builder.Services.AddSingleton<IIdentityLinkService>(
-            sp => sp.GetRequiredService<StubIdentityLinkService>());
+        // Break-glass is a multi-tenant concept; the single-tenant null object is what
+        // Community registers, and it is exactly the no-session behaviour these tests expect.
+        builder.Services.AddSingleton<IBreakGlassSessionStore, NullBreakGlassSessionStore>();
+        builder.Services.AddScoped<UserLifecycleService>();
 
         // Editions set this in their own composition root, so the test host keeps the
         // permissive default. The options object is a mutable singleton, resolved per
@@ -491,35 +221,64 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             sp => Microsoft.Extensions.Options.Options.Create(
                 sp.GetRequiredService<IdentityProvisioningOptions>()));
 
-        // Validators — register all from the foundation assemblies (Core + Web; validators for
-        // request types declared alongside their endpoints live in the Web assembly).
-        var validatorAssemblies = new[]
-        {
-            typeof(SiteRequestValidator<>).Assembly,
-            typeof(Api.Endpoints.SecurityEndpoints).Assembly,
-        };
-        foreach (var type in validatorAssemblies.SelectMany(a => a.GetTypes())
-            .Where(t => !t.IsAbstract && !t.IsGenericTypeDefinition &&
-                        t.GetInterfaces().Any(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IValidator<>))))
-        {
-            foreach (var iface in type.GetInterfaces()
-                .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IValidator<>)))
-            {
-                builder.Services.AddScoped(iface, type);
-            }
-        }
+        // ── Test doubles for external systems (replace the production registration) ─
+        builder.Services.RemoveAll<IKeycloakAdminService>();
+        builder.Services.AddSingleton<IKeycloakAdminService>(mockKeycloak);
 
-        // ── JSON options ──────────────────────────────────────────────────────
-        builder.Services.ConfigureHttpJsonOptions(options =>
-        {
-            options.SerializerOptions.PropertyNameCaseInsensitive = true;
-            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
-        });
+        builder.Services.RemoveAll<IEmailService>();
+        builder.Services.AddSingleton<IEmailService>(mockEmail);
 
-        builder.Services.AddHttpContextAccessor();
-        builder.Services.AddLogging();
-        builder.Services.AddExceptionHandler<Api.Helpers.AppExceptionHandler>();
-        builder.Services.AddProblemDetails();
+        // Programmable, not Mock.Of: with every call returning default, the revoke and resend
+        // SUCCESS paths were unreachable and only their not-found halves could be tested.
+        // Tests resolve this Mock from the factory, Setup the call, and Reset afterwards.
+        var invitations = new Mock<IInvitationService>();
+        builder.Services.AddSingleton(invitations);
+        builder.Services.RemoveAll<IInvitationService>();
+        builder.Services.AddScoped<IInvitationService>(sp => invitations.Object);
+
+        // Singleton, not Mock.Of: tests drive the /api/session/bootstrap branches by
+        // setting LinkResult on the instance they resolve from the factory.
+        builder.Services.AddSingleton<StubIdentityLinkService>();
+        builder.Services.RemoveAll<IIdentityLinkService>();
+        builder.Services.AddSingleton<IIdentityLinkService>(
+            sp => sp.GetRequiredService<StubIdentityLinkService>());
+
+        // Stubbed, not real: the Anthropic gateway makes an outbound HTTPS call.
+        builder.Services.AddSingleton<StubAnthropicGateway>();
+        builder.Services.RemoveAll<Api.Services.Ai.IAnthropicGateway>();
+        builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway>(
+            sp => sp.GetRequiredService<StubAnthropicGateway>());
+
+        // Same all-enabled behaviour as AllFeaturesEnabledGate, but a test can disable one
+        // key to reach an entitlement refusal that only SaaS would otherwise produce.
+        builder.Services.AddSingleton<StubFeatureGate>();
+        builder.Services.RemoveAll<Api.Security.Features.IFeatureGate>();
+        builder.Services.AddSingleton<Api.Security.Features.IFeatureGate>(
+            sp => sp.GetRequiredService<StubFeatureGate>());
+
+        // Toggleable guard (singleton) so tests can flip the account-locked paths (session privacy) on;
+        // defaults to unlocked, matching the foundation allow-all behavior so other tests are unaffected.
+        builder.Services.RemoveAll<IAccountMutationGuard>();
+        builder.Services.AddSingleton<IAccountMutationGuard>(accountGuard);
+
+        // NB: integration tests bind IInsightsService directly to the real service (no caching
+        // decorator) so seed→assert stays deterministic — a process-wide 60s cache keyed on the
+        // shared test OrgId would leak data between tests. The decorator is covered by its own unit
+        // test (CachingInsightsServiceTests); production wiring lives in FoundationServiceExtensions.
+        builder.Services.RemoveAll<Api.Services.Insights.IInsightsService>();
+        builder.Services.AddScoped<Api.Services.Insights.IInsightsService, Api.Services.Insights.InsightsService>();
+        // Uncached here too, for the same reason: an integration test asserting on freshly written
+        // data must not be answered from a 60-second-old timeline.
+        builder.Services.RemoveAll<Api.Services.Insights.IConflictTimelineProvider>();
+        builder.Services.AddScoped<
+            Api.Services.Insights.IConflictTimelineProvider,
+            Api.Services.Insights.ConflictTimelineProvider>();
+
+        // Every scope in this host is the one test tenant, HTTP or not — the same contract
+        // the fixed OrgContext above has always given the services under test. The real
+        // HttpContext-backed accessor is covered by OrgContextServiceExtensionsTests.
+        builder.Services.RemoveAll<IOrgContextAccessor>();
+        builder.Services.AddScoped<IOrgContextAccessor>(sp => new FixedOrgContextAccessor(sp.GetRequiredService<OrgContext>()));
 
         var app = builder.Build();
 
@@ -560,7 +319,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 var userId = new Guid("11111111-1111-1111-1111-111111111111");
 
                 // Derive IsSiteAdmin from the token's realm_access claim so tests that
-                // create site-admin tokens (with RealmRoles=["site-admin"]) are authorized.
+                // create site-admin tokens (with RealmRoles=["site-admin"]) are authorized
+                // (AuditEndpointsTests). The production derivation is covered by
+                // ContextEnrichmentMiddlewareTests.
                 var isSiteAdmin = false;
                 var realmAccessClaim = context.User.FindFirst("realm_access")?.Value;
                 if (realmAccessClaim != null)
@@ -681,25 +442,6 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         app.MapFoundationEndpoints();
 
         return app;
-    }
-
-    // ── Test DB connection factory ────────────────────────────────────────────
-
-    private sealed class TestDbConnectionFactory : IDbConnectionFactory
-    {
-        private readonly string _controlPlaneCs;
-        private readonly string _tenantCs;
-
-        public TestDbConnectionFactory(string controlPlaneCs, string tenantCs)
-        {
-            _controlPlaneCs = controlPlaneCs;
-            _tenantCs = tenantCs;
-        }
-
-        public NpgsqlConnection CreateControlPlaneConnection() => new(_controlPlaneCs);
-        public NpgsqlConnection CreateTenantConnection(TenantContext tenant) => new(tenant.TenantDbConnectionString);
-        public NpgsqlConnection CreateConnectionForDatabase(string dbIdentifier) => new(_tenantCs);
-        public NpgsqlConnection CreateOrgConnection(OrgContext org) => new(org.DbConnectionString);
     }
 
     // ── Test tenant resolver (single test tenant) ─────────────────────────────

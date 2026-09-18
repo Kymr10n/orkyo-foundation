@@ -282,7 +282,7 @@ export function computeDerivedValues(
  * Use this when you already have the children array to avoid redundant lookups.
  * When descendants are provided, dates are derived from ALL descendants (spec compliant).
  */
-export function computeDerivedValuesFromChildren(
+function computeDerivedValuesFromChildren(
   children: Request[],
   descendants?: Request[],
 ): DerivedValues {

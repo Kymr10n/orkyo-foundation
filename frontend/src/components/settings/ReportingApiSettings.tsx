@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { useReportingApiAvailable } from "@foundation/src/hooks/useReportingApiAvailable";
+import { FeatureKeys } from "@foundation/contracts/plans";
+import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import { Plus, Key } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
@@ -131,7 +132,7 @@ interface ReportingApiSettingsProps {
 export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps = {}) {
   // Paid-tier gate: reporting API keys require API access (Professional+).
   const { isLoading: authLoading } = useAuth();
-  const apiAccessAllowed = useReportingApiAvailable();
+  const apiAccessAllowed = useFeatureEnabled(FeatureKeys.ApiAccess);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [rawToken, setRawToken] = useState<string | null>(null);

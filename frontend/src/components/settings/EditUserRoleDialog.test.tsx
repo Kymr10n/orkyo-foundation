@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { EditUserRoleDialog } from './EditUserRoleDialog';
 import * as userApi from '@foundation/src/lib/api/user-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
 vi.mock('sonner', () => ({
@@ -32,7 +32,7 @@ describe('EditUserRoleDialog', () => {
   beforeEach(() => {
     // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
     // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
-    ({ queryClient, spy: invalidateSpy } = createFeedbackTestQueryClientWithSpy());
+    ({ queryClient, spy: invalidateSpy } = createTestQueryClient({ feedback: true }));
     vi.clearAllMocks();
     vi.mocked(userApi.updateUserRole).mockResolvedValue({
       ...mockUser,

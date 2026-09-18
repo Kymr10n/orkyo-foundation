@@ -8,10 +8,10 @@ import {
   useAiDailyLimits,
   useSaveAiDailyLimits,
 } from '@foundation/src/hooks/useAiAssistant';
-import { useAiAssistantAvailable } from '@foundation/src/hooks/useAiAssistantAvailable';
+import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 
-vi.mock('@foundation/src/hooks/useAiAssistantAvailable', () => ({
-  useAiAssistantAvailable: vi.fn(() => true),
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: vi.fn(() => true),
 }));
 
 const saveLimits = vi.fn();
@@ -49,7 +49,7 @@ function setLimits(over: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(useAiAssistantAvailable).mockReturnValue(true);
+  vi.mocked(useFeatureEnabled).mockReturnValue(true);
   vi.mocked(useAiCredential).mockReturnValue({
     data: { configured: true, keyHint: 'hAAA', lastVerifiedAt: null },
     isLoading: false,

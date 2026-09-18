@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PresetSettings } from './PresetSettings';
 import * as presetApi from '@foundation/src/lib/api/preset-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 const toastError = vi.fn();
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
@@ -112,7 +112,7 @@ describe('PresetSettings', () => {
 
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
-    ({ queryClient } = createFeedbackTestQueryClientWithSpy());
+    ({ queryClient } = createTestQueryClient({ feedback: true }));
     vi.clearAllMocks();
 
     vi.mocked(presetApi.getPresetApplications).mockResolvedValue(mockApplications);

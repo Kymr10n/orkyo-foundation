@@ -154,8 +154,8 @@ export interface RequestRequirement {
   requestId: string;
   criterionId: string;
   value: CriterionValue;
-  operator?: string; // Phase 3: ">=", "<=", "=" for Number criteria
-  allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum criteria
+  operator?: string; // ">=", "<=", "=" for Number criteria
+  allowedValues?: CriterionValue[]; // The allowed values for Enum criteria
   createdAt?: string;
   criterion?: {
     id: string;
@@ -167,45 +167,50 @@ export interface RequestRequirement {
 }
 
 // API request/response types
-export interface CreateRequestRequest {
-  name: string;
+
+/** One requirement as the API accepts it on create and update. */
+export interface RequestRequirementInput {
+  criterionId: string;
+  value: CriterionValue;
+  /** ">=", "<=", "=" for Number criteria. */
+  operator?: string;
+  /** The allowed values for Enum criteria. */
+  allowedValues?: CriterionValue[];
+}
+
+/** The fields create and update share; each narrows what it requires. */
+export interface RequestPayloadBase {
   description?: string;
   parentRequestId?: string;
   planningMode?: PlanningMode;
   sortOrder?: number;
   siteId?: string | null;
-  /** One resource per targeted type. Sent together so a multi-type request cannot be left
-   *  half-assigned by a follow-up call failing. */
-  resourceIds?: string[];
   requestItemId?: string;
-  /** Omit to target spaces. An empty list is a real state: a request needing no resource. */
-  targetResourceTypeKeys?: string[];
   icon?: string | null;
   startTs?: string;
   endTs?: string;
   earliestStartTs?: string;
   latestEndTs?: string;
-  minimalDurationValue: number;
-  minimalDurationUnit: DurationUnit;
   actualDurationValue?: number;
   actualDurationUnit?: DurationUnit;
   schedulingSettingsApply?: boolean;
   status?: RequestStatus;
-  requirements?: {
-    criterionId: string;
-    value: CriterionValue;
-    operator?: string; // Phase 3: ">=", "<=", "=" for Number
-    allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum
-  }[];
+  requirements?: RequestRequirementInput[];
 }
 
-export interface UpdateRequestRequest {
+export interface CreateRequestRequest extends RequestPayloadBase {
+  name: string;
+  /** One resource per targeted type. Sent together so a multi-type request cannot be left
+   *  half-assigned by a follow-up call failing. */
+  resourceIds?: string[];
+  /** Omit to target spaces. An empty list is a real state: a request needing no resource. */
+  targetResourceTypeKeys?: string[];
+  minimalDurationValue: number;
+  minimalDurationUnit: DurationUnit;
+}
+
+export interface UpdateRequestRequest extends RequestPayloadBase {
   name?: string;
-  description?: string;
-  parentRequestId?: string;
-  planningMode?: PlanningMode;
-  sortOrder?: number;
-  siteId?: string | null;
   /** When true, a null siteId is applied (clears to "any site") rather than preserved. */
   changeSiteId?: boolean;
   /**
@@ -217,26 +222,10 @@ export interface UpdateRequestRequest {
   predecessorLogicK?: number | null;
   /** One resource per targeted type, replacing whatever holds each type's slot. */
   resourceIds?: string[];
-  requestItemId?: string;
   /** Omit to leave the targets untouched; a supplied list replaces them wholesale. */
   targetResourceTypeKeys?: string[];
-  icon?: string | null;
-  startTs?: string;
-  endTs?: string;
-  earliestStartTs?: string;
-  latestEndTs?: string;
   minimalDurationValue?: number;
   minimalDurationUnit?: DurationUnit;
-  actualDurationValue?: number;
-  actualDurationUnit?: DurationUnit;
-  schedulingSettingsApply?: boolean;
-  status?: RequestStatus;
-  requirements?: {
-    criterionId: string;
-    value: CriterionValue;
-    operator?: string; // Phase 3: ">=", "<=", "=" for Number
-    allowedValues?: CriterionValue[]; // Phase 3: Set of allowed values for Enum
-  }[];
 }
 
 export interface MoveRequestRequest {

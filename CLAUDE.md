@@ -47,7 +47,7 @@ Don't hand-roll `toast.*` / `invalidateQueries` in a dialog's mutation. Declare
 `meta: { successMessage, errorMessage?, invalidates }` on `useMutation`; the central `MutationCache`
 in `query-client.ts` fires the toast + invalidation once. Keep inline `ErrorAlert` (`setError`) for
 in-context errors. Full-CRUD entities (e.g. `useSites`, `useCriteria`) use the same `meta` pattern
-on each hook. Tests render via `createFeedbackTestQueryWrapper()`.
+on each hook. Tests render via `createTestQueryWrapper({ feedback: true })`.
 
 Don't hand-roll the dialog shell either: simple form dialogs use `FormDialog` (owns shell + header +
 scrollable body + `ErrorAlert` + Cancel/Submit footer with `canEdit` gating); criterion/skill/

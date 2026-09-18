@@ -1,6 +1,5 @@
 using System.Net;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 using Xunit;
@@ -21,11 +20,7 @@ public class AccountLifecycleEndpointsTests
         _mockKeycloak.Reset();
         _cpConnectionString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
 
-        // AllowAutoRedirect = false so we can assert the Location header
-        _client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        _client = factory.CreateClient();
         // /api/account/* skips API-key and tenant-slug requirements — no default headers needed
     }
 

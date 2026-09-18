@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { InviteUserDialog } from './InviteUserDialog';
 import * as userApi from '@foundation/src/lib/api/user-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
 vi.mock('sonner', () => ({
@@ -22,7 +22,7 @@ describe('InviteUserDialog', () => {
   beforeEach(() => {
     // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
     // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
-    ({ queryClient, spy: invalidateSpy } = createFeedbackTestQueryClientWithSpy());
+    ({ queryClient, spy: invalidateSpy } = createTestQueryClient({ feedback: true }));
     vi.clearAllMocks();
     vi.mocked(userApi.createInvitation).mockResolvedValue({
       id: 'inv-1',

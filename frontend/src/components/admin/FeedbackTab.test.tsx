@@ -3,12 +3,12 @@ import { render as rtlRender, screen, waitFor, fireEvent } from '@testing-librar
 import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { FeedbackTab } from './FeedbackTab';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // The save mutation declares `meta.successMessage`, so render under the
 // production-identical feedback MutationCache (dialog-feedback.md).
 const render = (ui: React.ReactElement) =>
-  rtlRender(ui, { wrapper: createFeedbackTestQueryWrapper() });
+  rtlRender(ui, { wrapper: createTestQueryWrapper({ feedback: true }) });
 
 const mockGet = vi.fn();
 const mockGetOne = vi.fn();

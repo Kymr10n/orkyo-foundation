@@ -9,9 +9,10 @@ namespace Api.Validators;
 /// <see cref="TemplateEntityTypes.IsKnown"/> so the vocabulary keeps its single owner, and the
 /// length limits come from <see cref="DomainLimits"/> rather than repeated literals.
 /// </summary>
-public class CreateTemplateRequestValidator : AbstractValidator<CreateTemplateRequest>
+public abstract class TemplateRequestValidatorBase<T> : AbstractValidator<T>
+    where T : TemplateRequestBase
 {
-    public CreateTemplateRequestValidator()
+    protected TemplateRequestValidatorBase()
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.TemplateNameMaxLength);
         RuleFor(x => x.Description!).MaximumLength(DomainLimits.TemplateDescriptionMaxLength)
@@ -27,22 +28,12 @@ public class CreateTemplateRequestValidator : AbstractValidator<CreateTemplateRe
     }
 }
 
-public class UpdateTemplateRequestValidator : AbstractValidator<UpdateTemplateRequest>
+public class CreateTemplateRequestValidator : TemplateRequestValidatorBase<CreateTemplateRequest>
 {
-    public UpdateTemplateRequestValidator()
-    {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.TemplateNameMaxLength);
-        RuleFor(x => x.Description!).MaximumLength(DomainLimits.TemplateDescriptionMaxLength)
-            .When(x => x.Description is not null);
-        RuleFor(x => x.EntityType).NotEmpty()
-            .Must(TemplateEntityTypes.IsKnown)
-            .WithMessage($"EntityType must be one of: {string.Join(", ", TemplateEntityTypes.All)}");
-        RuleFor(x => x.DurationValue!.Value).GreaterThan(0)
-            .When(x => x.DurationValue.HasValue);
-        RuleForEach(x => x.TargetResourceTypeKeys!).NotEmpty()
-            .WithMessage("TargetResourceTypeKeys must not contain empty keys")
-            .When(x => x.TargetResourceTypeKeys is not null);
-    }
+}
+
+public class UpdateTemplateRequestValidator : TemplateRequestValidatorBase<UpdateTemplateRequest>
+{
 }
 
 public class CreateTemplateItemRequestValidator : AbstractValidator<CreateTemplateItemRequest>

@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
-import { useDataExportAvailable } from '@foundation/src/hooks/useDataExportAvailable';
+import { FeatureKeys } from '@foundation/contracts/plans';
+import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { useSites } from '@foundation/src/hooks/useSites';
 import { useAppStore } from '@foundation/src/store/app-store';
 import { createResource, getResources } from '@foundation/src/lib/api/resources-api';
@@ -75,7 +76,7 @@ export function SpreadsheetImportWizard({
   const workstationTypeKey =
     placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? null;
 
-  const available = useDataExportAvailable();
+  const available = useFeatureEnabled(FeatureKeys.DataExport);
   const queryClient = useQueryClient();
   const { data: sites = [] } = useSites();
   const storeSiteId = useAppStore((s) => s.selectedSiteId);

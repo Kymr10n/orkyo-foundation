@@ -34,9 +34,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         // 404 means Bearer token was accepted; site simply doesn't exist.
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        var client = _databaseFixture.CreateAuthorizedClient();
 
         var response = await client.GetAsync($"/api/sites/{siteId}/floorplan");
 
@@ -47,10 +45,8 @@ public class FloorplanEndpointsIntegrationTests
     public async Task GetFloorplanImage_WithoutBearer_ShouldReturnUnauthorized()
     {
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
-        var response = await client.GetAsync($"/api/sites/{siteId}/floorplan");
+        var response = await _client.GetAsync($"/api/sites/{siteId}/floorplan");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -63,9 +59,7 @@ public class FloorplanEndpointsIntegrationTests
     public async Task GetFloorplanMetadata_WithBearer_ShouldReturnNotFound()
     {
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        var client = _databaseFixture.CreateAuthorizedClient();
 
         var response = await client.GetAsync($"/api/sites/{siteId}/floorplan/metadata");
 
@@ -76,10 +70,8 @@ public class FloorplanEndpointsIntegrationTests
     public async Task GetFloorplanMetadata_WithoutBearer_ShouldReturnUnauthorized()
     {
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
-        var response = await client.GetAsync($"/api/sites/{siteId}/floorplan/metadata");
+        var response = await _client.GetAsync($"/api/sites/{siteId}/floorplan/metadata");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -92,15 +84,13 @@ public class FloorplanEndpointsIntegrationTests
     public async Task UploadFloorplan_WithoutBearer_ShouldReturnUnauthorized()
     {
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
         var content = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 }); // PNG header
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(fileContent, "file", "test.png");
 
-        var response = await client.PostAsync($"/api/sites/{siteId}/floorplan", content);
+        var response = await _client.PostAsync($"/api/sites/{siteId}/floorplan", content);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -110,9 +100,7 @@ public class FloorplanEndpointsIntegrationTests
     {
         // NotFound = authenticated OK; endpoint logic ran and rejected the unknown site.
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        var client = _databaseFixture.CreateAuthorizedClient();
 
         var content = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(new byte[] { 0x89, 0x50, 0x4E, 0x47 }); // PNG header stub
@@ -132,10 +120,8 @@ public class FloorplanEndpointsIntegrationTests
     public async Task DeleteFloorplan_WithoutBearer_ShouldReturnUnauthorized()
     {
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
 
-        var response = await client.DeleteAsync($"/api/sites/{siteId}/floorplan");
+        var response = await _client.DeleteAsync($"/api/sites/{siteId}/floorplan");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -144,9 +130,7 @@ public class FloorplanEndpointsIntegrationTests
     public async Task DeleteFloorplan_WithBearer_ShouldReturnNotFound()
     {
         var siteId = Guid.NewGuid();
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        var client = _databaseFixture.CreateAuthorizedClient();
 
         var response = await client.DeleteAsync($"/api/sites/{siteId}/floorplan");
 
@@ -194,9 +178,7 @@ public class FloorplanEndpointsIntegrationTests
 
     private HttpClient AuthedClient()
     {
-        var client = _databaseFixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
+        var client = _databaseFixture.CreateAuthorizedClient();
         return client;
     }
 
