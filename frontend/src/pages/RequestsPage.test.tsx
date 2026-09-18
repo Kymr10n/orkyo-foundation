@@ -182,6 +182,15 @@ vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
     ) : null,
 }));
 
+vi.mock('@foundation/src/components/requests/NewFromRoutingDialog', () => ({
+  NewFromRoutingDialog: ({ open, onOpenChange, defaultSiteId }: any) =>
+    open ? (
+      <div data-testid="routing-dialog" data-site={String(defaultSiteId)}>
+        <button data-testid="routing-close" onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null,
+}));
+
 vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   exportRequests: vi.fn(),
   importRequests: vi.fn(() => Promise.resolve([])),
@@ -350,6 +359,17 @@ describe('RequestsPage', () => {
     expect(screen.getByText('Task B')).toBeInTheDocument();
   });
 
+  it('opens and closes the New from routing dialog', async () => {
+    const Wrapper = createWrapper();
+    render(<Wrapper><RequestsPage /></Wrapper>);
+    await act(async () => {});
+    expect(screen.queryByTestId('routing-dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('New from routing'));
+    expect(await screen.findByTestId('routing-dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('routing-close'));
+    await waitFor(() => expect(screen.queryByTestId('routing-dialog')).not.toBeInTheDocument());
+  });
+
   it('opens the create form dialog when New Request is clicked', async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
@@ -476,6 +496,8 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
     });
+    // A viewer creates nothing, so the routing entry point is not offered at all.
+    expect(screen.queryByText('New from routing')).not.toBeInTheDocument();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 

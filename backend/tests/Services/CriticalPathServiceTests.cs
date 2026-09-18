@@ -358,4 +358,22 @@ public class CriticalPathServiceTests
         EarliestStartOf(result, succ).Should().Be(Day1.AddDays(1));
         result.Diagnostics.Should().ContainSingle(d => d.Contains("cancelled or deferred"));
     }
+
+    [Fact]
+    public async Task ADeadlineOfItsOwn_TightensTheLatestFinish()
+    {
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+        // A runs 1–3 June; B needs three days and must end by 5 June — a day earlier than
+        // the network alone would allow, so its float goes negative rather than to zero.
+        Setup([Edge(a, b)],
+            Request(a, "A", 2, start: Day1, end: Day1.AddDays(2)),
+            Request(b, "B", 3, latestEnd: Day1.AddDays(4)));
+
+        var result = await _service.ComputeAsync(null);
+
+        var nodeB = result.Nodes.Single(n => n.RequestId == b);
+        Assert.Equal(Day1.AddDays(4), nodeB.LatestFinish);
+        Assert.Equal(Day1.AddDays(1), nodeB.LatestStart);
+        Assert.Equal(-1 * Day, nodeB.TotalFloatMinutes);
+    }
 }

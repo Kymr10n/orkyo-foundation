@@ -158,4 +158,15 @@ public class WorkingTimeAxisTests
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }
+
+    [Fact]
+    public void AHorizonWithNoWorkingTime_HasNoLengthAndRefusesEveryOffset()
+    {
+        // Saturday 18 and Sunday 19 April 2026 under a weekdays-only calendar.
+        var axis = WorkingTimeAxis.Build(new DateOnly(2026, 4, 18), new DateOnly(2026, 4, 19), Settings(), true);
+
+        axis.Length.Should().Be(0);
+        var act = () => axis.StartAt(0);
+        act.Should().Throw<InvalidOperationException>().WithMessage("*no working time*");
+    }
 }

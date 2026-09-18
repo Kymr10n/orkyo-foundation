@@ -100,4 +100,40 @@ public class RoutingRequestValidatorsTests
 
         Assert.True(result.IsValid);
     }
+
+    // ── Update carries the same step rules ───────────────────────────
+
+    private readonly IValidator<UpdateRoutingRequest> _update = new UpdateRoutingRequestValidator();
+
+    [Fact]
+    public void Update_StepsNumberedInOrder_Pass()
+    {
+        var result = _update.Validate(new UpdateRoutingRequest { Name = "Bracket", Steps = [Step(1), Step(2)] });
+
+        Assert.True(result.IsValid);
+    }
+
+    [Fact]
+    public void Update_NoSteps_Fails()
+    {
+        var result = _update.Validate(new UpdateRoutingRequest { Name = "Bracket", Steps = [] });
+
+        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("at least one step"));
+    }
+
+    [Fact]
+    public void Update_GapInNumbering_Fails()
+    {
+        var result = _update.Validate(new UpdateRoutingRequest { Name = "Bracket", Steps = [Step(1), Step(3)] });
+
+        Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("without gaps"));
+    }
+
+    [Fact]
+    public void Update_EmptyName_Fails()
+    {
+        var result = _update.Validate(new UpdateRoutingRequest { Name = "", Steps = [Step(1)] });
+
+        Assert.Contains(result.Errors, e => e.PropertyName == nameof(UpdateRoutingRequest.Name));
+    }
 }

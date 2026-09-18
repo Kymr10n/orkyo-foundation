@@ -248,4 +248,56 @@ public class RoutingServiceTests
 
         created.Name.Should().Be("Bracket");
     }
+
+    // ── CRUD passes through once the operations check out ────────────
+
+    [Fact]
+    public async Task GetAllAndGetById_PassThroughToTheRepository()
+    {
+        _routings.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([Bracket()]);
+
+        (await _service.GetAllAsync()).Should().ContainSingle(r => r.Id == RoutingId);
+        (await _service.GetByIdAsync(RoutingId))!.Id.Should().Be(RoutingId);
+    }
+
+    [Fact]
+    public async Task Delete_PassesThroughToTheRepository()
+    {
+        _routings.Setup(r => r.DeleteAsync(RoutingId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        (await _service.DeleteAsync(RoutingId)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Update_WithRequestTemplates_WritesTheRouting()
+    {
+        var request = new UpdateRoutingRequest
+        {
+            Name = "Bracket v2",
+            Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = MillId, RunMinutesPerUnit = 45 }],
+        };
+        _routings.Setup(r => r.UpdateAsync(RoutingId, request, It.IsAny<CancellationToken>())).ReturnsAsync(Bracket());
+
+        var updated = await _service.UpdateAsync(RoutingId, request);
+
+        updated.Should().NotBeNull();
+        _routings.Verify(r => r.UpdateAsync(RoutingId, request, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_WithASpaceTemplate_IsRefusedBeforeAnyWrite()
+    {
+        var roomId = Guid.NewGuid();
+        Template("Room", roomId, null, entityType: TemplateEntityTypes.Space);
+        var request = new UpdateRoutingRequest
+        {
+            Name = "Bracket",
+            Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = roomId, RunMinutesPerUnit = 5 }],
+        };
+
+        var act = () => _service.UpdateAsync(RoutingId, request);
+
+        await act.Should().ThrowAsync<ConflictException>().WithMessage("*space template, not an operation*");
+        _routings.Verify(r => r.UpdateAsync(It.IsAny<Guid>(), It.IsAny<UpdateRoutingRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }

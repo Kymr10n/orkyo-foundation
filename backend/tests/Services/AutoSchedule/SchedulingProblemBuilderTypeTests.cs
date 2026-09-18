@@ -285,4 +285,18 @@ public class SchedulingProblemBuilderTypeTests
             .WhoseValue.Should().BeEquivalentTo(["mill"]);
         problem.CriterionTypeScopes.Should().NotContainKey(unused);
     }
+
+    [Fact]
+    public async Task RequestIds_NarrowTheRunToTheNamedRequests()
+    {
+        var wanted = Leaf(["tool"]);
+        var other = Leaf(["tool"]);
+        var (builder, _) = Build([wanted, other], [Resource("tool", "Drill")]);
+
+        var problem = await builder.BuildAsync(
+            new AutoSchedulePreviewRequest(SiteId, HorizonStart, HorizonEnd, RequestIds: [wanted.Id], ResourceTypeKeys: ["tool"]),
+            CancellationToken.None);
+
+        problem.Requests.Select(r => r.RequestId).Should().Equal(wanted.Id);
+    }
 }
