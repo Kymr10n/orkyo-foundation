@@ -36,14 +36,24 @@ public class RoutingRequestValidatorsTests
     }
 
     [Theory]
-    [InlineData(1, 3)]
-    [InlineData(2, 1)]
-    [InlineData(0, 1)]
-    public void StepsOutOfOrderOrWithGaps_Fail(int first, int second)
+    [InlineData(1, 3)]   // a gap
+    [InlineData(0, 1)]   // numbering starts at 1
+    [InlineData(2, 2)]   // a duplicate leaves step 1 unfilled
+    public void StepsWithGaps_Fail(int first, int second)
     {
         var result = _create.Validate(new CreateRoutingRequest { Name = "Bracket", Steps = [Step(first), Step(second)] });
 
         Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("without gaps"));
+    }
+
+    [Fact]
+    public void StepsOutOfOrder_Pass()
+    {
+        // The array order is how the client happened to send them; the step numbers are the work
+        // order, and reads return them by number. Only gaps and duplicates are errors.
+        var result = _create.Validate(new CreateRoutingRequest { Name = "Bracket", Steps = [Step(2), Step(1)] });
+
+        Assert.True(result.IsValid);
     }
 
     [Fact]

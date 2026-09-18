@@ -64,6 +64,12 @@ public class InstantiateRoutingRequestValidator : AbstractValidator<InstantiateR
 internal static class RoutingSteps
 {
     /// <summary>Step numbers are 1..n in list order: the order is the routing.</summary>
+    /// <summary>
+    /// The step numbers form 1, 2, 3 … with no gaps and no duplicates. Judged on the numbers
+    /// themselves, not on the order they arrived in: a client composes a routing by adding steps,
+    /// and the order of the array it happens to send says nothing about the order of the work.
+    /// Reads return the steps by step number, so the two agree.
+    /// </summary>
     public static bool AreNumberedInOrder(IReadOnlyList<RoutingStepRequest> steps)
-        => steps.Select((s, i) => s.StepNo == i + 1).All(ok => ok);
+        => steps.Select(s => s.StepNo).OrderBy(n => n).Select((n, i) => n == i + 1).All(ok => ok);
 }

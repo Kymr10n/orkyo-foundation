@@ -279,6 +279,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<IRequestDependencyRepository, RequestDependencyRepository>();
         builder.Services.AddScoped<ISchedulingRepository, SchedulingRepository>();
         builder.Services.AddScoped<ITemplateRepository, TemplateRepository>();
+        builder.Services.AddScoped<IRoutingRepository, RoutingRepository>();
         builder.Services.AddScoped<ISearchRepository, SearchRepository>();
         builder.Services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         builder.Services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
@@ -383,6 +384,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<IRequestDependencyService, RequestDependencyService>();
+        builder.Services.AddScoped<IRoutingService, RoutingService>();
         builder.Services.AddScoped<ICriticalPathService, CriticalPathService>();
         builder.Services.AddScoped<IRequestPlanService, RequestPlanService>();
         builder.Services.AddScoped<ISchedulingService, SchedulingService>();

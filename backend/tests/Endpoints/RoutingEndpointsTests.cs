@@ -48,8 +48,11 @@ public class RoutingEndpointsTests
     {
         var response = await _client.PostAsJsonAsync("/api/criteria", new CreateCriterionRequest
         {
-            Name = Unique("Material"),
+            // Criterion names are identifiers: no spaces, unlike the display names Unique() builds.
+            Name = $"material_{Guid.NewGuid():N}",
             DataType = CriterionDataType.String,
+            // Applicability is required — a criterion has to say which resource types it describes.
+            ResourceTypeKeys = [ResourceTypeKeys.Tool],
         });
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         return (await response.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
