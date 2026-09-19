@@ -14,6 +14,20 @@
 # class (VEX) would end the churn — see the base-image-scan follow-ups.
 CVE-2025-59250  # HIGH | mssql-jdbc: improper input validation — Trivy compares the installed 13.2.1 against a fix list ending 13.2.1.jre11 and calls it older; the shipped JAR is the fixed version, false positive (re-verified 2026-09-12 on quay.io/keycloak/keycloak:26.7.3) | Added: 2026-09-12 | Review: 2026-09-26
 
+# ── Keycloak embedded Bouncy Castle — CVE-2026-8763 / CVE-2026-13506 ────────
+# 2026-09-19: bcprov-jdk18on 1.84 is bundled by Keycloak 26.7.3 (the pinned base) and by
+# 26.7.4, the newest published tag — both scanned today with CI's flags, both report the
+# same four findings, so a digest bump cannot clear this. The fix is bcprov 1.85 and no
+# published Keycloak carries it. Production already runs this exact library: the pin has
+# been 26.7.3 since 2026-09-12 and 0.23.0 shipped it, so holding releases does not reduce
+# exposure. CVE-2026-8763 is an X.509 Name Constraints bypass in certificate path
+# validation; this realm configures no x509 authenticator, no truststore and no mTLS, so
+# Keycloak never validates a client certificate against a name-constrained CA. Keycloak
+# also sits behind nginx and Cloudflare. Drop both entries when a Keycloak build with
+# bcprov >= 1.85 is published; foundation #178 tracks it.
+CVE-2026-8763  # CRITICAL | bcprov-jdk18on 1.84 bundled by Keycloak 26.7.3 and 26.7.4 (fix 1.85) | no upstream Keycloak with the fix; production already runs this exact library; X.509 name-constraint path validation is unused here (no x509 authenticator, no truststore, no mTLS) | Added: 2026-09-19 | Review: 2026-09-26
+CVE-2026-13506  # HIGH | bcprov-jdk18on 1.84, same library and same fix version as CVE-2026-8763 | Added: 2026-09-19 | Review: 2026-09-26
+
 # ── Keycloak embedded netty — CVE-2026-75595 (CRITICAL) ─────────────────────
 # 2026-09-12: netty-handler 4.1.136.Final is bundled by Keycloak 26.7.3, the newest
 # upstream tag; the fix is 4.1.137/4.2.17 and no published Keycloak carries it, so a
