@@ -214,14 +214,14 @@ public static class TenantConfigFactory
         await Field("tool", "purchased_on", "Purchased", "date", 1);
         await Field("tool", "consumables", "Consumables", "list_lookup", 2, consumablesInstanceId);
 
-        var values = await FillValuesAsync(conn, "person", faker, r => new Dictionary<string, object>
+        var values = await FillValuesAsync(conn, "person", r => new Dictionary<string, object>
         {
             ["badge_number"] = $"B-{faker.Random.Int(1000, 9999)}",
             ["certified_until"] = DateTime.UtcNow.Date.AddDays(faker.Random.Int(30, 900)).ToString("yyyy-MM-dd"),
             ["night_shift"] = faker.Random.Bool(0.25f),
         });
 
-        values += await FillValuesAsync(conn, "room", faker, r => new Dictionary<string, object>
+        values += await FillValuesAsync(conn, "room", r => new Dictionary<string, object>
         {
             ["floor_area_m2"] = faker.Random.Int(20, 400),
             ["has_extraction"] = faker.Random.Bool(0.3f),
@@ -230,7 +230,7 @@ public static class TenantConfigFactory
         // Tools reference consumables. The field and its shared list existed already, but nothing
         // ever pointed at a row — so the reason that second instance exists (one definition, two
         // instances) was invisible in the UI.
-        values += await FillValuesAsync(conn, "tool", faker, r => new Dictionary<string, object>
+        values += await FillValuesAsync(conn, "tool", r => new Dictionary<string, object>
         {
             ["serial_number"] = $"SN-{faker.Random.Int(100000, 999999)}",
             ["purchased_on"] = DateTime.UtcNow.Date.AddDays(-faker.Random.Int(200, 3000)).ToString("yyyy-MM-dd"),
@@ -245,7 +245,7 @@ public static class TenantConfigFactory
 
     /// <summary>Writes a value document onto every resource of a type, one statement.</summary>
     private static async Task<int> FillValuesAsync(
-        NpgsqlConnection conn, string typeKey, Faker faker,
+        NpgsqlConnection conn, string typeKey,
         Func<Guid, Dictionary<string, object>> build)
     {
         var ids = new List<Guid>();

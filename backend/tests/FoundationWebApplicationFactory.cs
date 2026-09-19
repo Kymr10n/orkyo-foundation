@@ -198,7 +198,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             DbConnectionString = tenantCs,
         });
 
-        var dbFactory = new TestDbConnectionFactory(controlPlaneCs, tenantCs, controlPlaneCs);
+        var dbFactory = new TestDbConnectionFactory(controlPlaneCs, controlPlaneCs);
         builder.Services.AddSingleton<IDbConnectionFactory>(dbFactory);
         builder.Services.AddSingleton<IOrgDbConnectionFactory>(dbFactory);
 

@@ -12,6 +12,8 @@
 # See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G4).
 
 scripts/ci/lint-migration-headers.sh	orkyo-foundation	orkyo-saas,orkyo-community
+scripts/ci/check-dead-registrations.py	orkyo-foundation	orkyo-saas,orkyo-community
+scripts/ci/check-stale-markers.sh	orkyo-foundation	orkyo-saas,orkyo-community
 global.json	orkyo-foundation	orkyo-saas,orkyo-community
 scripts/check-env.sh	orkyo-saas	orkyo-community
 Directory.Build.props	orkyo-saas	orkyo-community

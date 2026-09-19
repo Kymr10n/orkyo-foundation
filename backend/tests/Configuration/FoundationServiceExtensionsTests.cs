@@ -49,11 +49,6 @@ public class FoundationServiceExtensionsTests
         sd.ImplementationType == typeof(TImpl) &&
         sd.Lifetime == ServiceLifetime.Scoped;
 
-    private static bool IsSingleton<TService, TImpl>(ServiceDescriptor sd) =>
-        sd.ServiceType == typeof(TService) &&
-        sd.ImplementationType == typeof(TImpl) &&
-        sd.Lifetime == ServiceLifetime.Singleton;
-
     // ── Return value ──────────────────────────────────────────────────────────
 
     [Fact]

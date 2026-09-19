@@ -53,7 +53,7 @@ public sealed class PostgresFixture : IAsyncLifetime
     public Task DisposeAsync() => Task.CompletedTask;
 
     public TestDbConnectionFactory CreateConnectionFactory() =>
-        new(ControlPlaneConnectionString, TestTenantConnectionString, AdminConnectionString);
+        new(ControlPlaneConnectionString, AdminConnectionString);
 
     public async Task<NpgsqlConnection> OpenControlPlaneConnectionAsync()
     {

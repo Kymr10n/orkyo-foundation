@@ -277,6 +277,12 @@ jobs:
         run: npm run lint
         working-directory: frontend
 
+      # Unused files, exports and dependencies (knip). --if-present keeps the step a
+      # no-op for a consumer that has not adopted the script yet.
+      - name: Dead frontend code (knip)
+        run: npm run check:knip --if-present
+        working-directory: frontend
+
       - name: Product sync checks
         if: inputs.frontend-extra-checks != ''
         run: ${{ inputs.frontend-extra-checks }}

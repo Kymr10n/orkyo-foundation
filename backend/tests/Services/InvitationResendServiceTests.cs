@@ -23,7 +23,6 @@ namespace Orkyo.Foundation.Tests.Services;
 [Collection("Database collection")]
 public sealed class InvitationResendServiceTests
 {
-    private readonly DatabaseFixture _fixture;
     private readonly string _connString;
 
     private static readonly Guid TestTenantId = new("00000000-0000-0000-0000-000000000001");
@@ -31,7 +30,6 @@ public sealed class InvitationResendServiceTests
 
     public InvitationResendServiceTests(DatabaseFixture fixture)
     {
-        _fixture = fixture;
         _connString = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
     }
 
