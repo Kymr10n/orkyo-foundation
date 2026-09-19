@@ -9,7 +9,6 @@ import {
 } from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
 import {
-  AlertTriangle,
   Box,
   ChevronLeft,
   ChevronRight,
@@ -36,9 +35,6 @@ const resourceNavItems = [
 const workNavItems = [
   { to: "/requests", label: "Requests", icon: Package },
   { to: "/insights", label: "Insights", icon: LineChart },
-  // Its own entry, not just a tab: conflicts are what a planner opens the tool to fix, and
-  // buried one level down they read as a report rather than a worklist. Same route as the tab.
-  { to: "/insights/conflicts", label: "Conflicts", icon: AlertTriangle },
   // Organization master data — departments, job titles and whatever else the tenant models about
   // its own structure. Editors maintain the values; the shapes are administration.
   { to: "/organization", label: "Organization", icon: Building2 },
@@ -95,19 +91,14 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
       <div className="flex-1 py-4">
         {navItems.map((item) => {
           const Icon = item.icon;
-          // Sections with index-redirect sub-tabs (e.g. Floorplan → /stations/mill/instances)
-          // need a prefix match so the parent item stays highlighted. The root
-          // item ('/') is special-cased to an exact match so it is not active
-          // on every route.
-          // Longest prefix wins, so a nested entry (Conflicts, under Insights' path) highlights
-          // alone rather than lighting up its parent as well.
-          const matches = (to: string) =>
-            to === "/"
-              ? location.pathname === "/"
-              : location.pathname === to || location.pathname.startsWith(to + "/");
+          // Sections with sub-tabs (Insights → /insights/conflicts, Floorplan →
+          // /stations/mill/instances) need a prefix match so the parent item stays
+          // highlighted. The root item ('/') is special-cased to an exact match so it
+          // is not active on every route.
           const isActive =
-            matches(item.to) &&
-            !navItems.some((other) => other.to.length > item.to.length && matches(other.to));
+            item.to === "/"
+              ? location.pathname === "/"
+              : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
 
           return (
             <Link
