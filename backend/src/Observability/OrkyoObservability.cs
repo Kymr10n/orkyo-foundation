@@ -47,14 +47,24 @@ public static class OrkyoObservability
             var lokiUrl = Environment.GetEnvironmentVariable(ConfigKeys.LokiUrl);
             if (!string.IsNullOrWhiteSpace(lokiUrl))
             {
+                // The sink adds the `level` label itself (handleLogLevelAsLabel, on by
+                // default). Naming it in propertiesAsLabels did nothing: the sink treats
+                // `level` as reserved and skips it there, so the argument only suggested a
+                // source it did not have.
+                //
+                // Its values are Grafana's vocabulary, NOT Serilog's level names:
+                // Verbose→trace, Debug→debug, Information→info, Warning→warning,
+                // Error→error, Fatal→fatal (critical before sink v9). Query Loki with
+                // level="error", never level="Error" — see orkyo-infra
+                // docs/runbooks/api-error-logs.md, where the capitalised form hid three
+                // real production errors.
                 cfg.WriteTo.GrafanaLoki(
                     lokiUrl,
                     labels:
                     [
                         new LokiLabel { Key = "service", Value = serviceName },
                         new LokiLabel { Key = "env",     Value = ctx.HostingEnvironment.EnvironmentName }
-                    ],
-                    propertiesAsLabels: ["level"]);
+                    ]);
             }
         });
 
