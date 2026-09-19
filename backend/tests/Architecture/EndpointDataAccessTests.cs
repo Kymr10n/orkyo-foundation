@@ -19,16 +19,15 @@ namespace Orkyo.Foundation.Tests.Architecture;
 ///   <item>A baseline file that NO LONGER contains raw ADO.NET fails — it was
 ///   cleaned up, so remove it from the baseline to lock in the win.</item>
 /// </list>
-/// See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G2a) and the
-/// Wave 3 endpoint refactors (W3.1) that shrink this baseline to empty.
+/// See orkyo-infra/docs/plans/optimization-plan-2026-07.md §Guardrails (G2a).
 /// </summary>
 public partial class EndpointDataAccessTests
 {
     /// <summary>
     /// Endpoint files (path relative to <c>backend/src/Endpoints</c>, forward
-    /// slashes) that still issue raw ADO.NET. Shrink this as Wave 3 lands; never
-    /// add to it — new writes go through a repository. Verified against the tree
-    /// on 2026-07-12.
+    /// slashes) that still issue raw ADO.NET. Shrink this as files are cleaned up;
+    /// never add to it — new writes go through a repository. Verified against the
+    /// tree on 2026-07-12.
     /// </summary>
     private static readonly HashSet<string> KnownRawDataAccessFiles =
     [

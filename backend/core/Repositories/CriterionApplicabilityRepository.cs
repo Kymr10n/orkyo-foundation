@@ -19,7 +19,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
 
-        // applicable_to_requests lives on the main criteria table (Phase 3).
+        // applicable_to_requests lives on the main criteria table.
         var scalar = await db.ExecuteScalarAsync<object>(
             "SELECT applicable_to_requests FROM criteria WHERE id = @id",
             p => p.AddWithValue("id", criterionId), ct);

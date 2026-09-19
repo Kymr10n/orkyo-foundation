@@ -44,12 +44,10 @@ public interface IUserSessionService
 public sealed class UserSessionService : IUserSessionService
 {
     private readonly IDbConnectionFactory _connectionFactory;
-    private readonly ILogger<UserSessionService> _logger;
 
-    public UserSessionService(IDbConnectionFactory connectionFactory, ILogger<UserSessionService> logger)
+    public UserSessionService(IDbConnectionFactory connectionFactory)
     {
         _connectionFactory = connectionFactory;
-        _logger = logger;
     }
 
     public async Task UpsertAsync(Guid userId, string keycloakSessionId, string? ipAddress, string? userAgent, CancellationToken ct = default)

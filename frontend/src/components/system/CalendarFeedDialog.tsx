@@ -11,7 +11,8 @@ import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
-import { useCalendarFeedAvailable } from '@foundation/src/hooks/useCalendarFeedAvailable';
+import { FeatureKeys } from '@foundation/contracts/plans';
+import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import {
   createCalendarSubscription,
   getCalendarSubscriptions,
@@ -41,7 +42,7 @@ interface CalendarFeedDialogProps {
  * the site's scheduled requests, not the subscriber's personal appointments.
  */
 export function CalendarFeedDialog({ open, onOpenChange, label, description, upgradeHref }: CalendarFeedDialogProps) {
-  const available = useCalendarFeedAvailable();
+  const available = useFeatureEnabled(FeatureKeys.CalendarFeed);
   const selectedSiteId = useAppStore((s) => s.selectedSiteId);
   const [subscriptionLabel, setSubscriptionLabel] = useState('');
   const [newUrl, setNewUrl] = useState<string | null>(null);

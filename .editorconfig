@@ -39,3 +39,7 @@ csharp_indent_switch_labels = true
 dotnet_sort_system_directives_first = true
 # CA2016: forward CancellationToken to methods that accept one (holds the ct sweep — F7)
 dotnet_diagnostic.CA2016.severity = warning
+# Dead-code guards (2026-09 declutter): code that compiles but nothing reaches.
+dotnet_diagnostic.IDE0051.severity = warning   # unused private member
+dotnet_diagnostic.IDE0052.severity = warning   # private member assigned but never read
+dotnet_diagnostic.IDE0060.severity = warning   # unused parameter

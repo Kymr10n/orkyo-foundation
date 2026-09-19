@@ -120,7 +120,7 @@ describe('toScheduledEntry', () => {
   });
 
   it('uses the space assignment when request also has person and tool assignments', () => {
-    // Regression: Phase 6 exposed all assignment types; toScheduledEntry must
+    // Regression: requests expose every assignment type; toScheduledEntry must
     // still pick only the space assignment for the grid entry.
     const req = makeRequest({
       assignments: [

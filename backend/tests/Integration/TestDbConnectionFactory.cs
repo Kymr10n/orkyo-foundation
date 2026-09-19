@@ -12,21 +12,18 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// Postgres container without depending on SaaS's concrete
 /// <c>DbConnectionFactory</c> (which has SaaS-specific multi-tenant topology logic).
 ///
-/// Community will later supply its own single-DB implementation of
-/// <see cref="IDbConnectionFactory"/>; this test double mirrors the single-DB
-/// shape it will use (control-plane + tenant connections can point at the
-/// same database or different ones at the caller's choice).
+/// Mirrors the single-database shape Community uses: tenant connections come from
+/// the <see cref="TenantContext"/>, control-plane and admin connections from the
+/// caller-supplied strings.
 /// </summary>
 public sealed class TestDbConnectionFactory : IDbConnectionFactory
 {
     private readonly string _controlPlaneConnectionString;
-    private readonly string _tenantConnectionString;
     private readonly string _adminConnectionString;
 
-    public TestDbConnectionFactory(string controlPlaneConnectionString, string tenantConnectionString, string adminConnectionString)
+    public TestDbConnectionFactory(string controlPlaneConnectionString, string adminConnectionString)
     {
         _controlPlaneConnectionString = controlPlaneConnectionString;
-        _tenantConnectionString = tenantConnectionString;
         _adminConnectionString = adminConnectionString;
     }
 

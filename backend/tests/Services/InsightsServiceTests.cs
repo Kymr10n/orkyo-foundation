@@ -90,16 +90,6 @@ public class InsightsServiceTests
     private static readonly DateTime Mar = new(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc);
     private const int JanMinutes = 31 * 24 * 60; // 44640
 
-    private static ScheduledRequestLite Scheduled(Guid id, DateTime start, Guid? siteId) => new(id, start, siteId);
-
-    private static ConflictInfo Conflict(string kind) => new()
-    {
-        Id = $"{Guid.NewGuid()}-{kind}",
-        Kind = kind,
-        Severity = "error",
-        Message = kind,
-    };
-
     private static ResourceInfo SpaceResource(Guid id, int availability = 100) => new()
     {
         Id = id,

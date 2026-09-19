@@ -6,8 +6,7 @@ import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ResourceTypeCustomFieldsDialog } from './ResourceTypeCustomFieldsDialog';
-import type { ResourceCustomField } from '@foundation/src/lib/api/resource-custom-fields-api';
-import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { machineResourceType, customField } from '@foundation/src/test-utils/resource-fixtures';
 
 // Partial: the module also exports the shared data-type labels, which the UI renders.
 vi.mock('@foundation/src/lib/api/resource-custom-fields-api', async (importOriginal) => ({
@@ -29,39 +28,12 @@ import {
   getResourceCustomFields,
   deleteResourceCustomField,
 } from '@foundation/src/lib/api/resource-custom-fields-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
-const resourceType: ResourceTypeInfo = {
-  id: 'type-machine',
-  key: 'machine',
-  displayName: 'Machine',
-  displayNamePlural: 'Machines',
-  hasGeometry: false,
-  hasDirectoryProfile: false,
-  singleGroupMembership: false,
-  isSystem: false,
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
-
-function field(overrides: Partial<ResourceCustomField> & { key: string }): ResourceCustomField {
-  return {
-    id: `field-${overrides.key}`,
-    resourceTypeId: resourceType.id,
-    label: overrides.key,
-    dataType: 'text',
-    isRequired: false,
-    sortOrder: 0,
-    isActive: true,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
+const resourceType = machineResourceType;
 
 function renderDialog(open = true) {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>
@@ -84,8 +56,8 @@ describe('ResourceTypeCustomFieldsDialog', () => {
     vi.clearAllMocks();
     vi.mocked(deleteResourceCustomField).mockResolvedValue(undefined);
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number', isRequired: true }),
-      field({ key: 'datasheet', label: 'Datasheet', dataType: 'url' }),
+      customField({ key: 'serial_number', label: 'Serial number', isRequired: true }),
+      customField({ key: 'datasheet', label: 'Datasheet', dataType: 'url' }),
     ]);
   });
 
@@ -106,8 +78,8 @@ describe('ResourceTypeCustomFieldsDialog', () => {
 
   it('marks required and hidden fields', async () => {
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number', isRequired: true }),
-      field({ key: 'legacy', label: 'Legacy code', isActive: false }),
+      customField({ key: 'serial_number', label: 'Serial number', isRequired: true }),
+      customField({ key: 'legacy', label: 'Legacy code', isActive: false }),
     ]);
 
     renderDialog();

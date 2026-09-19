@@ -23,7 +23,7 @@ import {
   purgeCatalogType,
 } from '@foundation/src/lib/api/resource-type-catalog-api';
 import { toast } from 'sonner';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 import { qk } from '@foundation/src/lib/api/query-keys';
 
 const entry = (overrides: Partial<CatalogEntry>): CatalogEntry => ({
@@ -89,7 +89,7 @@ const catalog: CatalogEntry[] = [
 ];
 
 function renderCatalog() {
-  const { queryClient, spy } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient, spy } = createTestQueryClient({ feedback: true });
   const view = render(
     <QueryClientProvider client={queryClient}>
       <TypeCatalogSettings />

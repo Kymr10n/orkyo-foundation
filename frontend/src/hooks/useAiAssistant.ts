@@ -118,7 +118,7 @@ export function useRevokeAiAllowance() {
 /**
  * Whether *this* user can chat right now, and what budget is left.
  *
- * Distinct from `useAiAssistantAvailable`, which only answers whether the workspace's
+ * Distinct from `useFeatureEnabled(FeatureKeys.AiAssistant)`, which only answers whether the workspace's
  * plan includes the feature. A member of an entitled workspace still needs a grant.
  */
 export function useAiStatus(enabled = true) {

@@ -4,7 +4,6 @@ using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
@@ -31,10 +30,7 @@ public class SecurityEndpointsTests
         _mockKeycloak = _factory.MockKeycloakAdminService;
         _mockKeycloak.Reset(); // Start fresh for each test
 
-        _client = _factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        _client = _factory.CreateClient();
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 

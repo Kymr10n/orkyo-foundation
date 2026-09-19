@@ -59,10 +59,6 @@ public class KeycloakAdminServiceTests
         return new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions);
     }
 
-    /// <summary>Build a service where every request returns 200 with <paramref name="body"/>.</summary>
-    private static KeycloakAdminService BuildSimple(string body) =>
-        Build(new[] { ("", HttpStatusCode.OK, body) });
-
     /// <summary>
     /// Build a service whose responses are produced by <paramref name="responder"/> and whose
     /// requests (and their bodies) are captured for assertion — used where header control or

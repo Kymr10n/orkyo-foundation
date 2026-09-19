@@ -12,12 +12,10 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class AuditEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly DatabaseFixture _fixture;
     private readonly string _connString;
 
     public AuditEndpointsTests(DatabaseFixture fixture)
     {
-        _fixture = fixture;
         _client = fixture.Factory.CreateClient();
         _connString = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
     }

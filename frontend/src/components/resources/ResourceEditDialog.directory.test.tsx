@@ -43,24 +43,12 @@ vi.mock('./ResourceDirectoryFields', () => ({
 
 import { createResource, updateResource } from '@foundation/src/lib/api/resources-api';
 import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
+import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 
-const baseType: ResourceTypeInfo = {
-  id: 'type-machine',
-  key: 'machine',
-  displayName: 'Machine',
-  displayNamePlural: 'Machines',
-  hasGeometry: false,
-  hasDirectoryProfile: false,
-  singleGroupMembership: false,
-  isSystem: false,
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
 
 const personType: ResourceTypeInfo = {
-  ...baseType,
+  ...machineResourceType,
   id: 'type-person',
   key: 'person',
   displayName: 'Person',
@@ -69,7 +57,7 @@ const personType: ResourceTypeInfo = {
 };
 
 function renderDialog(resourceType: ResourceTypeInfo, resource: ResourceInfo | null = null) {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <ResourceEditDialog
@@ -91,7 +79,7 @@ beforeEach(() => {
 
 describe('ResourceEditDialog directory fields', () => {
   it('shows no directory block for a type without a directory profile', () => {
-    renderDialog(baseType);
+    renderDialog(machineResourceType);
 
     expect(screen.queryByLabelText('Email')).not.toBeInTheDocument();
   });
@@ -103,7 +91,7 @@ describe('ResourceEditDialog directory fields', () => {
   });
 
   it('omits the directory fields from the payload for a non-directory type', async () => {
-    renderDialog(baseType);
+    renderDialog(machineResourceType);
 
     await userEvent.type(screen.getByLabelText('Name'), 'Mill 1');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -157,7 +145,7 @@ describe('ResourceEditDialog directory fields', () => {
 
   it('does not judge the email of a non-directory type', async () => {
     // The field is not on screen, so a stale value can never block the save.
-    renderDialog(baseType);
+    renderDialog(machineResourceType);
 
     await userEvent.type(screen.getByLabelText('Name'), 'Mill 1');
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { SiteEditDialog } from './SiteEditDialog';
 import type { Site } from '@foundation/src/lib/api/site-api';
@@ -10,19 +9,7 @@ vi.mock('@foundation/src/lib/api/site-api', () => ({
   updateSite: vi.fn(),
 }));
 
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  // The scaffolds ask for the phone override; this stub is always above that breakpoint.
-  useFullScreenOnPhone: () => undefined,
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
-    open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
 vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -33,7 +20,7 @@ vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
 });
 
 import { createSite, updateSite } from '@foundation/src/lib/api/site-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 const existingSite: Site = {
   id: 's1',
@@ -47,7 +34,7 @@ const existingSite: Site = {
 
 function renderDialog(props: Partial<Parameters<typeof SiteEditDialog>[0]> = {}) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <SiteEditDialog site={null} open onOpenChange={vi.fn()} {...props} />

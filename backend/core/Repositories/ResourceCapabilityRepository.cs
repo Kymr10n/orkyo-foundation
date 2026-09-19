@@ -18,7 +18,6 @@ public interface IResourceCapabilityRepository
 public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectionFactory connectionFactory)
     : IResourceCapabilityRepository
 {
-    // Single constant so Phase 2 only changes this string.
     private const string TableName = "resource_capabilities";
 
     private const string SelectColumns =

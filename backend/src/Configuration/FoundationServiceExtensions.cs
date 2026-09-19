@@ -237,7 +237,7 @@ public static class FoundationServiceExtensions
             .WithRequestFilters(filters =>
                 filters.AddCallToolFilter(Api.PlatformApi.Mcp.McpToolPipeline.AuditAndContainErrors));
 
-        // ── Scheduling solver (singleton — stateless and thread-safe) ─────────
+        // ── Scheduling solver (solvers + analyzer singleton — stateless and thread-safe) ──
         services.AddScoped<SchedulingProblemBuilder>();
         services.AddSingleton<SchedulingFeasibilityAnalyzer>();
         services.AddSingleton<ISchedulingSolver, OrToolsSchedulingSolver>();

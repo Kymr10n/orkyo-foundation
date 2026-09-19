@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import {
   useDeleteAiCredential,
   useRevokeAiAllowance,
@@ -39,7 +39,7 @@ describe('useAiAssistant mutation feedback', () => {
 
   it('toasts the daily-limits outcome from meta', async () => {
     vi.mocked(aiApi.saveAiDailyLimits).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createFeedbackTestQueryWrapper() });
+    const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
     await result.current.mutateAsync({ userDailyTurns: 1, tenantDailyTurns: null });
 
@@ -48,7 +48,7 @@ describe('useAiAssistant mutation feedback', () => {
 
   it('toasts the daily-limits failure from meta', async () => {
     vi.mocked(aiApi.saveAiDailyLimits).mockRejectedValue(new Error('nope'));
-    const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createFeedbackTestQueryWrapper() });
+    const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
     await expect(result.current.mutateAsync({ userDailyTurns: 1, tenantDailyTurns: null })).rejects.toThrow('nope');
 
@@ -66,7 +66,7 @@ describe('useAiAssistant mutation feedback', () => {
       updatedAt: null,
       lastVerifiedAt: null,
     });
-    const { result } = renderHook(() => useSaveAiCredential(), { wrapper: createFeedbackTestQueryWrapper() });
+    const { result } = renderHook(() => useSaveAiCredential(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
     await result.current.mutateAsync('sk-ant-x');
 
@@ -75,7 +75,7 @@ describe('useAiAssistant mutation feedback', () => {
 
   it('delete credential toasts its success message from meta', async () => {
     vi.mocked(aiApi.deleteAiCredential).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useDeleteAiCredential(), { wrapper: createFeedbackTestQueryWrapper() });
+    const { result } = renderHook(() => useDeleteAiCredential(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
     await result.current.mutateAsync();
 
@@ -86,7 +86,7 @@ describe('useAiAssistant mutation feedback', () => {
 
   it('save allowance toasts its success message from meta', async () => {
     vi.mocked(aiApi.saveAiAllowance).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useSaveAiAllowance(), { wrapper: createFeedbackTestQueryWrapper() });
+    const { result } = renderHook(() => useSaveAiAllowance(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
     await result.current.mutateAsync({ userId: 'u1', monthlyTokenLimit: 10 });
 
@@ -95,7 +95,7 @@ describe('useAiAssistant mutation feedback', () => {
 
   it('revoke allowance toasts its success message from meta', async () => {
     vi.mocked(aiApi.revokeAiAllowance).mockResolvedValue(undefined);
-    const { result } = renderHook(() => useRevokeAiAllowance(), { wrapper: createFeedbackTestQueryWrapper() });
+    const { result } = renderHook(() => useRevokeAiAllowance(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
     await result.current.mutateAsync('u1');
 

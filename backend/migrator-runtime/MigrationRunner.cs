@@ -77,15 +77,6 @@ public sealed class MigrationRunner
         var history = new MigrationHistory(historyConnection);
         await history.EnsureTableExistsAsync(ct);
 
-        // Legacy adoption: mark requested ids as already-applied (idempotent) before the
-        // rest of the flow reads applied state. Anything in AdoptIds that doesn't match a
-        // known script for this target is reported as an error so a typo in the baseline
-        // file fails fast rather than silently skipping cutover.
-        if (options.AdoptIds.Count > 0)
-        {
-            await AdoptIdsAsync(history, ordered, options, ct);
-        }
-
         var applied = await history.LoadAppliedAsync(ct);
 
         var superseded = ValidateAppliedChecksums(ordered, applied);
@@ -161,58 +152,6 @@ public sealed class MigrationRunner
                 ? new MigrationResult(s, MigrationOutcome.Applied, null, null)
                 : new MigrationResult(s, MigrationOutcome.Skipped, null, null))
             .ToList();
-    }
-
-    private async Task AdoptIdsAsync(
-        MigrationHistory history,
-        IReadOnlyList<MigrationScript> ordered,
-        MigrationOptions options,
-        CancellationToken ct)
-    {
-        // An id here that matches no script for this target is NOT an error. The baseline
-        // records what a legacy database had already run before the migrator existed, so it
-        // carries ids from before scripts were renamed or dropped — 2010.saas.tenants is in
-        // the deployed file and ships today as 2010.saas.tenants_extensions. Adopting a
-        // script that no longer exists is a no-op by definition, so skip it and say so.
-        //
-        // This was briefly a hard failure. It is not: the throw broke every deploy at the
-        // adopt step, because the assumption behind it — that the per-target split leaves
-        // only typos — ignores the legacy history the baseline exists to record.
-        var byId = ordered.ToDictionary(s => s.Id, StringComparer.Ordinal);
-        var unknown = options.AdoptIds.Where(id => !byId.ContainsKey(id)).ToList();
-        if (unknown.Count > 0)
-        {
-            _logger.LogInformation(
-                "Legacy-adoption baseline lists {Count} id(s) with no matching script for target "
-                + "'{Target}'; nothing to adopt for them: {Ids}",
-                unknown.Count, ordered[0].TargetDatabase, string.Join(", ", unknown));
-        }
-
-        var version = options.AppliedByVersion ?? "legacy-adoption";
-        var inserted = 0;
-        var skipped = 0;
-        foreach (var id in options.AdoptIds)
-        {
-            if (!byId.TryGetValue(id, out var script)) continue;
-            if (await history.AdoptAppliedAsync(script, version, ct))
-            {
-                inserted++;
-                _logger.LogInformation(
-                    "Adopted '{Id}' (module {Module}) as already-applied (legacy cutover)",
-                    script.Id, script.Module);
-            }
-            else
-            {
-                skipped++;
-            }
-        }
-
-        if (inserted > 0 || skipped > 0)
-        {
-            _logger.LogInformation(
-                "Legacy adoption summary: {Inserted} new rows recorded, {Skipped} already present",
-                inserted, skipped);
-        }
     }
 
     /// <summary>

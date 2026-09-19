@@ -33,7 +33,7 @@ import {
   getResourceTypes,
   deleteResourceType,
 } from '@foundation/src/lib/api/resource-types-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 const types: ResourceTypeInfo[] = [
   {
@@ -66,7 +66,7 @@ const types: ResourceTypeInfo[] = [
 ];
 
 function renderSettings() {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <MemoryRouter>
       <QueryClientProvider client={queryClient}>

@@ -24,11 +24,11 @@ vi.mock('@foundation/src/components/ui/popover', () => ({
 }));
 
 import { createResourceAbsence } from '@foundation/src/lib/api/resource-absences-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 function renderDialog(props: Partial<React.ComponentProps<typeof ResourceAbsenceEditDialog>> = {}) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <ResourceAbsenceEditDialog

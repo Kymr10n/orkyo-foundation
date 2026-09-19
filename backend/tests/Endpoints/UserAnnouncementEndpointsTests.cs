@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
 using Xunit;
 
@@ -24,8 +23,7 @@ public class UserAnnouncementEndpointsTests
     {
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
-        _noRedirect = databaseFixture.Factory.CreateClient(
-            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        _noRedirect = databaseFixture.Factory.CreateClient();
         _conn = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
     }
 

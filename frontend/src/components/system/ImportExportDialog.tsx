@@ -27,7 +27,8 @@ import { selectActiveExport, useUiActionsStore } from "@foundation/src/store/ui-
 import { AlertCircle, Download, Upload } from "lucide-react";
 import { Alert, AlertTitle, AlertDescription } from "@foundation/src/components/ui/alert";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
-import { useDataExportAvailable } from "@foundation/src/hooks/useDataExportAvailable";
+import { FeatureKeys } from "@foundation/contracts/plans";
+import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import { useState, useRef } from "react";
 
 interface ImportExportDialogProps {
@@ -61,7 +62,7 @@ export function ImportExportDialog({
   // CSV/JSON exports and imports are built client-side, so this dialog is
   // their only gate. (The organization JSON export is additionally enforced
   // server-side via FeatureKeys.DataExport.)
-  const available = useDataExportAvailable();
+  const available = useFeatureEnabled(FeatureKeys.DataExport);
   const exportRegistry = useUiActionsStore((s) => s.exportRegistry);
   const importRegistry = useUiActionsStore((s) => s.importRegistry);
   const active = selectActiveExport({ exportRegistry, importRegistry });

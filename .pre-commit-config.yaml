@@ -79,6 +79,25 @@ repos:
         pass_filenames: false
         stages: [pre-push]
         always_run: true
+      - id: load-dotenv-test
+        name: load-dotenv.sh parser tests
+        entry: bash scripts/load-dotenv.test.sh
+        language: system
+        pass_filenames: false
+        files: '^scripts/load-dotenv(\.test)?\.sh$'
+
+      - id: dead-registrations
+        name: DI registrations have a consumer
+        entry: python3 scripts/ci/check-dead-registrations.py
+        language: system
+        pass_filenames: false
+        files: '\.cs$'
+
+      - id: stale-markers
+        name: no overdue TODOs or wave/phase tags in added lines
+        entry: scripts/ci/check-stale-markers.sh
+        language: system
+
       - id: docs-impact
         name: docs impact recorded (user-visible changes)
         entry: scripts/check-docs-impact.sh

@@ -4,7 +4,8 @@ import { format } from 'date-fns';
 
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
-import { useAuditLogAvailable } from '@foundation/src/hooks/useAuditLogAvailable';
+import { FeatureKeys } from '@foundation/contracts/plans';
+import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { getTenantAuditEvents, type TenantAuditEvent } from '@foundation/src/lib/api/audit-api';
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -36,11 +37,11 @@ interface AuditLogTabProps {
 
 /**
  * Tenant-admin audit log (foundation → appears in SaaS + Community). Tier-gated to
- * Professional+ in SaaS via {@link useAuditLogAvailable}; always available in Community.
+ * Professional+ in SaaS via `useFeatureEnabled(FeatureKeys.AuditLog)`; always available in Community.
  * The page itself is already behind RequireTenantAdmin in TenantApp routing.
  */
 export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
-  const available = useAuditLogAvailable();
+  const available = useFeatureEnabled(FeatureKeys.AuditLog);
   const [events, setEvents] = useState<TenantAuditEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0); // OrkyoDataTable is 0-indexed

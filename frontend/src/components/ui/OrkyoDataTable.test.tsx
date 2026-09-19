@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { OrkyoDataTable, type ColumnDef } from './OrkyoDataTable';
+import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 
 interface Row {
   id: string;
@@ -386,34 +387,7 @@ describe('OrkyoDataTable', () => {
 
 // ── Responsive card mode ───────────────────────────────────────────────────
 describe('OrkyoDataTable — card mode', () => {
-  // Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
-  const originalMatchMedia = window.matchMedia.bind(window);
-
-  function setViewport(width: number) {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: vi.fn((query: string) => {
-        const min = /\(min-width:\s*(\d+)px\)/.exec(query);
-        return {
-          matches: min ? width >= Number(min[1]) : false,
-          media: query,
-          onchange: null,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          dispatchEvent: () => false,
-        } as unknown as MediaQueryList;
-      }),
-    });
-  }
-
-  afterEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
-      value: originalMatchMedia,
-      writable: true,
-      configurable: true,
-    });
-  });
+  afterEach(restoreViewport);
 
   const renderCard = (row: Row) => <div data-testid="card">{row.name}</div>;
 

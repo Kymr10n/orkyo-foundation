@@ -51,7 +51,7 @@ public record CriterionInfo
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 
-    // Phase 3: Criterion applicability
+    // Criterion applicability
     public bool ApplicableToRequests { get; init; } = true;
 
     /// <summary>

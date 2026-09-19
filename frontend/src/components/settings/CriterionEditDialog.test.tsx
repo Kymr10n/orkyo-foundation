@@ -4,18 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { CriterionEditDialog } from './CriterionEditDialog';
 
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  // The scaffolds ask for the phone override; this stub is always above that breakpoint.
-  useFullScreenOnPhone: () => undefined,
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  ScrollableDialogBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
 // Applicability targets come from the API now, so the dialog needs a QueryClient it
 // never had before; mocked here in the same style as the criteria mutations below.

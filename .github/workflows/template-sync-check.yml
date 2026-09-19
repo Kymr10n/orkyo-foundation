@@ -21,6 +21,7 @@ on:
       - 'scripts/ci/check-synced-files.sh'
       - 'scripts/ci/check-frontend-path-collisions.sh'
       - 'scripts/ci/lint-migration-headers.sh'
+      - 'scripts/ci/check-dead-registrations.py'
       - 'global.json'
 
 permissions:
@@ -60,6 +61,16 @@ jobs:
 
       - name: Check frontend path collisions (G8)
         run: bash orkyo-foundation/scripts/ci/check-frontend-path-collisions.sh "$GITHUB_WORKSPACE"
+
+      # Registered-but-never-injected services, checked with every consumer present so a
+      # seam that only a product injects is not reported as dead. Strict: all three repos
+      # are checked out here, so a finding is real.
+      - name: Check dead DI registrations
+        run: |
+          for repo in orkyo-foundation orkyo-saas orkyo-community; do
+            echo "== ${repo}"
+            (cd "${repo}" && python3 scripts/ci/check-dead-registrations.py --strict)
+          done
 
   # Compiles the consumers' backends against THIS checkout of foundation, not the
   # published packages: side-by-side checkouts reproduce the local sibling layout, so

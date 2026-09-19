@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { SpreadsheetImportWizard } from './SpreadsheetImportWizard';
+import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import type { SheetData } from '@foundation/src/lib/utils/spreadsheet-import';
 
 const readWorkbook = vi.fn<(file: File) => Promise<SheetData[]>>();
@@ -23,8 +24,8 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
 vi.mock('@foundation/src/lib/api/request-api', () => ({
   createRequest: (...args: unknown[]) => createRequest(...args),
 }));
-vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
-  useDataExportAvailable: () => dataExportAvailable,
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.DataExport && dataExportAvailable,
 }));
 vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
   useResourceTypes: () => ({ data: activeTypes }),
@@ -55,7 +56,7 @@ const TEMPLATE: SheetData[] = [
 
 function renderWizard() {
   return render(<SpreadsheetImportWizard open onOpenChange={() => {}} />, {
-    wrapper: createFeedbackTestQueryWrapper(),
+    wrapper: createTestQueryWrapper({ feedback: true }),
   });
 }
 

@@ -7,7 +7,7 @@ import {
   PLAN_COLUMN_GAP,
 } from './plan-layout';
 import type { RequestPlanChild } from '@foundation/src/lib/api/request-plan-api';
-import type { RequestDependency } from '@foundation/src/lib/api/request-dependency-api';
+import { edge } from '@foundation/src/test-utils/dependency-fixtures';
 
 function child(id: string, sortOrder = 0): RequestPlanChild {
   return {
@@ -27,18 +27,6 @@ function child(id: string, sortOrder = 0): RequestPlanChild {
   };
 }
 
-function edge(pred: string, succ: string): RequestDependency {
-  return {
-    id: `${pred}->${succ}`,
-    predecessorRequestId: pred,
-    successorRequestId: succ,
-    predecessorName: pred,
-    successorName: succ,
-    dependencyType: 'finish_to_start',
-    lagMinutes: 0,
-    createdAt: '2026-06-01T00:00:00Z',
-  };
-}
 
 const columnOf = (layout: ReturnType<typeof computePlanLayout>, id: string) =>
   layout.nodes.find((n) => n.id === id)!.column;

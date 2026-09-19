@@ -41,7 +41,7 @@ import {
   revokeReportingToken,
   type CreatedReportingToken,
 } from '@foundation/src/lib/api/reporting-tokens-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 const activeToken: ReportingTokenSummary = {
   id: 'tok-1',
@@ -73,7 +73,7 @@ const revokedToken: ReportingTokenSummary = {
 
 function renderPage(props?: ComponentProps<typeof ReportingApiSettings>) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>

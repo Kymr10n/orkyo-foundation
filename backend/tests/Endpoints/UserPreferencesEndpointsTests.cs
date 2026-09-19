@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AwesomeAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -17,10 +16,7 @@ public class UserPreferencesEndpointsTests
     public UserPreferencesEndpointsTests(DatabaseFixture databaseFixture)
     {
         _factory = databaseFixture.Factory;
-        _client = _factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        _client = _factory.CreateClient();
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 

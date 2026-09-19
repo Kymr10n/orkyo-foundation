@@ -6,6 +6,7 @@ import { OrganizationSettings } from './OrganizationSettings';
 import * as tenantApi from '@foundation/src/lib/api/tenant-management-api';
 import * as tenantsApi from '@foundation/src/lib/api/tenant-account-api';
 import * as userApi from '@foundation/src/lib/api/user-api';
+import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 
 // Mock APIs
 vi.mock('@foundation/src/lib/api/tenant-management-api');
@@ -30,8 +31,8 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
 }));
 
 let mockDataExportAvailable = true;
-vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
-  useDataExportAvailable: () => mockDataExportAvailable,
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.DataExport && mockDataExportAvailable,
 }));
 
 let mockAuth = {

@@ -12,6 +12,8 @@
 # See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G4).
 
 scripts/ci/lint-migration-headers.sh	orkyo-foundation	orkyo-saas,orkyo-community
+scripts/ci/check-dead-registrations.py	orkyo-foundation	orkyo-saas,orkyo-community
+scripts/ci/check-stale-markers.sh	orkyo-foundation	orkyo-saas,orkyo-community
 global.json	orkyo-foundation	orkyo-saas,orkyo-community
 scripts/check-env.sh	orkyo-saas	orkyo-community
 Directory.Build.props	orkyo-saas	orkyo-community
@@ -24,6 +26,8 @@ frontend/scripts/sync-foundation-build.mjs	orkyo-saas	orkyo-community
 frontend/scripts/validate-foundation-imports.mjs	orkyo-saas	orkyo-community
 frontend/scripts/check-dedupe-sync.mjs	orkyo-saas	orkyo-community
 frontend/src/test/vite-config.test.ts	orkyo-saas	orkyo-community
+frontend/scripts/check-foundation-peers.mjs	orkyo-saas	orkyo-community
+.editorconfig	orkyo-saas	orkyo-community
 
 # Agent configuration: the STE hook and the vendored simple-english skill are byte-identical
 # in every repo (2026-09 review, X3). Documentation and infra are not checked out by the

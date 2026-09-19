@@ -45,35 +45,6 @@ internal sealed class MigrationHistory
     }
 
     /// <summary>
-    /// Idempotent insert used by the legacy-adoption flow: marks <paramref name="script"/>
-    /// as already-applied without executing its SQL. <c>execution_ms</c> is left NULL and
-    /// <c>applied_by_version</c> is set to the supplied value (typically a marker like
-    /// <c>"legacy-adoption-2026-04-25"</c>). Re-running is a no-op via
-    /// <c>ON CONFLICT (id) DO NOTHING</c>.
-    /// </summary>
-    public async Task<bool> AdoptAppliedAsync(
-        MigrationScript script,
-        string? appliedByVersion,
-        CancellationToken ct = default)
-    {
-        const string sql = $@"
-            INSERT INTO {TableName}
-                (id, module, target_database, checksum, applied_by_version, execution_ms, success)
-            VALUES
-                (@id, @module, @target, @checksum, @version, NULL, true)
-            ON CONFLICT (id) DO NOTHING
-        ";
-        await using var cmd = new NpgsqlCommand(sql, _connection);
-        cmd.Parameters.AddWithValue("id", script.Id);
-        cmd.Parameters.AddWithValue("module", script.Module);
-        cmd.Parameters.AddWithValue("target", script.TargetDatabase.ToString());
-        cmd.Parameters.AddWithValue("checksum", script.Checksum);
-        cmd.Parameters.AddWithValue("version", (object?)appliedByVersion ?? DBNull.Value);
-        var rows = await cmd.ExecuteNonQueryAsync(ct);
-        return rows == 1;
-    }
-
-    /// <summary>
     /// Rewrites an applied migration's stored checksum to the current text's, for a file that
     /// declared the old hash as superseded. Leaves applied_at and applied_by_version alone: the
     /// migration really did run then, and only its recorded text has changed.

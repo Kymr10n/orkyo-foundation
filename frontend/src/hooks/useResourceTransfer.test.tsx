@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useResourceTransfer } from './useResourceTransfer';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
-import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
@@ -27,19 +27,7 @@ import { createResource } from '@foundation/src/lib/api/resources-api';
 import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { exportResources, importResources } from '@foundation/src/lib/utils/export-handlers';
 
-const resourceType: ResourceTypeInfo = {
-  id: 'type-machine',
-  key: 'machine',
-  displayName: 'Machine',
-  displayNamePlural: 'Machines',
-  hasGeometry: false,
-  hasDirectoryProfile: false,
-  singleGroupMembership: false,
-  isSystem: false,
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
+const resourceType = machineResourceType;
 
 const resources = [{ id: 'res-1', name: 'Lathe' } as ResourceInfo];
 

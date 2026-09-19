@@ -4,7 +4,7 @@ import { ConflictsTab } from '@foundation/src/components/insights/ConflictsTab';
 import { useConflictRegistry, useConflictedRequests } from '@foundation/src/hooks/useConflictRegistry';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
-import { useAiAssistantAvailable } from '@foundation/src/hooks/useAiAssistantAvailable';
+import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { useAiStatus } from '@foundation/src/hooks/useAiAssistant';
 
 // The tab reads its window from the router <Outlet context> and renders a conflict-trend chart.
@@ -73,8 +73,8 @@ vi.mock('@foundation/src/components/requests/useRequestEditor', () => ({
 // The assistant affordance reads the workspace entitlement and the caller's own budget,
 // both of which need auth context. Stubbed off by default so these tests stay about
 // conflicts; the "Ask the assistant" entry point has its own test below.
-vi.mock('@foundation/src/hooks/useAiAssistantAvailable', () => ({
-  useAiAssistantAvailable: vi.fn(() => false),
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: vi.fn(() => false),
 }));
 vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
   useAiStatus: vi.fn(() => ({ data: { available: false } })),
@@ -363,7 +363,7 @@ describe('ConflictsTab', () => {
     it('offers an assistant entry point per conflict that does not open the request editor', () => {
       // The card itself opens the editor, so this button has to stop the click bubbling —
       // otherwise asking a question would silently open an edit dialog too.
-      vi.mocked(useAiAssistantAvailable).mockReturnValue(true);
+      vi.mocked(useFeatureEnabled).mockReturnValue(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(useAiStatus).mockReturnValue({ data: { available: true } } as any);
 

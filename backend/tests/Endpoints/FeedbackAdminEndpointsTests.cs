@@ -15,14 +15,12 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class FeedbackAdminEndpointsTests : IAsyncLifetime
 {
-    private readonly DatabaseFixture _fixture;
     private readonly HttpClient _client;          // token-driven (site-admin / regular / none)
     private readonly HttpClient _authoredClient;  // tenant member, for submitting feedback
     private readonly string _conn;
 
     public FeedbackAdminEndpointsTests(DatabaseFixture fixture)
     {
-        _fixture = fixture;
         _client = fixture.Factory.CreateClient();
         _authoredClient = fixture.CreateAuthorizedClient();
         _conn = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";

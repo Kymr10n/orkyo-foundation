@@ -6,7 +6,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ResourceEditDialog } from './ResourceEditDialog';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceCustomField } from '@foundation/src/lib/api/resource-custom-fields-api';
-import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { machineResourceType, customField } from '@foundation/src/test-utils/resource-fixtures';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   createResource: vi.fn(),
@@ -25,39 +25,12 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
 
 import { createResource, updateResource } from '@foundation/src/lib/api/resources-api';
 import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
-import { createFeedbackTestQueryClientWithSpy } from '@foundation/src/test-utils';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
-const resourceType: ResourceTypeInfo = {
-  id: 'type-machine',
-  key: 'machine',
-  displayName: 'Machine',
-  displayNamePlural: 'Machines',
-  hasGeometry: false,
-  hasDirectoryProfile: false,
-  singleGroupMembership: false,
-  isSystem: false,
-  isActive: true,
-  createdAt: '2026-01-01T00:00:00Z',
-  updatedAt: '2026-01-01T00:00:00Z',
-};
-
-function field(overrides: Partial<ResourceCustomField> & { key: string }): ResourceCustomField {
-  return {
-    id: `field-${overrides.key}`,
-    resourceTypeId: resourceType.id,
-    label: overrides.key,
-    dataType: 'text',
-    isRequired: false,
-    sortOrder: 0,
-    isActive: true,
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
+const resourceType = machineResourceType;
 
 function renderDialog(resource: ResourceInfo | null = null) {
-  const { queryClient } = createFeedbackTestQueryClientWithSpy();
+  const { queryClient } = createTestQueryClient({ feedback: true });
   return render(
     <QueryClientProvider client={queryClient}>
       <ResourceEditDialog
@@ -79,9 +52,9 @@ describe('ResourceEditDialog custom fields', () => {
 
   it('renders the type’s active fields in sort order', async () => {
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number', sortOrder: 1 }),
-      field({ key: 'datasheet', label: 'Datasheet', dataType: 'url', sortOrder: 2 }),
-      field({ key: 'retired', label: 'Retired field', isActive: false, sortOrder: 3 }),
+      customField({ key: 'serial_number', label: 'Serial number', sortOrder: 1 }),
+      customField({ key: 'datasheet', label: 'Datasheet', dataType: 'url', sortOrder: 2 }),
+      customField({ key: 'retired', label: 'Retired field', isActive: false, sortOrder: 3 }),
     ]);
 
     renderDialog();
@@ -93,7 +66,7 @@ describe('ResourceEditDialog custom fields', () => {
 
   it('blocks submit until a required field is filled in', async () => {
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number', isRequired: true }),
+      customField({ key: 'serial_number', label: 'Serial number', isRequired: true }),
     ]);
 
     renderDialog();
@@ -110,7 +83,7 @@ describe('ResourceEditDialog custom fields', () => {
 
   it('sends the values with the create request', async () => {
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number' }),
+      customField({ key: 'serial_number', label: 'Serial number' }),
     ]);
 
     renderDialog();
@@ -131,8 +104,8 @@ describe('ResourceEditDialog custom fields', () => {
     // A save replaces the whole document, so a value the form never showed would otherwise
     // be discarded the next time anyone renames the resource.
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number' }),
-      field({ key: 'legacy_code', label: 'Legacy code', isActive: false }),
+      customField({ key: 'serial_number', label: 'Serial number' }),
+      customField({ key: 'legacy_code', label: 'Legacy code', isActive: false }),
     ]);
 
     renderDialog({
@@ -178,7 +151,7 @@ describe('ResourceEditDialog custom fields', () => {
     await userEvent.type(screen.getByLabelText('Name'), 'Lathe');
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
 
-    resolve([field({ key: 'notes', label: 'Notes' })]);
+    resolve([customField({ key: 'notes', label: 'Notes' })]);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
   });
 
@@ -196,7 +169,7 @@ describe('ResourceEditDialog custom fields', () => {
     // A checkbox has no unfilled state to render, so requiring one to be ticked would disable
     // Save with nothing on screen to fix.
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'certified', label: 'Certified', dataType: 'boolean', isRequired: true }),
+      customField({ key: 'certified', label: 'Certified', dataType: 'boolean', isRequired: true }),
     ]);
 
     renderDialog();
@@ -214,7 +187,7 @@ describe('ResourceEditDialog custom fields', () => {
 
   it('does not send a field the user typed into and cleared again', async () => {
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'notes', label: 'Notes' }),
+      customField({ key: 'notes', label: 'Notes' }),
     ]);
 
     renderDialog();
@@ -234,7 +207,7 @@ describe('ResourceEditDialog custom fields', () => {
 
   it('sends the built-in fields alongside the custom ones', async () => {
     // The custom-field section sits beside the standing fields; both go in one request.
-    vi.mocked(getResourceCustomFields).mockResolvedValue([field({ key: 'notes', label: 'Notes' })]);
+    vi.mocked(getResourceCustomFields).mockResolvedValue([customField({ key: 'notes', label: 'Notes' })]);
 
     renderDialog();
 
@@ -277,7 +250,7 @@ describe('ResourceEditDialog custom fields', () => {
     // a resource of a tenant-defined placeable type always 400'd.
     vi.mocked(getResourceCustomFields).mockResolvedValue([]);
     const placeable = { ...resourceType, key: 'car', displayName: 'Car', displayNamePlural: 'Cars', hasGeometry: true };
-    const { queryClient } = createFeedbackTestQueryClientWithSpy();
+    const { queryClient } = createTestQueryClient({ feedback: true });
     render(
       <QueryClientProvider client={queryClient}>
         <ResourceEditDialog resourceType={placeable} resource={null} open onOpenChange={() => {}} />
@@ -298,8 +271,8 @@ describe('ResourceEditDialog custom fields', () => {
     // Dirty-checking stringifies the whole form, so rewriting a key at the end of the document
     // would make an undone edit look permanently unsaved and trap the discard prompt.
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial_number', label: 'Serial number' }),
-      field({ key: 'notes', label: 'Notes' }),
+      customField({ key: 'serial_number', label: 'Serial number' }),
+      customField({ key: 'notes', label: 'Notes' }),
     ]);
 
     renderDialog({
@@ -333,7 +306,7 @@ describe('ResourceEditDialog width', () => {
   it('widens to fit a list field, which renders a whole data table', async () => {
     // The reported bug: a maintenance-log list inside the default form width scrolled sideways.
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'maintenance', label: 'Maintenance log', dataType: 'list' }),
+      customField({ key: 'maintenance', label: 'Maintenance log', dataType: 'list' }),
     ]);
     renderDialog();
 
@@ -346,7 +319,7 @@ describe('ResourceEditDialog width', () => {
     // The directory types bind department and job title as list_lookup, so a Person form showed
     // two row pickers at the narrow width — a cramped stack of boxes with their own scrollbars.
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'department', label: 'Department', dataType: 'list_lookup' }),
+      customField({ key: 'department', label: 'Department', dataType: 'list_lookup' }),
     ]);
     renderDialog();
 
@@ -358,7 +331,7 @@ describe('ResourceEditDialog width', () => {
   it('keeps the default form width when every field is a plain input', async () => {
     // Widening unconditionally would strand single-column inputs across 720px.
     vi.mocked(getResourceCustomFields).mockResolvedValue([
-      field({ key: 'serial', label: 'Serial', dataType: 'text' }),
+      customField({ key: 'serial', label: 'Serial', dataType: 'text' }),
     ]);
     renderDialog();
 

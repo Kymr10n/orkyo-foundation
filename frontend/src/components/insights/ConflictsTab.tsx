@@ -13,7 +13,8 @@ import { Button } from "@foundation/src/components/ui/button";
 import { ConflictTrendChart } from "@foundation/src/components/insights/InsightsTrendCharts";
 import { useInsightsConflicts } from "@foundation/src/hooks/useInsights";
 import { useInsightsTabContext } from "@foundation/src/components/insights/insightsTabContext";
-import { useAiAssistantAvailable } from "@foundation/src/hooks/useAiAssistantAvailable";
+import { FeatureKeys } from "@foundation/contracts/plans";
+import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 
@@ -26,7 +27,7 @@ export function ConflictsTab() {
   // The assistant opens with the conflict already in view, so the person does not have to
   // restate what they are looking at. Guidance stays in the panel — the request editor
   // remains the one place a request's details are edited (UI-GUIDELINES §15).
-  const assistantEntitled = useAiAssistantAvailable();
+  const assistantEntitled = useFeatureEnabled(FeatureKeys.AiAssistant);
   const { data: aiStatus } = useAiStatus(assistantEntitled);
   const assistantAvailable = assistantEntitled && aiStatus?.available === true;
   const openAssistant = useUiActionsStore((s) => s.openAssistant);

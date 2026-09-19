@@ -35,11 +35,11 @@ import {
   updateAvailabilityEvent,
   deleteAvailabilityEvent,
 } from '@foundation/src/lib/api/availability-events-api';
-import { createFeedbackTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 function makeWrapper() {
   // Production-identical feedback MutationCache: the hooks declare meta.
-  return createFeedbackTestQueryWrapper();
+  return createTestQueryWrapper({ feedback: true });
 }
 
 // ── useSchedulingSettings ─────────────────────────────────────────────────────

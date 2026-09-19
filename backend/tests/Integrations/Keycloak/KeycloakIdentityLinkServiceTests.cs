@@ -19,13 +19,11 @@ namespace Orkyo.Foundation.Tests.Integrations.Keycloak;
 [Collection("Database collection")]
 public class KeycloakIdentityLinkServiceTests
 {
-    private readonly DatabaseFixture _fixture;
     private readonly IDbConnectionFactory _dbFactory;
     private readonly Mock<IEmailService> _emailService;
 
     public KeycloakIdentityLinkServiceTests(DatabaseFixture fixture)
     {
-        _fixture = fixture;
         _dbFactory = fixture.Factory.Services.GetRequiredService<IDbConnectionFactory>();
         _emailService = new Mock<IEmailService>();
         _emailService.Setup(e => e.SendNewUserAlertAsync(It.IsAny<string>(), It.IsAny<string>()))

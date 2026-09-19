@@ -1,16 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router';
+import { MemoryRouter, Routes, Route, Navigate } from 'react-router';
 import { SettingsPage } from './SettingsPage';
 
 function Stub({ id }: { id: string }) {
   return <div data-testid={id} />;
-}
-
-function LocationProbe() {
-  const loc = useLocation();
-  return <div data-testid="path">{loc.pathname}</div>;
 }
 
 function renderAt(initialPath: string) {
@@ -25,7 +20,6 @@ function renderAt(initialPath: string) {
           <Route path="presets" element={<Stub id="preset-settings" />} />
           <Route path="scheduling" element={<Stub id="scheduling-settings" />} />
         </Route>
-        <Route path="*" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -75,20 +69,5 @@ describe('SettingsPage', () => {
     renderAt('/settings/criteria');
     await userEvent.click(screen.getByRole('tab', { name: 'Scheduling' }));
     expect(screen.getByTestId('scheduling-settings')).toBeInTheDocument();
-  });
-
-  it('legacy ?tab=criteria redirects within Settings', () => {
-    renderAt('/settings?tab=criteria');
-    expect(screen.getByTestId('criteria-settings')).toBeInTheDocument();
-  });
-
-  it.each([
-    ['sites', '/tenant-admin/sites'],
-    ['organization', '/tenant-admin/organization'],
-    ['jobTitles', '/organization'],
-    ['departments', '/organization'],
-  ])('legacy ?tab=%s redirects out of Settings to %s', (legacy, target) => {
-    renderAt(`/settings?tab=${legacy}`);
-    expect(screen.getByTestId('path').textContent).toBe(target);
   });
 });

@@ -41,7 +41,9 @@ public class TemplateItem
 }
 
 // API request/response models
-public class CreateTemplateRequest
+
+/// <summary>The template shape create and update share; the validators validate it once.</summary>
+public abstract class TemplateRequestBase
 {
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
@@ -54,8 +56,15 @@ public class CreateTemplateRequest
     public bool FixedEnd { get; set; } = false;
     public bool FixedDuration { get; set; } = true;
 
-    /// <summary>Request templates only. Omit or empty for a template that targets nothing.</summary>
+    /// <summary>
+    /// Request templates only. On create, omit or empty for a template that targets nothing;
+    /// on update, null leaves the types as they are and empty clears them.
+    /// </summary>
     public IReadOnlyList<string>? TargetResourceTypeKeys { get; set; }
+}
+
+public class CreateTemplateRequest : TemplateRequestBase
+{
 }
 
 public class CreateTemplateItemRequest
@@ -64,19 +73,6 @@ public class CreateTemplateItemRequest
     public string Value { get; set; } = "{}";
 }
 
-public class UpdateTemplateRequest
+public class UpdateTemplateRequest : TemplateRequestBase
 {
-    public string Name { get; set; } = string.Empty;
-    public string? Description { get; set; }
-    public string EntityType { get; set; } = string.Empty;
-
-    // Request-specific fields
-    public int? DurationValue { get; set; }
-    public string? DurationUnit { get; set; }
-    public bool FixedStart { get; set; } = false;
-    public bool FixedEnd { get; set; } = false;
-    public bool FixedDuration { get; set; } = true;
-
-    /// <summary>Request templates only. Null leaves the types as they are; empty clears them.</summary>
-    public IReadOnlyList<string>? TargetResourceTypeKeys { get; set; }
 }

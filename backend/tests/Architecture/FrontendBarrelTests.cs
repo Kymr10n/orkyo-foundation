@@ -25,8 +25,6 @@ public class FrontendBarrelTests
         "components/ui/index.ts",
         "constants/index.ts",
         "lib/utils/index.ts",
-        "store/index.ts",
-        "types/index.ts",
     };
 
     [Fact]

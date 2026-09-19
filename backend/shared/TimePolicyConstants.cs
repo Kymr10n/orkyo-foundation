@@ -27,31 +27,17 @@ public static class TimePolicyConstants
 /// </summary>
 public static class LifecyclePolicyConstants
 {
-    public const int TenantSuspendAfterDormantDays = 30;
     public const int TenantDeleteGraceDays = 7;
     // Warn the owner/admins this many days before auto-suspension kicks in.
     public const int TenantSuspendWarnBeforeDays = 7;
-    // How long a suspended tenant sits before it is marked pending_deletion.
-    // Same 90 days as the user purge, but deliberately its own constant: the
-    // tenant path used to borrow UserPurgeAfterDormantDays, which meant editing
-    // the user retention policy would silently move tenant deletion too.
-    public const int TenantDeleteAfterSuspendedDays = 90;
 
-    public const int UserInactiveWarningAfterMonths = 12;
     public const int UserWarningReminderDays = 14;
     public const int UserPurgeAfterDormantDays = 90;
-
-    // Validity of a confirm-activity token. Comfortably covers the full warned
-    // window (warnings are UserWarningReminderDays apart, with deactivation that
-    // far again after warning #3) while still bounding token reuse so a leaked
-    // link cannot re-activate an account indefinitely.
-    public const int UserConfirmTokenValidityDays = 30;
 
     public const string TenantSuspendAfterDormantSqlInterval = "30 days";
     // Idle threshold at which the pre-suspension warning fires = (suspend - warn-before) days.
     public const string TenantSuspendWarnAfterDormantSqlInterval = "23 days";
     public const string TenantDeleteGraceSqlInterval = "7 days";
-    public const string TenantDeleteAfterSuspendedSqlInterval = "90 days";
     public const string UserInactiveWarningSqlInterval = "12 months";
     public const string UserWarningReminderSqlInterval = "14 days";
     public const string UserPurgeAfterDormantSqlInterval = "90 days";

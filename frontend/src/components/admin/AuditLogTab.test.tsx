@@ -3,14 +3,15 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { AuditLogTab } from './AuditLogTab';
+import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import { getTenantAuditEvents } from '@foundation/src/lib/api/audit-api';
 
 vi.mock('@foundation/src/lib/api/audit-api', () => ({
   getTenantAuditEvents: vi.fn(),
 }));
 
-vi.mock('@foundation/src/hooks/useAuditLogAvailable', () => ({
-  useAuditLogAvailable: () => true,
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.AuditLog,
 }));
 
 const event = {

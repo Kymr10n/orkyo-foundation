@@ -49,11 +49,11 @@ export function ResourceGroupMembersEditor({
   const canEdit = useCanEdit();
   const [allResources, setAllResources] = useState<ResourceInfo[]>([]);
   const [selectedResourceIds, setSelectedResourceIds] = useState<Set<string>>(new Set());
-  // For spaces only: resourceId → the OTHER group it currently belongs to (1:1 rule).
+  // resourceId → the OTHER group it currently belongs to (1:1 rule).
   const [otherGroupByResource, setOtherGroupByResource] = useState<Map<string, string>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Pending move confirmation: spaces that will be moved out of another group on save.
+  // Pending move confirmation: resources that will be moved out of another group on save.
   const [pendingMoves, setPendingMoves] = useState<{ name: string; from: string }[] | null>(null);
   const [search, setSearch] = useState('');
   const [showOnlySelected, setShowOnlySelected] = useState(false);

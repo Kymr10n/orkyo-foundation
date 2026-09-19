@@ -6,7 +6,7 @@ namespace Api.Services;
 
 public interface ICapabilityMatcher
 {
-    // Phase 3: Typed operator matching
+    // Typed operator matching
     Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,
         RequestRequirementInfo requirement, CancellationToken ct = default);
@@ -20,7 +20,7 @@ public interface ICapabilityMatcher
 
 public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepository) : ICapabilityMatcher
 {
-    // Phase 3: Typed operator matching (≥/≤/= for Number, Enum membership, String equality, Boolean)
+    // Typed operator matching (≥/≤/= for Number, Enum membership, String equality, Boolean)
     public async Task<bool> ResourceSatisfiesRequirementAsync(
         Guid resourceId,
         RequestRequirementInfo requirement, CancellationToken ct = default)

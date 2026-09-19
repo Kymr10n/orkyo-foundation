@@ -25,7 +25,7 @@ function entryPoint(rect: PlanRect) {
  * rightwards and arrives leftwards no matter how the rows line up. A straight line between
  * distant rows would cut across the nodes between them.
  */
-export function edgePath(from: { x: number; y: number }, to: { x: number; y: number }): string {
+function edgePath(from: { x: number; y: number }, to: { x: number; y: number }): string {
   const pull = Math.max(40, Math.abs(to.x - from.x) / 2);
   return `M ${from.x} ${from.y} C ${from.x + pull} ${from.y}, ${to.x - pull} ${to.y}, ${to.x} ${to.y}`;
 }

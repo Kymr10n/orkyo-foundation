@@ -20,7 +20,8 @@ import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT } from "@foundation/src/constants/auth"
 import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useSites } from "@foundation/src/hooks/useSites";
-import { useAiAssistantAvailable } from "@foundation/src/hooks/useAiAssistantAvailable";
+import { FeatureKeys } from "@foundation/contracts/plans";
+import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
 import { useAppStore } from "@foundation/src/store/app-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
@@ -107,7 +108,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
   // Two conditions, deliberately: the workspace's plan has to include the assistant,
   // and this person has to have a grant with budget left. Either one missing means no
   // affordance rather than a button that always fails.
-  const assistantEntitled = useAiAssistantAvailable();
+  const assistantEntitled = useFeatureEnabled(FeatureKeys.AiAssistant);
   const { data: aiStatus } = useAiStatus(assistantEntitled);
   const assistantAvailable = assistantEntitled && aiStatus?.available === true;
   const uiOpenTour = useUiActionsStore((s) => s.openTour);

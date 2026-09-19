@@ -19,13 +19,10 @@
  */
 
 import type React from "react";
-import { type TrackingConfig } from "./tracking.types";
 
 interface TrackingProviderProps {
   /** Child components */
   children: React.ReactNode;
-  /** Optional tracking configuration (for future use) */
-  config?: TrackingConfig;
 }
 
 /**
@@ -34,17 +31,6 @@ interface TrackingProviderProps {
  * Currently a pass-through component that renders children without modification.
  * Serves as an architectural extension seam for future tracking implementation.
  */
-export const TrackingProvider: React.FC<TrackingProviderProps> = ({
-  children,
-  config: _config,
-}) => {
-  // TODO: Implement consent state management
-  // TODO: Implement consent banner/modal (when needed)
-  // TODO: Load analytics scripts only after consent
-  // TODO: Provide tracking context to child components
-  // TODO: Implement event tracking API
-  // TODO: Ensure GDPR/revDSG compliance
-
-  // MVP: Simply render children with no tracking active
+export const TrackingProvider: React.FC<TrackingProviderProps> = ({ children }) => {
   return <>{children}</>;
 };

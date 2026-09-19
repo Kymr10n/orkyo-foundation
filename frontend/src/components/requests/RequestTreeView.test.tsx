@@ -5,7 +5,9 @@ import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestTreeView } from './RequestTreeView';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { Request } from '@foundation/src/types/requests';
+import { makeRequest } from '@foundation/src/test-utils/request-fixtures';
 import type { FlatTreeEntry } from '@foundation/src/domain/request-tree';
+import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 
 // Mock request-tree-store (used by TreeRow for expandedIds)
 const mockExpandedIds = new Set<string>();
@@ -42,33 +44,6 @@ vi.mock('@tanstack/react-virtual', () => ({
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
-
-function makeRequest(overrides: Partial<Request> = {}): Request {
-  return {
-    id: 'r-1',
-    name: 'Test Request',
-    description: null,
-    parentRequestId: null,
-    planningMode: 'leaf',
-    sortOrder: 0,
-    assignments: [],
-    startTs: null,
-    endTs: null,
-    earliestStartTs: null,
-    latestEndTs: null,
-    minimalDurationValue: 60,
-    minimalDurationUnit: 'minutes',
-    actualDurationValue: null,
-    actualDurationUnit: null,
-    durationMin: undefined,
-    schedulingSettingsApply: true,
-    status: 'new',
-    requirements: [],
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
-    ...overrides,
-  };
-}
 
 const parentRequest = makeRequest({
   id: 'parent-1',
@@ -309,40 +284,13 @@ describe('RequestTreeView', () => {
 });
 
 describe('RequestTreeView — touch affordances', () => {
-  // Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
-  const originalMatchMedia = window.matchMedia.bind(window);
-
-  function setViewport(width: number) {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: vi.fn((query: string) => {
-        const min = /\(min-width:\s*(\d+)px\)/.exec(query);
-        return {
-          matches: min ? width >= Number(min[1]) : false,
-          media: query,
-          onchange: null,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          dispatchEvent: () => false,
-        } as unknown as MediaQueryList;
-      }),
-    });
-  }
-
   beforeEach(() => {
     mockExpandedIds.clear();
     mockExpandedIds.add('parent-1');
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
-  afterEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
-      value: originalMatchMedia,
-      writable: true,
-      configurable: true,
-    });
-  });
+  afterEach(restoreViewport);
 
   it('keeps row actions hover-gated on desktop', () => {
     setViewport(1280);

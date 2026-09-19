@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.Json;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -23,10 +22,7 @@ public class BffAuthEndpointsTests
     public BffAuthEndpointsTests(DatabaseFixture databaseFixture)
     {
         _factory = databaseFixture.Factory;
-        _client = _factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
+        _client = _factory.CreateClient();
     }
 
     // ── GET /api/auth/bff/login ──────────────────────────────────────────────

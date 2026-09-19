@@ -15,7 +15,9 @@ public static class TenantStatusConstants
 
 /// <summary>
 /// Canonical suspension-reason values. Must match the DB check constraint on
-/// <c>tenants.suspension_reason</c> (migration V015).
+/// <c>tenants.suspension_reason</c> (migration V015). Only <see cref="Inactivity"/> and
+/// <see cref="ManualAdmin"/> are written by code today; the rest mirror the constraint's
+/// vocabulary so a value the database accepts always has a named constant here.
 /// </summary>
 public static class SuspensionReasonConstants
 {

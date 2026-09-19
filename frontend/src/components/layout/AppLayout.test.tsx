@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
+import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 
 vi.mock('@foundation/src/store/app-store', () => ({
   useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -139,38 +140,11 @@ describe('AppLayout', () => {
 });
 
 describe('AppLayout — responsive shell', () => {
-  // Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
-  const originalMatchMedia = window.matchMedia.bind(window);
-
-  function setViewport(width: number) {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: vi.fn((query: string) => {
-        const min = /\(min-width:\s*(\d+)px\)/.exec(query);
-        return {
-          matches: min ? width >= Number(min[1]) : false,
-          media: query,
-          onchange: null,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          dispatchEvent: () => false,
-        } as unknown as MediaQueryList;
-      }),
-    });
-  }
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    Object.defineProperty(window, 'matchMedia', {
-      value: originalMatchMedia,
-      writable: true,
-      configurable: true,
-    });
-  });
+  afterEach(restoreViewport);
 
   it('desktop: inline sidebar (store-driven), no hamburger', async () => {
     setViewport(1280);

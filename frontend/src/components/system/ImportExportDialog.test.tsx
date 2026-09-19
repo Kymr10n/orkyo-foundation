@@ -2,26 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
-import type { ReactNode } from 'react';
 import { ImportExportDialog } from './ImportExportDialog';
+import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 
-vi.mock('@foundation/src/components/ui/dialog', () => ({
-  DIALOG_SIZE: { sm: '', md: '', lg: '', xl: '' },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => open ? <div role="dialog">{children}</div> : null,
-  DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
-  DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-}));
+vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
 vi.mock('@foundation/src/lib/utils/import-export', () => ({
   getExportFilename: () => 'export-test.csv',
 }));
 
 let mockAvailable = true;
-vi.mock('@foundation/src/hooks/useDataExportAvailable', () => ({
-  useDataExportAvailable: () => mockAvailable,
+vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
+  useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.DataExport && mockAvailable,
 }));
 
 // Labels, description and formats now come from the page's registration, so the
