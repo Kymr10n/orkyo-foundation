@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { Compass } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
+import { ROUTE_HOME } from "@foundation/src/constants/auth";
 
 /**
  * Catch-all 404 page for unknown in-app URLs. Keeps the SPA from rendering
@@ -20,7 +21,7 @@ export function NotFound() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to="/">Go to home</Link>
+          <Link to={ROUTE_HOME}>Go to home</Link>
         </Button>
       </div>
     </div>

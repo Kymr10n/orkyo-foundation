@@ -29,7 +29,7 @@ public class RepositoryScopingTests
         var repositories = typeof(ResourceRepository).Assembly
             .GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false })
-            .Where(t => t.Name.EndsWith("Repository", StringComparison.Ordinal))
+            .Where(t => t.Name.EndsWith("Repository", StringComparison.Ordinal) || TakesAConnectionDependency(t))
             .ToList();
 
         // Sanity: the reflection query must actually find the repositories — a zero-count pass
@@ -48,6 +48,18 @@ public class RepositoryScopingTests
             "IDbConnectionFactory (control-plane) in any constructor, so their data scope is undeclared and could leak " +
             "across tenants. Add the appropriate dependency:\n  " + string.Join("\n  ", offenders));
     }
+
+    /// <summary>
+    /// Anything that takes a connection factory or an <see cref="OrgContext"/> reads the database
+    /// the way a repository does, whatever it is called — the ~18 services that still carry their
+    /// own SQL included. Selecting on the dependency rather than the <c>*Repository</c> suffix
+    /// keeps the guard on a query that moves into a differently-named type.
+    /// </summary>
+    private static bool TakesAConnectionDependency(Type type) =>
+        type.GetConstructors()
+            .SelectMany(c => c.GetParameters())
+            .Any(p => p.ParameterType == typeof(OrgContext)
+                   || p.ParameterType == typeof(IDbConnectionFactory));
 
     private static bool DeclaresDataScope(Type repository) =>
         repository.GetConstructors()

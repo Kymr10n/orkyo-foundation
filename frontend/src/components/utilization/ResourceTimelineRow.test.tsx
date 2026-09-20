@@ -82,7 +82,9 @@ describe('ResourceTimelineRow', () => {
 
   it('shows the loading state', () => {
     renderRow({ isLoadingRow: true });
-    expect(screen.getByText('Loading…')).toBeInTheDocument();
+    // A row whose layout is known renders a Skeleton bar, not a "Loading…" label
+    // (docs/UI-GUIDELINES.md §17).
+    expect(screen.getByTestId('resource-row-loading')).toBeInTheDocument();
     expect(screen.queryByTestId('resource-segment-bar')).not.toBeInTheDocument();
   });
 

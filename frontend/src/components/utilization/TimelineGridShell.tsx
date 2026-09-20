@@ -2,7 +2,7 @@
 import { useRef, useMemo, type ReactNode } from "react";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useShallow } from "zustand/react/shallow";
 import type { TimeScale } from "./ScaleSelect";
@@ -87,7 +87,7 @@ export function TimelineGridShell<R>({
   className = "flex-1 flex flex-col overflow-hidden bg-background",
   testId,
 }: TimelineGridShellProps<R>) {
-  const { collapsedGroupIds, toggleGroupCollapse } = useAppStore(
+  const { collapsedGroupIds, toggleGroupCollapse } = useLayoutStore(
     useShallow((s) => ({
       collapsedGroupIds: s.collapsedGroupIds,
       toggleGroupCollapse: s.toggleGroupCollapse,

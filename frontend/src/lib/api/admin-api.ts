@@ -7,18 +7,11 @@
 
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
-import { PlanCodes, type PlanCode } from '@foundation/contracts/plans';
+import type { PlanCode } from '@foundation/contracts/plans';
 
 // ============================================================================
 // Types
 // ============================================================================
-
-/**
- * The SaaS tiers a platform admin can assign. Deliberately excludes `community`, which is
- * not purchasable and must never appear in TierSelect — see TIER_DISPLAY_NAMES below.
- * For the full wire vocabulary (including Community) use `PlanCode` from contracts/plans.
- */
-export type ServiceTier = Exclude<PlanCode, 'community'>;
 
 /** Mirrors backend TenantStatusConstants and the DB check constraint. */
 export type TenantStatus = 'active' | 'suspended' | 'deleting';
@@ -29,22 +22,6 @@ export const TENANT_STATUS = {
   DELETING: 'deleting',
 } as const satisfies Record<string, TenantStatus>;
 
-export const SERVICE_TIER = {
-  FREE: PlanCodes.Free,
-  PROFESSIONAL: PlanCodes.Professional,
-  ENTERPRISE: PlanCodes.Enterprise,
-} as const satisfies Record<string, ServiceTier>;
-
-/**
- * Display names for the billable tiers. TierSelect iterates this to build its options, so
- * every key here becomes a selectable tier — never add `community`.
- */
-export const TIER_DISPLAY_NAMES: Record<ServiceTier, string> = {
-  free: 'Free',
-  professional: 'Professional',
-  enterprise: 'Enterprise',
-};
-
 export interface AdminTenant {
   id: string;
   slug: string;
@@ -54,7 +31,7 @@ export interface AdminTenant {
   createdAt: string;
   updatedAt: string;
   memberCount?: number;
-  tier: ServiceTier;
+  tier: PlanCode;
 }
 
 export interface AdminUser {
@@ -69,7 +46,7 @@ export interface AdminUser {
   identityCount?: number;
   isSiteAdmin: boolean;
   ownedTenantId: string | null;
-  ownedTenantTier: ServiceTier | null;
+  ownedTenantTier: PlanCode | null;
 }
 
 export interface AdminUserDetail extends AdminUser {
@@ -150,13 +127,6 @@ export async function updateAdminTenant(
   data: { displayName?: string; status?: string }
 ): Promise<{ message: string }> {
   return apiPatch<{ message: string }>(API_PATHS.ADMIN.tenant(tenantId), data);
-}
-
-export async function updateAdminTenantTier(
-  tenantId: string,
-  tier: ServiceTier
-): Promise<{ message: string; tier: string }> {
-  return apiPatch<{ message: string; tier: string }>(API_PATHS.ADMIN.tenantTier(tenantId), { tier });
 }
 
 export async function deleteAdminTenant(tenantId: string): Promise<void> {
@@ -421,23 +391,6 @@ export interface TenantUsageRow {
   };
 }
 
-export interface SubscriptionTierQuota {
-  quotaKey: string;
-  unit: string;
-  limitValue: number | null;
-  booleanValue: boolean | null;
-  enforcementMode: string;
-}
-
-export interface SubscriptionTier {
-  id: string;
-  code: string;
-  displayName: string;
-  isPublic: boolean;
-  sortOrder: number;
-  quotas: SubscriptionTierQuota[];
-}
-
 export interface AdminTenantQuotaDetail {
   tenantId: string;
   tier: { code: string; displayName: string };
@@ -459,23 +412,8 @@ export interface AdminTenantQuotaDetail {
   };
 }
 
-export async function updateAdminSubscriptionTierQuota(
-  tierId: string,
-  quotaKey: string,
-  data: { limitValue?: number; booleanValue?: boolean; enforcementMode?: string },
-): Promise<{ message: string }> {
-  return apiPut<{ message: string }>(
-    API_PATHS.ADMIN.subscriptionTierQuota(tierId, quotaKey),
-    data,
-  );
-}
-
 export async function getAdminTenantsUsage(): Promise<{ tenants: TenantUsageRow[] }> {
   return apiGet<{ tenants: TenantUsageRow[] }>(API_PATHS.ADMIN.TENANTS_USAGE);
-}
-
-export async function getAdminSubscriptionTiers(): Promise<{ tiers: SubscriptionTier[] }> {
-  return apiGet<{ tiers: SubscriptionTier[] }>(API_PATHS.ADMIN.SUBSCRIPTION_TIERS);
 }
 
 export async function getAdminTenantQuotas(tenantId: string): Promise<AdminTenantQuotaDetail> {

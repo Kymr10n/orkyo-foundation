@@ -29,16 +29,20 @@ public interface IConflictService
 
 public class ConflictService(
     IRequestRepository requestRepository,
+    IRequestScheduleReadRepository scheduleReads,
     IResourceAssignmentValidator validator,
     ICapabilityMatcher capabilityMatcher,
     IResourceCapabilityRepository capabilityRepository,
-    IRequestDependencyRepository dependencyRepository) : IConflictService
+    IRequestDependencyRepository dependencyRepository,
+    TimeProvider time) : IConflictService
 {
+    private readonly TimeProvider _time = time;
+
     public async Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
         var requests = from.HasValue && to.HasValue
-            ? await requestRepository.GetScheduledAsync(from.Value, to.Value, ct)
-            : await requestRepository.GetScheduledAsync(ct);
+            ? await scheduleReads.GetScheduledAsync(from.Value, to.Value, ct)
+            : await scheduleReads.GetScheduledAsync(ct);
         if (requests.Count == 0) return [];
 
         // Validate every non-cancelled assignment (room + people + tools) of each request in one
@@ -249,7 +253,7 @@ public class ConflictService(
     /// is incomplete rather than wrong). Nothing is reported while the successor itself is
     /// unscheduled: a backlog item breaks no promise.
     /// </summary>
-    private static IEnumerable<ConflictInfo> DependencyConflicts(
+    private IEnumerable<ConflictInfo> DependencyConflicts(
         RequestInfo request,
         IReadOnlyDictionary<Guid, List<RequestDependencyInfo>> edgesBySuccessor,
         IReadOnlyDictionary<Guid, RequestInfo> byId)
@@ -259,7 +263,7 @@ public class ConflictService(
 
         // A cancelled or deferred predecessor is work that will not happen, so it cannot hold
         // this request back. Same exclusion the critical path and the execution gate apply.
-        var now = DateTime.UtcNow;
+        var now = _time.GetUtcNow().UtcDateTime;
         var edges = allEdges
             .Where(e => !(byId.TryGetValue(e.PredecessorRequestId, out var p)
                           && JoinConditionEvaluator.IsAbandoned(p, now)))

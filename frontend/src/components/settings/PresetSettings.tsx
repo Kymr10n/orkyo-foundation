@@ -1,4 +1,3 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Badge } from "@foundation/src/components/ui/badge";
@@ -19,30 +18,21 @@ import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import {
-  applyPreset,
   downloadPreset,
-  exportPreset,
-  getPresetApplications,
   parsePresetFile,
-  validatePreset,
   type Preset,
   type PresetApplication,
   type PresetApplicationResult,
   type PresetValidationResult,
 } from "@foundation/src/lib/api/preset-api";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
-import { toast } from "sonner";
 import {
-  AlertCircle,
-  CheckCircle2,
-  Download,
-  FileJson,
-  History,
-  Loader2,
-  Upload,
-} from "lucide-react";
+  useApplyPreset,
+  useExportPreset,
+  usePresetApplications,
+  useValidatePreset,
+} from "@foundation/src/hooks/usePresets";
+import { toast } from "sonner";
+import { AlertCircle, CheckCircle2, Download, FileJson, History, Upload } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 import { cn } from "@foundation/src/lib/utils";
@@ -66,50 +56,26 @@ export function PresetSettings() {
   const [exportDescription, setExportDescription] = useState("");
 
   // Load preset application history
-  const { data: applications = [], isLoading: loadingHistory } = useQuery({
-    queryKey: qk.presetApplications.all(),
-    queryFn: getPresetApplications,
+  const { data: applications = [], isLoading: loadingHistory } = usePresetApplications();
+
+  const validateMutation = useValidatePreset((result) => {
+    setValidationResult(result);
   });
 
-  // Validate mutation
-  const validateMutation = useMutation({
-    mutationFn: validatePreset,
-    onSuccess: (result) => {
-      setValidationResult(result);
-    },
+  const applyMutation = useApplyPreset((result) => {
+    setApplicationResult(result);
   });
 
-  // Apply mutation. No successMessage: the response carries its own success flag and
-  // the in-dialog application-result panel is the feedback; a central toast could
-  // claim success on a partially-failed application. Invalidation is harmless either
-  // way, so it lives in meta per docs/dialog-feedback.md.
-  const applyMutation = useMutation({
-    mutationFn: applyPreset,
-    meta: {
-      invalidates: [
-        qk.presetApplications.all(),
-        qk.criteria.all(),
-        // Presets write space groups; their queries live under the
-        // resource-groups key for the space type.
-        qk.resourceGroups.byType(RESOURCE_TYPE_KEY.SPACE),
-        qk.templates("request"),
-        qk.templates("space"),
-        qk.templates("group"),
-      ],
-    },
-    onSuccess: (result) => {
-      setApplicationResult(result);
-    },
-  });
+  const resetExportForm = () => {
+    setExportPresetId("");
+    setExportName("");
+    setExportDescription("");
+  };
 
-  // Export mutation
-  const exportMutation = useMutation({
-    mutationFn: () => exportPreset(exportPresetId, exportName, exportDescription || undefined),
-    onSuccess: (preset) => {
-      downloadPreset(preset);
-      setExportDialogOpen(false);
-      resetExportForm();
-    },
+  const exportMutation = useExportPreset((preset) => {
+    downloadPreset(preset);
+    setExportDialogOpen(false);
+    resetExportForm();
   });
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,11 +116,6 @@ export function PresetSettings() {
     setPreviewDialogOpen(false);
   };
 
-  const resetExportForm = () => {
-    setExportPresetId("");
-    setExportName("");
-    setExportDescription("");
-  };
 
   const formatDate = (dateStr: string) => {
     return formatLocalized(new Date(dateStr), {
@@ -314,10 +275,7 @@ export function PresetSettings() {
 
               {/* Validation Result */}
               {validateMutation.isPending && (
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Validating preset...
-                </div>
+                <LoadingSpinner inline size="xs" muted message="Validating preset…" />
               )}
 
               {validationResult && !validationResult.isValid && (
@@ -451,7 +409,13 @@ export function PresetSettings() {
               Cancel
             </Button>
             <Button
-              onClick={() => exportMutation.mutate()}
+              onClick={() =>
+                exportMutation.mutate({
+                  presetId: exportPresetId,
+                  name: exportName,
+                  description: exportDescription || undefined,
+                })
+              }
               loading={exportMutation.isPending}
               disabled={!exportPresetId || !exportName || exportMutation.isPending}
             >

@@ -1,8 +1,8 @@
 import { useState } from 'react';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { Pencil, Plus, Rows3, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
-import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
@@ -47,7 +47,8 @@ export function ListInstancesDialog({
   const [managingRows, setManagingRows] = useState<ListInstance | null>(null);
 
   return (
-    <ScaffoldDialog
+    <FormDialog
+      footer={null}
       open={open}
       onOpenChange={onOpenChange}
       title={`Shared lists — ${definitionName}`}
@@ -61,7 +62,7 @@ export function ListInstancesDialog({
           </Button>
         </div>
 
-        {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
+        {isLoading && <LoadingSpinner fullScreen={false} size="sm" muted className="py-6" />}
 
         {!isLoading && instances.length === 0 && (
           <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
@@ -121,7 +122,8 @@ export function ListInstancesDialog({
       )}
 
       {managingRows && (
-        <ScaffoldDialog
+        <FormDialog
+          footer={null}
           open={managingRows !== null}
           onOpenChange={(next) => !next && setManagingRows(null)}
           title={`Rows — ${managingRows.name}`}
@@ -133,7 +135,7 @@ export function ListInstancesDialog({
             displayColumnId={definition?.displayColumnId ?? null}
             emptyMessage="No rows yet."
           />
-        </ScaffoldDialog>
+        </FormDialog>
       )}
 
       <ConfirmDialog
@@ -148,7 +150,7 @@ export function ListInstancesDialog({
           setRemoving(null);
         }}
       />
-    </ScaffoldDialog>
+    </FormDialog>
   );
 }
 

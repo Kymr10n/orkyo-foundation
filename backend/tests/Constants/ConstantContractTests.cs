@@ -16,18 +16,18 @@ public class ConstantContractTests
 
     [Fact]
     public void ErrorCodes_NotFound_ShouldMatchContract() =>
-        ErrorCodes.NotFound.Should().Be("NOT_FOUND");
+        ApiErrorCodes.NotFound.Should().Be("NOT_FOUND");
 
     [Fact]
     public void ErrorCodes_ValidationError_ShouldMatchContract() =>
         // "ValidationError" is what has always been emitted on the wire (formerly via nameof in
         // ErrorResponses.BadRequest); casing alignment to "VALIDATION_ERROR" is deferred to the
         // next major. The frontend contract mirror must be updated to this value alongside.
-        ErrorCodes.ValidationError.Should().Be("ValidationError");
+        ApiErrorCodes.ValidationError.Should().Be("ValidationError");
 
     [Fact]
     public void ErrorCodes_Conflict_ShouldMatchContract() =>
-        ErrorCodes.Conflict.Should().Be("CONFLICT");
+        ApiErrorCodes.Conflict.Should().Be("CONFLICT");
 
     // --- ApiErrorCodes (backend ↔ frontend/contracts/claims.ts or api-error-codes.ts) ---
 

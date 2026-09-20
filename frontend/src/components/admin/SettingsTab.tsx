@@ -1,5 +1,5 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
@@ -13,13 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@foundation/src/components/ui/select';
-import {
-  type AdminSettingsResponse,
-  getAdminSettings,
-  updateAdminSettings,
-} from '@foundation/src/lib/api/admin-api';
-import { logger } from '@foundation/src/lib/core/logger';
-import { CheckCircle2, Loader2, Lock, Save } from 'lucide-react';
+import { type AdminSettingsResponse } from '@foundation/src/lib/api/admin-api';
+import { useAdminSettings, useUpdateAdminSettings } from '@foundation/src/hooks/usePlatformAdmin';
+import { CheckCircle2, Lock, Save } from 'lucide-react';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 // Common IANA timezones — use Intl API when available, fall back to curated list
@@ -38,34 +34,28 @@ const TIMEZONES: string[] = (() => {
 type RuntimeFields = AdminSettingsResponse['runtime'];
 
 export function SettingsTab() {
-  const [data, setData] = useState<AdminSettingsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const { data, isLoading } = useAdminSettings();
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Editable runtime fields — initialised from API response
+  // Editable runtime fields — initialised from the API response, and re-seeded whenever a
+  // save replaces it. A render-phase update, not an effect (see useEntityFormDialog.ts).
   const [draft, setDraft] = useState<RuntimeFields | null>(null);
+  const [syncedRuntime, setSyncedRuntime] = useState<RuntimeFields | null>(null);
+  if (data && syncedRuntime !== data.runtime) {
+    setSyncedRuntime(data.runtime);
+    setDraft(data.runtime);
+  }
 
-  const load = useCallback(async () => {
-    try {
-      setError('');
-      const resp = await getAdminSettings();
-      setData(resp);
-      setDraft(resp.runtime);
-    } catch (err) {
-      logger.error('Failed to load admin settings:', err);
-      setError('Failed to load settings');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const saveMutation = useUpdateAdminSettings({
+    onSuccess: (result) => {
+      setSuccessMsg(`Updated ${result.updatedKeys.length} setting(s)`);
+      setTimeout(() => setSuccessMsg(''), 4000);
+    },
+  });
+  const saving = saveMutation.isPending;
 
-  // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
-
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!draft || !data) return;
 
     // Build diff — only send changed values
@@ -86,22 +76,11 @@ export function SettingsTab() {
 
     if (Object.keys(changes).length === 0) return;
 
-    setSaving(true);
     setError('');
     setSuccessMsg('');
-    try {
-      const result = await updateAdminSettings(changes);
-      // Update local state with server response
-      setData(d => d ? { ...d, runtime: result.runtime } : d);
-      setDraft(result.runtime);
-      setSuccessMsg(`Updated ${result.updatedKeys.length} setting(s)`);
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (err) {
-      logger.error('Failed to save settings:', err);
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    saveMutation.mutate(changes, {
+      onError: (err) => setError(errorMessage(err)),
+    });
   };
 
   const isDirty = (() => {
@@ -117,14 +96,11 @@ export function SettingsTab() {
     );
   })();
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card>
         <CardContent className="py-8 md:py-8">
-          <div className="flex items-center justify-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading settings…
-          </div>
+          <LoadingSpinner fullScreen={false} size="sm" muted message="Loading settings…" />
         </CardContent>
       </Card>
     );
@@ -134,7 +110,7 @@ export function SettingsTab() {
     return (
       <Card>
         <CardContent className="py-8 md:py-8">
-          <div className="text-center text-destructive">{error || 'Failed to load settings'}</div>
+          <div className="text-center text-destructive">Failed to load settings</div>
         </CardContent>
       </Card>
     );

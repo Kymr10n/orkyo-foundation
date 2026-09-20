@@ -1,7 +1,8 @@
 // Tailwind class maps — shared between space and people utilization views.
 // Keep canvas hex values in sync with the Tailwind tokens below.
 
-export type BucketStatus = 'available' | 'partial' | 'assigned' | 'overbooked' | 'non-working';
+import type { BucketStatus } from '@foundation/src/domain/scheduling/types';
+
 export type SpaceStatus  = 'available' | 'occupied' | 'conflict';
 
 export const STATUS_CELL_CLASS: Record<BucketStatus, string> = {

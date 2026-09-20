@@ -1,13 +1,14 @@
 using Api.Configuration;
 using Api.Repositories;
+using Api.Services.Caching;
 using Orkyo.Shared;
 
 namespace Api.Services;
 
 /// <summary>
 /// Loads <see cref="RuntimeConfig"/> from the <c>site_settings</c> table.
-/// Uses a TTL-based in-memory cache (same pattern as
-/// <see cref="TenantSettingsService"/>).  Cache is invalidated on write.
+/// Uses the shared <see cref="SingleFlightCache"/> with a TTL, the same as
+/// <see cref="TenantSettingsService"/>.  The entry is removed on write.
 /// </summary>
 public interface ISiteSettingsService
 {
@@ -33,27 +34,26 @@ public sealed class SiteSettingsService : ISiteSettingsService
 {
     private readonly ISiteSettingsRepository _repo;
     private readonly ILogger<SiteSettingsService> _logger;
+    private readonly SingleFlightCache _cache;
 
-    // Static cache shared across all scoped instances — same as TenantSettingsService._siteCache.
-    private static readonly object _cacheLock = new();
-    private static (RuntimeConfig Config, DateTime ExpiresAt)? _cache;
+    // One entry on the shared cache: the resolved config is the same answer for every caller.
+    private const string CacheKey = "site-settings:runtime-config";
     private static readonly TimeSpan CacheTtl = TimePolicyConstants.CacheTtl;
 
     public SiteSettingsService(
         ISiteSettingsRepository repo,
-        ILogger<SiteSettingsService> logger)
+        ILogger<SiteSettingsService> logger,
+        SingleFlightCache cache)
     {
         _repo = repo;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task<RuntimeConfig> GetRuntimeConfigAsync(CancellationToken ct = default)
     {
-        lock (_cacheLock)
-        {
-            if (_cache.HasValue && _cache.Value.ExpiresAt > DateTime.UtcNow)
-                return _cache.Value.Config;
-        }
+        if (_cache.TryGet<RuntimeConfig>(CacheKey, out var cached) && cached is not null)
+            return cached;
 
         try
         {
@@ -69,12 +69,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
             }
 
             var config = RuntimeConfig.ApplyOverrides(runtimeOverrides);
-
-            lock (_cacheLock)
-            {
-                _cache = (config, DateTime.UtcNow + CacheTtl);
-            }
-
+            _cache.Set(CacheKey, config, CacheTtl);
             return config;
         }
         catch (Exception ex)
@@ -94,8 +89,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
             await _repo.UpsertAsync(key, value, category, ct);
         }
 
-        // Invalidate cache
-        lock (_cacheLock) { _cache = null; }
+        _cache.Remove(CacheKey);
 
         _logger.LogInformation("Updated {Count} runtime config setting(s): {Keys}",
             updates.Count, string.Join(", ", updates.Keys));
@@ -112,7 +106,7 @@ public sealed class SiteSettingsService : ISiteSettingsService
 
         if (result)
         {
-            lock (_cacheLock) { _cache = null; }
+            _cache.Remove(CacheKey);
             _logger.LogInformation("Reset runtime config setting '{Key}' to default", key);
         }
 

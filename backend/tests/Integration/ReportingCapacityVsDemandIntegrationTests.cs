@@ -61,7 +61,7 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
 
         try
         {
-            var svc = new ReportingQueryService(factory);
+            var svc = new ReportingQueryService(factory, TimeProvider.System);
             var tenant = new TenantContext
             {
                 TenantId = Guid.NewGuid(),

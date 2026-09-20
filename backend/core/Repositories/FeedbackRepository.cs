@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Security;
 using Api.Services;
@@ -8,7 +9,7 @@ namespace Api.Repositories;
 public interface IFeedbackRepository
 {
     Task<FeedbackResponse> CreateAsync(CreateFeedbackRequest request, Guid? userId, string? userAgent, CancellationToken ct = default);
-    Task<(IReadOnlyList<FeedbackSummary> Items, int Total)> ListAsync(string? status, string? type, int limit, int offset, CancellationToken ct = default);
+    Task<PagedResult<FeedbackSummary>> ListAsync(string? status, string? type, PageRequest page, CancellationToken ct = default);
     Task<FeedbackDetail?> GetByIdAsync(Guid id, CancellationToken ct = default);
     Task<FeedbackDetail?> UpdateAsync(Guid id, UpdateFeedbackRequest request, CancellationToken ct = default);
 }
@@ -51,17 +52,17 @@ public class FeedbackRepository(ICurrentTenant currentTenant, IDbConnectionFacto
             },
             r => new FeedbackResponse
             {
-                Id = r.GetGuid(0),
-                FeedbackType = r.GetString(1),
-                Title = r.GetString(2),
-                Description = r.IsDBNull(3) ? null : r.GetString(3),
-                Status = r.GetString(4),
-                CreatedAt = r.GetDateTime(5)
+                Id = r.GetGuid("id"),
+                FeedbackType = r.GetString("feedback_type"),
+                Title = r.GetString("title"),
+                Description = r.GetNullableString("description"),
+                Status = r.GetString("status"),
+                CreatedAt = r.GetDateTime("created_at")
             }, ct))!;
     }
 
-    public async Task<(IReadOnlyList<FeedbackSummary> Items, int Total)> ListAsync(
-        string? status, string? type, int limit, int offset, CancellationToken ct = default)
+    public async Task<PagedResult<FeedbackSummary>> ListAsync(
+        string? status, string? type, PageRequest page, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateControlPlaneConnection();
 
@@ -76,29 +77,26 @@ public class FeedbackRepository(ICurrentTenant currentTenant, IDbConnectionFacto
             if (!string.IsNullOrWhiteSpace(type)) p.AddWithValue("type", type);
         }
 
-        var total = await conn.ExecuteScalarAsync<long>(
-            $"SELECT COUNT(*) FROM feedback f {where}", BindFilters, ct);
-
-        var items = await conn.QueryListAsync(
+        return await conn.QueryPagedAsync(
+            page,
+            $"SELECT COUNT(*) FROM feedback f {where}",
             $@"SELECT f.id, f.feedback_type, f.title, f.status,
                       t.display_name AS tenant_name, u.email AS submitter_email, f.created_at
                FROM feedback f {DetailJoins}
                {where}
                ORDER BY f.created_at DESC
                LIMIT @limit OFFSET @offset",
-            p => { BindFilters(p); p.AddWithValue("limit", limit); p.AddWithValue("offset", offset); },
+            BindFilters,
             r => new FeedbackSummary
             {
-                Id = r.GetGuid(0),
-                FeedbackType = r.GetString(1),
-                Title = r.GetString(2),
-                Status = r.GetString(3),
-                TenantName = r.IsDBNull(4) ? null : r.GetString(4),
-                SubmitterEmail = r.IsDBNull(5) ? null : r.GetString(5),
-                CreatedAt = r.GetDateTime(6),
+                Id = r.GetGuid("id"),
+                FeedbackType = r.GetString("feedback_type"),
+                Title = r.GetString("title"),
+                Status = r.GetString("status"),
+                TenantName = r.GetNullableString("tenant_name"),
+                SubmitterEmail = r.GetNullableString("submitter_email"),
+                CreatedAt = r.GetDateTime("created_at"),
             }, ct);
-
-        return (items, (int)total);
     }
 
     public async Task<FeedbackDetail?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -128,18 +126,18 @@ public class FeedbackRepository(ICurrentTenant currentTenant, IDbConnectionFacto
 
     private static FeedbackDetail MapDetail(NpgsqlDataReader r) => new()
     {
-        Id = r.GetGuid(0),
-        FeedbackType = r.GetString(1),
-        Title = r.GetString(2),
-        Description = r.IsDBNull(3) ? null : r.GetString(3),
-        PageUrl = r.IsDBNull(4) ? null : r.GetString(4),
-        UserAgent = r.IsDBNull(5) ? null : r.GetString(5),
-        Status = r.GetString(6),
-        AdminNotes = r.IsDBNull(7) ? null : r.GetString(7),
-        GithubIssueUrl = r.IsDBNull(8) ? null : r.GetString(8),
-        TenantName = r.IsDBNull(9) ? null : r.GetString(9),
-        SubmitterEmail = r.IsDBNull(10) ? null : r.GetString(10),
-        CreatedAt = r.GetDateTime(11),
-        UpdatedAt = r.GetDateTime(12),
+        Id = r.GetGuid("id"),
+        FeedbackType = r.GetString("feedback_type"),
+        Title = r.GetString("title"),
+        Description = r.GetNullableString("description"),
+        PageUrl = r.GetNullableString("page_url"),
+        UserAgent = r.GetNullableString("user_agent"),
+        Status = r.GetString("status"),
+        AdminNotes = r.GetNullableString("admin_notes"),
+        GithubIssueUrl = r.GetNullableString("github_issue_url"),
+        TenantName = r.GetNullableString("tenant_name"),
+        SubmitterEmail = r.GetNullableString("submitter_email"),
+        CreatedAt = r.GetDateTime("created_at"),
+        UpdatedAt = r.GetDateTime("updated_at"),
     };
 }

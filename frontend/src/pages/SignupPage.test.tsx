@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { SignupPage } from './SignupPage';
 import type * as ApiUtils from '@foundation/src/lib/core/api-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // SignupPage builds the BFF login URL via the real `buildBffLoginUrl`
 // (tenant-navigation) — left unmocked so the redirect assertions are faithful.
@@ -29,6 +30,7 @@ function renderSignup(search = '') {
     >
       <SignupPage />
     </MemoryRouter>,
+    { wrapper: createTestQueryWrapper() },
   );
 }
 

@@ -130,8 +130,40 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
         var response = await _client.SendAsync(Req(HttpMethod.Get, "/api/admin/feedback", token));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        doc.RootElement.GetProperty("total").GetInt32().Should().BeGreaterThan(0);
+        doc.RootElement.GetProperty("totalItems").GetInt32().Should().BeGreaterThan(0);
         doc.RootElement.GetProperty("items").ValueKind.Should().Be(JsonValueKind.Array);
+    }
+
+    [Fact]
+    public async Task List_Paged_ReturnsTheEnvelopeWithTheRealTotal()
+    {
+        await SubmitAsync();
+        await SubmitAsync();
+        var token = await CreateUserTokenAsync(["user", "site-admin"]);
+
+        var response = await _client.SendAsync(
+            Req(HttpMethod.Get, "/api/admin/feedback?page=1&pageSize=1", token));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        root.GetProperty("items").GetArrayLength().Should().Be(1);
+        root.GetProperty("page").GetInt32().Should().Be(1);
+        root.GetProperty("pageSize").GetInt32().Should().Be(1);
+        root.GetProperty("totalItems").GetInt32().Should().BeGreaterThanOrEqualTo(2);
+        root.GetProperty("hasNextPage").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task List_PageSizeAboveMax_IsClamped()
+    {
+        var token = await CreateUserTokenAsync(["user", "site-admin"]);
+
+        var response = await _client.SendAsync(
+            Req(HttpMethod.Get, "/api/admin/feedback?pageSize=500", token));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+        root.GetProperty("pageSize").GetInt32().Should().Be(100);
     }
 
     [Fact]

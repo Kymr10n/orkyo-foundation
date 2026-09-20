@@ -169,7 +169,7 @@ describe("GroupCapabilitiesEditor", () => {
     expect(toastSuccess).toHaveBeenCalledWith("Capabilities saved");
   });
 
-  it("shows error on save failure (inline + toast)", async () => {
+  it("shows a save failure inline, and does not also toast it", async () => {
     vi.mocked(groupCapApi.getGroupCapabilities)
       .mockResolvedValueOnce(mockExistingCaps) // initial load
       .mockRejectedValueOnce(new Error("Save failed")); // save fetch
@@ -186,9 +186,8 @@ describe("GroupCapabilitiesEditor", () => {
     await waitFor(() => {
       expect(screen.getByText("Save failed")).toBeInTheDocument();
     });
-    expect(toastError).toHaveBeenCalledWith(
-      "Failed to save group capabilities",
-      expect.objectContaining({ description: "Save failed" }),
-    );
+    // One surface per error: the editor stays open with the message inline, so its mutation
+    // sets meta.suppressErrorToast and the central MutationCache stays quiet.
+    expect(toastError).not.toHaveBeenCalled();
   });
 });

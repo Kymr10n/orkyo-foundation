@@ -47,7 +47,7 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 // The editor hook reaches for auth/tenant context this suite has no business standing up; the
 // tab's contract here is "asks the editor to open the right request", which the spy captures.
 const mockOpen = vi.fn();
-vi.mock("@foundation/src/components/requests/useRequestEditor", () => ({
+vi.mock("@foundation/src/hooks/useRequestEditor", () => ({
   useRequestEditor: () => ({ open: mockOpen, dialogs: <div data-testid="request-dialogs" /> }),
 }));
 

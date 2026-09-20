@@ -66,6 +66,7 @@ import {
   cancelAssignment,
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { Conflict } from '@foundation/src/types/requests';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 // The component calls useQueryClient(), so every render needs a provider. This wrapper injects a
 // fresh client with zero call-site changes. Tests asserting invalidation create their own client +
@@ -114,7 +115,7 @@ describe('RequestPeopleSection', () => {
     (getResourceTypes as Mock).mockResolvedValue([
       { id: 'rt-1', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, hasDirectoryProfile: true, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
     ]);
-    (getResources as Mock).mockResolvedValue({ data: mockPeople, total: 2, page: 1, pageSize: 50 });
+    (getResources as Mock).mockResolvedValue(pagedResult(mockPeople, { pageSize: 50 }));
     (getAssignmentsByRequest as Mock).mockResolvedValue([]);
     (validateAssignment as Mock).mockResolvedValue({ severity: 'ok', blockers: [], warnings: [] });
     (createAssignment as Mock).mockResolvedValue({ ...mockAssignment });
@@ -333,7 +334,7 @@ describe('RequestPeopleSection', () => {
   // ── Exclusive resource tests ────────────────────────────────────────────────
 
   it('hides the Alloc % input when the selected person is Exclusive', async () => {
-    (getResources as Mock).mockResolvedValue({ data: mockPeopleWithExclusive, total: 2, page: 1, pageSize: 50 });
+    (getResources as Mock).mockResolvedValue(pagedResult(mockPeopleWithExclusive, { pageSize: 50 }));
     render(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
@@ -356,7 +357,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('calls createAssignment without allocationPercent for an Exclusive resource', async () => {
-    (getResources as Mock).mockResolvedValue({ data: mockPeopleWithExclusive, total: 2, page: 1, pageSize: 50 });
+    (getResources as Mock).mockResolvedValue(pagedResult(mockPeopleWithExclusive, { pageSize: 50 }));
     render(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));

@@ -56,7 +56,8 @@ public class KeycloakAdminServiceTests
     {
         var handler = new DispatchHandler(routes);
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
-        return new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions);
+        return new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
+            TimeProvider.System);
     }
 
     /// <summary>
@@ -69,7 +70,8 @@ public class KeycloakAdminServiceTests
     {
         var handler = new CapturingHandler(responder);
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
-        return (new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions), handler);
+        return (new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
+            TimeProvider.System), handler);
     }
 
     // Token + user lookup preamble that every method needs.
@@ -723,7 +725,7 @@ public class KeycloakAdminServiceTests
 
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         var svc = new KeycloakAdminService(client, DefaultConfiguration,
-            NullLogger<KeycloakAdminService>.Instance, DefaultOptions);
+            NullLogger<KeycloakAdminService>.Instance, DefaultOptions, TimeProvider.System);
 
         // Two calls — token should only be fetched once
         await svc.UserExistsAsync("a@a.com");

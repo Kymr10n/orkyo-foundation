@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
-import type { ColumnDef } from '@foundation/src/lib/table/features';
+import type { ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 import {
   EMPTY_CELL,

@@ -76,8 +76,6 @@ public class UtilizationServiceTests
     {
         var resourceRepo = new Mock<IResourceRepository>();
         resourceRepo.Setup(r => r.GetByIdAsync(ResourceId)).ReturnsAsync(resource);
-        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>()))
-            .ReturnsAsync([resource]);
         resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>()))
             .ReturnsAsync([resource]);
 
@@ -267,6 +265,109 @@ public class UtilizationServiceTests
         Assert.Equal(100m, result.Buckets[1].EffectiveAvailabilityPercent); // normal day
     }
 
+    // ── Coarse granularity ────────────────────────────────────────────────
+    // The suite had no test above "day" until now, which is why a whole class of bug survived:
+    // at day granularity a blocked day covers its entire bucket, so subtracting blocked minutes
+    // and zeroing on contact are indistinguishable. They are not the same at week or month.
+
+    /// <summary>Runs one resource through the service and returns its buckets.</summary>
+    private static async Task<List<UtilizationBucket>> BucketsFor(
+        DateTime from, DateTime to, string granularity, List<BlockedPeriod> blocked,
+        SchedulingSettingsInfo? settings = null)
+    {
+        var resourceRepo = new Mock<IResourceRepository>();
+        resourceRepo.Setup(r => r.GetByIdAsync(ResourceId))
+            .ReturnsAsync(MakeResource(AllocationModes.Fractional));
+        var assignmentRepo = new Mock<IResourceAssignmentRepository>();
+        assignmentRepo.Setup(r => r.GetByResourceAsync(ResourceId, It.IsAny<DateTime>(), It.IsAny<DateTime>()))
+            .ReturnsAsync([]);
+        var groupRepo = new Mock<IResourceGroupMemberRepository>();
+        var resolver = new Mock<IAvailabilityResolver>();
+        if (settings is null)
+        {
+            resolver.WithNoSchedulingSettings();
+        }
+        else
+        {
+            resolver.Setup(r => r.GetSchedulingSettingsForResourcesAsync(
+                    It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Dictionary<Guid, SchedulingSettingsInfo> { [ResourceId] = settings });
+        }
+        resolver.Setup(r => r.GetBlockedPeriodsAsync(ResourceId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blocked);
+
+        var service = new UtilizationService(resourceRepo.Object, assignmentRepo.Object, groupRepo.Object, resolver.Object);
+        var result = await service.GetResourceUtilizationAsync(ResourceId, from, to, granularity);
+        return result!.Buckets;
+    }
+
+    [Fact]
+    public async Task WeekBucket_WithNoBlockedTime_KeepsFullAvailability()
+    {
+        var from = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc); // a Monday
+        var buckets = await BucketsFor(from, from.AddDays(7), "week", []);
+
+        Assert.Single(buckets);
+        Assert.Equal(100m, buckets[0].EffectiveAvailabilityPercent);
+    }
+
+    [Fact]
+    public async Task WeekBucket_WithOneBlockedDay_LosesOnlyThatDay()
+    {
+        var from = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc);
+        var holiday = MakeBlockedPeriod(from.AddDays(2), from.AddDays(3));
+
+        var buckets = await BucketsFor(from, from.AddDays(7), "week", [holiday]);
+
+        // Six of seven days remain open. The old any-overlap rule reported 0 for the whole week.
+        Assert.Single(buckets);
+        Assert.Equal(85.71m, buckets[0].EffectiveAvailabilityPercent);
+    }
+
+    [Fact]
+    public async Task WeekBucket_OverlappingBlockedPeriods_SubtractTheDayOnce()
+    {
+        var from = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc);
+        // An absence and a site closure covering the same day, plus a half-day overlap.
+        var blocked = new List<BlockedPeriod>
+        {
+            MakeBlockedPeriod(from.AddDays(2), from.AddDays(3)),
+            MakeBlockedPeriod(from.AddDays(2).AddHours(12), from.AddDays(3)),
+        };
+
+        var buckets = await BucketsFor(from, from.AddDays(7), "week", blocked);
+
+        Assert.Equal(85.71m, buckets[0].EffectiveAvailabilityPercent);
+    }
+
+    [Fact]
+    public async Task WeekBucket_FullyBlocked_ReadsZero()
+    {
+        var from = new DateTime(2026, 8, 3, 0, 0, 0, DateTimeKind.Utc);
+        var shutdown = MakeBlockedPeriod(from, from.AddDays(7));
+
+        var buckets = await BucketsFor(from, from.AddDays(7), "week", [shutdown]);
+
+        Assert.Equal(0m, buckets[0].EffectiveAvailabilityPercent);
+    }
+
+    /// <summary>
+    /// A week bucket under a real site's working hours. Every other coarse test here runs with
+    /// NO scheduling settings, which the engine reads as 24/7 — so the working-hours mask was
+    /// never exercised above day granularity by anything.
+    /// </summary>
+    [Fact]
+    public async Task WeekBucket_WithWorkingHoursAndWeekendsOff_KeepsFullAvailability()
+    {
+        var from = new DateTime(2026, 9, 14, 0, 0, 0, DateTimeKind.Utc); // a Monday
+        var settings = MakeSettings(workingDayStart: "06:00", workingDayEnd: "14:00", weekendsEnabled: false);
+
+        var buckets = await BucketsFor(from, from.AddDays(7), "week", [], settings);
+
+        Assert.Single(buckets);
+        Assert.Equal(100m, buckets[0].EffectiveAvailabilityPercent);
+    }
+
     // ── Bulk by-resource tests ────────────────────────────────────────────
 
     [Fact]
@@ -302,9 +403,6 @@ public class UtilizationServiceTests
 
         ResourceListFilter? captured = null;
         var resourceRepo = new Mock<IResourceRepository>();
-        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
-            .ReturnsAsync([resource]);
         resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
             .ReturnsAsync([resource]);
@@ -337,9 +435,6 @@ public class UtilizationServiceTests
 
         ResourceListFilter? captured = null;
         var resourceRepo = new Mock<IResourceRepository>();
-        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
-            .ReturnsAsync([resource]);
         resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .Callback<ResourceListFilter, CancellationToken>((f, _) => captured = f)
             .ReturnsAsync([resource]);
@@ -391,8 +486,6 @@ public class UtilizationServiceTests
         var resourceRepo = new Mock<IResourceRepository>();
         resourceRepo.Setup(r => r.GetByIdAsync(resource1.Id)).ReturnsAsync(resource1);
         resourceRepo.Setup(r => r.GetByIdAsync(resource2.Id)).ReturnsAsync(resource2);
-        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>()))
-            .ReturnsAsync([resource1, resource2]);
         resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>()))
             .ReturnsAsync([resource1, resource2]);
         resourceRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
@@ -432,8 +525,6 @@ public class UtilizationServiceTests
         var to = from.AddDays(1);
 
         var resourceRepo = new Mock<IResourceRepository>();
-        resourceRepo.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([r1, r2]);
         resourceRepo.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([r1, r2]);
 

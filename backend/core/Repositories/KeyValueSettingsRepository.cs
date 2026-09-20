@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Npgsql;
 
 namespace Api.Repositories;
@@ -28,7 +29,7 @@ public abstract class KeyValueSettingsRepository
     {
         await using var conn = CreateConnection();
         var rows = await conn.QueryListAsync($"SELECT key, value FROM {TableName}", null,
-            r => (r.GetString(0), r.GetString(1)), ct);
+            r => (r.GetString("key"), r.GetString("value")), ct);
         var settings = new Dictionary<string, string>(rows.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var (k, v) in rows) settings[k] = v;
         return settings;

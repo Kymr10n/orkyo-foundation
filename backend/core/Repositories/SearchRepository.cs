@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -41,19 +42,19 @@ public class SearchRepository : ISearchRepository
 
     private static SearchResult MapResult(NpgsqlDataReader reader)
     {
-        var entityType = reader.GetString(0);
-        var resultSiteId = reader.IsDBNull(4) ? (Guid?)null : reader.GetGuid(4);
+        var entityType = reader.GetString("entity_type");
+        var resultSiteId = reader.GetNullableGuid("site_id");
         return new SearchResult
         {
             Type = entityType,
-            Id = reader.GetGuid(1),
-            Title = reader.GetString(2),
-            Subtitle = reader.IsDBNull(3) ? null : reader.GetString(3),
+            Id = reader.GetGuid("entity_id"),
+            Title = reader.GetString("title"),
+            Subtitle = reader.GetNullableString("subtitle"),
             SiteId = resultSiteId,
-            Score = reader.GetDouble(5),
-            UpdatedAt = reader.GetDateTime(6),
+            Score = reader.GetDouble("score"),
+            UpdatedAt = reader.GetDateTime("updated_at"),
             Permissions = new SearchResultPermissions { CanRead = true, CanEdit = false },
-            ResourceTypeKey = reader.IsDBNull(7) ? null : reader.GetString(7)
+            ResourceTypeKey = reader.GetNullableString("resource_type_key")
         };
     }
 

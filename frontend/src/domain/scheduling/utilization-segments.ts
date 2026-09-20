@@ -13,9 +13,7 @@
  */
 
 import type { ResourceUtilizationBucket } from "@foundation/src/lib/api/resource-utilization-api";
-import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
-import type { BucketStatus } from "@foundation/src/components/utilization/schedule-colors";
-import { overlapsOffTimeRange } from "@foundation/src/components/utilization/time-grid-utils";
+import type { BucketStatus } from "@foundation/src/domain/scheduling/types";
 import { clampToViewPercent } from "@foundation/src/domain/scheduling/schedule-selectors";
 
 export interface ResourceUtilizationSegment {
@@ -33,25 +31,20 @@ export interface ResourceUtilizationSegment {
 /**
  * Derive the aggregated status for a single utilization bucket.
  *
- * Order matters: non-working (no effective availability, or an off-time
- * overlap) wins first; then exclusive occupation; then the fractional bands.
+ * Order matters: non-working wins first; then exclusive occupation; then the
+ * fractional bands.
+ *
+ * `effectiveAvailabilityPercent` is the only input for "was this workable", and
+ * deliberately so. The backend already masks weekends and working hours out of
+ * both sides of the allocation ratio (`SchedulingEngine.WorkingMinutesInWindow`
+ * is its denominator), so a Monday-to-Friday booking in a week bucket arrives as
+ * 100. This function used to ALSO test the off-time ranges the page draws with,
+ * which re-derived the same weekend rule client-side — and did it with an
+ * overlap test, so at Month scale every week bucket touched a Saturday and the
+ * whole grid read "Off" at 0%. One side owns the question now.
  */
-export function deriveBucketStatus(
-  bucket: ResourceUtilizationBucket,
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
-): BucketStatus {
+export function deriveBucketStatus(bucket: ResourceUtilizationBucket): BucketStatus {
   if (bucket.effectiveAvailabilityPercent === 0) return "non-working";
-  if (
-    overlapsOffTimeRange(
-      resourceId,
-      new Date(bucket.start).getTime(),
-      new Date(bucket.end).getTime(),
-      offTimeRanges,
-    )
-  ) {
-    return "non-working";
-  }
   if (bucket.isExclusiveOccupied) return "assigned";
   if (bucket.allocatedPercent === 0) return "available";
   // Strictly greater than capacity = overbooked. Exactly at capacity (e.g. a
@@ -70,8 +63,6 @@ export function deriveBucketStatus(
  */
 export function mergeBucketsToSegments(
   buckets: readonly ResourceUtilizationBucket[],
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
 ): ResourceUtilizationSegment[] {
   const segments: ResourceUtilizationSegment[] = [];
 
@@ -93,7 +84,7 @@ export function mergeBucketsToSegments(
   };
 
   for (const bucket of buckets) {
-    const status = deriveBucketStatus(bucket, resourceId, offTimeRanges);
+    const status = deriveBucketStatus(bucket);
     const contiguous = runStatus === status && runEnd === bucket.start;
 
     if (runStart !== null && contiguous) {

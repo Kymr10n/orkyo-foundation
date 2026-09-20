@@ -65,8 +65,8 @@ vi.mock('sonner', () => ({
 }));
 
 // Mock the store
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: vi.fn((selector) => {
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: vi.fn((selector) => {
     const mockState = {
       selectedSiteId: 'site-1',
     };
@@ -744,7 +744,7 @@ describe('RequestsPage', () => {
 
   // ── Drop error path ─────────────────────────────────────────────────────────
 
-  it('shows an error when drag-and-drop reparent fails', async () => {
+  it('toasts a failed reparent and leaves the list standing', async () => {
     const { moveRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(moveRequest).mockRejectedValueOnce(new Error('Drop failed'));
     mockGetRequests.mockResolvedValue([
@@ -754,7 +754,13 @@ describe('RequestsPage', () => {
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('drop-r1'));
-    await waitFor(() => expect(screen.getByText('Drop failed')).toBeInTheDocument());
+    // The move has no inline surface, so the toast is its one surface. The list loaded fine,
+    // so the page must NOT swap itself for the "Error loading requests" panel.
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Failed to move request', expect.objectContaining({ description: 'Drop failed' })),
+    );
+    expect(screen.getByTestId('tree-view')).toBeInTheDocument();
+    expect(screen.queryByText('Error loading requests')).not.toBeInTheDocument();
   });
 
   // ── Subtree delete + selection clearing ─────────────────────────────────────
@@ -798,7 +804,7 @@ describe('RequestsPage', () => {
 
   // ── Save error toasts ───────────────────────────────────────────────────────
 
-  it('shows a create error toast when creating a request fails', async () => {
+  it('keeps the dialog open without a toast when creating a request fails', async () => {
     const { createRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(createRequest).mockRejectedValueOnce(new Error('Create boom'));
     const Wrapper = createWrapper();
@@ -807,12 +813,14 @@ describe('RequestsPage', () => {
     fireEvent.click(screen.getByText('New Request'));
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-save'));
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('Failed to save request', expect.objectContaining({ description: 'Create boom' })),
-    );
+    // One surface per error: the dialog stays open and reports inline, so no toast fires and
+    // the list behind it is untouched.
+    await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByText('Error loading requests')).not.toBeInTheDocument();
   });
 
-  it('shows an update error toast when editing a request fails', async () => {
+  it('keeps the dialog open without a toast when editing a request fails', async () => {
     const { updateRequest } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(updateRequest).mockRejectedValueOnce(new Error('Update boom'));
     mockGetRequests.mockResolvedValue([
@@ -824,9 +832,11 @@ describe('RequestsPage', () => {
     fireEvent.click(screen.getAllByText('Edit')[0]);
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-save'));
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith('Failed to save request', expect.objectContaining({ description: 'Update boom' })),
-    );
+    // One surface per error: the dialog stays open and reports inline, so no toast fires and
+    // the list behind it is untouched.
+    await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.getByTestId('tree-view')).toBeInTheDocument();
   });
 
   // ── Selection toggle ────────────────────────────────────────────────────────

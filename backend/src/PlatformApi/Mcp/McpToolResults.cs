@@ -37,7 +37,19 @@ public sealed record RequestSummary(
     Guid? SiteId,
     bool IsScheduled);
 
-public sealed record RequestListResult(int Count, IReadOnlyList<RequestSummary> Requests);
+/// <summary>
+/// A page of requests for the MCP tool.
+/// </summary>
+/// <param name="Returned">How many rows are in <paramref name="Requests"/>.</param>
+/// <param name="Truncated">
+/// True when the row cap cut the list, so the model knows to narrow its filter rather than
+/// treating this as the whole backlog. The search this wraps returns a capped plain list with no
+/// total, so unlike <see cref="ResourceListResult"/> there is no count to report alongside.
+/// </param>
+public sealed record RequestListResult(
+    int Returned,
+    bool Truncated,
+    IReadOnlyList<RequestSummary> Requests);
 
 // ── list_resources ───────────────────────────────────────────────────────────
 
@@ -53,7 +65,24 @@ public sealed record ResourceSummary(
     bool IsActive,
     Guid? HomeSiteId);
 
-public sealed record ResourceListResult(int Count, IReadOnlyList<ResourceSummary> Resources);
+/// <summary>
+/// A page of resources for the MCP tool.
+/// </summary>
+/// <param name="Returned">How many rows are in <paramref name="Resources"/>.</param>
+/// <param name="TotalMatching">
+/// How many rows match the filter in total. Larger than <paramref name="Returned"/> when the
+/// answer was capped.
+/// </param>
+/// <param name="Truncated">
+/// True when the cap cut the list. Named explicitly because a model reading a bare count beside
+/// a shorter list concludes it has everything: the field this replaced was called <c>Count</c>
+/// and carried the unpaged total, which is a confidently wrong answer rather than a vague one.
+/// </param>
+public sealed record ResourceListResult(
+    int Returned,
+    int TotalMatching,
+    bool Truncated,
+    IReadOnlyList<ResourceSummary> Resources);
 
 // ── list_conflicts / reschedule_request ──────────────────────────────────────
 

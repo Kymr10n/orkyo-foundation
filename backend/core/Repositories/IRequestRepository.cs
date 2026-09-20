@@ -3,10 +3,20 @@ using Api.Models;
 namespace Api.Repositories;
 
 /// <summary>
-/// Persistence layer for requests — the scheduling units of the system.
-/// Requests form a tree (via parent/child relationships) and carry requirements
-/// that are matched against resource capabilities during auto-scheduling.
+/// Persistence layer for requests — the scheduling units of the system. Covers the CRUD
+/// surface, the schedule writes, the overlap search and the requirements.
 /// </summary>
+/// <remarks>
+/// Two sibling repositories exist and each earns it, measured rather than assumed:
+/// <see cref="IRequestScheduleReadRepository"/> has eight production consumers and is mocked in
+/// eight test classes, so it is a real seam; <see cref="IRequestTreeRepository"/> has two
+/// (<c>RequestService</c> and <c>RequestPlanService</c>), and the second needs six tree methods
+/// rather than this interface's thirty-odd, which is the narrowing that justifies it.
+///
+/// A third, for requirements, was folded back in: one implementation, one pure-delegating caller,
+/// no test double. A service holding two of these costs two small objects and no extra database
+/// connections — each method opens and disposes its own through the factory.
+/// </remarks>
 public interface IRequestRepository
 {
     /// <summary>Returns all requests. Pass <c>includeRequirements: true</c> to populate the requirements list.</summary>
@@ -41,33 +51,6 @@ public interface IRequestRepository
 
     // ── Scheduling ───────────────────────────────────────────────────────────
 
-    /// <summary>Returns all scheduled (assigned to a space) requests for the given site.</summary>
-    Task<List<RequestInfo>> GetScheduledBySiteAsync(Guid siteId, CancellationToken ct = default);
-
-    /// <summary>All scheduled requests tenant-wide (have a space assignment + start_ts), requirements
-    /// hydrated — the authoritative input for the all-time conflicts registry.</summary>
-    Task<List<RequestInfo>> GetScheduledAsync(CancellationToken ct = default);
-
-    /// <summary>Scheduled requests tenant-wide whose bar overlaps [from,to] — the windowed conflicts
-    /// feed for the utilization grid (all sites, scoped to the visible window).</summary>
-    Task<List<RequestInfo>> GetScheduledAsync(DateTime from, DateTime to, CancellationToken ct = default);
-
-    /// <summary>Same row set as <see cref="GetScheduledAsync(DateTime, DateTime, CancellationToken)"/>
-    /// as a lightweight (id, start_ts, site_id) projection — no assignments view, no requirements.</summary>
-    Task<List<ScheduledRequestLite>> GetScheduledLiteAsync(DateTime from, DateTime to, CancellationToken ct = default);
-
-    /// <summary>Scheduled requests for one site whose bar overlaps [from,to] — the scoped grid feed.</summary>
-    Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default);
-
-    /// <summary>Unscheduled, directly-schedulable (leaf) requests tenant-wide — the drag-to-schedule backlog. Groups are excluded; their null start_ts is derived, not unscheduled.</summary>
-    Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, bool includeRequirements = false, CancellationToken ct = default);
-
-    /// <summary>Partially-scheduled leaf requests tenant-wide: they have a <c>start_ts</c> but are not
-    /// fully scheduled (no <c>end_ts</c>, or no non-cancelled Space assignment) — i.e. <see cref="RequestInfo.IsScheduled"/>
-    /// is false. Complements <see cref="GetUnscheduledAsync"/> (which requires <c>start_ts IS NULL</c>) so
-    /// the auto-scheduler still sees timed-but-spaceless leaves that were eligible before.</summary>
-    Task<List<RequestInfo>> GetPartiallyScheduledLeavesAsync(bool includeRequirements = false, CancellationToken ct = default);
-
     /// <summary>Updates the schedule (space, start, end) of a request. Returns <c>null</c> if not found.</summary>
     Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);
 
@@ -90,34 +73,7 @@ public interface IRequestRepository
         IReadOnlyList<ChainEdge> edges,
         CancellationToken ct = default);
 
-    // ── Requirements ────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Adds a requirement to a request. Throws <see cref="Helpers.NotFoundException"/> if the request
-    /// or criterion does not exist, <see cref="ArgumentException"/> if the criterion is not applicable
-    /// to requests.
-    /// </summary>
-    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default);
-
-    /// <summary>Removes a requirement. Returns <c>false</c> if not found.</summary>
-    Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default);
-
-    // ── Tree ────────────────────────────────────────────────────────────────
-
-    /// <summary>Returns direct children of the given parent request.</summary>
-    Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default);
-
-    /// <summary>
-    /// Moves a request to a new parent (or to root when <paramref name="newParentId"/> is <c>null</c>).
-    /// Returns <c>null</c> if the request was not found.
-    /// </summary>
-    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default);
-
-    /// <summary>Returns the total count of all descendants (children, grandchildren, etc.).</summary>
-    Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default);
-
-    /// <summary>Returns <c>true</c> if reparenting <paramref name="requestId"/> to <paramref name="newParentId"/> would create a cycle.</summary>
-    Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId, CancellationToken ct = default);
+    // ── Stored fields ───────────────────────────────────────────────────────
 
     /// <summary>Returns the planning mode of the request, or <c>null</c> if not found.</summary>
     Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default);
@@ -133,16 +89,24 @@ public interface IRequestRepository
     Task<Dictionary<Guid, RequestStatus>> GetStoredStatusesAsync(
         IReadOnlyCollection<Guid> ids, CancellationToken ct = default);
 
-    /// <summary>Returns <c>true</c> if the request has at least one direct child.</summary>
-    Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default);
-
-    /// <summary>Deletes the request and all its descendants in a single transaction. Returns the number of deleted rows.</summary>
-    Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default);
-
     /// <summary>
     /// Returns all active requests whose scheduled window overlaps [<paramref name="start"/>, <paramref name="end"/>).
     /// Each tuple carries the <see cref="RequestInfo"/> and the ID of the resource's non-cancelled assignment
     /// on that request (null when not yet assigned). Requirements are populated for capability-match computation.
     /// </summary>
     Task<List<(RequestInfo Request, Guid? AssignmentId)>> GetCandidatesOverlappingAsync(Guid resourceId, DateTime start, DateTime end, CancellationToken ct = default);
+
+    // ── Requirements ─────────────────────────────────────────────────────────
+    // Kept on this interface rather than a separate IRequestRequirementRepository: that
+    // interface had one implementation, one caller that pure-delegated, and no test double.
+
+    /// <summary>
+    /// Adds a requirement to a request. Throws <see cref="Helpers.NotFoundException"/> if the request
+    /// or criterion does not exist, <see cref="ArgumentException"/> if the criterion is not applicable
+    /// to requests.
+    /// </summary>
+    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default);
+
+    /// <summary>Removes a requirement. Returns <c>false</c> if not found.</summary>
+    Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default);
 }

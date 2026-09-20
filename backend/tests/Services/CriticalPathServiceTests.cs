@@ -21,7 +21,7 @@ public class CriticalPathServiceTests
 
     public CriticalPathServiceTests()
     {
-        _service = new CriticalPathService(_dependencies.Object, _requests.Object);
+        _service = new CriticalPathService(_dependencies.Object, _requests.Object, TimeProvider.System);
     }
 
     private const int Day = 24 * 60;

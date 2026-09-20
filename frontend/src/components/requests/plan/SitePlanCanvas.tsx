@@ -1,14 +1,12 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Network, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { STALE } from "@foundation/src/lib/core/query-client";
-import { getSitePlan, type RequestPlanChild } from "@foundation/src/lib/api/request-plan-api";
+import { useSitePlan } from "@foundation/src/hooks/useRequestPlan";
+import type { RequestPlanChild } from "@foundation/src/lib/api/request-plan-api";
 import type { RequestDependency } from "@foundation/src/lib/api/request-dependency-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { computePlanLayout, PLAN_NODE_HEIGHT, PLAN_NODE_WIDTH } from "@foundation/src/domain/plan-layout";
@@ -171,11 +169,7 @@ export function SitePlanCanvas({
     }
   }, []);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: qk.requests.sitePlan(siteId),
-    queryFn: () => getSitePlan(siteId),
-    staleTime: STALE.OPERATIONAL,
-  });
+  const { data, isLoading, error } = useSitePlan(siteId);
 
   const { conflictsByRequest } = useConflictRegistry();
   const violatingEdgeIds = useMemo(

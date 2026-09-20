@@ -1,11 +1,8 @@
-import { useQueries } from '@tanstack/react-query';
 import { UtilizationTrendChart } from '@foundation/src/components/insights/InsightsTrendCharts';
 import { useInsightsTabContext } from '@foundation/src/components/insights/insightsTabContext';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
-import { qk } from '@foundation/src/lib/api/query-keys';
-import { STALE } from '@foundation/src/lib/core/query-client';
-import { getInsightsUtilization } from '@foundation/src/lib/api/insights-api';
+import { useInsightsUtilizationByType } from '@foundation/src/hooks/useInsights';
 import { LineChart } from 'lucide-react';
 
 /**
@@ -17,22 +14,22 @@ import { LineChart } from 'lucide-react';
  * fill in while that site is selected. `resourceCount` is what separates that from the real
  * capacity case (resources present, capacity nets to zero), which keeps its message.
  *
- * `useQueries` rather than a child component per type: the number of types is runtime data, and
- * this is the hook built for a dynamic list of them. It also lets the tab see every answer at
- * once, which is what makes the "nothing here at all" state possible to render.
+ * `useInsightsUtilizationByType` rather than a child component per type: the number of types is
+ * runtime data, and that hook is built for a dynamic list of them. It also lets the tab see every
+ * answer at once, which is what makes the "nothing here at all" state possible to render.
  */
 export function UtilizationTab() {
   const { from, to, bucket, siteId } = useInsightsTabContext();
   // Active types only: an inactive type is out of planning, so its series would be a flat line.
   const { data: resourceTypes = [] } = useResourceTypes(true);
 
-  const results = useQueries({
-    queries: resourceTypes.map((type) => ({
-      queryKey: qk.insights.utilization(type.key, siteId, from, to, bucket),
-      queryFn: () => getInsightsUtilization(type.key, from, to, bucket, siteId),
-      staleTime: STALE.ANALYTICS,
-    })),
-  });
+  const results = useInsightsUtilizationByType(
+    resourceTypes.map((type) => type.key),
+    siteId,
+    from,
+    to,
+    bucket,
+  );
 
   // Hidden only on an explicit zero. A card is kept while its query is in flight, so the grid
   // does not reflow as answers land — and kept too if `resourceCount` is missing, which is what an

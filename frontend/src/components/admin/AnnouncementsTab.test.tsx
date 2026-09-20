@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { AnnouncementsTab } from './AnnouncementsTab';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // Mock the announcement API
 const mockGetAnnouncements = vi.fn();
@@ -64,6 +65,13 @@ const expiredAnnouncement = {
   isExpired: true,
 };
 
+// The tab now loads and mutates through React Query hooks, so it needs a client. The
+// feedback cache mirrors production, where meta.invalidates refreshes the list after a save.
+const renderTab = () =>
+  render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>, {
+    wrapper: createTestQueryWrapper({ feedback: true }),
+  });
+
 describe('AnnouncementsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -77,26 +85,26 @@ describe('AnnouncementsTab', () => {
   it('should show loading state initially', () => {
     // Never resolve the promise to keep loading
     mockGetAnnouncements.mockReturnValue(new Promise(() => {}));
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     expect(screen.getByText('Loading announcements…')).toBeInTheDocument();
   });
 
   it('should show empty state when no announcements', async () => {
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => {
       expect(screen.getByText(/no announcements yet/i)).toBeInTheDocument();
     });
   });
 
   it('should show the "New Announcement" button', async () => {
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => {
       expect(screen.getByText('New Announcement')).toBeInTheDocument();
     });
   });
 
   it('should show card header with title and description', async () => {
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => {
       expect(screen.getByText('Platform Announcements')).toBeInTheDocument();
       expect(screen.getByText(/announcements visible to all users/i)).toBeInTheDocument();
@@ -112,7 +120,7 @@ describe('AnnouncementsTab', () => {
       announcements: [sampleAnnouncement, importantAnnouncement],
     });
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('Scheduled Maintenance')).toBeInTheDocument();
@@ -125,7 +133,7 @@ describe('AnnouncementsTab', () => {
       announcements: [sampleAnnouncement],
     });
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('Active')).toBeInTheDocument();
@@ -137,7 +145,7 @@ describe('AnnouncementsTab', () => {
       announcements: [importantAnnouncement],
     });
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('Important')).toBeInTheDocument();
@@ -149,7 +157,7 @@ describe('AnnouncementsTab', () => {
       announcements: [expiredAnnouncement],
     });
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('Expired')).toBeInTheDocument();
@@ -161,7 +169,7 @@ describe('AnnouncementsTab', () => {
       announcements: [sampleAnnouncement],
     });
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('admin@orkyo.io')).toBeInTheDocument();
@@ -173,7 +181,7 @@ describe('AnnouncementsTab', () => {
       announcements: [importantAnnouncement],
     });
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('2')).toBeInTheDocument();
@@ -187,7 +195,7 @@ describe('AnnouncementsTab', () => {
   it('should display error when load fails', async () => {
     mockGetAnnouncements.mockRejectedValue(new Error('Network error'));
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeInTheDocument();
@@ -200,7 +208,7 @@ describe('AnnouncementsTab', () => {
 
   it('should open create dialog when "New Announcement" clicked', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
@@ -212,7 +220,7 @@ describe('AnnouncementsTab', () => {
 
   it('explains that important announcements email opted-out users', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
@@ -224,7 +232,7 @@ describe('AnnouncementsTab', () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('New Announcement'));
 
     // Open dialog
@@ -255,7 +263,7 @@ describe('AnnouncementsTab', () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
 
@@ -277,7 +285,7 @@ describe('AnnouncementsTab', () => {
     mockCreateAnnouncement.mockResolvedValue(sampleAnnouncement);
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
 
@@ -296,7 +304,7 @@ describe('AnnouncementsTab', () => {
   it('disables Create when no channel is selected', async () => {
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('New Announcement'));
     await user.click(screen.getByText('New Announcement'));
 
@@ -318,7 +326,7 @@ describe('AnnouncementsTab', () => {
     });
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
     // Click edit button (pencil icon)
@@ -344,7 +352,7 @@ describe('AnnouncementsTab', () => {
     });
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
     // Each row has 2 action buttons: edit (pencil) and delete (trash).
@@ -367,7 +375,7 @@ describe('AnnouncementsTab', () => {
     mockDeleteAnnouncement.mockResolvedValue(undefined);
     const user = userEvent.setup();
 
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
     // Click delete
@@ -393,7 +401,7 @@ describe('AnnouncementsTab', () => {
   // ========================================================================
 
   it('should call getAnnouncements with includeExpired=true', async () => {
-    render(<MemoryRouter><AnnouncementsTab /></MemoryRouter>);
+    renderTab();
 
     await waitFor(() => {
       expect(mockGetAnnouncements).toHaveBeenCalledWith(true);

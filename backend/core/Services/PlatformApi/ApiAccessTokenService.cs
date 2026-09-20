@@ -1,47 +1,23 @@
 using Api.Configuration;
+using Api.Helpers;
 using Api.Models;
 using Api.Security;
+using Api.Services.Tokens;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using Orkyo.Shared;
 
 namespace Api.Services.PlatformApi;
 
-public record ApiAccessTokenRecord
+public record ApiAccessTokenRecord : TokenRecordBase
 {
-    public Guid Id { get; init; }
-    public Guid TenantId { get; init; }
-    public string Name { get; init; } = "";
-    public string TokenPrefix { get; init; } = "";
-    public string TokenHash { get; init; } = "";
-    public string Scopes { get; init; } = "";
-    public DateTime CreatedAtUtc { get; init; }
-    public Guid? CreatedByUserId { get; init; }
-    public DateTime? LastUsedAtUtc { get; init; }
-    public DateTime? ExpiresAtUtc { get; init; }
-    public DateTime? RevokedAtUtc { get; init; }
-
-    public bool IsActive =>
-        RevokedAtUtc is null && (ExpiresAtUtc is null || ExpiresAtUtc > DateTime.UtcNow);
-
     /// <summary>The tenant role this token acts with — see <see cref="PlatformApiScopes"/>.</summary>
     public TenantRole EffectiveRole => PlatformApiScopes.ScopeToRole(Scopes);
 }
 
 /// <summary>DTO returned when listing tokens — never exposes hash or secret.</summary>
-public record ApiAccessTokenSummary
+public record ApiAccessTokenSummary : TokenSummaryBase
 {
-    public Guid Id { get; init; }
-    public Guid TenantId { get; init; }
-    public string Name { get; init; } = "";
-    public string TokenPrefix { get; init; } = "";
-    public string Scopes { get; init; } = "";
-    public DateTime CreatedAtUtc { get; init; }
-    public Guid? CreatedByUserId { get; init; }
-    public DateTime? LastUsedAtUtc { get; init; }
-    public DateTime? ExpiresAtUtc { get; init; }
-    public DateTime? RevokedAtUtc { get; init; }
-    public bool IsActive { get; init; }
 }
 
 /// <summary>Returned once at creation — the raw secret is never stored.</summary>
@@ -98,14 +74,17 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
     private readonly IDbConnectionFactory _db;
     private readonly byte[] _pepper;
     private readonly ILogger<ApiAccessTokenService> _logger;
+    private readonly TimeProvider _time;
 
     public ApiAccessTokenService(
         IDbConnectionFactory db,
         IConfiguration configuration,
-        ILogger<ApiAccessTokenService> logger)
+        ILogger<ApiAccessTokenService> logger,
+        TimeProvider time)
     {
         _db = db;
         _logger = logger;
+        _time = time;
         // Its own pepper, falling back to the Keycloak client secret exactly as reporting does.
         // Keeping the keys distinct means a leak of one credential class's pepper does not also
         // make the write-capable class's stored hashes forgeable.
@@ -151,8 +130,8 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
-        var id = reader.GetGuid(0);
-        var createdAt = reader.GetDateTime(1);
+        var id = reader.GetGuid("id");
+        var createdAt = reader.GetDateTime("created_at");
 
         var summary = new ApiAccessTokenSummary
         {
@@ -176,9 +155,8 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
         await using var conn = _db.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT id, tenant_id, name, token_prefix, scopes,
-                   created_at, created_by_user_id, last_used_at, expires_at, revoked_at
+        await using var cmd = new NpgsqlCommand($@"
+            SELECT {TokenRowMapper.SummaryColumns}
             FROM api_access_tokens
             WHERE tenant_id = @tenantId
             ORDER BY created_at DESC", conn);
@@ -187,24 +165,7 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var results = new List<ApiAccessTokenSummary>();
         while (await reader.ReadAsync(ct))
-        {
-            var revokedAt = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9);
-            var expiresAt = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8);
-            results.Add(new ApiAccessTokenSummary
-            {
-                Id = reader.GetGuid(0),
-                TenantId = reader.GetGuid(1),
-                Name = reader.GetString(2),
-                TokenPrefix = reader.GetString(3),
-                Scopes = reader.GetString(4),
-                CreatedAtUtc = reader.GetDateTime(5),
-                CreatedByUserId = reader.IsDBNull(6) ? null : reader.GetGuid(6),
-                LastUsedAtUtc = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
-                ExpiresAtUtc = expiresAt,
-                RevokedAtUtc = revokedAt,
-                IsActive = revokedAt is null && (expiresAt is null || expiresAt > DateTime.UtcNow),
-            });
-        }
+            results.Add(TokenRowMapper.MapSummary<ApiAccessTokenSummary>(reader, _time.GetUtcNow().UtcDateTime));
         return results;
     }
 
@@ -233,9 +194,8 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
         await using var conn = _db.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT id, tenant_id, name, token_prefix, token_hash, scopes,
-                   created_at, created_by_user_id, last_used_at, expires_at, revoked_at
+        await using var cmd = new NpgsqlCommand($@"
+            SELECT {TokenRowMapper.RecordColumns}
             FROM api_access_tokens
             WHERE token_prefix = @prefix", conn);
         cmd.Parameters.AddWithValue("prefix", prefix);
@@ -244,20 +204,7 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
         if (!await reader.ReadAsync(ct))
             return null;
 
-        var record = new ApiAccessTokenRecord
-        {
-            Id = reader.GetGuid(0),
-            TenantId = reader.GetGuid(1),
-            Name = reader.GetString(2),
-            TokenPrefix = reader.GetString(3),
-            TokenHash = reader.GetString(4),
-            Scopes = reader.GetString(5),
-            CreatedAtUtc = reader.GetDateTime(6),
-            CreatedByUserId = reader.IsDBNull(7) ? null : reader.GetGuid(7),
-            LastUsedAtUtc = reader.IsDBNull(8) ? null : reader.GetDateTime(8),
-            ExpiresAtUtc = reader.IsDBNull(9) ? null : reader.GetDateTime(9),
-            RevokedAtUtc = reader.IsDBNull(10) ? null : reader.GetDateTime(10),
-        };
+        var record = TokenRowMapper.MapRecord<ApiAccessTokenRecord>(reader);
 
         if (!record.IsActive)
             return null;

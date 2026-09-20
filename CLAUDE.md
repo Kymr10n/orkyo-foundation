@@ -45,9 +45,10 @@ Rules that are enforced (a conformance test fails CI otherwise):
 
 Don't hand-roll `toast.*` / `invalidateQueries` in a dialog's mutation. Declare
 `meta: { successMessage, errorMessage?, invalidates }` on `useMutation`; the central `MutationCache`
-in `query-client.ts` fires the toast + invalidation once. Keep inline `ErrorAlert` (`setError`) for
-in-context errors. Full-CRUD entities (e.g. `useSites`, `useCriteria`) use the same `meta` pattern
-on each hook. Tests render via `createTestQueryWrapper({ feedback: true })`.
+in `query-client.ts` fires the toast + invalidation once. One surface per error: a dialog that stays
+open on failure shows an inline `ErrorAlert` (`setError`) and sets `meta.suppressErrorToast: true`;
+a dialog that closes on failure keeps the toast instead. Full-CRUD entities (e.g. `useSites`,
+`useCriteria`) use the same `meta` pattern on each hook. Tests render via `createTestQueryWrapper({ feedback: true })`.
 
 Don't hand-roll the dialog shell either: simple form dialogs use `FormDialog` (owns shell + header +
 scrollable body + `ErrorAlert` + Cancel/Submit footer with `canEdit` gating); criterion/skill/
@@ -181,7 +182,12 @@ restate registrations.
 ## Things not to do
 
 - Don't move code out of foundation without checking the placement rule first.
-- Don't add runtime services (Serilog sinks, Prometheus exporters, etc.) here; expose them as opt-in helpers that products call.
+- Don't add runtime services (Serilog sinks, Prometheus exporters, etc.) here; expose them as
+  opt-in helpers that products call. `Orkyo.Foundation.Core` is the hard line: it references no
+  logging or metrics package at all. `Orkyo.Foundation.Hosting` is the one sanctioned exception
+  and the reason the line holds — it owns the worker's Serilog bootstrap and console sink, a
+  product reaches it only by calling `OrkyoWorkerHost.RunAsync` from its own entry point, and a
+  product that does not call it links none of it.
 - Don't break backward compatibility silently. Bump major + open downstream PRs.
 - Don't modify existing migration SQL files after they are merged — see Migration rules above.
 

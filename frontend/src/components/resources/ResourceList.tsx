@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { CalendarDays, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
@@ -9,19 +8,15 @@ import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { ResourceEditDialog } from './ResourceEditDialog';
 import { ResourceScheduleDialog } from './ResourceScheduleDialog';
 import { ResourceCapabilitiesEditor } from './ResourceCapabilitiesEditor';
-import {
-  deleteResource,
-  getResources,
-  type ResourceInfo,
-} from '@foundation/src/lib/api/resources-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { useDeleteResource, useResourcesOfType } from '@foundation/src/hooks/useResources';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
 import { useLookupFieldLabels } from '@foundation/src/hooks/useLookupFieldLabels';
 import { CAPABILITY_LABELS } from '@foundation/src/constants/resource-type-key';
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 /** Stable identity so the transfer hook's memo doesn't churn while loading. */
 const EMPTY_RESOURCES: ResourceInfo[] = [];
@@ -48,7 +43,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   // Scoped by the top-bar site picker, like the board and the requests list. The backend reads
   // site membership as "home site, or the site it is currently assigned to", so a resource with
   // neither is not listed under any site — pick "All sites" to see it.
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
   const [editing, setEditing] = useState<ResourceInfo | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [removing, setRemoving] = useState<ResourceInfo | null>(null);
@@ -61,16 +56,13 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     isLoading,
     error,
     refetch,
-  } = useQuery({
-    queryKey: [...qk.resources.byType(resourceType.key), { siteId: selectedSiteId }],
-    queryFn: () => getResources({ resourceTypeKey: resourceType.key, siteId: selectedSiteId ?? undefined }),
-  });
+  } = useResourcesOfType(resourceType.key, selectedSiteId);
 
   // A directory type shows email beside the two organization lookups every person carries. Those
   // two are custom fields since 1820, so their labels come from the shared resolver rather than
   // from anything person-shaped here.
   const hasDirectory = resourceType.hasDirectoryProfile;
-  const list = resources?.data ?? EMPTY_RESOURCES;
+  const list = resources?.items ?? EMPTY_RESOURCES;
   const lookupLabels = useLookupFieldLabels(
     hasDirectory ? resourceType.id : undefined,
     list,
@@ -86,17 +78,9 @@ export function ResourceList({ resourceType }: ResourceListProps) {
     }));
   }, [list, hasDirectory, lookupLabels]);
 
-  useResourceTransfer(resourceType, resources?.data ?? EMPTY_RESOURCES);
+  useResourceTransfer(resourceType, resources?.items ?? EMPTY_RESOURCES);
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteResource(id),
-    meta: {
-      successMessage: `${resourceType.displayName} deactivated`,
-      errorMessage: `Failed to deactivate ${resourceType.displayName.toLowerCase()}`,
-      invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
-    },
-    onSuccess: () => setRemoving(null),
-  });
+  const deleteMutation = useDeleteResource(resourceType);
 
   const label = resourceType.displayName;
   // People call their criterion values "skills"; every other type calls them capabilities.
@@ -280,7 +264,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         destructive
         isPending={deleteMutation.isPending}
         onConfirm={() => {
-          if (removing) deleteMutation.mutate(removing.id);
+          if (removing) deleteMutation.mutate(removing.id, { onSuccess: () => setRemoving(null) });
         }}
       />
     </div>

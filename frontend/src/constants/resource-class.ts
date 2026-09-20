@@ -28,10 +28,19 @@ export function classSegment(resourceClass: ResourceClass): string {
   return resourceClass === RESOURCE_CLASS.STATION ? 'stations' : 'assets';
 }
 
+/** The three tabs a resource type's page has, as route segments. */
+export const RESOURCE_TYPE_TAB = {
+  INSTANCES: 'instances',
+  GROUPS: 'groups',
+  LISTS: 'lists',
+} as const;
+
+export type ResourceTypeTab = (typeof RESOURCE_TYPE_TAB)[keyof typeof RESOURCE_TYPE_TAB];
+
 /** Where one type's instances live. */
 export function typeRoute(
   type: Pick<ResourceTypeInfo, 'hasGeometry' | 'key'>,
-  tab: 'instances' | 'groups' | 'lists' = 'instances',
+  tab: ResourceTypeTab = RESOURCE_TYPE_TAB.INSTANCES,
 ): string {
   return `/${classSegment(resourceClassOf(type))}/${type.key}/${tab}`;
 }

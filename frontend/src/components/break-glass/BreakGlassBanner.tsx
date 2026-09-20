@@ -11,6 +11,7 @@
  * authoritative even when the page was reloaded mid-session.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { Skeleton } from '@foundation/src/components/ui/skeleton';
 import { Clock, RefreshCw, Shield, X } from 'lucide-react';
 
 import { Button } from '@foundation/src/components/ui/button';
@@ -152,7 +153,7 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
             {formatRemaining(remainingMs)} remaining
           </span>
         ) : (
-          <span className="text-muted-foreground">Loading…</span>
+          <Skeleton className="h-3.5 w-24" />
         )}
       </span>
 

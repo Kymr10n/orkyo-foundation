@@ -1,4 +1,20 @@
-import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
+import {
+  ROUTE_ASSETS,
+  ROUTE_HOME,
+  ROUTE_INSIGHTS_CONFLICTS,
+  ROUTE_INSIGHTS_OVERVIEW,
+  ROUTE_INSIGHTS_UTILIZATION,
+  ROUTE_ORGANIZATION,
+  ROUTE_REQUESTS,
+  ROUTE_SETTINGS_CRITERIA,
+  ROUTE_SETTINGS_SCHEDULING,
+  ROUTE_SETTINGS_TEMPLATES,
+  ROUTE_STATIONS,
+  ROUTE_STATIONS_FLOORPLAN,
+  ROUTE_TENANT_ADMIN_AI_ASSISTANT,
+  ROUTE_TENANT_ADMIN_SITES,
+  ROUTE_TENANT_ADMIN_USERS,
+} from "@foundation/src/constants/auth";
 
 /**
  * Where the assistant may take the person.
@@ -19,23 +35,23 @@ export interface ViewTarget {
 }
 
 const PAGES: Record<string, ViewTarget> = {
-  scheduling: { label: "Scheduling", path: "/" },
-  requests: { label: "Requests", path: "/requests" },
-  insights_overview: { label: "Insights → Overview", path: "/insights/overview" },
-  insights_utilization: { label: "Insights → Utilization", path: "/insights/utilization" },
-  insights_conflicts: { label: "Insights → Conflicts", path: "/insights/conflicts" },
-  organization: { label: "Organization", path: "/organization" },
-  stations: { label: "Stations", path: "/stations" },
-  assets: { label: "Assets", path: "/assets" },
-  floorplan: { label: "Floorplan", path: "/stations/floorplan" },
+  scheduling: { label: "Scheduling", path: ROUTE_HOME },
+  requests: { label: "Requests", path: ROUTE_REQUESTS },
+  insights_overview: { label: "Insights → Overview", path: ROUTE_INSIGHTS_OVERVIEW },
+  insights_utilization: { label: "Insights → Utilization", path: ROUTE_INSIGHTS_UTILIZATION },
+  insights_conflicts: { label: "Insights → Conflicts", path: ROUTE_INSIGHTS_CONFLICTS },
+  organization: { label: "Organization", path: ROUTE_ORGANIZATION },
+  stations: { label: "Stations", path: ROUTE_STATIONS },
+  assets: { label: "Assets", path: ROUTE_ASSETS },
+  floorplan: { label: "Floorplan", path: ROUTE_STATIONS_FLOORPLAN },
 
-  settings_criteria: { label: "Settings → Criteria", path: `${ROUTE_SETTINGS}/criteria` },
-  settings_templates: { label: "Settings → Templates", path: `${ROUTE_SETTINGS}/templates` },
-  settings_scheduling: { label: "Settings → Scheduling", path: `${ROUTE_SETTINGS}/scheduling` },
+  settings_criteria: { label: "Settings → Criteria", path: ROUTE_SETTINGS_CRITERIA },
+  settings_templates: { label: "Settings → Templates", path: ROUTE_SETTINGS_TEMPLATES },
+  settings_scheduling: { label: "Settings → Scheduling", path: ROUTE_SETTINGS_SCHEDULING },
 
-  admin_sites: { label: "Administration → Sites", path: `${ROUTE_TENANT_ADMIN}/sites` },
-  admin_users: { label: "Administration → Users", path: `${ROUTE_TENANT_ADMIN}/users` },
-  admin_ai_assistant: { label: "Administration → Assistant", path: `${ROUTE_TENANT_ADMIN}/ai-assistant` },
+  admin_sites: { label: "Administration → Sites", path: ROUTE_TENANT_ADMIN_SITES },
+  admin_users: { label: "Administration → Users", path: ROUTE_TENANT_ADMIN_USERS },
+  admin_ai_assistant: { label: "Administration → Assistant", path: ROUTE_TENANT_ADMIN_AI_ASSISTANT },
   configuration_resource_types: { label: "Configuration → Resource types", path: "/configuration/resource-types" },
 };
 
@@ -44,10 +60,10 @@ const PAGES: Record<string, ViewTarget> = {
  * `?edit=<id>` convention (see `useEditQueryParam`), so none of these needed new plumbing.
  */
 const ENTITIES: Record<string, { label: string; page: string }> = {
-  request: { label: "request", page: "/requests" },
-  site: { label: "site", page: `${ROUTE_TENANT_ADMIN}/sites` },
-  template: { label: "template", page: `${ROUTE_SETTINGS}/templates` },
-  criterion: { label: "criterion", page: `${ROUTE_SETTINGS}/criteria` },
+  request: { label: "request", page: ROUTE_REQUESTS },
+  site: { label: "site", page: ROUTE_TENANT_ADMIN_SITES },
+  template: { label: "template", page: ROUTE_SETTINGS_TEMPLATES },
+  criterion: { label: "criterion", page: ROUTE_SETTINGS_CRITERIA },
 };
 
 /**

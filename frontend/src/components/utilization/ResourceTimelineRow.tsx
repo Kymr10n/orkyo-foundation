@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { Skeleton } from "@foundation/src/components/ui/skeleton";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { ResourceAssignmentInfo } from "@foundation/src/lib/api/resource-assignments-api";
 import type { ResourceUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
@@ -138,8 +139,8 @@ export const ResourceTimelineRow = React.memo(function ResourceTimelineRow({
       testId={`resource-row-${resource.id}`}
     >
       {isLoadingRow ? (
-        <div className="absolute inset-0 flex items-center px-3 text-xs text-muted-foreground italic">
-          Loading…
+        <div className="absolute inset-0 flex items-center px-3">
+          <Skeleton className="h-4 w-full" data-testid="resource-row-loading" />
         </div>
       ) : segments.length === 0 ? (
         <div className="absolute inset-0 flex items-center px-3 text-xs text-muted-foreground">

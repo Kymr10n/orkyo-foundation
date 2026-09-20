@@ -44,7 +44,8 @@ public class AiAccessServiceTests
     private AiAccessService CreateSut() => new(
         _allowances.Object, _credentials.Object, _featureGate.Object, _authorization.Object,
         _principal.Object, _tenantUsers.Object, _accountGuard.Object,
-        new OrgContext { OrgId = OrgId, OrgSlug = "acme", DbConnectionString = "Host=localhost" });
+        new OrgContext { OrgId = OrgId, OrgSlug = "acme", DbConnectionString = "Host=localhost" },
+        TimeProvider.System);
 
     [Fact]
     public async Task Member_WithoutAllowanceRow_IsDenied()

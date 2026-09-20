@@ -206,6 +206,8 @@ jobs:
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/src/Orkyo.Foundation.Web.csproj \
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+          dotnet pack backend/hosting/Orkyo.Foundation.Hosting.csproj \
+            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
             -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
           dotnet pack backend/seeding/Orkyo.Foundation.Seed.csproj \
@@ -531,6 +533,13 @@ jobs:
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o ./nupkgs
 
+      - name: Pack Orkyo.Foundation.Hosting
+        run: |
+          dotnet pack backend/hosting/Orkyo.Foundation.Hosting.csproj \
+            -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
+
       - name: Pack Orkyo.Foundation.Migrations
         run: |
           dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
@@ -831,6 +840,7 @@ jobs:
             backend/migrator-runtime/Orkyo.Migrator.csproj \
             backend/core/Orkyo.Foundation.Core.csproj \
             backend/src/Orkyo.Foundation.Web.csproj \
+            backend/hosting/Orkyo.Foundation.Hosting.csproj \
             backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
             backend/seeding/Orkyo.Foundation.Seed.csproj \
             backend/testsupport/Orkyo.Foundation.TestSupport.csproj; do
@@ -956,10 +966,11 @@ jobs:
   # ─────────────────────────────────────────────
   # EVIDENCE BUNDLE — always runs, collects results
   # ─────────────────────────────────────────────
+  # Calls this repo's own reusable workflow — the same file the products call by SHA.
+  # NOTE: a reusable job's check is displayed as "<job> / <inner job name>", so the
+  # required-check entries in the main ruleset must be updated when this merges.
   release-evidence-bundle:
     name: Release Evidence
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
     needs:
       - detect-changes
       - audit-secrets
@@ -973,27 +984,8 @@ jobs:
       - publish
       - publish-nightly
     if: always()
-
     permissions:
       contents: read
-    steps:
-      - name: Collect job results
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        with:
-          script: |
-            const jobs = ${{ toJSON(needs) }};
-            const lines = ['# Release Evidence Bundle', '',
-              `**Run:** ${context.runId}`,
-              `**SHA:** ${context.sha}`,
-              `**Ref:** ${context.ref}`,
-              `**Triggered by:** ${context.eventName}`,
-              '',
-              '## Job Results', ''];
-            for (const [job, result] of Object.entries(jobs)) {
-              const icon = result.result === 'success' ? '✅'
-                : result.result === 'skipped' ? '⏭️' : '❌';
-              lines.push(`${icon} **${job}**: ${result.result}`);
-            }
-            const summary = lines.join('\n');
-            await core.summary.addRaw(summary).write();
-            console.log(summary);
+    uses: ./.github/workflows/reusable-release-evidence.yml
+    with:
+      needs-json: ${{ toJSON(needs) }}

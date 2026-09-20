@@ -1,5 +1,6 @@
 using Api.Configuration;
 using Api.Constants;
+using Api.Helpers;
 using Api.Security;
 using Api.Services;
 using Microsoft.Extensions.Options;
@@ -56,9 +57,9 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
         return new PrincipalContext
         {
-            UserId = reader.GetGuid(0),
-            Email = reader.GetString(1),
-            DisplayName = reader.IsDBNull(2) ? null : reader.GetString(2),
+            UserId = reader.GetGuid("id"),
+            Email = reader.GetString("email"),
+            DisplayName = reader.GetNullableString("display_name"),
             AuthProvider = AuthProvider.Keycloak,
             ExternalSubject = externalSubject
         };
@@ -102,10 +103,10 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         await using var emailReader = await findByEmailCmd.ExecuteReaderAsync(ct);
         if (await emailReader.ReadAsync(ct))
         {
-            var userId = emailReader.GetGuid(0);
-            var email = emailReader.GetString(1);
-            var displayName = emailReader.IsDBNull(2) ? null : emailReader.GetString(2);
-            var status = emailReader.GetString(3);
+            var userId = emailReader.GetGuid("id");
+            var email = emailReader.GetString("email");
+            var displayName = emailReader.GetNullableString("display_name");
+            var status = emailReader.GetString("status");
 
             await emailReader.CloseAsync();
 
@@ -264,16 +265,16 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
         while (await reader.ReadAsync(ct))
         {
-            var roleString = reader.GetString(3);
+            var roleString = reader.GetString("role");
             var role = RoleConstants.ParseRoleString(roleString);
 
             memberships.Add(new TenantMembership
             {
-                TenantId = reader.GetGuid(0),
-                TenantSlug = reader.GetString(1),
-                TenantName = reader.GetString(2),
+                TenantId = reader.GetGuid("id"),
+                TenantSlug = reader.GetString("slug"),
+                TenantName = reader.GetString("display_name"),
                 Role = role,
-                Status = reader.GetString(4)
+                Status = reader.GetString("status")
             });
         }
 

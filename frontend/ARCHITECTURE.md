@@ -103,6 +103,57 @@ Community (`orkyo-community/frontend/src/App.tsx`) has a single admin surface an
 It currently renders its admin page by intercepting the pathname before `ApexGateway`/`TenantApp`;
 the September 2026 design review (F1) converges it on the same slot API.
 
+## Data fetching: components never talk to the server
+
+A component or a page must not import `@tanstack/react-query` or `src/lib/core/api-client`.
+Every query and every mutation lives in a domain hook under `src/hooks/use*.ts`, and the
+component consumes the hook's result.
+
+The hook owns the query key (`qk` from `src/lib/api/query-keys.ts`), the query function, the
+freshness tier (`STALE.*`), and the mutation `meta` block that drives the central toast and
+invalidation. The component owns rendering. A component that needs the query client — to
+invalidate after an out-of-band change, for example — gets a named hook for that one action
+(`useInvalidateRequestData`, `useInvalidateUserProfile`), not the client itself.
+
+Two properties come out of this. One query key has one definition, so a key and its
+invalidation prefix cannot drift apart. And a component test mocks one hook instead of
+building a `QueryClient`.
+
+`no-restricted-imports` in `eslint.config.js` enforces the rule for `src/components/**` and
+`src/pages/**`, and the exception list is **empty**. The raw-dialog exemption block is the one
+place that could have opened a hole, so it restates this ban instead of switching the rule off:
+a dialog exemption can never hand a component its own `useQuery` back.
+
+What the rule enforces is the two imports, not the whole of the heading. A component can still
+call a `src/lib/api/*` function directly, from an effect or an event handler, and a substantial
+minority still do. Those are the remaining migration, not sanctioned exceptions.
+
+Count them rather than trusting a number written here, which rots:
+
+```sh
+grep -rl "from '.*lib/api/" src/components src/pages --include='*.tsx' | grep -v '\.test\.'
+```
+
+Widening the ban to the API modules would finish the job in one move. That is a separate decision
+about a permanent rule, not something to add in passing.
+
+## Error display: one surface per error
+
+A failed mutation and a failed query surface differently, and never both ways at once.
+
+- A **mutation** reports through the toast the central `MutationCache` fires from its
+  `meta.successMessage` / `meta.errorMessage`. Do not add a second `toast.error` in a callback.
+- A **query** reports inline, with `ErrorAlert` in the region the data was for. The page stays
+  usable and the message sits where the missing content is.
+- A **dialog** that keeps itself open on failure shows the message inline in its own
+  `ErrorAlert`. Its mutation then declares `meta.suppressErrorToast: true`, because the user
+  is already looking at the message. `useEntityFormDialog` does this for every dialog built
+  on it. A dialog that **closes** itself on failure is the converse: its inline alert goes
+  away with it, so it keeps the toast and does not suppress.
+
+The test for which one applies is where the user's attention is. A dialog holds it; a
+background mutation does not.
+
 ## Import boundary
 
 - Foundation **never imports from SaaS or Community**.

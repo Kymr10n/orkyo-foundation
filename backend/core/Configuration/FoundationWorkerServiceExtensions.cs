@@ -3,6 +3,7 @@ using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orkyo.Shared.Keycloak;
 
 namespace Api.Configuration;
@@ -19,7 +20,14 @@ public static class FoundationWorkerServiceExtensions
     public static IServiceCollection AddFoundationWorkerServices(
         this IServiceCollection services, IConfiguration configuration)
     {
+        // The clock every foundation service reads. TryAdd so a product (or a test host) can
+        // register a FakeTimeProvider instead. Reading the clock directly is ratcheted out of core/src.
+        services.TryAddSingleton(TimeProvider.System);
         services.AddHttpClient();
+        // Same shared cache the API registers, so a core service that takes it resolves in the
+        // worker host too. AddMemoryCache is TryAdd: a product's own IMemoryCache wins.
+        services.AddMemoryCache();
+        services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
         services.AddSingleton(KeycloakOptions.FromConfiguration(configuration));
         // UserLifecycleService resolves IKeycloakAdminService per run-cycle for disable/purge.
         services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>();
@@ -50,7 +58,8 @@ public static class FoundationWorkerServiceExtensions
         services.AddSingleton(sp => new FoundationWorkerLoop(
             sp.GetRequiredService<IWorkerJobCoordinator>(),
             jobs(sp),
-            sp.GetRequiredService<ILogger<FoundationWorkerLoop>>()));
+            sp.GetRequiredService<ILogger<FoundationWorkerLoop>>(),
+            sp.GetRequiredService<TimeProvider>()));
         return services;
     }
 }

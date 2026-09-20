@@ -77,7 +77,7 @@ public class AiConversationEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
         problem.GetProperty("code").GetString()
-            .Should().Be(Api.Constants.ErrorCodes.ValidationError);
+            .Should().Be(Api.Constants.ApiErrorCodes.ValidationError);
     }
 
     [Fact]

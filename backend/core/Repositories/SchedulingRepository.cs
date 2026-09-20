@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -54,7 +55,7 @@ public class SchedulingRepository : ISchedulingRepository
               WHERE id = ANY(@ids)
                 AND home_site_id IS NOT NULL",
             p => p.AddWithValue("ids", resourceIds.ToArray()),
-            r => (r.GetGuid(0), r.GetGuid(1)), ct);
+            r => (r.GetGuid("id"), r.GetGuid("home_site_id")), ct);
 
         return rows.ToDictionary(t => t.Item1, t => t.Item2);
     }
@@ -68,7 +69,7 @@ public class SchedulingRepository : ISchedulingRepository
         var rows = await conn.QueryListAsync(
             "SELECT id, resource_type_id FROM resources WHERE id = ANY(@ids)",
             p => p.AddWithValue("ids", resourceIds.ToArray()),
-            r => (r.GetGuid(0), r.GetGuid(1)), ct);
+            r => (r.GetGuid("id"), r.GetGuid("resource_type_id")), ct);
 
         return rows.ToDictionary(t => t.Item1, t => t.Item2);
     }

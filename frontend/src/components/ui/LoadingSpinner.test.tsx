@@ -50,6 +50,18 @@ describe('LoadingSpinner', () => {
     expect(icon.classList.contains('text-muted-foreground')).toBe(true);
   });
 
+  it('puts the icon and the message on one row in the inline variant', () => {
+    const { container } = render(<LoadingSpinner inline size="xs" muted message="Saving..." />);
+    const root = container.firstChild as HTMLElement;
+    // Inline sits in a text flow, so it must not claim the region's height or width.
+    expect(root.className).toMatch(/inline-flex/);
+    expect(root.className).not.toMatch(/min-h-screen/);
+    expect(root.className).not.toMatch(/h-full/);
+    const icon = container.querySelector('.animate-spin') as HTMLElement;
+    expect(icon.classList.contains('h-3.5')).toBe(true);
+    expect((icon.parentElement as HTMLElement).className).toMatch(/flex-row/);
+  });
+
   it('merges caller container classes over the contained-mode defaults', () => {
     const { container } = render(<LoadingSpinner fullScreen={false} className="h-64" />);
     const root = container.firstChild as HTMLElement;

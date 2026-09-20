@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -21,7 +22,7 @@ public class RoutingRepository(OrgContext orgContext, IOrgDbConnectionFactory co
           FROM routings";
 
     private const string SelectSteps = @"
-        SELECT s.id, s.routing_id, s.step_no, s.operation_template_id, t.name,
+        SELECT s.id, s.routing_id, s.step_no, s.operation_template_id, t.name AS operation_name,
                s.setup_minutes, s.run_minutes_per_unit, s.lag_minutes_after
           FROM routing_steps s
           JOIN templates t ON t.id = s.operation_template_id";
@@ -29,19 +30,20 @@ public class RoutingRepository(OrgContext orgContext, IOrgDbConnectionFactory co
     private sealed record Header(Guid Id, string Name, string? Description, DateTime CreatedAt, DateTime UpdatedAt);
 
     private static Header MapHeader(NpgsqlDataReader r) => new(
-        r.GetGuid(0), r.GetString(1), r.IsDBNull(2) ? null : r.GetString(2), r.GetDateTime(3), r.GetDateTime(4));
+        r.GetGuid("id"), r.GetString("name"), r.GetNullableString("description"),
+        r.GetDateTime("created_at"), r.GetDateTime("updated_at"));
 
     private static (Guid RoutingId, RoutingStepInfo Step) MapStep(NpgsqlDataReader r) => (
-        r.GetGuid(1),
+        r.GetGuid("routing_id"),
         new RoutingStepInfo
         {
-            Id = r.GetGuid(0),
-            StepNo = r.GetInt32(2),
-            OperationTemplateId = r.GetGuid(3),
-            OperationName = r.GetString(4),
-            SetupMinutes = r.GetInt32(5),
-            RunMinutesPerUnit = r.GetInt32(6),
-            LagMinutesAfter = r.GetInt32(7),
+            Id = r.GetGuid("id"),
+            StepNo = r.GetInt32("step_no"),
+            OperationTemplateId = r.GetGuid("operation_template_id"),
+            OperationName = r.GetString("operation_name"),
+            SetupMinutes = r.GetInt32("setup_minutes"),
+            RunMinutesPerUnit = r.GetInt32("run_minutes_per_unit"),
+            LagMinutesAfter = r.GetInt32("lag_minutes_after"),
         });
 
     private static RoutingInfo Assemble(Header h, IEnumerable<RoutingStepInfo> steps) => new()

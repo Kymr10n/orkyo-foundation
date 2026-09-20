@@ -49,6 +49,7 @@ vi.mock('./ScheduledRequestOverlay', () => ({
 
 import { SpaceRow } from './SpaceRow';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 
 // ---- Fixtures ----
 const baseSpace: ResourceInfo = {
@@ -109,14 +110,6 @@ function makePreviewEntry(overrides: Partial<PreviewEntry> = {}): PreviewEntry {
 
 const emptyValidation: ValidationResult = new Map();
 
-interface OffTimeRangeFixture {
-  id: string;
-  startMs: number;
-  endMs: number;
-  title: string;
-  resourceIds: string[] | null;
-}
-
 function renderRow({
   spaceRequests = [],
   previewEntries = [],
@@ -133,7 +126,7 @@ function renderRow({
   previewEntries?: PreviewEntry[];
   overlapCount?: number;
   isDragging?: boolean;
-  offTimeRanges?: OffTimeRangeFixture[];
+  offTimeRanges?: OffTimeRange[];
   columns?: TimeColumn[];
   onRequestClick?: (id: string) => void;
   onEmptyCellClick?: (space: ResourceInfo, col: TimeColumn) => void;
@@ -160,7 +153,7 @@ function renderRow({
       onRequestClick={onRequestClick}
       onEmptyCellClick={onEmptyCellClick}
       onOpenSchedule={onOpenSchedule}
-      offTimeRanges={offTimeRanges as never}
+      offTimeRanges={offTimeRanges}
       {...(editable !== undefined ? { editable } : {})}
     />,
   );

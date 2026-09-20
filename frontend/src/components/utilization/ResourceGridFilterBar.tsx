@@ -9,7 +9,7 @@ import {
   type ResourceGridFilter,
 } from './resource-grid-filter';
 import { STATUS_BORDER_CLASS, STATUS_CELL_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
-import type { BucketStatus } from './schedule-colors';
+import type { BucketStatus } from '@foundation/src/domain/scheduling/types';
 
 interface ResourceGridFilterBarProps {
   value: ResourceGridFilter;

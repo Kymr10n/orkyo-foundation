@@ -33,7 +33,7 @@ public static class RequestEndpoints
             }
             if (page.HasValue || pageSize.HasValue)
             {
-                var paged = await requestService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, includeRequirements, ct);
+                var paged = await requestService.GetAllAsync(PageRequest.From(page, pageSize), includeRequirements, ct);
                 return Results.Ok(paged);
             }
             return Results.Ok(await requestService.GetAllAsync(includeRequirements, siteId, ct));

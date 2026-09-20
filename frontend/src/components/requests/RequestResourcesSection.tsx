@@ -3,15 +3,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@foundation/src/components/ui/separator";
 import { RESOURCE_NONE_PLACEHOLDER } from "@foundation/src/constants";
 import { combineDateTimeToISO } from "@foundation/src/lib/utils";
-import { getResources } from "@foundation/src/lib/api/resources-api";
-import { getUtilizationByResource, type ResourceUtilizationBucket } from "@foundation/src/lib/api/resource-utilization-api";
+import type { ResourceUtilizationBucket } from "@foundation/src/lib/api/resource-utilization-api";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { useEffect, useState } from "react";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import {
+  useResourceOptions,
+  useResourceWindowUtilization,
+} from "@foundation/src/hooks/useRequestResourcePicker";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ConflictIndicator } from "./ConflictIndicator";
 import { RequestPeopleSection } from "./RequestPeopleSection";
 import { RequestTargetTypesField } from "./RequestTargetTypesField";
@@ -115,34 +116,16 @@ function ResourceTypePicker({
   windowEndTs?: string;
 }) {
   const Icon = resourceTypeIcon(type.icon);
-  const { data: resources, isPending } = useQuery({
-    queryKey: [...qk.resources.byType(type.key), { siteId: siteId || null }],
-    queryFn: () => getResources({ resourceTypeKey: type.key, isActive: true, siteId: siteId || undefined }),
-  });
+  const { data: resources, isPending } = useResourceOptions(type.key, siteId);
 
   const settledStart = useDebouncedValue(windowStartTs, 400);
   const settledEnd = useDebouncedValue(windowEndTs, 400);
-  const from = settledStart ? new Date(settledStart) : undefined;
-  const to = settledEnd ? new Date(settledEnd) : undefined;
-  const hasWindow = !!from && !!to && from < to;
-  // Hourly resolution below a fortnight, so a job earlier the same day does not make the
-  // whole day read as Busy; daily above it, to keep the payload bounded.
-  const granularity =
-    hasWindow && to.getTime() - from.getTime() > 14 * 24 * 60 * 60 * 1000 ? "day" : "hour";
-
-  const { data: utilization } = useQuery({
-    // The key is built only when there is a window: the factory stamps the dates with
-    // toISOString(), which throws on undefined, and `enabled` gates the fetch but not
-    // the key — a request with no schedule would take the whole tab down with it.
-    queryKey: hasWindow
-      ? qk.utilization.byResource(type.key, siteId || null, from, to, granularity)
-      : [...qk.utilization.byResourceAll(), "no-window", type.key],
-    queryFn: () => getUtilizationByResource(from!, to!, granularity, type.key, siteId || undefined),
-    enabled: hasWindow,
-    // The badges are a hint, not a gate: keep the previous answer on screen while the
-    // next one loads rather than flickering the whole list empty on every window edit.
-    placeholderData: keepPreviousData,
-  });
+  const { data: utilization } = useResourceWindowUtilization(
+    type.key,
+    siteId,
+    settledStart,
+    settledEnd,
+  );
 
   const availabilityByResource = new Map<string, ResourceAvailability>();
   for (const entry of utilization ?? []) {
@@ -150,7 +133,7 @@ function ResourceTypePicker({
     if (availability) availabilityByResource.set(entry.resourceId, availability);
   }
 
-  const options = resources?.data ?? [];
+  const options = resources?.items ?? [];
   // A dropdown holding only "none" is indistinguishable from one where the user chose none.
   // Say why it is empty instead — and because the query is site-scoped, "none here" and "none
   // at all" are different problems with different fixes.

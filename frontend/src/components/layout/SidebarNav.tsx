@@ -1,10 +1,16 @@
 import { Button } from "@foundation/src/components/ui/button";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
+  ROUTE_ASSETS,
   ROUTE_CONFIGURATION,
+  ROUTE_HOME,
+  ROUTE_INSIGHTS,
+  ROUTE_ORGANIZATION,
+  ROUTE_REQUESTS,
   ROUTE_SETTINGS,
+  ROUTE_STATIONS,
   ROUTE_TENANT_ADMIN,
 } from "@foundation/src/constants/auth";
 import { cn } from "@foundation/src/lib/utils";
@@ -27,17 +33,17 @@ import { Link, useLocation } from "react-router";
 // beneath the class entries, rather than trailing the whole core list.
 // Two classes, never one entry per resource type: adding a type must not grow the sidebar.
 const resourceNavItems = [
-  { to: "/", label: "Utilization", icon: LayoutDashboard },
-  { to: "/stations", label: "Stations", icon: Box },
-  { to: "/assets", label: "Assets", icon: Users },
+  { to: ROUTE_HOME, label: "Utilization", icon: LayoutDashboard },
+  { to: ROUTE_STATIONS, label: "Stations", icon: Box },
+  { to: ROUTE_ASSETS, label: "Assets", icon: Users },
 ];
 
 const workNavItems = [
-  { to: "/requests", label: "Requests", icon: Package },
-  { to: "/insights", label: "Insights", icon: LineChart },
+  { to: ROUTE_REQUESTS, label: "Requests", icon: Package },
+  { to: ROUTE_INSIGHTS, label: "Insights", icon: LineChart },
   // Organization master data — departments, job titles and whatever else the tenant models about
   // its own structure. Editors maintain the values; the shapes are administration.
-  { to: "/organization", label: "Organization", icon: Building2 },
+  { to: ROUTE_ORGANIZATION, label: "Organization", icon: Building2 },
 ];
 
 // Settings visible to editors and admins; Administration to tenant admins only.
@@ -73,8 +79,8 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
     ...(canEdit ? [settingsNavItem] : []),
     ...(isTenantAdmin ? [adminNavItem, configurationNavItem] : []),
   ];
-  const isSidebarCollapsed = useAppStore((state) => state.isSidebarCollapsed);
-  const setIsSidebarCollapsed = useAppStore((state) => state.setIsSidebarCollapsed);
+  const isSidebarCollapsed = useLayoutStore((state) => state.isSidebarCollapsed);
+  const setIsSidebarCollapsed = useLayoutStore((state) => state.setIsSidebarCollapsed);
 
   // A forced presentation (tablet rail / phone drawer) ignores the persisted
   // desktop preference and never mutates it.
@@ -96,8 +102,8 @@ export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {})
           // highlighted. The root item ('/') is special-cased to an exact match so it
           // is not active on every route.
           const isActive =
-            item.to === "/"
-              ? location.pathname === "/"
+            item.to === ROUTE_HOME
+              ? location.pathname === ROUTE_HOME
               : location.pathname === item.to || location.pathname.startsWith(item.to + "/");
 
           return (

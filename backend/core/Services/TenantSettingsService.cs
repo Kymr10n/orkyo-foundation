@@ -1,6 +1,6 @@
-using System.Collections.Concurrent;
 using Api.Models;
 using Api.Repositories;
+using Api.Services.Caching;
 using Orkyo.Shared;
 
 namespace Api.Services;
@@ -11,32 +11,26 @@ public class TenantSettingsService : ITenantSettingsService
     private readonly ISiteSettingsRepository _siteRepo;
     private readonly IOrgContextAccessor _orgContextAccessor;
     private readonly ILogger<TenantSettingsService> _logger;
+    private readonly SingleFlightCache _cache;
 
-    // Per-tenant in-memory cache, keyed by TenantId.
-    // Invalidated on write. Expires on next request after TTL.
-    private static readonly ConcurrentDictionary<Guid, (TenantSettings Settings, DateTime ExpiresAt)> _cache = new();
-    // Separate cache for site-level settings (shared across all tenants).
-    private static readonly object _siteCacheLock = new();
-    private static (Dictionary<string, string> Overrides, DateTime ExpiresAt)? _siteCache;
+    // Per-tenant entries keyed by TenantId, plus one entry for the site-level overrides that
+    // every tenant shares. Invalidated on write; otherwise they expire after the TTL.
+    private const string TenantKeyPrefix = "tenant-settings:";
+    private const string SiteKey = "tenant-settings:site";
     private static readonly TimeSpan CacheTtl = TimePolicyConstants.CacheTtl;
-
-    /// <summary>Clear all cached settings (used by integration tests after direct DB cleanup).</summary>
-    public static void ClearCache()
-    {
-        _cache.Clear();
-        lock (_siteCacheLock) { _siteCache = null; }
-    }
 
     public TenantSettingsService(
         ITenantSettingsRepository tenantRepo,
         ISiteSettingsRepository siteRepo,
         IOrgContextAccessor orgContextAccessor,
-        ILogger<TenantSettingsService> logger)
+        ILogger<TenantSettingsService> logger,
+        SingleFlightCache cache)
     {
         _tenantRepo = tenantRepo;
         _siteRepo = siteRepo;
         _orgContextAccessor = orgContextAccessor;
         _logger = logger;
+        _cache = cache;
     }
 
     /// <summary>True when operating in site-admin context (no tenant resolved for the request).</summary>
@@ -58,9 +52,9 @@ public class TenantSettingsService : ITenantSettingsService
 
             var tenantId = TenantId;
 
-            if (_cache.TryGetValue(tenantId, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
+            if (_cache.TryGet<TenantSettings>(TenantKeyPrefix + tenantId, out var cached) && cached is not null)
             {
-                return cached.Settings;
+                return cached;
             }
 
             // Tenant context: only load tenant-scoped overrides from tenant DB
@@ -75,7 +69,7 @@ public class TenantSettingsService : ITenantSettingsService
             }
 
             var settings = TenantSettingsOverrideApplier.Apply(tenantOverrides);
-            _cache[tenantId] = (settings, DateTime.UtcNow + CacheTtl);
+            _cache.Set(TenantKeyPrefix + tenantId, settings, CacheTtl);
             return settings;
         }
         catch (Exception ex)
@@ -116,13 +110,13 @@ public class TenantSettingsService : ITenantSettingsService
         // Invalidate the relevant cache
         if (IsSiteContext)
         {
-            lock (_siteCacheLock) { _siteCache = null; }
+            _cache.Remove(SiteKey);
             _logger.LogInformation("Updated {Count} site-level settings: {Keys}",
                 updates.Count, string.Join(", ", updates.Keys));
         }
         else
         {
-            _cache.TryRemove(TenantId, out _);
+            _cache.Remove(TenantKeyPrefix + TenantId);
             _logger.LogInformation("Tenant {TenantId} updated {Count} tenant-level settings: {Keys}",
                 TenantId, updates.Count, string.Join(", ", updates.Keys));
         }
@@ -141,7 +135,7 @@ public class TenantSettingsService : ITenantSettingsService
             result = await _siteRepo.DeleteAsync(key, ct);
             if (result)
             {
-                lock (_siteCacheLock) { _siteCache = null; }
+                _cache.Remove(SiteKey);
                 _logger.LogInformation("Reset site-level setting '{Key}' to default", key);
             }
         }
@@ -150,7 +144,7 @@ public class TenantSettingsService : ITenantSettingsService
             result = await _tenantRepo.DeleteAsync(key, ct);
             if (result)
             {
-                _cache.TryRemove(TenantId, out _);
+                _cache.Remove(TenantKeyPrefix + TenantId);
                 _logger.LogInformation("Tenant {TenantId} reset setting '{Key}' to default",
                     TenantId, key);
             }
@@ -174,21 +168,13 @@ public class TenantSettingsService : ITenantSettingsService
 
     private async Task<Dictionary<string, string>> GetSiteOverridesAsync()
     {
-        lock (_siteCacheLock)
-        {
-            if (_siteCache.HasValue && _siteCache.Value.ExpiresAt > DateTime.UtcNow)
-            {
-                return new Dictionary<string, string>(_siteCache.Value.Overrides, StringComparer.OrdinalIgnoreCase);
-            }
-        }
+        // A copy per caller: the cached dictionary is shared, and TenantSettingsOverrideApplier's
+        // callers are free to treat what they get back as their own.
+        if (_cache.TryGet<Dictionary<string, string>>(SiteKey, out var cached) && cached is not null)
+            return new Dictionary<string, string>(cached, StringComparer.OrdinalIgnoreCase);
 
         var overrides = await _siteRepo.GetAllAsync();
-
-        lock (_siteCacheLock)
-        {
-            _siteCache = (overrides, DateTime.UtcNow + CacheTtl);
-        }
-
+        _cache.Set(SiteKey, overrides, CacheTtl);
         return overrides;
     }
 }

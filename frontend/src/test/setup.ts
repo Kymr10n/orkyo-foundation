@@ -50,7 +50,7 @@ globalThis.ResizeObserver = class implements ResizeObserver {
 // keep their desktop behavior and responsive units (useBreakpoint,
 // mobile nav) are testable. Tests drive a specific breakpoint by
 // overriding window.matchMedia (see useBreakpoint.test.tsx). writable/configurable so
-// those overrides — and the theme tests in app-store.test.ts — still work.
+// those overrides — and the theme tests in layout-store.test.ts — still work.
 const DEFAULT_TEST_VIEWPORT_WIDTH = 1280;
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

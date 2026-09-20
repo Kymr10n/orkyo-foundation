@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
@@ -23,7 +24,7 @@ public static class AuditEndpoints
 {
     private const string SelectColumns =
         "id, actor_user_id, actor_type, action, target_type, target_id, " +
-        "metadata::text, request_id, ip_address, created_at";
+        "metadata::text AS metadata, request_id, ip_address, created_at";
 
     public static void MapAuditEndpoints(this WebApplication app)
     {
@@ -62,7 +63,7 @@ public static class AuditEndpoints
         var prefix = string.IsNullOrEmpty(whereClause) ? string.Empty : whereClause + "\n            ";
 
         var result = await conn.QueryPagedAsync(
-            new PageRequest { Page = page, PageSize = pageSize },
+            PageRequest.From(page, pageSize),
             string.IsNullOrEmpty(whereClause)
                 ? "SELECT COUNT(*) FROM audit_events"
                 : $"SELECT COUNT(*) FROM audit_events {whereClause}",
@@ -73,16 +74,16 @@ public static class AuditEndpoints
             bind: p => { foreach (var wp in whereParams) p.Add(wp.Clone()); },
             map: reader => new AuditEventDto
             {
-                Id = reader.GetGuid(0),
-                ActorUserId = reader.IsDBNull(1) ? null : reader.GetGuid(1),
-                ActorType = reader.GetString(2),
-                Action = reader.GetString(3),
-                TargetType = reader.IsDBNull(4) ? null : reader.GetString(4),
-                TargetId = reader.IsDBNull(5) ? null : reader.GetString(5),
-                Metadata = reader.IsDBNull(6) ? null : reader.GetString(6),
-                RequestId = reader.IsDBNull(7) ? null : reader.GetString(7),
-                IpAddress = reader.IsDBNull(8) ? null : reader.GetString(8),
-                CreatedAt = reader.GetDateTime(9),
+                Id = reader.GetGuid("id"),
+                ActorUserId = reader.GetNullableGuid("actor_user_id"),
+                ActorType = reader.GetString("actor_type"),
+                Action = reader.GetString("action"),
+                TargetType = reader.GetNullableString("target_type"),
+                TargetId = reader.GetNullableString("target_id"),
+                Metadata = reader.GetNullableString("metadata"),
+                RequestId = reader.GetNullableString("request_id"),
+                IpAddress = reader.GetNullableString("ip_address"),
+                CreatedAt = reader.GetDateTime("created_at"),
             },
             ct);
 

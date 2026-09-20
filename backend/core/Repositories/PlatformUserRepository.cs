@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models.Admin;
 using Api.Services;
 using Npgsql;
@@ -64,20 +65,20 @@ public class PlatformUserRepository : IPlatformUserRepository
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
-            var keycloakSub = reader.IsDBNull(9) ? null : reader.GetString(9);
+            var keycloakSub = reader.GetNullableString("keycloak_sub");
             var summary = new AdminUserSummary
             {
-                Id = reader.GetGuid(0),
-                Email = reader.GetString(1),
-                DisplayName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                Status = reader.GetString(3),
-                CreatedAt = reader.GetDateTime(4),
-                UpdatedAt = reader.GetDateTime(5),
-                LastLoginAt = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-                MembershipCount = reader.GetInt32(7),
-                IdentityCount = reader.GetInt32(8),
+                Id = reader.GetGuid("id"),
+                Email = reader.GetString("email"),
+                DisplayName = reader.GetNullableString("display_name"),
+                Status = reader.GetString("status"),
+                CreatedAt = reader.GetDateTime("created_at"),
+                UpdatedAt = reader.GetDateTime("updated_at"),
+                LastLoginAt = reader.GetNullableDateTime("last_login_at"),
+                MembershipCount = reader.GetInt32("membership_count"),
+                IdentityCount = reader.GetInt32("identity_count"),
                 IsSiteAdmin = false, // resolved by the caller via Keycloak
-                OwnedTenantId = reader.IsDBNull(10) ? null : reader.GetGuid(10),
+                OwnedTenantId = reader.GetNullableGuid("owned_tenant_id"),
                 OwnedTenantTier = null, // resolved by the caller via the edition's plan provider
             };
             rows.Add(new AdminUserListRow(summary, keycloakSub));
@@ -96,14 +97,14 @@ public class PlatformUserRepository : IPlatformUserRepository
             WHERE u.id = @userId",
             p => p.AddWithValue("userId", userId),
             reader => new AdminUserCoreDto(
-                reader.GetGuid(0),
-                reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2),
-                reader.GetString(3),
-                reader.GetDateTime(4),
-                reader.GetDateTime(5),
-                reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-                reader.IsDBNull(7) ? null : reader.GetGuid(7)),
+                reader.GetGuid("id"),
+                reader.GetString("email"),
+                reader.GetNullableString("display_name"),
+                reader.GetString("status"),
+                reader.GetDateTime("created_at"),
+                reader.GetDateTime("updated_at"),
+                reader.GetNullableDateTime("last_login_at"),
+                reader.GetNullableGuid("owned_tenant_id")),
             ct);
     }
 
@@ -115,8 +116,8 @@ public class PlatformUserRepository : IPlatformUserRepository
             p => p.AddWithValue("id", userId),
             reader =>
             {
-                var email = reader.GetString(0);
-                var displayName = reader.IsDBNull(1) ? email : reader.GetString(1);
+                var email = reader.GetString("email");
+                var displayName = reader.GetNullableString("display_name") ?? email;
                 return (email, displayName);
             },
             ct);
@@ -198,10 +199,10 @@ public class PlatformUserRepository : IPlatformUserRepository
             if (!await reader.ReadAsync(ct))
                 return new EmailChangeConfirmResult(EmailChangeConfirmStatus.NotFoundOrExpired);
 
-            userId = reader.GetGuid(0);
-            keycloakId = reader.IsDBNull(1) ? null : reader.GetString(1);
-            currentEmail = reader.GetString(2);
-            pendingEmail = reader.IsDBNull(3) ? null : reader.GetString(3);
+            userId = reader.GetGuid("id");
+            keycloakId = reader.GetNullableString("keycloak_id");
+            currentEmail = reader.GetString("email");
+            pendingEmail = reader.GetNullableString("pending_email");
         }
 
         if (string.IsNullOrEmpty(pendingEmail))
@@ -279,10 +280,11 @@ public class PlatformUserRepository : IPlatformUserRepository
             p => p.AddWithValue("token", token),
             reader =>
             {
-                var userId = reader.GetGuid(0);
-                var keycloakId = reader.IsDBNull(1) ? null : reader.GetString(1);
-                var displayName = reader.GetString(2);
-                var wasDormant = !reader.IsDBNull(3) && string.Equals(reader.GetString(3), "dormant", StringComparison.Ordinal);
+                var userId = reader.GetGuid("id");
+                var keycloakId = reader.GetNullableString("keycloak_id");
+                var displayName = reader.GetString("display_name");
+                var wasDormant = string.Equals(
+                    reader.GetNullableString("lifecycle_status"), "dormant", StringComparison.Ordinal);
                 return new AccountLifecycleConfirmRecord(userId, keycloakId, displayName, wasDormant);
             },
             ct);
@@ -310,7 +312,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         return await conn.QuerySingleOrDefaultAsync<bool?>(
             "SELECT announcement_email_opt_out FROM users WHERE id = @id",
             p => p.AddWithValue("id", userId),
-            reader => reader.GetBoolean(0),
+            reader => reader.GetBoolean("announcement_email_opt_out"),
             ct);
     }
 
@@ -342,7 +344,8 @@ public class PlatformUserRepository : IPlatformUserRepository
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         return await conn.QueryListAsync(@"
-            SELECT tm.tenant_id, t.slug, t.display_name, tm.role, tm.status, tm.created_at
+            SELECT tm.tenant_id, t.slug, t.display_name, tm.role,
+                   tm.status AS membership_status, tm.created_at AS joined_at
             FROM tenant_memberships tm
             INNER JOIN tenants t ON tm.tenant_id = t.id
             WHERE tm.user_id = @userId
@@ -350,12 +353,12 @@ public class PlatformUserRepository : IPlatformUserRepository
             p => p.AddWithValue("userId", userId),
             reader => new AdminUserMembership
             {
-                TenantId = reader.GetGuid(0),
-                TenantSlug = reader.GetString(1),
-                TenantName = reader.GetString(2),
-                Role = reader.GetString(3),
-                Status = reader.GetString(4),
-                JoinedAt = reader.GetDateTime(5),
+                TenantId = reader.GetGuid("tenant_id"),
+                TenantSlug = reader.GetString("slug"),
+                TenantName = reader.GetString("display_name"),
+                Role = reader.GetString("role"),
+                Status = reader.GetString("membership_status"),
+                JoinedAt = reader.GetDateTime("joined_at"),
             },
             ct);
     }

@@ -9,7 +9,7 @@ namespace Api.Tests.Services;
 
 public class CalendarFeedServiceTests
 {
-    private readonly Mock<IRequestRepository> _requestRepo = new();
+    private readonly Mock<IRequestScheduleReadRepository> _requestRepo = new();
     private readonly Mock<IResourceRepository> _resourceRepo = new();
     private readonly CalendarFeedService _service;
 

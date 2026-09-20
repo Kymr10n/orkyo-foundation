@@ -1,19 +1,18 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
-import { getCriteria } from '@foundation/src/lib/api/criteria-api';
 import {
-  deleteResourceCapability,
-  getResourceCapabilities,
-  upsertResourceCapability,
-} from '@foundation/src/lib/api/resource-capabilities-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+  useCriteriaForResourceType,
+  useInvalidateCriteriaForResourceType,
+} from '@foundation/src/hooks/useCriteria';
+import {
+  useResourceCapabilities,
+  useSaveResourceCapabilities,
+} from '@foundation/src/hooks/useResources';
 import type { Criterion, CriterionValue } from '@foundation/src/types/criterion';
 import { logger } from '@foundation/src/lib/core/logger';
 import { CriterionEditDialog } from '../settings/CriterionEditDialog';
 import { CriterionAssignmentEditor } from '../capabilities/CriterionAssignmentEditor';
-import { diffCapabilityAssignments } from '../capabilities/capability-diff';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 export interface ResourceCapabilitiesEditorProps {
@@ -55,26 +54,18 @@ export function ResourceCapabilitiesEditor({
   const [selectedCriterionId, setSelectedCriterionId] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const queryClient = useQueryClient();
+  const invalidateCriteria = useInvalidateCriteriaForResourceType(resourceTypeKey);
 
-  const criteriaKey = qk.criteria.byResourceType(resourceTypeKey);
   const lowerPlural = valueLabel.plural.toLowerCase();
 
   const {
     data: caps,
     isLoading: capsLoading,
     error: capsError,
-  } = useQuery({
-    queryKey: qk.resources.capabilities(resourceId),
-    queryFn: () => getResourceCapabilities(resourceId),
-    enabled: open,
-  });
+  } = useResourceCapabilities(resourceId, open);
 
-  const { data: availableCriteria = [], isLoading: criteriaLoading } = useQuery({
-    queryKey: criteriaKey,
-    queryFn: () => getCriteria({ resourceType: resourceTypeKey }),
-    enabled: open,
-  });
+  const { data: availableCriteria = [], isLoading: criteriaLoading } =
+    useCriteriaForResourceType(resourceTypeKey, open);
 
   const initialAssignments = useMemo(() => {
     const map = new Map<string, CriterionValue | null>();
@@ -88,33 +79,23 @@ export function ResourceCapabilitiesEditor({
       : `Failed to load ${lowerPlural}`
     : null;
 
-  const saveMutation = useMutation({
-    mutationFn: async (desired: Map<string, CriterionValue | null>) => {
-      const existing = await getResourceCapabilities(resourceId);
-      const { toPersist, toDeleteIds } = diffCapabilityAssignments(existing, desired, 'upsert');
-      await Promise.all([
-        ...toPersist.map((cap) => upsertResourceCapability(resourceId, cap)),
-        ...toDeleteIds.map((id) => deleteResourceCapability(resourceId, id)),
-      ]);
-    },
-    meta: {
-      successMessage: `${valueLabel.plural} saved`,
-      errorMessage: `Failed to save ${lowerPlural}`,
-      invalidates: [qk.resources.capabilities(resourceId)],
-    },
-    onSuccess: () => {
-      setSaveError(null);
-      onOpenChange(false);
-    },
-    onError: (err) => {
-      logger.error('Failed to save resource capabilities:', err);
-      setSaveError(errorMessage(err));
-    },
-  });
+  const saveMutation = useSaveResourceCapabilities(resourceId, valueLabel);
+
+  const handleSave = (desired: Map<string, CriterionValue | null>) =>
+    saveMutation.mutate(desired, {
+      onSuccess: () => {
+        setSaveError(null);
+        onOpenChange(false);
+      },
+      onError: (err) => {
+        logger.error('Failed to save resource capabilities:', err);
+        setSaveError(errorMessage(err));
+      },
+    });
 
   const handleCriterionCreated = async (criterion: Criterion) => {
     // Refresh the applicable criteria so the new one appears; preselect it.
-    await queryClient.invalidateQueries({ queryKey: criteriaKey });
+    await invalidateCriteria();
     setSelectedCriterionId(criterion.id);
   };
 
@@ -129,7 +110,7 @@ export function ResourceCapabilitiesEditor({
         saveError={saveError}
         isSaving={saveMutation.isPending}
         initialAssignments={initialAssignments}
-        onSave={(desired) => saveMutation.mutate(desired)}
+        onSave={handleSave}
         selectedCriterionId={selectedCriterionId}
         onSelectedCriterionIdChange={setSelectedCriterionId}
         labels={{

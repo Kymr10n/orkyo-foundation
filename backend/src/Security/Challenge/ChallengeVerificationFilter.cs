@@ -33,7 +33,7 @@ public sealed class ChallengeVerificationFilter : IEndpointFilter
             services.GetRequiredService<ILogger<ChallengeVerificationFilter>>()
                 .LogWarning("Challenge verification failed for {Path}: {Error}",
                     httpContext.Request.Path, challenge.ErrorCode);
-            return ProblemResults.Problem(StatusCodes.Status403Forbidden, ErrorCodes.ChallengeFailed,
+            return ProblemResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.ChallengeFailed,
                 detail: "Verification failed. Refresh the page and try again.");
         }
 

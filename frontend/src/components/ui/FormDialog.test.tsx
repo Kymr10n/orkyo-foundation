@@ -217,8 +217,8 @@ describe('FormDialog', () => {
     mockIsPhone = true;
     renderDialog();
     const content = screen.getByRole('dialog');
-    // Edge-to-edge and full height — the same presentation ScaffoldDialog uses, so a
-    // tall form is not squeezed into a centred band with dead space above and below.
+    // Edge-to-edge and full height, in both body shapes, so a tall form is not squeezed
+    // into a centred band with dead space above and below.
     expect(content).toHaveClass('inset-0', 'h-[100dvh]', 'max-w-none');
     // The width token must not survive alongside it, or the card comes back.
     expect(content).not.toHaveClass('sm:max-w-[500px]');

@@ -4,9 +4,11 @@
  * means a fresh trigger to consume.
  */
 
-import { useEffect, useEffectEvent, useRef } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { qk } from '@foundation/src/lib/api/query-keys';
+import { invalidateRequestData } from '@foundation/src/lib/core/invalidate-request-data';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
 import { useUiActionsStore, type CalendarFeedCapability, type ExportCapability } from '@foundation/src/store/ui-actions-store';
 
@@ -133,4 +135,20 @@ export function useImportHandler<T = void>(
 
     void runImport(payload.file, payload.format);
   }, [tick, payload, context]);
+}
+
+/**
+ * Re-read everything a spreadsheet import can have written: resources, and every request feed.
+ *
+ * For an importer that creates records one call at a time rather than through a mutation, so
+ * there is no `meta` to carry the invalidation. It runs after a partial failure too — whatever
+ * was written before the error is real, and the screen has to show it.
+ */
+export function useInvalidateImportedData() {
+  const queryClient = useQueryClient();
+
+  return useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: qk.resources.all() });
+    invalidateRequestData(queryClient);
+  }, [queryClient]);
 }

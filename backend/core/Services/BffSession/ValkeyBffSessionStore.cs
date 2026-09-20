@@ -12,16 +12,19 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
 {
     private readonly IConnectionMultiplexer _valkey;
     private readonly ILogger<ValkeyBffSessionStore> _logger;
+    private readonly TimeProvider _time;
 
     private static string SessionKey(string sessionId) => $"bff:s:{sessionId}";
     private static string RefreshLockKey(string sessionId) => $"bff:refresh-lock:{sessionId}";
 
     public ValkeyBffSessionStore(
         IConnectionMultiplexer valkey,
-        ILogger<ValkeyBffSessionStore> logger)
+        ILogger<ValkeyBffSessionStore> logger,
+        TimeProvider time)
     {
         _valkey = valkey;
         _logger = logger;
+        _time = time;
     }
 
     public async Task<BffSessionRecord?> GetAsync(string sessionId, CancellationToken ct = default)
@@ -34,13 +37,13 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
                 return null;
 
             var session = JsonSerializer.Deserialize<BffSessionRecord>(json);
-            if (session is null || session.ExpiresAt <= DateTimeOffset.UtcNow)
+            if (session is null || session.ExpiresAt <= _time.GetUtcNow())
                 return null;
 
             // Update last activity (fire-and-forget — not critical)
-            session.LastActivityAt = DateTimeOffset.UtcNow;
+            session.LastActivityAt = _time.GetUtcNow();
             _ = db.StringSetAsync(SessionKey(sessionId), JsonSerializer.Serialize(session),
-                session.ExpiresAt - DateTimeOffset.UtcNow, flags: CommandFlags.FireAndForget);
+                session.ExpiresAt - _time.GetUtcNow(), flags: CommandFlags.FireAndForget);
 
             return session;
         }
@@ -57,7 +60,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
         try
         {
             var db = _valkey.GetDatabase();
-            var ttl = session.ExpiresAt - DateTimeOffset.UtcNow;
+            var ttl = session.ExpiresAt - _time.GetUtcNow();
             if (ttl <= TimeSpan.Zero)
                 return;
 
@@ -106,11 +109,11 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 TokenExpiresAt = tokenExpiresAt,
-                LastActivityAt = DateTimeOffset.UtcNow,
+                LastActivityAt = _time.GetUtcNow(),
             };
 
             // Keep Valkey TTL based on overall session expiry, not token expiry
-            var ttl = updated.ExpiresAt - DateTimeOffset.UtcNow;
+            var ttl = updated.ExpiresAt - _time.GetUtcNow();
             if (ttl <= TimeSpan.Zero)
                 return;
 
@@ -144,10 +147,10 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             var updated = session with
             {
                 ExpiresAt = expiresAt,
-                LastActivityAt = DateTimeOffset.UtcNow,
+                LastActivityAt = _time.GetUtcNow(),
             };
 
-            var ttl = expiresAt - DateTimeOffset.UtcNow;
+            var ttl = expiresAt - _time.GetUtcNow();
             if (ttl <= TimeSpan.Zero)
                 return;
 

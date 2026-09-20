@@ -14,42 +14,55 @@ public partial class ConventionContractTests
     // ── (f) services that write SQL ──────────────────────────────────────────
 
     /// <summary>
-    /// Services that construct <c>NpgsqlCommand</c> directly: repositories wearing service
-    /// names (docs/conventions.md, "Layering"). Grandfathered; move the query into a
-    /// repository on touch; new services take a repository.
+    /// Services that reach the database directly — by constructing an <c>NpgsqlCommand</c>, or by
+    /// running a query through the <c>NpgsqlQueryExtensions</c> helpers on their own connection:
+    /// repositories wearing service names (docs/conventions.md, "Layering"). Grandfathered; move
+    /// the query into a repository on touch; new services take a repository.
     /// </summary>
     private static readonly HashSet<string> KnownSqlWritingServiceFiles = new(StringComparer.Ordinal)
     {
         "core:Services/AdminAuditService.cs",
         "core:Services/AnnouncementBroadcastService.cs",
+        // "open + SELECT 1" control-plane reachability probe; a raw command by design.
+        "core:Services/DbHealthProbe.cs",
         "core:Services/Insights/InsightsService.cs",
         "core:Services/InvitationService.cs",
         "core:Services/PlatformApi/ApiAccessTokenService.cs",
         "core:Services/Preset/PresetApplier.cs",
         "core:Services/PresetService.cs",
+        // Reaches the DB through NpgsqlQueryExtensions rather than a raw command.
+        "core:Services/Reporting/ReportingQueryService.cs",
         "core:Services/Reporting/ReportingTokenService.cs",
         "core:Services/SessionService.cs",
         "core:Services/StarterTemplateService.cs",
-        "core:Services/TenantResolver.cs",
         "core:Services/TenantUserService.cs",
+        // Writes its lifecycle SQL through the fully-qualified Npgsql.NpgsqlCommand form.
+        "core:Services/UserLifecycleService.cs",
         "core:Services/UserManagementService.cs",
         "core:Services/UserProvisioningService.cs",
         "core:Services/UserSessionService.cs",
         "core:Services/WorkerJobCoordinator.cs",
     };
 
-    [GeneratedRegex(@"new\s+NpgsqlCommand")]
-    private static partial Regex NewNpgsqlCommandRegex();
+    // Both routes from a service to the database: a hand-built command (optionally namespace-
+    // qualified) and the NpgsqlQueryExtensions helpers, which take the connection local `conn`
+    // or `db` (docs/conventions.md, "Opening a connection").
+    [GeneratedRegex(@"new\s+(?:Npgsql\.)?NpgsqlCommand|(?<![\w.])(?:conn|db)\.(?:QueryListAsync|QuerySingleOrDefaultAsync|ExecuteAsync|ExecuteScalarAsync|ExistsAsync|QueryPagedAsync)\(")]
+    private static partial Regex ServiceSqlAccessRegex();
 
     [Fact]
     public void NoNewService_WritesSql()
     {
-        NewNpgsqlCommandRegex().IsMatch("await using var cmd = new NpgsqlCommand(sql, conn);")
+        ServiceSqlAccessRegex().IsMatch("await using var cmd = new NpgsqlCommand(sql, conn);")
             .Should().BeTrue("the guard regex must match its own exemplar");
+        ServiceSqlAccessRegex().IsMatch("var rows = await conn.QueryListAsync(sql, Map, ct);")
+            .Should().BeTrue("the guard regex must match the extension-helper exemplar");
+        ServiceSqlAccessRegex().IsMatch("if (await _repository.ExistsAsync(id, ct))")
+            .Should().BeFalse("a repository call is not the service reaching the DB");
 
         var offenders = ScanSources(("backend", "core"))
             .Where(x => x.Rel.StartsWith("Services/", StringComparison.Ordinal))
-            .Where(x => NewNpgsqlCommandRegex().IsMatch(x.Text))
+            .Where(x => ServiceSqlAccessRegex().IsMatch(x.Text))
             .Select(x => x.Key)
             .Where(key => !KnownSqlWritingServiceFiles.Contains(key))
             .ToList();
@@ -65,7 +78,7 @@ public partial class ConventionContractTests
     public void SqlWritingServiceBaseline_HasNoStaleEntries()
     {
         var stillOffending = ScanSources(("backend", "core"))
-            .Where(x => NewNpgsqlCommandRegex().IsMatch(x.Text))
+            .Where(x => ServiceSqlAccessRegex().IsMatch(x.Text))
             .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
 
         var stale = KnownSqlWritingServiceFiles.Where(f => !stillOffending.Contains(f)).ToList();
@@ -307,5 +320,122 @@ public partial class ConventionContractTests
         stale.Should().BeEmpty(
             "these files no longer declare a Fetch/Load/Find read — remove them from the "
             + "baseline:\n  " + string.Join("\n  ", stale));
+    }
+
+    // ── (k) ordinal row reads ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Rows are read by column name through <c>ReaderExtensions</c>. An ordinal read is
+    /// positional: it keeps compiling and starts returning the wrong column the moment a
+    /// SELECT list is reordered, and nothing fails until a user sees the wrong value. A JOIN
+    /// whose two tables share a column name aliases the duplicate rather than reading by
+    /// position. The baseline is empty — every grandfathered file was converted — so the
+    /// forbid fact now guards the whole of <c>backend/src</c> and <c>backend/core</c>.
+    /// </summary>
+    private static readonly HashSet<string> KnownOrdinalReadFiles = new(StringComparer.Ordinal);
+
+    // Any identifier ending in "reader", not just the two conventional names: a local called
+    // `checkReader` held a positional read that this guard could not see for as long as it existed.
+    [GeneratedRegex(@"\b(?:[A-Za-z_][A-Za-z0-9_]*)?[Rr]eader\.(?:Get[A-Za-z0-9]+|IsDBNull)\(\d+\)|\br\.(?:Get[A-Za-z0-9]+|IsDBNull)\(\d+\)")]
+    private static partial Regex OrdinalRowReadRegex();
+
+    [Fact]
+    public void NoNewFile_ReadsARowByOrdinal()
+    {
+        OrdinalRowReadRegex().IsMatch("Id = reader.GetGuid(0),")
+            .Should().BeTrue("the guard regex must match its own exemplar");
+        OrdinalRowReadRegex().IsMatch("Id = reader.GetGuid(\"id\"),")
+            .Should().BeFalse("a name-based read is the rule, not an offence");
+
+        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
+            .Where(x => OrdinalRowReadRegex().IsMatch(x.Text))
+            .Select(x => x.Key)
+            .Where(key => !KnownOrdinalReadFiles.Contains(key))
+            .ToList();
+
+        offenders.Should().BeEmpty(
+            "rows are read by column name via ReaderExtensions, never by ordinal. Alias the "
+            + "column if a JOIN makes the name ambiguous. The grandfathered files are in "
+            + "KnownOrdinalReadFiles and shrink on touch. Offenders:\n  "
+            + string.Join("\n  ", offenders));
+    }
+
+    [Fact]
+    public void OrdinalReadBaseline_HasNoStaleEntries()
+    {
+        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
+            .Where(x => OrdinalRowReadRegex().IsMatch(x.Text))
+            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
+
+        var stale = KnownOrdinalReadFiles.Where(f => !stillOffending.Contains(f)).ToList();
+
+        stale.Should().BeEmpty(
+            "these files no longer read a row by ordinal — remove them from the baseline so "
+            + "the ratchet moves forward:\n  " + string.Join("\n  ", stale));
+    }
+
+    // ── (l) reading the clock directly ───────────────────────────────────────
+
+    /// <summary>
+    /// The clock is <c>TimeProvider</c>, registered by <c>AddFoundationServices</c> and
+    /// <c>AddFoundationWorkerServices</c>. A direct <c>UtcNow</c> read is untestable: nothing
+    /// can move it, so every rule that depends on "now" — expiry, dormancy, the effective
+    /// request status — is pinned only at whatever time the suite happens to run. These files
+    /// predate the rule and shrink on touch; the reverse staleness fact locks in each
+    /// conversion. There is no burn-down schedule.
+    /// </summary>
+    private static readonly HashSet<string> KnownDirectClockFiles = new(StringComparer.Ordinal)
+    {
+        // A computed property on a DTO record; nothing injects into a record.
+        "core:Models/Announcement.cs",
+        // Property initializer and a factory method on plain records; no DI seam.
+        "core:Models/Reporting/ReportingModels.cs",
+        // Static mapper called from repositories; nothing injects into it.
+        "core:Repositories/RequestMapper.cs",
+        // Static prompt builder; nothing injects into it.
+        "core:Services/Ai/AiSystemPrompt.cs",
+        // Static template builders; nothing injects into them.
+        "core:Services/EmailTemplates.cs",
+        // A computed property on a record base; nothing injects into a record.
+        "core:Services/Tokens/TokenRows.cs",
+        // Static health-check ResponseWriter delegate with a framework-fixed signature.
+        "src:Configuration/FoundationApiHostExtensions.cs",
+    };
+
+    [GeneratedRegex(@"DateTime(?:Offset)?\.UtcNow")]
+    private static partial Regex DirectClockReadRegex();
+
+    [Fact]
+    public void NoNewFile_ReadsTheClockDirectly()
+    {
+        DirectClockReadRegex().IsMatch("var now = DateTime.UtcNow;")
+            .Should().BeTrue("the guard regex must match its own exemplar");
+        DirectClockReadRegex().IsMatch("var now = _time.GetUtcNow();")
+            .Should().BeFalse("reading through TimeProvider is the rule, not an offence");
+
+        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
+            .Where(x => DirectClockReadRegex().IsMatch(x.Text))
+            .Select(x => x.Key)
+            .Where(key => !KnownDirectClockFiles.Contains(key))
+            .ToList();
+
+        offenders.Should().BeEmpty(
+            "the clock comes from an injected TimeProvider, not DateTime.UtcNow. The "
+            + "grandfathered files are in KnownDirectClockFiles and shrink on touch. "
+            + "Offenders:\n  " + string.Join("\n  ", offenders));
+    }
+
+    [Fact]
+    public void DirectClockBaseline_HasNoStaleEntries()
+    {
+        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
+            .Where(x => DirectClockReadRegex().IsMatch(x.Text))
+            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
+
+        var stale = KnownDirectClockFiles.Where(f => !stillOffending.Contains(f)).ToList();
+
+        stale.Should().BeEmpty(
+            "these files no longer read the clock directly — remove them from the baseline so "
+            + "the ratchet moves forward:\n  " + string.Join("\n  ", stale));
     }
 }

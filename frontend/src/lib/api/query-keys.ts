@@ -181,6 +181,8 @@ export const qk = {
     active: () => ["announcements"] as const,
     /** Unread-count badge in the top bar. */
     unread: () => ["unread-announcements"] as const,
+    /** The admin tab's list, expired ones included. Under the `active()` prefix on purpose. */
+    adminAll: () => ["announcements", "admin"] as const,
   },
 
   /**
@@ -194,6 +196,12 @@ export const qk = {
   /** Every routing, with its steps (also its own invalidation prefix). */
   routings: () => ["routings"] as const,
 
+  audit: {
+    /** One page of the tenant audit log (also its own invalidation prefix). */
+    events: (page: number, filters: { action?: string; from?: string; to?: string }) =>
+      ["audit", "events", page, filters.action ?? null, filters.from ?? null, filters.to ?? null] as const,
+  },
+
   users: {
     /** The tenant's user list (also its own invalidation prefix). */
     all: () => ["users"] as const,
@@ -202,6 +210,8 @@ export const qk = {
   invitations: {
     /** The tenant's pending invitations (also its own invalidation prefix). */
     all: () => ["invitations"] as const,
+    /** Public pre-signup lookup of one invitation token. */
+    validate: (token: string | null) => ["invitations", "validate", token] as const,
   },
 
   security: {
@@ -304,8 +314,11 @@ export const qk = {
     usersSearch: (search: string | null) => ["admin", "users", search] as const,
     tenantMembers: () => ["admin", "tenant-members"] as const,
     tenantMembersFor: (tenantId: string | null) => ["admin", "tenant-members", tenantId] as const,
-    subscriptionTiers: () => ["admin", "subscription-tiers"] as const,
     tenantQuotas: (tenantId: string) => ["admin", "tenant-quotas", tenantId] as const,
     audit: (page: number, action: string | null) => ["admin", "audit", page, action] as const,
+    /** The platform diagnostics panel. */
+    diagnostics: () => ["admin", "diagnostics"] as const,
+    /** The platform runtime settings the admin Settings tab edits. */
+    settings: () => ["admin", "settings"] as const,
   },
 } as const;

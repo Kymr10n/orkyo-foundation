@@ -265,8 +265,8 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
             readCmd.Parameters.AddWithValue("id", columnId);
             await using var reader = await readCmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct)) return false;
-            definitionId = reader.GetGuid(0);
-            key = reader.GetString(1);
+            definitionId = reader.GetGuid("list_definition_id");
+            key = reader.GetString("key");
         }
 
         await using (var stripCmd = new NpgsqlCommand(

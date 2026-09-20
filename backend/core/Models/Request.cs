@@ -169,7 +169,7 @@ public record RequestInfo
     public required bool SchedulingSettingsApply { get; init; }
 
     // Computed: scheduled when the time window is set and every targeted resource type has an
-    // assignment. Must stay in step with RequestRepository.FullyAssignedSql and
+    // assignment. Must stay in step with RequestSql.FullyAssignedSql and
     // analytics_request_summary_v — the same rule, evaluated in three places.
     // The Count check is load-bearing: All() on an empty list is true, so a request targeting
     // nothing would otherwise report itself scheduled while holding no resource.

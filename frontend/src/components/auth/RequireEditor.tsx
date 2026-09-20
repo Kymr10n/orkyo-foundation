@@ -12,6 +12,7 @@ import { useEffect } from "react";
 import { Navigate } from "react-router";
 import { toast } from "sonner";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { ROUTE_HOME } from "@foundation/src/constants/auth";
 
 export function RequireEditor({ children }: { children: React.ReactNode }) {
   const canEdit = useCanEdit();
@@ -23,7 +24,7 @@ export function RequireEditor({ children }: { children: React.ReactNode }) {
   }, [canEdit]);
 
   if (!canEdit) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTE_HOME} replace />;
   }
 
   return <>{children}</>;

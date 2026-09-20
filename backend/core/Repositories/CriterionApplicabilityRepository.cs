@@ -30,7 +30,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
             "JOIN resource_types rt ON rt.id = crt.resource_type_id " +
             "WHERE crt.criterion_id = @id",
             p => p.AddWithValue("id", criterionId),
-            r => r.GetString(0), ct);
+            r => r.GetString("key"), ct);
 
         return new CriterionApplicabilityInfo
         {
@@ -68,7 +68,7 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
             currentCmd.Parameters.AddWithValue("id", criterionId);
             await using var currentReader = await currentCmd.ExecuteReaderAsync(ct);
             while (await currentReader.ReadAsync(ct))
-                currentTypeIds.Add(currentReader.GetGuid(0));
+                currentTypeIds.Add(currentReader.GetGuid("resource_type_id"));
         }
 
         var removedTypeIds = currentTypeIds.Where(t => !newTypeIds.Contains(t)).ToArray();
@@ -95,10 +95,10 @@ public class CriterionApplicabilityRepository(OrgContext orgContext, IOrgDbConne
             await using var reader = await checkCmd.ExecuteReaderAsync(ct);
             while (await reader.ReadAsync(ct))
             {
-                var typeId = reader.GetGuid(0);
-                var typeKey = reader.IsDBNull(1) ? typeId.ToString() : reader.GetString(1);
-                var resources = reader.GetInt64(2);
-                var groups = reader.GetInt64(3);
+                var typeId = reader.GetGuid("id");
+                var typeKey = reader.GetNullableString("key") ?? typeId.ToString();
+                var resources = reader.GetInt64("resources");
+                var groups = reader.GetInt64("groups");
 
                 if (resources > 0 || groups > 0)
                 {

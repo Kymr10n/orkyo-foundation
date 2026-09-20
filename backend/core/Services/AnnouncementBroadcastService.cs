@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Repositories;
 using Microsoft.Extensions.Logging;
 using Npgsql;
@@ -91,11 +92,11 @@ public sealed class AnnouncementBroadcastService : IAnnouncementBroadcastService
         while (await reader.ReadAsync(ct))
         {
             results.Add(new Recipient(
-                reader.GetGuid(0),
-                reader.GetString(1),
-                reader.IsDBNull(2) ? string.Empty : reader.GetString(2),
-                reader.GetGuid(3),
-                reader.GetBoolean(4)));
+                reader.GetGuid("id"),
+                reader.GetString("email"),
+                reader.GetNullableString("display_name") ?? string.Empty,
+                reader.GetGuid("unsubscribe_token"),
+                reader.GetBoolean("announcement_email_opt_out")));
         }
         return results;
     }

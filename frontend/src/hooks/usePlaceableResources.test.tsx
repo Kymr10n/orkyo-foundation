@@ -19,6 +19,7 @@ import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-clie
 vi.mock('@foundation/src/lib/api/resources-api');
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 // Non-optimistic mutations route toast + invalidation through the meta-driven MutationCache;
 // wire it (like production) so those fire in tests.
@@ -64,9 +65,7 @@ function placeable(overrides: Partial<ResourceInfo> = {}): ResourceInfo {
   };
 }
 
-function listResponse(items: ResourceInfo[]) {
-  return { data: items, total: items.length, page: 1, pageSize: items.length };
-}
+const listResponse = (items: ResourceInfo[]) => pagedResult(items);
 
 describe('usePlaceableResources', () => {
   beforeEach(() => {
@@ -199,5 +198,69 @@ describe('usePlaceableResources', () => {
       'Failed to delete resource',
       expect.objectContaining({ description: expect.any(String) }),
     );
+  });
+  // One surface per error, and never zero. The create dialog and the place-a-drawn-shape dialog
+  // stay open and render the failure inline, so their instances suppress the toast. The canvas
+  // paths — duplicate from the context menu, drag to move — open no dialog, so they keep it.
+  // A regression here is silent: the user sees nothing at all when the call fails.
+  const CREATE_INPUT = {
+    resourceTypeKey: 'space',
+    name: 'New Room',
+    allocationMode: 'Exclusive' as const,
+    homeSiteId: 'site-1',
+    crossSiteAllowed: false,
+    isPhysical: false,
+  };
+
+  it('toasts a failed create when no dialog will show it', async () => {
+    vi.mocked(resourcesApi.createResource).mockRejectedValue(new Error('nope'));
+    const { result } = renderHook(() => useCreatePlaceableResource('site-1'), {
+      wrapper: feedbackWrapper(makeFeedbackClient()),
+    });
+    result.current.mutate(CREATE_INPUT);
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to create resource',
+      expect.objectContaining({ description: expect.any(String) }),
+    );
+  });
+
+  it('stays quiet on a failed create when the dialog reports it inline', async () => {
+    vi.mocked(resourcesApi.createResource).mockRejectedValue(new Error('nope'));
+    const { result } = renderHook(
+      () => useCreatePlaceableResource('site-1', { suppressErrorToast: true }),
+      { wrapper: feedbackWrapper(makeFeedbackClient()) },
+    );
+    result.current.mutate(CREATE_INPUT);
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('toasts a failed move, because a drag has nowhere to put the message', async () => {
+    vi.mocked(resourcesApi.updateResource).mockRejectedValue(new Error('nope'));
+    const { result } = renderHook(() => useMovePlaceableResource('site-1'), {
+      wrapper: feedbackWrapper(makeFeedbackClient()),
+    });
+    result.current.mutate({ resourceId: 'space-1', geometry: {} as ResourceGeometry });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toast.error).toHaveBeenCalledWith(
+      'Failed to move resource',
+      expect.objectContaining({ description: expect.any(String) }),
+    );
+  });
+
+  it('stays quiet on a failed move when the place dialog reports it inline', async () => {
+    vi.mocked(resourcesApi.updateResource).mockRejectedValue(new Error('nope'));
+    const { result } = renderHook(
+      () => useMovePlaceableResource('site-1', { suppressErrorToast: true }),
+      { wrapper: feedbackWrapper(makeFeedbackClient()) },
+    );
+    result.current.mutate({ resourceId: 'space-1', geometry: {} as ResourceGeometry });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

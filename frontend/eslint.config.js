@@ -54,6 +54,41 @@ const banMutationCallbackFeedback = [
   },
 ];
 
+// Import bans, as shared arrays because flat config's `no-restricted-imports` does not
+// merge across config objects — the last matching object wins, so a narrower scope has to
+// restate everything it still wants banned. Same reason the date/mutation
+// `no-restricted-syntax` arrays above are shared.
+const banHeavyAndRawDialogImports = [
+  {
+    name: 'jspdf',
+    message:
+      'jspdf is heavy: only src/lib/utils/gantt-pdf-export.ts may load it, via the existing dynamic import(). A static import drags it into the main chunk. See plan G3.',
+  },
+  {
+    name: '@foundation/src/components/ui/dialog',
+    importNames: ['Dialog', 'DialogContent'],
+    message:
+      'Hand-rolled dialog shell: use FormDialog — its default shape for a form, or `footer={null}` for a tall multi-region body. Composition helpers (DialogFooter, DialogHeader, ScrollableDialogBody, …) remain allowed. Genuinely-special dialogs (command palette, list pickers, read-only views) get an exemption entry once triaged. See docs/dialog-feedback.md (G1).',
+  },
+];
+
+// Data-fetching boundary: a component or page never talks to the server itself. Every query
+// and mutation lives in a domain hook under src/hooks/use*.ts and the component consumes the
+// hook's result. See ARCHITECTURE.md ("Data fetching"). hooks/, lib/ and contexts/ are
+// exactly where these imports belong, so the ban is scoped to components/ and pages/.
+const banDirectDataAccess = [
+  {
+    name: '@tanstack/react-query',
+    message:
+      'A component must not call useQuery/useMutation/useQueryClient: put the query or mutation in a domain hook under src/hooks/use*.ts and consume its result. See ARCHITECTURE.md ("Data fetching").',
+  },
+  {
+    name: '@foundation/src/lib/core/api-client',
+    message:
+      'A component must not call the HTTP client: the request belongs in src/lib/api/*-api.ts, reached through a domain hook in src/hooks/. See ARCHITECTURE.md ("Data fetching").',
+  },
+];
+
 export default defineConfig(
   {
     ignores: [
@@ -260,21 +295,7 @@ export default defineConfig(
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-imports': ['error', {
-        paths: [
-          {
-            name: 'jspdf',
-            message:
-              'jspdf is heavy: only src/lib/utils/gantt-pdf-export.ts may load it, via the existing dynamic import(). A static import drags it into the main chunk. See plan G3.',
-          },
-          {
-            name: '@foundation/src/components/ui/dialog',
-            importNames: ['Dialog', 'DialogContent'],
-            message:
-              'Hand-rolled dialog shell: use FormDialog (simple form dialogs) or ScaffoldDialog (multi-tab wizards). Composition helpers (DialogFooter, DialogHeader, ScrollableDialogBody, …) remain allowed. Genuinely-special dialogs (command palette, list pickers, read-only views) get an exemption entry once triaged. See docs/dialog-feedback.md (G1).',
-          },
-        ],
-      }],
+      'no-restricted-imports': ['error', { paths: banHeavyAndRawDialogImports }],
       'no-restricted-globals': ['error',
         { name: 'alert', message: 'Native alert() blocks the UI and bypasses the toast convention: use toast (sonner) for feedback or ErrorAlert for in-context errors. See docs/dialog-feedback.md.' },
         { name: 'confirm', message: 'Native confirm(): use ConfirmDialog (destructive, isPending). See docs/dialog-feedback.md.' },
@@ -282,22 +303,38 @@ export default defineConfig(
       ],
     },
   },
-  // The sanctioned dialog shells and the sole jspdf loader are exempt — they
-  // ARE the primitives the bans steer everything else toward.
+  // Components and pages carry the dialog/jspdf bans AND the data-fetching ban.
   {
-    files: [
-      'src/components/ui/FormDialog.tsx',
-      'src/components/ui/ScaffoldDialog.tsx',
-      'src/lib/utils/gantt-pdf-export.ts',
-    ],
+    files: ['src/components/**/*.{ts,tsx}', 'src/pages/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        paths: [...banHeavyAndRawDialogImports, ...banDirectDataAccess],
+      }],
+    },
+  },
+  // The sanctioned dialog shells and the sole jspdf loader are exempt from the raw-Dialog
+  // and jspdf bans — they ARE the primitives those bans steer everything else toward.
+  // They are under components/, so they restate the data-fetching ban rather than
+  // switching the rule off wholesale.
+  {
+    files: ['src/components/ui/FormDialog.tsx'],
+    rules: {
+      'no-restricted-imports': ['error', { paths: banDirectDataAccess }],
+    },
+  },
+  {
+    files: ['src/lib/utils/gantt-pdf-export.ts'],
     rules: {
       'no-restricted-imports': 'off',
     },
   },
   // Triaged raw-Dialog consumers (G1 exemption list, per docs/dialog-feedback.md's
-  // "genuinely special" categories). Adding a
-  // file here requires the same triage — most new dialogs belong on FormDialog /
-  // ScaffoldDialog / ConfirmDialog.
+  // "genuinely special" categories). Adding a file here requires the same triage —
+  // most new dialogs belong on FormDialog / ConfirmDialog.
+  //
+  // These are exempt from the raw-Dialog ban ONLY. They restate the data-fetching ban
+  // instead of switching the rule off, so a dialog exemption can never hand a component
+  // its own useQuery back.
   {
     files: [
       // Command palette — cmdk composition, named exempt in the rule message.
@@ -306,7 +343,6 @@ export default defineConfig(
       'src/components/capabilities/CriterionAssignmentEditor.tsx',
       // List / multi-select pickers and list-management views.
       'src/components/resource-groups/ResourceGroupMembersEditor.tsx',
-      'src/components/resources/ResourceAbsenceList.tsx',
       // Read-only / per-item-state-machine views.
       'src/components/utilization/ResourceAssignmentDialog.tsx',
       'src/components/utilization/ScheduleSlotDialog.tsx',
@@ -315,7 +351,6 @@ export default defineConfig(
       // covers one shared dialog instead of a copy per token class.
       'src/components/settings/api-tokens/token-ui.tsx',
       'src/components/admin/FeedbackTab.tsx',
-      'src/components/admin/AnnouncementsTab.tsx',
       // Compound in-place sub-forms / special flows — FormDialog convergence is
       // tracked as follow-up work, not forced here (W2.2 backlog).
       'src/components/layout/FeedbackButton.tsx',
@@ -326,7 +361,7 @@ export default defineConfig(
       'src/pages/AccountPage.tsx',
     ],
     rules: {
-      'no-restricted-imports': 'off',
+      'no-restricted-imports': ['error', { paths: banDirectDataAccess }],
     },
   },
 

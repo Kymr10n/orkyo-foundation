@@ -60,6 +60,7 @@ public static class CalendarFeedEndpoints
             IConfiguration configuration,
             ICurrentTenant currentTenant,
             IFeatureGate featureGate,
+            TimeProvider time,
             CancellationToken ct) =>
         {
             // A tenant that drops off a paid plan stops serving its feeds. 404 rather than
@@ -72,7 +73,7 @@ public static class CalendarFeedEndpoints
             // a probing client that some other token exists.
             if (stored is null) return Results.NotFound();
 
-            var events = await feedService.GetEventsAsync(stored.SiteId, DateTime.UtcNow, ct);
+            var events = await feedService.GetEventsAsync(stored.SiteId, time.GetUtcNow().UtcDateTime, ct);
             await tokenRepo.TouchAsync(stored.Id, ct);
 
             var domain = TenantHost(configuration, currentTenant);
@@ -111,6 +112,7 @@ public static class CalendarFeedEndpoints
             ICurrentTenant currentTenant,
             IValidator<CreateCalendarFeedRequest> validator,
             IFeatureGate featureGate,
+            TimeProvider time,
             CancellationToken ct) =>
         {
             // Entitlement, not shape, so it runs ahead of the validator. The dialog

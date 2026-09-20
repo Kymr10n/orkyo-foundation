@@ -1,4 +1,3 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useState, useCallback, useEffect } from "react";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
@@ -18,20 +17,9 @@ import {
 } from "@foundation/src/components/ui/select";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
-import {
-  Clock,
-  Globe,
-  Calendar,
-  Plus,
-  Trash2,
-  Loader2,
-  Check,
-  AlertCircle,
-  Pencil,
-  RotateCcw,
-} from "lucide-react";
-import { useAppStore } from "@foundation/src/store/app-store";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { Clock, Globe, Calendar, Plus, Trash2, Check, AlertCircle, Pencil, RotateCcw } from "lucide-react";
+import { useSiteStore } from "@foundation/src/store/site-store";
+import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
@@ -138,12 +126,11 @@ function settingsFromApi(s: SchedulingSettingsType): SettingsFormState {
 }
 
 export function SchedulingSettings() {
-  const selectedSiteId = useAppStore((s) => s.selectedSiteId);
+  const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
   // Scheduling settings are editor-writable, but availability-event mutations are
   // RequireAdminAccess on the backend — gate those write affordances on admin so
   // editors browse them read-only instead of hitting a 403.
-  const { membership } = useAuth();
-  const isAdmin = membership?.isTenantAdmin === true;
+  const isAdmin = useIsTenantAdmin();
 
   const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
   const { data: availabilityEvents = [], isLoading: eventsLoading } = useAvailabilityEvents(selectedSiteId ?? undefined);
@@ -290,7 +277,7 @@ export function SchedulingSettings() {
       >
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {saveStatus === "saving" && (
-            <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...</>
+            <LoadingSpinner inline size="xs" muted message="Saving…" />
           )}
           {saveStatus === "saved" && (
             <><Check className="h-3.5 w-3.5 text-green-500" /> Saved</>

@@ -1,4 +1,6 @@
 using Api.Services;
+using Api.Services.Caching;
+using Orkyo.Shared;
 
 namespace Api.Services.Insights;
 
@@ -12,7 +14,7 @@ namespace Api.Services.Insights;
 /// re-fetches that follow.
 /// </remarks>
 public sealed class CachingConflictTimelineProvider(
-    IConflictTimelineProvider inner, OrgContext orgContext) : IConflictTimelineProvider
+    IConflictTimelineProvider inner, OrgContext orgContext, AnalyticsCache cache) : IConflictTimelineProvider
 {
     public Task<List<ConflictPoint>> GetAsync(
         DateTime from, DateTime to, Guid? siteId, CancellationToken ct = default)
@@ -20,6 +22,7 @@ public sealed class CachingConflictTimelineProvider(
         var key = string.Join('|',
             orgContext.OrgId, "conflict-timeline", from.Ticks, to.Ticks, siteId?.ToString() ?? "-");
 
-        return ShortTtlCache.GetOrComputeAsync(key, () => inner.GetAsync(from, to, siteId, ct));
+        return cache.GetOrComputeAsync(
+            key, TimePolicyConstants.ShortCacheTtl, () => inner.GetAsync(from, to, siteId, ct));
     }
 }

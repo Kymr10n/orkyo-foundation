@@ -1,6 +1,5 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
@@ -15,12 +14,11 @@ import { Label } from "@foundation/src/components/ui/label";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { OrkyoDataTable } from "@foundation/src/components/ui/OrkyoDataTable";
 import {
-  listReportingTokens,
-  createReportingToken,
   revokeReportingToken,
   type ReportingTokenSummary,
 } from "@foundation/src/lib/api/reporting-tokens-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useCreateReportingToken, useReportingTokens } from "@foundation/src/hooks/useApiTokens";
 import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
 import {
   CopyButton,
@@ -56,16 +54,9 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
     }
   }
 
-  const mutation = useMutation({
-    mutationFn: () => createReportingToken({ name, ...(expiresAt ? { expiresAt } : {}) }),
-    meta: {
-      errorMessage: "Failed to create token. Please try again.",
-      invalidates: [qk.reportingTokens.all()],
-    },
-    onSuccess: (result) => {
-      onOpenChange(false);
-      onCreated(result.rawToken);
-    },
+  const mutation = useCreateReportingToken((result) => {
+    onOpenChange(false);
+    onCreated(result.rawToken);
   });
 
   return (
@@ -74,7 +65,7 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
       onOpenChange={onOpenChange}
       title="Create Reporting Token"
       description="This token grants read-only access to reporting data for this workspace. It will be shown once — copy it before closing."
-      onSubmit={() => mutation.mutate()}
+      onSubmit={() => mutation.mutate({ name, ...(expiresAt ? { expiresAt } : {}) })}
       isSubmitting={mutation.isPending}
       submitLabel="Create token"
       submitDisabled={!(name.trim() && (expiryMode !== "custom" || !!expiresAt))}
@@ -138,11 +129,7 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
   const [rawToken, setRawToken] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<ReportingTokenSummary | null>(null);
 
-  const { data: tokens = [], isLoading, error } = useQuery({
-    queryKey: qk.reportingTokens.all(),
-    queryFn: listReportingTokens,
-    enabled: apiAccessAllowed,
-  });
+  const { data: tokens = [], isLoading, error } = useReportingTokens(apiAccessAllowed);
 
   const columns = buildTokenColumns<ReportingTokenSummary>(setRevokeTarget);
 

@@ -62,7 +62,8 @@ public sealed class AiAccessService(
     ICurrentPrincipal principal,
     ITenantUserService tenantUserService,
     IAccountMutationGuard accountGuard,
-    OrgContext orgContext) : IAiAccessService
+    OrgContext orgContext,
+    TimeProvider time) : IAiAccessService
 {
     public async Task<AiAccessDecision> EvaluateAsync(CancellationToken ct = default)
     {
@@ -277,14 +278,14 @@ public sealed class AiAccessService(
     /// Today, in UTC. This value is the reset: a new day lands on a new row, so no job has
     /// to run and none can fail to — the same reasoning as <see cref="CurrentMonth"/>.
     /// </summary>
-    private static DateOnly CurrentDay() => DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly CurrentDay() => DateOnly.FromDateTime(time.GetUtcNow().UtcDateTime);
 
     /// The first day of the current UTC month. This value is the reset: a new month lands
     /// on a new row, so no scheduled job has to run and none can fail to.
     /// </summary>
-    private static DateOnly CurrentMonth()
+    private DateOnly CurrentMonth()
     {
-        var now = DateTime.UtcNow;
+        var now = time.GetUtcNow().UtcDateTime;
         return new DateOnly(now.Year, now.Month, 1);
     }
 }

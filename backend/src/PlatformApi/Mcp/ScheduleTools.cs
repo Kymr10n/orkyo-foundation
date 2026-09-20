@@ -30,6 +30,12 @@ namespace Api.PlatformApi.Mcp;
 [McpServerToolType]
 public sealed class ScheduleTools
 {
+    /// <summary>Rows a list tool returns when the caller names no limit.</summary>
+    private const int DefaultToolRowLimit = 50;
+
+    /// <summary>The most any list tool will return in one call.</summary>
+    private const int MaxToolRowLimit = 200;
+
     private readonly IRequestService _requests;
     private readonly ISchedulingService _scheduling;
     private readonly IResourceService _resources;
@@ -79,16 +85,24 @@ public sealed class ScheduleTools
         [Description("Case-insensitive substring match on the request name.")]
         string? nameContains = null,
         [Description("Maximum rows to return (1-200, default 50).")]
-        int limit = 50,
+        int limit = DefaultToolRowLimit,
         CancellationToken ct = default)
     {
-        var capped = Math.Clamp(limit, 1, 200);
+        // The shared clamp, not a hand-written Math.Clamp: one place decides what a row limit
+        // may be. PageRequest.ClampLimit also rejects 0 and negatives, which Math.Min did not.
+        var capped = PageRequest.ClampLimit(limit, DefaultToolRowLimit, MaxToolRowLimit);
 
         // SearchAsync already applies name/scheduled filtering and a limit in SQL; going through
         // it rather than filtering a full list in memory keeps the tool cheap on large tenants.
         var results = await _requests.SearchAsync(nameContains, scheduled, capped, ct: ct);
 
-        return new RequestListResult(results.Count, [.. results.Select(r => r.ToSummary())]);
+        var summaries = results.Select(r => r.ToSummary()).ToList();
+        return new RequestListResult(
+            Returned: summaries.Count,
+            // The search returns at most `capped` rows and no total, so a full page is the only
+            // signal that more may exist. Saying so beats a bare count the model reads as "all".
+            Truncated: summaries.Count >= capped,
+            Requests: summaries);
     }
 
     [McpServerTool(Name = "list_resources", Title = "List resources",
@@ -111,9 +125,17 @@ public sealed class ScheduleTools
             IsActive = includeInactive ? null : true,
         };
 
-        var results = await _resources.GetAllAsync(filter, ct);
+        // Capped read: at most PageRequest.MaxUnpagedItems rows come back, and the result says
+        // so in three separate fields rather than leaving the model to compare two numbers.
+        var (results, total) = await _resources.GetPageAsync(
+            filter, PageRequest.MaxUnpagedItems, offset: 0, ct);
 
-        return new ResourceListResult(results.Count, [.. results.Select(r => r.ToSummary())]);
+        var summaries = results.Select(r => r.ToSummary()).ToList();
+        return new ResourceListResult(
+            Returned: summaries.Count,
+            TotalMatching: total,
+            Truncated: total > summaries.Count,
+            Resources: summaries);
     }
 
     [McpServerTool(Name = "list_conflicts", Title = "List conflicts",

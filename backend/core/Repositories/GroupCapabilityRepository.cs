@@ -156,9 +156,9 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
     private static GroupCapabilityInfo MapFromReader(NpgsqlDataReader reader, bool includeCriterion = true)
     {
         object? value = null;
-        if (!reader.IsDBNull(3))
+        if (reader.GetNullableString("value") is { } valueJson)
         {
-            value = JsonSerializer.Deserialize<JsonElement>(reader.GetString(3));
+            value = JsonSerializer.Deserialize<JsonElement>(valueJson);
         }
 
         CriterionMetadata? criterion = null;
@@ -166,21 +166,21 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
         {
             criterion = new CriterionMetadata
             {
-                Id = reader.GetGuid(2),
-                Name = reader.GetString(6),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString(7)),
-                Unit = reader.IsDBNull(8) ? null : reader.GetString(8)
+                Id = reader.GetGuid("criterion_id"),
+                Name = reader.GetString("criterion_name"),
+                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString("criterion_type")),
+                Unit = reader.GetNullableString("criterion_unit")
             };
         }
 
         return new GroupCapabilityInfo
         {
-            Id = reader.GetGuid(0),
-            GroupId = reader.GetGuid(1),
-            CriterionId = reader.GetGuid(2),
+            Id = reader.GetGuid("id"),
+            GroupId = reader.GetGuid("resource_group_id"),
+            CriterionId = reader.GetGuid("criterion_id"),
             Value = value,
-            CreatedAt = reader.GetDateTime(4),
-            UpdatedAt = reader.GetDateTime(5),
+            CreatedAt = reader.GetDateTime("created_at"),
+            UpdatedAt = reader.GetDateTime("updated_at"),
             Criterion = criterion
         };
     }

@@ -19,6 +19,7 @@ public class SchedulingService : ISchedulingService
 {
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IRequestRepository _requestRepository;
+    private readonly IRequestScheduleReadRepository _scheduleReads;
     private readonly IResourceTypeRepository _resourceTypeRepository;
     private readonly IResourceRepository _resourceRepository;
     private readonly IAvailabilityResolver _resolver;
@@ -27,6 +28,7 @@ public class SchedulingService : ISchedulingService
     public SchedulingService(
         ISchedulingRepository schedulingRepository,
         IRequestRepository requestRepository,
+        IRequestScheduleReadRepository scheduleReads,
         IResourceTypeRepository resourceTypeRepository,
         IResourceRepository resourceRepository,
         IAvailabilityResolver resolver,
@@ -34,6 +36,7 @@ public class SchedulingService : ISchedulingService
     {
         _schedulingRepository = schedulingRepository;
         _requestRepository = requestRepository;
+        _scheduleReads = scheduleReads;
         _resourceTypeRepository = resourceTypeRepository;
         _resourceRepository = resourceRepository;
         _resolver = resolver;
@@ -69,7 +72,7 @@ public class SchedulingService : ISchedulingService
     {
         var settings = await _schedulingRepository.GetSettingsAsync(siteId, ct)
             ?? SchedulingSettingsInfo.Default(siteId);
-        var toRecalculate = await _requestRepository.GetScheduledBySiteAsync(siteId, ct);
+        var toRecalculate = await _scheduleReads.GetScheduledBySiteAsync(siteId, ct);
 
         if (toRecalculate.Count == 0) return;
 

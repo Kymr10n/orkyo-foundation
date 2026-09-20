@@ -1,8 +1,6 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
-import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { useResourceGroupsOfTypes } from "@foundation/src/hooks/useResourceGroups";
 // Domain pipeline
 import { buildCommittedSchedule, applyDraft } from "@foundation/src/domain/scheduling/schedule-preview";
 import { buildIndex, replaceIndexEntry, getOverlapping } from "@foundation/src/domain/scheduling/schedule-index";
@@ -11,7 +9,7 @@ import { getPlacementResourceId } from "@foundation/src/domain/scheduling/reques
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useSchedulerViewStore } from "@foundation/src/store/scheduler-view-store";
 import type { PreviewEntry, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { Request } from "@foundation/src/types/requests";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
@@ -19,7 +17,6 @@ import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 const EMPTY_REQUESTS: Request[] = [];
 const EMPTY_ENTRIES: readonly PreviewEntry[] = [];
 const EMPTY_VALIDATION: ValidationResult = new Map();
-import type { ResourceGroupInfo } from "@foundation/src/lib/api/resource-groups-api";
 import type { TimeScale } from "./ScaleSelect";
 import { groupRowsByResourceGroup, type TimeColumn } from "./scheduler-types";
 import { SpaceRow } from "./SpaceRow";
@@ -78,7 +75,7 @@ export function SchedulerGrid({
   const columns = useTimeColumns({
     scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
   });
-  const spaceOrder = useAppStore((s) => s.spaceOrder);
+  const spaceOrder = useSchedulerViewStore((s) => s.spaceOrder);
 
   // ---------------------------------------------------------------------------
   // Scheduling validation pipeline (steps 3–4 of interaction flow)
@@ -181,21 +178,7 @@ export function SchedulerGrid({
   // types, and a row whose type was not fetched would silently fall into the ungrouped bucket.
   // One query per type key, so each still shares its cache entry with the per-type group pages.
   const sortedPlaceableKeys = useMemo(() => [...placeableKeys].sort(), [placeableKeys]);
-  //
-  // `combine` rather than a memo over the results: useQueries hands back a fresh array every
-  // render, and the alternative was a hand-rolled key over `dataUpdatedAt` that needed a lint
-  // suppression and went stale whenever two queries settled in the same millisecond. combine's
-  // result is identity-stable through replaceEqualDeep, which is what the memos below want.
-  const { groups, groupsLoading } = useQueries({
-    queries: sortedPlaceableKeys.map((key) => ({
-      queryKey: qk.resourceGroups.byType(key),
-      queryFn: () => getResourceGroups(key),
-    })),
-    combine: (results) => ({
-      groups: results.flatMap((r) => r.data ?? []) as ResourceGroupInfo[],
-      groupsLoading: results.some((r) => r.isLoading),
-    }),
-  });
+  const { groups, groupsLoading } = useResourceGroupsOfTypes(sortedPlaceableKeys);
 
   // Memoize sorting + grouping — expensive with 50+ spaces (#5). Spaces are
   // sorted (manual order, then code) before bucketing so each group keeps that

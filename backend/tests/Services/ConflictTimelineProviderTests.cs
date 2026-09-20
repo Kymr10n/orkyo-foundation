@@ -18,7 +18,7 @@ namespace Orkyo.Foundation.Tests.Services;
 public class ConflictTimelineProviderTests
 {
     private readonly Mock<IConflictService> _conflicts = new();
-    private readonly Mock<IRequestRepository> _requests = new();
+    private readonly Mock<IRequestScheduleReadRepository> _requests = new();
     private readonly ConflictTimelineProvider _provider;
 
     private static readonly DateTime Jan = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);

@@ -48,7 +48,7 @@ public class ErrorResponsesTests
         var payload = await ReadJsonAsync(context);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
+        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.NotFound);
         payload.GetProperty("resourceType").GetString().Should().Be("Tenant");
         payload.GetProperty("detail").GetString().Should().Contain("Tenant with ID");
     }
@@ -62,7 +62,7 @@ public class ErrorResponsesTests
         var payload = await ReadJsonAsync(context);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-        payload.GetProperty("code").GetString().Should().Be(nameof(ErrorCodes.ValidationError));
+        payload.GetProperty("code").GetString().Should().Be(nameof(ApiErrorCodes.ValidationError));
         payload.GetProperty("detail").GetString().Should().Be("Invalid payload");
     }
 
@@ -75,7 +75,7 @@ public class ErrorResponsesTests
         var payload = await ReadJsonAsync(context);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
+        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
         payload.GetProperty("detail").GetString().Should().Be("Already exists");
     }
 

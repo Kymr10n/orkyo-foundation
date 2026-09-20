@@ -23,7 +23,7 @@ export function useCreateRouting() {
     mutationFn: (request: CreateRoutingRequest) => createRouting(request),
     meta: {
       successMessage: "Routing created",
-      errorMessage: "Failed to create routing",
+      suppressErrorToast: true,
       invalidates: [qk.routings()],
     },
   });
@@ -35,7 +35,7 @@ export function useUpdateRouting() {
       updateRouting(id, request),
     meta: {
       successMessage: "Routing updated",
-      errorMessage: "Failed to update routing",
+      suppressErrorToast: true,
       invalidates: [qk.routings()],
     },
   });
@@ -59,7 +59,7 @@ export function useInstantiateRouting() {
       instantiateRouting(id, request),
     meta: {
       successMessage: "Work order created",
-      errorMessage: "Failed to create the work order",
+      suppressErrorToast: true,
       invalidates: REQUEST_DERIVED_QUERY_KEYS,
     },
   });

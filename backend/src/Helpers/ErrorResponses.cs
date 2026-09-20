@@ -28,14 +28,14 @@ public static class ErrorResponses
     /// <param name="id">The ID that was not found.</param>
     public static IResult NotFound(string resource, Guid? id = null)
         => ProblemResults.Problem(
-            StatusCodes.Status404NotFound, ErrorCodes.NotFound,
+            StatusCodes.Status404NotFound, ApiErrorCodes.NotFound,
             id.HasValue ? $"{resource} with ID {id} not found" : $"{resource} not found",
             resourceType: resource);
 
     /// <summary>400 Bad Request.</summary>
     /// <param name="message">The error message.</param>
-    /// <param name="code">Optional error code (defaults to <see cref="ErrorCodes.ValidationError"/>).</param>
-    public static IResult BadRequest(string message, string code = ErrorCodes.ValidationError)
+    /// <param name="code">Optional error code (defaults to <see cref="ApiErrorCodes.ValidationError"/>).</param>
+    public static IResult BadRequest(string message, string code = ApiErrorCodes.ValidationError)
         => ProblemResults.Problem(StatusCodes.Status400BadRequest, code, message);
 
     /// <summary>
@@ -43,18 +43,18 @@ public static class ErrorResponses
     /// e.g. "Unknown setting key: 'x'".
     /// </summary>
     public static IResult NotFoundMessage(string message)
-        => ProblemResults.Problem(StatusCodes.Status404NotFound, ErrorCodes.NotFound, message);
+        => ProblemResults.Problem(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound, message);
 
     /// <summary>409 Conflict.</summary>
     public static IResult Conflict(string message)
-        => ProblemResults.Problem(StatusCodes.Status409Conflict, ErrorCodes.Conflict, message);
+        => ProblemResults.Problem(StatusCodes.Status409Conflict, ApiErrorCodes.Conflict, message);
 
     /// <summary>
     /// 422 Unprocessable Entity — well-formed but unactionable (e.g. a stale identity link),
     /// as distinct from a 400 validation failure.
     /// </summary>
     public static IResult UnprocessableEntity(string message)
-        => ProblemResults.Problem(StatusCodes.Status422UnprocessableEntity, ErrorCodes.UnprocessableEntity, message);
+        => ProblemResults.Problem(StatusCodes.Status422UnprocessableEntity, ApiErrorCodes.UnprocessableEntity, message);
 
     /// <summary>
     /// 403 for a quota-limit hit. The frontend renders "You've reached your X limit" from

@@ -10,6 +10,7 @@ import {
   rowDisplayLabel,
 } from '@foundation/src/components/lists/format-list-cell';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 interface ListRowPickerProps {
   /** The shared instance whose rows are on offer. */
@@ -57,7 +58,7 @@ export function ListRowPicker({
     onChange(rows.filter((row) => next.has(row.id)).map((row) => row.id));
   };
 
-  if (isLoading) return <p className="text-muted-foreground text-sm">Loading options…</p>;
+  if (isLoading) return <LoadingSpinner inline size="xs" muted message="Loading options…" />;
 
   if (rows.length === 0) {
     return (

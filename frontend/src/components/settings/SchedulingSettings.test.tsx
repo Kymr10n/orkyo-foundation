@@ -3,20 +3,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SchedulingSettings } from './SchedulingSettings';
+import { useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
 
 const mockUseAppStore = vi.fn();
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: (sel: any) => mockUseAppStore(sel),
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: (sel: any) => mockUseAppStore(sel),
 }));
 
-// Availability-event write actions are admin-gated; default to admin so the
-// existing add/edit/delete interaction tests still see those affordances.
-const authState: { membership: { isTenantAdmin?: boolean } | null } = {
-  membership: { isTenantAdmin: true },
-};
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership }),
-}));
+// Availability-event write actions are admin-gated; useIsTenantAdmin is globally mocked
+// to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
+// affordances and the two read-only tests below override it.
 
 const mockSettings = {
   timeZone: 'Europe/Berlin',
@@ -88,7 +84,7 @@ const mockAvailabilityEvent = {
 
 function setup() {
   vi.clearAllMocks();
-  authState.membership = { isTenantAdmin: true };
+  vi.mocked(useIsTenantAdmin).mockReturnValue(true);
   mockUseAppStore.mockImplementation((selector: any) =>
     selector({ selectedSiteId: 'site-1' }),
   );
@@ -133,14 +129,14 @@ describe('SchedulingSettings', () => {
   });
 
   it('hides the Add button for non-admin editors', () => {
-    authState.membership = { isTenantAdmin: false };
+    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
     render(<SchedulingSettings />);
     expect(screen.getByText('Availability Events')).toBeInTheDocument();
     expect(screen.queryByText('Add')).not.toBeInTheDocument();
   });
 
   it('hides per-event edit/delete actions for non-admin editors', () => {
-    authState.membership = { isTenantAdmin: false };
+    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
     mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
     // The event is still listed (read-only) but carries no action buttons.

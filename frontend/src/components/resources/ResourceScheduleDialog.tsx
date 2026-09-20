@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ScaffoldDialog } from "@foundation/src/components/ui/ScaffoldDialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { ScaleSelect } from "@foundation/src/components/utilization/ScaleSelect";
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
@@ -16,17 +15,17 @@ import {
   SEVERITY_SWATCH,
 } from "@foundation/src/components/utilization/request-calendar-events";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
-import { getAssignmentsByResource } from "@foundation/src/lib/api/resource-assignments-api";
 import { scheduleRequest } from "@foundation/src/lib/api/utilization-api";
 import {
-  getResourceAbsences,
   updateResourceAbsence,
   type ResourceAbsenceInfo,
 } from "@foundation/src/lib/api/resource-absences-api";
-import { getRequests } from "@foundation/src/lib/api/request-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { STALE } from "@foundation/src/lib/core/query-client";
-import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
+import { useResourceAbsences } from "@foundation/src/hooks/useResourceAbsences";
+import {
+  useRefreshResourceSchedule,
+  useResourceAssignments,
+  useScheduleRequestNames,
+} from "@foundation/src/hooks/useResourceSchedule";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import type { TimeScale } from "@foundation/src/components/utilization/ScaleSelect";
@@ -69,8 +68,6 @@ export function ResourceScheduleDialog({
 }: ResourceScheduleDialogProps) {
   const canEdit = useCanEdit();
   const { isPhone } = useBreakpoint();
-  const queryClient = useQueryClient();
-
   const [scale, setScale] = useState<TimeScale>("week");
   const [anchorTs, setAnchorTs] = useState(() => new Date());
   const [slot, setSlot] = useState<{ start: Date; end: Date } | null>(null);
@@ -80,28 +77,11 @@ export function ResourceScheduleDialog({
 
   const window = useMemo(() => getFetchWindow(scale, anchorTs), [scale, anchorTs]);
 
-  const assignments = useQuery({
-    queryKey: qk.resources.assignments(resourceId, window.from, window.to),
-    queryFn: () => getAssignmentsByResource(resourceId, window.from, window.to),
-    staleTime: STALE.OPERATIONAL,
-    enabled: open,
-  });
+  const assignments = useResourceAssignments(resourceId, window.from, window.to, open);
 
-  const absences = useQuery({
-    queryKey: qk.resources.absences(resourceId),
-    queryFn: () => getResourceAbsences(resourceId),
-    staleTime: STALE.OPERATIONAL,
-    enabled: open,
-  });
+  const absences = useResourceAbsences(resourceId, open);
 
-  // Names only: an assignment carries a request id, and a block labelled by id tells nobody what
-  // the resource is doing.
-  const requests = useQuery({
-    queryKey: qk.requests.list(),
-    queryFn: () => getRequests(),
-    staleTime: STALE.STANDARD,
-    enabled: open,
-  });
+  const requests = useScheduleRequestNames(open);
 
   // The board colours a block by the conflicts of the request it books; a resource's own
   // calendar has no reason to disagree with it.
@@ -124,11 +104,7 @@ export function ResourceScheduleDialog({
     [assignments.data, absences.data, requestsById, conflictsByRequest, canEdit],
   );
 
-  const refresh = () => {
-    void queryClient.invalidateQueries({ queryKey: qk.resources.absences(resourceId) });
-    void queryClient.invalidateQueries({ queryKey: qk.resources.assignmentsFor(resourceId) });
-    invalidateRequestData(queryClient);
-  };
+  const refresh = useRefreshResourceSchedule(resourceId);
 
   /** Drag and resize are the same operation — a new window for an existing block. */
   const move = async (eventId: string, start: Date, end: Date) => {
@@ -177,13 +153,14 @@ export function ResourceScheduleDialog({
 
   return (
     <>
-      <ScaffoldDialog
+      <FormDialog
         open={open}
         onOpenChange={onOpenChange}
         size="xl"
         title={`Schedule — ${resourceName}`}
         description="Bookings and absences for this resource."
         srOnlyDescription
+        footer={null}
       >
         <div className="flex items-center justify-between gap-2 px-6 pb-3">
           <TimeNavigator
@@ -215,7 +192,7 @@ export function ResourceScheduleDialog({
             onDatesSet={setAnchorTs}
           />
         </div>
-      </ScaffoldDialog>
+      </FormDialog>
 
       {slot && (
         <SlotChooser
@@ -275,7 +252,7 @@ function SlotChooser({
   onAssign: () => void;
 }) {
   return (
-    <ScaffoldDialog
+    <FormDialog
       open
       onOpenChange={(next) => !next && onClose()}
       size="sm"
@@ -283,6 +260,7 @@ function SlotChooser({
       title="Add to this slot"
       description="Choose what to put in the selected time."
       srOnlyDescription
+      footer={null}
     >
       <div className="flex flex-col gap-2 px-6 pb-6">
         <button
@@ -304,6 +282,6 @@ function SlotChooser({
           </span>
         </button>
       </div>
-    </ScaffoldDialog>
+    </FormDialog>
   );
 }

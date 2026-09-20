@@ -1,0 +1,78 @@
+name: reusable / dependabot-auto-merge
+
+# Extracted from the `auto-merge` job — byte-identical in all three repos:
+#   - orkyo-foundation/.github/workflows/dependabot-auto-merge.yml @ 2811ac720e4f5fd04fdbb2e0dc0ed80395b3545d
+#   - orkyo-saas/.github/workflows/dependabot-auto-merge.yml        @ 875763a14dbb268037e4dd67fe91e1bc701778d1
+#   - orkyo-community/.github/workflows/dependabot-auto-merge.yml   @ 3a2eaea572223a4d538ba13e6d0fe1b82cbb9efe
+#
+# Nothing is parameterized: the three files differed only in the prose paragraph that
+# explains why auto-merge cannot deploy that repo. That paragraph stays in each caller,
+# because the answer really is repo-specific.
+#
+# Turns the safe half of the Dependabot queue into maintenance nobody clicks: minor, patch
+# and digest updates enable auto-merge and land on their own once the required status
+# checks pass. Majors are never auto-merged — they are the class that actually breaks
+# (peer-dependency conflicts, removed APIs), and a green CI run does not prove a major is
+# behaviourally safe.
+#
+# WHY AUTOMERGE_TOKEN AND NOT GITHUB_TOKEN: the queued merge runs as whoever enabled
+# auto-merge, and GITHUB_TOKEN can never hold the `workflows` permission. GitHub therefore
+# cancelled auto-merge on every bump that touches .github/workflows/ (Actions pins,
+# foundation's reusable workflows) with workflow_policy_update_error. AUTOMERGE_TOKEN is a
+# fine-grained token limited to the four orkyo repositories: Contents, Pull requests and
+# Workflows read/write, nothing else. It is stored as an Actions AND a Dependabot secret.
+# There is no fallback to GITHUB_TOKEN — a missing token fails the job.
+#
+# `gh pr merge --auto` only QUEUES the merge. Branch protection still decides: if a
+# required check fails the pull request stays open, exactly as today.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never reference a
+# local `./.github/actions/...` composite action — that breaks the CALLER with an
+# undiagnosable startup_failure. The fetch-metadata action is pinned to the exact SHA the
+# source jobs used. Consumers must pin their `uses:` to this file by commit SHA, never
+# `@main`.
+#
+# The caller owns the `pull_request_target` trigger and passes AUTOMERGE_TOKEN with
+# `secrets: inherit`.
+
+on:
+  workflow_call:
+    secrets:
+      AUTOMERGE_TOKEN:
+        description: 'Fine-grained token with Contents, Pull requests and Workflows read/write'
+        required: true
+
+jobs:
+  auto-merge:
+    name: auto-merge
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Read Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Enable auto-merge
+        # The test is "not a major", not "is a minor or a patch". A digest-only
+        # bump carries no semver update-type, so update-type is empty for the
+        # *-digest groups and an equality test against minor/patch would skip
+        # exactly the updates that are safest to take.
+        #
+        # For a grouped pull request fetch-metadata reports the HIGHEST
+        # update-type in the group, so a group holding one major is held back
+        # whole. dependabot.yml keeps majors in their own group anyway.
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: |
+          if [[ -z "${GH_TOKEN}" ]]; then
+            echo "::error::AUTOMERGE_TOKEN secret is not set; GITHUB_TOKEN cannot merge workflow-file changes."
+            exit 1
+          fi
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}

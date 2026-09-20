@@ -90,57 +90,30 @@ public class UserHelperMapUserTests
         return await cmd.ExecuteReaderAsync(System.Data.CommandBehavior.CloseConnection);
     }
 
-    // Columns follow UserSelectColumns positional contract:
-    // 0=id, 1=email, 2=display_name, 3=status, 4=role, 5=created_at, 6=updated_at, [7=last_login_at]
-
-    private const string RowWithoutLastLogin = @"
-        SELECT
-            '11111111-1111-1111-1111-111111111111'::uuid,
-            'user@example.com'::text,
-            'Example User'::text,
-            'active'::text,
-            'admin'::text,
-            '2024-01-01 00:00:00'::timestamp,
-            '2024-01-02 00:00:00'::timestamp";
+    // Columns follow the UserSelectColumns contract, read by name:
+    // id, email, display_name, status, role, created_at, updated_at, [last_login_at]
 
     private const string RowWithLastLogin = @"
         SELECT
-            '22222222-2222-2222-2222-222222222222'::uuid,
-            'editor@example.com'::text,
-            'Editor User'::text,
-            'disabled'::text,
-            'editor'::text,
-            '2024-03-01 00:00:00'::timestamp,
-            '2024-03-02 00:00:00'::timestamp,
-            '2024-03-10 08:00:00'::timestamp";
+            '22222222-2222-2222-2222-222222222222'::uuid AS id,
+            'editor@example.com'::text AS email,
+            'Editor User'::text AS display_name,
+            'disabled'::text AS status,
+            'editor'::text AS role,
+            '2024-03-01 00:00:00'::timestamp AS created_at,
+            '2024-03-02 00:00:00'::timestamp AS updated_at,
+            '2024-03-10 08:00:00'::timestamp AS last_login_at";
 
     private const string RowWithNullLastLogin = @"
         SELECT
-            '33333333-3333-3333-3333-333333333333'::uuid,
-            'viewer@example.com'::text,
-            'Viewer User'::text,
-            'pending_verification'::text,
-            'viewer'::text,
-            '2024-05-01 00:00:00'::timestamp,
-            '2024-05-02 00:00:00'::timestamp,
-            NULL::timestamp";
-
-    [Fact]
-    public async Task MapUser_MapsAllFields_WhenLastLoginAtAbsent()
-    {
-        await using var reader = await ExecuteReaderAsync(RowWithoutLastLogin);
-        await reader.ReadAsync();
-
-        var user = UserHelper.MapUser(reader);
-
-        user.Id.Should().Be(new Guid("11111111-1111-1111-1111-111111111111"));
-        user.Email.Should().Be("user@example.com");
-        user.DisplayName.Should().Be("Example User");
-        user.Status.Should().Be(UserStatus.Active);
-        user.Role.Should().Be(UserRole.Admin);
-        user.IsTenantAdmin.Should().BeTrue();
-        user.LastLoginAt.Should().BeNull();
-    }
+            '33333333-3333-3333-3333-333333333333'::uuid AS id,
+            'viewer@example.com'::text AS email,
+            'Viewer User'::text AS display_name,
+            'pending_verification'::text AS status,
+            'viewer'::text AS role,
+            '2024-05-01 00:00:00'::timestamp AS created_at,
+            '2024-05-02 00:00:00'::timestamp AS updated_at,
+            NULL::timestamp AS last_login_at";
 
     [Fact]
     public async Task MapUser_SetsLastLoginAt_WhenColumnPresent()

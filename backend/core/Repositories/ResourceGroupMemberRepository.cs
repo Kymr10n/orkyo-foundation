@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -58,9 +59,12 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         {
             if (await checkReader.ReadAsync(ct))
             {
-                var mismatchedIds = checkReader.IsDBNull(1)
+                // By name like every other read. GetValue has no ReaderExtensions counterpart,
+                // so resolve the ordinal from the alias rather than hard-coding position 1.
+                var mismatchedCol = checkReader.GetOrdinal("mismatched_ids");
+                var mismatchedIds = checkReader.IsDBNull(mismatchedCol)
                     ? []
-                    : (Guid[])checkReader.GetValue(1);
+                    : checkReader.GetFieldValue<Guid[]>(mismatchedCol);
 
                 if (mismatchedIds.Length > 0)
                 {
@@ -125,7 +129,7 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
         var rows = await db.QueryListAsync(
             "SELECT resource_id, resource_group_id FROM resource_group_members WHERE resource_id = ANY(@ids)",
             p => p.AddWithValue("ids", resourceIds.ToArray()),
-            r => (r.GetGuid(0), r.GetGuid(1)), ct);
+            r => (r.GetGuid("resource_id"), r.GetGuid("resource_group_id")), ct);
 
         var map = new Dictionary<Guid, List<Guid>>();
         foreach (var (rId, gId) in rows)

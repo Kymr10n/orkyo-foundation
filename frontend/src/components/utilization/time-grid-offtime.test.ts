@@ -1,23 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { enrichColumnsWithOffTime } from './time-grid-offtime';
 import type { TimeColumn } from './scheduler-types';
-import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
+import { makeOffTimeRange as range } from '@foundation/src/domain/scheduling/test-helpers';
 
 function col(startISO: string, endISO: string): TimeColumn {
   return { start: new Date(startISO), end: new Date(endISO), label: startISO };
-}
-function range(
-  startISO: string,
-  endISO: string,
-  resourceIds: string[] | null,
-): OffTimeRange {
-  return {
-    id: `${startISO}-${endISO}`,
-    startMs: new Date(startISO).getTime(),
-    endMs: new Date(endISO).getTime(),
-    title: 'off',
-    resourceIds,
-  };
 }
 
 describe('enrichColumnsWithOffTime', () => {

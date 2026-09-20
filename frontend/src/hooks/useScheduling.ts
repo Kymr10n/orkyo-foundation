@@ -63,7 +63,7 @@ export function useCreateAvailabilityEvent(siteId: string) {
       createAvailabilityEvent(siteId, request),
     meta: {
       successMessage: 'Availability event created',
-      errorMessage: 'Failed to create availability event',
+      suppressErrorToast: true,
       invalidates: [qk.scheduling.availabilityEvents(siteId)],
     },
   });
@@ -75,7 +75,7 @@ export function useUpdateAvailabilityEvent(siteId: string) {
       updateAvailabilityEvent(siteId, eventId, updates),
     meta: {
       successMessage: 'Availability event updated',
-      errorMessage: 'Failed to update availability event',
+      suppressErrorToast: true,
       invalidates: [qk.scheduling.availabilityEvents(siteId)],
     },
   });

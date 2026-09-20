@@ -1,10 +1,12 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteAiCredential,
   getAiCredential,
   getAiDailyLimits,
   getAiStatus,
   listAiAllowances,
+  listAiConversations,
   revokeAiAllowance,
   saveAiAllowance,
   saveAiCredential,
@@ -12,6 +14,8 @@ import {
   testAiCredential,
 } from "@foundation/src/lib/api/ai-api";
 import type { AiDailyLimits } from "@foundation/src/lib/api/ai-api";
+import { updateRequest } from "@foundation/src/lib/api/request-api";
+import type { UpdateRequestRequest } from "@foundation/src/types/requests";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
@@ -128,4 +132,54 @@ export function useAiStatus(enabled = true) {
     staleTime: STALE.OPERATIONAL,
     enabled,
   });
+}
+
+/** The person's own saved conversations — titles only; a body is fetched when one is opened. */
+export function useAiConversations(enabled = true) {
+  return useQuery({
+    queryKey: qk.ai.conversations(),
+    queryFn: listAiConversations,
+    enabled,
+  });
+}
+
+/**
+ * Re-read the status the header counts down from. A finished turn spends an interaction, and the
+ * assistant writes conversations outside react-query, so both caches are refreshed by hand.
+ */
+export function useInvalidateAiStatus() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: qk.ai.status() }),
+    [queryClient],
+  );
+}
+
+/** Re-read the conversation list after a save or a delete. */
+export function useInvalidateAiConversations() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    () => queryClient.invalidateQueries({ queryKey: qk.ai.conversations() }),
+    [queryClient],
+  );
+}
+
+/**
+ * Write the change an accepted proposal describes.
+ *
+ * It goes through the ordinary request endpoint under this person's own session, so the same
+ * validation and permissions apply as to a manual edit. A request change can create or clear a
+ * conflict, so both caches are re-read.
+ */
+export function useApplyAssistantProposal() {
+  const queryClient = useQueryClient();
+
+  return useCallback(
+    async (requestId: string, changes: Record<string, unknown>) => {
+      await updateRequest(requestId, changes as UpdateRequestRequest);
+      await queryClient.invalidateQueries({ queryKey: qk.requests.all() });
+      await queryClient.invalidateQueries({ queryKey: qk.conflicts.all() });
+    },
+    [queryClient],
+  );
 }

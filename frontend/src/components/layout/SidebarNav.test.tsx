@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { SidebarNav } from './SidebarNav';
 
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
+vi.mock('@foundation/src/store/layout-store', () => ({
+  useLayoutStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({
       isSidebarCollapsed: false,
       setIsSidebarCollapsed: vi.fn(),

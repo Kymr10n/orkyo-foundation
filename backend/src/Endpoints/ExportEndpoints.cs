@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models.Export;
@@ -28,7 +27,7 @@ public static class ExportEndpoints
             {
                 await featureGate.EnsureEnabledAsync(FeatureKeys.DataExport, ct);
                 var payload = await exportService.ExportAsync(request, ct);
-                return Results.Json(payload, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+                return Results.Json(payload, DownloadJson.Options);
             }))
         .WithName("ExportTenantData")
         .WithDescription("Exports tenant data as a canonical JSON payload")

@@ -1,6 +1,6 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 4 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useState } from "react";
-import { Bot, Check, Gauge, KeyRound, Loader2, Trash2, X } from "lucide-react";
+import { Bot, Check, Gauge, KeyRound, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
@@ -156,13 +156,9 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
                   size="sm"
                   variant="outline"
                   onClick={handleTest}
-                  disabled={testCredential.isPending}
+                  loading={testCredential.isPending}
                 >
-                  {testCredential.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
+                  {!testCredential.isPending && <Check className="h-4 w-4" />}
                   Test connection
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setRemoveOpen(true)}>
@@ -197,8 +193,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
-            <Button onClick={handleSave} disabled={!apiKey.trim() || saveCredential.isPending}>
-              {saveCredential.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            <Button onClick={handleSave} disabled={!apiKey.trim()} loading={saveCredential.isPending}>
               Save
             </Button>
           </div>
@@ -358,8 +353,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
         </div>
       </div>
 
-      <Button onClick={handleSave} disabled={save.isPending}>
-        {save.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+      <Button onClick={handleSave} loading={save.isPending}>
         Save limits
       </Button>
     </div>

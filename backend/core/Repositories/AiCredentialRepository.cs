@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -41,12 +42,12 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
             p => p.AddWithValue("provider", AiProviders.Anthropic),
             r => new AiCredentialRow
             {
-                Provider = r.GetString(0),
-                ApiKeyCiphertext = r.GetString(1),
-                KeyHint = r.GetString(2),
-                Model = r.IsDBNull(3) ? null : r.GetString(3),
-                UpdatedAt = r.GetDateTime(4),
-                LastVerifiedAt = r.IsDBNull(5) ? null : r.GetDateTime(5),
+                Provider = r.GetString("provider"),
+                ApiKeyCiphertext = r.GetString("api_key_ciphertext"),
+                KeyHint = r.GetString("key_hint"),
+                Model = r.GetNullableString("model"),
+                UpdatedAt = r.GetDateTime("updated_at"),
+                LastVerifiedAt = r.GetNullableDateTime("last_verified_at"),
             }, ct);
     }
 

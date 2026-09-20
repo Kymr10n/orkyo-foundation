@@ -1,0 +1,65 @@
+name: reusable / release-evidence
+
+# Extracted from the `release-evidence-bundle` job — identical in all three repos apart
+# from its `needs:` list:
+#   - orkyo-foundation/.github/workflows/release-ci.yml @ 2811ac720e4f5fd04fdbb2e0dc0ed80395b3545d
+#   - orkyo-saas/.github/workflows/release-ci.yml        @ 875763a14dbb268037e4dd67fe91e1bc701778d1
+#   - orkyo-community/.github/workflows/release-ci.yml   @ 3a2eaea572223a4d538ba13e6d0fe1b82cbb9efe
+#
+# Differences parameterized:
+#   - `needs-json` — the caller passes its own `${{ toJSON(needs) }}`. The job list is the
+#     only thing that ever differed; the rendering is the same everywhere.
+#
+# Two cosmetic forks were resolved rather than parameterized: the summary says "Event"
+# (saas and community; foundation said "Triggered by"), and the rendered summary is also
+# echoed to the job log (foundation only) because that is what makes a red run readable
+# when the summary is truncated.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never reference a
+# local `./.github/actions/...` composite action — that breaks the CALLER with an
+# undiagnosable startup_failure. The github-script action is pinned to the exact SHA the
+# source jobs used. Consumers must pin their `uses:` to this file by commit SHA, never
+# `@main`.
+#
+# The caller keeps `if: always()` and its own job name; this workflow assumes nothing
+# about which jobs ran.
+
+on:
+  workflow_call:
+    inputs:
+      needs-json:
+        description: 'The caller job graph, serialised — the caller passes toJSON(needs)'
+        required: true
+        type: string
+
+jobs:
+  release-evidence-bundle:
+    name: Release Evidence
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+    steps:
+      - name: Collect job results
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          NEEDS_JSON: ${{ inputs.needs-json }}
+        with:
+          script: |
+            const jobs = JSON.parse(process.env.NEEDS_JSON);
+            const lines = ['# Release Evidence Bundle', '',
+              `**Run:** ${context.runId}`,
+              `**SHA:** ${context.sha}`,
+              `**Ref:** ${context.ref}`,
+              `**Event:** ${context.eventName}`,
+              '',
+              '## Job Results', ''];
+            for (const [job, result] of Object.entries(jobs)) {
+              const icon = result.result === 'success' ? '✅'
+                : result.result === 'skipped' ? '⏭️' : '❌';
+              lines.push(`${icon} **${job}**: ${result.result}`);
+            }
+            const summary = lines.join('\n');
+            await core.summary.addRaw(summary).write();
+            console.log(summary);

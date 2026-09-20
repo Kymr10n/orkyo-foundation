@@ -98,7 +98,7 @@ describe('useEntityFormDialog', () => {
     expect(toast.success).toHaveBeenCalledWith('Widget updated');
   });
 
-  it('failure: sets the inline error AND fires the derived error toast', async () => {
+  it('failure: sets the inline error and does NOT also toast it', async () => {
     const save = vi.fn().mockRejectedValue(new Error('Name already exists'));
     const onOpenChange = vi.fn();
 
@@ -106,9 +106,9 @@ describe('useEntityFormDialog', () => {
     act(() => result.current.submit());
 
     await waitFor(() => expect(result.current.error).toBe('Name already exists'));
-    expect(toast.error).toHaveBeenCalledWith('Failed to create widget', {
-      description: 'Name already exists',
-    });
+    // One surface per error: the dialog stays open and shows the message in its
+    // ErrorAlert, so `meta.suppressErrorToast` keeps the MutationCache quiet.
+    expect(toast.error).not.toHaveBeenCalled();
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 

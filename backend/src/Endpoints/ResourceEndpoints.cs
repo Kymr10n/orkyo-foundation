@@ -43,20 +43,18 @@ public static class ResourceEndpoints
 
             if (page.HasValue || pageSize.HasValue)
             {
-                var p = new PageRequest
-                {
-                    Page = page ?? 1,
-                    PageSize = pageSize ?? PageRequest.DefaultPageSize,
-                }.Sanitize();
+                var p = PageRequest.From(page, pageSize);
                 var (pageItems, pageTotal) = await service.GetPageAsync(filter, p.PageSize, p.Offset, ct);
-                return Results.Ok(new { data = pageItems, total = pageTotal, page = p.Page, pageSize = p.PageSize });
+                return Results.Ok(PagedResult<ResourceInfo>.Create(pageItems, pageTotal, p));
             }
 
-            // Legacy branch: the 1000-row safety cap stays, but total is the real count, so a
-            // truncated response is detectable (data.length < total). Not PageRequest/
-            // QueryPagedAsync — those clamp to 100 and would silently shrink the cap.
-            var (items, total) = await service.GetPageAsync(filter, limit: 1000, offset: 0, ct);
-            return Results.Ok(new { data = items, total, page = 1, pageSize = 1000 });
+            // Unpaged branch: the pickers need the whole list, so it serves up to
+            // PageRequest.MaxUnpagedItems rows with the real unpaged total. Capped, not Create:
+            // Create sanitises the page size down to 100 and would shrink the cap.
+            var (items, total) = await service.GetPageAsync(
+                filter, PageRequest.MaxUnpagedItems, offset: 0, ct);
+            return Results.Ok(
+                PagedResult<ResourceInfo>.Capped(items, total, PageRequest.MaxUnpagedItems));
         })
             .WithName("GetResources")
             .WithSummary("Get all resources");
@@ -114,10 +112,11 @@ public static class ResourceEndpoints
             Guid id,
             IResourceAssignmentService service,
             DateTime? from,
-            DateTime? to) =>
+            DateTime? to,
+            TimeProvider time) =>
         {
-            var fromUtc = from ?? DateTime.UtcNow.AddDays(-30);
-            var toUtc = to ?? DateTime.UtcNow.AddDays(90);
+            var fromUtc = from ?? time.GetUtcNow().UtcDateTime.AddDays(-30);
+            var toUtc = to ?? time.GetUtcNow().UtcDateTime.AddDays(90);
             return Results.Ok(await service.GetByResourceAsync(id, fromUtc, toUtc));
         })
             .WithName("GetResourceAssignments")

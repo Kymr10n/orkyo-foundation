@@ -35,11 +35,16 @@ public class CriticalPathService : ICriticalPathService
 {
     private readonly IRequestDependencyRepository _dependencies;
     private readonly IRequestRepository _requests;
+    private readonly TimeProvider _time;
 
-    public CriticalPathService(IRequestDependencyRepository dependencies, IRequestRepository requests)
+    public CriticalPathService(
+        IRequestDependencyRepository dependencies,
+        IRequestRepository requests,
+        TimeProvider time)
     {
         _dependencies = dependencies;
         _requests = requests;
+        _time = time;
     }
 
     public async Task<CriticalPathResult> ComputeAsync(Guid? siteId, CancellationToken ct = default)
@@ -70,7 +75,7 @@ public class CriticalPathService : ICriticalPathService
         // A cancelled or deferred predecessor is work that will not happen, so it constrains
         // nothing. Dropping its edges here is the same rule the execution gate applies, and it
         // keeps an "all" join from waiting forever on something abandoned.
-        var now = DateTime.UtcNow;
+        var now = _time.GetUtcNow().UtcDateTime;
         var abandoned = usable
             .Where(e => JoinConditionEvaluator.IsAbandoned(requests[e.PredecessorRequestId], now))
             .ToList();
@@ -110,7 +115,7 @@ public class CriticalPathService : ICriticalPathService
             .Select(id => Anchor(requests[id]))
             .Where(d => d.HasValue)
             .Select(d => d!.Value)
-            .DefaultIfEmpty(ThisMinute(DateTime.UtcNow))
+            .DefaultIfEmpty(ThisMinute(_time.GetUtcNow().UtcDateTime))
             .Min();
 
         // Which incoming edges actually held a request back. Under "all" that is all of them, so

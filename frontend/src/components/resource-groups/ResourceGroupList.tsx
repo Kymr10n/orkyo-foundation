@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Plus, Pencil, Trash2, Users, Settings, type LucideIcon } from 'lucide-react';
-import { getResourceGroups, deleteResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
+import {
+  useDeleteResourceGroup,
+  useInvalidateResourceGroups,
+  useResourceGroups,
+} from '@foundation/src/hooks/useResourceGroups';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
@@ -22,7 +25,7 @@ interface ResourceGroupListProps {
 }
 
 export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', membersIcon: MembersIcon = Users }: ResourceGroupListProps) {
-  const queryClient = useQueryClient();
+  const invalidateGroups = useInvalidateResourceGroups(resourceTypeKey);
   const canEdit = useCanEdit();
   const [editingGroup, setEditingGroup] = useState<ResourceGroupInfo | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -30,23 +33,14 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   const [managingCapabilitiesFor, setManagingCapabilitiesFor] = useState<ResourceGroupInfo | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<ResourceGroupInfo | null>(null);
 
-  const { data: groups = [], isLoading } = useQuery({
-    queryKey: qk.resourceGroups.byType(resourceTypeKey),
-    queryFn: () => getResourceGroups(resourceTypeKey),
-  });
+  const { data: groups = [], isLoading } = useResourceGroups(resourceTypeKey);
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteResourceGroup,
-    meta: {
-      successMessage: `${entityLabel} deleted`,
-      errorMessage: `Failed to delete ${entityLabel.toLowerCase()}`,
-      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
-    },
-    onSuccess: () => setDeletingGroup(null),
-  });
+  const deleteMutation = useDeleteResourceGroup(resourceTypeKey, entityLabel);
 
   const handleConfirmDelete = () => {
-    if (deletingGroup) deleteMutation.mutate(deletingGroup.id);
+    if (deletingGroup) {
+      deleteMutation.mutate(deletingGroup.id, { onSuccess: () => setDeletingGroup(null) });
+    }
   };
 
   const handleAdd = () => {
@@ -68,7 +62,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   };
 
   const handleSaved = () => {
-    queryClient.invalidateQueries({ queryKey: qk.resourceGroups.byType(resourceTypeKey) });
+    invalidateGroups();
     handleClose();
   };
 

@@ -17,6 +17,7 @@ public class SchedulingServiceTests
 {
     private readonly Mock<ISchedulingRepository> _schedulingRepo = new();
     private readonly Mock<IRequestRepository> _requestRepo = new();
+    private readonly Mock<IRequestScheduleReadRepository> _scheduleReads = new();
     private readonly Mock<IResourceRepository> _resourceRepo = new();
     private readonly Mock<IAvailabilityResolver> _resolver = new();
     private readonly SchedulingService _service;
@@ -49,7 +50,7 @@ public class SchedulingServiceTests
             .ReturnsAsync(["space"]);
 
         _service = new SchedulingService(
-            _schedulingRepo.Object, _requestRepo.Object, typeRepo.Object,
+            _schedulingRepo.Object, _requestRepo.Object, _scheduleReads.Object, typeRepo.Object,
             _resourceRepo.Object, _resolver.Object,
             NullLogger<SchedulingService>.Instance);
     }

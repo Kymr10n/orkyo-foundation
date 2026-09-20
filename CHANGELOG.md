@@ -49,7 +49,37 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   the type list. Unknown or absent names fall back to a default, so tenant data and the frontend
   allow-list can drift safely.
 
+### Fixed
+- **Utilization reported every resource as "Off" at Month and Year scale.** Two independent causes,
+  both a boolean where the truth was a fraction. The frontend asked whether any off-time range
+  *overlapped* a bucket; at Month scale a bucket is a week and the page supplies one range per
+  weekend day, so every bucket was non-working and every row read 0%. And `UtilizationService`
+  zeroed a bucket's whole availability when any blocked period touched it, so one public holiday or
+  one day of leave zeroed a whole week while its allocation was still computed normally — a bucket
+  could report "Off" while carrying booked time. The frontend no longer reasons about off-time when
+  deriving bucket status or the row average; the backend already folds weekends, working hours and
+  blocked time into what it reports. Day and Week scale were unaffected and are unchanged.
+
 ### Changed
+- **`effectiveAvailabilityPercent` is now a proportion, not a switch.** It was either the resource's
+  base availability or zero. It is now the base scaled by the share of the bucket's working minutes
+  that no blocked period removes, with overlapping periods merged so a day is subtracted once. Zero
+  bookable minutes still reads zero. This is what `SchedulingEngine.WorkingMinutesInWindow`'s
+  contract already asked of its callers. Readers that compare the field against zero get more
+  accurate: a resource blocked for part of a window is no longer reported unavailable for all of it.
+- **BREAKING — two list endpoints moved to the `PagedResult` envelope.** `GET /api/resources` and
+  `GET /api/admin/feedback` now answer with `items` plus page metadata, replacing `{data,total}` and
+  `{items,total}`. The feedback endpoint's query parameters change from `limit`/`offset` to
+  `page`/`pageSize`, **and its maximum page size narrows from 200 to 100** (`PageRequest.MaxPageSize`);
+  the shipped frontend never requested more than 50. The npm client tolerates the old shapes for one
+  release through `normalizePagedResult`, so a product that bumps the NuGet package a little before the
+  npm package does not render an empty list; that tolerance is removed in the release after this one.
+  `GET /api/search` is unchanged — it is a relevance-ranked union, where offset paging is meaningless,
+  and only its row clamp converged.
+- **The MCP `list_resources` result reports truncation explicitly.** The tool answers with at most
+  `PageRequest.MaxUnpagedItems` rows and now returns `returned`, `totalMatching` and `truncated`
+  instead of a single `count`. The old field carried the unpaged total beside a shorter list, which a
+  model reads as a complete answer of that size.
 - Resource type keys are no longer validated against a hard-coded list. Criteria applicability accepts
   any type that exists in the database, so criteria can be attached to user-defined types.
   `ResourceTypeKeys` now documents the *system* types only.

@@ -20,7 +20,7 @@ export const useCreateSite = () =>
     mutationFn: (data: CreateSiteRequest) => createSite(data),
     meta: {
       successMessage: "Site created",
-      errorMessage: "Failed to create site",
+      suppressErrorToast: true,
       invalidates: SITE_INVALIDATES,
     },
   });
@@ -30,7 +30,7 @@ export const useUpdateSite = () =>
     mutationFn: ({ id, data }: { id: string; data: UpdateSiteRequest }) => updateSite(id, data),
     meta: {
       successMessage: "Site updated",
-      errorMessage: "Failed to update site",
+      suppressErrorToast: true,
       invalidates: SITE_INVALIDATES,
     },
   });

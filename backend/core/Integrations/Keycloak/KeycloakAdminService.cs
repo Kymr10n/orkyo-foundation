@@ -18,6 +18,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     private readonly IConfiguration _configuration;
     private readonly ILogger<KeycloakAdminService> _logger;
     private readonly KeycloakOptions _kc;
+    private readonly TimeProvider _time;
 
     private string? _accessToken;
     private DateTime _tokenExpiry = DateTime.MinValue;
@@ -26,12 +27,14 @@ public class KeycloakAdminService : IKeycloakAdminService
         HttpClient httpClient,
         IConfiguration configuration,
         ILogger<KeycloakAdminService> logger,
-        KeycloakOptions keycloakOptions)
+        KeycloakOptions keycloakOptions,
+        TimeProvider time)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
         _kc = keycloakOptions;
+        _time = time;
     }
 
     public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
@@ -623,7 +626,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     private async Task<string> GetAdminTokenAsync()
     {
         // Fast path: return cached token if still valid (read is safe without lock)
-        if (_accessToken != null && DateTime.UtcNow < _tokenExpiry.AddMinutes(-1))
+        if (_accessToken != null && _time.GetUtcNow().UtcDateTime < _tokenExpiry.AddMinutes(-1))
         {
             return _accessToken;
         }
@@ -632,7 +635,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         try
         {
             // Double-check after acquiring lock (another thread may have refreshed)
-            if (_accessToken != null && DateTime.UtcNow < _tokenExpiry.AddMinutes(-1))
+            if (_accessToken != null && _time.GetUtcNow().UtcDateTime < _tokenExpiry.AddMinutes(-1))
             {
                 return _accessToken;
             }
@@ -670,7 +673,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             }
 
             // Write expiry BEFORE token so concurrent readers never see a new token with stale expiry
-            _tokenExpiry = DateTime.UtcNow.AddSeconds(tokenResponse.ExpiresIn - 30);
+            _tokenExpiry = _time.GetUtcNow().UtcDateTime.AddSeconds(tokenResponse.ExpiresIn - 30);
             _accessToken = tokenResponse.AccessToken;
 
             return _accessToken;

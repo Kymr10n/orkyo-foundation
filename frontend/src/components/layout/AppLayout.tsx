@@ -1,5 +1,5 @@
 import { useSites } from "@foundation/src/hooks/useSites";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router";
 import { CommandPalette } from "./CommandPalette";
@@ -22,10 +22,8 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { AssistantPanel } from "@foundation/src/components/assistant/AssistantPanel";
 import { resolveView } from "@foundation/src/components/assistant/view-catalog";
-import { updateRequest } from "@foundation/src/lib/api/request-api";
-import type { UpdateRequestRequest } from "@foundation/src/types/requests";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { useQueryClient } from "@tanstack/react-query";
+import { useApplyAssistantProposal } from "@foundation/src/hooks/useAiAssistant";
+import { ROUTE_HOME } from "@foundation/src/constants/auth";
 
 interface AppLayoutProps {
   /** Edition-supplied plans-page href for the tier-gated upsells (calendar subscription, data export / import). */
@@ -33,13 +31,13 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
-  const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
+  const setSelectedSiteId = useSiteStore((state) => state.setSelectedSiteId);
   const { isOpen: isCommandPaletteOpen, setIsOpen: setCommandPaletteOpen, open: openCommandPalette } = useCommandPalette();
 
   const { appUser } = useAuth();
   const [tourOpen, setTourOpen] = useState(false);
-  const queryClient = useQueryClient();
+  const applyAssistantProposal = useApplyAssistantProposal();
   const hasAutoShownTour = useRef(false);
 
   // Responsive shell: phone gets a drawer behind a hamburger; tablet an icon
@@ -200,14 +198,10 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
         // the order CommandPalette uses, or the record opens under the wrong site.
         onOpenView={openView}
         onApplyAutoSchedule={async (requestIds) => {
-          navigate("/");
+          navigate(ROUTE_HOME);
           requestAutoSchedule(requestIds);
         }}
-        onApplyProposal={async (requestId, changes) => {
-          await updateRequest(requestId, changes as UpdateRequestRequest);
-          await queryClient.invalidateQueries({ queryKey: qk.requests.all() });
-          await queryClient.invalidateQueries({ queryKey: qk.conflicts.all() });
-        }}
+        onApplyProposal={applyAssistantProposal}
       />
     </div>
   );

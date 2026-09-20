@@ -1,4 +1,4 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 2 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 /**
  * Account Management Page
  *
@@ -10,7 +10,7 @@
  * - Managing security settings (password, sessions)
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
@@ -36,19 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
-import {
-  Building2,
-  LogOut,
-  Trash2,
-  ArrowRight,
-  Loader2,
-  Crown,
-  AlertCircle,
-  ChevronLeft,
-  User,
-  Pencil,
-  Check,
-} from "lucide-react";
+import { Building2, LogOut, Trash2, ArrowRight, Crown, AlertCircle, ChevronLeft, User, Pencil, Check } from "lucide-react";
 import { useAuth, type AppUser, type TenantMembership as AuthTenantMembership } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
 import { NotificationPreferencesSection } from "@foundation/src/components/settings/NotificationPreferencesSection";
@@ -56,15 +44,19 @@ import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPage
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
 import {
-  getTenantMemberships,
   leaveTenant,
   deleteTenant,
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { qk } from "@foundation/src/lib/api/query-keys";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
-import { getUserProfile, updateUserProfile, requestEmailChange, getSecurityInfo } from "@foundation/src/lib/api/security-api";
+import {
+  useInvalidateUserProfile,
+  useRequestEmailChange,
+  useTenantMemberships,
+  useUpdateUserProfile,
+  useUserProfile,
+} from "@foundation/src/hooks/useAccount";
+import { useSecurityInfo } from "@foundation/src/hooks/useSecuritySettings";
 import {
   navigateToTenantSubdomain,
   navigateToApex,
@@ -150,13 +142,16 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     appUser,
     isSiteAdmin,
     setAppUser,
-    send,
   } = useAuth();
-  const queryClient = useQueryClient();
+  const invalidateUserProfile = useInvalidateUserProfile();
   const [activeTab, handleTabChange] = useTabParam("profile");
-  const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    memberships,
+    loading,
+    error,
+    setError,
+    reload: loadMemberships,
+  } = useTenantMemberships();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -176,43 +171,15 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   );
 
   // Load user profile from Keycloak
-  const { data: profile, isLoading: profileLoading } = useQuery({
-    queryKey: qk.userProfile.all(),
-    queryFn: getUserProfile,
-  });
+  const { data: profile, isLoading: profileLoading } = useUserProfile();
 
   // A shared/locked identity (e.g. the public demo account) cannot edit its own profile.
-  const { data: securityInfo } = useQuery({
-    queryKey: qk.security.info(),
-    queryFn: getSecurityInfo,
-  });
+  const { data: securityInfo } = useSecurityInfo();
   const accountLocked = securityInfo?.accountLocked ?? false;
 
-  // Update profile mutation
-  const updateProfileMutation = useMutation({
-    mutationFn: updateUserProfile,
-    meta: { invalidates: [qk.userProfile.all()] },
-    onSuccess: (data) => {
-      // Update auth context so TopBar and header reflect the new name immediately
-      if (appUser && data.displayName) {
-        setAppUser({ ...appUser, displayName: data.displayName });
-      }
-      setIsEditingName(false);
-    },
-  });
+  const updateProfileMutation = useUpdateUserProfile();
 
-  const emailChangeMutation = useMutation({
-    mutationFn: (email: string) => requestEmailChange(email),
-    meta: {
-      successMessage: (_data, email) =>
-        `Confirmation email sent to ${email as string}. Check your inbox.`,
-      errorMessage: "Failed to request email change",
-    },
-    onSuccess: () => {
-      setIsEditingEmail(false);
-      setNewEmail("");
-    },
-  });
+  const emailChangeMutation = useRequestEmailChange();
 
   // Read ?email-change query param on mount and strip it
   useEffect(() => {
@@ -229,10 +196,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     if (message.kind === "success") {
       toast.success(message.title, { id: `email-change-${status}` });
       // Refetch profile so the email field on this page reflects the new address.
-      // We do NOT call refresh() here: refresh() transitions the auth machine back
-      // to `initializing`, which unmounts TenantApp (and its Toaster) before Sonner
-      // can display the toast notification.
-      queryClient.invalidateQueries({ queryKey: qk.userProfile.all() });
+      invalidateUserProfile();
     } else {
       toast.error(message.title, {
         id: `email-change-${status}`,
@@ -245,7 +209,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     // Land on the profile tab so the refreshed email is visible.
     next.set("tab", "profile");
     setSearchParams(next, { replace: true });
-  }, [queryClient, searchParams, setSearchParams]);
+  }, [invalidateUserProfile, searchParams, setSearchParams]);
 
   const handleStartEditName = () => {
     setNameForm({
@@ -256,38 +220,21 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   };
 
   const handleSaveName = () => {
-    updateProfileMutation.mutate(nameForm);
+    updateProfileMutation.mutate(nameForm, {
+      onSuccess: (data) => {
+        // Update auth context so TopBar and header reflect the new name immediately
+        if (appUser && data.displayName) {
+          setAppUser({ ...appUser, displayName: data.displayName });
+        }
+        setIsEditingName(false);
+      },
+    });
   };
 
   const handleCancelEditName = () => {
     setIsEditingName(false);
     updateProfileMutation.reset();
   };
-
-  const loadMemberships = useCallback(async () => {
-    try {
-      const data = await getTenantMemberships();
-      setMemberships(data);
-    } catch (err) {
-      logger.error("Failed to load memberships:", err);
-      // If unauthorized, signal the machine — it handles the redirect
-      if (err instanceof Error && err.message.includes("401")) {
-        send({ type: "UNAUTHORIZED" });
-        return;
-      }
-      setError(
-        err instanceof Error ? err.message : "Failed to load memberships",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [send]);
-
-  useEffect(() => {
-    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadMemberships();
-  }, [loadMemberships]);
 
   const handleSwitchTenant = (membership: Membership) => {
     // In subdomain mode, redirect to /login?auto=1 on the tenant subdomain
@@ -368,9 +315,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <LoadingSpinner fullScreen={false} className="min-h-[400px]" />
     );
   }
 
@@ -465,7 +410,14 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            onClick={() => emailChangeMutation.mutate(newEmail)}
+                            onClick={() =>
+                              emailChangeMutation.mutate(newEmail, {
+                                onSuccess: () => {
+                                  setIsEditingEmail(false);
+                                  setNewEmail("");
+                                },
+                              })
+                            }
                             loading={emailChangeMutation.isPending}
                             disabled={emailChangeMutation.isPending || !newEmail.trim()}
                           >

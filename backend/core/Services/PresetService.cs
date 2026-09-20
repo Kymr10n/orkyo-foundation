@@ -18,6 +18,7 @@ public class PresetService : IPresetService
     private readonly IResourceTypeRepository _resourceTypeRepo;
     private readonly ITemplateRepository _templateRepo;
     private readonly ILogger<PresetService> _logger;
+    private readonly TimeProvider _time;
 
     public PresetService(
         OrgContext orgContext,
@@ -26,7 +27,8 @@ public class PresetService : IPresetService
         IResourceGroupRepository resourceGroupRepo,
         IResourceTypeRepository resourceTypeRepo,
         ITemplateRepository templateRepo,
-        ILogger<PresetService> logger)
+        ILogger<PresetService> logger,
+        TimeProvider time)
     {
         _orgContext = orgContext;
         _connectionFactory = connectionFactory;
@@ -35,6 +37,7 @@ public class PresetService : IPresetService
         _resourceTypeRepo = resourceTypeRepo;
         _templateRepo = templateRepo;
         _logger = logger;
+        _time = time;
     }
 
     public async Task<PresetValidationResult> ValidateAsync(Preset preset, CancellationToken ct = default)
@@ -115,7 +118,7 @@ public class PresetService : IPresetService
             Name = name,
             Description = description,
             Version = "1.0.0",
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = _time.GetUtcNow().UtcDateTime,
             Contents = new PresetContents
             {
                 Criteria = presetCriteria,
@@ -141,12 +144,12 @@ public class PresetService : IPresetService
         {
             applications.Add(new PresetApplication
             {
-                Id = reader.GetGuid(0),
-                PresetId = reader.GetString(1),
-                PresetVersion = reader.GetString(2),
-                AppliedAt = reader.GetDateTime(3),
-                UpdatedAt = reader.IsDBNull(4) ? null : reader.GetDateTime(4),
-                AppliedByUserId = reader.IsDBNull(5) ? null : reader.GetGuid(5)
+                Id = reader.GetGuid("id"),
+                PresetId = reader.GetString("preset_id"),
+                PresetVersion = reader.GetString("preset_version"),
+                AppliedAt = reader.GetDateTime("applied_at"),
+                UpdatedAt = reader.GetNullableDateTime("updated_at"),
+                AppliedByUserId = reader.GetNullableGuid("applied_by_user_id")
             });
         }
 

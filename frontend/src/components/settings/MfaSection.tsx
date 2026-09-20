@@ -19,9 +19,11 @@ import {
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { getMfaStatus, removeMfa, enableMfa } from "@foundation/src/lib/api/security-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import {
+  useEnableMfa,
+  useMfaStatus,
+  useRemoveMfa,
+} from "@foundation/src/hooks/useSecuritySettings";
 import { formatDistanceToNow } from "date-fns";
 
 interface MfaSectionProps {
@@ -32,21 +34,11 @@ interface MfaSectionProps {
 export function MfaSection({ locked = false }: MfaSectionProps = {}) {
   const [removeMfaOpen, setRemoveMfaOpen] = useState(false);
 
-  const { data: mfaStatus, isLoading: mfaLoading } = useQuery({
-    queryKey: qk.mfa.status(),
-    queryFn: getMfaStatus,
-  });
+  const { data: mfaStatus, isLoading: mfaLoading } = useMfaStatus();
 
-  const removeMfaMutation = useMutation({
-    mutationFn: removeMfa,
-    meta: { invalidates: [qk.mfa.status()] },
-    onSuccess: () => setRemoveMfaOpen(false),
-  });
+  const removeMfaMutation = useRemoveMfa();
 
-  const enableMfaMutation = useMutation({
-    mutationFn: enableMfa,
-    meta: { invalidates: [qk.mfa.status()] },
-  });
+  const enableMfaMutation = useEnableMfa();
 
   return (
     <>
@@ -183,7 +175,11 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
         confirmLabel="Remove MFA"
         destructive
         isPending={removeMfaMutation.isPending}
-        onConfirm={() => removeMfaMutation.mutate()}
+        onConfirm={() =>
+          removeMfaMutation.mutate(undefined, {
+            onSuccess: () => setRemoveMfaOpen(false),
+          })
+        }
       />
     </>
   );

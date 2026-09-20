@@ -6,11 +6,11 @@
  * Does NOT include apex-only routes (TOS, onboarding, tenant-select).
  * Does NOT include SaaS-specific routes (AdminPage — defined in SaaS composition).
  *
- * For SaaS multi-tenant composition: extend with AdminPage and additional admin routes.
- * For Community single-tenant: use shared routes as-is, or add custom admin routes if needed.
+ * A product's own site-administration page plugs into the `renderAdminPage` slot — the same
+ * slot ApexGateway takes — so neither shell branches on the pathname itself.
  */
 
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense, type ReactNode } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
@@ -27,8 +27,22 @@ import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoun
 import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
-import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ACCOUNT, ROUTE_CONFIGURATION,
-  ROUTE_TENANT_ADMIN, isBlockedTenantState } from '@foundation/src/constants/auth';
+import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ABOUT, ROUTE_ACCOUNT, ROUTE_ASSETS,
+  ROUTE_CONFIGURATION, ROUTE_HOME, ROUTE_INSIGHTS, ROUTE_INSIGHTS_BOTTLENECKS,
+  ROUTE_INSIGHTS_CONFLICTS, ROUTE_INSIGHTS_OVERVIEW, ROUTE_INSIGHTS_UTILIZATION,
+  ROUTE_LOGIN, ROUTE_MESSAGES, ROUTE_ORGANIZATION, ROUTE_REQUEST_PLAN, ROUTE_REQUESTS,
+  ROUTE_SETTINGS, ROUTE_SITE_ADMIN, ROUTE_STATIONS, ROUTE_STATIONS_FLOORPLAN,
+  ROUTE_TENANT_ADMIN,
+  ROUTE_SETTINGS_CRITERIA, ROUTE_SETTINGS_TEMPLATES, ROUTE_SETTINGS_ROUTINGS,
+  ROUTE_SETTINGS_PRESETS, ROUTE_SETTINGS_SCHEDULING,
+  ROUTE_TENANT_ADMIN_SITES, ROUTE_TENANT_ADMIN_USERS, ROUTE_TENANT_ADMIN_ORGANIZATION,
+  ROUTE_TENANT_ADMIN_CONFIGURATION, ROUTE_TENANT_ADMIN_INTEGRATIONS,
+  ROUTE_TENANT_ADMIN_API_ACCESS, ROUTE_TENANT_ADMIN_AI_ASSISTANT,
+  ROUTE_TENANT_ADMIN_AUDIT_LOG, ROUTE_TENANT_ADMIN_USAGE_LIMITS,
+  ROUTE_CONFIGURATION_RESOURCE_TYPES, ROUTE_CONFIGURATION_CATALOG,
+  ROUTE_CONFIGURATION_LIST_DEFINITIONS,
+  isBlockedTenantState } from '@foundation/src/constants/auth';
+import { RESOURCE_TYPE_TAB } from '@foundation/src/constants/resource-class';
 import type { AccountPageExtraTab } from '@foundation/src/pages/AccountPage';
 
 // Lazy-loaded pages — split into separate chunks to reduce initial bundle size
@@ -106,14 +120,23 @@ export interface TenantAppProps {
    * falls back to it when omitted.
    */
   aiAssistantUnavailableRedirectTo?: string;
+
+  /**
+   * The product's own site-administration surface, rendered at `ROUTE_SITE_ADMIN` for a
+   * site admin. The same slot `ApexGateway` takes, so a product wires one admin page into
+   * both shells and neither has to branch on the pathname itself. Omit it and the route
+   * does not exist.
+   */
+  renderAdminPage?: () => ReactNode;
 }
 
 export function TenantApp({
   accountTabs,
   reportingApiUnavailableRedirectTo,
   aiAssistantUnavailableRedirectTo,
+  renderAdminPage,
 }: TenantAppProps = {}) {
-  const { authStage, membership, sessionData, send } = useAuth();
+  const { authStage, membership, sessionData, send, canAccessAdminPage } = useAuth();
 
   // Session expiry on a tenant subdomain — trigger the BFF login redirect.
   // The machine's LOGIN event fires performLogin which navigates to the BFF.
@@ -178,47 +201,53 @@ export function TenantApp({
         {/* /login is intentionally kept for direct navigation recovery when a
             session expires on a tenant subdomain — the user can sign back in
             and be returned to the same subdomain context. */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/about" element={<RequireAuth><RouteErrorBoundary label="page"><AboutPage /></RouteErrorBoundary></RequireAuth>} />
+        <Route path={ROUTE_LOGIN} element={<LoginPage />} />
+        {/* Site administration renders bare, outside AppLayout — the same shape ApexGateway
+            gives it. Not registered without the slot or the right, so it falls through to
+            NotFound exactly as an unknown path does. */}
+        {renderAdminPage && canAccessAdminPage && (
+          <Route path={`${ROUTE_SITE_ADMIN}/*`} element={<>{renderAdminPage()}</>} />
+        )}
+        <Route path={ROUTE_ABOUT} element={<RequireAuth><RouteErrorBoundary label="page"><AboutPage /></RouteErrorBoundary></RequireAuth>} />
         <Route path={ROUTE_ACCOUNT} element={<RequireAuth requireMembership={false}><RouteErrorBoundary label="page"><AccountPage accountTabs={accountTabs} /></RouteErrorBoundary></RequireAuth>} />
-        <Route path="/messages" element={<RequireAuth><RouteErrorBoundary label="page"><MessagesPage /></RouteErrorBoundary></RequireAuth>} />
-        <Route path="/" element={<RequireAuth><AppLayout upgradeHref={reportingApiUnavailableRedirectTo} /></RequireAuth>}>
+        <Route path={ROUTE_MESSAGES} element={<RequireAuth><RouteErrorBoundary label="page"><MessagesPage /></RouteErrorBoundary></RequireAuth>} />
+        <Route path={ROUTE_HOME} element={<RequireAuth><AppLayout upgradeHref={reportingApiUnavailableRedirectTo} /></RequireAuth>}>
           <Route index element={<UtilizationPage />} />
-          <Route path="requests" element={<RequestsPage />} />
+          <Route path={ROUTE_REQUESTS} element={<RequestsPage />} />
           {/* The dependency planner for one parent's children. Its own route, not a dialog:
               a graph needs more width than the widest sanctioned dialog. */}
-          <Route path="requests/:requestId/plan" element={<RequestPlanPage />} />
-          <Route path="insights" element={<InsightsPage />}>
-            <Route index element={<Navigate to="overview" replace />} />
-            <Route path="overview" element={<OverviewTab />} />
-            <Route path="utilization" element={<UtilizationTab />} />
-            <Route path="conflicts" element={<ConflictsTab />} />
-            <Route path="bottlenecks" element={<BottlenecksTab />} />
+          <Route path={ROUTE_REQUEST_PLAN} element={<RequestPlanPage />} />
+          <Route path={ROUTE_INSIGHTS} element={<InsightsPage />}>
+            <Route index element={<Navigate to={ROUTE_INSIGHTS_OVERVIEW} replace />} />
+            <Route path={ROUTE_INSIGHTS_OVERVIEW} element={<OverviewTab />} />
+            <Route path={ROUTE_INSIGHTS_UTILIZATION} element={<UtilizationTab />} />
+            <Route path={ROUTE_INSIGHTS_CONFLICTS} element={<ConflictsTab />} />
+            <Route path={ROUTE_INSIGHTS_BOTTLENECKS} element={<BottlenecksTab />} />
           </Route>
           {/* Back-compat: the old top-level Conflicts page is now the Insights → Conflicts tab. */}
-          <Route path="conflicts" element={<Navigate to="/insights/conflicts" replace />} />
+          <Route path="conflicts" element={<Navigate to={ROUTE_INSIGHTS_CONFLICTS} replace />} />
 
           {/* The two resource classes. Type is a selector inside the page, never a route of its
               own, so a new resource type costs no navigation. */}
-          <Route path="stations" element={<ResourceClassPage resourceClass="station" />} />
+          <Route path={ROUTE_STATIONS} element={<ResourceClassPage resourceClass="station" />} />
           {/* The plan holds every placeable type at once, so it sits beside the type-scoped tabs
               rather than inside one of them — a type selector would contradict it. The class page
               renders the surrounding header and tab strip; the canvas is the whole body. */}
-          <Route path="stations/floorplan" element={<ResourceClassPage resourceClass="station" surface="floorplan" />}>
+          <Route path={ROUTE_STATIONS_FLOORPLAN} element={<ResourceClassPage resourceClass="station" surface="floorplan" />}>
             <Route index element={<FloorplanView />} />
           </Route>
-          <Route path="stations/:typeKey" element={<ResourceClassPage resourceClass="station" />}>
-            <Route index element={<Navigate to="instances" replace />} />
-            <Route path="instances" element={<ResourceListTab />} />
-            <Route path="groups" element={<ResourceGroupsTab />} />
-            <Route path="lists" element={<ResourceListsTab />} />
+          <Route path={`${ROUTE_STATIONS}/:typeKey`} element={<ResourceClassPage resourceClass="station" />}>
+            <Route index element={<Navigate to={RESOURCE_TYPE_TAB.INSTANCES} replace />} />
+            <Route path={RESOURCE_TYPE_TAB.INSTANCES} element={<ResourceListTab />} />
+            <Route path={RESOURCE_TYPE_TAB.GROUPS} element={<ResourceGroupsTab />} />
+            <Route path={RESOURCE_TYPE_TAB.LISTS} element={<ResourceListsTab />} />
           </Route>
-          <Route path="assets" element={<ResourceClassPage resourceClass="asset" />} />
-          <Route path="assets/:typeKey" element={<ResourceClassPage resourceClass="asset" />}>
-            <Route index element={<Navigate to="instances" replace />} />
-            <Route path="instances" element={<ResourceListTab />} />
-            <Route path="groups" element={<ResourceGroupsTab />} />
-            <Route path="lists" element={<ResourceListsTab />} />
+          <Route path={ROUTE_ASSETS} element={<ResourceClassPage resourceClass="asset" />} />
+          <Route path={`${ROUTE_ASSETS}/:typeKey`} element={<ResourceClassPage resourceClass="asset" />}>
+            <Route index element={<Navigate to={RESOURCE_TYPE_TAB.INSTANCES} replace />} />
+            <Route path={RESOURCE_TYPE_TAB.INSTANCES} element={<ResourceListTab />} />
+            <Route path={RESOURCE_TYPE_TAB.GROUPS} element={<ResourceGroupsTab />} />
+            <Route path={RESOURCE_TYPE_TAB.LISTS} element={<ResourceListsTab />} />
           </Route>
 
           {/* Every previous per-type location. The class is not in the old URL, so a small
@@ -228,43 +257,43 @@ export function TenantApp({
           <Route path="resources/:typeKey/groups" element={<LegacyTypeRedirect tab="groups" />} />
 
           {/* Settings — editor-open content. Viewers are redirected to root. */}
-          <Route path="settings" element={<RequireEditor><SettingsPage /></RequireEditor>}>
-            <Route index element={<Navigate to="criteria" replace />} />
-            <Route path="criteria" element={<CriteriaSettings />} />
-            <Route path="templates" element={<TemplateSettings entityType="request" />} />
-            <Route path="routings" element={<RoutingSettings />} />
-            <Route path="presets" element={<PresetSettings />} />
-            <Route path="scheduling" element={<SchedulingSettings />} />
+          <Route path={ROUTE_SETTINGS} element={<RequireEditor><SettingsPage /></RequireEditor>}>
+            <Route index element={<Navigate to={ROUTE_SETTINGS_CRITERIA} replace />} />
+            <Route path={ROUTE_SETTINGS_CRITERIA} element={<CriteriaSettings />} />
+            <Route path={ROUTE_SETTINGS_TEMPLATES} element={<TemplateSettings entityType="request" />} />
+            <Route path={ROUTE_SETTINGS_ROUTINGS} element={<RoutingSettings />} />
+            <Route path={ROUTE_SETTINGS_PRESETS} element={<PresetSettings />} />
+            <Route path={ROUTE_SETTINGS_SCHEDULING} element={<SchedulingSettings />} />
           </Route>
 
           {/* Administration — tenant-admin-only governance. Default = sites. */}
           <Route
-            path="tenant-admin"
+            path={ROUTE_TENANT_ADMIN}
             element={<RequireTenantAdmin><TenantAdminPage /></RequireTenantAdmin>}
           >
-            <Route index element={<Navigate to="sites" replace />} />
-            <Route path="sites" element={<SiteSettings />} />
-            <Route path="users" element={<UserSettings />} />
-            <Route path="organization" element={<OrganizationSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
-            <Route path="configuration" element={<TenantConfigSettings scope="tenant" />} />
-            <Route path="integrations" element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
-            <Route path="api-access" element={<PlatformApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
-            <Route path="ai-assistant" element={<AiAssistantSettings upgradeHref={aiAssistantUnavailableRedirectTo ?? reportingApiUnavailableRedirectTo} />} />
-            <Route path="audit-log" element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
-            <Route path="usage-limits" element={<UsageLimitsSettings />} />
+            <Route index element={<Navigate to={ROUTE_TENANT_ADMIN_SITES} replace />} />
+            <Route path={ROUTE_TENANT_ADMIN_SITES} element={<SiteSettings />} />
+            <Route path={ROUTE_TENANT_ADMIN_USERS} element={<UserSettings />} />
+            <Route path={ROUTE_TENANT_ADMIN_ORGANIZATION} element={<OrganizationSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path={ROUTE_TENANT_ADMIN_CONFIGURATION} element={<TenantConfigSettings scope="tenant" />} />
+            <Route path={ROUTE_TENANT_ADMIN_INTEGRATIONS} element={<ReportingApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path={ROUTE_TENANT_ADMIN_API_ACCESS} element={<PlatformApiSettings upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path={ROUTE_TENANT_ADMIN_AI_ASSISTANT} element={<AiAssistantSettings upgradeHref={aiAssistantUnavailableRedirectTo ?? reportingApiUnavailableRedirectTo} />} />
+            <Route path={ROUTE_TENANT_ADMIN_AUDIT_LOG} element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
+            <Route path={ROUTE_TENANT_ADMIN_USAGE_LIMITS} element={<UsageLimitsSettings />} />
           </Route>
 
           {/* Resources — how the tenant shapes what it schedules. Admin-gated like
               Administration, but a different question: not who is in the tenant, but what
               its resources are and what they carry. Default = resource types. */}
           <Route
-            path="configuration"
+            path={ROUTE_CONFIGURATION}
             element={<RequireTenantAdmin><ConfigurationPage /></RequireTenantAdmin>}
           >
-            <Route index element={<Navigate to="resource-types" replace />} />
-            <Route path="resource-types" element={<ResourceTypeSettings />} />
-            <Route path="catalog" element={<TypeCatalogSettings />} />
-            <Route path="list-definitions" element={<ListDefinitionSettings />} />
+            <Route index element={<Navigate to={ROUTE_CONFIGURATION_RESOURCE_TYPES} replace />} />
+            <Route path={ROUTE_CONFIGURATION_RESOURCE_TYPES} element={<ResourceTypeSettings />} />
+            <Route path={ROUTE_CONFIGURATION_CATALOG} element={<TypeCatalogSettings />} />
+            <Route path={ROUTE_CONFIGURATION_LIST_DEFINITIONS} element={<ListDefinitionSettings />} />
           </Route>
 
           {/* People was the last per-type page. Person is an ordinary asset type now, so these
@@ -273,19 +302,19 @@ export function TenantApp({
           <Route path="people/list" element={<LegacyTypeRedirect typeKey="person" tab="instances" />} />
           <Route path="people/teams" element={<LegacyTypeRedirect typeKey="person" tab="groups" />} />
           <Route path="people/groups" element={<LegacyTypeRedirect typeKey="person" tab="groups" />} />
-          <Route path="people/departments" element={<Navigate to="/organization" replace />} />
-          <Route path="people/job-titles" element={<Navigate to="/organization" replace />} />
+          <Route path="people/departments" element={<Navigate to={ROUTE_ORGANIZATION} replace />} />
+          <Route path="people/job-titles" element={<Navigate to={ROUTE_ORGANIZATION} replace />} />
 
           {/* Organization master data — the tenant's own structure, kept as organization lists. */}
-          <Route path="organization" element={<OrganizationPage />} />
+          <Route path={ROUTE_ORGANIZATION} element={<OrganizationPage />} />
 
           {/* Every address the plan has had. It is a station surface now, so it lives under
               /stations rather than beside it. */}
-          <Route path="floorplan" element={<Navigate to="/stations/floorplan" replace />} />
-          <Route path="floorplan/floorplan" element={<Navigate to="/stations/floorplan" replace />} />
-          <Route path="floorplan/stations" element={<Navigate to="/stations" replace />} />
-          <Route path="spaces" element={<Navigate to="/stations/floorplan" replace />} />
-          <Route path="spaces/floorplan" element={<Navigate to="/stations/floorplan" replace />} />
+          <Route path="floorplan" element={<Navigate to={ROUTE_STATIONS_FLOORPLAN} replace />} />
+          <Route path="floorplan/floorplan" element={<Navigate to={ROUTE_STATIONS_FLOORPLAN} replace />} />
+          <Route path="floorplan/stations" element={<Navigate to={ROUTE_STATIONS} replace />} />
+          <Route path="spaces" element={<Navigate to={ROUTE_STATIONS_FLOORPLAN} replace />} />
+          <Route path="spaces/floorplan" element={<Navigate to={ROUTE_STATIONS_FLOORPLAN} replace />} />
           <Route path="spaces/list" element={<LegacyTypeRedirect typeKey="space" tab="instances" />} />
           <Route path="spaces/groups" element={<LegacyTypeRedirect typeKey="space" tab="groups" />} />
 
@@ -295,15 +324,15 @@ export function TenantApp({
 
           {/* Backward-compatible redirects: governance tabs moved out of Settings
               into the tenant-admin Administration page. */}
-          <Route path="settings/sites"         element={<Navigate to={`${ROUTE_TENANT_ADMIN}/sites`} replace />} />
-          <Route path="settings/users"         element={<Navigate to={`${ROUTE_TENANT_ADMIN}/users`} replace />} />
-          <Route path="settings/organization"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/organization`} replace />} />
-          <Route path="settings/configuration" element={<Navigate to={`${ROUTE_TENANT_ADMIN}/configuration`} replace />} />
-          <Route path="settings/resource-types" element={<Navigate to={`${ROUTE_CONFIGURATION}/resource-types`} replace />} />
+          <Route path="settings/sites"         element={<Navigate to={ROUTE_TENANT_ADMIN_SITES} replace />} />
+          <Route path="settings/users"         element={<Navigate to={ROUTE_TENANT_ADMIN_USERS} replace />} />
+          <Route path="settings/organization"  element={<Navigate to={ROUTE_TENANT_ADMIN_ORGANIZATION} replace />} />
+          <Route path="settings/configuration" element={<Navigate to={ROUTE_TENANT_ADMIN_CONFIGURATION} replace />} />
+          <Route path="settings/resource-types" element={<Navigate to={ROUTE_CONFIGURATION_RESOURCE_TYPES} replace />} />
           {/* Resource types moved out of Administration into Resources. */}
-          <Route path="tenant-admin/resource-types" element={<Navigate to={`${ROUTE_CONFIGURATION}/resource-types`} replace />} />
-          <Route path="settings/integrations"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/integrations`} replace />} />
-          <Route path="settings/usage-limits"  element={<Navigate to={`${ROUTE_TENANT_ADMIN}/usage-limits`} replace />} />
+          <Route path="tenant-admin/resource-types" element={<Navigate to={ROUTE_CONFIGURATION_RESOURCE_TYPES} replace />} />
+          <Route path="settings/integrations"  element={<Navigate to={ROUTE_TENANT_ADMIN_INTEGRATIONS} replace />} />
+          <Route path="settings/usage-limits"  element={<Navigate to={ROUTE_TENANT_ADMIN_USAGE_LIMITS} replace />} />
         </Route>
 
         {/* Catch-all: unknown URLs render a recoverable 404 instead of a blank screen. */}

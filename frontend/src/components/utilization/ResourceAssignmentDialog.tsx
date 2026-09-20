@@ -1,6 +1,6 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 2 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
-import { useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
+import { useMemo, useState } from "react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { Badge } from "@foundation/src/components/ui/badge";
@@ -27,15 +27,15 @@ import {
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import {
-  getResourceAssignmentOptions,
   mismatchCount,
   type ResourceAssignmentOption,
 } from "@foundation/src/lib/api/resource-candidate-requests-api";
+import { useResourceAssignmentOptions } from "@foundation/src/hooks/useResourceSchedule";
+import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
 import { ValidationIssueList } from "../requests/ValidationIssueList";
 import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
 import { formatMinutesHuman } from "@foundation/src/lib/utils";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
-import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 
 export interface ResourceAssignmentDialogProps {
   open: boolean;
@@ -147,13 +147,10 @@ export function ResourceAssignmentDialog({
   // mirroring RequestPeopleSection. The quick-add dialog has no percent input.
   const allocationPercent =
     allocationMode === ALLOCATION_MODE.EXCLUSIVE ? undefined : 100;
-  const [options, setOptions] = useState<ResourceAssignmentOption[]>([]);
   const [itemStatus, setItemStatus] = useState<Map<string, ItemStatus>>(new Map());
   // requestId → conflict issues for an already-assigned row (capability / overbook),
   // computed on load so conflicts persist across reopens, not just after toggling.
   const [conflicts, setConflicts] = useState<Map<string, ValidationResult>>(new Map());
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   // "Eligible only": hide unassigned candidates the resource can't actually take (hard blockers).
   // Eligibility is validated lazily on first enable and cached (`ineligible` = requestIds with a hard
@@ -163,8 +160,7 @@ export function ResourceAssignmentDialog({
   const [eligibilityLoaded, setEligibilityLoaded] = useState(false);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [eligibilityError, setEligibilityError] = useState(false);
-  const [periodPassed, setPeriodPassed] = useState(false);
-  const queryClient = useQueryClient();
+  const invalidateRequests = useInvalidateRequestData();
 
   const loadConflicts = async (opts: ResourceAssignmentOption[], cancelled: boolean) => {
     const assigned = opts.filter(
@@ -198,8 +194,16 @@ export function ResourceAssignmentDialog({
     }
   };
 
-  // Clearing the working state on open / target change is a render-phase update, not an
-  // effect (see useEntityFormDialog.ts); the fetch that follows is a real side effect and stays below.
+  const { options, setOptions, isLoading, loadError, periodPassed } = useResourceAssignmentOptions(
+    open,
+    resourceId,
+    start,
+    end,
+    (opts, cancelled) => void loadConflicts(opts, cancelled),
+  );
+
+  // Clearing the rest of the working state on open / target change is a render-phase update,
+  // not an effect (see useEntityFormDialog.ts).
   const [synced, setSynced] = useState<{
     open: boolean;
     resourceId: string;
@@ -222,43 +226,8 @@ export function ResourceAssignmentDialog({
       setEligibilityLoaded(false);
       setEligibilityLoading(false);
       setEligibilityError(false);
-      setLoadError(null);
-      setIsLoading(true);
     }
   }
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    getResourceAssignmentOptions(resourceId, start, end)
-      .then((opts) => {
-        if (cancelled) return;
-        // Stamped here rather than read during render: the empty-state wording depends on
-        // whether the period is already over, and reading the clock in render is impure.
-        setPeriodPassed(new Date(end).getTime() <= Date.now());
-        setOptions(
-          [...opts].sort((a, b) => {
-            const aAssigned = a.assignmentId !== null ? 0 : 1;
-            const bAssigned = b.assignmentId !== null ? 0 : 1;
-            if (aAssigned !== bAssigned) return aAssigned - bAssigned;
-            return a.name.localeCompare(b.name);
-          }),
-        );
-        // Surface existing conflicts on the already-assigned rows. Decorative — runs
-        // in the background; each assignment is excluded from its own overbook check.
-        void loadConflicts(opts, cancelled);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load");
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, resourceId, start, end]);
 
   // Validate the unassigned candidates once (lazily, on first "Eligible only" toggle) to learn which
   // carry a hard blocker. Same window/allocation params as handleToggle; fail-open on error.
@@ -353,7 +322,7 @@ export function ResourceAssignmentDialog({
           ),
         );
         patchConflict(option.requestId, null);
-        invalidateRequestData(queryClient);
+        invalidateRequests();
       } catch {
         // The remove did not land — tell the planner so they don't assume it's gone.
         toast.error(`Couldn't remove ${resourceName} from “${option.name}”. Please try again.`);
@@ -410,7 +379,7 @@ export function ResourceAssignmentDialog({
             o.requestId === option.requestId ? { ...o, assignmentId: created.id } : o,
           ),
         );
-        invalidateRequestData(queryClient);
+        invalidateRequests();
         // Persist any conflict (capability / overbook) on the now-assigned row so the
         // badge + reasons survive — one source of truth with the on-load conflicts map.
         patchConflict(option.requestId, conflictIssuesOf(effectiveResult));
@@ -460,7 +429,7 @@ export function ResourceAssignmentDialog({
         <ScrollableDialogBody className="pr-1">
           <div className="space-y-4">
             {isLoading ? (
-              <div className="text-center py-8 text-sm text-muted-foreground">Loading…</div>
+              <LoadingSpinner fullScreen={false} size="sm" muted className="py-8" message="Loading…" />
             ) : loadError ? (
               <ErrorAlert message={loadError} />
             ) : options.length === 0 ? (

@@ -53,7 +53,6 @@ public partial class ApiPathContractTests
         // orkyo-saas/backend/src/Endpoints/Admin/TenantAdminEndpoints.cs — site-admin tenant CRUD
         "/api/admin/tenants",
         "/api/admin/tenants/{}",
-        "/api/admin/tenants/{}/tier",
 
         // orkyo-saas/backend/src/Endpoints/Admin/MembershipAdminEndpoints.cs
         "/api/admin/tenants/{}/members",
@@ -63,8 +62,6 @@ public partial class ApiPathContractTests
         "/api/admin/tenants/usage",
         "/api/admin/tenants/{}/quotas",
         "/api/admin/tenants/{}/quota-overrides/{}",
-        "/api/admin/subscription-tiers",
-        "/api/admin/subscription-tiers/{}/quotas/{}",
 
         // orkyo-saas/backend/src/Endpoints/Admin/BreakGlassEndpoints.cs — support break-glass
         "/api/admin/break-glass/entry",

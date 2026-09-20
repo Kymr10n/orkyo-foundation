@@ -1,6 +1,5 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
@@ -16,8 +15,6 @@ import { StatusBadge } from "@foundation/src/components/ui/status-badge";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 import {
-  listApiAccessTokens,
-  createApiAccessToken,
   revokeApiAccessToken,
   grantsWrite,
   API_SCOPES,
@@ -25,6 +22,7 @@ import {
   type ApiAccessTokenSummary,
 } from "@foundation/src/lib/api/api-access-tokens-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useApiAccessTokens, useCreateApiAccessToken } from "@foundation/src/hooks/useApiTokens";
 import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
 import {
   CopyButton,
@@ -88,21 +86,9 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
     }
   }
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      createApiAccessToken({
-        name,
-        scopes: ACCESS_LEVELS.find((l) => l.id === level)!.scopes as ApiScope[],
-        ...(expiresAt ? { expiresAt } : {}),
-      }),
-    meta: {
-      errorMessage: "Failed to create token. Please try again.",
-      invalidates: [qk.apiAccessTokens.all()],
-    },
-    onSuccess: (result) => {
-      onOpenChange(false);
-      onCreated(result.rawToken);
-    },
+  const mutation = useCreateApiAccessToken((result) => {
+    onOpenChange(false);
+    onCreated(result.rawToken);
   });
 
   return (
@@ -111,7 +97,13 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
       onOpenChange={onOpenChange}
       title="Create API token"
       description="Connects an AI assistant or automated service to this workspace's schedule. It will be shown once — copy it before closing."
-      onSubmit={() => mutation.mutate()}
+      onSubmit={() =>
+        mutation.mutate({
+          name,
+          scopes: ACCESS_LEVELS.find((l) => l.id === level)!.scopes as ApiScope[],
+          ...(expiresAt ? { expiresAt } : {}),
+        })
+      }
       isSubmitting={mutation.isPending}
       submitLabel="Create token"
       submitDisabled={!(name.trim() && (expiryMode !== "custom" || !!expiresAt))}
@@ -223,11 +215,7 @@ export function PlatformApiSettings({ upgradeHref }: PlatformApiSettingsProps = 
   const [rawToken, setRawToken] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<ApiAccessTokenSummary | null>(null);
 
-  const { data: tokens = [], isLoading, error } = useQuery({
-    queryKey: qk.apiAccessTokens.all(),
-    queryFn: listApiAccessTokens,
-    enabled: apiAccessAllowed,
-  });
+  const { data: tokens = [], isLoading, error } = useApiAccessTokens(apiAccessAllowed);
 
   // The access column is what this table has that the reporting one does not: whether a token can
   // change the schedule is the first thing worth seeing in a list of them.

@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TenantConfigSettings } from "./TenantConfigSettings";
+import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import type { TenantSettingsResponse } from "@foundation/src/lib/api/tenant-settings-api";
 
 // ── Mocks ───────────────────────────────────────────────────────────
@@ -156,6 +157,8 @@ function setupHook(overrides?: Partial<ReturnType<typeof useTenantSettings>>) {
 describe("TenantConfigSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Globally mocked to true in src/test/setup.ts; the non-admin test overrides it.
+    vi.mocked(useIsTenantAdmin).mockReturnValue(true);
     mockAuth = {
       membership: {
         tenantId: "tenant-1",
@@ -173,6 +176,7 @@ describe("TenantConfigSettings", () => {
   // ── Access guard ────────────────────────────────────────────────
 
   it("shows admin-only message for non-admin users", () => {
+    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
     mockAuth = {
       membership: {
         tenantId: "tenant-1",

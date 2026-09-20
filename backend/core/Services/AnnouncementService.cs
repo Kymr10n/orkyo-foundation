@@ -10,10 +10,12 @@ public class AnnouncementService : IAnnouncementService
     private const int MaxBodyLength = 5000;
 
     private readonly IAnnouncementRepository _repository;
+    private readonly TimeProvider _time;
 
-    public AnnouncementService(IAnnouncementRepository repository)
+    public AnnouncementService(IAnnouncementRepository repository, TimeProvider time)
     {
         _repository = repository;
+        _time = time;
     }
 
     public Task<List<AnnouncementDto>> GetAllAsync(bool includeExpired = false, CancellationToken ct = default)
@@ -44,7 +46,7 @@ public class AnnouncementService : IAnnouncementService
             Revision = 1,
             CreatedByUserId = userId,
             UpdatedByUserId = userId,
-            ExpiresAt = DateTime.UtcNow.AddDays(retentionDays),
+            ExpiresAt = _time.GetUtcNow().UtcDateTime.AddDays(retentionDays),
         };
 
         return await _repository.CreateAsync(announcement, ct);
@@ -56,7 +58,7 @@ public class AnnouncementService : IAnnouncementService
         if (error != null)
             throw new ArgumentException(error);
 
-        if (request.ExpiresAt.HasValue && request.ExpiresAt.Value <= DateTime.UtcNow)
+        if (request.ExpiresAt.HasValue && request.ExpiresAt.Value <= _time.GetUtcNow().UtcDateTime)
             throw new ArgumentException("Expiration date must be in the future.");
 
         return await _repository.UpdateAsync(id, request.Title.Trim(), request.Body.Trim(), request.IsImportant, request.ExpiresAt, userId, ct);

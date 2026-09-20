@@ -55,7 +55,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
         return await db.QueryListAsync(
             "SELECT key FROM resource_types WHERE has_geometry AND is_active ORDER BY key",
-            null, r => r.GetString(0), ct);
+            null, r => r.GetString("key"), ct);
     }
 
     public async Task<List<ResourceTypeInfo>> GetAllAsync(CancellationToken ct = default)
@@ -157,7 +157,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
 
         var result = new Dictionary<Guid, ResourceTypeUsage>();
         await using var cmd = new NpgsqlCommand(@"
-            SELECT type_id, SUM(resources)::int, SUM(targets)::int
+            SELECT type_id, SUM(resources)::int AS resources, SUM(targets)::int AS targets
             FROM (
                 SELECT resource_type_id AS type_id, COUNT(*) AS resources, 0 AS targets
                 FROM resources GROUP BY resource_type_id
@@ -168,7 +168,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
             GROUP BY type_id", db);
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            result[reader.GetGuid(0)] = new ResourceTypeUsage(reader.GetInt32(1), reader.GetInt32(2));
+            result[reader.GetGuid("type_id")] = new ResourceTypeUsage(reader.GetInt32("resources"), reader.GetInt32("targets"));
         return result;
     }
 

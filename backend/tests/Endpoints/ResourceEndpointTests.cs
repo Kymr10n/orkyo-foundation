@@ -88,7 +88,7 @@ public class ResourceEndpointTests
         var response = await _client.GetAsync("/api/resources?resourceTypeKey=person");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var list = envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+        var list = envelope.GetProperty("items").Deserialize<List<ResourceInfo>>(
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert.NotNull(list);
         Assert.All(list, r => Assert.Equal("person", r.ResourceTypeKey));
@@ -131,19 +131,19 @@ public class ResourceEndpointTests
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+        return envelope.GetProperty("items").Deserialize<List<ResourceInfo>>(
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
     }
 
-    private static async Task<(List<ResourceInfo> Data, int Total, int Page, int PageSize)> ReadEnvelopeAsync(
+    private static async Task<(List<ResourceInfo> Items, int Total, int Page, int PageSize)> ReadEnvelopeAsync(
         HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var data = envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+        var items = envelope.GetProperty("items").Deserialize<List<ResourceInfo>>(
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
-        return (data,
-            envelope.GetProperty("total").GetInt32(),
+        return (items,
+            envelope.GetProperty("totalItems").GetInt32(),
             envelope.GetProperty("page").GetInt32(),
             envelope.GetProperty("pageSize").GetInt32());
     }

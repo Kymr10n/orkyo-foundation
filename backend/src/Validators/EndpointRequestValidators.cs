@@ -25,11 +25,11 @@ public class CreateReportingTokenRequestValidator : AbstractValidator<CreateRepo
 {
     public const int NameMaxLength = 200;
 
-    public CreateReportingTokenRequestValidator()
+    public CreateReportingTokenRequestValidator(TimeProvider time)
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(NameMaxLength);
         // A token minted already-expired is silently useless; reject it at the boundary.
-        RuleFor(x => x.ExpiresAt!.Value).GreaterThan(DateTime.UtcNow)
+        RuleFor(x => x.ExpiresAt!.Value).GreaterThan(time.GetUtcNow().UtcDateTime)
             .WithMessage("ExpiresAt must be in the future")
             .When(x => x.ExpiresAt.HasValue);
     }

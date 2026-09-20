@@ -26,6 +26,12 @@ declare module '@tanstack/react-query' {
       successMessage?: string | ((data: unknown, variables: unknown) => string);
       /** Title for the error toast. Defaults to "Something went wrong". */
       errorMessage?: string;
+      /**
+       * Suppress the error toast entirely. For a mutation whose caller already shows
+       * the failure inline (a dialog's ErrorAlert): the rule is one surface per error,
+       * never both. See the error-display rule in ARCHITECTURE.md.
+       */
+      suppressErrorToast?: boolean;
       /** Query keys invalidated on success, prefix-style (exact: false). */
       invalidates?: readonly (readonly unknown[])[];
     };
@@ -57,6 +63,9 @@ export function createFeedbackMutationCache(
       const meta = mutation.meta;
       // Opt-in guard: only mutations that declared feedback get a global error
       // toast, so un-migrated/legacy mutations are untouched (no double-toast).
+      // `suppressErrorToast` opts a declared mutation back out when its caller
+      // renders the failure inline instead.
+      if (meta?.suppressErrorToast) return;
       if (meta?.successMessage || meta?.errorMessage) {
         toastImpl.error(meta.errorMessage ?? 'Something went wrong', {
           description: err instanceof Error ? err.message : undefined,

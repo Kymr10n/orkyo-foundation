@@ -78,8 +78,6 @@ public class SecurityEndpointsTests
         cmd.Parameters.AddWithValue("email", email);
         await cmd.ExecuteNonQueryAsync();
 
-        // Principal cache is keyed by sub; clear so the new link is visible.
-        Api.Middleware.ContextEnrichmentMiddleware.ClearCache();
         return (userId, keycloakSub);
     }
 

@@ -47,7 +47,8 @@ public class BffSessionEstablisherTests
         _clientIp.Object,
         _audit.Object,
         Options.Create(_options),
-        NullLogger<BffSessionEstablisher>.Instance);
+        NullLogger<BffSessionEstablisher>.Instance,
+        TimeProvider.System);
 
     private static KeycloakTokenProfile Profile() =>
         KeycloakTokenProfile.FromPrincipal(new ClaimsPrincipal(new ClaimsIdentity(

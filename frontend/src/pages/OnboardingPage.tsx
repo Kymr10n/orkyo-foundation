@@ -1,4 +1,4 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 5 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
+/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 3 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
 /**
  * Onboarding Page
  *
@@ -10,16 +10,18 @@
  *   Step 2 – Choose a starter template (empty / demo / presets)
  */
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { Building2, Plus, Loader2, LogOut, AlertCircle, ArrowLeft, CheckCircle2, RotateCcw } from "lucide-react";
-import { canCreateTenant, createTenant, getStarterTemplates, getTenantMemberships, cancelTenantDeletion, type TenantMembership } from "@foundation/src/lib/api/tenant-account-api";
-import { StarterTemplatePicker, type StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
+import { Building2, Plus, LogOut, AlertCircle, ArrowLeft, CheckCircle2, RotateCcw } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { createTenant, cancelTenantDeletion } from "@foundation/src/lib/api/tenant-account-api";
+import { StarterTemplatePicker } from "@foundation/src/components/onboarding/StarterTemplatePicker";
+import { useOnboardingData } from "@foundation/src/hooks/useOnboarding";
 import { logger } from "@foundation/src/lib/core/logger";
 import { runtimeConfig } from "@foundation/src/config/runtime";
 import { getTenantHostname } from "@foundation/src/lib/utils/tenant-navigation";
@@ -74,11 +76,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
 
 export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: OnboardingPageProps) {
   usePageTitle("Get started");
-  const [canCreate, setCanCreate] = useState<boolean | null>(null);
-  // Why creation is refused, when the backend cares to say. Invitation-only access
-  // needs to point somewhere; the generic "contact an administrator" is the fallback
-  // for a refusal with no stated reason (e.g. already owning a workspace).
-  const [cannotCreateReason, setCannotCreateReason] = useState<string | null>(null);
+  const { canCreate, cannotCreateReason, loading, templates, templatesError, deletingTenants } =
+    useOnboardingData();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -88,38 +87,11 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [templatesError, setTemplatesError] = useState(false);
 
   // Wizard state
   const [step, setStep] = useState<WizardStep>("form");
   const [selectedTemplate, setSelectedTemplate] = useState("empty");
-  const [templates, setTemplates] = useState<StarterTemplate[]>([]);
-  const [deletingTenants, setDeletingTenants] = useState<TenantMembership[]>([]);
   const [restoringId, setRestoringId] = useState<string | null>(null);
-
-  const checkCanCreate = async () => {
-    try {
-      const data = await canCreateTenant();
-      setCanCreate(data.canCreate);
-      setCannotCreateReason(data.reason ?? null);
-    } catch (err) {
-      logger.error("Failed to check can create:", err);
-      // 401 is handled globally by the API error handler (redirects to apex login)
-      setCanCreate(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadDeletingTenants = async () => {
-    try {
-      const memberships = await getTenantMemberships();
-      setDeletingTenants(memberships.filter((m) => m.tenantStatus === "deleting" && m.isOwner));
-    } catch {
-      // Non-critical — just don't show the section
-    }
-  };
 
   const handleCancelDeletion = async (tenantId: string) => {
     setRestoringId(tenantId);
@@ -131,26 +103,6 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
       setRestoringId(null);
     }
   };
-
-  const loadTemplates = async () => {
-    try {
-      const data = await getStarterTemplates();
-      setTemplates(data);
-    } catch (err) {
-      logger.error("Failed to load starter templates:", err);
-      setTemplatesError(true);
-    }
-  };
-
-  // Declared after the loaders on purpose: referencing them earlier reads them before their
-  // declaration, which the compiler rejects even though the effect only runs after render.
-  useEffect(() => {
-    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    checkCanCreate();
-    loadTemplates();
-    loadDeletingTenants();
-  }, []);
 
   const slugError = slugTouched ? validateSlug(slug) : null;
 
@@ -208,9 +160,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <LoadingSpinner />
     );
   }
 
@@ -389,9 +339,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   disabled={submitting}
                 />
               ) : (
-                <div className="flex justify-center py-4">
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                </div>
+                <LoadingSpinner fullScreen={false} size="sm" muted className="py-4" />
               )}
 
               <div className="flex gap-2">

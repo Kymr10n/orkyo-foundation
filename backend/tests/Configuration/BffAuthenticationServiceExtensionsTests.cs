@@ -362,6 +362,7 @@ public class BffAuthenticationServiceExtensionsTests
         services.AddLogging(b => b.AddConsole());
         services.AddSingleton<IConfiguration>(config);
         services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment(environmentName));
+        services.AddSingleton(TimeProvider.System);
         services.AddBffAuthentication(config);
 
         return services.BuildServiceProvider();

@@ -7,7 +7,7 @@ using Xunit;
 namespace Orkyo.Foundation.Tests.Repositories;
 
 /// <summary>
-/// Covers <see cref="IRequestRepository.GetPartiallyScheduledLeavesAsync"/> — the eligibility-parity
+/// Covers <see cref="IRequestScheduleReadRepository.GetPartiallyScheduledLeavesAsync"/> — the eligibility-parity
 /// fetch that keeps timed-but-spaceless leaves (start_ts + end_ts set, but no Space assignment, so
 /// <see cref="RequestInfo.IsScheduled"/> is false) visible to the auto-scheduler after
 /// GetUnscheduledAsync narrowed to start_ts IS NULL. Rows are created over the HTTP stack (real
@@ -17,13 +17,13 @@ namespace Orkyo.Foundation.Tests.Repositories;
 public class RequestRepositoryPartialScheduleTests
 {
     private readonly HttpClient _client;
-    private readonly IRequestRepository _repo;
+    private readonly IRequestScheduleReadRepository _repo;
 
     public RequestRepositoryPartialScheduleTests(DatabaseFixture fixture)
     {
         _client = fixture.CreateAuthorizedClient();
         var scope = fixture.Factory.Services.CreateScope();
-        _repo = scope.ServiceProvider.GetRequiredService<IRequestRepository>();
+        _repo = scope.ServiceProvider.GetRequiredService<IRequestScheduleReadRepository>();
     }
 
     private async Task<Guid> CreateLeafAsync(DateTime? startTs, DateTime? endTs)

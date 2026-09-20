@@ -1,12 +1,6 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import {
-  createResourceAbsence,
-  updateResourceAbsence,
-  type AbsenceType,
-  type ResourceAbsenceInfo,
-} from '@foundation/src/lib/api/resource-absences-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { AbsenceType, ResourceAbsenceInfo } from '@foundation/src/lib/api/resource-absences-api';
+import { useSaveResourceAbsence } from '@foundation/src/hooks/useResourceAbsences';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Button } from '@foundation/src/components/ui/button'; // date-picker popover triggers
 import { Input } from '@foundation/src/components/ui/input';
@@ -61,44 +55,30 @@ export function ResourceAbsenceEditDialog({
     absence ? new Date(absence.endTs) : initialEnd,
   );
 
-  const saveMutation = useMutation({
-    mutationFn: () => {
-      // The times of day are preserved from the existing absence: this form edits dates, and a
-      // drag on the schedule calendar is what sets times. Dropping them here would quietly
-      // widen an absence to midnight-to-midnight on every save.
-      const payload = {
-        absenceType,
-        title: title || absenceType,
-        startTs: startDate!.toISOString(),
-        endTs: endDate!.toISOString(),
-      };
-      return absence
-        ? updateResourceAbsence(resourceId, absence.id, { ...payload, notes: absence.notes, enabled: absence.enabled })
-        : createResourceAbsence(resourceId, payload);
-    },
-    meta: {
-      successMessage: absence ? 'Absence updated' : 'Absence added',
-      errorMessage: absence ? 'Failed to update absence' : 'Failed to add absence',
-      // An absence makes existing bookings on this resource conflict, so the conflict registry
-      // and the utilization grid are stale the moment it is saved — not just the absence list.
-      invalidates: [
-        qk.resources.absences(resourceId),
-        qk.conflicts.all(),
-        qk.utilization.byResourceAll(),
-      ],
-    },
-    onSuccess: () => {
-      setAbsenceType(defaultAbsenceType);
-      setTitle('');
-      setStartDate(undefined);
-      setEndDate(undefined);
-      onSaved();
-    },
-  });
+  const saveMutation = useSaveResourceAbsence(resourceId, absence);
 
   const handleSubmit = () => {
     if (!startDate || !endDate) return;
-    saveMutation.mutate();
+    // The times of day are preserved from the existing absence: this form edits dates, and a
+    // drag on the schedule calendar is what sets times. Dropping them here would quietly
+    // widen an absence to midnight-to-midnight on every save.
+    saveMutation.mutate(
+      {
+        absenceType,
+        title: title || absenceType,
+        startTs: startDate.toISOString(),
+        endTs: endDate.toISOString(),
+      },
+      {
+        onSuccess: () => {
+          setAbsenceType(defaultAbsenceType);
+          setTitle('');
+          setStartDate(undefined);
+          setEndDate(undefined);
+          onSaved();
+        },
+      },
+    );
   };
 
   return (

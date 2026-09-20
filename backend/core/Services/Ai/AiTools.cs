@@ -186,7 +186,7 @@ public sealed class SearchTool(ISearchRepository search) : IAiTool
         if (string.IsNullOrWhiteSpace(query))
             return "A search needs something to search for.";
 
-        var limit = Math.Clamp(AiToolInput.Int(input, "limit") ?? DefaultLimit, 1, MaxLimit);
+        var limit = PageRequest.ClampLimit(AiToolInput.Int(input, "limit"), DefaultLimit, MaxLimit);
 
         // Unknown type names are dropped rather than passed through: the index would return
         // nothing for them, which reads to the model as "no such record" instead of "not a
@@ -253,7 +253,7 @@ public sealed class GetRequestsTool(IRequestService requests) : IAiTool
     {
         // The model supplies this and it now reaches SQL, so clamp it at the boundary:
         // a negative LIMIT is an error and an enormous one is the read we just removed.
-        var limit = Math.Clamp(AiToolInput.Int(input, "limit") ?? 25, 1, PageRequest.MaxPageSize);
+        var limit = PageRequest.ClampLimit(AiToolInput.Int(input, "limit"), 25, PageRequest.MaxPageSize);
         var query = AiToolInput.String(input, "query");
         var scheduled = AiToolInput.Bool(input, "scheduled");
         var sort = ParseSort(AiToolInput.String(input, "sort"));

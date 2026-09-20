@@ -22,7 +22,7 @@ public interface ICalendarFeedService
 }
 
 public class CalendarFeedService(
-    IRequestRepository requestRepo,
+    IRequestScheduleReadRepository requestRepo,
     IResourceRepository resourceRepo) : ICalendarFeedService
 {
     /// <summary>

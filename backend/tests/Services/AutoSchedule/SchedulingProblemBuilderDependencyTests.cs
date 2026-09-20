@@ -79,12 +79,13 @@ public class SchedulingProblemBuilderDependencyTests
         List<RequestInfo>? offHorizon = null)
     {
         var requests = new Mock<IRequestRepository>();
-        requests.Setup(r => r.GetUnscheduledAsync(
+        var scheduleReads = new Mock<IRequestScheduleReadRepository>();
+        scheduleReads.Setup(r => r.GetUnscheduledAsync(
                 It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(backlog);
-        requests.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+        scheduleReads.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        requests.Setup(r => r.GetScheduledBySiteWindowAsync(
+        scheduleReads.Setup(r => r.GetScheduledBySiteWindowAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         requests.Setup(r => r.GetByIdsAsync(
@@ -93,8 +94,6 @@ public class SchedulingProblemBuilderDependencyTests
                 (offHorizon ?? []).Where(r => ids.Contains(r.Id)).ToList());
 
         var resources = new Mock<IResourceRepository>();
-        resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([Space()]);
         resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([Space()]);
 
@@ -121,8 +120,9 @@ public class SchedulingProblemBuilderDependencyTests
         criteria.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
 
         return new SchedulingProblemBuilder(
-            requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object);
+            requests.Object, scheduleReads.Object, resources.Object, capabilities.Object,
+            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object,
+            TimeProvider.System);
     }
 
     private static AutoSchedulePreviewRequest Preview() =>

@@ -25,8 +25,8 @@ vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
 }));
 
 let mockSelectedSiteId: string | null = 'site-1';
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
     selector({ selectedSiteId: mockSelectedSiteId }),
 }));
 

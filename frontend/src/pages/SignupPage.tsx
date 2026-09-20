@@ -1,42 +1,40 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { useSearchParams } from "react-router";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { buildBffLoginUrl } from "@foundation/src/lib/utils/tenant-navigation";
-import {
-  ArrowLeft,
-  UserPlus,
-  CheckCircle,
-  Loader2,
-  AlertCircle,
-  Clock,
-} from "lucide-react";
+import { ArrowLeft, UserPlus, CheckCircle, AlertCircle, Clock } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { apiGet, apiPost } from "@foundation/src/lib/core/api-client";
-import { API_PATHS } from "@foundation/src/lib/core/api-paths";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
-
-interface InvitationDetails {
-  email: string;
-  expiresAt: string;
-  tenantName: string;
-}
+import {
+  useAcceptInvitation,
+  useInvitationValidation,
+} from "@foundation/src/hooks/useInvitationSignup";
 
 export function SignupPage() {
   usePageTitle("Accept invitation");
   const [searchParams] = useSearchParams();
   const invitationToken = searchParams.get("invitation");
 
-  const [isValidating, setIsValidating] = useState(true);
-  const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const validation = useInvitationValidation(invitationToken);
+  const invitation = validation.data ?? null;
+  const isValidating = invitationToken !== null && validation.isPending;
+  const validationError = !invitationToken
+    ? "No invitation token provided"
+    : validation.error
+      ? validation.error instanceof Error
+        ? validation.error.message
+        : "Failed to validate invitation"
+      : null;
+
+  const acceptMutation = useAcceptInvitation();
+  const isLoading = acceptMutation.isPending;
 
   const [submitted, setSubmitted] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     displayName: "",
@@ -44,34 +42,7 @@ export function SignupPage() {
     confirmPassword: "",
   });
 
-  // Validate invitation token on mount
-  useEffect(() => {
-    async function validateInvitation() {
-      if (!invitationToken) {
-        setValidationError("No invitation token provided");
-        setIsValidating(false);
-        return;
-      }
-
-      try {
-        const data = await apiGet<InvitationDetails>(
-          API_PATHS.INVITATION_VALIDATE,
-          { params: { token: invitationToken } },
-        );
-        setInvitation(data);
-      } catch (err) {
-        setValidationError(
-          err instanceof Error ? err.message : "Failed to validate invitation",
-        );
-      } finally {
-        setIsValidating(false);
-      }
-    }
-
-    validateInvitation();
-  }, [invitationToken]);
-
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
 
@@ -85,20 +56,17 @@ export function SignupPage() {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      await apiPost<void>(API_PATHS.INVITATION_ACCEPT, {
-        token: invitationToken,
+    acceptMutation.mutate(
+      {
+        token: invitationToken as string,
         displayName: formData.displayName || invitation?.email.split("@")[0],
         password: formData.password,
-      });
-      setSubmitted(true);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setIsLoading(false);
-    }
+      },
+      {
+        onSuccess: () => setSubmitted(true),
+        onError: (err) => setError(errorMessage(err)),
+      },
+    );
   };
 
   const handleBackToLogin = (withHint = false) => {
@@ -125,12 +93,7 @@ export function SignupPage() {
   // Loading state while validating invitation
   if (isValidating) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-background p-4">
-        <div className="w-full max-w-md space-y-6 text-center">
-          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Validating invitation...</p>
-        </div>
-      </div>
+      <LoadingSpinner message="Validating invitation…" />
     );
   }
 

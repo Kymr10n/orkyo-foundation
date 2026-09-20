@@ -5,7 +5,7 @@ namespace Orkyo.Foundation.Tests.Services;
 public class InMemoryBffSessionStoreTests
 {
     private readonly InMemoryBffSessionStore _store =
-        new(new Mock<Microsoft.Extensions.Logging.ILogger<InMemoryBffSessionStore>>().Object);
+        new(new Mock<Microsoft.Extensions.Logging.ILogger<InMemoryBffSessionStore>>().Object, TimeProvider.System);
 
     private static BffSessionRecord CreateSession(string? sessionId = null, DateTimeOffset? expiresAt = null) =>
         new()

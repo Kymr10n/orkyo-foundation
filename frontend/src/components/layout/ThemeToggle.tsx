@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@foundation/src/components/ui/dropdown-menu";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
 
 const themeOptions = [
   { value: "light" as const, label: "Light", icon: Sun },
@@ -24,9 +24,9 @@ const themeOptions = [
  *     public/semi-public pages that lack a TopBar
  */
 export function ThemeToggle({ variant = "inline" }: { variant?: "inline" | "floating" }) {
-  const theme = useAppStore((s) => s.theme);
-  const resolvedTheme = useAppStore((s) => s.resolvedTheme);
-  const setTheme = useAppStore((s) => s.setTheme);
+  const theme = useLayoutStore((s) => s.theme);
+  const resolvedTheme = useLayoutStore((s) => s.resolvedTheme);
+  const setTheme = useLayoutStore((s) => s.setTheme);
 
   const CurrentIcon = resolvedTheme === "dark" ? Sun : Moon;
 

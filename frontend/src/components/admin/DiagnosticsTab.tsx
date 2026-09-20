@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Separator } from '@foundation/src/components/ui/separator';
 import { Button } from '@foundation/src/components/ui/button';
-import {
-  type DiagnosticsResponse,
-  getAdminDiagnostics,
-} from '@foundation/src/lib/api/admin-api';
-import { logger } from '@foundation/src/lib/core/logger';
+import { useAdminDiagnostics } from '@foundation/src/hooks/usePlatformAdmin';
 import {
   Activity,
   CheckCircle2,
@@ -42,29 +37,10 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export function DiagnosticsTab() {
-  const [data, setData] = useState<DiagnosticsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const result = await getAdminDiagnostics();
-      setData(result);
-      setLastRefreshed(new Date());
-    } catch (err) {
-      logger.error('Failed to load diagnostics', err);
-      setError('Failed to load diagnostics');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { void load(); }, [load]);
+  const { data, isFetching, isError, dataUpdatedAt, refetch } = useAdminDiagnostics();
+  const loading = isFetching;
+  // The last successful read; a failed refresh leaves the panel on the data it already has.
+  const lastRefreshed = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   if (loading && !data) {
     return (
@@ -74,9 +50,9 @@ export function DiagnosticsTab() {
     );
   }
 
-  if (error && !data) {
+  if (isError && !data) {
     return (
-      <ErrorAlert message={error} />
+      <ErrorAlert message="Failed to load diagnostics" />
     );
   }
 
@@ -94,7 +70,7 @@ export function DiagnosticsTab() {
             </p>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={loading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>

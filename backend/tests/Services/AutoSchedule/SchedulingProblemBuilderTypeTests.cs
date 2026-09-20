@@ -88,13 +88,13 @@ public class SchedulingProblemBuilderTypeTests
     {
         var filters = new List<ResourceListFilter>();
 
-        var requests = new Mock<IRequestRepository>();
-        requests.Setup(r => r.GetUnscheduledAsync(
+        var scheduleReads = new Mock<IRequestScheduleReadRepository>();
+        scheduleReads.Setup(r => r.GetUnscheduledAsync(
                 It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(backlog.Where(r => r.StartTs is null).ToList());
-        requests.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+        scheduleReads.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(backlog.Where(r => r.StartTs is not null).ToList());
-        requests.Setup(r => r.GetScheduledBySiteWindowAsync(
+        scheduleReads.Setup(r => r.GetScheduledBySiteWindowAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
@@ -128,8 +128,9 @@ public class SchedulingProblemBuilderTypeTests
             .ReturnsAsync(criteria ?? []);
 
         return (new SchedulingProblemBuilder(
-            requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object, criteriaRepo.Object), filters);
+            Mock.Of<IRequestRepository>(), scheduleReads.Object, resources.Object, capabilities.Object,
+            scheduling.Object, resolver.Object, dependencies.Object, criteriaRepo.Object,
+            TimeProvider.System), filters);
     }
 
     private static AutoSchedulePreviewRequest Preview(params string[] typeKeys) => new(

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -70,6 +71,16 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     public HttpClient CreateClient()
     {
         return _host.GetTestClient();
+    }
+
+    /// <summary>
+    /// Empties the shared <see cref="IMemoryCache"/> the host's <c>SingleFlightCache</c> sits on:
+    /// tenant and site settings, the identity caches, the insights read-through entries. A test
+    /// that deletes rows behind a cache with raw SQL calls this so the next read sees the DB.
+    /// </summary>
+    public void ResetCaches()
+    {
+        ((MemoryCache)Services.GetRequiredService<IMemoryCache>()).Clear();
     }
 
     public async ValueTask DisposeAsync()

@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { FloorplanView } from './FloorplanView';
 
-vi.mock('@foundation/src/store/app-store', () => ({ useAppStore: vi.fn() }));
+vi.mock('@foundation/src/store/site-store', () => ({ useSiteStore: vi.fn() }));
 
 // The view registers CSV import/export per placeable type; those queries have their own suites.
 vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
@@ -19,10 +19,10 @@ vi.mock('./SpaceManagementPanel', () => ({
   ),
 }));
 
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 function setSite(siteId: string | null) {
-  vi.mocked(useAppStore).mockImplementation((selector: unknown) =>
+  vi.mocked(useSiteStore).mockImplementation((selector: unknown) =>
     (selector as (s: { selectedSiteId: string | null }) => unknown)({ selectedSiteId: siteId }) as never,
   );
 }

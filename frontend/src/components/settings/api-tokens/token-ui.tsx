@@ -1,5 +1,4 @@
 import { useState, type ReactNode } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CalendarIcon, Copy, Check, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
@@ -25,6 +24,7 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { formatLocalized } from "@foundation/src/lib/formatters";
+import { useRevokeToken } from "@foundation/src/hooks/useApiTokens";
 import type { ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 
 /**
@@ -277,15 +277,7 @@ export function RevokeTokenDialog<T extends TokenSummaryLike>({
   revokeFn,
   invalidates,
 }: RevokeTokenDialogProps<T>) {
-  const mutation = useMutation({
-    mutationFn: (id: string) => revokeFn(id),
-    meta: {
-      successMessage: "Token revoked",
-      errorMessage: "Failed to revoke token. Please try again.",
-      invalidates: [invalidates],
-    },
-    onSuccess: () => onOpenChange(false),
-  });
+  const mutation = useRevokeToken(revokeFn, invalidates, () => onOpenChange(false));
 
   return (
     <ConfirmDialog

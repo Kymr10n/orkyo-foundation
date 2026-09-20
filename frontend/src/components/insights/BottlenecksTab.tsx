@@ -1,6 +1,5 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useState } from "react";
-import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
@@ -8,9 +7,13 @@ import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { BottleneckChart } from "@foundation/src/components/insights/InsightsTrendCharts";
 import { useInsightsTabContext } from "@foundation/src/components/insights/insightsTabContext";
-import { useCriticalPath } from "@foundation/src/hooks/useInsights";
+import {
+  useCriticalPath,
+  useFetchRequest,
+  useInsightsBottlenecksByType,
+} from "@foundation/src/hooks/useInsights";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
-import { getInsightsBottlenecks, type InsightsBottlenecks } from "@foundation/src/lib/api/insights-api";
+import { type InsightsBottlenecks } from "@foundation/src/lib/api/insights-api";
 import type { ResourceTypeInfo } from "@foundation/src/lib/api/resource-types-api";
 import { RESOURCE_CLASS, resourceClassOf } from "@foundation/src/constants/resource-class";
 import {
@@ -21,10 +24,7 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
-import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
-import { getRequest } from "@foundation/src/lib/api/request-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { STALE } from "@foundation/src/lib/core/query-client";
+import { useRequestEditor } from "@foundation/src/hooks/useRequestEditor";
 import { type CriticalPathNode } from "@foundation/src/lib/api/request-dependency-api";
 import {
   Table,
@@ -57,18 +57,17 @@ export function BottlenecksTab() {
 
   // Every type is fetched, whichever filter is set: a class ranking is the merge of its types'
   // rankings, and narrowing to one type then reads a result already in cache.
-  const rankings = useQueries({
-    queries: resourceTypes.map((type) => ({
-      queryKey: qk.insights.bottlenecks(siteId, from, to, type.key),
-      queryFn: () => getInsightsBottlenecks(from, to, siteId, type.key),
-      staleTime: STALE.ANALYTICS,
-    })),
-  });
+  const rankings = useInsightsBottlenecksByType(
+    resourceTypes.map((type) => type.key),
+    siteId,
+    from,
+    to,
+  );
   const byType = resourceTypes.map((type, i) => ({ type, result: rankings[i] }));
 
   const criticalPath = useCriticalPath(siteId);
 
-  const queryClient = useQueryClient();
+  const fetchRequest = useFetchRequest();
   const { conflictsByRequest } = useConflictRegistry();
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
 
@@ -77,11 +76,7 @@ export function BottlenecksTab() {
   // clickable that mostly never get clicked.
   const openRequest = async (requestId: string) => {
     try {
-      const request = await queryClient.fetchQuery({
-        queryKey: qk.requests.detail(requestId),
-        queryFn: () => getRequest(requestId),
-        staleTime: STALE.STANDARD,
-      });
+      const request = await fetchRequest(requestId);
       openRequestEditor(request, conflictsByRequest.get(requestId) ?? []);
     } catch {
       // Silently doing nothing here reads as a dead row, which is worse than saying so.

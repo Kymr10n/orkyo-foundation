@@ -6,7 +6,7 @@ import { Skeleton } from "@foundation/src/components/ui/skeleton";
 import { StatusBadge } from "@foundation/src/components/ui/status-badge";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import type { NumericQuota, Entitlement } from "@foundation/src/lib/api/quotas-api";
-import { QUOTA_LABELS, ENTITLEMENT_LABELS, quotaSeverity } from "@foundation/src/lib/quotas/quota-display";
+import { QUOTA_LABELS, quotaLabel, quotaSeverity } from "@foundation/src/lib/quotas/quota-display";
 
 function formatCount(value: number): string {
   return value.toLocaleString();
@@ -22,7 +22,7 @@ function NumericQuotaRow({ quota }: { quota: NumericQuota }) {
 
   return (
     <div className="flex items-center justify-between py-1">
-      <span className="text-sm text-muted-foreground">{QUOTA_LABELS[quota.key] ?? quota.key}</span>
+      <span className="text-sm text-muted-foreground">{quotaLabel(quota.key)}</span>
       <span className="text-sm font-medium tabular-nums">
         <span className={severity === "exceeded" ? "text-destructive" : severity === "warning" ? "text-amber-600" : undefined}>
           {formatCount(used)}
@@ -42,7 +42,7 @@ function EntitlementRow({ entitlement }: { entitlement: Entitlement }) {
   return (
     <div className="flex items-center justify-between py-1">
       <span className="text-sm text-muted-foreground">
-        {ENTITLEMENT_LABELS[entitlement.key] ?? entitlement.key}
+        {quotaLabel(entitlement.key)}
       </span>
       {entitlement.enabled ? (
         <StatusBadge status="active" label="Enabled" />

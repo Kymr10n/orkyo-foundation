@@ -8,12 +8,10 @@ export const STORAGE_KEYS = {
   ACTIVE_MEMBERSHIP: 'active_membership',
   /** Current tenant slug */
   TENANT_SLUG: 'tenant_slug',
-  /** Theme preference */
-  THEME: 'theme',
-  /** Last selected site in the site picker */
-  SELECTED_SITE_ID: 'selectedSiteId',
-  /** Sidebar collapsed state */
-  SIDEBAR_COLLAPSED: 'sidebar-collapsed',
+  /** Shell layout preferences (collapse flags + theme) — the layout store's persist key */
+  LAYOUT: 'orkyo.layout',
+  /** Last selected site in the site picker — the site store's persist key */
+  SELECTED_SITE_ID: 'orkyo.site',
   /** Expanded node ids of the request tree */
   REQUEST_TREE_EXPANDED: 'requestTree.expandedIds',
   /** Tree vs. list view mode on the Requests page */

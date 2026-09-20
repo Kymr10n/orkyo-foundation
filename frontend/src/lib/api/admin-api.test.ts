@@ -4,7 +4,6 @@ import {
   getAdminTenants,
   createAdminTenant,
   updateAdminTenant,
-  updateAdminTenantTier,
   deleteAdminTenant,
   getAdminUsers,
   getAdminUser,
@@ -21,10 +20,7 @@ import {
   auditBreakGlassExit,
   renewBreakGlassSession,
   getBreakGlassSessionStatus,
-  SERVICE_TIER,
-  TIER_DISPLAY_NAMES,
 } from "./admin-api";
-import { PlanCodes } from "@foundation/contracts/plans";
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
   getAuthTokenSync: () => null,
@@ -304,52 +300,6 @@ describe("admin-api — Tenant Management", () => {
 
       await expect(deleteAdminTenant(TENANT_ID)).rejects.toThrow(
         "Tenant not found",
-      );
-    });
-  });
-  // --------------------------------------------------------------------------
-  // updateAdminTenantTier
-  // --------------------------------------------------------------------------
-
-  describe("updateAdminTenantTier", () => {
-    it("sends PATCH to /api/admin/tenants/{tenantId}/tier with body", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ message: "Tenant tier updated", tier: "professional" }),
-      });
-
-      await updateAdminTenantTier(TENANT_ID, "professional");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/admin/tenants/${TENANT_ID}/tier`,
-        expect.objectContaining({
-          method: "PATCH",
-          credentials: "include",
-          body: JSON.stringify({ tier: "professional" }),
-        }),
-      );
-    });
-
-    it("returns message and tier on success", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ message: "Tenant tier updated", tier: "enterprise" }),
-      });
-
-      const result = await updateAdminTenantTier(TENANT_ID, "enterprise");
-
-      expect(result).toEqual({ message: "Tenant tier updated", tier: "enterprise" });
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 409,
-        text: async () => "Cannot downgrade: tenant has 10 active members but Free tier allows 5",
-      });
-
-      await expect(updateAdminTenantTier(TENANT_ID, "free")).rejects.toThrow(
-        "Cannot downgrade",
       );
     });
   });
@@ -1180,28 +1130,6 @@ describe("admin-api — Break Glass", () => {
         "http://localhost:5000/api/admin/break-glass/session/my%20tenant",
         expect.anything(),
       );
-    });
-  });
-});
-
-describe("tier catalog", () => {
-  it("exposes only the billable tiers", () => {
-    // TierSelect builds its options by iterating TIER_DISPLAY_NAMES, so anything added here
-    // becomes a selectable tier in platform admin. 'community' is not purchasable and must
-    // never appear — it lives in contracts/plans as a PlanCode instead.
-    expect(Object.keys(TIER_DISPLAY_NAMES)).toEqual([
-      SERVICE_TIER.FREE,
-      SERVICE_TIER.PROFESSIONAL,
-      SERVICE_TIER.ENTERPRISE,
-    ]);
-    expect(TIER_DISPLAY_NAMES).not.toHaveProperty(PlanCodes.Community);
-  });
-
-  it("keeps SERVICE_TIER on the machine codes the wire carries", () => {
-    expect(SERVICE_TIER).toEqual({
-      FREE: "free",
-      PROFESSIONAL: "professional",
-      ENTERPRISE: "enterprise",
     });
   });
 });

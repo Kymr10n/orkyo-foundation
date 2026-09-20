@@ -93,11 +93,12 @@ need `min-h-0`.
   (Cancel / X / ESC / overlay) then prompts to discard. It reuses `useDialogDirtyGuard` internally,
   so **don't also wrap your own `onOpenChange`** with that hook when you pass `dirty` (double-prompt).
   Dialogs that already self-guard via the hook simply don't pass `dirty`.
-- **`ScaffoldDialog`** is the shell for the tall / tabbed / multi-region dialogs that outgrow
-  `FormDialog` (the caller owns its own `<form>` spanning the sticky + scrolling regions).
-- **Both form scaffolds take over the whole screen on a phone** — edge-to-edge, full height, no
+- **`footer={null}` on `FormDialog`** is the shape for the tall / tabbed / multi-region dialogs
+  that outgrow the default form shape (the caller owns its own `<form>` spanning the sticky +
+  scrolling regions).
+- **Both shapes take over the whole screen on a phone** — edge-to-edge, full height, no
   centered card. The recipe is `useFullScreenOnPhone()` in `ui/dialog.tsx`; it lives there once so
-  the two scaffolds cannot drift apart, and it replaces the size token rather than joining it.
+  the two shapes cannot drift apart, and it replaces the size token rather than joining it.
   Confirmation and alert dialogs keep the card. Don't hand-roll a phone branch in a dialog.
 - For non-form dialogs that may get tall, build on `DialogContent` as a **height-bounded flex
   column** and put scrolling content in **`ScrollableDialogBody`** — the *one* sanctioned scroll
@@ -184,7 +185,7 @@ component that owns it** so there's a single source of truth — e.g. `max-h-[85
 `DialogContent`, and the form-dialog width once on `FormDialog`. Don't copy such literals into
 call sites.
 
-**Dialog widths come from `DIALOG_SIZE`.** Pass `size` on `FormDialog` / `ScaffoldDialog`, or
+**Dialog widths come from `DIALOG_SIZE`.** Pass `size` on `FormDialog`, or
 `className={DIALOG_SIZE.lg}` on a raw `DialogContent` — never a `max-w-*` literal. Widths had
 drifted to eighteen hand-written values, so `dialog-width-convention.test.ts` now fails on a new
 one. `CommandPalette` is the single allowlisted exception: a search surface, not a form. Pick the
@@ -555,7 +556,13 @@ Two tiers:
   `prefers-reduced-motion`. `OrkyoDataTable` renders column-aware skeleton rows
   in its loading branch (wrapped in `role="status"` with an sr-only label).
 - **`LoadingSpinner`** for route/auth/full-region loads (whole page or a whole
-  panel with no known shape). Leave these as spinners.
+  panel with no known shape). Leave these as spinners. Its `inline` prop puts the
+  icon and the message on one row for a status line in a header, a toolbar or a
+  list row; `size="xs"` is the icon size for that.
+
+A spinner inside a button is neither: pass `loading` to `Button` (§11). A raw
+`<Loader2>` outside `components/ui` is a fourth idiom and `orkyo/ui-primitives`
+rejects it.
 
 Loading copy uses a single ellipsis character (`…`), never three dots (`...`).
 Keep in-region loader messages minimal — only add bespoke copy when it is

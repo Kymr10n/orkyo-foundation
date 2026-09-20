@@ -1,5 +1,5 @@
 import { useResourceCustomFields } from './useResourceCustomFields';
-import { hasCustomFieldValue } from '@foundation/src/components/resources/CustomFieldInput';
+import { hasCustomFieldValue } from '@foundation/src/lib/utils/custom-field-value';
 import type {
   CustomFieldValue,
   ResourceCustomField,

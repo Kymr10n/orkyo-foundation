@@ -9,12 +9,10 @@ import {
 } from "@foundation/src/components/ui/card";
 import { Label } from "@foundation/src/components/ui/label";
 import { Switch } from "@foundation/src/components/ui/switch";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import {
-  getNotificationPreferences,
-  updateNotificationPreferences,
-} from "@foundation/src/lib/api/security-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+  useNotificationPreferences,
+  useUpdateNotificationPreferences,
+} from "@foundation/src/hooks/useNotificationPreferences";
 
 interface NotificationPreferencesSectionProps {
   /** When true (shared/locked identity, e.g. the demo account), disable the toggle. */
@@ -24,21 +22,9 @@ interface NotificationPreferencesSectionProps {
 export function NotificationPreferencesSection({
   locked = false,
 }: NotificationPreferencesSectionProps = {}) {
-  const { data, isLoading } = useQuery({
-    queryKey: qk.notificationPreferences.all(),
-    queryFn: getNotificationPreferences,
-  });
+  const { data, isLoading } = useNotificationPreferences();
 
-  const mutation = useMutation({
-    // The switch is "Receive announcement emails" (on = opted in), so opt-out is the inverse.
-    mutationFn: (receiveEmails: boolean) =>
-      updateNotificationPreferences(!receiveEmails),
-    meta: {
-      successMessage: "Email preferences updated",
-      errorMessage: "Failed to update email preferences",
-      invalidates: [qk.notificationPreferences.all()],
-    },
-  });
+  const mutation = useUpdateNotificationPreferences();
 
   const receiveEmails = !(data?.announcementEmailOptOut ?? false);
 

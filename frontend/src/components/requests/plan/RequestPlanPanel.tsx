@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { ZoomIn, ZoomOut, Maximize, Plus } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { Combobox } from "@foundation/src/components/ui/combobox";
@@ -9,17 +8,14 @@ import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { STALE } from "@foundation/src/lib/core/query-client";
-import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
-import { getRequestPlan } from "@foundation/src/lib/api/request-plan-api";
-import { createChildRequest } from "@foundation/src/lib/api/request-api";
+import {
+  useAddPlanTask,
+  useLinkPlanDependency,
+  useRemovePlanDependency,
+  useRequestPlan,
+} from "@foundation/src/hooks/useRequestPlan";
 import { Input } from "@foundation/src/components/ui/input";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
-import {
-  addRequestDependency,
-  deleteRequestDependency,
-} from "@foundation/src/lib/api/request-dependency-api";
 import {
   computePlanLayout,
   splitPlanChildren,
@@ -80,11 +76,7 @@ export function RequestPlanPanel({
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: qk.requests.plan(requestId),
-    queryFn: () => getRequestPlan(requestId),
-    staleTime: STALE.OPERATIONAL,
-  });
+  const { data, isLoading, error } = useRequestPlan(requestId);
 
   const { conflictsByRequest } = useConflictRegistry();
   const violatingEdgeIds = useMemo(
@@ -141,15 +133,7 @@ export function RequestPlanPanel({
     return counts;
   }, [data?.children, data?.edges]);
 
-  const linkMutation = useMutation({
-    mutationFn: ({ from, to }: { from: string; to: string }) => addRequestDependency(to, from),
-    meta: {
-      successMessage: "Dependency added",
-      errorMessage: "Could not add the dependency",
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
-    },
-    onSuccess: (_result, variables) => setJustLinked(variables),
-  });
+  const linkMutation = useLinkPlanDependency(setJustLinked);
 
   // A group with nothing in it, or with one task, used to be a dead end here: the plan could
   // only arrange what the Children tab had already created, so building a sequence meant leaving
@@ -160,19 +144,11 @@ export function RequestPlanPanel({
     [children],
   );
 
-  const addTaskMutation = useMutation({
-    mutationFn: (name: string) => createChildRequest(requestId, name, nextSortOrder),
-    meta: {
-      successMessage: "Task added",
-      errorMessage: "Could not add the task",
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
-    },
-    onSuccess: (created) => {
-      // It has no dependencies yet, so the plan counts it as unsequenced and the tray would
-      // swallow it. The user made it here, looking at the canvas; that is where it belongs.
-      setStaged((current) => new Set(current).add(created.id));
-      setNewTaskName("");
-    },
+  const addTaskMutation = useAddPlanTask(requestId, nextSortOrder, (created) => {
+    // It has no dependencies yet, so the plan counts it as unsequenced and the tray would
+    // swallow it. The user made it here, looking at the canvas; that is where it belongs.
+    setStaged((current) => new Set(current).add(created.id));
+    setNewTaskName("");
   });
 
   const submitNewTask = () => {
@@ -180,22 +156,7 @@ export function RequestPlanPanel({
     if (name) addTaskMutation.mutate(name);
   };
 
-  const unlinkMutation = useMutation({
-    mutationFn: (edgeId: string) => {
-      // The plan can refetch between selecting an edge and confirming its removal — any request
-      // mutation invalidates it. An edge that is already gone is the outcome the user asked for,
-      // not a failure to report.
-      const edge = edgesRef.current?.find((e) => e.id === edgeId);
-      if (!edge) return Promise.resolve();
-      return deleteRequestDependency(edge.successorRequestId, edgeId);
-    },
-    meta: {
-      successMessage: "Dependency removed",
-      errorMessage: "Could not remove the dependency",
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
-    },
-    onSuccess: () => setSelectedEdgeId(null),
-  });
+  const unlinkMutation = useRemovePlanDependency(data?.edges, () => setSelectedEdgeId(null));
 
   const selectedNode = data?.children.find((c) => c.id === selectedNodeId) ?? null;
   const otherChildren = (data?.children ?? []).filter((c) => {

@@ -5,11 +5,12 @@ import userEvent from '@testing-library/user-event';
 import { AvailabilityEventDialog } from './AvailabilityEventDialog';
 import type { AvailabilityEventInfo } from '@foundation/src/lib/api/availability-events-api';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 // ── API mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
-  getResources: vi.fn(() => Promise.resolve({ data: [], total: 0 })),
+  getResources: vi.fn(() => Promise.resolve(pagedResult([]))),
 }));
 vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   getResourceGroups: vi.fn(() => Promise.resolve([])),

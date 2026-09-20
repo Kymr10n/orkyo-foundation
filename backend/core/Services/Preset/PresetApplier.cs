@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Api.Constants;
+using Api.Helpers;
 using Api.Models.Preset;
 using Api.Repositories;
 using Npgsql;
@@ -106,9 +107,9 @@ public static class PresetApplier
         await using var reader = await cmd.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            var entityType = reader.GetString(0);
-            var logicalKey = reader.GetString(1);
-            var entityId = reader.GetGuid(2);
+            var entityType = reader.GetString("entity_type");
+            var logicalKey = reader.GetString("logical_key");
+            var entityId = reader.GetGuid("entity_id");
             mappings[$"{entityType}:{logicalKey}"] = entityId;
         }
 

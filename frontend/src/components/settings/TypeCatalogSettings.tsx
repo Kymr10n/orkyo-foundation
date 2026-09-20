@@ -28,6 +28,7 @@ import {
 } from '@foundation/src/hooks/useResourceTypeCatalog';
 import { resourceTypeIcon } from '@foundation/src/components/resources/resource-type-icon';
 import type { CatalogEntry } from '@foundation/src/lib/api/resource-type-catalog-api';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 /**
  * Switches for the pre-configured manufacturing types. Separate from the Resource Types
@@ -129,7 +130,7 @@ export function TypeCatalogSettings() {
         description="Pre-configured manufacturing resource types. Switch one on and it becomes an ordinary type with industry-typical fields — rename it, change its fields, or remove it like any other."
       />
 
-      {isLoading && <p className="text-sm text-muted-foreground">Loading the catalog…</p>}
+      {isLoading && <LoadingSpinner inline size="xs" muted message="Loading the catalog…" />}
       {errorMsg && (
         <div className="space-y-2">
           <p className="text-sm text-destructive">{errorMsg}</p>

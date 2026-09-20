@@ -39,3 +39,14 @@ frontend/scripts/check-foundation-peers.mjs	orkyo-saas	orkyo-community
 .claude/skills/simple-english/ste_lint.py	orkyo-foundation	orkyo-saas,orkyo-community
 .claude/skills/simple-english/references/checklist.md	orkyo-foundation	orkyo-saas,orkyo-community
 .claude/skills/simple-english/references/use-cases.md	orkyo-foundation	orkyo-saas,orkyo-community
+
+# Product-shared configuration that was already byte-identical but unguarded (2026-09
+# declutter, second pass): the Node version pin, the frontend TypeScript config, the agent
+# settings, two .gitignore stubs, and the README logos.
+.nvmrc	orkyo-saas	orkyo-community
+frontend/tsconfig.json	orkyo-saas	orkyo-community
+.claude/settings.json	orkyo-saas	orkyo-community
+.claude/.gitignore	orkyo-saas	orkyo-community
+frontend/public/.gitignore	orkyo-saas	orkyo-community
+.github/orkyo-logo-light.png	orkyo-saas	orkyo-community
+.github/orkyo-logo-dark.png	orkyo-saas	orkyo-community

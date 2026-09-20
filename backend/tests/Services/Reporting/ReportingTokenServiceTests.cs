@@ -26,7 +26,8 @@ public class ReportingTokenServiceTests
         return new ReportingTokenService(
             Mock.Of<IDbConnectionFactory>(),
             configuration,
-            NullLogger<ReportingTokenService>.Instance);
+            NullLogger<ReportingTokenService>.Instance,
+            TimeProvider.System);
     }
 
     [Fact]

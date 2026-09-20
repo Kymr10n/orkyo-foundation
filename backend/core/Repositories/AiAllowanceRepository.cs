@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 
@@ -80,8 +81,8 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
             p => p.AddWithValue("userId", userId),
             r => new AiAllowanceRow
             {
-                UserId = r.GetGuid(0),
-                MonthlyTokenLimit = r.IsDBNull(1) ? null : r.GetInt64(1),
+                UserId = r.GetGuid("user_id"),
+                MonthlyTokenLimit = r.GetNullableInt64("monthly_token_limit"),
             }, ct);
     }
 
@@ -94,7 +95,9 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
             SELECT u.id, u.display_name, u.email,
                    a.user_id IS NOT NULL AS granted,
                    a.monthly_token_limit,
-                   COALESCE(g.input_tokens, 0), COALESCE(g.output_tokens, 0), COALESCE(g.turns, 0)
+                   COALESCE(g.input_tokens, 0) AS input_tokens,
+                   COALESCE(g.output_tokens, 0) AS output_tokens,
+                   COALESCE(g.turns, 0) AS turns
             FROM users u
             LEFT JOIN ai_user_allowances a ON a.user_id = u.id
             LEFT JOIN ai_usage g ON g.user_id = u.id AND g.month = @month
@@ -102,14 +105,14 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
             p => p.AddWithValue("month", month),
             r => new AiUserAllowance
             {
-                UserId = r.GetGuid(0),
-                DisplayName = r.IsDBNull(1) ? null : r.GetString(1),
-                Email = r.IsDBNull(2) ? null : r.GetString(2),
-                Granted = r.GetBoolean(3),
-                MonthlyTokenLimit = r.IsDBNull(4) ? null : r.GetInt64(4),
-                UsedInputTokens = r.GetInt64(5),
-                UsedOutputTokens = r.GetInt64(6),
-                UsedTurns = r.GetInt32(7),
+                UserId = r.GetGuid("id"),
+                DisplayName = r.GetNullableString("display_name"),
+                Email = r.GetNullableString("email"),
+                Granted = r.GetBoolean("granted"),
+                MonthlyTokenLimit = r.GetNullableInt64("monthly_token_limit"),
+                UsedInputTokens = r.GetInt64("input_tokens"),
+                UsedOutputTokens = r.GetInt64("output_tokens"),
+                UsedTurns = r.GetInt32("turns"),
             }, ct);
     }
 
@@ -153,10 +156,10 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
             },
             r => new AiUsageRow
             {
-                UserId = r.GetGuid(0),
-                InputTokens = r.GetInt64(1),
-                OutputTokens = r.GetInt64(2),
-                Turns = r.GetInt32(3),
+                UserId = r.GetGuid("user_id"),
+                InputTokens = r.GetInt64("input_tokens"),
+                OutputTokens = r.GetInt64("output_tokens"),
+                Turns = r.GetInt32("turns"),
             }, ct);
     }
 
@@ -176,8 +179,8 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
             p => { },
             r => new AiDailyLimits
             {
-                UserDailyTurns = r.IsDBNull(0) ? null : r.GetInt32(0),
-                TenantDailyTurns = r.IsDBNull(1) ? null : r.GetInt32(1),
+                UserDailyTurns = r.GetNullableInt32("user_daily_turns"),
+                TenantDailyTurns = r.GetNullableInt32("tenant_daily_turns"),
             }, ct);
         // No row yet means nothing was ever configured — the same as both limits cleared.
         return row ?? new AiDailyLimits();

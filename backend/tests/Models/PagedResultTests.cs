@@ -178,4 +178,64 @@ public class PagedResultTests
         result.Page.Should().Be(1);
         result.PageSize.Should().Be(PageRequest.MaxPageSize);
     }
+
+    // ─── PageRequest.From / ClampLimit ───────────────────────────
+
+    [Fact]
+    public void From_AbsentValues_FallBackToTheFirstDefaultPage()
+    {
+        var request = PageRequest.From(null, null);
+
+        request.Page.Should().Be(1);
+        request.PageSize.Should().Be(PageRequest.DefaultPageSize);
+    }
+
+    [Fact]
+    public void From_KeepsSuppliedValues()
+    {
+        var request = PageRequest.From(3, 25);
+
+        request.Page.Should().Be(3);
+        request.PageSize.Should().Be(25);
+    }
+
+    [Fact]
+    public void From_SanitizesOutOfRangeValues()
+    {
+        var request = PageRequest.From(-2, 999);
+
+        request.Page.Should().Be(1);
+        request.PageSize.Should().Be(PageRequest.MaxPageSize);
+    }
+
+    [Theory]
+    [InlineData(null, 20)]   // nothing requested → the fallback
+    [InlineData(10, 10)]     // within range → as asked
+    [InlineData(500, 50)]    // above the max → the max
+    [InlineData(0, 1)]       // below one → one row
+    public void ClampLimit_BoundsTheRequestedLimit(int? requested, int expected)
+        => PageRequest.ClampLimit(requested, fallback: 20, max: 50).Should().Be(expected);
+
+    // ─── PagedResult.Capped ──────────────────────────────────────
+
+    [Fact]
+    public void Capped_ReportsTheCapAsThePageSize_NotTheSanitizedMaximum()
+    {
+        var result = PagedResult<int>.Capped([1, 2], 2, PageRequest.MaxUnpagedItems);
+
+        result.Page.Should().Be(1);
+        result.PageSize.Should().Be(PageRequest.MaxUnpagedItems);
+        result.TotalItems.Should().Be(2);
+        result.HasNextPage.Should().BeFalse();
+        result.HasPreviousPage.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Capped_SignalsTruncation_WhenTheTotalIsAboveTheCap()
+    {
+        var result = PagedResult<int>.Capped([1], PageRequest.MaxUnpagedItems + 1, PageRequest.MaxUnpagedItems);
+
+        result.TotalItems.Should().Be(PageRequest.MaxUnpagedItems + 1);
+        result.HasNextPage.Should().BeTrue();
+    }
 }

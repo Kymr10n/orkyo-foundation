@@ -1,21 +1,24 @@
 using Api.Models.Insights;
 using Api.Services;
+using Api.Services.Caching;
+using Orkyo.Shared;
 
 namespace Api.Services.Insights;
 
 /// <summary>
 /// Short-TTL read-through cache over <see cref="IInsightsService"/>. The dashboard re-fetches the same
 /// bucketed series repeatedly and each call is pure read-aggregation, so a brief per-(org, query) cache
-/// cuts repeated recomputation at the cost of at most <see cref="ShortTtlCache.Ttl"/> staleness — the same posture as
+/// cuts repeated recomputation at the cost of at most <see cref="TimePolicyConstants.ShortCacheTtl"/> staleness — the same posture as
 /// the <c>private, max-age=60</c> response header already applied to dashboard GETs. No explicit
 /// invalidation. Keyed by <see cref="OrgContext.OrgId"/> so tenants never share entries.
 ///
 /// The cache is process-wide; in a multi-instance deployment each instance keeps its own copy, so a
-/// given query can be up to <see cref="ShortTtlCache.Ttl"/> stale per instance. Acceptable for a dashboard; if
+/// given query can be up to <see cref="TimePolicyConstants.ShortCacheTtl"/> stale per instance. Acceptable for a dashboard; if
 /// cross-instance consistency is ever needed, swap the backing store for the existing Valkey layer
 /// behind this same decorator.
 /// </summary>
-public sealed class CachingInsightsService(IInsightsService inner, OrgContext orgContext) : IInsightsService
+public sealed class CachingInsightsService(
+    IInsightsService inner, OrgContext orgContext, AnalyticsCache cache) : IInsightsService
 {
     public Task<InsightsOverview> GetOverviewAsync(InsightsFilter filter, CancellationToken ct = default)
         => GetOrComputeAsync("overview", filter, () => inner.GetOverviewAsync(filter, ct));
@@ -39,6 +42,6 @@ public sealed class CachingInsightsService(IInsightsService inner, OrgContext or
             orgContext.OrgId, op, f.From.Ticks, f.To.Ticks,
             f.SiteId?.ToString() ?? "-", f.Bucket ?? "-", f.ResourceType ?? "-");
 
-        return ShortTtlCache.GetOrComputeAsync(key, compute);
+        return cache.GetOrComputeAsync(key, TimePolicyConstants.ShortCacheTtl, compute);
     }
 }

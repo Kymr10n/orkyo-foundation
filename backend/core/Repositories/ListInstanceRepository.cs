@@ -305,7 +305,7 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             readCmd.Parameters.AddWithValue("id", rowId);
             await using var reader = await readCmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct)) return false;
-            instanceId = reader.GetGuid(0);
+            instanceId = reader.GetGuid("list_instance_id");
         }
 
         // Strip the id from every lookup value that picked this row. Matches nothing for a
@@ -410,7 +410,7 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            results[reader.GetInt32(0)] = reader.GetInt32(1);
+            results[reader.GetInt32("check_idx")] = reader.GetInt32("n");
         return results;
     }
 

@@ -102,8 +102,15 @@ public class ScheduleToolsTests
             .ReturnsAsync([.. results]);
 
     private void SetupResources(params ResourceInfo[] results) =>
-        _resources.Setup(s => s.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([.. results]);
+        _resources.Setup(s => s.GetPageAsync(It.IsAny<ResourceListFilter>(), It.IsAny<int>(),
+                It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(([.. results], results.Length));
+
+    /// <summary>A capped read: fewer rows come back than match the filter.</summary>
+    private void SetupTruncatedResources(int total, params ResourceInfo[] page) =>
+        _resources.Setup(s => s.GetPageAsync(It.IsAny<ResourceListFilter>(), It.IsAny<int>(),
+                It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(([.. page], total));
 
     private void SetupConflicts(params RequestConflictInfo[] results) =>
         _conflicts.Setup(s => s.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(),
@@ -169,9 +176,25 @@ public class ScheduleToolsTests
 
         var result = await CreateTools().ListRequestsAsync();
 
-        result.Count.Should().Be(2);
+        result.Returned.Should().Be(2);
+        result.Truncated.Should().BeFalse();
         result.Requests.Single(r => r.Name == "Scheduled one").IsScheduled.Should().BeTrue();
         result.Requests.Single(r => r.Name == "Backlog one").IsScheduled.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// A full page is all the signal this tool can give: the search it wraps caps in SQL and
+    /// returns no total. Saying "truncated" beats a bare count the model reads as the whole set.
+    /// </summary>
+    [Fact]
+    public async Task ListRequests_FlagsAFullPageAsTruncated()
+    {
+        SetupSearch(Request("One"), Request("Two"));
+
+        var result = await CreateTools().ListRequestsAsync(limit: 2);
+
+        result.Returned.Should().Be(2);
+        result.Truncated.Should().BeTrue();
     }
 
     [Fact]
@@ -194,8 +217,9 @@ public class ScheduleToolsTests
 
         await CreateTools().ListResourcesAsync();
 
-        _resources.Verify(s => s.GetAllAsync(
-            It.Is<ResourceListFilter>(f => f.IsActive == true), It.IsAny<CancellationToken>()), Times.Once);
+        _resources.Verify(s => s.GetPageAsync(
+            It.Is<ResourceListFilter>(f => f.IsActive == true), It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -205,8 +229,9 @@ public class ScheduleToolsTests
 
         await CreateTools().ListResourcesAsync(includeInactive: true);
 
-        _resources.Verify(s => s.GetAllAsync(
-            It.Is<ResourceListFilter>(f => f.IsActive == null), It.IsAny<CancellationToken>()), Times.Once);
+        _resources.Verify(s => s.GetPageAsync(
+            It.Is<ResourceListFilter>(f => f.IsActive == null), It.IsAny<int>(), It.IsAny<int>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -216,9 +241,9 @@ public class ScheduleToolsTests
 
         await CreateTools().ListResourcesAsync(resourceTypeKey: "machine", search: "bench");
 
-        _resources.Verify(s => s.GetAllAsync(
+        _resources.Verify(s => s.GetPageAsync(
             It.Is<ResourceListFilter>(f => f.ResourceTypeKey == "machine" && f.Search == "bench"),
-            It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -232,6 +257,35 @@ public class ScheduleToolsTests
         only.Id.Should().Be(ResourceId);
         only.ResourceTypeKey.Should().Be("machine");
         only.Name.Should().Be("Bench 1");
+    }
+
+    [Fact]
+    public async Task ListResources_SaysNothingWasCutWhenTheWholeListFits()
+    {
+        SetupResources(Resource());
+
+        var result = await CreateTools().ListResourcesAsync();
+
+        result.Returned.Should().Be(1);
+        result.TotalMatching.Should().Be(1);
+        result.Truncated.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// The model must be able to tell a complete answer from a capped one. An earlier shape put
+    /// the unpaged total in a field called <c>Count</c> beside a shorter list, which reads as a
+    /// complete answer of that size.
+    /// </summary>
+    [Fact]
+    public async Task ListResources_FlagsACappedAnswerInsteadOfJustReportingTheTotal()
+    {
+        SetupTruncatedResources(total: 1200, page: Resource());
+
+        var result = await CreateTools().ListResourcesAsync();
+
+        result.Returned.Should().Be(1);
+        result.TotalMatching.Should().Be(1200);
+        result.Truncated.Should().BeTrue();
     }
 
     // ── list_conflicts ───────────────────────────────────────────────────────

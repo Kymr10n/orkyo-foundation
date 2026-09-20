@@ -38,7 +38,7 @@ export interface UseEntityFormDialogResult<TForm> {
   /** Patch-style field updater: `set({ name: e.target.value })`. */
   set: (patch: Partial<TForm>) => void;
   isDirty: boolean;
-  /** Inline error for the dialog's ErrorAlert (kept alongside the error toast). */
+  /** Inline error for the dialog's ErrorAlert. The failure is not also toasted. */
   error: string | null;
   submit: () => void;
   isSubmitting: boolean;
@@ -83,12 +83,14 @@ export function useEntityFormDialog<TEntity, TForm, TSaved>({
   // changes insertion order without changing the data.
   const isDirty = stableStringify(form) !== stableStringify(baseline);
 
-  const lowerLabel = entityLabel.toLowerCase();
   const mutation = useMutation({
     mutationFn: () => save(form, entity),
+    // The dialog stays open on failure and renders the message inline in its own
+    // ErrorAlert (see `onError` below), so the failure is not also toasted — one
+    // surface per error. See the error-display rule in ARCHITECTURE.md.
     meta: {
       successMessage: entity ? `${entityLabel} updated` : `${entityLabel} created`,
-      errorMessage: entity ? `Failed to update ${lowerLabel}` : `Failed to create ${lowerLabel}`,
+      suppressErrorToast: true,
       invalidates,
     },
     onSuccess: (saved) => {

@@ -4,8 +4,8 @@ using Api.Integrations.Keycloak;
 using Api.PlatformApi.Auth;
 using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Api.Services.PlatformApi;
-using Microsoft.Extensions.Caching.Memory;
 using Orkyo.Shared;
 
 namespace Api.Middleware;
@@ -27,42 +27,26 @@ public sealed class ContextEnrichmentMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ContextEnrichmentMiddleware> _logger;
+    private readonly SingleFlightCache _cache;
 
-    // Cache: externalSubject → PrincipalContext (5-min absolute expiry, 5000 entry limit)
-    private static readonly MemoryCache _principalCache = new(new MemoryCacheOptions
-    {
-        SizeLimit = 5_000
-    });
-
-    // Cache: "userId:tenantId" → TenantRole (5-min absolute expiry, 10000 entry limit)
-    private static readonly MemoryCache _roleCache = new(new MemoryCacheOptions
-    {
-        SizeLimit = 10_000
-    });
-
+    // Key prefixes on the shared cache. Conventional middleware is constructed once for the
+    // pipeline, so these entries are process-wide, as the three static caches they replace were.
+    private const string PrincipalKeyPrefix = "identity:principal:";   // externalSubject → PrincipalContext
+    private const string RoleKeyPrefix = "identity:role:";             // "userId:tenantId" → TenantRole
     // Track which user stubs have already been created (INSERT ON CONFLICT is idempotent, so the
     // worst case of a stale entry is one redundant no-op INSERT after an eviction).
-    private static readonly MemoryCache _stubsCreated = new(new MemoryCacheOptions
-    {
-        SizeLimit = 10_000
-    });
+    private const string StubKeyPrefix = "identity:stub:";             // "userId:tenantId" → true
 
     private static readonly TimeSpan CacheTtl = TimePolicyConstants.CacheTtl;
 
-    /// <summary>Clear all caches (for integration tests).</summary>
-    public static void ClearCache()
-    {
-        _principalCache.Compact(1.0);
-        _roleCache.Compact(1.0);
-        _stubsCreated.Compact(1.0);
-    }
-
     public ContextEnrichmentMiddleware(
         RequestDelegate next,
-        ILogger<ContextEnrichmentMiddleware> logger)
+        ILogger<ContextEnrichmentMiddleware> logger,
+        SingleFlightCache cache)
     {
         _next = next;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task InvokeAsync(
@@ -101,8 +85,8 @@ public sealed class ContextEnrichmentMiddleware
                 // Tracked in-memory: skip redundant INSERT ON CONFLICT after first success
                 if (authContext.IsMember)
                 {
-                    var stubKey = $"{principal.UserId}:{tenantContext.TenantId}";
-                    if (_stubsCreated.Get(stubKey) == null)
+                    var stubKey = $"{StubKeyPrefix}{principal.UserId}:{tenantContext.TenantId}";
+                    if (!_cache.TryGet<bool>(stubKey, out _))
                     {
                         var orgContext = new OrgContext
                         {
@@ -115,11 +99,7 @@ public sealed class ContextEnrichmentMiddleware
                         // Cache only after the INSERT succeeds: a positive entry written
                         // before a failed insert would suppress retries for the whole TTL,
                         // turning one transient DB error into 5 minutes of FK failures.
-                        _stubsCreated.Set(stubKey, true, new MemoryCacheEntryOptions
-                        {
-                            AbsoluteExpirationRelativeToNow = CacheTtl,
-                            Size = 1
-                        });
+                        _cache.Set(stubKey, true, CacheTtl);
                     }
                 }
 
@@ -168,7 +148,7 @@ public sealed class ContextEnrichmentMiddleware
         var subject = tokenProfile.Subject!;
 
         // Check cache first
-        if (_principalCache.TryGetValue(subject, out PrincipalContext? cached) && cached != null)
+        if (_cache.TryGet<PrincipalContext>(PrincipalKeyPrefix + subject, out var cached) && cached != null)
         {
             // Merge cached DB principal with live token's realm roles
             return new PrincipalContext
@@ -211,12 +191,10 @@ public sealed class ContextEnrichmentMiddleware
             };
         }
 
-        // Cache the DB-sourced principal
-        _principalCache.Set(subject, principal, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1
-        });
+        // Cache the DB-sourced principal. The unlinked case above returns without caching:
+        // an unlinked subject links within seconds of bootstrap, and a cached null would
+        // hold the refusal for the whole TTL.
+        _cache.Set(PrincipalKeyPrefix + subject, principal, CacheTtl);
 
         // Merge DB principal with token's realm roles (IsSiteAdmin comes from token, not DB)
         return new PrincipalContext
@@ -339,8 +317,8 @@ public sealed class ContextEnrichmentMiddleware
         }
 
         // Check role cache
-        var cacheKey = $"{userId}:{tenant.TenantId}";
-        if (_roleCache.TryGetValue(cacheKey, out TenantRole cachedRole))
+        var cacheKey = $"{RoleKeyPrefix}{userId}:{tenant.TenantId}";
+        if (_cache.TryGet<TenantRole>(cacheKey, out var cachedRole))
         {
             return new AuthorizationContext
             {
@@ -353,11 +331,7 @@ public sealed class ContextEnrichmentMiddleware
         var role = await identityLinkService.GetUserTenantRoleAsync(userId, tenant.TenantId);
 
         // Cache the result
-        _roleCache.Set(cacheKey, role, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = CacheTtl,
-            Size = 1
-        });
+        _cache.Set(cacheKey, role, CacheTtl);
 
         return new AuthorizationContext
         {

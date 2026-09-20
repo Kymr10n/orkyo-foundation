@@ -25,6 +25,7 @@ public class ExportService : IExportService
     private readonly IListDefinitionRepository _listDefinitionRepo;
     private readonly IListInstanceRepository _listInstanceRepo;
     private readonly ICurrentTenant _currentTenant;
+    private readonly TimeProvider _time;
 
     public ExportService(
         ISiteRepository siteRepo,
@@ -40,7 +41,8 @@ public class ExportService : IExportService
         IRequestRepository requestRepo,
         IListDefinitionRepository listDefinitionRepo,
         IListInstanceRepository listInstanceRepo,
-        ICurrentTenant currentTenant)
+        ICurrentTenant currentTenant,
+        TimeProvider time)
     {
         _siteRepo = siteRepo;
         _resourceRepo = resourceRepo;
@@ -56,6 +58,7 @@ public class ExportService : IExportService
         _listDefinitionRepo = listDefinitionRepo;
         _listInstanceRepo = listInstanceRepo;
         _currentTenant = currentTenant;
+        _time = time;
     }
 
     public async Task<ExportPayload> ExportAsync(ExportRequest request, CancellationToken ct = default)
@@ -90,7 +93,7 @@ public class ExportService : IExportService
             SchemaVersion = schemaVersion,
             Provenance = new ExportProvenance
             {
-                ExportTimestamp = DateTime.UtcNow,
+                ExportTimestamp = _time.GetUtcNow().UtcDateTime,
                 TenantSlug = _currentTenant.TenantSlug,
                 SiteIds = filteredSites.Select(s => s.Id).ToList(),
                 SchemaVersion = schemaVersion

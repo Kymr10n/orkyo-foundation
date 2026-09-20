@@ -44,13 +44,29 @@ public static class MetricsEndpointGateSmoke
         where TProgram : class
     {
         ArgumentNullException.ThrowIfNull(factory);
+        using var withToken = factory.WithMetricsToken(Token);
+        return await RunAsync(factory, withToken);
+    }
+
+    /// <summary>
+    /// The same three probes, with the token-configured host supplied by the caller. Booting a
+    /// derived host costs a full start, so a test class that already keeps one passes it here
+    /// instead of paying for a second.
+    /// </summary>
+    /// <param name="factory">The product's factory, with no <c>METRICS_TOKEN</c> configured.</param>
+    /// <param name="withToken">A host derived from it with <see cref="Token"/> configured.</param>
+    public static async Task<IReadOnlyList<string>> RunAsync<TProgram>(
+        WebApplicationFactory<TProgram> factory, WebApplicationFactory<TProgram> withToken)
+        where TProgram : class
+    {
+        ArgumentNullException.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(withToken);
         var failures = new List<string>();
 
         var noToken = await factory.CreateClient().GetAsync("/metrics");
         if (noToken.StatusCode != HttpStatusCode.NotFound)
             failures.Add($"no METRICS_TOKEN configured: expected 404 (endpoint not mapped), got {(int)noToken.StatusCode}");
 
-        using var withToken = factory.WithMetricsToken(Token);
         var client = withToken.CreateClient();
 
         var missingHeader = await client.GetAsync("/metrics");

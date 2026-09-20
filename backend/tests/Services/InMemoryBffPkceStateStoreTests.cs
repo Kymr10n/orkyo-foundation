@@ -5,7 +5,7 @@ namespace Orkyo.Foundation.Tests.Services;
 
 public class InMemoryBffPkceStateStoreTests
 {
-    private readonly InMemoryBffPkceStateStore _store = new();
+    private readonly InMemoryBffPkceStateStore _store = new(TimeProvider.System);
 
     private static PkceStateData SampleState(string returnTo = "https://orkyo.com/")
         => new("verifier-abc", returnTo);

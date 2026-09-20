@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@foundation/src/components/ui/button";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Input } from "@foundation/src/components/ui/input";
@@ -7,16 +6,13 @@ import { Label } from "@foundation/src/components/ui/label";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { Combobox } from "@foundation/src/components/ui/combobox";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
-import { STALE } from "@foundation/src/lib/core/query-client";
 import {
-  addRequestDependency,
-  deleteRequestDependency,
-  getRequestDependencies,
-  type RequestDependency,
-} from "@foundation/src/lib/api/request-dependency-api";
-import { updateRequest } from "@foundation/src/lib/api/request-api";
+  useAddRequestDependency,
+  useRemoveRequestDependency,
+  useRequestDependencies,
+  useUpdateStartCondition,
+} from "@foundation/src/hooks/useRequestDependencies";
+import type { RequestDependency } from "@foundation/src/lib/api/request-dependency-api";
 import { PREDECESSOR_LOGIC_OPTIONS } from "@foundation/src/constants/predecessor-logic";
 import {
   Select,
@@ -58,50 +54,16 @@ export function RequestDependenciesSection({
   const lagIsValid = Number.isFinite(parsedLagHours) && parsedLagHours >= 0;
   const lagMinutes = lagIsValid ? Math.round(parsedLagHours * 60) : 0;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: qk.requests.dependencies(requestId ?? ""),
-    queryFn: () => getRequestDependencies(requestId!),
-    enabled: !!requestId,
-    staleTime: STALE.REALTIME,
+  const { data, isLoading, error } = useRequestDependencies(requestId);
+
+  const addMutation = useAddRequestDependency(requestId, () => {
+    setPredecessorId("");
+    setLagHours("0");
   });
 
-  const addMutation = useMutation({
-    mutationFn: () => addRequestDependency(requestId!, predecessorId, lagMinutes),
-    meta: {
-      successMessage: "Dependency added",
-      errorMessage: "Could not add the dependency",
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
-    },
-    onSuccess: () => {
-      setPredecessorId("");
-      setLagHours("0");
-    },
-  });
+  const conditionMutation = useUpdateStartCondition(requestId);
 
-  // The condition is a property of the request, not of an edge, so it rides the request update
-  // rather than getting an endpoint of its own. Logic and k always travel together: the server
-  // clears k unless the logic is k_of_n, which is what stops a stale k outliving its logic.
-  const conditionMutation = useMutation({
-    mutationFn: (next: { logic: PredecessorLogic; k: number | null }) =>
-      updateRequest(requestId!, {
-        predecessorLogic: next.logic,
-        predecessorLogicK: next.logic === "k_of_n" ? next.k : null,
-      }),
-    meta: {
-      successMessage: "Start condition updated",
-      errorMessage: "Could not update the start condition",
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
-    },
-  });
-
-  const removeMutation = useMutation({
-    mutationFn: (dependencyId: string) => deleteRequestDependency(requestId!, dependencyId),
-    meta: {
-      successMessage: "Dependency removed",
-      errorMessage: "Could not remove the dependency",
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
-    },
-  });
+  const removeMutation = useRemoveRequestDependency(requestId);
 
   // Above the early returns: hooks must run in the same order every render. Memoized because a
   // tenant can hold thousands of requests and this maps all of them — without it every keystroke
@@ -195,7 +157,7 @@ export function RequestDependenciesSection({
             </div>
             <Button
               type="button"
-              onClick={() => addMutation.mutate()}
+              onClick={() => addMutation.mutate({ predecessorId, lagMinutes })}
               disabled={!predecessorId || !lagIsValid || addMutation.isPending}
             >
               Add

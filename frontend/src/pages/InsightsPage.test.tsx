@@ -4,8 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router';
 import { InsightsPage } from './InsightsPage';
 
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: (selector: (s: { selectedSiteId: string | null }) => unknown) => selector({ selectedSiteId: null }),
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: (selector: (s: { selectedSiteId: string | null }) => unknown) => selector({ selectedSiteId: null }),
 }));
 
 function renderAt(path: string) {

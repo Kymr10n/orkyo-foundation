@@ -22,7 +22,7 @@ public static class SiteEndpoints
         {
             if (page.HasValue || pageSize.HasValue)
             {
-                var paged = await siteService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
+                var paged = await siteService.GetAllAsync(PageRequest.From(page, pageSize), ct);
                 return Results.Ok(paged);
             }
             var sitesList = await siteService.GetAllAsync(ct);

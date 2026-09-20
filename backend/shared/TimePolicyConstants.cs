@@ -8,6 +8,9 @@ public static class TimePolicyConstants
 {
     // Generic infra/service timings
     public static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
+
+    /// <summary>Read-through TTL for the pure read-aggregations behind the dashboard.</summary>
+    public static readonly TimeSpan ShortCacheTtl = TimeSpan.FromSeconds(60);
     public static readonly TimeSpan BreakGlassSessionDefaultDuration = TimeSpan.FromHours(1);
 
     /// <summary>Absolute cap from the session's CreatedAt. Renewals cannot extend beyond this — preserves audit bound.</summary>

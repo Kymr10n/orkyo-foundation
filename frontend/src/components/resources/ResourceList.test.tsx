@@ -7,6 +7,7 @@ import { ResourceList } from './ResourceList';
 import { deleteResource, getResources } from '@foundation/src/lib/api/resources-api';
 
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
@@ -128,7 +129,7 @@ function renderPeople() {
 beforeEach(() => {
   vi.clearAllMocks();
   // getResources returns a paged envelope, not a bare array.
-  (getResources as Mock).mockResolvedValue({ data: cars, total: cars.length });
+  (getResources as Mock).mockResolvedValue(pagedResult(cars));
   lookupLabels = { 'p-1': { job_title: 'Machinist', department: 'Assembly' } };
 });
 
@@ -234,7 +235,7 @@ describe('ResourceList — directory types', () => {
   });
 
   it('shows email, job title and department for a directory type', async () => {
-    (getResources as Mock).mockResolvedValue({ data: people, total: people.length });
+    (getResources as Mock).mockResolvedValue(pagedResult(people));
     renderPeople();
 
     expect(await screen.findByText('Ada Heaney')).toBeInTheDocument();
@@ -245,7 +246,7 @@ describe('ResourceList — directory types', () => {
   });
 
   it('renders a dash for a person with no directory values', async () => {
-    (getResources as Mock).mockResolvedValue({ data: [people[1]], total: 1 });
+    (getResources as Mock).mockResolvedValue(pagedResult([people[1]]));
     renderPeople();
 
     expect(await screen.findByText('John Smith')).toBeInTheDocument();
@@ -254,7 +255,7 @@ describe('ResourceList — directory types', () => {
   });
 
   it('calls criterion values "Skills" for people', async () => {
-    (getResources as Mock).mockResolvedValue({ data: people, total: people.length });
+    (getResources as Mock).mockResolvedValue(pagedResult(people));
     renderPeople();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Ada Heaney' }));

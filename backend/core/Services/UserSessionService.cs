@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Security;
 using Npgsql;
 
@@ -98,14 +99,14 @@ public sealed class UserSessionService : IUserSessionService
         {
             rows.Add(new UserSessionRow
             {
-                KeycloakSessionId = reader.GetString(0),
-                IpAddress = reader.IsDBNull(1) ? null : reader.GetString(1),
-                UserAgent = reader.IsDBNull(2) ? null : reader.GetString(2),
-                Browser = reader.IsDBNull(3) ? null : reader.GetString(3),
-                OperatingSystem = reader.IsDBNull(4) ? null : reader.GetString(4),
-                DeviceType = reader.IsDBNull(5) ? null : reader.GetString(5),
-                CreatedAt = reader.GetDateTime(6),
-                LastSeenAt = reader.GetDateTime(7),
+                KeycloakSessionId = reader.GetString("keycloak_session_id"),
+                IpAddress = reader.GetNullableString("ip_address"),
+                UserAgent = reader.GetNullableString("user_agent"),
+                Browser = reader.GetNullableString("browser"),
+                OperatingSystem = reader.GetNullableString("operating_system"),
+                DeviceType = reader.GetNullableString("device_type"),
+                CreatedAt = reader.GetDateTime("created_at"),
+                LastSeenAt = reader.GetDateTime("last_seen_at"),
             });
         }
         return rows;

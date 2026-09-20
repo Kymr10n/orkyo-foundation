@@ -13,10 +13,12 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
     private readonly object _refreshLockGate = new();
     private readonly Dictionary<string, DateTimeOffset> _refreshLocks = new();
     private readonly ILogger<InMemoryBffSessionStore> _logger;
+    private readonly TimeProvider _time;
 
-    public InMemoryBffSessionStore(ILogger<InMemoryBffSessionStore> logger)
+    public InMemoryBffSessionStore(ILogger<InMemoryBffSessionStore> logger, TimeProvider time)
     {
         _logger = logger;
+        _time = time;
     }
 
     public Task<BffSessionRecord?> GetAsync(string sessionId, CancellationToken ct = default)
@@ -26,13 +28,13 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         if (!_sessions.TryGetValue(sessionId, out var session))
             return Task.FromResult<BffSessionRecord?>(null);
 
-        if (session.ExpiresAt <= DateTimeOffset.UtcNow)
+        if (session.ExpiresAt <= _time.GetUtcNow())
         {
             _sessions.TryRemove(sessionId, out _);
             return Task.FromResult<BffSessionRecord?>(null);
         }
 
-        session.LastActivityAt = DateTimeOffset.UtcNow;
+        session.LastActivityAt = _time.GetUtcNow();
         return Task.FromResult<BffSessionRecord?>(session);
     }
 
@@ -61,7 +63,7 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             TokenExpiresAt = tokenExpiresAt,
-            LastActivityAt = DateTimeOffset.UtcNow,
+            LastActivityAt = _time.GetUtcNow(),
         };
 
         _sessions[sessionId] = updated;
@@ -81,7 +83,7 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         _sessions[sessionId] = existing with
         {
             ExpiresAt = expiresAt,
-            LastActivityAt = DateTimeOffset.UtcNow,
+            LastActivityAt = _time.GetUtcNow(),
         };
 
         _logger.LogDebug("BFF session expiry slid: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
@@ -91,7 +93,7 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
 
     public Task<bool> TryAcquireRefreshLockAsync(string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         lock (_refreshLockGate)
         {
             if (_refreshLocks.TryGetValue(sessionId, out var heldUntil) && heldUntil > now)
@@ -103,7 +105,7 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
 
     private void PurgeExpired()
     {
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         foreach (var key in _sessions.Where(kvp => kvp.Value.ExpiresAt <= now).Select(kvp => kvp.Key).ToList())
             _sessions.TryRemove(key, out _);
     }

@@ -1,21 +1,10 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Shield } from "lucide-react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Label } from "@foundation/src/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@foundation/src/components/ui/select";
-import {
-  updateUserRole,
-  type UserWithRole,
-  type UpdateUserRoleRequest,
-} from "@foundation/src/lib/api/user-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { RoleSelect, ROLE_SUMMARIES } from "@foundation/src/components/ui/RoleSelect";
+import { type UserWithRole } from "@foundation/src/lib/api/user-api";
+import { useUpdateUserRole } from "@foundation/src/hooks/useTenantUsers";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 
 /** Roles assignable to an existing member — every tenant role except "none". */
@@ -23,6 +12,13 @@ type EditableRole = Exclude<
   (typeof TENANT_ROLE)[keyof typeof TENANT_ROLE],
   typeof TENANT_ROLE.None
 >;
+
+const EDITABLE_ROLES: readonly EditableRole[] = [
+  TENANT_ROLE.Viewer,
+  TENANT_ROLE.Editor,
+  TENANT_ROLE.Admin,
+  TENANT_ROLE.Inactive,
+];
 
 interface EditUserRoleDialogProps {
   open: boolean;
@@ -40,22 +36,7 @@ export function EditUserRoleDialog({
   const [role, setRole] = useState<EditableRole>(user.role);
   const [error, setError] = useState<string | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: (data: UpdateUserRoleRequest) =>
-      updateUserRole(user.id, data),
-    meta: {
-      successMessage: "User role updated",
-      errorMessage: "Failed to update user role",
-      invalidates: [qk.users.all()],
-    },
-    onSuccess: () => {
-      setError(null);
-      onSuccess();
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
+  const mutation = useUpdateUserRole(user.id);
 
   const handleSubmit = () => {
     setError(null);
@@ -65,7 +46,18 @@ export function EditUserRoleDialog({
       return;
     }
 
-    mutation.mutate({ role });
+    mutation.mutate(
+      { role },
+      {
+        onSuccess: () => {
+          setError(null);
+          onSuccess();
+        },
+        onError: (err: Error) => {
+          setError(err.message);
+        },
+      },
+    );
   };
 
   const handleClose = (newOpen: boolean) => {
@@ -104,63 +96,20 @@ export function EditUserRoleDialog({
       {/* Role Field */}
       <div className="space-y-2">
         <Label htmlFor="role">New Role</Label>
-        <Select
+        <RoleSelect
+          id="role"
           value={role}
-          onValueChange={(value: EditableRole) => setRole(value)}
+          onValueChange={setRole}
+          roles={EDITABLE_ROLES}
+          withDescriptions
           disabled={mutation.isPending}
-        >
-          <SelectTrigger id="role">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TENANT_ROLE.Viewer}>
-              <div>
-                <div className="font-medium">Viewer</div>
-                <div className="text-xs text-muted-foreground">
-                  Can view data but cannot make changes
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value={TENANT_ROLE.Editor}>
-              <div>
-                <div className="font-medium">Editor</div>
-                <div className="text-xs text-muted-foreground">
-                  Can create and modify utilization and requests
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value={TENANT_ROLE.Admin}>
-              <div>
-                <div className="font-medium">Admin</div>
-                <div className="text-xs text-muted-foreground">
-                  Full access including settings and user management
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value={TENANT_ROLE.Inactive}>
-              <div>
-                <div className="font-medium">Inactive</div>
-                <div className="text-xs text-muted-foreground">
-                  No access - user account disabled
-                </div>
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
+          className="w-full"
+        />
       </div>
 
       {/* Role Description */}
       <div className="rounded-lg bg-muted p-3 text-sm">
-        <p className="text-muted-foreground">
-          {role === TENANT_ROLE.Admin &&
-            "Admins have full access to all features including user management and settings."}
-          {role === TENANT_ROLE.Editor &&
-            "Editors can create and modify utilization, requests, and spaces but cannot access settings."}
-          {role === TENANT_ROLE.Viewer &&
-            "Viewers have read-only access to view utilization and plans."}
-          {role === TENANT_ROLE.Inactive &&
-            "Inactive users cannot log in and have no access to the system."}
-        </p>
+        <p className="text-muted-foreground">{ROLE_SUMMARIES[role]}</p>
       </div>
 
       {/* Warning for sensitive changes */}

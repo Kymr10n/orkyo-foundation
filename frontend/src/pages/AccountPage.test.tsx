@@ -34,6 +34,7 @@ const mockLogout = vi.fn();
 let mockMembership: { tenantId: string; slug: string } | null = null;
 let mockIsSiteAdmin = false;
 const mockSend = vi.fn();
+const mockSetAppUser = vi.fn();
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => ({
@@ -49,6 +50,7 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
       displayName: "Alex Johnson",
     },
     isSiteAdmin: mockIsSiteAdmin,
+    setAppUser: mockSetAppUser,
   }),
   getAuthTokenSync: () => "test-token",
   getTenantSlugSync: () => mockMembership?.slug || "demo",

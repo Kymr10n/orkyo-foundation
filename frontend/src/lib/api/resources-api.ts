@@ -4,6 +4,7 @@
 
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { normalizePagedResult, type PagedResult } from '../core/paged-result';
 import type { CustomFieldValue } from './resource-custom-fields-api';
 import type { ResourceGeometry } from '../../types/geometry';
 
@@ -98,13 +99,6 @@ export interface UpdateResourceRequest
   customFields?: Record<string, CustomFieldValue>;
 }
 
-export interface ResourcesResponse {
-  data: ResourceInfo[];
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
 export interface ResourceListFilter {
   resourceTypeKey?: string;
   isActive?: boolean;
@@ -118,9 +112,12 @@ export interface ResourceListFilter {
 }
 
 /**
- * Get all resources, optionally filtered
+ * Get resources, optionally filtered. Without `page`/`pageSize` the backend answers with the
+ * whole list up to its cap and `hasNextPage` says whether it cut.
  */
-export async function getResources(filter?: ResourceListFilter): Promise<ResourcesResponse> {
+export async function getResources(
+  filter?: ResourceListFilter,
+): Promise<PagedResult<ResourceInfo>> {
   const params = new URLSearchParams();
   if (filter?.resourceTypeKey) params.append('resourceTypeKey', filter.resourceTypeKey);
   if (filter?.isActive !== undefined) params.append('isActive', String(filter.isActive));
@@ -131,7 +128,13 @@ export async function getResources(filter?: ResourceListFilter): Promise<Resourc
   if (filter?.pageSize) params.append('pageSize', String(filter.pageSize));
 
   const queryString = params.toString();
-  return apiGet<ResourcesResponse>(`${API_PATHS.RESOURCES}?${queryString}`);
+  const response = await apiGet<PagedResult<ResourceInfo> & { data?: ResourceInfo[]; total?: number }>(
+    `${API_PATHS.RESOURCES}?${queryString}`,
+  );
+  // Tolerates the pre-0.26.0 {data,total} shape for one release. See normalizePagedResult —
+  // it also fills totalItems, which the earlier inline `items ?? data` did not, leaving
+  // export-handlers' paging loop comparing a length against undefined.
+  return normalizePagedResult(response, filter?.pageSize ?? response.items?.length ?? 0);
 }
 
 /**

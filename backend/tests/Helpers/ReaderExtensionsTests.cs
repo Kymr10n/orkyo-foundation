@@ -33,6 +33,8 @@ public class ReaderExtensionsTests
             42::integer                                       AS int_col,
             NULL::integer                                     AS nullable_int_null,
             99::integer                                       AS nullable_int_set,
+            NULL::bigint                                      AS nullable_bigint_null,
+            9000000000::bigint                                AS nullable_bigint_set,
             true::boolean                                     AS bool_col,
             '2024-06-15 12:00:00'::timestamp                  AS dt_col,
             NULL::timestamp                                   AS nullable_dt_null,
@@ -132,6 +134,24 @@ public class ReaderExtensionsTests
         await using var reader = await OpenReaderAsync();
         await reader.ReadAsync();
         reader.GetNullableInt32("nullable_int_set").Should().Be(99);
+    }
+
+    // --- GetNullableInt64 ---
+
+    [Fact]
+    public async Task GetNullableInt64_ReturnsNull_WhenColumnIsNull()
+    {
+        await using var reader = await OpenReaderAsync();
+        await reader.ReadAsync();
+        reader.GetNullableInt64("nullable_bigint_null").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetNullableInt64_ReturnsValue_WhenColumnIsNotNull()
+    {
+        await using var reader = await OpenReaderAsync();
+        await reader.ReadAsync();
+        reader.GetNullableInt64("nullable_bigint_set").Should().Be(9000000000L);
     }
 
     // --- GetBoolean ---

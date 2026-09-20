@@ -3,6 +3,7 @@ using Api.Constants;
 using Api.Helpers;
 using Api.Repositories;
 using Api.Services;
+using Api.Services.Caching;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -111,6 +112,8 @@ public sealed class OrgContextServiceExtensionsTests
         services.AddOrgContextFromHttpContext();
         services.AddSingleton(Mock.Of<IOrgDbConnectionFactory>());
         services.AddSingleton(Mock.Of<ISiteSettingsRepository>());
+        services.AddMemoryCache();
+        services.AddSingleton<SingleFlightCache>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
         services.AddScoped<ITenantSettingsService, TenantSettingsService>();
         return (services.BuildServiceProvider(), http);

@@ -25,15 +25,13 @@ import {
 } from '@foundation/src/constants/auth';
 import type { AuthStage } from '@foundation/src/constants/auth';
 import { logger } from '@foundation/src/lib/core/logger';
-import type { ServiceTier } from '@foundation/src/lib/api/admin-api';
 import type { PlanCode } from '@foundation/contracts/plans';
 
 // ── Re-exported types (consumed by pages, components, api-utils) ──────────────
 
-// ServiceTier (billable SaaS tiers) lives in lib/api/admin-api alongside SERVICE_TIER;
 // PlanCode (the full wire vocabulary, Community included) lives in contracts/plans.
-// Both are re-exported for the auth/membership consumers that import from this module.
-export type { ServiceTier, PlanCode };
+// Re-exported for the auth/membership consumers that import from this module.
+export type { PlanCode };
 
 export interface TenantMembership {
   tenantId: string;

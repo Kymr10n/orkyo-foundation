@@ -1,23 +1,19 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
-import { getResources, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
+import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
+import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
+import { useResourcesForUtilizationGrid } from '@foundation/src/hooks/useResources';
 import {
-  getUtilizationByResource,
-  type ResourceUtilizationBucket,
-} from '@foundation/src/lib/api/resource-utilization-api';
+  useResourceGroupMemberQueries,
+  useResourceGroups,
+} from '@foundation/src/hooks/useResourceGroups';
 import {
-  getResourceGroups,
-  getResourceGroupMembers,
-  type ResourceGroupInfo,
-} from '@foundation/src/lib/api/resource-groups-api';
-import {
-  getAssignmentsByResourceType,
-  validateAssignmentsBatch,
-  type ResourceAssignmentInfo,
-  type ValidateResourceAssignmentRequest,
-} from '@foundation/src/lib/api/resource-assignments-api';
+  useAssignmentsByType,
+  useCapabilityConflicts,
+  useUtilizationByResource,
+} from '@foundation/src/hooks/useUtilization';
 import { useLookupFieldLabels } from '@foundation/src/hooks/useLookupFieldLabels';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 import {
@@ -39,7 +35,6 @@ import { groupRowsByResourceGroup } from './scheduler-types';
 import type { TimeScale } from './ScaleSelect';
 import {
   CONFLICT_CHECK_DELAY_MS,
-  overlapsOffTimeRange,
   utilizationGranularityForScale,
 } from './time-grid-utils';
 import { useTimeColumns } from './useTimeColumns';
@@ -71,30 +66,17 @@ const EMPTY_UTILIZATION: { segments: ResourceUtilizationSegment[]; overallPct: n
   overallPct: 0,
 };
 
-function bucketIsOff(
-  bucket: ResourceUtilizationBucket,
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
-): boolean {
-  return overlapsOffTimeRange(
-    resourceId,
-    new Date(bucket.start).getTime(),
-    new Date(bucket.end).getTime(),
-    offTimeRanges,
-  );
-}
-
-function overallPercent(
-  buckets: ResourceUtilizationBucket[],
-  resourceId: string,
-  offTimeRanges: readonly OffTimeRange[],
-): number {
+/**
+ * Mean allocation across the buckets that were workable.
+ *
+ * Workable is `effectiveAvailabilityPercent > 0` and nothing else. This filter also used to test
+ * the page's off-time ranges, which duplicated the weekend rule the backend already applies to the
+ * allocation ratio — and tested it by overlap, so at Month scale every week bucket was discarded
+ * and every row reported 0%.
+ */
+function overallPercent(buckets: ResourceUtilizationBucket[]): number {
   if (!buckets.length) return 0;
-  const working = buckets.filter(
-    (b) =>
-      b.effectiveAvailabilityPercent > 0 &&
-      !bucketIsOff(b, resourceId, offTimeRanges),
-  );
+  const working = buckets.filter((b) => b.effectiveAvailabilityPercent > 0);
   if (!working.length) return 0;
   return Math.round(
     working.reduce((s, b) => s + b.allocatedPercent, 0) / working.length,
@@ -132,42 +114,24 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   const viewStartMs = from.getTime();
   const viewEndMs = to.getTime();
 
-  const offTimes = useMemo(() => offTimeRanges, [offTimeRanges]);
 
   // 1. Resources of this type — name/metadata lookup (tenant-wide). The visible row set is derived below
   //    from the utilization query, which is the site-filtered authority for "who's relevant".
-  const { data: resourcesResponse, isLoading: resourcesLoading, isFetching: resourcesFetching, isError: resourcesError } = useQuery({
-    queryKey: qk.resources.utilizationGrid(typeKey),
-    queryFn: () => getResources({ resourceTypeKey: typeKey, isActive: true }),
-    staleTime: 60_000,
-  });
-  const allResources: ResourceInfo[] = useMemo(() => resourcesResponse?.data ?? [], [resourcesResponse]);
+  const { data: resourcesResponse, isLoading: resourcesLoading, isFetching: resourcesFetching, isError: resourcesError } =
+    useResourcesForUtilizationGrid(typeKey);
+  const allResources: ResourceInfo[] = useMemo(() => resourcesResponse?.items ?? [], [resourcesResponse]);
 
   // 2. Groups of this type
-  const { data: groupsData } = useQuery({
-    queryKey: qk.resourceGroups.byType(typeKey),
-    queryFn: () => getResourceGroups(typeKey),
-  });
+  const { data: groupsData } = useResourceGroups(typeKey);
   const groups: ResourceGroupInfo[] = useMemo(() => groupsData ?? [], [groupsData]);
 
-  // 3. Members per group — one query per group. Same pattern PersonList uses
-  //    for per-resource profile fetching. Acceptable at expected scale (tens).
-  const memberQueries = useQueries({
-    queries: groups.map((g) => ({
-      queryKey: qk.resourceGroups.members(g.id),
-      queryFn: () => getResourceGroupMembers(g.id),
-      staleTime: 60_000,
-    })),
-  });
+  // 3. Members per group — one query per group.
+  const memberQueries = useResourceGroupMemberQueries(groups);
 
   // 4. Utilization for every resource in a single request (replaces the old
   //    one-query-per-resource fan-out). Grouped into a resourceId→buckets map.
-  const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError, isPlaceholderData: utilizationIsPlaceholder } = useQuery({
-    queryKey: qk.utilization.byResource(typeKey, siteId ?? null, from, to, granularity),
-    queryFn: () => getUtilizationByResource(from, to, granularity, typeKey, siteId ?? undefined),
-    staleTime: 60_000,
-    placeholderData: (prev) => prev,
-  });
+  const { data: utilizationByResource = [], isLoading: utilizationLoading, isError: utilizationError, isPlaceholderData: utilizationIsPlaceholder } =
+    useUtilizationByResource(typeKey, siteId ?? null, from, to, granularity);
   const bucketsByResource = useMemo(() => {
     const map = new Map<string, ResourceUtilizationBucket[]>();
     for (const r of utilizationByResource) map.set(r.resourceId, r.buckets);
@@ -199,11 +163,7 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
 
   // 6. Assignments for every resource in the window, in one request — drives the
   //    per-segment count badge. Grouped into a resourceId→assignments map.
-  const { data: allAssignmentsFlat = [], isError: assignmentsError } = useQuery({
-    queryKey: qk.utilization.assignmentsByType(typeKey, from, to),
-    queryFn: () => getAssignmentsByResourceType(typeKey, from, to),
-    staleTime: 60_000,
-  });
+  const { data: allAssignmentsFlat = [], isError: assignmentsError } = useAssignmentsByType(typeKey, from, to);
   const assignmentsByResource = useMemo(() => {
     const map = new Map<string, ResourceAssignmentInfo[]>();
     for (const a of allAssignmentsFlat) {
@@ -232,39 +192,13 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
     return () => clearTimeout(id);
   }, [hasAssignments]);
 
-  const { data: conflictedAssignmentIds = EMPTY_SET } = useQuery({
-    // Keyed off the query that produced the assignments plus their count, not the id list
-    // itself: React Query hashes the key on every render, and stringifying a thousand uuids
-    // per keystroke into the search box is real main-thread time. The ids are a pure function
-    // of that query's result, so this identifies the same set.
-    queryKey: [
-      ...qk.utilization.assignmentsByType(typeKey, from, to),
-      'capability-conflicts',
-      allAssignmentsFlat.length,
-    ],
-    queryFn: async (): Promise<Set<string>> => {
-      const items: ValidateResourceAssignmentRequest[] = allAssignmentsFlat.map((a) => ({
-        requestId: a.requestId,
-        resourceId: a.resourceId,
-        startUtc: a.startUtc,
-        endUtc: a.endUtc,
-        allocationPercent: a.allocationPercent,
-        excludeAssignmentId: a.id,
-      }));
-      const results = await validateAssignmentsBatch(items);
-      const conflicted = new Set<string>();
-      for (const item of results) {
-        if (item.result.blockers.some((b) => b.code === 'capability.missing')) {
-          allAssignmentsFlat
-            .filter((a) => a.requestId === item.requestId && a.resourceId === item.resourceId)
-            .forEach((a) => conflicted.add(a.id));
-        }
-      }
-      return conflicted;
-    },
-    enabled: conflictCheckReady,
-    staleTime: 60_000,
-  });
+  const { data: conflictedAssignmentIds = EMPTY_SET } = useCapabilityConflicts(
+    typeKey,
+    from,
+    to,
+    allAssignmentsFlat,
+    conflictCheckReady,
+  );
 
   // Membership is many-to-many (resolved via per-group member queries), so map
   // each resource → the group ids they belong to. The grouping helper places a
@@ -290,12 +224,14 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
     const map = new Map<string, { segments: ResourceUtilizationSegment[]; overallPct: number }>();
     for (const [resourceId, buckets] of bucketsByResource) {
       map.set(resourceId, {
-        segments: mergeBucketsToSegments(buckets, resourceId, offTimes),
-        overallPct: overallPercent(buckets, resourceId, offTimes),
+        segments: mergeBucketsToSegments(buckets),
+        overallPct: overallPercent(buckets),
       });
     }
     return map;
-  }, [bucketsByResource, offTimes]);
+    // Off-time is not an input any more: the backend's availability answers it, so a caller
+    // passing a fresh array each render can no longer bust this memo.
+  }, [bucketsByResource]);
 
 
   // Build groups → resources mapping. Groups sorted by displayOrder, empty groups

@@ -1,5 +1,5 @@
 import { Toaster as SonnerToaster, type ToasterProps } from "sonner";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
 
 /**
  * App-wide toast renderer. Mount once in the root layout (AppLayout).
@@ -10,7 +10,7 @@ import { useAppStore } from "@foundation/src/store/app-store";
  *   toast.error("Failed to schedule");
  */
 export function Toaster(props: ToasterProps) {
-  const resolvedTheme = useAppStore((s) => s.resolvedTheme);
+  const resolvedTheme = useLayoutStore((s) => s.resolvedTheme);
 
   return (
     <SonnerToaster

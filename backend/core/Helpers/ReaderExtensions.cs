@@ -39,8 +39,26 @@ public static class ReaderExtensions
         return reader.IsDBNull(ordinal) ? null : reader.GetInt32(ordinal);
     }
 
+    public static long GetInt64(this NpgsqlDataReader reader, string columnName)
+        => reader.GetInt64(reader.GetOrdinal(columnName));
+
+    public static long? GetNullableInt64(this NpgsqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetInt64(ordinal);
+    }
+
     public static bool GetBoolean(this NpgsqlDataReader reader, string columnName)
         => reader.GetBoolean(reader.GetOrdinal(columnName));
+
+    public static double GetDouble(this NpgsqlDataReader reader, string columnName)
+        => reader.GetDouble(reader.GetOrdinal(columnName));
+
+    public static double? GetNullableDouble(this NpgsqlDataReader reader, string columnName)
+    {
+        var ordinal = reader.GetOrdinal(columnName);
+        return reader.IsDBNull(ordinal) ? null : reader.GetDouble(ordinal);
+    }
 
     public static DateTime GetDateTime(this NpgsqlDataReader reader, string columnName)
         => reader.GetDateTime(reader.GetOrdinal(columnName));
@@ -74,8 +92,9 @@ public static class ReaderExtensions
         => reader.GetNullableJsonElement(reader.GetOrdinal(columnName));
 
     /// <summary>
-    /// Ordinal overload for mappers that read by position on purpose — a JOIN whose two
-    /// tables share column names cannot be read by name (see <c>RequestMapper</c>).
+    /// The parse-and-clone itself, taking the ordinal the name-based overload resolved.
+    /// Callers read by name; a JOIN whose two tables share a column name aliases the
+    /// duplicate instead of falling back to a position.
     /// </summary>
     public static JsonElement GetJsonElement(this NpgsqlDataReader reader, int ordinal)
     {

@@ -16,17 +16,16 @@ import {
   DropdownMenuTrigger,
 } from "@foundation/src/components/ui/dropdown-menu";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT } from "@foundation/src/constants/auth";
-import { getUnreadAnnouncementCount } from "@foundation/src/lib/api/user-announcements-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { ROUTE_SITE_ADMIN, ROUTE_ACCOUNT, ROUTE_ABOUT, ROUTE_MESSAGES } from "@foundation/src/constants/auth";
+import { useUnreadAnnouncementCount } from "@foundation/src/hooks/useMessages";
 import { useSites } from "@foundation/src/hooks/useSites";
 import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
-import { useQuery } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -88,11 +87,10 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
   const navigate = useNavigate();
   const { logout, membership, switchTenant, appUser, sessionData, canAccessAdminPage } = useAuth();
 
-  const _scale = useAppStore((state) => state.scale);
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
-  const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
-  const resolvedTheme = useAppStore((state) => state.resolvedTheme);
-  const setTheme = useAppStore((state) => state.setTheme);
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
+  const setSelectedSiteId = useSiteStore((state) => state.setSelectedSiteId);
+  const resolvedTheme = useLayoutStore((state) => state.resolvedTheme);
+  const setTheme = useLayoutStore((state) => state.setTheme);
 
   // Dialog state
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -116,17 +114,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
   // Load sites with React Query
   const { data: sites = [], isLoading: isLoadingSites } = useSites();
 
-  // Poll unread message count. refetchIntervalInBackground defaults to false,
-  // so polling pauses when the tab is hidden (React Query honors document
-  // visibility). refetchOnWindowFocus runs a single refetch when the tab is
-  // refocused, which is cheaper than burning a poll cycle while hidden.
-  const { data: unreadData } = useQuery({
-    queryKey: qk.announcements.unread(),
-    queryFn: getUnreadAnnouncementCount,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
+  const { data: unreadData } = useUnreadAnnouncementCount();
   const unreadCount = unreadData?.unreadCount ?? 0;
 
   // What can be imported/exported is whatever the mounted page registered —
@@ -316,7 +304,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
             variant="ghost"
             size="icon"
             className="relative"
-            onClick={() => navigate("/messages")}
+            onClick={() => navigate(ROUTE_MESSAGES)}
             title={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
             aria-label={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
           >
@@ -459,7 +447,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => navigate("/messages")}
+                  onClick={() => navigate(ROUTE_MESSAGES)}
                 >
                   <Megaphone className="h-4 w-4 mr-2" />
                   Messages
@@ -477,7 +465,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => navigate("/about")}
+                  onClick={() => navigate(ROUTE_ABOUT)}
                 >
                   <Info className="h-4 w-4 mr-2" />
                   About

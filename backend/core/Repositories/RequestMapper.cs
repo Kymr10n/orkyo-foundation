@@ -57,7 +57,7 @@ public static class RequestMapper
             RequestId = reader.GetGuid("request_id"),
             CriterionId = reader.GetGuid("criterion_id"),
             Value = reader.GetJsonElement("value"),
-            Operator = reader.IsDBNull(reader.GetOrdinal("operator")) ? null : reader.GetString(reader.GetOrdinal("operator")),
+            Operator = reader.GetNullableString("operator"),
             AllowedValues = reader.GetNullableJsonElement("allowed_values"),
             CreatedAt = reader.GetDateTime("created_at"),
         };
@@ -65,24 +65,27 @@ public static class RequestMapper
 
     public static RequestRequirementInfo MapRequirementWithCriterionFromReader(NpgsqlDataReader reader)
     {
-        // The JOIN query selects rr.* first (cols 0-6), then c.* (cols 7-11).
-        // Resolved by position to avoid ambiguous column names (both tables have id, created_at).
+        // The criterion columns are aliased in the JOIN (see RequestSql) because both tables
+        // carry id and created_at. Aliasing is what lets this read by name: a positional read
+        // is silently wrong the moment the SELECT list is reordered.
         return new RequestRequirementInfo
         {
-            Id = reader.GetGuid(0),
-            RequestId = reader.GetGuid(1),
-            CriterionId = reader.GetGuid(2),
-            Value = reader.GetJsonElement(3),
-            CreatedAt = reader.GetDateTime(4),
-            Operator = reader.IsDBNull(5) ? null : reader.GetString(5),
-            AllowedValues = reader.GetNullableJsonElement(6),
+            Id = reader.GetGuid("id"),
+            RequestId = reader.GetGuid("request_id"),
+            CriterionId = reader.GetGuid("criterion_id"),
+            Value = reader.GetJsonElement("value"),
+            CreatedAt = reader.GetDateTime("created_at"),
+            Operator = reader.GetNullableString("operator"),
+            AllowedValues = reader.GetNullableJsonElement("allowed_values"),
             Criterion = new CriterionBasicInfo
             {
-                Id = reader.GetGuid(7),
-                Name = reader.GetString(8),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString(9)),
-                Unit = reader.IsDBNull(10) ? null : reader.GetString(10),
-                EnumValues = reader.IsDBNull(11) ? null : JsonSerializer.Deserialize<List<string>>(reader.GetString(11)),
+                Id = reader.GetGuid("criterion_pk"),
+                Name = reader.GetString("criterion_name"),
+                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString("criterion_data_type")),
+                Unit = reader.GetNullableString("criterion_unit"),
+                EnumValues = reader.GetNullableString("criterion_enum_values") is { } enumValues
+                    ? JsonSerializer.Deserialize<List<string>>(enumValues)
+                    : null,
             },
         };
     }

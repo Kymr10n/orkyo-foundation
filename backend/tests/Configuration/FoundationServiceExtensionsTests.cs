@@ -150,6 +150,8 @@ public class FoundationServiceExtensionsTests
     {
         var (services, _) = BuildServices();
         services.Should().Contain(sd => IsScoped<IRequestRepository, RequestRepository>(sd));
+        services.Should().Contain(sd => IsScoped<IRequestTreeRepository, RequestTreeRepository>(sd));
+        services.Should().Contain(sd => IsScoped<IRequestScheduleReadRepository, RequestScheduleReadRepository>(sd));
     }
 
 

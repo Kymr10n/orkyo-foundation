@@ -135,14 +135,9 @@ internal static class SettingsEndpointHandlers
             CurrentValue = GetPropertyValue(values, d.Key)
         });
 
-    private static readonly Dictionary<string, System.Reflection.PropertyInfo> _keyToPropertyMap =
-        typeof(TenantSettings)
-            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .ToDictionary(p => TenantSettingsKeyPolicy.PropertyToKey(p.Name), p => p);
-
     private static string GetPropertyValue(TenantSettings settings, string key)
     {
-        if (!_keyToPropertyMap.TryGetValue(key, out var prop)) return "";
+        if (!TenantSettingsKeyPolicy.KeyToProperty.TryGetValue(key, out var prop)) return "";
         return prop.GetValue(settings)?.ToString() ?? "";
     }
 }

@@ -49,7 +49,8 @@ public sealed class InvitationResendServiceTests
             Mock.Of<IUserProvisioningService>(),
             settings.Object,
             Mock.Of<IQuotaEnforcer>(),
-            NullLogger<InvitationService>.Instance);
+            NullLogger<InvitationService>.Instance,
+            TimeProvider.System);
 
         return (service, email, tenantUsers);
     }

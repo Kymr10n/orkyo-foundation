@@ -86,3 +86,30 @@ export async function updateUserRole(
 export async function deleteUser(userId: string): Promise<void> {
   return apiDelete(API_PATHS.user(userId));
 }
+
+/** What the invitation landing page shows before the account exists. */
+export interface InvitationDetails {
+  email: string;
+  expiresAt: string;
+  tenantName: string;
+}
+
+export interface AcceptInvitationRequest {
+  token: string;
+  displayName?: string;
+  password: string;
+}
+
+/**
+ * Validate an invitation token (public — the invitee has no session yet)
+ */
+export async function validateInvitation(token: string): Promise<InvitationDetails> {
+  return apiGet<InvitationDetails>(API_PATHS.INVITATION_VALIDATE, { params: { token } });
+}
+
+/**
+ * Accept an invitation and create the account (public)
+ */
+export async function acceptInvitation(data: AcceptInvitationRequest): Promise<void> {
+  await apiPost<void>(API_PATHS.INVITATION_ACCEPT, data);
+}

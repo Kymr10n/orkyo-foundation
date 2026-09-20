@@ -20,7 +20,7 @@ public sealed class WorkerJobCoordinatorTests
     }
 
     private WorkerJobCoordinator BuildCoordinator() =>
-        new(_fixture.CreateConnectionFactory(), NullLogger<WorkerJobCoordinator>.Instance);
+        new(_fixture.CreateConnectionFactory(), NullLogger<WorkerJobCoordinator>.Instance, TimeProvider.System);
 
     private static string UniqueJob() => $"test-job-{Guid.NewGuid():N}";
 

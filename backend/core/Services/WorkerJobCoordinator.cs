@@ -57,11 +57,16 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
 {
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly ILogger<WorkerJobCoordinator> _logger;
+    private readonly TimeProvider _time;
 
-    public WorkerJobCoordinator(IDbConnectionFactory connectionFactory, ILogger<WorkerJobCoordinator> logger)
+    public WorkerJobCoordinator(
+        IDbConnectionFactory connectionFactory,
+        ILogger<WorkerJobCoordinator> logger,
+        TimeProvider time)
     {
         _connectionFactory = connectionFactory;
         _logger = logger;
+        _time = time;
     }
 
     public async Task<WorkerJobOutcome> RunIfDueAsync(
@@ -85,7 +90,7 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
         try
         {
             var lastCompleted = await ReadLastCompletedAsync(connection, jobName, cancellationToken);
-            if (!isDue(DateTime.UtcNow, lastCompleted))
+            if (!isDue(_time.GetUtcNow().UtcDateTime, lastCompleted))
             {
                 return WorkerJobOutcome.NotDue;
             }

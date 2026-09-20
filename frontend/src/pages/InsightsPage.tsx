@@ -6,7 +6,7 @@ import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 import { InsightsFilters, resolveRange, type RangePreset } from '@foundation/src/components/insights/InsightsFilters';
 import type { InsightsTabContext } from '@foundation/src/components/insights/insightsTabContext';
 import type { InsightsBucket } from '@foundation/src/lib/api/insights-api';
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 const TABS: PageTab[] = [
   { value: 'overview', label: 'Overview' },
@@ -24,7 +24,7 @@ export function InsightsPage() {
   usePageTitle('Insights');
   const active = useActiveTab('overview');
   const navigate = useNavigate();
-  const siteId = useAppStore((s) => s.selectedSiteId);
+  const siteId = useSiteStore((s) => s.selectedSiteId);
   const [range, setRange] = useState<RangePreset>('window');
   const [bucket, setBucket] = useState<InsightsBucket>('month');
 

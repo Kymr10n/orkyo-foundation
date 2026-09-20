@@ -6,9 +6,7 @@ import {
   type ResourceUtilizationSegment,
 } from './utilization-segments';
 import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
-import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 
-const RID = 'p-1';
 
 /** One-hour bucket factory; start auto-derives end = start + 1h unless given. */
 function bucket(
@@ -37,37 +35,31 @@ const T = {
 describe('deriveBucketStatus', () => {
   it('non-working when effective availability is 0', () => {
     expect(
-      deriveBucketStatus(bucket(T.h8, T.h9, { effectiveAvailabilityPercent: 0 }), RID, []),
+      deriveBucketStatus(bucket(T.h8, T.h9, { effectiveAvailabilityPercent: 0 })),
     ).toBe('non-working');
   });
 
-  it('non-working when the bucket overlaps an off-time range', () => {
-    const off: OffTimeRange[] = [
-      {
-        id: 'off-1',
-        title: 'Holiday',
-        startMs: new Date(T.h8).getTime(),
-        endMs: new Date(T.h9).getTime(),
-        resourceIds: null,
-      },
-    ];
-    expect(deriveBucketStatus(bucket(T.h8, T.h9), RID, off)).toBe('non-working');
+  // Off-time is the backend's business, not this function's. It reaches us already folded into
+  // effectiveAvailabilityPercent, which the case above covers. Re-testing it here — by overlap —
+  // is what made every week bucket read "Off" at Month scale, because each spans a Saturday.
+  it('ignores the page off-time ranges and trusts the availability the backend sent', () => {
+    expect(deriveBucketStatus(bucket(T.h8, T.h9, { allocatedPercent: 50 }))).toBe('partial');
   });
 
   it('assigned when exclusively occupied', () => {
     expect(
-      deriveBucketStatus(bucket(T.h8, T.h9, { isExclusiveOccupied: true }), RID, []),
+      deriveBucketStatus(bucket(T.h8, T.h9, { isExclusiveOccupied: true })),
     ).toBe('assigned');
   });
 
   it('available when nothing allocated', () => {
-    expect(deriveBucketStatus(bucket(T.h8, T.h9, { allocatedPercent: 0 }), RID, [])).toBe(
+    expect(deriveBucketStatus(bucket(T.h8, T.h9, { allocatedPercent: 0 }))).toBe(
       'available',
     );
   });
 
   it('partial when allocated below availability', () => {
-    expect(deriveBucketStatus(bucket(T.h8, T.h9, { allocatedPercent: 50 }), RID, [])).toBe(
+    expect(deriveBucketStatus(bucket(T.h8, T.h9, { allocatedPercent: 50 }))).toBe(
       'partial',
     );
   });
@@ -76,8 +68,6 @@ describe('deriveBucketStatus', () => {
     expect(
       deriveBucketStatus(
         bucket(T.h8, T.h9, { allocatedPercent: 120, effectiveAvailabilityPercent: 100 }),
-        RID,
-        [],
       ),
     ).toBe('overbooked');
   });
@@ -86,8 +76,6 @@ describe('deriveBucketStatus', () => {
     expect(
       deriveBucketStatus(
         bucket(T.h8, T.h9, { allocatedPercent: 100, effectiveAvailabilityPercent: 100 }),
-        RID,
-        [],
       ),
     ).toBe('partial');
   });
@@ -95,14 +83,12 @@ describe('deriveBucketStatus', () => {
 
 describe('mergeBucketsToSegments', () => {
   it('returns [] for an empty series', () => {
-    expect(mergeBucketsToSegments([], RID, [])).toEqual([]);
+    expect(mergeBucketsToSegments([])).toEqual([]);
   });
 
   it('merges adjacent same-status buckets into one segment', () => {
     const segs = mergeBucketsToSegments(
       [bucket(T.h8, T.h9), bucket(T.h9, T.h10)],
-      RID,
-      [],
     );
     expect(segs).toHaveLength(1);
     expect(segs[0]).toMatchObject({
@@ -117,8 +103,6 @@ describe('mergeBucketsToSegments', () => {
     // h8–h9 then h10–h11: same status but non-contiguous (h9 != h10 boundary).
     const segs = mergeBucketsToSegments(
       [bucket(T.h8, T.h9), bucket(T.h10, T.h11)],
-      RID,
-      [],
     );
     expect(segs).toHaveLength(2);
   });
@@ -129,8 +113,6 @@ describe('mergeBucketsToSegments', () => {
         bucket(T.h8, T.h9, { allocatedPercent: 50 }),
         bucket(T.h9, T.h10, { isExclusiveOccupied: true }),
       ],
-      RID,
-      [],
     );
     expect(segs.map((s) => s.status)).toEqual(['partial', 'assigned']);
   });
@@ -141,8 +123,6 @@ describe('mergeBucketsToSegments', () => {
         bucket(T.h8, T.h9, { effectiveAvailabilityPercent: 0 }),
         bucket(T.h9, T.h10),
       ],
-      RID,
-      [],
     );
     expect(segs.map((s) => s.status)).toEqual(['non-working', 'available']);
   });
@@ -154,8 +134,6 @@ describe('mergeBucketsToSegments', () => {
         bucket(T.h9, T.h10, { allocatedPercent: 120 }),
         bucket(T.h10, T.h11),
       ],
-      RID,
-      [],
     );
     expect(segs.map((s) => s.status)).toEqual(['available', 'overbooked', 'available']);
     expect(segs[1]).toMatchObject({ start: T.h9, end: T.h10, sourceUnitCount: 1 });
@@ -164,8 +142,6 @@ describe('mergeBucketsToSegments', () => {
   it('collapses an all-same contiguous series into one full-span segment', () => {
     const segs = mergeBucketsToSegments(
       [bucket(T.h8, T.h9), bucket(T.h9, T.h10), bucket(T.h10, T.h11)],
-      RID,
-      [],
     );
     expect(segs).toHaveLength(1);
     expect(segs[0]).toMatchObject({ start: T.h8, end: T.h11, sourceUnitCount: 3 });
@@ -177,8 +153,6 @@ describe('mergeBucketsToSegments', () => {
         bucket(T.h8, T.h9, { allocatedPercent: 50 }),
         bucket(T.h9, T.h10, { allocatedPercent: 70 }),
       ],
-      RID,
-      [],
     );
     expect(segs).toHaveLength(1);
     expect(segs[0].utilizationPercent).toBe(60);

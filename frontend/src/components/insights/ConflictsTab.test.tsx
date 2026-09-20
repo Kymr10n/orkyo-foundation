@@ -66,7 +66,7 @@ const mockRegistry = (conflictsByRequest: Map<string, Conflict[]>) =>
   vi.mocked(useConflictRegistry).mockReturnValue({ conflictsByRequest } as any);
 
 const mockOpen = vi.fn();
-vi.mock('@foundation/src/components/requests/useRequestEditor', () => ({
+vi.mock('@foundation/src/hooks/useRequestEditor', () => ({
   useRequestEditor: () => ({ open: mockOpen, dialogs: null }),
 }));
 

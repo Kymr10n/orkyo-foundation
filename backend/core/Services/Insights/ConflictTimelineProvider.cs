@@ -24,7 +24,7 @@ public interface IConflictTimelineProvider
 
 public sealed class ConflictTimelineProvider(
     IConflictService conflictService,
-    IRequestRepository requestRepository) : IConflictTimelineProvider
+    IRequestScheduleReadRepository requestRepository) : IConflictTimelineProvider
 {
     /// <summary>
     /// Flattens the live conflict registry into (scheduled-start, kind) points so conflicts can be

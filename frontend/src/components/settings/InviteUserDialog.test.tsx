@@ -309,10 +309,9 @@ describe('InviteUserDialog', () => {
     });
 
     expect(mockOnSuccess).not.toHaveBeenCalled();
-    // The error toast originates from the central MutationCache (meta.errorMessage).
-    expect(toast.error).toHaveBeenCalledWith('Failed to send invitation', {
-      description: 'User already invited',
-    });
+    // One surface per error: the dialog stays open and shows the message inline, so the
+    // mutation sets meta.suppressErrorToast and the central MutationCache stays quiet.
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('disables form during submission', async () => {

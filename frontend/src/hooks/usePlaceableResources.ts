@@ -52,7 +52,7 @@ export function usePlaceableResources(siteId: string | null) {
       const response = await getResources({ hasGeometry: true, isActive: true, siteId: siteId! });
       // The generic list orders by name; the floorplan and grid read by code first, which is what
       // the site-scoped space route used to return (ORDER BY code, name).
-      return [...response.data].sort((a, b) =>
+      return [...response.items].sort((a, b) =>
         (a.code ?? a.name).localeCompare(b.code ?? b.name),
       );
     },
@@ -66,14 +66,32 @@ export function usePlaceableResources(siteId: string | null) {
 const placeableInvalidates = (siteId: string) =>
   [qk.resources.all(), qk.resources.placeable(siteId), qk.requests.all()] as const;
 
-export function useCreatePlaceableResource(siteId: string) {
+/**
+ * Creates a placeable resource.
+ *
+ * Two callers with different error surfaces, so the toast is a parameter, the same shape
+ * `useMovePlaceableResource` uses below. The create dialog stays open on failure and renders the
+ * message inline, so it passes `suppressErrorToast`. Duplicating from the canvas context menu
+ * opens no dialog and has nowhere to put a message, so it keeps the toast — one surface per error
+ * (docs/dialog-feedback.md rule 4), and never zero.
+ */
+export function useCreatePlaceableResource(
+  siteId: string,
+  options?: { suppressErrorToast?: boolean },
+) {
   return useMutation({
     mutationFn: (data: CreateResourceRequest) => createResource(data),
-    meta: {
-      successMessage: "Resource created",
-      errorMessage: "Failed to create resource",
-      invalidates: placeableInvalidates(siteId),
-    },
+    meta: options?.suppressErrorToast
+      ? {
+          successMessage: "Resource created",
+          suppressErrorToast: true,
+          invalidates: placeableInvalidates(siteId),
+        }
+      : {
+          successMessage: "Resource created",
+          errorMessage: "Failed to create resource",
+          invalidates: placeableInvalidates(siteId),
+        },
   });
 }
 
@@ -83,7 +101,7 @@ export function useUpdatePlaceableResource(siteId: string) {
       updateResource(resourceId, data),
     meta: {
       successMessage: "Resource updated",
-      errorMessage: "Failed to update resource",
+      suppressErrorToast: true,
       invalidates: placeableInvalidates(siteId),
     },
   });
@@ -125,18 +143,27 @@ export function useDeletePlaceableResource(siteId: string) {
   });
 }
 
-export function useMovePlaceableResource(siteId: string) {
+/**
+ * Writes a resource's geometry.
+ *
+ * Two callers with different error surfaces, so the toast is a parameter. A drag on the canvas
+ * has nowhere to put a message and takes the toast. The place-a-drawn-shape dialog stays open on
+ * failure and says what happened in its own ErrorAlert, so it passes `suppressErrorToast` — one
+ * surface per error (docs/dialog-feedback.md rule 4).
+ */
+export function useMovePlaceableResource(
+  siteId: string,
+  options?: { suppressErrorToast?: boolean },
+) {
   return useMutation({
     // Geometry only. The generic update writes just the fields the request names, so the space
     // route's habit of re-sending name/code/description/isPhysical on every drag was dead weight
     // — and re-sending them raced a concurrent rename back to its old value.
     mutationFn: ({ resourceId, geometry }: { resourceId: string; geometry: ResourceGeometry }) =>
       updateResource(resourceId, { geometry }),
-    // Move/resize is a visible drag — silent on success, so no successMessage. The
-    // error toast still routes through the meta convention (errorMessage opts in).
-    meta: {
-      errorMessage: "Failed to move resource",
-      invalidates: placeableInvalidates(siteId),
-    },
+    // Move/resize is a visible drag — silent on success, so no successMessage.
+    meta: options?.suppressErrorToast
+      ? { suppressErrorToast: true, invalidates: placeableInvalidates(siteId) }
+      : { errorMessage: "Failed to move resource", invalidates: placeableInvalidates(siteId) },
   });
 }

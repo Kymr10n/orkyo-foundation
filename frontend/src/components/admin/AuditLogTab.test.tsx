@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { AuditLogTab } from './AuditLogTab';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import { getTenantAuditEvents } from '@foundation/src/lib/api/audit-api';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/audit-api', () => ({
   getTenantAuditEvents: vi.fn(),
@@ -32,6 +33,7 @@ const renderTab = () =>
     <MemoryRouter>
       <AuditLogTab />
     </MemoryRouter>,
+    { wrapper: createTestQueryWrapper() },
   );
 
 beforeEach(() => {

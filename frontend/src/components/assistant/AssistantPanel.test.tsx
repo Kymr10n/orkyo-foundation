@@ -33,10 +33,14 @@ const aiStatus = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
+// Only the status hook is pinned. The conversation-list and invalidation hooks stay real so the
+// panel still drives them through the QueryClientProvider below, exactly as it does in the app.
+vi.mock('@foundation/src/hooks/useAiAssistant', async (importOriginal) => ({
+  ...(await importOriginal<typeof UseAiAssistantModuleNs>()),
   useAiStatus: () => ({ data: aiStatus.value }),
 }));
 
+import type * as UseAiAssistantModuleNs from '@foundation/src/hooks/useAiAssistant';
 import { AssistantPanel } from './AssistantPanel';
 import {
   deleteAiConversation,

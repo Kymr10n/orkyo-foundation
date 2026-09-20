@@ -21,7 +21,7 @@ public class InsightsServiceTests
 {
     private readonly Mock<IOrgDbConnectionFactory> _db = new();
     private readonly Mock<IConflictService> _conflicts = new();
-    private readonly Mock<IRequestRepository> _requests = new();
+    private readonly Mock<IRequestScheduleReadRepository> _requests = new();
     private readonly Mock<IConflictTimelineProvider> _timeline = new();
     private readonly Mock<IResourceRepository> _resources = new();
     private readonly Mock<IResourceAssignmentRepository> _assignments = new();
@@ -34,7 +34,8 @@ public class InsightsServiceTests
         var org = new OrgContext { OrgId = Guid.NewGuid(), OrgSlug = "test", DbConnectionString = "unused" };
         _service = new InsightsService(
             org, _db.Object, _timeline.Object,
-            _resources.Object, _resourceTypes.Object, _assignments.Object, _availability.Object);
+            _resources.Object, _resourceTypes.Object, _assignments.Object, _availability.Object,
+            TimeProvider.System);
 
         // The overview now fans out over the tenant's active types instead of a fixed triple.
         _resourceTypes.Setup(t => t.GetAllAsync(true, It.IsAny<CancellationToken>()))
@@ -51,8 +52,6 @@ public class InsightsServiceTests
         _conflicts.Setup(c => c.GetAllAsync(It.IsAny<DateTime?>(), It.IsAny<DateTime?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _requests.Setup(r => r.GetScheduledLiteAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([]);
-        _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
@@ -126,8 +125,6 @@ public class InsightsServiceTests
 
     private void SetupResource(ResourceInfo resource, params ResourceAssignmentInfo[] assignments)
     {
-        _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([resource]);
         _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([resource]);
         _assignments.Setup(a => a.GetByResourceAsync(resource.Id, It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
@@ -308,8 +305,6 @@ public class InsightsServiceTests
     {
         // First half of January is blocked (shutdown) → capacity is the open minutes only.
         var room = Guid.NewGuid();
-        _resources.Setup(r => r.GetAllAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync([SpaceResource(room)]);
         _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([SpaceResource(room)]);
         _availability.Setup(a => a.GetBlockedPeriodsForResourcesAsync(

@@ -39,8 +39,15 @@ result. `UserProvisioningService.CreateAsync` is the reference. A bare INSERT he
 the loser of a race gets an exception instead of the winner's row.
 
 **Paging** goes through `NpgsqlQueryExtensions.QueryPagedAsync` and returns
-`PagedResult<T>`. Two repositories hand-roll the count/page/read loop and return a tuple;
-they are the exception, not a second convention.
+`PagedResult<T>`. `ResourceRepository.GetPageAsync` hand-rolls the count/page/read loop and
+returns a tuple; it is the exception, not a second convention.
+
+A list endpoint takes `page` and `pageSize`, builds the request with `PageRequest.From`, and
+answers with `PagedResult<T>`. The one branch that serves a whole list up to a cap uses
+`PagedResult<T>.Capped` with `PageRequest.MaxUnpagedItems`, so `hasNextPage` reports the
+truncation and `totalItems` stays the real total. A list that offset paging cannot serve —
+global search — clamps a plain row limit with `PageRequest.ClampLimit`.
+`PaginationShapeContractTests` holds this shape, and each exemption there states its reason.
 
 **Binding a nullable parameter** uses `AddNullable`, not `x.HasValue ? x.Value : DBNull.Value`.
 
@@ -59,9 +66,12 @@ rather than a 404 that hides it.
 content type; the frontend switches on `code`. **Done** — `AuthProblemDetails` and the
 reporting-token 402's hand-rolled `{error, message}` body were the last two exceptions.
 
-**Wire error codes** come from `ApiErrorCodes` (lowercase snake). `ErrorCodes` (SCREAMING
-snake, plus one PascalCase outlier) predates it and is still referenced; prefer
-`ApiErrorCodes` for anything new.
+**Wire error codes** come from `ApiErrorCodes`, which is the only source since the older
+`ErrorCodes` class was merged into it. The casing is **not** uniform and the merge did not make it
+so: most values are lowercase snake, but `NOT_FOUND`, `CONFLICT`, `UNPROCESSABLE_ENTITY` and
+`CHALLENGE_FAILED` are SCREAMING snake and `ValidationError` is a PascalCase outlier. Those five are
+what the wire has always carried; aligning them is a breaking change deferred to the next major, as
+the constants themselves note. New codes use lowercase snake.
 
 **Exception mapping is global.** `AppExceptionHandler` owns exception→HTTP. An endpoint
 that catches `ArgumentException` to return a 400 is duplicating it.
@@ -131,8 +141,8 @@ bug. Defaults live in env templates, never in compiled code.
 `canEdit` (or the equivalent permission flag); two dialogs shipped without it in 2026-08.
 eslint cannot express "a `DialogFooter` whose actions lack a `canEdit` gate", so there is
 no lint rule — the protection is that the raw dialog-shell import ban pushes new dialogs
-through `FormDialog`/`ScaffoldDialog`, which embed the gate. When you write a dialog that
-bypasses those shells, checking the gate is on you.
+through `FormDialog`, which embeds the gate. When you write a dialog that bypasses that
+shell, checking the gate is on you.
 
 ## Types
 

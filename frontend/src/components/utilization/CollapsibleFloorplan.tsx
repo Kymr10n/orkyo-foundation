@@ -1,10 +1,11 @@
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
 import { SPACE_CANVAS_COLORS, SPACE_LEGEND_CELL_CLASS, SPACE_LEGEND_BORDER_CLASS, type SpaceStatus } from "@foundation/src/components/utilization/schedule-colors";
 import { Button } from "@foundation/src/components/ui/button";
+import { ROUTE_STATIONS_FLOORPLAN } from "@foundation/src/constants/auth";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
 import { usePlaceableResources } from "@foundation/src/hooks/usePlaceableResources";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
 import { getPlacementResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import type { Request } from "@foundation/src/types/requests";
@@ -35,7 +36,7 @@ export function CollapsibleFloorplan({
   height,
   onHeightChange,
 }: CollapsibleFloorplanProps) {
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
 
   const {
     data: floorplanData,
@@ -188,7 +189,7 @@ export function CollapsibleFloorplan({
                   <MapPin className="h-8 w-8 text-muted-foreground/60" aria-hidden />
                   <p>No floorplan uploaded for this site</p>
                   <Button asChild variant="default" size="sm">
-                    <Link to="/stations/floorplan">Upload floorplan</Link>
+                    <Link to={ROUTE_STATIONS_FLOORPLAN}>Upload floorplan</Link>
                   </Button>
                 </div>
               </div>

@@ -4,7 +4,7 @@ import { API_PATHS } from "../core/api-paths";
 /**
  * Security info about the current user
  */
-interface SecurityInfo {
+export interface SecurityInfo {
   isFederated: boolean;
   identityProvider?: string;
   canChangePassword: boolean;
@@ -18,7 +18,7 @@ interface SecurityInfo {
 /**
  * Active session information
  */
-interface Session {
+export interface Session {
   id: string;
   ipAddress: string;
   startTime: string;
@@ -35,7 +35,7 @@ interface Session {
 /**
  * Request to change password
  */
-interface ChangePasswordRequest {
+export interface ChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
@@ -44,7 +44,7 @@ interface ChangePasswordRequest {
 /**
  * MFA status for the current user
  */
-interface MfaStatus {
+export interface MfaStatus {
   totpEnabled: boolean;
   totpCredentialId?: string;
   totpCreatedDate?: string;
@@ -55,7 +55,7 @@ interface MfaStatus {
 /**
  * User profile from identity provider
  */
-interface UserProfileData {
+export interface UserProfileData {
   email: string;
   firstName: string;
   lastName: string;
@@ -65,7 +65,7 @@ interface UserProfileData {
 /**
  * Request to update user profile
  */
-interface UpdateProfileRequest {
+export interface UpdateProfileRequest {
   firstName: string;
   lastName: string;
 }

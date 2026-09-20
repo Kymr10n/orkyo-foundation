@@ -17,6 +17,7 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 export function SiteSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -177,7 +178,7 @@ export function SiteSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading sites…</p>
+        <LoadingSpinner inline size="xs" muted message="Loading sites…" />
       </div>
     );
   }

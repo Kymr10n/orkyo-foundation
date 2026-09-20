@@ -14,8 +14,6 @@ namespace Api.Services;
 /// </summary>
 public interface IResourceService
 {
-    /// <summary>Returns all resources matching the given filter.</summary>
-    Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
     /// <summary>Returns one page of the filtered list plus the unpaged total.</summary>
     Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
         ResourceListFilter filter, int limit, int offset, CancellationToken ct = default);
@@ -39,9 +37,6 @@ public class ResourceService(
     IQuotaEnforcer quotaEnforcer,
     IQuotaUsageRollup rollup) : IResourceService
 {
-    public Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
-        => resourceRepository.GetAllAsync(filter, ct);
-
     public Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
         ResourceListFilter filter, int limit, int offset, CancellationToken ct = default)
         => resourceRepository.GetPageAsync(filter, limit, offset, ct);

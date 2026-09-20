@@ -317,10 +317,10 @@ public class CriteriaRepository : ICriteriaRepository
         {
             if (!await reader.ReadAsync(ct))
                 throw new InvalidOperationException("Reference count query returned no rows");
-            resources = reader.GetInt64(0);
-            groups = reader.GetInt64(1);
-            requests = reader.GetInt64(2);
-            templates = reader.GetInt64(3);
+            resources = reader.GetInt64("resources");
+            groups = reader.GetInt64("groups");
+            requests = reader.GetInt64("requests");
+            templates = reader.GetInt64("templates");
         }
 
         var parts = new List<string>();

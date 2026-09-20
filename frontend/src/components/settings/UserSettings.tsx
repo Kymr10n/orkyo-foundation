@@ -14,18 +14,19 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import {
-  getUsers,
-  getInvitations,
-  cancelInvitation,
-  resendInvitation,
-  deleteUser,
   createInvitation,
   type UserWithRole,
   type Invitation,
 } from "@foundation/src/lib/api/user-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import {
+  useCancelInvitation,
+  useDeleteUser,
+  useInvitations,
+  useResendInvitation,
+  useUsers,
+} from "@foundation/src/hooks/useTenantUsers";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { InviteUserDialog } from "./InviteUserDialog";
 import { EditUserRoleDialog } from "./EditUserRoleDialog";
@@ -36,6 +37,7 @@ import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 export function UserSettings() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -49,10 +51,7 @@ export function UserSettings() {
     isLoading: usersLoading,
     error: usersError,
     refetch: refetchUsers,
-  } = useQuery({
-    queryKey: qk.users.all(),
-    queryFn: getUsers,
-  });
+  } = useUsers();
 
   // Load invitations
   const {
@@ -60,39 +59,13 @@ export function UserSettings() {
     isLoading: invitationsLoading,
     error: invitationsError,
     refetch: refetchInvitations,
-  } = useQuery({
-    queryKey: qk.invitations.all(),
-    queryFn: getInvitations,
-  });
+  } = useInvitations();
 
-  // Cancel invitation mutation
-  const cancelMutation = useMutation({
-    mutationFn: cancelInvitation,
-    meta: {
-      errorMessage: "Failed to cancel invitation",
-      invalidates: [qk.invitations.all()],
-    },
-    onSuccess: () => setCancelingInvitation(null),
-  });
+  const cancelMutation = useCancelInvitation();
 
-  // Resend invitation mutation
-  const resendMutation = useMutation({
-    mutationFn: resendInvitation,
-    meta: {
-      successMessage: "Invitation email resent successfully",
-      errorMessage: "Failed to resend invitation",
-    },
-  });
+  const resendMutation = useResendInvitation();
 
-  // Delete user mutation
-  const deleteMutation = useMutation({
-    mutationFn: deleteUser,
-    meta: {
-      errorMessage: "Failed to remove user",
-      invalidates: [qk.users.all()],
-    },
-    onSuccess: () => setDeletingUser(null),
-  });
+  const deleteMutation = useDeleteUser();
 
   // Handle export/import
   useExportHandler('users', async (format) => {
@@ -129,7 +102,9 @@ export function UserSettings() {
   const handleCancelInvitation = (invitation: Invitation) => setCancelingInvitation(invitation);
   const handleConfirmCancelInvitation = () => {
     if (!cancelingInvitation) return;
-    cancelMutation.mutate(cancelingInvitation.id);
+    cancelMutation.mutate(cancelingInvitation.id, {
+      onSuccess: () => setCancelingInvitation(null),
+    });
   };
 
   const handleResendInvitation = (invitation: Invitation) => {
@@ -139,7 +114,9 @@ export function UserSettings() {
   const handleDeleteUser = (user: UserWithRole) => setDeletingUser(user);
   const handleConfirmDeleteUser = () => {
     if (!deletingUser) return;
-    deleteMutation.mutate(deletingUser.id);
+    deleteMutation.mutate(deletingUser.id, {
+      onSuccess: () => setDeletingUser(null),
+    });
   };
 
   const getRoleBadgeColor = (role: string) => {
@@ -393,7 +370,7 @@ export function UserSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading users…</p>
+        <LoadingSpinner inline size="xs" muted message="Loading users…" />
       </div>
     );
   }

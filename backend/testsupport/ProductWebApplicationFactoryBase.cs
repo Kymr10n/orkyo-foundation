@@ -74,6 +74,15 @@ public abstract class ProductWebApplicationFactoryBase<TProgram> : WebApplicatio
     {
     }
 
+    /// <summary>
+    /// Product configuration sources, added after the shared in-memory collection. A later source
+    /// wins, so this is the hook for a value that must beat the in-memory block — an environment
+    /// variable provider, or a second collection that removes a key the shared block sets.
+    /// </summary>
+    protected virtual void ConfigureAppConfigurationSources(IConfigurationBuilder config)
+    {
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment(TestConstants.EnvironmentName);
@@ -87,6 +96,8 @@ public abstract class ProductWebApplicationFactoryBase<TProgram> : WebApplicatio
             var values = new Dictionary<string, string?>(SharedConfiguration);
             AddProductConfiguration(values);
             config.AddInMemoryCollection(values);
+
+            ConfigureAppConfigurationSources(config);
         });
 
         builder.ConfigureServices(services =>

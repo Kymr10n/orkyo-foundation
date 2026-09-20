@@ -18,8 +18,8 @@ function renderWithQuery(ui: React.ReactElement) {
 }
 
 let mockSelectedSiteId: string | null = null;
-vi.mock("@foundation/src/store/app-store", () => ({
-  useAppStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
+vi.mock("@foundation/src/store/site-store", () => ({
+  useSiteStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
     selector({ selectedSiteId: mockSelectedSiteId }),
 }));
 

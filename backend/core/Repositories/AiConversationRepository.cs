@@ -69,9 +69,9 @@ public sealed class AiConversationRepository(OrgContext orgContext, IOrgDbConnec
             p => p.AddWithValue("userId", userId),
             r => new AiConversationSummary
             {
-                Id = r.GetGuid(0),
-                Title = r.GetString(1),
-                UpdatedAt = r.GetDateTime(2),
+                Id = r.GetGuid("id"),
+                Title = r.GetString("title"),
+                UpdatedAt = r.GetDateTime("updated_at"),
             }, ct);
     }
 
@@ -89,13 +89,13 @@ public sealed class AiConversationRepository(OrgContext orgContext, IOrgDbConnec
             },
             r => new AiConversationRow
             {
-                Id = r.GetGuid(0),
-                Title = r.GetString(1),
+                Id = r.GetGuid("id"),
+                Title = r.GetString("title"),
                 // GetJsonElement clones off the rented document, so nothing is pinned and
                 // the buffer goes back to the pool — see ReaderExtensions.
-                Entries = r.GetJsonElement(2),
-                Transcript = r.GetJsonElement(3),
-                UpdatedAt = r.GetDateTime(4),
+                Entries = r.GetJsonElement("entries"),
+                Transcript = r.GetJsonElement("transcript"),
+                UpdatedAt = r.GetDateTime("updated_at"),
             }, ct);
     }
 

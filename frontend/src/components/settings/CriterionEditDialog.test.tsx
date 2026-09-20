@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { CriterionEditDialog } from './CriterionEditDialog';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/components/ui/dialog', () => import('@foundation/src/test-utils/dialog-mock'));
 
@@ -31,29 +32,22 @@ vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   ),
 }));
 
-const mockCreateMutateAsync = vi.fn(() =>
+// The dialog composes its create/update/applicability calls itself through
+// useEntityFormDialog, so the api module is the seam now, not the per-call hooks.
+const mockCreateCriterion = vi.fn(() =>
   Promise.resolve({ id: 'new-id', name: 'Test', dataType: 'Boolean', description: '', unit: null, enumValues: [] }),
 );
-const mockUpdateMutateAsync = vi.fn(() =>
+const mockUpdateCriterion = vi.fn(() =>
   Promise.resolve({ id: 'c1', name: 'Capacity', dataType: 'Number', description: 'Updated', unit: 'seats', enumValues: [] }),
 );
-const mockApplicabilityMutateAsync = vi.fn(() =>
+const mockUpdateApplicability = vi.fn(() =>
   Promise.resolve({ criterionId: 'c1', applicableToRequests: true, resourceTypeKeys: ['space'] }),
 );
 
-vi.mock('@foundation/src/hooks/useCriteria', () => ({
-  useCreateCriterion: () => ({
-    mutateAsync: mockCreateMutateAsync,
-    isPending: false,
-  }),
-  useUpdateCriterion: () => ({
-    mutateAsync: mockUpdateMutateAsync,
-    isPending: false,
-  }),
-  useUpdateCriterionApplicability: () => ({
-    mutateAsync: mockApplicabilityMutateAsync,
-    isPending: false,
-  }),
+vi.mock('@foundation/src/lib/api/criteria-api', () => ({
+  createCriterion: (...args: unknown[]) => mockCreateCriterion(...(args as [])),
+  updateCriterion: (...args: unknown[]) => mockUpdateCriterion(...(args as [])),
+  updateCriterionApplicability: (...args: unknown[]) => mockUpdateApplicability(...(args as [])),
 }));
 
 vi.mock('./EnumValueEditor', () => ({
@@ -74,6 +68,8 @@ vi.mock('@foundation/src/components/ui/select', () => ({
 }));
 
 describe('CriterionEditDialog', () => {
+  const wrapper = createTestQueryWrapper();
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -86,31 +82,31 @@ describe('CriterionEditDialog', () => {
     };
 
     it('renders dialog with create title', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByRole('heading', { name: 'Create Criterion' })).toBeInTheDocument();
     });
 
     it('renders name, description, data type, and unit fields', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText(/name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/description/i)).toBeInTheDocument();
     });
 
     it('does not render when closed', () => {
-      const { container } = render(<CriterionEditDialog {...defaultProps} open={false} />);
+      const { container } = render(<CriterionEditDialog {...defaultProps} open={false} />, { wrapper });
       expect(container.querySelector('[role="dialog"]')).toBeNull();
     });
 
     it('submits form with a display name containing spaces', async () => {
       const user = userEvent.setup();
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Project Management' } });
       // Applicability starts empty — the type is an explicit choice now.
       await user.click(screen.getByLabelText('Space'));
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
-        expect(mockCreateMutateAsync).toHaveBeenCalledWith({
+        expect(mockCreateCriterion).toHaveBeenCalledWith({
           name: 'Project Management',
           description: undefined,
           dataType: 'Boolean',
@@ -122,7 +118,7 @@ describe('CriterionEditDialog', () => {
     });
 
     it('shows validation error when name is empty', async () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
@@ -132,8 +128,8 @@ describe('CriterionEditDialog', () => {
 
     it('shows error on mutation failure', async () => {
       const user = userEvent.setup();
-      mockCreateMutateAsync.mockRejectedValueOnce(new Error('Create failed'));
-      render(<CriterionEditDialog {...defaultProps} />);
+      mockCreateCriterion.mockRejectedValueOnce(new Error('Create failed'));
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'valid-name' } });
       await user.click(screen.getByLabelText('Space'));
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
@@ -144,13 +140,13 @@ describe('CriterionEditDialog', () => {
     });
 
     it('calls onOpenChange on cancel', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
     });
 
     it('renders an Applies to checkbox per active resource type', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText('Space')).toBeInTheDocument();
       expect(screen.getByLabelText('Person')).toBeInTheDocument();
       // Previously a hard-coded two-entry list, which silently made it impossible to tag a
@@ -159,20 +155,20 @@ describe('CriterionEditDialog', () => {
     });
 
     it('starts with no applicability selected — the type is an explicit choice', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'false');
       expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'false');
       expect(screen.getByLabelText('Tool')).toHaveAttribute('aria-checked', 'false');
     });
 
     it('defaults to defaultResourceType when provided', () => {
-      render(<CriterionEditDialog {...defaultProps} defaultResourceType="person" />);
+      render(<CriterionEditDialog {...defaultProps} defaultResourceType="person" />, { wrapper });
       expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'false');
     });
 
     it('shows validation error when no applicability is selected', async () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       // Nothing is preselected, so submitting straight away trips the rule.
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'valid-criterion' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
@@ -186,7 +182,7 @@ describe('CriterionEditDialog', () => {
       const user = userEvent.setup();
       const onSaved = vi.fn();
       const onOpenChange = vi.fn();
-      render(<CriterionEditDialog {...defaultProps} onSaved={onSaved} onOpenChange={onOpenChange} />);
+      render(<CriterionEditDialog {...defaultProps} onSaved={onSaved} onOpenChange={onOpenChange} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Project Management' } });
       await user.click(screen.getByLabelText('Space'));
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
@@ -221,96 +217,96 @@ describe('CriterionEditDialog', () => {
     };
 
     it('renders dialog with edit title', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByText('Edit Criterion')).toBeInTheDocument();
     });
 
     it('shows criterion name as an editable input', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText(/name/i)).toHaveValue('Capacity');
     });
 
     it('shows dataType select when criterion is not in use', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByTestId('datatype-select')).toHaveValue('Number');
     });
 
     it('shows dataType as a locked badge when criterion is in use', () => {
       const inUseCriterion = { ...criterion, inUse: true };
-      render(<CriterionEditDialog {...defaultProps} criterion={inUseCriterion} />);
+      render(<CriterionEditDialog {...defaultProps} criterion={inUseCriterion} />, { wrapper });
       expect(screen.queryByTestId('datatype-select')).not.toBeInTheDocument();
       expect(screen.getByText('Number')).toBeInTheDocument();
       expect(screen.getByText(/locked because this criterion has existing values/i)).toBeInTheDocument();
     });
 
     it('submits updated description', async () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Updated desc' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
-        expect(mockUpdateMutateAsync).toHaveBeenCalledWith({
-          id: 'c1',
-          data: {
-            description: 'Updated desc',
-            enumValues: undefined,
-            unit: 'seats',
-          },
+        expect(mockUpdateCriterion).toHaveBeenCalledWith('c1', {
+          description: 'Updated desc',
+          enumValues: undefined,
+          unit: 'seats',
         });
       });
     });
 
     it('submits a name change when the name is edited', async () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Renamed' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
-        expect(mockUpdateMutateAsync).toHaveBeenCalledWith(
-          expect.objectContaining({ id: 'c1', data: expect.objectContaining({ name: 'Renamed' }) }),
+        expect(mockUpdateCriterion).toHaveBeenCalledWith(
+          'c1',
+          expect.objectContaining({ name: 'Renamed' }),
         );
       });
     });
 
     it('does not send name in the payload when name is unchanged', async () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Changed' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
-        expect(mockUpdateMutateAsync).toHaveBeenCalledWith(
-          expect.objectContaining({ data: expect.not.objectContaining({ name: expect.anything() }) }),
+        expect(mockUpdateCriterion).toHaveBeenCalledWith(
+          'c1',
+          expect.not.objectContaining({ name: expect.anything() }),
         );
       });
     });
 
     it('includes dataType in the payload when changed', async () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       fireEvent.change(screen.getByTestId('datatype-select'), { target: { value: 'Boolean' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
-        expect(mockUpdateMutateAsync).toHaveBeenCalledWith(
-          expect.objectContaining({ id: 'c1', data: expect.objectContaining({ dataType: 'Boolean' }) }),
+        expect(mockUpdateCriterion).toHaveBeenCalledWith(
+          'c1',
+          expect.objectContaining({ dataType: 'Boolean' }),
         );
       });
     });
 
     it('shows unit field for Number data type', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText(/unit/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/unit/i)).toHaveValue('seats');
     });
 
     it('renders an Applies to checkbox per active resource type', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText('Space')).toBeInTheDocument();
       expect(screen.getByLabelText('Person')).toBeInTheDocument();
       expect(screen.getByLabelText('Tool')).toBeInTheDocument();
     });
 
     it('pre-checks the checkboxes matching criterion resourceTypeKeys', () => {
-      render(<CriterionEditDialog {...defaultProps} />);
+      render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'false');
     });
@@ -326,24 +322,23 @@ describe('CriterionEditDialog', () => {
         unit: undefined,
         enumValues: [],
       };
-      render(<CriterionEditDialog {...defaultProps} criterion={booleanCriterion} />);
+      render(<CriterionEditDialog {...defaultProps} criterion={booleanCriterion} />, { wrapper });
 
       fireEvent.click(screen.getByLabelText('Person')); // toggle applicability
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 
       await waitFor(() => {
-        expect(mockApplicabilityMutateAsync).toHaveBeenCalledWith({
-          id: 'c1',
-          data: { resourceTypeKeys: ['space', 'person'] },
+        expect(mockUpdateApplicability).toHaveBeenCalledWith('c1', {
+          resourceTypeKeys: ['space', 'person'],
         });
       });
-      expect(mockUpdateMutateAsync).not.toHaveBeenCalled();
+      expect(mockUpdateCriterion).not.toHaveBeenCalled();
     });
 
     it('calls onSaved with the updated criterion and closes the dialog', async () => {
       const onSaved = vi.fn();
       const onOpenChange = vi.fn();
-      render(<CriterionEditDialog {...defaultProps} onSaved={onSaved} onOpenChange={onOpenChange} />);
+      render(<CriterionEditDialog {...defaultProps} onSaved={onSaved} onOpenChange={onOpenChange} />, { wrapper });
       fireEvent.change(screen.getByLabelText(/description/i), { target: { value: 'Updated desc' } });
       fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
 

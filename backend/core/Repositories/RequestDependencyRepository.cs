@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -27,14 +28,14 @@ public class RequestDependencyRepository : IRequestDependencyRepository
 
     private static RequestDependencyInfo Map(NpgsqlDataReader r) => new()
     {
-        Id = r.GetGuid(0),
-        PredecessorRequestId = r.GetGuid(1),
-        SuccessorRequestId = r.GetGuid(2),
-        PredecessorName = r.GetString(3),
-        SuccessorName = r.GetString(4),
-        DependencyType = r.GetString(5),
-        LagMinutes = r.GetInt32(6),
-        CreatedAt = r.GetDateTime(7)
+        Id = r.GetGuid("id"),
+        PredecessorRequestId = r.GetGuid("predecessor_request_id"),
+        SuccessorRequestId = r.GetGuid("successor_request_id"),
+        PredecessorName = r.GetString("predecessor_name"),
+        SuccessorName = r.GetString("successor_name"),
+        DependencyType = r.GetString("dependency_type"),
+        LagMinutes = r.GetInt32("lag_minutes"),
+        CreatedAt = r.GetDateTime("created_at")
     };
 
     public async Task<List<RequestDependencyInfo>> GetAllAsync(Guid? siteId, CancellationToken ct = default)

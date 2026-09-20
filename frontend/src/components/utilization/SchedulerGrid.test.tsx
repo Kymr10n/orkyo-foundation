@@ -14,7 +14,7 @@ import { DndContext } from '@dnd-kit/core';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 import { useSchedulerStore } from '@foundation/src/store/scheduler-store';
 
-const appStoreMock = vi.hoisted(() => ({
+const storeMock = vi.hoisted(() => ({
   collapsedGroupIds: [] as string[],
   spaceOrder: [] as string[],
   toggleGroupCollapse: vi.fn(),
@@ -27,17 +27,18 @@ vi.mock('@foundation/src/components/resources/ResourceScheduleDialog', () => ({
   ),
 }));
 
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: vi.fn((selector) => {
+vi.mock('@foundation/src/store/scheduler-view-store', () => ({
+  useSchedulerViewStore: vi.fn((selector) => {
+    const mockState = { spaceOrder: storeMock.spaceOrder };
+    return selector ? selector(mockState) : mockState;
+  }),
+}));
+
+vi.mock('@foundation/src/store/layout-store', () => ({
+  useLayoutStore: vi.fn((selector) => {
     const mockState = {
-      currentView: { start: new Date('2024-01-01'), end: new Date('2024-01-31') },
-      viewType: 'month' as const,
-      selectedSiteId: 'site-1',
-      spaceOrder: appStoreMock.spaceOrder,
-      timeCursorEnabled: false,
-      collapsedGroupIds: appStoreMock.collapsedGroupIds,
-      toggleGroupCollapse: appStoreMock.toggleGroupCollapse,
-      conflicts: new Map(),
+      collapsedGroupIds: storeMock.collapsedGroupIds,
+      toggleGroupCollapse: storeMock.toggleGroupCollapse,
     };
     return selector ? selector(mockState) : mockState;
   }),
@@ -165,8 +166,8 @@ const _mockColumns = [
 describe('SchedulerGrid', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    appStoreMock.collapsedGroupIds = [];
-    appStoreMock.spaceOrder = [];
+    storeMock.collapsedGroupIds = [];
+    storeMock.spaceOrder = [];
     registryMock.conflicts = [];
     // Reset any draft left over from a draft-overlay test.
     useSchedulerStore.getState().cancelResize();
@@ -375,7 +376,7 @@ describe('SchedulerGrid', () => {
       },
     ]);
     // Custom order pins space-2 first; each space sits in a different group.
-    appStoreMock.spaceOrder = ['space-2', 'space-1'];
+    storeMock.spaceOrder = ['space-2', 'space-1'];
     const grouped: ResourceInfo[] = [
       { ...mockSpaces[0], groupId: 'group-1' },
       { ...mockSpaces[1], groupId: 'group-2' },
@@ -407,7 +408,7 @@ describe('SchedulerGrid', () => {
 
   it('sorts spaces when only some appear in spaceOrder', async () => {
     // space-2 is pinned; space-1 is not in the order → falls through to code sort.
-    appStoreMock.spaceOrder = ['space-2'];
+    storeMock.spaceOrder = ['space-2'];
     const Wrapper = createWrapper();
 
     render(
@@ -431,7 +432,7 @@ describe('SchedulerGrid', () => {
   });
 
   it('uses a spaces-scoped collapse id so people groups do not collapse spaces', async () => {
-    appStoreMock.collapsedGroupIds = ['people:ungrouped'];
+    storeMock.collapsedGroupIds = ['people:ungrouped'];
     const Wrapper = createWrapper();
 
     render(
@@ -455,8 +456,8 @@ describe('SchedulerGrid', () => {
     fireEvent.click(screen.getByText('Ungrouped'));
 
     // The collapse namespace follows the tab: one floorplan of stations, not spaces.
-    expect(appStoreMock.toggleGroupCollapse).toHaveBeenCalledWith('stations:ungrouped');
-    expect(appStoreMock.toggleGroupCollapse).not.toHaveBeenCalledWith('ungrouped');
+    expect(storeMock.toggleGroupCollapse).toHaveBeenCalledWith('stations:ungrouped');
+    expect(storeMock.toggleGroupCollapse).not.toHaveBeenCalledWith('ungrouped');
   });
 
   it('verifies all sub-components are defined', () => {

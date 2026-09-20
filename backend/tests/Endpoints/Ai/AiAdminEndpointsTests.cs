@@ -87,7 +87,7 @@ public class AiAdminEndpointsTests
 
         var problem = await BodyOf(response);
         problem.GetProperty("code").GetString()
-            .Should().Be(Api.Constants.ErrorCodes.ValidationError);
+            .Should().Be(Api.Constants.ApiErrorCodes.ValidationError);
         problem.GetProperty("errors").GetProperty("ApiKey")
             .EnumerateArray().Select(e => e.GetString())
             .Should().Contain(expectedMessage);
@@ -185,7 +185,7 @@ public class AiAdminEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await BodyOf(response)).GetProperty("code").GetString()
-            .Should().Be(Api.Constants.ErrorCodes.ValidationError);
+            .Should().Be(Api.Constants.ApiErrorCodes.ValidationError);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class AiAdminEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await BodyOf(response)).GetProperty("code").GetString()
-            .Should().Be(Api.Constants.ErrorCodes.ValidationError);
+            .Should().Be(Api.Constants.ApiErrorCodes.ValidationError);
     }
 
     [Fact]

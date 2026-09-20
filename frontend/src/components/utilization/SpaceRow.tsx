@@ -9,7 +9,7 @@ import { ScheduledRequestOverlay } from "./ScheduledRequestOverlay";
 import { TimelineRow } from "./TimelineRow";
 import type { TimeColumn } from "./scheduler-types";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
-import { coversOffTimeRange } from "./time-grid-utils";
+import { coversOffTimeRange } from "@foundation/src/domain/scheduling/off-time";
 
 // Constants for row height calculation
 const BASE_ROW_HEIGHT = 52; // Base height for a single request

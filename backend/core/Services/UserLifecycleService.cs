@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
@@ -31,15 +32,18 @@ public sealed class UserLifecycleService
     private readonly ILogger<UserLifecycleService> _logger;
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly TimeProvider _time;
 
     public UserLifecycleService(
         ILogger<UserLifecycleService> logger,
         IDbConnectionFactory connectionFactory,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        TimeProvider time)
     {
         _logger = logger;
         _connectionFactory = connectionFactory;
         _scopeFactory = scopeFactory;
+        _time = time;
     }
 
     public async Task ProcessAsync(CancellationToken ct)
@@ -100,7 +104,7 @@ public sealed class UserLifecycleService
 
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "warned", warningCount: nextCount,
-                    lastWarnedAt: DateTime.UtcNow, dormantSince: null, confirmToken: token, ct);
+                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: token, ct);
                 await tx.CommitAsync(ct);
 
                 await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct);
@@ -147,7 +151,7 @@ public sealed class UserLifecycleService
 
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "dormant", warningCount: 3,
-                    lastWarnedAt: null, dormantSince: DateTime.UtcNow, confirmToken: null, ct);
+                    lastWarnedAt: null, dormantSince: _time.GetUtcNow().UtcDateTime, confirmToken: null, ct);
                 await SetUserDbStatusAsync(db, user.Id, UserStatusConstants.Disabled, ct);
                 await tx.CommitAsync(ct);
 
@@ -214,8 +218,8 @@ public sealed class UserLifecycleService
         var results = new List<(Guid, string, string, string?)>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
-            results.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3)));
+            results.Add((reader.GetGuid("id"), reader.GetString("email"), reader.GetString("display_name"),
+                reader.GetNullableString("keycloak_id")));
         return results;
     }
 

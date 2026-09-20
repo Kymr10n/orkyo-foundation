@@ -100,7 +100,8 @@ public class BffCookieAuthenticationHandlerTests
             _sessionStore.Object, _dataProtectionProvider, Options.Create(_bffOptions),
             _keycloakOptions,
             authClientRegistry ?? new DefaultBffAuthClientRegistry(_keycloakOptions),
-            _httpClientFactory.Object);
+            _httpClientFactory.Object,
+            TimeProvider.System);
         await handler.InitializeAsync(scheme, httpContext);
         return await handler.AuthenticateAsync();
     }

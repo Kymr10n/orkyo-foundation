@@ -53,23 +53,28 @@ public static class UserHelper
     /// </summary>
     public static User MapUser(Npgsql.NpgsqlDataReader reader)
     {
-        var role = ParseUserRole(reader.GetString(4));
+        var role = ParseUserRole(reader.GetString("role"));
         return new User
         {
-            Id = reader.GetGuid(0),
-            Email = reader.GetString(1),
-            DisplayName = reader.GetString(2),
-            Status = ParseUserStatus(reader.GetString(3)),
+            Id = reader.GetGuid("id"),
+            Email = reader.GetString("email"),
+            DisplayName = reader.GetString("display_name"),
+            Status = ParseUserStatus(reader.GetString("status")),
             Role = role,
             IsTenantAdmin = role == UserRole.Admin,
-            CreatedAt = reader.GetDateTime(5),
-            UpdatedAt = reader.GetDateTime(6),
-            LastLoginAt = reader.FieldCount > 7 && !reader.IsDBNull(7) ? reader.GetDateTime(7) : null
+            CreatedAt = reader.GetDateTime("created_at"),
+            UpdatedAt = reader.GetDateTime("updated_at"),
+            LastLoginAt = reader.GetNullableDateTime("last_login_at")
         };
     }
 
     /// <summary>
-    /// Standard SELECT clause for user queries (sources role from
+    /// Standard SELECT clause for user queries — and the only column set <see cref="MapUser"/>
+    /// accepts. It previously tolerated a reader without <c>last_login_at</c> by checking
+    /// <c>FieldCount</c>, a positional assumption in otherwise name-based code, and no caller in
+    /// any repo ever passed a short row; only a test did.
+    ///
+    /// Sources role from
     /// <c>tenant_memberships</c>). Join with:
     /// <c>INNER JOIN tenant_memberships tm ON u.id = tm.user_id WHERE tm.tenant_id = @tenantId</c>.
     /// </summary>

@@ -6,8 +6,8 @@ import { cn } from "@foundation/src/lib/utils"
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint"
 
 /**
- * Shared dialog width vocabulary. Use the `size` prop on `FormDialog` /
- * `ScaffoldDialog` instead of hardcoding `max-w-*` strings,
+ * Shared dialog width vocabulary. Use the `size` prop on `FormDialog` instead of
+ * hardcoding `max-w-*` strings,
  * so the handful of dialog widths stay consistent across the app.
  *
  * Every entry is `sm:`-prefixed on purpose. Below that breakpoint the phone gutter on
@@ -30,8 +30,8 @@ export const DIALOG_SIZE: Record<DialogSize, string> = {
  * horizontal overflow behind the dialog makes wider than the screen the user sees.
  *
  * Confirmation/alert dialogs deliberately keep the centered card. Desktop/tablet are
- * unchanged. Lives here, once, because `FormDialog` and `ScaffoldDialog` must not drift
- * apart on it.
+ * unchanged. Lives here, once, because both `FormDialog` shapes must not drift apart
+ * on it.
  */
 const PHONE_FULLSCREEN =
   "inset-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 rounded-none border-0"
@@ -85,7 +85,7 @@ const DialogContent = React.forwardRef<
         // other axis is not visible, so `overflow-y-auto` alone silently makes a dialog scroll
         // sideways — which is how a stray wide child pushes labels off the left edge.
         // The phone gutter (`max-w-[calc(100%-2rem)]`) keeps a raw dialog off both screen
-        // edges. FormDialog and ScaffoldDialog never see it — their PHONE_FULLSCREEN sets
+        // edges. FormDialog never sees it — its PHONE_FULLSCREEN sets
         // `max-w-none rounded-none` — so it is what a bare DialogContent or a confirm gets.
         "fixed left-[50%] top-[50%] z-50 flex max-h-[85dvh] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-x-hidden overflow-y-auto rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] motion-reduce:animate-none sm:max-w-lg",
         className

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Orkyo.Migrator;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.TestSupport;
 
@@ -43,7 +44,7 @@ public abstract class ProductDatabaseFixtureBase<TProgram, TFactory>
     /// <summary>True when the CI service container on port 5432 is used instead of a local server.</summary>
     protected static bool UseCiDatabase =>
         Environment.GetEnvironmentVariable("CI") == "true"
-        && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__Postgres"));
+        && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ConfigKeys.ConnectionStringPostgresEnvVar));
 
     /// <summary>Starts the product's local PostgreSQL server (not called in CI).</summary>
     protected abstract Task<(int Port, string AdminConnectionString)> StartLocalServerAsync();

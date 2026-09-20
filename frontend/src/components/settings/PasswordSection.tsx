@@ -19,8 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
-import { useMutation } from "@tanstack/react-query";
-import { changePassword } from "@foundation/src/lib/api/security-api";
+import { useChangePassword } from "@foundation/src/hooks/useSecuritySettings";
 
 interface PasswordSectionProps {
   isFederated: boolean;
@@ -39,25 +38,7 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const changePasswordMutation = useMutation({
-    mutationFn: changePassword,
-    onSuccess: () => {
-      setPasswordSuccess(true);
-      setPasswordError(null);
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: "",
-      });
-      setTimeout(() => {
-        setChangePasswordOpen(false);
-        setPasswordSuccess(false);
-      }, 2000);
-    },
-    onError: (error: Error) => {
-      setPasswordError(error.message || "Failed to change password");
-    },
-  });
+  const changePasswordMutation = useChangePassword();
 
   const handleChangePassword = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -73,7 +54,24 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
       return;
     }
 
-    changePasswordMutation.mutate(passwordForm);
+    changePasswordMutation.mutate(passwordForm, {
+      onSuccess: () => {
+        setPasswordSuccess(true);
+        setPasswordError(null);
+        setPasswordForm({
+          currentPassword: "",
+          newPassword: "",
+          confirmPassword: "",
+        });
+        setTimeout(() => {
+          setChangePasswordOpen(false);
+          setPasswordSuccess(false);
+        }, 2000);
+      },
+      onError: (error: Error) => {
+        setPasswordError(error.message || "Failed to change password");
+      },
+    });
   };
 
   return (

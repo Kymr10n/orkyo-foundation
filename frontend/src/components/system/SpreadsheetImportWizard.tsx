@@ -1,8 +1,7 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 2 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
 import { useMemo, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, FileSpreadsheet, Loader2 } from 'lucide-react';
-import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
+import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { ScrollableDialogBody, DialogFooter } from '@foundation/src/components/ui/dialog';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
@@ -19,12 +18,11 @@ import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 import { FeatureKeys } from '@foundation/contracts/plans';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { useSites } from '@foundation/src/hooks/useSites';
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
 import { createResource, getResources } from '@foundation/src/lib/api/resources-api';
 import { createRequest } from '@foundation/src/lib/api/request-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
-import { invalidateRequestData } from '@foundation/src/lib/core/invalidate-request-data';
+import { useInvalidateImportedData } from '@foundation/src/hooks/useImportExport';
 import { readWorkbook } from '@foundation/src/lib/utils/spreadsheet-file';
 import {
   jobToCreateRequest,
@@ -77,9 +75,9 @@ export function SpreadsheetImportWizard({
     placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? null;
 
   const available = useFeatureEnabled(FeatureKeys.DataExport);
-  const queryClient = useQueryClient();
+  const invalidateImportedData = useInvalidateImportedData();
   const { data: sites = [] } = useSites();
-  const storeSiteId = useAppStore((s) => s.selectedSiteId);
+  const storeSiteId = useSiteStore((s) => s.selectedSiteId);
   const [siteId, setSiteId] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<Step>({ kind: 'pick' });
@@ -107,7 +105,7 @@ export function SpreadsheetImportWizard({
     try {
       const sheets = await readWorkbook(file);
       const parsed = parseTemplateWorkbook(sheets);
-      const existing = (await getResources({ hasGeometry: true, isActive: true, siteId: effectiveSiteId })).data;
+      const existing = (await getResources({ hasGeometry: true, isActive: true, siteId: effectiveSiteId })).items;
       const existingCodes = new Map(
         existing.filter((s) => s.code).map((s) => [s.code as string, s.id]),
       );
@@ -160,8 +158,7 @@ export function SpreadsheetImportWizard({
         failure: errorMessage(err),
       });
     } finally {
-      queryClient.invalidateQueries({ queryKey: qk.resources.all() });
-      invalidateRequestData(queryClient);
+      invalidateImportedData();
     }
   };
 
@@ -171,7 +168,8 @@ export function SpreadsheetImportWizard({
   );
 
   return (
-    <ScaffoldDialog
+    <FormDialog
+      footer={null}
       open={open}
       onOpenChange={handleOpenChange}
       size="md"
@@ -269,10 +267,13 @@ export function SpreadsheetImportWizard({
             )}
           </div>
         ) : step.kind === 'committing' ? (
-          <div className="flex items-center gap-3 py-6 text-sm text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            Importing… {step.done} of {step.total}
-          </div>
+          <LoadingSpinner
+            inline
+            size="sm"
+            muted
+            className="py-6"
+            message={`Importing… ${step.done} of ${step.total}`}
+          />
         ) : step.failure ? (
           <ErrorAlert
             message={`Import stopped: ${step.failure}. Created before stopping: ${step.createdWorkstations} workstations and ${step.createdJobs} jobs — they remain in place.`}
@@ -291,8 +292,11 @@ export function SpreadsheetImportWizard({
 
       <DialogFooter className="px-6 pb-6">
         {step.kind === 'pick' && available && (
-          <Button onClick={analyze} disabled={!file || !effectiveSiteId || !workstationTypeKey || busy}>
-            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button
+            onClick={analyze}
+            disabled={!file || !effectiveSiteId || !workstationTypeKey}
+            loading={busy}
+          >
             Review
           </Button>
         )}
@@ -311,6 +315,6 @@ export function SpreadsheetImportWizard({
         )}
         {step.kind === 'result' && <Button onClick={() => handleOpenChange(false)}>Done</Button>}
       </DialogFooter>
-    </ScaffoldDialog>
+    </FormDialog>
   );
 }

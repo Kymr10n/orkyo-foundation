@@ -1,5 +1,6 @@
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Services;
@@ -8,9 +9,15 @@ namespace Orkyo.Foundation.Tests.Services;
 /// The loop both editions' workers now share. The coordinator is faked so these pin the loop
 /// itself: every job runs once per cycle in declaration order, a failing job does not stop
 /// the loop and is retried after the error delay, and cancellation ends it cleanly.
+///
+/// The sleep is a <see cref="FakeTimeProvider"/>, so a cycle boundary is an explicit
+/// <c>Advance</c> rather than a wall-clock wait: advancing one tick short of a delay proves
+/// the loop is still asleep, and the tick after it proves what woke it.
 /// </summary>
 public sealed class FoundationWorkerLoopTests
 {
+    private static readonly TimeSpan OneTick = TimeSpan.FromMilliseconds(1);
+
     private sealed class FakeCoordinator : IWorkerJobCoordinator
     {
         public List<string> Ran { get; } = [];
@@ -34,19 +41,20 @@ public sealed class FoundationWorkerLoopTests
     {
         var coordinator = new FakeCoordinator();
         var cts = new CancellationTokenSource();
-        var delays = new List<TimeSpan>();
-        Task Delay(TimeSpan span, CancellationToken _)
-        {
-            delays.Add(span);
-            cts.Cancel(); // one cycle is enough
-            return Task.CompletedTask;
-        }
-        var loop = new FoundationWorkerLoop(coordinator, [Job("a"), Job("b"), Job("c")], NullLogger<FoundationWorkerLoop>.Instance, Delay);
+        var time = new FakeTimeProvider();
+        var loop = new FoundationWorkerLoop(
+            coordinator, [Job("a"), Job("b"), Job("c")], NullLogger<FoundationWorkerLoop>.Instance, time);
 
-        await loop.RunAsync(cts.Token);
+        var run = loop.RunAsync(cts.Token);
 
         coordinator.Ran.Should().Equal("a", "b", "c");
-        delays.Should().ContainSingle().Which.Should().BeGreaterThanOrEqualTo(WorkerSchedulePolicy.GetLoopDelay(TimeSpan.Zero));
+
+        // One tick short of the shortest possible loop delay (zero jitter): still asleep.
+        time.Advance(WorkerSchedulePolicy.GetLoopDelay(TimeSpan.Zero) - OneTick);
+        coordinator.Ran.Should().HaveCount(3, "the loop sleeps at least the loop delay");
+
+        cts.Cancel(); // one cycle is enough
+        await run;
     }
 
     [Fact]
@@ -54,21 +62,29 @@ public sealed class FoundationWorkerLoopTests
     {
         var coordinator = new FakeCoordinator();
         var cts = new CancellationTokenSource();
-        var delays = new List<TimeSpan>();
-        var cycles = 0;
-        Task Delay(TimeSpan span, CancellationToken _)
-        {
-            delays.Add(span);
-            if (++cycles == 2) cts.Cancel();
-            return Task.CompletedTask;
-        }
-        var boom = Job("boom", _ => throw new InvalidOperationException("boom"));
-        var loop = new FoundationWorkerLoop(coordinator, [boom, Job("after")], NullLogger<FoundationWorkerLoop>.Instance, Delay);
+        var time = new FakeTimeProvider();
+        // Throws on the first cycle only: the retry is what is under test, and a second
+        // failure would leave the loop asleep in the error-retry branch, where a cancel
+        // surfaces as TaskCanceledException rather than the clean break.
+        var failures = 0;
+        var boom = Job("boom", _ => failures++ == 0
+            ? throw new InvalidOperationException("boom")
+            : Task.CompletedTask);
+        var loop = new FoundationWorkerLoop(
+            coordinator, [boom, Job("after")], NullLogger<FoundationWorkerLoop>.Instance, time);
 
-        await loop.RunAsync(cts.Token);
+        var run = loop.RunAsync(cts.Token);
 
-        delays[0].Should().Be(WorkerSchedulePolicy.GetErrorRetryDelay(), "the first cycle failed");
+        coordinator.Ran.Count(n => n == "boom").Should().Be(1, "the first cycle failed");
+
+        time.Advance(WorkerSchedulePolicy.GetErrorRetryDelay() - OneTick);
+        coordinator.Ran.Count(n => n == "boom").Should().Be(1, "the error retry delay has not elapsed");
+
+        time.Advance(OneTick);
         coordinator.Ran.Count(n => n == "boom").Should().Be(2, "the loop retried after the error delay");
+
+        cts.Cancel();
+        await run;
     }
 
     [Fact]
@@ -77,13 +93,14 @@ public sealed class FoundationWorkerLoopTests
         var ran = false;
         var coordinator = new FakeCoordinator();
         var cts = new CancellationTokenSource();
-        Task Delay(TimeSpan _, CancellationToken __) { cts.Cancel(); return Task.CompletedTask; }
         var loop = new FoundationWorkerLoop(
             coordinator,
             [Job("nightly", _ => { ran = true; return Task.CompletedTask; }, due: false)],
-            NullLogger<FoundationWorkerLoop>.Instance, Delay);
+            NullLogger<FoundationWorkerLoop>.Instance, new FakeTimeProvider());
 
-        await loop.RunAsync(cts.Token);
+        var run = loop.RunAsync(cts.Token);
+        cts.Cancel();
+        await run;
 
         ran.Should().BeFalse();
     }
@@ -91,7 +108,8 @@ public sealed class FoundationWorkerLoopTests
     [Fact]
     public void RejectsAnEmptyJobList()
     {
-        var act = () => new FoundationWorkerLoop(new FakeCoordinator(), [], NullLogger<FoundationWorkerLoop>.Instance);
+        var act = () => new FoundationWorkerLoop(
+            new FakeCoordinator(), [], NullLogger<FoundationWorkerLoop>.Instance, TimeProvider.System);
 
         act.Should().Throw<ArgumentException>();
     }

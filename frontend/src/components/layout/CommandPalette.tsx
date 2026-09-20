@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useNavigate } from "react-router";
 import { typeRoute } from "@foundation/src/constants/resource-class";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
@@ -26,10 +27,10 @@ import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { VisuallyHidden } from "@foundation/src/components/ui/visually-hidden";
 import { cn } from "@foundation/src/lib/utils";
 import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-api";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
-import { ROUTE_SETTINGS, ROUTE_TENANT_ADMIN } from "@foundation/src/constants/auth";
+import { ROUTE_SETTINGS_CRITERIA, ROUTE_SETTINGS_TEMPLATES, ROUTE_TENANT_ADMIN_SITES } from "@foundation/src/constants/auth";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -115,11 +116,11 @@ function editPathForResult(
       return type ? `${typeRoute(type, "groups")}?${edit}` : `/resources/${key}/groups?${edit}`;
     }
     case "site":
-      return `${ROUTE_TENANT_ADMIN}/sites?${edit}`;
+      return `${ROUTE_TENANT_ADMIN_SITES}?${edit}`;
     case "template":
-      return `${ROUTE_SETTINGS}/templates?${edit}`;
+      return `${ROUTE_SETTINGS_TEMPLATES}?${edit}`;
     case "criterion":
-      return `${ROUTE_SETTINGS}/criteria?${edit}`;
+      return `${ROUTE_SETTINGS_CRITERIA}?${edit}`;
     default:
       return "/";
   }
@@ -135,8 +136,8 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   // A result names its type but not the class it belongs to; these supply the difference so a hit
   // opens its page directly instead of bouncing through the legacy route.
   const { data: resourceTypes = [] } = useResourceTypes(true);
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
-  const setSelectedSiteId = useAppStore((state) => state.setSelectedSiteId);
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
+  const setSelectedSiteId = useSiteStore((state) => state.setSelectedSiteId);
   // Only surface results the current role can actually open: criteria/templates live on the
   // Settings page (editors) and sites on the Administration page (admins). For other roles those
   // would dead-end at a route-guard redirect, so filter them out.
@@ -300,7 +301,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             </Button>
           )}
           {isLoading && (
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <LoadingSpinner inline size="xs" />
           )}
         </div>
 

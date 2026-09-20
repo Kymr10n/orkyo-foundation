@@ -13,16 +13,17 @@ import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { getSessions, revokeSession, logoutAllSessions } from "@foundation/src/lib/api/security-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import {
+  useLogoutAllSessions,
+  useRevokeSession,
+  useSessions,
+  type SessionItem,
+} from "@foundation/src/hooks/useSecuritySettings";
 import { formatDistanceToNow } from "date-fns";
 
 interface SessionsSectionProps {
   onLogoutAll: () => void;
 }
-
-type SessionItem = Awaited<ReturnType<typeof getSessions>>[number];
 
 function getDeviceIcon(session: SessionItem) {
   if (session.deviceType === "mobile") return <Smartphone className="h-4 w-4" />;
@@ -54,32 +55,11 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
     data: sessions = [],
     isLoading: sessionsLoading,
     error: sessionsError,
-  } = useQuery({
-    queryKey: qk.sessions.all(),
-    queryFn: getSessions,
-  });
+  } = useSessions();
 
-  const revokeSessionMutation = useMutation({
-    mutationFn: revokeSession,
-    meta: {
-      successMessage: "Session signed out",
-      errorMessage: "Failed to sign out session",
-      invalidates: [qk.sessions.all()],
-    },
-    onSuccess: () => setRevokeTarget(null),
-  });
+  const revokeSessionMutation = useRevokeSession();
 
-  const logoutAllMutation = useMutation({
-    mutationFn: logoutAllSessions,
-    meta: {
-      successMessage: "Signed out everywhere",
-      errorMessage: "Failed to sign out everywhere",
-    },
-    onSuccess: () => {
-      setLogoutAllOpen(false);
-      onLogoutAll();
-    },
-  });
+  const logoutAllMutation = useLogoutAllSessions();
 
   return (
     <>
@@ -179,7 +159,11 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
         destructive
         isPending={revokeSessionMutation.isPending}
         onConfirm={() => {
-          if (revokeTarget) revokeSessionMutation.mutate(revokeTarget.id);
+          if (revokeTarget) {
+            revokeSessionMutation.mutate(revokeTarget.id, {
+              onSuccess: () => setRevokeTarget(null),
+            });
+          }
         }}
       />
 
@@ -191,7 +175,14 @@ export function SessionsSection({ onLogoutAll }: SessionsSectionProps) {
         confirmLabel="Sign Out Everywhere"
         destructive
         isPending={logoutAllMutation.isPending}
-        onConfirm={() => logoutAllMutation.mutate()}
+        onConfirm={() =>
+          logoutAllMutation.mutate(undefined, {
+            onSuccess: () => {
+              setLogoutAllOpen(false);
+              onLogoutAll();
+            },
+          })
+        }
       />
     </>
   );

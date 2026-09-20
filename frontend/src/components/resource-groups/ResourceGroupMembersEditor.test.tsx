@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ResourceGroupMembersEditor } from "./ResourceGroupMembersEditor";
-import type { ResourceInfo, ResourcesResponse } from "@foundation/src/lib/api/resources-api";
+import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { ResourceGroupMembersResponse } from "@foundation/src/lib/api/resource-groups-api";
 
 vi.mock("@foundation/src/lib/api/resources-api", () => ({
@@ -37,6 +37,7 @@ import {
   setResourceGroupMembers,
 } from "@foundation/src/lib/api/resource-groups-api";
 import { createTestQueryWrapper } from "@foundation/src/test-utils";
+import { pagedResult } from "@foundation/src/test-utils/paged-result";
 
 function makeResource(id: string, name: string, typeKey = "person"): ResourceInfo {
   return {
@@ -67,9 +68,7 @@ function makeMembers(ids: string[]): ResourceGroupMembersResponse {
   };
 }
 
-function makeResourcesResponse(items: ResourceInfo[]): ResourcesResponse {
-  return { data: items, total: items.length, page: 1, pageSize: 100 };
-}
+const makeResourcesResponse = (items: ResourceInfo[]) => pagedResult(items, { pageSize: 100 });
 
 function createWrapper() {
   // Production-identical feedback MutationCache (dialog-feedback.md).

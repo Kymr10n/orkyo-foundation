@@ -75,8 +75,10 @@ const mockSetTimeCursorTs = vi.fn();
 const mockSetIsFloorplanCollapsed = vi.fn();
 const mockSetConflicts = vi.fn();
 
-// Single source of truth for the mocked store state, shared by the hook selector and getState()
-// (the stale-anchor reconcile effect reads the live anchor via useAppStore.getState()).
+// Single source of truth for the mocked store state, shared by the hook selectors and
+// getState() (the stale-anchor reconcile effect reads the live anchor via
+// useSchedulerViewStore.getState()). One object across the three stores keeps
+// `mockStoreOverrides` a single per-test knob.
 const buildMockState = (): any => ({
   selectedSiteId: "site-1",
   conflicts: new Map(),
@@ -94,14 +96,28 @@ const buildMockState = (): any => ({
   ...mockStoreOverrides,
 });
 
-vi.mock("@foundation/src/store/app-store", () => ({
-  useAppStore: Object.assign(
+// vi.mock factories are hoisted above every const in this file, so the shared shape is
+// built inside each factory rather than referenced from one.
+function mockStore() {
+  return Object.assign(
     vi.fn((selector: any) => {
       const mockState = buildMockState();
       return selector ? selector(mockState) : mockState;
     }),
     { getState: () => buildMockState() },
-  ),
+  );
+}
+
+vi.mock("@foundation/src/store/scheduler-view-store", () => ({
+  useSchedulerViewStore: mockStore(),
+}));
+
+vi.mock("@foundation/src/store/layout-store", () => ({
+  useLayoutStore: mockStore(),
+}));
+
+vi.mock("@foundation/src/store/site-store", () => ({
+  useSiteStore: mockStore(),
 }));
 
 vi.mock("@foundation/src/store/scheduler-store", () => ({

@@ -23,6 +23,14 @@ export const ENTITLEMENT_LABELS: Record<string, string> = {
   ai_assistant_enabled: "AI Assistant",
 };
 
+/**
+ * Human label for any quota or entitlement key (numeric or boolean), falling back to the
+ * raw key. Every surface that names a quota reads this, so no screen re-derives the fallback.
+ */
+export function quotaLabel(key: string): string {
+  return QUOTA_LABELS[key] ?? ENTITLEMENT_LABELS[key] ?? key;
+}
+
 /** Human-readable byte size (B/KB/MB/GB/TB), one decimal above bytes. */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";

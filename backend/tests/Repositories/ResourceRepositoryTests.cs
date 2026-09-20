@@ -187,13 +187,13 @@ public class ResourceRepositoryTests
         var requestId = await CreateRequestAsync(siteId: siteB);
         await AssignAsync(personId, requestId, DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(1));
 
-        var atB = await _repo.GetAllAsync(new ResourceListFilter
+        var atB = await _repo.GetEveryAsync(new ResourceListFilter
         {
             ResourceTypeKey = ResourceTypeKeys.Person,
             IsActive = true,
             SiteId = siteB,
         });
-        var atA = await _repo.GetAllAsync(new ResourceListFilter
+        var atA = await _repo.GetEveryAsync(new ResourceListFilter
         {
             ResourceTypeKey = ResourceTypeKeys.Person,
             IsActive = true,
@@ -329,7 +329,7 @@ public class ResourceRepositoryTests
     }
 
     private Task<List<ResourceInfo>> ListPeopleAtSite(Guid siteId, DateTime from, DateTime to) =>
-        _repo.GetAllAsync(new ResourceListFilter
+        _repo.GetEveryAsync(new ResourceListFilter
         {
             ResourceTypeKey = ResourceTypeKeys.Person,
             IsActive = true,

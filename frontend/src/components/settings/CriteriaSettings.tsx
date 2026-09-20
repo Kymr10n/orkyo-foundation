@@ -31,6 +31,7 @@ import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 export function CriteriaSettings() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -258,7 +259,7 @@ export function CriteriaSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading criteria…</p>
+        <LoadingSpinner inline size="xs" muted message="Loading criteria…" />
       </div>
     );
   }

@@ -24,12 +24,19 @@ MSG_FILE="${1:?commit message file path expected as \$1}"
 # Paths whose contents a user can observe: HTTP surface, domain shapes that cross it, and
 # every rendered component or page. Deliberately broad — a false prompt costs one line,
 # a missed one costs a wrong documentation page.
-USER_VISIBLE_PATHS=(
-  'backend/src/Endpoints/'
-  'backend/core/Models/'
-  'frontend/src/components/'
-  'frontend/src/pages/'
-)
+#
+# The list is the only thing that differs between the repos (SaaS adds
+# frontend/marketing/, Community has no backend/core/Models/), so a product sources this
+# script from the sibling foundation checkout with USER_VISIBLE_PATHS already set — the
+# dev-common.sh pattern. Unset means "this repo's own list", below.
+if ! declare -p USER_VISIBLE_PATHS >/dev/null 2>&1; then
+  USER_VISIBLE_PATHS=(
+    'backend/src/Endpoints/'
+    'backend/core/Models/'
+    'frontend/src/components/'
+    'frontend/src/pages/'
+  )
+fi
 
 # Conventional-commit types that cannot alter user experience by definition. Note `chore`
 # and `refactor` are absent: both routinely change behaviour in practice.

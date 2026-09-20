@@ -57,13 +57,13 @@ public class SchedulingProblemBuilderOccupancyTests
         SchedulingSettingsInfo? settings = null,
         Dictionary<Guid, List<BlockedPeriod>>? blocked = null)
     {
-        var requests = new Mock<IRequestRepository>();
-        requests.Setup(r => r.GetUnscheduledAsync(
+        var scheduleReads = new Mock<IRequestScheduleReadRepository>();
+        scheduleReads.Setup(r => r.GetUnscheduledAsync(
                 It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        requests.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+        scheduleReads.Setup(r => r.GetPartiallyScheduledLeavesAsync(It.IsAny<bool>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
-        requests.Setup(r => r.GetScheduledBySiteWindowAsync(
+        scheduleReads.Setup(r => r.GetScheduledBySiteWindowAsync(
                 It.IsAny<Guid>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(scheduled);
 
@@ -107,8 +107,9 @@ public class SchedulingProblemBuilderOccupancyTests
         criteria.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
 
         return new SchedulingProblemBuilder(
-            requests.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object);
+            Mock.Of<IRequestRepository>(), scheduleReads.Object, resources.Object, capabilities.Object,
+            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object,
+            TimeProvider.System);
     }
 
     private static AutoSchedulePreviewRequest Preview() => new(

@@ -21,7 +21,7 @@ import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/components/layout";
 import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
 import type { DefaultResource } from "@foundation/src/hooks/useRequestForm";
-import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
+import { useRequestEditor } from "@foundation/src/hooks/useRequestEditor";
 import { ConflictDetailsPopover } from "@foundation/src/components/utilization/ConflictDetailsPopover";
 import { getPlacementResourceId, getTargetResourceTypeKeys } from "@foundation/src/domain/scheduling/request-assignments";
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
@@ -49,13 +49,15 @@ import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-s
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { createRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
-import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
+import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useSchedulerViewStore } from "@foundation/src/store/scheduler-view-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
@@ -74,7 +76,6 @@ import {
 } from "@foundation/src/components/utilization/RequestBarVisual";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -108,19 +109,19 @@ export function UtilizationPage() {
     scale, setScale,
     anchorTs, setAnchorTs,
     timeCursorTs, setTimeCursorTs,
-    isFloorplanCollapsed, setIsFloorplanCollapsed,
-    selectedSiteId,
-  } = useAppStore(useShallow((state) => ({
+  } = useSchedulerViewStore(useShallow((state) => ({
     scale: state.scale,
     setScale: state.setScale,
     anchorTs: state.anchorTs,
     setAnchorTs: state.setAnchorTs,
     timeCursorTs: state.timeCursorTs,
     setTimeCursorTs: state.setTimeCursorTs,
+  })));
+  const { isFloorplanCollapsed, setIsFloorplanCollapsed } = useLayoutStore(useShallow((state) => ({
     isFloorplanCollapsed: state.isFloorplanCollapsed,
     setIsFloorplanCollapsed: state.setIsFloorplanCollapsed,
-    selectedSiteId: state.selectedSiteId,
   })));
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
 
   // Viewers get a read-only grid: with no canEdit, attach no drag sensors so
   // scheduling/reorder drags can't be initiated at all (writes also 403 server-side).
@@ -288,7 +289,7 @@ export function UtilizationPage() {
   // On phone the drag-based scheduler grid is replaced by a drag-free agenda.
   const { isPhone } = useBreakpoint();
   // Non-drag "Schedule to…" dialog target (keyboard-accessible scheduling path).
-  const queryClient = useQueryClient();
+  const invalidateRequests = useInvalidateRequestData();
 
   // Auto-schedule
   const autoScheduleAvailable = useAutoScheduleAvailable();
@@ -328,7 +329,7 @@ export function UtilizationPage() {
   // store anchor via getState() so the listeners never close over a stale value.
   useEffect(() => {
     const snapIfStale = () => {
-      if (isAnchorStale(useAppStore.getState().anchorTs, new Date())) handleToday();
+      if (isAnchorStale(useSchedulerViewStore.getState().anchorTs, new Date())) handleToday();
     };
     snapIfStale();
     const onVisible = () => {
@@ -397,8 +398,8 @@ export function UtilizationPage() {
   }, [availabilityEventDefs, schedulingSettings, monthAnchorMs]);
 
   // Initialize space order from preferences
-  const spaceOrder = useAppStore((state) => state.spaceOrder);
-  const setSpaceOrder = useAppStore((state) => state.setSpaceOrder);
+  const spaceOrder = useSchedulerViewStore((state) => state.spaceOrder);
+  const setSpaceOrder = useSchedulerViewStore((state) => state.setSpaceOrder);
   useEffect(() => {
     if (preferences?.spaceOrder && spaceOrder.length === 0) {
       setSpaceOrder(preferences.spaceOrder);
@@ -542,7 +543,7 @@ export function UtilizationPage() {
       setIsPreviewDialogOpen(false);
       const scheduledCount = autoSchedulePreview?.assignments.length ?? 0;
       setAutoSchedulePreview(null);
-      invalidateRequestData(queryClient);
+      invalidateRequests();
       toast.success(
         scheduledCount > 0
           ? `Scheduled ${scheduledCount} request${scheduledCount === 1 ? "" : "s"}`
@@ -558,7 +559,7 @@ export function UtilizationPage() {
         setAutoScheduleError(message);
       }
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview, queryClient]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview, invalidateRequests]);
 
   // One click = one whole period, on every tab. The grids used to pan by a sub-period, which
   // read as a broken control: on a week scale the arrow moved a day, so reaching next week took
@@ -587,7 +588,7 @@ export function UtilizationPage() {
   // --- Drag-end sub-handlers (named for readability, not extracted) ---
 
   const handleSpaceReorder = useCallback((activeId: string | number, overId: string | number) => {
-    const currentOrder = useAppStore.getState().spaceOrder;
+    const currentOrder = useSchedulerViewStore.getState().spaceOrder;
     // Seeded from every station, not the filtered rows: a first drag under an active type filter
     // would otherwise persist an order naming only that type, and SchedulerGrid sinks every
     // unlisted station below it for good once the filter clears.
@@ -602,7 +603,7 @@ export function UtilizationPage() {
       const reordered = [...orderedIds];
       const [moved] = reordered.splice(oldIndex, 1);
       reordered.splice(newIndex, 0, moved);
-      useAppStore.getState().setSpaceOrder(reordered);
+      useSchedulerViewStore.getState().setSpaceOrder(reordered);
       updatePreferencesMutation.mutate({ ...preferences, spaceOrder: reordered });
     }
   }, [allSpaces, preferences, updatePreferencesMutation]);
@@ -797,10 +798,10 @@ export function UtilizationPage() {
     const saved = calendarForm.mode === "edit" && calendarForm.request
       ? await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode, calendarForm.request.siteId))
       : await createRequest(buildCreatePayload(data));
-    invalidateRequestData(queryClient);
+    invalidateRequests();
     setCalendarForm(null);
     return saved;
-  }, [calendarForm, queryClient]);
+  }, [calendarForm, invalidateRequests]);
 
   // The calendar is driven by the page's scale selector + date navigator (shared
   // with the Spaces/People tabs), so scale is page-owned; the calendar only

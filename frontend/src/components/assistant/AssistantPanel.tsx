@@ -1,7 +1,6 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, GripVertical, History, Loader2, Plus, Send, Trash2 } from "lucide-react";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { Bot, GripVertical, History, Plus, Send, Trash2 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import {
@@ -12,11 +11,15 @@ import {
   SheetTitle,
 } from "@foundation/src/components/ui/sheet";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
+import {
+  useAiConversations,
+  useAiStatus,
+  useInvalidateAiConversations,
+  useInvalidateAiStatus,
+} from "@foundation/src/hooks/useAiAssistant";
 import {
   deleteAiConversation,
   getAiConversation,
-  listAiConversations,
   saveAiConversation,
   streamAiChat,
   type AiEntry,
@@ -30,11 +33,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@foundation/src/components/ui/dropdown-menu";
-import { qk } from "@foundation/src/lib/api/query-keys";
 import { randomId } from "@foundation/src/lib/core/ids";
 import { ProposalCard, proposalToAutoScheduleRequestIds, proposalToRequestUpdate } from "./ProposalCard";
 import { logger } from "@foundation/src/lib/core/logger";
-import { useAppStore } from "@foundation/src/store/app-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
 import { isEphemeralSession } from "@foundation/src/lib/utils/session-end";
 import { getApexOrigin } from "@foundation/src/lib/utils/tenant-navigation";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
@@ -146,7 +148,7 @@ export function AssistantPanel({
 }: AssistantPanelProps) {
   const canEdit = useCanEdit();
   // The site decides which zone "tomorrow morning" means; the turn is useless at guessing.
-  const selectedSiteId = useAppStore((s) => s.selectedSiteId);
+  const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
   const { data: status } = useAiStatus(open);
 
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -186,14 +188,11 @@ export function AssistantPanel({
   const inputRef = useRef<HTMLInputElement>(null);
   const seededFor = useRef<string | null>(null);
 
-  const queryClient = useQueryClient();
+  const invalidateAiStatus = useInvalidateAiStatus();
+  const invalidateAiConversations = useInvalidateAiConversations();
 
   // Titles only; a body is fetched when a conversation is actually opened.
-  const { data: conversations = [] } = useQuery({
-    queryKey: qk.ai.conversations(),
-    queryFn: listAiConversations,
-    enabled: open,
-  });
+  const { data: conversations = [] } = useAiConversations(open);
 
   /**
    * What is already stored. Saving is driven by state changing, so without this a restore
@@ -352,8 +351,8 @@ export function AssistantPanel({
   // Nothing needed this before: the token figure it used to show moved too slowly to notice.
   useEffect(() => {
     if (busy || entries.length === 0) return;
-    void queryClient.invalidateQueries({ queryKey: qk.ai.status() });
-  }, [busy, entries.length, queryClient]);
+    void invalidateAiStatus();
+  }, [busy, entries.length, invalidateAiStatus]);
 
   useEffect(() => {
     if (busy || entries.length === 0) return;
@@ -368,9 +367,9 @@ export function AssistantPanel({
       entries,
       transcript,
     })
-      .then(() => queryClient.invalidateQueries({ queryKey: qk.ai.conversations() }))
+      .then(() => invalidateAiConversations())
       .catch((err: unknown) => logger.error("Could not save the conversation", err));
-  }, [busy, entries, transcript, conversationId, queryClient]);
+  }, [busy, entries, transcript, conversationId, invalidateAiConversations]);
 
   // Reopening the panel picks up where the person left off. Only once, and only into an
   // empty panel: a conversation already on screen is the one they want.
@@ -409,13 +408,13 @@ export function AssistantPanel({
   const handleDeleteConversation = useCallback(async (id: string) => {
     try {
       await deleteAiConversation(id);
-      await queryClient.invalidateQueries({ queryKey: qk.ai.conversations() });
+      await invalidateAiConversations();
       // Deleting the conversation on screen leaves nothing to write back to.
       if (id === conversationId) startNewConversation();
     } catch (err) {
       logger.error("Could not delete the conversation", err);
     }
-  }, [conversationId, queryClient, startNewConversation]);
+  }, [conversationId, invalidateAiConversations, startNewConversation]);
 
   const handleSend = async () => {
     const text = input.trim();
@@ -633,10 +632,7 @@ export function AssistantPanel({
           )}
 
           {busy && phase && (
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {phase}…
-            </p>
+            <LoadingSpinner inline size="xs" muted message={`${phase}…`} />
           )}
         </div>
 

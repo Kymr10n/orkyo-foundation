@@ -40,11 +40,22 @@ public static class FoundationServiceExtensions
             options.SerializerOptions.Converters.Add(
                 new System.Text.Json.Serialization.JsonStringEnumConverter(allowIntegerValues: false));
         });
+        // The clock every foundation service reads. TryAdd so a product (or a test host) can
+        // register a FakeTimeProvider instead. Reading the clock directly is ratcheted out of core/src.
+        services.TryAddSingleton(TimeProvider.System);
         services.AddExceptionHandler<AppExceptionHandler>();
         services.AddProblemDetails();
         services.AddEndpointsApiExplorer();
         services.AddHttpContextAccessor();
         services.AddHttpClient();
+        // The one in-process cache the foundation services share. AddMemoryCache is TryAdd, so a
+        // product that registered its own IMemoryCache (with a SizeLimit, say) keeps it; every
+        // SingleFlightCache write carries Size = 1 so such a limit applies.
+        services.AddMemoryCache();
+        services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
+        // Analytics payloads get their own bounded instance — see AnalyticsCache for why
+        // a SizeLimit on the shared cache would be the wrong fix.
+        services.TryAddSingleton<Api.Services.Caching.AnalyticsCache>();
         services.AddValidatorsFromAssemblyContaining<CreateCriterionRequestValidator>(ServiceLifetime.Scoped);
         services.AddValidatorsFromAssemblyContaining<RequestEmailChangeRequestValidator>(ServiceLifetime.Scoped);
 
@@ -109,6 +120,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
         services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IRequestTreeRepository, RequestTreeRepository>();
+        services.AddScoped<IRequestScheduleReadRepository, RequestScheduleReadRepository>();
         services.AddScoped<IRequestDependencyRepository, RequestDependencyRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IResourceAssignmentRepository, ResourceAssignmentRepository>();
@@ -201,14 +214,16 @@ public static class FoundationServiceExtensions
         services.AddScoped<Api.Services.Insights.IConflictTimelineProvider>(sp =>
             new Api.Services.Insights.CachingConflictTimelineProvider(
                 sp.GetRequiredService<Api.Services.Insights.ConflictTimelineProvider>(),
-                sp.GetRequiredService<OrgContext>()));
+                sp.GetRequiredService<OrgContext>(),
+                sp.GetRequiredService<Api.Services.Caching.AnalyticsCache>()));
 
         // Insights is wrapped in a short-TTL read-through cache (dashboard hot path).
         services.AddScoped<Api.Services.Insights.InsightsService>();
         services.AddScoped<Api.Services.Insights.IInsightsService>(sp =>
             new Api.Services.Insights.CachingInsightsService(
                 sp.GetRequiredService<Api.Services.Insights.InsightsService>(),
-                sp.GetRequiredService<OrgContext>()));
+                sp.GetRequiredService<OrgContext>(),
+                sp.GetRequiredService<Api.Services.Caching.AnalyticsCache>()));
 
         // ── Reporting ─────────────────────────────────────────────────────────
         services.AddScoped<IReportingTokenService, ReportingTokenService>();

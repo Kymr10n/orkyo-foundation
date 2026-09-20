@@ -17,7 +17,7 @@ public class KeycloakAdminExceptionMapperTests
         var (status, payload) = await ExecuteAsync(KeycloakAdminExceptionMapper.Map(ex));
 
         status.Should().Be(StatusCodes.Status400BadRequest);
-        payload.GetProperty("code").GetString().Should().Be(nameof(ErrorCodes.ValidationError));
+        payload.GetProperty("code").GetString().Should().Be(nameof(ApiErrorCodes.ValidationError));
         payload.GetProperty("detail").GetString().Should().Be("bad input");
     }
 
@@ -29,7 +29,7 @@ public class KeycloakAdminExceptionMapperTests
         var (status, payload) = await ExecuteAsync(KeycloakAdminExceptionMapper.Map(ex));
 
         status.Should().Be(StatusCodes.Status404NotFound);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
+        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.NotFound);
         payload.GetProperty("detail").GetString().Should().Be("kc missing");
     }
 
@@ -41,7 +41,7 @@ public class KeycloakAdminExceptionMapperTests
         var (status, payload) = await ExecuteAsync(KeycloakAdminExceptionMapper.Map(ex));
 
         status.Should().Be(StatusCodes.Status409Conflict);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
+        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
         payload.GetProperty("detail").GetString().Should().Be("conflict");
     }
 

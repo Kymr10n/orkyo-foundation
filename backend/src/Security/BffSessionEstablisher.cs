@@ -51,6 +51,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
     private readonly ISignInAuditRecorder _signInAudit;
     private readonly BffOptions _bffOptions;
     private readonly ILogger<BffSessionEstablisher> _logger;
+    private readonly TimeProvider _time;
 
     public BffSessionEstablisher(
         IBffSessionStore sessionStore,
@@ -59,7 +60,8 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         IClientIpAccessor clientIpAccessor,
         ISignInAuditRecorder signInAudit,
         IOptions<BffOptions> bffOptions,
-        ILogger<BffSessionEstablisher> logger)
+        ILogger<BffSessionEstablisher> logger,
+        TimeProvider time)
     {
         _sessionStore = sessionStore;
         _dataProtection = dataProtection;
@@ -68,6 +70,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         _signInAudit = signInAudit;
         _bffOptions = bffOptions.Value;
         _logger = logger;
+        _time = time;
     }
 
     public async Task EstablishAsync(
@@ -81,7 +84,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
     {
         var lifetime = sessionLifetimeOverride ?? _bffOptions.SessionIdleDuration;
         var sessionId = Guid.NewGuid().ToString("N");
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
         var expiresAt = now.Add(lifetime);
         var session = new BffSessionRecord
         {

@@ -1,7 +1,7 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
-import { ScaffoldDialog } from "@foundation/src/components/ui/ScaffoldDialog";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
 import { Input } from "@foundation/src/components/ui/input";
@@ -16,21 +16,18 @@ import {
 } from "@foundation/src/components/ui/select";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
-import { getCriteria } from "@foundation/src/lib/api/criteria-api";
-import { createTemplate, updateTemplate } from "@foundation/src/lib/api/template-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
 import { getDataTypeColor } from "@foundation/src/lib/utils";
-import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
-import type { Template } from "@foundation/src/types/templates";
+import type { CriterionValue } from "@foundation/src/types/criterion";
+import type { CreateTemplateRequest, Template, UpdateTemplateRequest } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
-import { useMutation } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
 import { RequestTargetTypesField } from "../requests/RequestTargetTypesField";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useTemplateForm } from "@foundation/src/hooks/useTemplateForm";
-import { logger } from "@foundation/src/lib/core/logger";
+import { useSaveTemplate } from "@foundation/src/hooks/useTemplates";
+import { useCriteria } from "@foundation/src/hooks/useCriteria";
 
 interface TemplateDialogBaseProps {
   open: boolean;
@@ -63,29 +60,11 @@ export function TemplateDialogBase({
   // cannot be scheduled without them.
   const { data: resourceTypes = [] } = useResourceTypes(true);
 
-  const [availableCriteria, setAvailableCriteria] = useState<Criterion[]>([]);
-  const [isLoadingCriteria, setIsLoadingCriteria] = useState(false);
   const [selectedCriterionId, setSelectedCriterionId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  // Load criteria when dialog opens
-  useEffect(() => {
-    const loadCriteria = async () => {
-      if (!open) return;
-
-      setIsLoadingCriteria(true);
-      try {
-        const criteriaData = await getCriteria();
-        setAvailableCriteria(criteriaData);
-      } catch (err) {
-        logger.error("Failed to load criteria:", err);
-      } finally {
-        setIsLoadingCriteria(false);
-      }
-    };
-
-    loadCriteria();
-  }, [open]);
+  // Criteria are loaded while the dialog is open.
+  const { data: availableCriteria = [], isLoading: isLoadingCriteria } = useCriteria(open);
 
   const handleAddRequirement = () => {
     if (!selectedCriterionId) return;
@@ -105,42 +84,7 @@ export function TemplateDialogBase({
     updateRequirement(criterionId, value);
   };
 
-  const saveMutation = useMutation({
-    mutationFn: async (durationVal: number) => {
-      if (isEditMode) {
-        await updateTemplate(template.id, {
-          name: state.name.trim(),
-          description: state.description.trim() || undefined,
-          entityType: 'request',
-          durationValue: durationVal,
-          durationUnit: state.durationUnit,
-          targetResourceTypeKeys: state.targetResourceTypeKeys,
-          items: state.requirements.size > 0
-            ? Array.from(state.requirements.entries()).map(([criterionId, value]) => ({
-                id: `${template.id}-${criterionId}`,
-                templateId: template.id,
-                criterionId,
-                value: String(value ?? ''),
-              }))
-            : undefined,
-        });
-      } else {
-        await createTemplate({
-          name: state.name.trim(),
-          description: state.description.trim() || undefined,
-          entityType,
-          durationValue: durationVal,
-          durationUnit: state.durationUnit,
-          targetResourceTypeKeys: entityType === 'request' ? state.targetResourceTypeKeys : undefined,
-        });
-      }
-    },
-    meta: {
-      successMessage: isEditMode ? 'Template updated' : 'Template created',
-      errorMessage: isEditMode ? 'Failed to update template' : 'Failed to create template',
-      // Both modes feed the same `templates-${entityType}` list query (TemplateSettings).
-      invalidates: [qk.templates(entityType)],
-    },
+  const saveMutation = useSaveTemplate(template, entityType, {
     onSuccess: () => {
       if (!isEditMode) {
         reset();
@@ -155,6 +99,33 @@ export function TemplateDialogBase({
   });
 
   const isSubmitting = saveMutation.isPending;
+
+  const buildRequest = (durationVal: number): CreateTemplateRequest | UpdateTemplateRequest =>
+    isEditMode
+      ? {
+          name: state.name.trim(),
+          description: state.description.trim() || undefined,
+          entityType: 'request',
+          durationValue: durationVal,
+          durationUnit: state.durationUnit,
+          targetResourceTypeKeys: state.targetResourceTypeKeys,
+          items: state.requirements.size > 0
+            ? Array.from(state.requirements.entries()).map(([criterionId, value]) => ({
+                id: `${template.id}-${criterionId}`,
+                templateId: template.id,
+                criterionId,
+                value: String(value ?? ''),
+              }))
+            : undefined,
+        }
+      : {
+          name: state.name.trim(),
+          description: state.description.trim() || undefined,
+          entityType,
+          durationValue: durationVal,
+          durationUnit: state.durationUnit,
+          targetResourceTypeKeys: entityType === 'request' ? state.targetResourceTypeKeys : undefined,
+        };
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -171,7 +142,7 @@ export function TemplateDialogBase({
       return;
     }
 
-    saveMutation.mutate(durationVal);
+    saveMutation.mutate(buildRequest(durationVal));
   };
 
   const handleOpenChange = (newOpen: boolean) => {
@@ -184,13 +155,14 @@ export function TemplateDialogBase({
   };
 
   return (
-    <ScaffoldDialog
+    <FormDialog
       open={open}
       onOpenChange={handleOpenChange}
       size="lg"
       title={isEditMode ? "Edit Request Template" : "Create Request Template"}
       description={isEditMode ? "Edit an existing request template" : "Create a new request template"}
       srOnlyDescription
+      footer={null}
     >
       <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <ScrollableDialogBody className="px-6">
@@ -371,6 +343,6 @@ export function TemplateDialogBase({
             className="px-6 py-4"
           />
         </form>
-    </ScaffoldDialog>
+    </FormDialog>
   );
 }

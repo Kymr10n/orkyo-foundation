@@ -17,6 +17,7 @@ import { Button } from "@foundation/src/components/ui/button";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import {
   useTenantSettings,
   useUpdateTenantSettings,
@@ -39,12 +40,13 @@ interface TenantConfigSettingsProps {
 
 export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettingsProps = {}) {
   const { membership } = useAuth();
+  const isTenantAdmin = useIsTenantAdmin();
   const isAdmin =
     // Site-level scope rendered on AdminPage (already behind RequireAuth guard)
     scope === "site" ||
     // Site-admin context (tenantSlug provided) — already guarded by RequireAuth
     !!tenantSlug ||
-    membership?.isTenantAdmin ||
+    isTenantAdmin ||
     membership?.isOwner ||
     membership?.isBreakGlass;
 

@@ -244,11 +244,24 @@ public class UtilizationService(
         // far less bookable time than its span. Null/24-7 settings return the raw span.
         var bucketSpan = SchedulingEngine.WorkingMinutesInWindow(bucketStart, bucketEnd, settings);
 
-        var isBlocked = blockedPeriods.Any(p => p.StartTs < bucketEnd && p.EndTs > bucketStart);
-        // No bookable minutes (a weekend or overnight bucket, once working hours are on) is
-        // the same statement as "blocked" for every reader: deriveBucketStatus already maps a
-        // zero here to "non-working", and the grid's averages already skip those buckets.
-        var effectiveAvailability = isBlocked || bucketSpan <= 0 ? 0m : resource.BaseAvailabilityPercent;
+        // Blocked time is SUBTRACTED, not treated as an on/off switch. This is what
+        // WorkingMinutesInWindow's contract already asks of its callers: "Off-times and absences
+        // are deliberately NOT applied here. Callers subtract blocked periods by passing each
+        // blocked overlap back through this same function."
+        //
+        // The previous `blockedPeriods.Any(overlap)` was indistinguishable from this at day
+        // granularity, where a blocked day covers its whole bucket. At week and month
+        // granularity it was not: one public holiday, one maintenance day or one day of
+        // somebody's leave zeroed an entire week, while AllocatedPercent below was still
+        // computed normally — so a bucket reported "Off" while carrying real booked time.
+        var blockedMinutes = BlockedWorkingMinutes(blockedPeriods, settings, bucketStart, bucketEnd);
+        var openMinutes = Math.Max(0d, bucketSpan - blockedMinutes);
+        // No bookable minutes at all (a weekend or overnight bucket, once working hours are on)
+        // still reads zero: deriveBucketStatus maps a zero here to "non-working", and the grid's
+        // averages skip those buckets.
+        var effectiveAvailability = bucketSpan <= 0
+            ? 0m
+            : Math.Round(resource.BaseAvailabilityPercent * (decimal)(openMinutes / bucketSpan), 2);
 
         // Overlapping active assignments within this bucket
         var overlapping = assignments.Where(a =>
@@ -294,6 +307,49 @@ public class UtilizationService(
             EffectiveAvailabilityPercent = effectiveAvailability,
             IsExclusiveOccupied = false,
         };
+    }
+
+    /// <summary>
+    /// Working minutes inside [<paramref name="bucketStart"/>, <paramref name="bucketEnd"/>) that
+    /// a blocked period removes.
+    /// </summary>
+    /// <remarks>
+    /// Periods are clipped to the bucket and merged before measuring, so two absences on the same
+    /// day — or an absence and a closure that overlap — subtract that day once rather than twice.
+    /// Each merged run is measured with <see cref="SchedulingEngine.WorkingMinutesInWindow"/>, the
+    /// same currency as the bucket's own span, so a closure overnight or at a weekend removes no
+    /// capacity that was never open.
+    /// </remarks>
+    private static double BlockedWorkingMinutes(
+        List<BlockedPeriod> blockedPeriods,
+        SchedulingSettingsInfo? settings,
+        DateTime bucketStart,
+        DateTime bucketEnd)
+    {
+        var clipped = blockedPeriods
+            .Select(p => (
+                Start: p.StartTs > bucketStart ? p.StartTs : bucketStart,
+                End: p.EndTs < bucketEnd ? p.EndTs : bucketEnd))
+            .Where(p => p.End > p.Start)
+            .OrderBy(p => p.Start)
+            .ToList();
+        if (clipped.Count == 0) return 0d;
+
+        var total = 0d;
+        var runStart = clipped[0].Start;
+        var runEnd = clipped[0].End;
+        foreach (var p in clipped.Skip(1))
+        {
+            if (p.Start <= runEnd)
+            {
+                if (p.End > runEnd) runEnd = p.End;
+                continue;
+            }
+            total += SchedulingEngine.WorkingMinutesInWindow(runStart, runEnd, settings);
+            runStart = p.Start;
+            runEnd = p.End;
+        }
+        return total + SchedulingEngine.WorkingMinutesInWindow(runStart, runEnd, settings);
     }
 
     private static List<(DateTime Start, DateTime End)> BuildBucketShells(

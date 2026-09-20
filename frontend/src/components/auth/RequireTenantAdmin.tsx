@@ -14,6 +14,7 @@ import { useEffect } from "react";
 import { Navigate } from "react-router";
 import { toast } from "sonner";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { ROUTE_HOME } from "@foundation/src/constants/auth";
 
 export function RequireTenantAdmin({ children }: { children: React.ReactNode }) {
   const { membership } = useAuth();
@@ -26,7 +27,7 @@ export function RequireTenantAdmin({ children }: { children: React.ReactNode }) 
   }, [isTenantAdmin]);
 
   if (!isTenantAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTE_HOME} replace />;
   }
 
   return <>{children}</>;

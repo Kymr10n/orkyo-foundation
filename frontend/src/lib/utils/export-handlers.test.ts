@@ -23,6 +23,7 @@ import type { Request, Conflict } from '@foundation/src/types/requests';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 // Placement is resolved against the placeable type set now, not the literal 'space' key.
 const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
@@ -556,12 +557,11 @@ describe('Export Handlers', () => {
       vi.mocked(exportGanttChartToPDF).mockClear();
     });
 
-    const page = (ids: number[], total: number) => ({
-      data: ids.map((i) => ({ id: `res-${i}`, name: `Resource ${i}`, resourceTypeKey: 'space' })),
-      total,
-      page: 1,
-      pageSize: 100,
-    });
+    const page = (ids: number[], total: number) =>
+      pagedResult(
+        ids.map((i) => ({ id: `res-${i}`, name: `Resource ${i}`, resourceTypeKey: 'space' })),
+        { totalItems: total, pageSize: 100 },
+      );
 
     const spaceType = { key: 'space', displayNamePlural: 'Spaces' } as any;
 

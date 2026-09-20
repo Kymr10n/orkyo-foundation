@@ -4,10 +4,11 @@ import { Button } from '@foundation/src/components/ui/button';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
-import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { ListColumnEditDialog } from './ListColumnEditDialog';
 import { useDeleteListColumn, useListDefinition } from '@foundation/src/hooks/useListDefinitions';
 import { listColumnDataTypeLabel, type ListColumn } from '@foundation/src/lib/api/lists-api';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 interface ListColumnsDialogProps {
   open: boolean;
@@ -19,8 +20,8 @@ interface ListColumnsDialogProps {
 /**
  * The columns of one definition, in form order.
  *
- * A ScaffoldDialog rather than a FormDialog: there is no single form to submit here — each
- * column is its own edit, and the list of them is the content.
+ * `footer={null}`: there is no single form to submit here — each column is its own edit,
+ * and the list of them is the content.
  */
 export function ListColumnsDialog({
   open,
@@ -38,7 +39,8 @@ export function ListColumnsDialog({
   const columns = definition?.columns ?? [];
 
   return (
-    <ScaffoldDialog
+    <FormDialog
+      footer={null}
       open={open}
       onOpenChange={onOpenChange}
       title={`Columns — ${definitionName}`}
@@ -52,7 +54,7 @@ export function ListColumnsDialog({
           </Button>
         </div>
 
-        {isLoading && <p className="text-muted-foreground text-sm">Loading columns…</p>}
+        {isLoading && <LoadingSpinner inline size="xs" muted message="Loading columns…" />}
 
         {!isLoading && columns.length === 0 && (
           <p className="text-muted-foreground rounded-md border border-dashed p-4 text-sm">
@@ -131,6 +133,6 @@ export function ListColumnsDialog({
           setRemoving(null);
         }}
       />
-    </ScaffoldDialog>
+    </FormDialog>
   );
 }

@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { REQUEST_NAME_PLACEHOLDER, RequestFormDialog } from "./RequestFormDialog";
 import type { Request } from "@foundation/src/types/requests";
 import type { Site } from "@foundation/src/types/site";
+import { pagedResult } from "@foundation/src/test-utils/paged-result";
 
 // --- Mock the data-loading boundary (network) and site hooks -------------------
 const useSitesMock = vi.fn(() => ({ data: [] as Site[] }));
@@ -21,8 +22,8 @@ vi.mock("@foundation/src/hooks/useSites", () => ({
   useIsMultiSite: () => useIsMultiSiteMock(),
 }));
 
-vi.mock("@foundation/src/store/app-store", () => ({
-  useAppStore: vi.fn((selector: (s: { selectedSiteId: string }) => unknown) =>
+vi.mock("@foundation/src/store/site-store", () => ({
+  useSiteStore: vi.fn((selector: (s: { selectedSiteId: string }) => unknown) =>
     selector({ selectedSiteId: "site-1" }),
   ),
 }));
@@ -38,7 +39,7 @@ const apiMocks = vi.hoisted(() => ({
     ] as unknown[]),
   ),
   getResources: vi.fn((_filter?: { resourceTypeKey?: string }) =>
-    Promise.resolve({ data: [] as unknown[] }),
+    Promise.resolve(pagedResult<unknown>([])),
   ),
   createRequest: vi.fn(() => Promise.resolve({} as unknown)),
   createChildRequest: vi.fn(() => Promise.resolve({} as unknown)),
@@ -308,7 +309,7 @@ beforeEach(() => {
   apiMocks.getResourceTypes.mockResolvedValue([
     { key: "space", displayName: "Space", icon: "Building2", isActive: true, hasGeometry: true },
   ]);
-  apiMocks.getResources.mockResolvedValue({ data: [] });
+  apiMocks.getResources.mockResolvedValue(pagedResult([]));
   apiMocks.createRequest.mockResolvedValue({});
   apiMocks.moveRequest.mockResolvedValue({});
   apiMocks.updateRequest.mockResolvedValue({});
@@ -623,9 +624,9 @@ describe("RequestFormDialog", () => {
   });
 
   it("lets a leaf request pick a space on the Resources tab", async () => {
-    apiMocks.getResources.mockResolvedValue({
-      data: [{ id: "space-1", name: "Main Hall" }],
-    });
+    apiMocks.getResources.mockResolvedValue(
+      pagedResult([{ id: "space-1", name: "Main Hall" }]),
+    );
     renderDialog();
     await userEvent.click(screen.getByRole("tab", { name: "Resources" }));
     await userEvent.click(await screen.findByRole("combobox", { name: "Space" }));
@@ -658,12 +659,13 @@ describe("RequestFormDialog", () => {
     ]);
     // Each picker queries its own type, so the mock answers per resourceTypeKey.
     apiMocks.getResources.mockImplementation((filter) =>
-      Promise.resolve({
-        data:
+      Promise.resolve(
+        pagedResult(
           filter?.resourceTypeKey === "tool"
             ? [{ id: "tool-1", name: "Drill" }]
             : [{ id: "space-1", name: "Main Hall" }],
-      }),
+        ),
+      ),
     );
     const { onSave } = renderDialog({
       request: {
@@ -693,7 +695,7 @@ describe("RequestFormDialog", () => {
     apiMocks.getResourceTypes.mockResolvedValue([
       { key: "tool", displayName: "Tool", icon: "Wrench", isActive: true },
     ]);
-    apiMocks.getResources.mockResolvedValue({ data: [] });
+    apiMocks.getResources.mockResolvedValue(pagedResult([]));
     renderDialog({
       request: {
         ...EXISTING,

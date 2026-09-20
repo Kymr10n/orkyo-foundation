@@ -30,7 +30,7 @@ public class SpaceEndpointsTests
     private static async Task<List<ResourceInfo>> ReadListAsync(HttpResponseMessage response)
     {
         var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(
+        return envelope.GetProperty("items").Deserialize<List<ResourceInfo>>(
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
     }
 

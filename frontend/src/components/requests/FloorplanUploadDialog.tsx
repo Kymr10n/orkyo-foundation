@@ -1,6 +1,5 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 import { useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DIALOG_SIZE, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@foundation/src/components/ui/dialog';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
@@ -8,7 +7,7 @@ import { Upload, X, FileImage } from 'lucide-react';
 import { cn } from '@foundation/src/lib/utils';
 import { uploadFloorplan, type FloorplanMetadata } from '@foundation/src/lib/api/floorplan-api';
 import { formatBytes } from '@foundation/src/lib/quotas/quota-display';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import { useInvalidateFloorplanViewData } from '@foundation/src/hooks/useFloorplan';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 interface FloorplanUploadDialogProps {
@@ -25,7 +24,7 @@ export function FloorplanUploadDialog({
   onUploadComplete,
 }: FloorplanUploadDialogProps) {
   const canEdit = useCanEdit();
-  const queryClient = useQueryClient();
+  const invalidateFloorplanViewData = useInvalidateFloorplanViewData(siteId);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -101,7 +100,7 @@ export function FloorplanUploadDialog({
 
     try {
       const metadata = await uploadFloorplan(siteId, selectedFile, setProgress);
-      await queryClient.invalidateQueries({ queryKey: qk.floorplan.viewData(siteId) });
+      await invalidateFloorplanViewData();
       onUploadComplete(metadata);
       onOpenChange(false);
       // Reset state

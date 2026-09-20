@@ -48,18 +48,18 @@ public class TemplateRepository : ITemplateRepository
 
     private static Template MapTemplate(NpgsqlDataReader r) => new()
     {
-        Id = r.GetGuid(0),
-        Name = r.GetString(1),
-        Description = r.IsDBNull(2) ? null : r.GetString(2),
-        EntityType = r.GetString(3),
-        DurationValue = r.IsDBNull(4) ? null : r.GetInt32(4),
-        DurationUnit = r.IsDBNull(5) ? null : r.GetString(5),
-        FixedStart = r.GetBoolean(6),
-        FixedEnd = r.GetBoolean(7),
-        FixedDuration = r.GetBoolean(8),
-        CreatedAt = r.GetDateTime(9),
-        UpdatedAt = r.GetDateTime(10),
-        TargetResourceTypeKeys = r.GetFieldValue<string[]>(11),
+        Id = r.GetGuid("id"),
+        Name = r.GetString("name"),
+        Description = r.GetNullableString("description"),
+        EntityType = r.GetString("entity_type"),
+        DurationValue = r.GetNullableInt32("duration_value"),
+        DurationUnit = r.GetNullableString("duration_unit"),
+        FixedStart = r.GetBoolean("fixed_start"),
+        FixedEnd = r.GetBoolean("fixed_end"),
+        FixedDuration = r.GetBoolean("fixed_duration"),
+        CreatedAt = r.GetDateTime("created_at"),
+        UpdatedAt = r.GetDateTime("updated_at"),
+        TargetResourceTypeKeys = r.GetStringArray("target_resource_type_keys"),
     };
 
     public async Task<List<Template>> GetAllAsync(string entityType, CancellationToken ct = default)
@@ -78,14 +78,14 @@ public class TemplateRepository : ITemplateRepository
 
     private static TemplateItem MapTemplateItem(NpgsqlDataReader r) => new()
     {
-        Id = r.GetGuid(0),
-        TemplateId = r.GetGuid(1),
-        CriterionId = r.GetGuid(2),
-        Value = r.GetString(3),
-        CreatedAt = r.GetDateTime(4),
-        UpdatedAt = r.GetDateTime(5),
-        CriterionName = r.GetString(6),
-        CriterionDataType = r.GetString(7),
+        Id = r.GetGuid("id"),
+        TemplateId = r.GetGuid("template_id"),
+        CriterionId = r.GetGuid("criterion_id"),
+        Value = r.GetString("value"),
+        CreatedAt = r.GetDateTime("created_at"),
+        UpdatedAt = r.GetDateTime("updated_at"),
+        CriterionName = r.GetString("criterion_name"),
+        CriterionDataType = r.GetString("criterion_data_type"),
         CriterionCategory = null
     };
 
@@ -287,12 +287,12 @@ public class TemplateRepository : ITemplateRepository
                 },
                 r => new TemplateItem
                 {
-                    Id = r.GetGuid(0),
-                    TemplateId = r.GetGuid(1),
-                    CriterionId = r.GetGuid(2),
-                    Value = r.GetString(3),
-                    CreatedAt = r.GetDateTime(4),
-                    UpdatedAt = r.GetDateTime(5)
+                    Id = r.GetGuid("id"),
+                    TemplateId = r.GetGuid("template_id"),
+                    CriterionId = r.GetGuid("criterion_id"),
+                    Value = r.GetString("value"),
+                    CreatedAt = r.GetDateTime("created_at"),
+                    UpdatedAt = r.GetDateTime("updated_at")
                 }, ct))!;
         }
         catch (PostgresException ex) when (ex.SqlState == "23505")

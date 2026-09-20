@@ -10,7 +10,7 @@ namespace Api.Integrations.Keycloak;
 ///
 /// Lives in <c>orkyo-foundation</c> because the failure-to-HTTP shape is
 /// identical across multi-tenant SaaS and single-tenant Community deployments;
-/// the underlying <see cref="ErrorResponses"/>/<see cref="ErrorCodes"/> contracts
+/// the underlying <see cref="ErrorResponses"/>/<see cref="ApiErrorCodes"/> contracts
 /// are also foundation-owned.
 /// </summary>
 public static class KeycloakAdminExceptionMapper

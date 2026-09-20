@@ -189,7 +189,6 @@ export const API_PATHS = {
     // work on the site-admin apex host.
     AUDIT: '/api/admin/audit',
     tenant: (tenantId: string) => `/api/admin/tenants/${tenantId}`,
-    tenantTier: (tenantId: string) => `/api/admin/tenants/${tenantId}/tier`,
     tenantMembers: (tenantId: string) => `/api/admin/tenants/${tenantId}/members`,
     tenantMember: (tenantId: string, userId: string) => `/api/admin/tenants/${tenantId}/members/${userId}`,
     user: (userId: string) => `/api/admin/users/${userId}`,
@@ -199,13 +198,10 @@ export const API_PATHS = {
     userPromoteSiteAdmin: (userId: string) => `/api/admin/users/${userId}/promote-site-admin`,
     userRevokeSiteAdmin: (userId: string) => `/api/admin/users/${userId}/revoke-site-admin`,
     // Quotas
-    SUBSCRIPTION_TIERS: '/api/admin/subscription-tiers',
     TENANTS_USAGE: '/api/admin/tenants/usage',
     tenantQuotas: (tenantId: string) => `/api/admin/tenants/${tenantId}/quotas`,
     tenantQuotaOverride: (tenantId: string, quotaKey: string) =>
       `/api/admin/tenants/${tenantId}/quota-overrides/${quotaKey}`,
-    subscriptionTierQuota: (tierId: string, quotaKey: string) =>
-      `/api/admin/subscription-tiers/${tierId}/quotas/${quotaKey}`,
   },
 
   // Scheduling

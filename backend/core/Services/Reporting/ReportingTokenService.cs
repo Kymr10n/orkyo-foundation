@@ -1,6 +1,8 @@
 using Api.Configuration;
+using Api.Helpers;
 using Api.Models;
 using Api.Services.PlatformApi;
+using Api.Services.Tokens;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using NpgsqlTypes;
@@ -8,38 +10,16 @@ using Orkyo.Shared;
 
 namespace Api.Services.Reporting;
 
-public record ReportingTokenRecord
+public record ReportingTokenRecord : TokenRecordBase
 {
-    public Guid Id { get; init; }
-    public Guid TenantId { get; init; }
-    public string Name { get; init; } = "";
-    public string TokenPrefix { get; init; } = "";
-    public string TokenHash { get; init; } = "";
-    public string Scopes { get; init; } = "reporting:read";
-    public DateTime CreatedAtUtc { get; init; }
-    public Guid? CreatedByUserId { get; init; }
-    public DateTime? LastUsedAtUtc { get; init; }
-    public DateTime? ExpiresAtUtc { get; init; }
-    public DateTime? RevokedAtUtc { get; init; }
-
-    public bool IsActive =>
-        RevokedAtUtc is null && (ExpiresAtUtc is null || ExpiresAtUtc > DateTime.UtcNow);
+    /// <summary>Reporting tokens are read-only by construction; the column still drives it.</summary>
+    public ReportingTokenRecord() => Scopes = "reporting:read";
 }
 
 /// <summary>DTO returned when listing tokens — never exposes hash or secret.</summary>
-public record ReportingTokenSummary
+public record ReportingTokenSummary : TokenSummaryBase
 {
-    public Guid Id { get; init; }
-    public Guid TenantId { get; init; }
-    public string Name { get; init; } = "";
-    public string TokenPrefix { get; init; } = "";
-    public string Scopes { get; init; } = "reporting:read";
-    public DateTime CreatedAtUtc { get; init; }
-    public Guid? CreatedByUserId { get; init; }
-    public DateTime? LastUsedAtUtc { get; init; }
-    public DateTime? ExpiresAtUtc { get; init; }
-    public DateTime? RevokedAtUtc { get; init; }
-    public bool IsActive { get; init; }
+    public ReportingTokenSummary() => Scopes = "reporting:read";
 }
 
 /// <summary>Returned once at creation — the raw secret is never stored.</summary>
@@ -88,14 +68,17 @@ public sealed class ReportingTokenService : IReportingTokenService
     private readonly IDbConnectionFactory _db;
     private readonly byte[] _pepper;
     private readonly ILogger<ReportingTokenService> _logger;
+    private readonly TimeProvider _time;
 
     public ReportingTokenService(
         IDbConnectionFactory db,
         IConfiguration configuration,
-        ILogger<ReportingTokenService> logger)
+        ILogger<ReportingTokenService> logger,
+        TimeProvider time)
     {
         _db = db;
         _logger = logger;
+        _time = time;
         // Fail early, never fall back: the pepper keys token hashes, and the old chain
         // ended in a literal from this file — a publicly known pepper. An empty value
         // counts as absent (the deploy pipeline writes KEY= for unset keys).
@@ -132,8 +115,8 @@ public sealed class ReportingTokenService : IReportingTokenService
 
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
-        var id = reader.GetGuid(0);
-        var createdAt = reader.GetDateTime(1);
+        var id = reader.GetGuid("id");
+        var createdAt = reader.GetDateTime("created_at");
 
         var summary = new ReportingTokenSummary
         {
@@ -157,9 +140,8 @@ public sealed class ReportingTokenService : IReportingTokenService
         await using var conn = _db.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT id, tenant_id, name, token_prefix, scopes,
-                   created_at, created_by_user_id, last_used_at, expires_at, revoked_at
+        await using var cmd = new NpgsqlCommand($@"
+            SELECT {TokenRowMapper.SummaryColumns}
             FROM reporting_api_tokens
             WHERE tenant_id = @tenantId
             ORDER BY created_at DESC", conn);
@@ -168,24 +150,7 @@ public sealed class ReportingTokenService : IReportingTokenService
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         var results = new List<ReportingTokenSummary>();
         while (await reader.ReadAsync(ct))
-        {
-            var revokedAt = reader.IsDBNull(9) ? (DateTime?)null : reader.GetDateTime(9);
-            var expiresAt = reader.IsDBNull(8) ? (DateTime?)null : reader.GetDateTime(8);
-            results.Add(new ReportingTokenSummary
-            {
-                Id = reader.GetGuid(0),
-                TenantId = reader.GetGuid(1),
-                Name = reader.GetString(2),
-                TokenPrefix = reader.GetString(3),
-                Scopes = reader.GetString(4),
-                CreatedAtUtc = reader.GetDateTime(5),
-                CreatedByUserId = reader.IsDBNull(6) ? null : reader.GetGuid(6),
-                LastUsedAtUtc = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
-                ExpiresAtUtc = expiresAt,
-                RevokedAtUtc = revokedAt,
-                IsActive = revokedAt is null && (expiresAt is null || expiresAt > DateTime.UtcNow),
-            });
-        }
+            results.Add(TokenRowMapper.MapSummary<ReportingTokenSummary>(reader, _time.GetUtcNow().UtcDateTime));
         return results;
     }
 
@@ -214,9 +179,8 @@ public sealed class ReportingTokenService : IReportingTokenService
         await using var conn = _db.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT id, tenant_id, name, token_prefix, token_hash, scopes,
-                   created_at, created_by_user_id, last_used_at, expires_at, revoked_at
+        await using var cmd = new NpgsqlCommand($@"
+            SELECT {TokenRowMapper.RecordColumns}
             FROM reporting_api_tokens
             WHERE token_prefix = @prefix", conn);
         cmd.Parameters.AddWithValue("prefix", prefix);
@@ -225,20 +189,7 @@ public sealed class ReportingTokenService : IReportingTokenService
         if (!await reader.ReadAsync(ct))
             return null;
 
-        var record = new ReportingTokenRecord
-        {
-            Id = reader.GetGuid(0),
-            TenantId = reader.GetGuid(1),
-            Name = reader.GetString(2),
-            TokenPrefix = reader.GetString(3),
-            TokenHash = reader.GetString(4),
-            Scopes = reader.GetString(5),
-            CreatedAtUtc = reader.GetDateTime(6),
-            CreatedByUserId = reader.IsDBNull(7) ? null : reader.GetGuid(7),
-            LastUsedAtUtc = reader.IsDBNull(8) ? null : reader.GetDateTime(8),
-            ExpiresAtUtc = reader.IsDBNull(9) ? null : reader.GetDateTime(9),
-            RevokedAtUtc = reader.IsDBNull(10) ? null : reader.GetDateTime(10),
-        };
+        var record = TokenRowMapper.MapRecord<ReportingTokenRecord>(reader);
 
         if (!record.IsActive)
             return null;

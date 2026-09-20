@@ -11,20 +11,13 @@ namespace Api.Repositories;
 public interface IResourceRepository
 {
     /// <summary>
-    /// One capped page of the filtered list — at most 1000 rows, no total, no signal when it cut.
-    /// Right for a list view; wrong wherever the answer has to be complete. See
-    /// <see cref="GetEveryAsync"/>.
-    /// </summary>
-    Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default);
-
-    /// <summary>
     /// Every resource matching the filter, read in pages until the total is reached.
     /// </summary>
     /// <remarks>
-    /// For callers that aggregate, export or schedule, where <see cref="GetAllAsync"/>'s cap
-    /// would not shorten a list but produce a wrong number — a utilization figure computed over
-    /// the first 1000 of 1200 resources is not a partial answer, it is an incorrect one, and
-    /// nothing in the response would say so.
+    /// For callers that aggregate, export or schedule, where a capped read would not shorten a
+    /// list but produce a wrong number — a utilization figure computed over the first 1000 of
+    /// 1200 resources is not a partial answer, it is an incorrect one, and nothing in the
+    /// response would say so. A list view takes <see cref="GetPageAsync"/> instead.
     /// </remarks>
     Task<List<ResourceInfo>> GetEveryAsync(ResourceListFilter filter, CancellationToken ct = default);
     /// <summary>One page of the filtered list plus the unpaged total, in one connection.
@@ -184,28 +177,10 @@ public class ResourceRepository(
         return (where, usesCurrentSite);
     }
 
-    public async Task<List<ResourceInfo>> GetAllAsync(ResourceListFilter filter, CancellationToken ct = default)
-    {
-        await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        await db.OpenAsync(ct);
-
-        var cmd = new NpgsqlCommand();
-        cmd.Connection = db;
-
-        var (where, _) = BuildFilter(filter, cmd.Parameters);
-        var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
-        cmd.CommandText = $"SELECT {SelectColumns} {ReadFrom} {whereClause} ORDER BY r.name LIMIT 1000";
-
-        var result = new List<ResourceInfo>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            result.Add(Map(reader));
-        return result;
-    }
-
     // Hand-rolled count + page on one connection rather than QueryPagedAsync: PageRequest
-    // clamps page sizes to 100, and the endpoint's unpaged branch serves up to 1000 rows
-    // through this same method. The clamp belongs to the caller, not here.
+    // clamps page sizes to 100, and the endpoint's unpaged branch serves up to
+    // PageRequest.MaxUnpagedItems rows through this same method. The clamp belongs to the
+    // caller, not here.
     public async Task<(List<ResourceInfo> Items, int Total)> GetPageAsync(
         ResourceListFilter filter, int limit, int offset, CancellationToken ct = default)
     {
@@ -240,8 +215,8 @@ public class ResourceRepository(
     public async Task<List<ResourceInfo>> GetEveryAsync(
         ResourceListFilter filter, CancellationToken ct = default)
     {
-        // Pages through GetPageAsync rather than lifting GetAllAsync's LIMIT: same query, same
-        // stable ORDER BY, and the total it already reports is what ends the loop.
+        // Pages through GetPageAsync rather than repeating its SQL without a limit: same query,
+        // same stable ORDER BY, and the total it already reports is what ends the loop.
         const int pageSize = 500;
         var all = new List<ResourceInfo>();
         while (true)
@@ -397,8 +372,8 @@ public class ResourceRepository(
             var existing = await db.QuerySingleOrDefaultAsync(
                 "SELECT code, home_site_id FROM resources WHERE id = @id",
                 p => p.AddWithValue("id", id),
-                r => (Code: r.IsDBNull(0) ? null : r.GetString(0),
-                      SiteId: r.IsDBNull(1) ? (Guid?)null : r.GetGuid(1)), ct);
+                r => (Code: r.GetNullableString("code"),
+                      SiteId: r.GetNullableGuid("home_site_id")), ct);
 
             var code = request.Code ?? existing.Code;
             var siteId = request.HomeSiteId.IsPresent ? request.HomeSiteId.Value : existing.SiteId;

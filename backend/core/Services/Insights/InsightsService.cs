@@ -40,7 +40,8 @@ public class InsightsService(
     IResourceRepository resourceRepository,
     IResourceTypeService resourceTypeService,
     IResourceAssignmentRepository assignmentRepository,
-    IAvailabilityResolver availabilityResolver) : IInsightsService
+    IAvailabilityResolver availabilityResolver,
+    TimeProvider time) : IInsightsService
 {
     // The in-app dashboard reports "live": request facts come from the live view and conflict/
     // utilization from live services. This is the swap point — a snapshot-backed view would carry
@@ -60,7 +61,7 @@ public class InsightsService(
         {
             Period = new InsightsPeriod { From = filter.From, To = filter.To },
             SiteId = filter.SiteId,
-            Requests = CountRequests(inWindow, backlog, DateTime.UtcNow),
+            Requests = CountRequests(inWindow, backlog, time.GetUtcNow().UtcDateTime),
             Conflicts = CountConflicts(conflicts.Select(c => c.Kind)),
             Utilization = await SummarizeUtilizationAsync(filter, ct),
             Metadata = Metadata(),
@@ -220,7 +221,7 @@ public class InsightsService(
         // is timeless → it lives in the overview Unscheduled KPI, not here.
         var facts = await FetchInWindowFactsAsync(rangeFrom, rangeTo, filter.SiteId, ct);
 
-        var now = DateTime.UtcNow;
+        var now = time.GetUtcNow().UtcDateTime;
         var series = buckets.Select(b =>
         {
             var inBucket = facts.Where(f => f.StartTs >= b.Start && f.StartTs < b.End).ToList();
@@ -334,8 +335,8 @@ public class InsightsService(
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
             facts.Add(new RequestFact(
-                reader.GetString(0), reader.GetBoolean(1), reader.GetDateTime(2),
-                reader.IsDBNull(3) ? null : reader.GetDateTime(3)));
+                reader.GetString("status"), reader.GetBoolean("is_scheduled"),
+                reader.GetDateTime("start_ts"), reader.GetNullableDateTime("end_ts")));
         return facts;
     }
 
@@ -602,9 +603,9 @@ public class InsightsService(
         IReadOnlyList<(DateTime Start, DateTime End)> buckets, InsightsFilter filter)
         => buckets.Count > 0 ? (buckets[0].Start, buckets[^1].End) : (filter.From, filter.To);
 
-    private static InsightsMetadata Metadata() => new()
+    private InsightsMetadata Metadata() => new()
     {
-        CalculatedAt = DateTime.UtcNow,
+        CalculatedAt = time.GetUtcNow().UtcDateTime,
         SourceMode = SourceMode,
     };
 }

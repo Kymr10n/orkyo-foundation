@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
 import { cn } from "@foundation/src/lib/utils";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { Button } from "@foundation/src/components/ui/button";
@@ -18,13 +17,13 @@ import { Combobox, type ComboboxOption } from "@foundation/src/components/ui/com
 import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
 import { Plus, X } from "lucide-react";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { getResources } from "@foundation/src/lib/api/resources-api";
-import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
-import { apiGet } from "@foundation/src/lib/api/../core/api-client";
-import { API_PATHS } from "@foundation/src/lib/core/api-paths";
 import {
-  addAvailabilityEventScope,
-  deleteAvailabilityEventScope,
+  useAddAvailabilityEventScope,
+  useDeleteAvailabilityEventScope,
+  useScopePickerOptions,
+  type ScopeDraft,
+} from "@foundation/src/hooks/useAvailabilityEvents";
+import {
   type AvailabilityEventInfo,
   type AvailabilityEventScopeInfo,
   type AvailabilityEventType,
@@ -34,21 +33,7 @@ import {
   type CreateAvailabilityEventRequest,
   type UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
-
-interface ScopeDraft {
-  targetType: ScopeTargetType;
-  targetId: string;
-  effect: ScopeEffect;
-}
-
-interface ResourceTypeInfo {
-  id: string;
-  key: string;
-  displayName: string;
-  isActive: boolean;
-}
 
 type EventFormData = CreateAvailabilityEventRequest | UpdateAvailabilityEventRequest;
 
@@ -92,33 +77,6 @@ function toDateTimeLocal(iso: string): string {
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// ── Shared scope-picker data ─────────────────────────────────────────────────
-
-function useScopePickerOptions() {
-  const { data: resources } = useQuery({
-    queryKey: qk.resources.allFlat(),
-    queryFn: () => getResources({ isActive: true }).then((r) => r.data),
-    staleTime: 60_000,
-  });
-  const { data: groups } = useQuery({
-    queryKey: qk.resourceGroups.allFlat(),
-    queryFn: async () => {
-      const types = await apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES);
-      const allGroups = await Promise.all(
-        types.filter((t) => t.isActive).map((t) => getResourceGroups(t.key)),
-      );
-      return allGroups.flat();
-    },
-    staleTime: 60_000,
-  });
-  const { data: resourceTypes } = useQuery({
-    queryKey: qk.resourceTypes.all(),
-    queryFn: () => apiGet<ResourceTypeInfo[]>(API_PATHS.RESOURCE_TYPES),
-    staleTime: 300_000,
-  });
-  return { resources, groups, resourceTypes };
 }
 
 // ── Scope row (controlled) ──────────────────────────────────────────────────
@@ -191,10 +149,7 @@ function ServerScopeRow({
   eventId: string;
   scope: AvailabilityEventScopeInfo;
 }) {
-  const deleteScope = useMutation({
-    mutationFn: () => deleteAvailabilityEventScope(siteId, eventId, scope.id),
-    meta: { invalidates: [qk.scheduling.availabilityEventsAll()] },
-  });
+  const deleteScope = useDeleteAvailabilityEventScope(siteId, eventId, scope.id);
 
   return (
     <ScopeRow
@@ -380,15 +335,12 @@ function ServerAddScopeForm({
   onAdded: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const addScope = useMutation({
-    mutationFn: (req: ScopeDraft) =>
-      addAvailabilityEventScope(siteId, eventId, req),
-    meta: { invalidates: [qk.scheduling.availabilityEventsAll()] },
+  const addScope = useAddAvailabilityEventScope(siteId, eventId, {
     onSuccess: () => {
       setError(null);
       onAdded();
     },
-    onError: (err: Error) => setError(err.message),
+    onError: (err) => setError(err.message),
   });
 
   return (

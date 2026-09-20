@@ -1,4 +1,3 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 /**
  * AnnouncementsTab – Admin tab for managing platform-wide announcements.
  *
@@ -6,7 +5,7 @@
  * create / edit / delete capabilities.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState } from 'react';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
@@ -27,13 +26,15 @@ import {
   type AnnouncementChannel,
   type CreateAnnouncementRequest,
   type UpdateAnnouncementRequest,
-  getAnnouncements,
-  createAnnouncement,
-  updateAnnouncement,
-  deleteAnnouncement,
 } from '@foundation/src/lib/api/announcement-api';
+import {
+  useAdminAnnouncements,
+  useDeleteAnnouncement,
+  useSaveAnnouncement,
+} from '@foundation/src/hooks/usePlatformAdmin';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 /** Selectable delivery channels for new announcements (label + hint). */
 const CHANNEL_OPTIONS: { value: AnnouncementChannel; label: string; hint: string }[] = [
@@ -51,47 +52,26 @@ function announcementStatus(a: Announcement): 'Expired' | 'Important' | 'Active'
 // ============================================================================
 
 export function AnnouncementsTab() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading, error: loadError } = useAdminAnnouncements();
+  const announcements = data?.announcements ?? [];
   const [error, setError] = useState<string | null>(null);
 
   // Dialog state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [deletingAnnouncement, setDeletingAnnouncement] = useState<Announcement | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
-  const loadAnnouncements = useCallback(async () => {
-    try {
-      setError(null);
-      const response = await getAnnouncements(true);
-      setAnnouncements(response.announcements);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load announcements');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadAnnouncements();
-  }, [loadAnnouncements]);
-
-  const handleDelete = async () => {
-    if (!deletingAnnouncement) return;
-    setDeleting(true);
-    try {
-      await deleteAnnouncement(deletingAnnouncement.id);
-      setDeletingAnnouncement(null);
-      loadAnnouncements();
-    } catch (err) {
+  const deleteMutation = useDeleteAnnouncement({
+    onSuccess: () => setDeletingAnnouncement(null),
+    onError: (err) => {
       setError(errorMessage(err));
       setDeletingAnnouncement(null);
-    } finally {
-      setDeleting(false);
-    }
+    },
+  });
+
+  const handleDelete = () => {
+    if (!deletingAnnouncement) return;
+    deleteMutation.mutate(deletingAnnouncement.id);
   };
 
   const columns: ColumnDef<Announcement>[] = [
@@ -241,11 +221,11 @@ export function AnnouncementsTab() {
     </div>
   );
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card>
         <CardContent className="py-8 md:py-8">
-          <div className="text-center text-muted-foreground">Loading announcements…</div>
+          <LoadingSpinner size="sm" muted fullScreen={false} message="Loading announcements…" />
         </CardContent>
       </Card>
     );
@@ -271,7 +251,7 @@ export function AnnouncementsTab() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 empty:mb-0">
-            <ErrorAlert message={error ?? null} />
+            <ErrorAlert message={error ?? (loadError instanceof Error ? loadError.message : null)} />
           </div>
 
           <OrkyoDataTable
@@ -298,7 +278,6 @@ export function AnnouncementsTab() {
         onSaved={() => {
           setShowCreateDialog(false);
           setEditingAnnouncement(null);
-          loadAnnouncements();
         }}
       />
 
@@ -310,7 +289,7 @@ export function AnnouncementsTab() {
         description="This action cannot be undone."
         confirmLabel="Delete"
         destructive
-        isPending={deleting}
+        isPending={deleteMutation.isPending}
         onConfirm={handleDelete}
       />
     </div>
@@ -340,8 +319,12 @@ function AnnouncementFormDialog({
   const [channels, setChannels] = useState<AnnouncementChannel[]>(['site']);
   const [retentionDays, setRetentionDays] = useState('90');
   const [expiresAt, setExpiresAt] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const saveMutation = useSaveAnnouncement(announcement, {
+    onSuccess: onSaved,
+    onError: (err) => setError(errorMessage(err)),
+  });
 
   const toggleChannel = (channel: AnnouncementChannel, checked: boolean) =>
     setChannels((prev) =>
@@ -374,36 +357,27 @@ function AnnouncementFormDialog({
     }
   }
 
-  const handleSubmit = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  const handleSubmit = () => {
+    setError(null);
 
-      if (isEdit) {
-        const data: UpdateAnnouncementRequest = {
-          title,
-          body,
-          isImportant,
-          expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-        };
-        await updateAnnouncement(announcement.id, data);
-      } else {
-        const days = parseInt(retentionDays, 10);
-        const data: CreateAnnouncementRequest = {
-          title,
-          body,
-          isImportant,
-          retentionDays: isNaN(days) ? 90 : days,
-          channels,
-        };
-        await createAnnouncement(data);
-      }
-
-      onSaved();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setLoading(false);
+    if (isEdit) {
+      const data: UpdateAnnouncementRequest = {
+        title,
+        body,
+        isImportant,
+        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
+      };
+      saveMutation.mutate(data);
+    } else {
+      const days = parseInt(retentionDays, 10);
+      const data: CreateAnnouncementRequest = {
+        title,
+        body,
+        isImportant,
+        retentionDays: isNaN(days) ? 90 : days,
+        channels,
+      };
+      saveMutation.mutate(data);
     }
   };
 
@@ -419,7 +393,7 @@ function AnnouncementFormDialog({
       }
       error={error}
       onSubmit={handleSubmit}
-      isSubmitting={loading}
+      isSubmitting={saveMutation.isPending}
       submitLabel={isEdit ? 'Save Changes' : 'Create'}
       submittingLabel="Saving…"
       submitDisabled={!title.trim() || !body.trim() || (!isEdit && channels.length === 0)}

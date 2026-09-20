@@ -1,14 +1,16 @@
 using Api.Models.Insights;
 using Api.Services;
+using Api.Services.Caching;
 using Api.Services.Insights;
+using Microsoft.Extensions.Caching.Memory;
 using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 
 /// <summary>
-/// Unit tests for the short-TTL caching decorator over IInsightsService. Each test uses a fresh,
-/// random OrgId so the process-wide static cache can't bleed between tests (and proves tenant
-/// isolation: the cache key is scoped per org).
+/// Unit tests for the short-TTL caching decorator over IInsightsService. The class owns one
+/// <see cref="SingleFlightCache"/> that every decorator in it shares — that is what makes the
+/// tenant-isolation test meaningful — and each test still uses a fresh, random OrgId.
 /// </summary>
 public class CachingInsightsServiceTests
 {
@@ -52,6 +54,11 @@ public class CachingInsightsServiceTests
             => throw new NotImplementedException();
     }
 
+    private readonly AnalyticsCache _cache = new();
+
+    private CachingInsightsService Wrap(IInsightsService inner, Guid orgId) =>
+        new(inner, Org(orgId), _cache);
+
     private static OrgContext Org(Guid id) => new() { OrgId = id, OrgSlug = "t", DbConnectionString = "x" };
 
     private static InsightsFilter Filter(DateTime from) => new() { From = from, To = from.AddDays(1) };
@@ -79,7 +86,7 @@ public class CachingInsightsServiceTests
     {
         var overview = MakeOverview();
         var inner = new CountingInsights(overview);
-        var sut = new CachingInsightsService(inner, Org(Guid.NewGuid()));
+        var sut = Wrap(inner, Guid.NewGuid());
         var filter = Filter(new DateTime(2031, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         var first = await sut.GetOverviewAsync(filter);
@@ -94,7 +101,7 @@ public class CachingInsightsServiceTests
     public async Task DifferentFilter_Recomputes()
     {
         var inner = new CountingInsights(MakeOverview());
-        var sut = new CachingInsightsService(inner, Org(Guid.NewGuid()));
+        var sut = Wrap(inner, Guid.NewGuid());
 
         await sut.GetOverviewAsync(Filter(new DateTime(2032, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
         await sut.GetOverviewAsync(Filter(new DateTime(2032, 2, 1, 0, 0, 0, DateTimeKind.Utc)));
@@ -108,8 +115,8 @@ public class CachingInsightsServiceTests
         var innerA = new CountingInsights(MakeOverview());
         var innerB = new CountingInsights(MakeOverview());
         var filter = Filter(new DateTime(2033, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        var sutA = new CachingInsightsService(innerA, Org(Guid.NewGuid()));
-        var sutB = new CachingInsightsService(innerB, Org(Guid.NewGuid()));
+        var sutA = Wrap(innerA, Guid.NewGuid());
+        var sutB = Wrap(innerB, Guid.NewGuid());
 
         await sutA.GetOverviewAsync(filter);
         await sutA.GetOverviewAsync(filter);
@@ -125,7 +132,7 @@ public class CachingInsightsServiceTests
         var overview = MakeOverview();
         var gate = new TaskCompletionSource<InsightsOverview>(TaskCreationOptions.RunContinuationsAsynchronously);
         var inner = new GatedInsights(() => gate.Task);
-        var sut = new CachingInsightsService(inner, Org(Guid.NewGuid()));
+        var sut = Wrap(inner, Guid.NewGuid());
         var filter = Filter(new DateTime(2034, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         // Both calls miss the cache while the computation is still pending; single-flight
@@ -147,7 +154,7 @@ public class CachingInsightsServiceTests
         var inner = new GatedInsights(() => Interlocked.Increment(ref calls) == 1
             ? Task.FromException<InsightsOverview>(new InvalidOperationException("boom"))
             : Task.FromResult(overview));
-        var sut = new CachingInsightsService(inner, Org(Guid.NewGuid()));
+        var sut = Wrap(inner, Guid.NewGuid());
         var filter = Filter(new DateTime(2035, 1, 1, 0, 0, 0, DateTimeKind.Utc));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => sut.GetOverviewAsync(filter));

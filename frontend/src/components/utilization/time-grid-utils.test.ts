@@ -1,17 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
-  coversOffTimeRange,
   generateTimeColumns,
   getFetchWindow,
   isAnchorStale,
-  overlapsOffTimeRange,
   parseTimeToHour,
   formatDropInstant,
   resolveDropStartMs,
   utilizationGranularityForScale,
   viewPositionPercent,
 } from "./time-grid-utils";
-import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 
 describe("time-grid-utils", () => {
   it("generates aligned column labels and counts for each scale", () => {
@@ -72,87 +69,8 @@ describe("time-grid-utils", () => {
     expect(dayColumns[17].isOutsideWorkingHours).toBe(true);
   });
 
-  it("parses hour strings and detects scoped off-time overlap", () => {
+  it("parses hour strings", () => {
     expect(parseTimeToHour("08:30")).toBe(8);
-
-    const offTimeRanges: OffTimeRange[] = [
-      {
-        id: "ot-all",
-        title: "Site closed",
-        startMs: Date.parse("2026-05-11T09:00:00Z"),
-        endMs: Date.parse("2026-05-11T10:00:00Z"),
-        resourceIds: null,
-      },
-      {
-        id: "ot-space-2",
-        title: "Space 2 maintenance",
-        startMs: Date.parse("2026-05-11T12:00:00Z"),
-        endMs: Date.parse("2026-05-11T13:00:00Z"),
-        resourceIds: ["space-2"],
-      },
-    ];
-
-    expect(
-      overlapsOffTimeRange(
-        "space-1",
-        Date.parse("2026-05-11T09:30:00Z"),
-        Date.parse("2026-05-11T10:30:00Z"),
-        offTimeRanges,
-      ),
-    ).toBe(true);
-    expect(
-      overlapsOffTimeRange(
-        "space-1",
-        Date.parse("2026-05-11T12:15:00Z"),
-        Date.parse("2026-05-11T12:45:00Z"),
-        offTimeRanges,
-      ),
-    ).toBe(false);
-    expect(
-      overlapsOffTimeRange(
-        "space-2",
-        Date.parse("2026-05-11T12:15:00Z"),
-        Date.parse("2026-05-11T12:45:00Z"),
-        offTimeRanges,
-      ),
-    ).toBe(true);
-  });
-
-  it("tints a column as off-time only when a range covers it end to end", () => {
-    // Two full-day weekend ranges (Sat 2026-05-16 and Sun 2026-05-17, UTC) —
-    // exactly what generateWeekendRanges emits.
-    const sat = Date.parse("2026-05-16T00:00:00Z");
-    const sun = Date.parse("2026-05-17T00:00:00Z");
-    const mon = Date.parse("2026-05-18T00:00:00Z");
-    const ranges: OffTimeRange[] = [
-      { id: "w-sat", title: "Weekend", startMs: sat, endMs: sun, resourceIds: null },
-      { id: "w-sun", title: "Weekend", startMs: sun, endMs: mon, resourceIds: null },
-    ];
-
-    // Week view: a Saturday day-column is fully covered → tinted.
-    expect(coversOffTimeRange("space-1", sat, sun, ranges)).toBe(true);
-
-    // Month view: a Mon→Mon week column merely overlaps the weekend → NOT tinted.
-    const weekStart = Date.parse("2026-05-11T00:00:00Z");
-    const weekEnd = Date.parse("2026-05-18T00:00:00Z");
-    expect(coversOffTimeRange("space-1", weekStart, weekEnd, ranges)).toBe(false);
-    // The previous overlap-based logic is what wrongly painted the whole column:
-    expect(overlapsOffTimeRange("space-1", weekStart, weekEnd, ranges)).toBe(true);
-
-    // Year view: a whole-month column is likewise not covered by a 1-day range.
-    const monthStart = Date.parse("2026-05-01T00:00:00Z");
-    const monthEnd = Date.parse("2026-06-01T00:00:00Z");
-    expect(coversOffTimeRange("space-1", monthStart, monthEnd, ranges)).toBe(false);
-  });
-
-  it("scopes full-coverage off-time to the matching resource", () => {
-    const start = Date.parse("2026-05-16T00:00:00Z");
-    const end = Date.parse("2026-05-17T00:00:00Z");
-    const ranges: OffTimeRange[] = [
-      { id: "m", title: "Maintenance", startMs: start, endMs: end, resourceIds: ["space-2"] },
-    ];
-    expect(coversOffTimeRange("space-2", start, end, ranges)).toBe(true);
-    expect(coversOffTimeRange("space-1", start, end, ranges)).toBe(false);
   });
 
   it("moves a dragged bar continuously, without snapping to a column edge", () => {

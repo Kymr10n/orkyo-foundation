@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { combineDateTimeToISO } from '@foundation/src/lib/utils';
 import { VALIDATION_MESSAGES } from '@foundation/src/constants';
-import { computeSiteScopeWarning } from './RequestFormDialog';
+import { computeSiteScopeWarning } from '@foundation/src/hooks/useRequestFormDialog';
 
 describe('RequestFormDialog - Validation Logic', () => {
   describe('Date/Time validation', () => {

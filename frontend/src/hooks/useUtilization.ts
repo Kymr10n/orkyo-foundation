@@ -13,9 +13,17 @@ import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResource
 import type { Request } from "@foundation/src/types/requests";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
+import { getUtilizationByResource } from "@foundation/src/lib/api/resource-utilization-api";
+import {
+    getAssignmentsByResourceType,
+    validateAssignmentsBatch,
+    type ResourceAssignmentInfo,
+    type ValidateResourceAssignmentRequest,
+} from "@foundation/src/lib/api/resource-assignments-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { errorMessage } from "./mutation-utils";
 import { toast } from "sonner";
+import { STALE } from "@foundation/src/lib/core/query-client";
 
 // Background refetch cadence for the operational request feeds. Keeps the server-derived status (and
 // any worker-sweeper / manual cancel-defer changes) flowing in; the client also recomputes the
@@ -126,5 +134,80 @@ export function useScheduleRequest() {
     // scheduled windows and the backlog, and changes conflicts — refresh both (prefix match
     // covers every ["requests",…] key).
     onSettled: () => invalidateRequestData(queryClient),
+  });
+}
+
+// ── Resource utilization grid ───────────────────────────────
+// The three reads behind one type's grid: occupancy per resource, the assignments in the
+// window, and the capability check that decorates their bars.
+
+/** Utilization for every resource of one type in a single request. */
+export function useUtilizationByResource(
+  resourceTypeKey: string,
+  siteId: string | null,
+  from: Date,
+  to: Date,
+  granularity: string,
+) {
+  return useQuery({
+    queryKey: qk.utilization.byResource(resourceTypeKey, siteId ?? null, from, to, granularity),
+    queryFn: () => getUtilizationByResource(from, to, granularity, resourceTypeKey, siteId ?? undefined),
+    staleTime: STALE.OPERATIONAL,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/** Assignments for every resource of one type in the window — drives the per-segment count badge. */
+export function useAssignmentsByType(resourceTypeKey: string, from: Date, to: Date) {
+  return useQuery({
+    queryKey: qk.utilization.assignmentsByType(resourceTypeKey, from, to),
+    queryFn: () => getAssignmentsByResourceType(resourceTypeKey, from, to),
+    staleTime: STALE.OPERATIONAL,
+  });
+}
+
+/**
+ * Batch-validate all assignments to surface capability conflicts on bars. Decorative only, so
+ * the caller arms it on a delay and the grid renders without waiting for it.
+ */
+export function useCapabilityConflicts(
+  resourceTypeKey: string,
+  from: Date,
+  to: Date,
+  assignments: readonly ResourceAssignmentInfo[],
+  enabled: boolean,
+) {
+  return useQuery({
+    // Keyed off the query that produced the assignments plus their count, not the id list
+    // itself: React Query hashes the key on every render, and stringifying a thousand uuids
+    // per keystroke into the search box is real main-thread time. The ids are a pure function
+    // of that query's result, so this identifies the same set.
+    queryKey: [
+      ...qk.utilization.assignmentsByType(resourceTypeKey, from, to),
+      'capability-conflicts',
+      assignments.length,
+    ],
+    queryFn: async (): Promise<Set<string>> => {
+      const items: ValidateResourceAssignmentRequest[] = assignments.map((a) => ({
+        requestId: a.requestId,
+        resourceId: a.resourceId,
+        startUtc: a.startUtc,
+        endUtc: a.endUtc,
+        allocationPercent: a.allocationPercent,
+        excludeAssignmentId: a.id,
+      }));
+      const results = await validateAssignmentsBatch(items);
+      const conflicted = new Set<string>();
+      for (const item of results) {
+        if (item.result.blockers.some((b) => b.code === 'capability.missing')) {
+          assignments
+            .filter((a) => a.requestId === item.requestId && a.resourceId === item.resourceId)
+            .forEach((a) => conflicted.add(a.id));
+        }
+      }
+      return conflicted;
+    },
+    enabled,
+    staleTime: STALE.OPERATIONAL,
   });
 }

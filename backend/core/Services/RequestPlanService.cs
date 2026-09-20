@@ -25,14 +25,16 @@ public interface IRequestPlanService
 
 public class RequestPlanService(
     IRequestRepository requests,
-    IRequestDependencyRepository dependencies) : IRequestPlanService
+    IRequestTreeRepository tree,
+    IRequestDependencyRepository dependencies,
+    TimeProvider time) : IRequestPlanService
 {
     public async Task<RequestPlan?> GetPlanAsync(Guid parentId, CancellationToken ct = default)
     {
         var parent = await requests.GetByIdAsync(parentId, includeRequirements: false, ct);
         if (parent is null) return null;
 
-        var children = await requests.GetChildrenAsync(parentId, ct);
+        var children = await tree.GetChildrenAsync(parentId, ct);
         if (children.Count == 0)
             return new RequestPlan
             {
@@ -130,7 +132,7 @@ public class RequestPlanService(
         // whatever its predecessors say, and the gate exempts it for exactly that reason.
         var childStatuses = await requests.GetStoredStatusesAsync([.. children.Select(c => c.Id)], ct);
 
-        var now = DateTime.UtcNow;
+        var now = time.GetUtcNow().UtcDateTime;
 
         var planChildren = children
             .OrderBy(c => c.SortOrder)

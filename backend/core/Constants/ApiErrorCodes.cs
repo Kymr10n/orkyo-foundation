@@ -18,6 +18,23 @@ public static class ApiErrorCodes
     public const string QuotaExceeded = "quota_exceeded";
     public const string UpgradeRequired = "upgrade_required";
 
+    /// <summary>Resource not found (404)</summary>
+    public const string NotFound = "NOT_FOUND";
+
+    /// <summary>Validation error (400)</summary>
+    // Value matches what has always been emitted on the wire (formerly via nameof); aligning the
+    // casing to "VALIDATION_ERROR" is deferred to the next major (deliberate — breaking change).
+    public const string ValidationError = "ValidationError";
+
+    /// <summary>Conflict error (409)</summary>
+    public const string Conflict = "CONFLICT";
+
+    /// <summary>Unprocessable entity (422)</summary>
+    public const string UnprocessableEntity = "UNPROCESSABLE_ENTITY";
+
+    /// <summary>Bot-challenge verification failed (403)</summary>
+    public const string ChallengeFailed = "CHALLENGE_FAILED";
+
     /// <summary>
     /// Error codes used by the bootstrap/auth flow.
     /// These are stable identifiers that frontends can map to user-friendly messages.

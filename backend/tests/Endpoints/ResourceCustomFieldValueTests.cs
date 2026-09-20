@@ -153,7 +153,7 @@ public class ResourceCustomFieldValueTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var listed = await _client.GetFromJsonAsync<JsonElement>(
             $"/api/resources?resourceTypeKey={type.Key}");
-        Assert.Equal(0, listed.GetProperty("total").GetInt32());
+        Assert.Equal(0, listed.GetProperty("totalItems").GetInt32());
     }
 
     [Fact]

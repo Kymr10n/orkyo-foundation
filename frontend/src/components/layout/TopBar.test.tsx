@@ -38,18 +38,21 @@ vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
 const mockSetSelectedSiteId = vi.fn();
 const mockSetTheme = vi.fn();
 
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({
-      scale: 1,
-      anchorTs: new Date('2026-01-01'),
-      user: null,
-      selectedSiteId: null,
-      setUser: vi.fn(),
-      setSelectedSiteId: mockSetSelectedSiteId,
-      resolvedTheme: 'dark',
-      setTheme: mockSetTheme,
-    })
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: vi.fn((selector: (s: unknown) => unknown) =>
+    selector({ selectedSiteId: null, setSelectedSiteId: mockSetSelectedSiteId }),
+  ),
+}));
+
+vi.mock('@foundation/src/store/scheduler-view-store', () => ({
+  useSchedulerViewStore: vi.fn((selector: (s: unknown) => unknown) =>
+    selector({ scale: 'week', anchorTs: new Date('2026-01-01') }),
+  ),
+}));
+
+vi.mock('@foundation/src/store/layout-store', () => ({
+  useLayoutStore: vi.fn((selector: (s: unknown) => unknown) =>
+    selector({ resolvedTheme: 'dark', setTheme: mockSetTheme }),
   ),
 }));
 

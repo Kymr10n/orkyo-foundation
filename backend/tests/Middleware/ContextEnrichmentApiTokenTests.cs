@@ -4,8 +4,10 @@ using Api.Models;
 using Api.PlatformApi.Auth;
 using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Api.Services.PlatformApi;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Orkyo.Foundation.Tests.Middleware;
@@ -61,8 +63,10 @@ public class ContextEnrichmentApiTokenTests
         return context;
     }
 
+    private readonly SingleFlightCache _cache = new(new MemoryCache(new MemoryCacheOptions()));
+
     private Task InvokeMiddleware(HttpContext context) =>
-        new ContextEnrichmentMiddleware(_ => Task.CompletedTask, _mockLogger.Object).InvokeAsync(
+        new ContextEnrichmentMiddleware(_ => Task.CompletedTask, _mockLogger.Object, _cache).InvokeAsync(
             context, _currentPrincipal, _currentTenant, _currentAuthContext,
             _mockIdentityLinkService.Object, _mockTenantUserService.Object,
             _mockBreakGlass.Object);

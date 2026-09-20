@@ -16,7 +16,6 @@ import {
   GRID_DAY_HEADER_OPTS,
   GRID_WEEK_HEADER_OPTS,
 } from "@foundation/src/lib/formatters";
-import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeScale } from "./ScaleSelect";
 import type { TimeColumn } from "./scheduler-types";
 
@@ -258,42 +257,4 @@ export function formatDropInstant(date: Date, scale: TimeScale): string {
     case "year":
       return formatLocalized(date, { day: "2-digit", month: "short", year: "numeric" });
   }
-}
-
-export function overlapsOffTimeRange(
-  resourceId: string,
-  startMs: number,
-  endMs: number,
-  offTimeRanges: readonly OffTimeRange[],
-): boolean {
-  if (offTimeRanges.length === 0) return false;
-  return offTimeRanges.some((offTime) => {
-    if (offTime.resourceIds !== null && !offTime.resourceIds.includes(resourceId)) {
-      return false;
-    }
-    return offTime.startMs < endMs && offTime.endMs > startMs;
-  });
-}
-
-/**
- * Whether a column is *fully* covered by an off-time range — the right test for
- * shading a whole column as off-time. A mere overlap is wrong at coarse scales:
- * every week/month column overlaps a weekend, which would paint the entire
- * grid. A column is off-time only when some range spans it end to end. Mirrors
- * the site-wide coverage check in `enrichColumnsWithOffTime`, but also honours
- * per-resource ranges.
- */
-export function coversOffTimeRange(
-  resourceId: string,
-  startMs: number,
-  endMs: number,
-  offTimeRanges: readonly OffTimeRange[],
-): boolean {
-  if (offTimeRanges.length === 0) return false;
-  return offTimeRanges.some((offTime) => {
-    if (offTime.resourceIds !== null && !offTime.resourceIds.includes(resourceId)) {
-      return false;
-    }
-    return offTime.startMs <= startMs && offTime.endMs >= endMs;
-  });
 }

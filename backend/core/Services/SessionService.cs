@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Security.Features;
 using Npgsql;
@@ -144,20 +145,20 @@ public class SessionService : ISessionService
 
         return new UserInfo
         {
-            Id = reader.GetGuid(0),
-            Email = reader.GetString(1),
-            DisplayName = reader.GetString(2),
-            CreatedAt = reader.GetDateTime(3),
-            LastLoginAt = reader.IsDBNull(4) ? null : reader.GetDateTime(4),
-            HasSeenTour = reader.GetBoolean(5),
-            KeycloakId = reader.IsDBNull(6) ? null : reader.GetString(6)
+            Id = reader.GetGuid("id"),
+            Email = reader.GetString("email"),
+            DisplayName = reader.GetString("display_name"),
+            CreatedAt = reader.GetDateTime("created_at"),
+            LastLoginAt = reader.GetNullableDateTime("last_login_at"),
+            HasSeenTour = reader.GetBoolean("has_seen_tour"),
+            KeycloakId = reader.GetNullableString("keycloak_id")
         };
     }
 
     private async Task<List<TenantMembershipInfo>> GetTenantMembershipsAsync(NpgsqlConnection db, Guid userId, CancellationToken ct = default)
     {
         await using var cmd = new NpgsqlCommand(@"
-            SELECT t.id, t.slug, t.display_name, tm.role, t.status,
+            SELECT t.id, t.slug, t.display_name, tm.role, t.status AS tenant_status,
                    t.owner_user_id
             FROM tenant_memberships tm
             JOIN tenants t ON t.id = tm.tenant_id
@@ -171,13 +172,13 @@ public class SessionService : ISessionService
         {
             while (await reader.ReadAsync(ct))
             {
-                var ownerUserId = reader.IsDBNull(5) ? (Guid?)null : reader.GetGuid(5);
+                var ownerUserId = reader.GetNullableGuid("owner_user_id");
                 rows.Add((
-                    reader.GetGuid(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetString(3),
-                    reader.GetString(4),
+                    reader.GetGuid("id"),
+                    reader.GetString("slug"),
+                    reader.GetString("display_name"),
+                    reader.GetString("role"),
+                    reader.GetString("tenant_status"),
                     ownerUserId == userId));
             }
         }

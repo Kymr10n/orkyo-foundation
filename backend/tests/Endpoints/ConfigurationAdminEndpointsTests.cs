@@ -84,7 +84,7 @@ public class ConfigurationAdminEndpointsTests
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand("DELETE FROM tenant_settings", conn);
         await cmd.ExecuteNonQueryAsync();
-        TenantSettingsService.ClearCache();
+        _fixture.Factory.ResetCaches();
     }
 
     private HttpRequestMessage Authed(HttpMethod method, string url, string token, object? body = null)

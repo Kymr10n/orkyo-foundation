@@ -34,10 +34,16 @@ public sealed class InMemoryBffPkceStateStore : IBffPkceStateStore
     private sealed record Entry(PkceStateData Data, DateTimeOffset ExpiresAt);
 
     private readonly ConcurrentDictionary<string, Entry> _store = new();
+    private readonly TimeProvider _time;
+
+    public InMemoryBffPkceStateStore(TimeProvider time)
+    {
+        _time = time;
+    }
 
     public Task SetAsync(string state, PkceStateData data, TimeSpan ttl, CancellationToken ct = default)
     {
-        _store[state] = new Entry(data, DateTimeOffset.UtcNow.Add(ttl));
+        _store[state] = new Entry(data, _time.GetUtcNow().Add(ttl));
         return Task.CompletedTask;
     }
 
@@ -47,7 +53,7 @@ public sealed class InMemoryBffPkceStateStore : IBffPkceStateStore
         if (!_store.TryRemove(state, out var entry))
             return Task.FromResult<PkceStateData?>(null);
 
-        if (entry.ExpiresAt <= DateTimeOffset.UtcNow)
+        if (entry.ExpiresAt <= _time.GetUtcNow())
             return Task.FromResult<PkceStateData?>(null);
 
         return Task.FromResult<PkceStateData?>(entry.Data);

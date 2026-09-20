@@ -36,6 +36,17 @@ export interface OffTimeDefinition {
 }
 
 /** A concrete non-working time range (already expanded from recurrence). */
+/**
+ * Aggregated status of one utilization bucket. Derived in
+ * `utilization-segments.ts` and painted by the utilization views.
+ */
+export type BucketStatus =
+  | "available"
+  | "partial"
+  | "assigned"
+  | "overbooked"
+  | "non-working";
+
 export interface OffTimeRange {
   id: string;
   /** Epoch ms, inclusive. */

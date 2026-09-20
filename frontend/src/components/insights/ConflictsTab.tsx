@@ -1,5 +1,5 @@
 import { useConflictRegistry, useConflictedRequests } from "@foundation/src/hooks/useConflictRegistry";
-import { useRequestEditor } from "@foundation/src/components/requests/useRequestEditor";
+import { useRequestEditor } from "@foundation/src/hooks/useRequestEditor";
 import { AlertCircle } from "lucide-react";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportConflicts } from "@foundation/src/lib/utils/export-handlers";

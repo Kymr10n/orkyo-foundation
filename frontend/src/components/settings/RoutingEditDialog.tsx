@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { FormField } from "@foundation/src/components/ui/FormField";
@@ -14,8 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@foundation/src/components/ui/select";
-import { getTemplates } from "@foundation/src/lib/api/template-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { useTemplates } from "@foundation/src/hooks/useTemplates";
 import { useCreateRouting, useUpdateRouting } from "@foundation/src/hooks/useRoutings";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 import type { Routing, RoutingStepRequest } from "@foundation/src/types/routings";
@@ -113,11 +111,7 @@ export function RoutingEditDialog({ routing, open, onOpenChange }: RoutingEditDi
   const updateMutation = useUpdateRouting();
   const isSubmitting = routing ? updateMutation.isPending : createMutation.isPending;
 
-  const { data: templates = [] } = useQuery({
-    queryKey: qk.templates("request"),
-    queryFn: () => getTemplates("request"),
-    enabled: open,
-  });
+  const { data: templates = [] } = useTemplates("request", open);
 
   // Reseed when the dialog opens or swaps routing while open (render-phase, see SiteEditDialog).
   const [synced, setSynced] = useState<{ open: boolean; routing: Routing | null } | null>(null);

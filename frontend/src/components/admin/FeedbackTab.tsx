@@ -35,15 +35,14 @@ import { MessageSquare, Eye } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { toast } from 'sonner';
-import { useMutation } from '@tanstack/react-query';
 import {
   type FeedbackSummary,
   type FeedbackDetail,
   type FeedbackStatus,
   getFeedback,
   getFeedbackItem,
-  updateFeedback,
 } from '@foundation/src/lib/api/feedback-admin-api';
+import { useUpdateFeedback } from '@foundation/src/hooks/useFeedbackAdmin';
 
 const STATUSES: FeedbackStatus[] = ['new', 'reviewed', 'resolved', 'wont_fix'];
 
@@ -200,8 +199,7 @@ export function FeedbackTab() {
     return (
       <Card>
         <CardContent className="flex items-center justify-center py-12 md:py-12">
-          <LoadingSpinner size="sm" muted fullScreen={false} className="h-auto w-auto" />
-          <span className="ml-2 text-muted-foreground">Loading feedback…</span>
+          <LoadingSpinner size="sm" muted fullScreen={false} message="Loading feedback…" />
         </CardContent>
       </Card>
     );
@@ -266,17 +264,7 @@ function FeedbackDetailDialog({
   const [notes, setNotes] = useState('');
   const [githubUrl, setGithubUrl] = useState('');
 
-  const saveMutation = useMutation({
-    mutationFn: (input: { id: string; status: FeedbackStatus; adminNotes: string; githubIssueUrl: string }) =>
-      updateFeedback(input.id, { status: input.status, adminNotes: input.adminNotes, githubIssueUrl: input.githubIssueUrl }),
-    // No `invalidates`: the tab loads manually (not useQuery), so there is no cached
-    // consumer — onSaved() re-runs load() instead (dialog-feedback rule 3).
-    meta: {
-      successMessage: 'Feedback updated',
-      errorMessage: 'Failed to update feedback',
-    },
-    onSuccess: () => onSaved(),
-  });
+  const saveMutation = useUpdateFeedback(onSaved);
 
   // Seed the editor when an item is selected — a render-phase update, not an effect (see useEntityFormDialog.ts).
   const [syncedFeedback, setSyncedFeedback] = useState(feedback);

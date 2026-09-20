@@ -28,29 +28,23 @@ public sealed class FoundationWorkerLoop
     private readonly IWorkerJobCoordinator _jobs;
     private readonly IReadOnlyList<WorkerJob> _jobList;
     private readonly ILogger<FoundationWorkerLoop> _logger;
-    private readonly Func<TimeSpan, CancellationToken, Task> _delay;
+    private readonly TimeProvider _time;
 
+    /// <summary>The sleep between cycles comes from <paramref name="time"/>, so a test
+    /// drives the cadence with a <c>FakeTimeProvider</c> instead of waiting.</summary>
     public FoundationWorkerLoop(
         IWorkerJobCoordinator jobs,
         IEnumerable<WorkerJob> jobList,
-        ILogger<FoundationWorkerLoop> logger)
-        : this(jobs, jobList, logger, Task.Delay)
-    {
-    }
-
-    /// <summary>Test seam: the sleep between cycles.</summary>
-    internal FoundationWorkerLoop(
-        IWorkerJobCoordinator jobs,
-        IEnumerable<WorkerJob> jobList,
         ILogger<FoundationWorkerLoop> logger,
-        Func<TimeSpan, CancellationToken, Task> delay)
+        TimeProvider time)
     {
         ArgumentNullException.ThrowIfNull(jobs);
         ArgumentNullException.ThrowIfNull(jobList);
+        ArgumentNullException.ThrowIfNull(time);
         _jobs = jobs;
         _jobList = jobList.ToList();
         _logger = logger;
-        _delay = delay;
+        _time = time;
         if (_jobList.Count == 0)
             throw new ArgumentException("A worker loop needs at least one job.", nameof(jobList));
     }
@@ -81,7 +75,7 @@ public sealed class FoundationWorkerLoop
                     _logger.LogDebug("A job is running on another worker instance this cycle");
 
                 var jitter = TimeSpan.FromSeconds(Random.Shared.Next(0, 15));
-                await _delay(WorkerSchedulePolicy.GetLoopDelay(jitter), stoppingToken);
+                await Task.Delay(WorkerSchedulePolicy.GetLoopDelay(jitter), _time, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -91,7 +85,7 @@ public sealed class FoundationWorkerLoop
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Unexpected error in worker loop");
-                await _delay(WorkerSchedulePolicy.GetErrorRetryDelay(), stoppingToken);
+                await Task.Delay(WorkerSchedulePolicy.GetErrorRetryDelay(), _time, stoppingToken);
             }
         }
 

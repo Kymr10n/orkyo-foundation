@@ -1,3 +1,4 @@
+import { coversOffTimeRange } from "@foundation/src/domain/scheduling/off-time";
 import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeColumn } from "./scheduler-types";
 
@@ -19,9 +20,10 @@ export function enrichColumnsWithOffTime(
   return columns.map((col) => {
     const colStartMs = col.start.getTime();
     const colEndMs = col.end.getTime();
-    const isGlobalOffTime = siteWide.some(
-      (r) => r.startMs <= colStartMs && r.endMs >= colEndMs,
-    );
+    // Same coverage question as SpaceRow's per-cell tint, so it is the same function. The
+    // resource id is unused here because `siteWide` is already filtered to ranges that apply
+    // to everything.
+    const isGlobalOffTime = coversOffTimeRange("", colStartMs, colEndMs, siteWide);
     return isGlobalOffTime ? { ...col, isGlobalOffTime: true } : col;
   });
 }

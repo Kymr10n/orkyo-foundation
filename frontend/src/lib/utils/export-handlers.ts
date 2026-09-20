@@ -53,8 +53,8 @@ export async function exportUtilization(
   const resources: ResourceInfo[] = [];
   for (let page = 1; ; page++) {
     const res = await getResources({ isActive: true, page, pageSize: 100 });
-    resources.push(...res.data);
-    if (resources.length >= res.total || res.data.length === 0) break;
+    resources.push(...res.items);
+    if (resources.length >= res.totalItems || res.items.length === 0) break;
   }
   // The type comes along: the chart sections rows by it, so people and spaces
   // never interleave in one alphabetical list.

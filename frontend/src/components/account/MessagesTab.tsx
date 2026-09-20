@@ -1,4 +1,3 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
 /**
  * MessagesTab – User-facing tab showing platform announcements.
  *
@@ -7,73 +6,28 @@
  */
 
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
 import { EmptyState } from '@foundation/src/components/ui/EmptyState';
-import {
-  Megaphone,
-  AlertCircle,
-  Loader2,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  Circle,
-  AlertTriangle,
-} from 'lucide-react';
+import { Megaphone, AlertCircle, ChevronDown, ChevronUp, CheckCircle2, Circle, AlertTriangle } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
+import { type UserAnnouncement } from '@foundation/src/lib/api/user-announcements-api';
 import {
-  type UserAnnouncement,
-  getActiveAnnouncements,
-  markAnnouncementRead,
-} from '@foundation/src/lib/api/user-announcements-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+  useActiveAnnouncements,
+  useMarkAnnouncementRead,
+} from '@foundation/src/hooks/useMessages';
 import { formatDistanceToNow } from 'date-fns';
 
 export function MessagesTab() {
-  const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: qk.announcements.active(),
-    queryFn: async () => {
-      const res = await getActiveAnnouncements();
-      return res.announcements;
-    },
-  });
+  const { data, isLoading, error } = useActiveAnnouncements();
 
   const announcements = data ?? [];
 
-  const markReadMutation = useMutation({
-    mutationFn: markAnnouncementRead,
-    onMutate: async (announcementId: string) => {
-      // Cancel any outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: qk.announcements.active() });
-
-      // Snapshot previous value
-      const previous = queryClient.getQueryData<UserAnnouncement[]>(qk.announcements.active());
-
-      // Optimistically update
-      queryClient.setQueryData<UserAnnouncement[]>(qk.announcements.active(), (old) =>
-        old?.map((a) => (a.id === announcementId ? { ...a, isRead: true } : a))
-      );
-
-      return { previous };
-    },
-    onError: (_err, _id, context) => {
-      // Rollback on error
-      if (context?.previous) {
-        queryClient.setQueryData(qk.announcements.active(), context.previous);
-      }
-    },
-    onSettled: () => {
-      // Sync TopBar unread badge
-      // eslint-disable-next-line no-restricted-syntax -- optimistic-rollback mutation (onMutate snapshot): meta can't express it, invalidation stays hand-rolled (docs/dialog-feedback.md)
-      queryClient.invalidateQueries({ queryKey: qk.announcements.unread() });
-    },
-  });
+  const markReadMutation = useMarkAnnouncementRead();
 
   const handleToggle = (announcement: UserAnnouncement) => {
     const isExpanding = expandedId !== announcement.id;
@@ -147,7 +101,7 @@ export function MessagesTab() {
                           {a.isRead ? (
                             <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                           ) : (markReadMutation.isPending && markReadMutation.variables === a.id) ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                            <LoadingSpinner inline size="xs" />
                           ) : (
                             <Circle className="h-4 w-4 text-primary fill-primary" />
                           )}

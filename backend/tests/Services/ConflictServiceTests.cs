@@ -11,6 +11,7 @@ namespace Api.Tests.Services;
 public class ConflictServiceTests
 {
     private readonly Mock<IRequestRepository> _requestRepo = new();
+    private readonly Mock<IRequestScheduleReadRepository> _scheduleReads = new();
     private readonly Mock<IResourceAssignmentValidator> _validator = new();
     private readonly Mock<ICapabilityMatcher> _matcher = new();
     private readonly Mock<IResourceCapabilityRepository> _capRepo = new();
@@ -42,7 +43,8 @@ public class ConflictServiceTests
             .ReturnsAsync([]);
 
         _service = new ConflictService(
-            _requestRepo.Object, _validator.Object, _matcher.Object, _capRepo.Object, _dependencyRepo.Object);
+            _requestRepo.Object, _scheduleReads.Object, _validator.Object, _matcher.Object, _capRepo.Object,
+            _dependencyRepo.Object, TimeProvider.System);
     }
 
     private static readonly DateTime Start = new(2026, 6, 1, 9, 0, 0, DateTimeKind.Utc);
@@ -143,7 +145,7 @@ public class ConflictServiceTests
         var criterionId = Guid.NewGuid();
         var space = SpaceAssignment(Guid.NewGuid(), reqId, spaceId, Start, Start.AddHours(2));
         // No resource carries any capability → the requirement is unmet by every assignment.
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddHours(2),
                 requirements: [Requirement(reqId, criterionId)])]);
 
@@ -165,7 +167,7 @@ public class ConflictServiceTests
         var space = SpaceAssignment(Guid.NewGuid(), reqId, spaceId, Start, Start.AddHours(2));
         var person = Assignment(Guid.NewGuid(), reqId, personId, ResourceTypeKeys.Person, Start, Start.AddHours(2));
         // The room holds no person-skill, but the assigned person does → request-level match passes.
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [space, person], Start, Start.AddHours(2),
                 requirements: [Requirement(reqId, criterionId)])]);
         _capRepo
@@ -187,7 +189,7 @@ public class ConflictServiceTests
         var a2 = Guid.NewGuid();
         var s1 = SpaceAssignment(a1, r1, spaceId, Start, Start.AddHours(2));
         var s2 = SpaceAssignment(a2, r2, spaceId, Start, Start.AddHours(2));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 ScheduledRequest(r1, [s1], Start, Start.AddHours(2)),
                 ScheduledRequest(r2, [s2], Start, Start.AddHours(2)),
@@ -220,7 +222,7 @@ public class ConflictServiceTests
         var requestId = Guid.NewGuid();
         var spaceId = Guid.NewGuid();
         var assignment = SpaceAssignment(Guid.NewGuid(), requestId, spaceId, Start, Start.AddHours(8));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(requestId, [assignment], Start, Start.AddHours(8))]);
 
         _validator
@@ -258,7 +260,7 @@ public class ConflictServiceTests
         var requestId = Guid.NewGuid();
         var machineId = Guid.NewGuid();
         var assignment = SpaceAssignment(Guid.NewGuid(), requestId, machineId, Start, Start.AddHours(8));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(requestId, [assignment], Start, Start.AddHours(8))]);
 
         _validator
@@ -295,7 +297,7 @@ public class ConflictServiceTests
         var s2 = SpaceAssignment(Guid.NewGuid(), r2, Guid.NewGuid(), Start, Start.AddHours(2));
         var person1 = Assignment(p1, r1, personId, ResourceTypeKeys.Person, Start, Start.AddHours(2));
         var person2 = Assignment(p2, r2, personId, ResourceTypeKeys.Person, Start, Start.AddHours(2));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([
                 ScheduledRequest(r1, [s1, person1], Start, Start.AddHours(2)),
                 ScheduledRequest(r2, [s2, person2], Start, Start.AddHours(2)),
@@ -325,7 +327,7 @@ public class ConflictServiceTests
         var spaceId = Guid.NewGuid();
         var space = SpaceAssignment(Guid.NewGuid(), reqId, spaceId, Start, Start.AddMinutes(30));
         // Scheduled 30 min but minimal duration is 60 → below_min_duration (no validator blockers).
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddMinutes(30), minMinutes: 60)]);
 
         var result = await _service.GetAllAsync();
@@ -340,7 +342,7 @@ public class ConflictServiceTests
         var reqId = Guid.NewGuid();
         var space = SpaceAssignment(Guid.NewGuid(), reqId, Guid.NewGuid(), Start, Start.AddHours(1));
         // Scheduled an hour before the window the request itself declares.
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddHours(1),
                 minMinutes: 30, earliestStart: Start.AddHours(1))]);
 
@@ -356,7 +358,7 @@ public class ConflictServiceTests
     {
         var reqId = Guid.NewGuid();
         var space = SpaceAssignment(Guid.NewGuid(), reqId, Guid.NewGuid(), Start, Start.AddHours(2));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddHours(2),
                 minMinutes: 30, latestEnd: Start.AddHours(1))]);
 
@@ -370,7 +372,7 @@ public class ConflictServiceTests
     [Fact]
     public async Task ReturnsEmptyWhenNothingScheduled()
     {
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
         Assert.Empty(await _service.GetAllAsync());
     }
@@ -386,7 +388,7 @@ public class ConflictServiceTests
         var person2 = Guid.NewGuid();
         var a1 = Assignment(Guid.NewGuid(), reqId, person1, ResourceTypeKeys.Person, Start, Start.AddHours(2));
         var a2 = Assignment(Guid.NewGuid(), reqId, person2, ResourceTypeKeys.Person, Start, Start.AddHours(2));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [a1, a2], Start, Start.AddHours(2))]);
         // Two Fractional over-capacity issues: no ConflictingAssignmentId → capacity_exceeded path.
         _validator
@@ -412,7 +414,7 @@ public class ConflictServiceTests
         var person2 = Guid.NewGuid();
         var a1 = Assignment(Guid.NewGuid(), reqId, person1, ResourceTypeKeys.Person, Start, Start.AddHours(2));
         var a2 = Assignment(Guid.NewGuid(), reqId, person2, ResourceTypeKeys.Person, Start, Start.AddHours(2));
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [a1, a2], Start, Start.AddHours(2))]);
         _validator
             .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
@@ -440,7 +442,7 @@ public class ConflictServiceTests
         var reqId = Guid.NewGuid();
         var space = SpaceAssignment(Guid.NewGuid(), reqId, Guid.NewGuid(), Start, Start.AddMinutes(10));
         // 10-minute bar against a 60-minute minimum → a deterministic intrinsic conflict, no validator setup.
-        _requestRepo.Setup(r => r.GetScheduledAsync(from, to, It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(from, to, It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [space], Start, Start.AddMinutes(10), minMinutes: 60)]);
 
         var result = await _service.GetAllAsync(from, to);
@@ -448,21 +450,21 @@ public class ConflictServiceTests
         var entry = Assert.Single(result);
         Assert.Equal(reqId, entry.RequestId);
         Assert.Contains(entry.Conflicts, c => c.Kind == "below_min_duration");
-        _requestRepo.Verify(r => r.GetScheduledAsync(from, to, It.IsAny<CancellationToken>()), Times.Once);
-        _requestRepo.Verify(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _scheduleReads.Verify(r => r.GetScheduledAsync(from, to, It.IsAny<CancellationToken>()), Times.Once);
+        _scheduleReads.Verify(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task GetAllAsync_WithoutWindow_QueriesAllTimeScheduledRequests()
     {
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
         var result = await _service.GetAllAsync();
 
         Assert.Empty(result);
-        _requestRepo.Verify(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()), Times.Once);
-        _requestRepo.Verify(
+        _scheduleReads.Verify(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()), Times.Once);
+        _scheduleReads.Verify(
             r => r.GetScheduledAsync(It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()),
             Times.Never);
     }
@@ -496,7 +498,7 @@ public class ConflictServiceTests
         var successor = ScheduledRequest(
             successorId, [], successorStart, successorStart.AddHours(1));
 
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([predecessor, successor]);
         _dependencyRepo
             .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
@@ -564,7 +566,7 @@ public class ConflictServiceTests
         var successorId = Guid.NewGuid();
         var successor = ScheduledRequest(successorId, [], Start.AddDays(5), Start.AddDays(5).AddHours(1));
 
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([successor]);
         _requestRepo
             .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
@@ -594,7 +596,7 @@ public class ConflictServiceTests
         var predecessorId = Guid.NewGuid();
         var successorId = Guid.NewGuid();
 
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(successorId, [], Start, Start.AddHours(1))]);
         _dependencyRepo
             .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
@@ -620,7 +622,7 @@ public class ConflictServiceTests
             EndTs = null,
         };
 
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([successor]);
         _dependencyRepo
             .Setup(r => r.GetBySuccessorsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
@@ -671,7 +673,7 @@ public class ConflictServiceTests
             ? new List<RequestInfo> { firstPred, secondPred, successor }
             : [firstPred, successor];
 
-        _requestRepo.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(scheduled);
 
         // An unscheduled predecessor still EXISTS — ConflictService backfills it through

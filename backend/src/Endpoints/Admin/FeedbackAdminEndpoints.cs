@@ -14,9 +14,6 @@ namespace Api.Endpoints.Admin;
 
 public static class FeedbackAdminEndpoints
 {
-    private const int DefaultLimit = 50;
-    private const int MaxLimit = 200;
-
     public static void MapFeedbackAdminEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/admin/feedback")
@@ -46,18 +43,15 @@ public static class FeedbackAdminEndpoints
         CancellationToken ct,
         string? status = null,
         string? type = null,
-        int? limit = null,
-        int? offset = null)
+        int? page = null,
+        int? pageSize = null)
     {
         if (status is not null && !FeedbackStatuses.All.Contains(status))
             return ErrorResponses.BadRequest("Unknown status filter");
         if (type is not null && !FeedbackTypes.All.Contains(type))
             return ErrorResponses.BadRequest("Unknown type filter");
 
-        var take = Math.Clamp(limit ?? DefaultLimit, 1, MaxLimit);
-        var skip = Math.Max(offset ?? 0, 0);
-        var (items, total) = await repository.ListAsync(status, type, take, skip, ct);
-        return Results.Ok(new { items, total });
+        return Results.Ok(await repository.ListAsync(status, type, PageRequest.From(page, pageSize), ct));
     }
 
     private static async Task<IResult> GetById(

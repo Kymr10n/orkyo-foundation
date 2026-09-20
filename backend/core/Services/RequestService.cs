@@ -63,12 +63,23 @@ public interface IRequestService
 public class RequestService : IRequestService
 {
     private readonly IRequestRepository _repository;
+    private readonly IRequestTreeRepository _tree;
+    private readonly IRequestScheduleReadRepository _scheduleReads;
     private readonly IRequestDependencyRepository _dependencies;
+    private readonly TimeProvider _time;
 
-    public RequestService(IRequestRepository repository, IRequestDependencyRepository dependencies)
+    public RequestService(
+        IRequestRepository repository,
+        IRequestTreeRepository tree,
+        IRequestScheduleReadRepository scheduleReads,
+        IRequestDependencyRepository dependencies,
+        TimeProvider time)
     {
         _repository = repository;
+        _tree = tree;
+        _scheduleReads = scheduleReads;
         _dependencies = dependencies;
+        _time = time;
     }
 
     public Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default)
@@ -87,10 +98,10 @@ public class RequestService : IRequestService
         => _repository.GetByIdsAsync(ids, includeRequirements, ct);
 
     public Task<List<RequestInfo>> GetScheduledBySiteWindowAsync(Guid siteId, DateTime from, DateTime to, CancellationToken ct = default)
-        => _repository.GetScheduledBySiteWindowAsync(siteId, from, to, ct);
+        => _scheduleReads.GetScheduledBySiteWindowAsync(siteId, from, to, ct);
 
     public Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default)
-        => _repository.GetUnscheduledAsync(siteId, includeSiteNeutral, ct: ct);
+        => _scheduleReads.GetUnscheduledAsync(siteId, includeSiteNeutral, ct: ct);
 
     public async Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default)
     {
@@ -112,7 +123,7 @@ public class RequestService : IRequestService
         {
             if (request.ParentRequestId.Value == id)
                 throw new ArgumentException("A request cannot be its own parent");
-            var wouldCycle = await _repository.WouldCreateCycleAsync(id, request.ParentRequestId.Value, ct);
+            var wouldCycle = await _tree.WouldCreateCycleAsync(id, request.ParentRequestId.Value, ct);
             if (wouldCycle) throw new ConflictException("This change would create a circular reference");
             var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value, ct);
             if (parentMode == null) throw new NotFoundException("Parent request", request.ParentRequestId.Value);
@@ -121,7 +132,7 @@ public class RequestService : IRequestService
 
         if (request.PlanningMode == PlanningMode.Leaf)
         {
-            var hasChildren = await _repository.HasChildrenAsync(id, ct);
+            var hasChildren = await _tree.HasChildrenAsync(id, ct);
             if (hasChildren) throw new ConflictException("Cannot change to leaf mode while request has children");
         }
 
@@ -182,7 +193,7 @@ public class RequestService : IRequestService
                 p.EndTs))
             .ToList();
 
-        var result = JoinConditionEvaluator.EvaluateGate(JoinCondition.Of(request), states, DateTime.UtcNow);
+        var result = JoinConditionEvaluator.EvaluateGate(JoinCondition.Of(request), states, _time.GetUtcNow().UtcDateTime);
         if (result.IsMet) return;
 
         // Name a few of the offenders: the list can be long, and three is enough to act on.
@@ -216,7 +227,7 @@ public class RequestService : IRequestService
         => _repository.DeleteRequirementAsync(requestId, requirementId, ct);
 
     public Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default)
-        => _repository.GetChildrenAsync(parentId, ct);
+        => _tree.GetChildrenAsync(parentId, ct);
 
     public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default)
     {
@@ -224,25 +235,25 @@ public class RequestService : IRequestService
         {
             if (newParentId.Value == id)
                 throw new ArgumentException("A request cannot be its own parent");
-            if (await _repository.WouldCreateCycleAsync(id, newParentId.Value, ct))
+            if (await _tree.WouldCreateCycleAsync(id, newParentId.Value, ct))
                 throw new ConflictException("Moving this request would create a circular reference");
             var parentMode = await _repository.GetPlanningModeAsync(newParentId.Value, ct);
             if (parentMode == null) throw new NotFoundException("Parent request", newParentId.Value);
             if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot move a request under a leaf request");
         }
-        return await _repository.MoveAsync(id, newParentId, sortOrder, ct);
+        return await _tree.MoveAsync(id, newParentId, sortOrder, ct);
     }
 
     public Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default)
-        => _repository.GetDescendantCountAsync(id, ct);
+        => _tree.GetDescendantCountAsync(id, ct);
 
     public Task<bool> WouldCreateCycleAsync(Guid requestId, Guid newParentId, CancellationToken ct = default)
-        => _repository.WouldCreateCycleAsync(requestId, newParentId, ct);
+        => _tree.WouldCreateCycleAsync(requestId, newParentId, ct);
 
     public Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default)
         => _repository.GetPlanningModeAsync(id, ct);
 
-    public Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default) => _repository.HasChildrenAsync(id, ct);
+    public Task<bool> HasChildrenAsync(Guid id, CancellationToken ct = default) => _tree.HasChildrenAsync(id, ct);
 
-    public Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default) => _repository.DeleteSubtreeAsync(id, ct);
+    public Task<int> DeleteSubtreeAsync(Guid id, CancellationToken ct = default) => _tree.DeleteSubtreeAsync(id, ct);
 }

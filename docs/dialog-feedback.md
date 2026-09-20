@@ -47,7 +47,7 @@ useMutation({
   },
   // onSuccess/onError are ONLY for non-feedback side-effects:
   onSuccess: () => onOpenChange(false),     // close dialog, reset form, call onSaved()
-  onError: (err) => setError(err.message),  // inline ErrorAlert (kept alongside the toast)
+  onError: (err) => setError(err.message),  // inline ErrorAlert; see rule 4 on the toast
 });
 ```
 
@@ -71,8 +71,13 @@ meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. 
 3. Set `meta.invalidates` to the query key(s) the data is actually read under — grep the consuming
    `useQuery` before guessing. Editors that load via `useEffect` (not `useQuery`) have no cached
    consumer; omit `invalidates` (the toast is the only feedback).
-4. Keep the in-dialog `ErrorAlert` for persistent, in-context errors; the error toast is the
-   transient confirmation. The dialog's `onError` keeps `setError(...)`, just drops `toast.error`.
+4. **One surface per error.** A failure is reported inline or by toast, never both. A dialog
+   that stays open on failure shows the message in its own `ErrorAlert` and declares
+   `meta.suppressErrorToast: true`, because the person is already looking at the dialog;
+   its `onError` keeps `setError(...)` and drops nothing else. A dialog that closes itself
+   on failure keeps the toast, because its inline alert goes away with it.
+   `useEntityFormDialog` sets the suppression for every dialog built on it. The full rule,
+   including the query case, is in [frontend/ARCHITECTURE.md](../frontend/ARCHITECTURE.md).
 5. Client-side validation that never calls the mutation (e.g. "email required") may toast directly —
    it isn't a mutation result.
 

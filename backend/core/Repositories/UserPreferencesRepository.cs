@@ -13,7 +13,7 @@ public class UserPreferencesRepository(OrgContext orgContext, IOrgDbConnectionFa
         var json = await conn.QuerySingleOrDefaultAsync(
             "SELECT preferences FROM user_preferences WHERE user_id = @userId",
             p => p.AddWithValue("userId", userId),
-            r => r.GetString(0), ct);
+            r => r.GetString("preferences"), ct);
         return json is null ? null : JsonDocument.Parse(json);
     }
 

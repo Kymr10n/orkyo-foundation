@@ -94,7 +94,7 @@ public class ChallengeVerificationFilterTests
         nextCalled.Should().BeFalse("a failed challenge must never reach the handler");
         var (status, payload) = await ExecuteAsync(result);
         status.Should().Be(StatusCodes.Status403Forbidden);
-        payload.GetProperty("code").GetString().Should().Be(ErrorCodes.ChallengeFailed);
+        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.ChallengeFailed);
     }
 
     // ── pass-through path ─────────────────────────────────────────────────────

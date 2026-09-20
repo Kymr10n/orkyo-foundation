@@ -24,7 +24,7 @@ public static class EndpointHelpers
     public static IResult ValidationFailed(FluentValidation.Results.ValidationResult result)
         => ProblemResults.Problem(
             StatusCodes.Status400BadRequest,
-            Api.Constants.ErrorCodes.ValidationError,
+            Api.Constants.ApiErrorCodes.ValidationError,
             detail: "One or more fields failed validation.",
             errors: result.ToDictionary());
 

@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { FeedbackTab } from './FeedbackTab';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 // The save mutation declares `meta.successMessage`, so render under the
 // production-identical feedback MutationCache (dialog-feedback.md).
@@ -46,7 +47,7 @@ const detail = {
 describe('FeedbackTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGet.mockResolvedValue({ items: [], total: 0 });
+    mockGet.mockResolvedValue(pagedResult([]));
   });
 
   it('shows loading then the empty message', async () => {
@@ -56,14 +57,14 @@ describe('FeedbackTab', () => {
   });
 
   it('renders feedback rows', async () => {
-    mockGet.mockResolvedValue({ items: [summary], total: 1 });
+    mockGet.mockResolvedValue(pagedResult([summary]));
     render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Grid does not load')).toBeInTheDocument());
     expect(screen.getByText(/user@acme.com/)).toBeInTheDocument();
   });
 
   it('opens the detail dialog and loads the full item', async () => {
-    mockGet.mockResolvedValue({ items: [summary], total: 1 });
+    mockGet.mockResolvedValue(pagedResult([summary]));
     mockGetOne.mockResolvedValue(detail);
     const user = userEvent.setup();
     render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
@@ -76,7 +77,7 @@ describe('FeedbackTab', () => {
   });
 
   it('saves notes/github changes via updateFeedback', async () => {
-    mockGet.mockResolvedValue({ items: [summary], total: 1 });
+    mockGet.mockResolvedValue(pagedResult([summary]));
     mockGetOne.mockResolvedValue(detail);
     mockUpdate.mockResolvedValue({ ...detail, adminNotes: 'On it.' });
     const user = userEvent.setup();

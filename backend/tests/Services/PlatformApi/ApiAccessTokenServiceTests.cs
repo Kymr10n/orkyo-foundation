@@ -26,7 +26,8 @@ public class ApiAccessTokenServiceTests
         return new ApiAccessTokenService(
             Mock.Of<IDbConnectionFactory>(),
             configuration,
-            NullLogger<ApiAccessTokenService>.Instance);
+            NullLogger<ApiAccessTokenService>.Instance,
+            TimeProvider.System);
     }
 
     private static ApiAccessTokenService CreateValid() =>

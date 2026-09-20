@@ -15,7 +15,11 @@ vi.mock('@foundation/src/lib/api/resource-groups-api', () => ({
   setResourceGroupMembers: vi.fn(),
 }));
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
-  getResources: vi.fn().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 100 }),
+  // Inline rather than the pagedResult helper: a vi.mock factory is hoisted above imports.
+  getResources: vi.fn().mockResolvedValue({
+    items: [], page: 1, pageSize: 100, totalItems: 0, totalPages: 0,
+    hasNextPage: false, hasPreviousPage: false,
+  }),
 }));
 
 import { getResourceGroups, deleteResourceGroup } from '@foundation/src/lib/api/resource-groups-api';

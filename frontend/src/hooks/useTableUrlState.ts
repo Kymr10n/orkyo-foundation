@@ -7,7 +7,7 @@ import type {
   SortingState,
   Updater,
 } from '@tanstack/react-table';
-import type { ColumnDef } from '@foundation/src/lib/table/features';
+import type { ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import type { ColumnFilterMeta } from '@foundation/src/lib/table/column-meta';
 import { useDebouncedCallback } from '@foundation/src/hooks/useDebouncedCallback';
 

@@ -4,7 +4,9 @@ using Api.Middleware;
 using Api.Models;
 using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Orkyo.Foundation.Tests.Middleware;
@@ -18,6 +20,9 @@ public class ContextEnrichmentMiddlewareTests
     private readonly CurrentPrincipal _currentPrincipal = new();
     private readonly CurrentTenant _currentTenant = new();
     private readonly CurrentAuthorizationContext _currentAuthContext = new();
+    private readonly SingleFlightCache _cache = NewCache();
+
+    private static SingleFlightCache NewCache() => new(new MemoryCache(new MemoryCacheOptions()));
 
     public ContextEnrichmentMiddlewareTests()
     {
@@ -26,7 +31,7 @@ public class ContextEnrichmentMiddlewareTests
     }
 
     private ContextEnrichmentMiddleware CreateMiddleware(RequestDelegate next) =>
-        new(next, _mockLogger.Object);
+        new(next, _mockLogger.Object, _cache);
 
     private static HttpContext CreateHttpContext(ClaimsPrincipal? user = null, TenantContext? tenantContext = null)
     {
@@ -211,9 +216,8 @@ public class ContextEnrichmentMiddlewareTests
     }
 
     [Fact]
-    public async Task ClearCache_AllowsSubsequentDbQueries()
+    public async Task AFreshCache_AllowsSubsequentDbQueries()
     {
-        ContextEnrichmentMiddleware.ClearCache();
         var subject = $"kc-clear-{Guid.NewGuid()}";
         var userId = Guid.NewGuid();
         var principal = new PrincipalContext
@@ -227,14 +231,16 @@ public class ContextEnrichmentMiddlewareTests
 
         var tenant = CreateTenantContext();
         var user = CreateKeycloakUser(subject);
-        var middleware = new ContextEnrichmentMiddleware(_ => Task.CompletedTask, _mockLogger.Object);
+        var middleware = new ContextEnrichmentMiddleware(_ => Task.CompletedTask, _mockLogger.Object, _cache);
 
         await middleware.InvokeAsync(CreateHttpContext(user, tenant), new CurrentPrincipal(), new CurrentTenant(), new CurrentAuthorizationContext(),
             _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object);
 
-        ContextEnrichmentMiddleware.ClearCache();
+        // The cache is no longer static, so "cleared" is a second middleware over a fresh cache —
+        // what a host that resets its IMemoryCache between tests gives the pipeline.
+        var afterReset = new ContextEnrichmentMiddleware(_ => Task.CompletedTask, _mockLogger.Object, NewCache());
 
-        await middleware.InvokeAsync(CreateHttpContext(user, tenant), new CurrentPrincipal(), new CurrentTenant(), new CurrentAuthorizationContext(),
+        await afterReset.InvokeAsync(CreateHttpContext(user, tenant), new CurrentPrincipal(), new CurrentTenant(), new CurrentAuthorizationContext(),
             _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object);
 
         _mockIdentityLinkService.Verify(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject), Times.Exactly(2));

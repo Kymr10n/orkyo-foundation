@@ -52,6 +52,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     private readonly KeycloakOptions _keycloakOptions;
     private readonly IBffAuthClientRegistry _authClientRegistry;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly TimeProvider _time;
 
     public BffCookieAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -62,7 +63,8 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         IOptions<Configuration.BffOptions> bffOptions,
         KeycloakOptions keycloakOptions,
         IBffAuthClientRegistry authClientRegistry,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        TimeProvider time)
         : base(options, logger, encoder)
     {
         _sessionStore = sessionStore;
@@ -71,6 +73,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         _keycloakOptions = keycloakOptions;
         _authClientRegistry = authClientRegistry;
         _httpClientFactory = httpClientFactory;
+        _time = time;
     }
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -104,7 +107,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         // everyone else keeps using the current access token, which is safe here because claims are
         // read without expiry validation and the token is never forwarded downstream.
         var accessToken = session.AccessToken;
-        if (session.TokenExpiresAt - DateTimeOffset.UtcNow < RefreshWindow
+        if (session.TokenExpiresAt - _time.GetUtcNow() < RefreshWindow
             && await _sessionStore.TryAcquireRefreshLockAsync(sessionId, RefreshLockTtl, Context.RequestAborted))
         {
             var refreshed = await TryRefreshTokensAsync(session);
@@ -170,7 +173,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         if (!session.SlidingEnabled)
             return;
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _time.GetUtcNow();
 
         // Already at the cap — nothing left to give.
         if (session.AbsoluteExpiresAt <= now)
@@ -235,7 +238,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             var newAccessToken = root.GetProperty("access_token").GetString()!;
             var newRefreshToken = root.GetProperty("refresh_token").GetString()!;
             var expiresIn = root.GetProperty("expires_in").GetInt32();
-            var newTokenExpiresAt = DateTimeOffset.UtcNow.AddSeconds(expiresIn);
+            var newTokenExpiresAt = _time.GetUtcNow().AddSeconds(expiresIn);
 
             await _sessionStore.RefreshTokensAsync(
                 session.SessionId, newAccessToken, newRefreshToken, newTokenExpiresAt, Context.RequestAborted);

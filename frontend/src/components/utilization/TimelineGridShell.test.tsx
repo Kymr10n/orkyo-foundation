@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TimelineGridShell, type ShellGroup } from './TimelineGridShell';
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
 import type { TimeColumn } from './scheduler-types';
 
 function makeColumn(hour: string): TimeColumn {
@@ -35,7 +35,7 @@ function renderShell(extra: Partial<React.ComponentProps<typeof TimelineGridShel
 
 describe('TimelineGridShell', () => {
   beforeEach(() => {
-    useAppStore.setState({ collapsedGroupIds: [] });
+    useLayoutStore.setState({ collapsedGroupIds: [] });
   });
 
   it('renders the label header and one header cell per column', () => {

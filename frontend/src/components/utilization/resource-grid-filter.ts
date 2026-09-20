@@ -1,6 +1,6 @@
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceUtilizationSegment } from '@foundation/src/domain/scheduling/utilization-segments';
-import type { BucketStatus } from './schedule-colors';
+import type { BucketStatus } from '@foundation/src/domain/scheduling/types';
 
 /**
  * The utilization states a reader can filter rows by — the same five the grid's legend names,

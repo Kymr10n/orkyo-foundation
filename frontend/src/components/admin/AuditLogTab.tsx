@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ColumnDef } from '@foundation/src/lib/table/features';
+import { useMemo } from 'react';
 import { format } from 'date-fns';
 
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
@@ -7,13 +6,12 @@ import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { FeatureKeys } from '@foundation/contracts/plans';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { getTenantAuditEvents, type TenantAuditEvent } from '@foundation/src/lib/api/audit-api';
+import { qk } from '@foundation/src/lib/api/query-keys';
 import { DATE_FORMATS } from '@foundation/src/lib/formatters';
-import { OrkyoDataTable } from '@foundation/src/components/ui/OrkyoDataTable';
-import { Card, CardContent, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
+import type { ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
-
-const PAGE_SIZE = 25;
+import { AuditEventsTable } from '@foundation/src/components/admin/AuditEventsTable';
 
 /** Platform-sourced events (break-glass, staff tier/membership changes) carry this in metadata. */
 interface AuditMetadata {
@@ -42,12 +40,6 @@ interface AuditLogTabProps {
  */
 export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
   const available = useFeatureEnabled(FeatureKeys.AuditLog);
-  const [events, setEvents] = useState<TenantAuditEvent[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0); // OrkyoDataTable is 0-indexed
-  const [loading, setLoading] = useState(true);
-  const [loadedOnce, setLoadedOnce] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Server-mode headers: this table is a window onto thousands of rows, so filtering the
   // visible page client-side would lie. Header filters only report state; the query below
@@ -109,51 +101,17 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
   ], []);
 
   const urlState = useTableUrlState('audit', columns);
-  const { columnFilters } = urlState;
+  const { columnFilters, ...tableProps } = urlState;
 
-  // Translate the header-filter state into the API's params. Kept as one memo so the load
-  // effect and the page-reset effect key on the same value.
-  const apiFilters = useMemo(() => {
+  // Translate the header-filter state into the API's params. One memo, so it is also the
+  // value the table's page reset keys on.
+  const filters = useMemo(() => {
     const action = columnFilters.find((f) => f.id === 'action')?.value as string | undefined;
     const range = columnFilters.find((f) => f.id === 'createdAt')?.value as
       | [string?, string?]
       | undefined;
     return { action: action || undefined, from: range?.[0], to: range?.[1] };
   }, [columnFilters]);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getTenantAuditEvents({
-        page: page + 1, // API is 1-based
-        pageSize: PAGE_SIZE,
-        ...apiFilters,
-      });
-      setEvents(res.events);
-      setTotal(res.totalCount);
-      setLoadedOnce(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load audit log');
-    } finally {
-      setLoading(false);
-    }
-  }, [page, apiFilters]);
-
-  useEffect(() => {
-    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (available) void load();
-  }, [available, load]);
-
-  // A page number only means something within one filtered set. Render-phase, not an effect:
-  // an effect would first issue one request for the stale page (see useEntityFormDialog.ts).
-  const filterSignature = JSON.stringify(apiFilters);
-  const [syncedSignature, setSyncedSignature] = useState(filterSignature);
-  if (syncedSignature !== filterSignature) {
-    setSyncedSignature(filterSignature);
-    setPage(0);
-  }
 
   // Phone presentation: action + actor/target stacked, timestamp last. Read-only, no actions.
   const renderCard = (e: TenantAuditEvent) => {
@@ -190,29 +148,16 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Audit Log</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <OrkyoDataTable
-          columns={columns}
-          data={events}
-          // Skeletons only before anything has loaded. A header-filter keystroke refetches,
-          // and swapping the table for skeletons would unmount the open filter popover under
-          // the user's cursor; stale rows for a beat are the lesser evil.
-          isLoading={loading && !loadedOnce}
-          error={error}
-          onRetry={() => void load()}
-          emptyMessage="No audit events yet."
-          {...urlState}
-          pageSize={PAGE_SIZE}
-          totalCount={total}
-          page={page}
-          onPageChange={setPage}
-          renderCard={renderCard}
-        />
-      </CardContent>
-    </Card>
+    <AuditEventsTable
+      title="Audit Log"
+      columns={columns}
+      filters={filters}
+      queryKey={(page, f, size) => [...qk.audit.events(page, f), size]}
+      fetchPage={({ page, pageSize, filters: f }) =>
+        getTenantAuditEvents({ page, pageSize, ...f })
+      }
+      renderCard={renderCard}
+      tableProps={{ ...tableProps, columnFilters }}
+    />
   );
 }

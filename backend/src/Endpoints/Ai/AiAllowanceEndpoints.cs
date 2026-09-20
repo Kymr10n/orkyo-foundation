@@ -75,7 +75,7 @@ public static class AiAllowanceEndpoints
         catch (ArgumentOutOfRangeException ex)
         {
             return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError, detail: ex.Message);
+                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
         }
     }
 
@@ -106,7 +106,7 @@ public static class AiAllowanceEndpoints
         catch (ArgumentOutOfRangeException ex)
         {
             return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ErrorCodes.ValidationError, detail: ex.Message);
+                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
         }
     }
 

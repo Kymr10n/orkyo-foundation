@@ -135,7 +135,7 @@ describe('TemplateSettings', () => {
     });
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => {
-      expect(mockDeleteTemplate).toHaveBeenCalledWith('t1', expect.any(Object));
+      expect(mockDeleteTemplate).toHaveBeenCalledWith('t1');
     });
   });
 

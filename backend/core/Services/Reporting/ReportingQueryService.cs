@@ -1,4 +1,5 @@
 using Api.Constants;
+using Api.Helpers;
 using Api.Models;
 using Api.Models.Reporting;
 using Api.Repositories;
@@ -13,15 +14,19 @@ namespace Api.Services.Reporting;
 public sealed class ReportingQueryService : IReportingQueryService
 {
     private readonly IDbConnectionFactory _db;
+    private readonly TimeProvider _time;
 
-    public ReportingQueryService(IDbConnectionFactory db)
+    public ReportingQueryService(IDbConnectionFactory db, TimeProvider time)
     {
         _db = db;
+        _time = time;
     }
 
     /// <summary>Resolves the shared paging + date-range defaulting applied to every reporting query.</summary>
-    private static (ReportingPageRequest Paged, DateTime From, DateTime To) ResolveWindow(ReportingQuery query) =>
-        (query.ToPageRequest(), query.From ?? DateTime.UtcNow.AddMonths(-1), query.To ?? DateTime.UtcNow);
+    private (ReportingPageRequest Paged, DateTime From, DateTime To) ResolveWindow(ReportingQuery query) =>
+        (query.ToPageRequest(),
+            query.From ?? _time.GetUtcNow().UtcDateTime.AddMonths(-1),
+            query.To ?? _time.GetUtcNow().UtcDateTime);
 
     public async Task<ReportingResult<SpaceUtilizationRow>> GetSpaceUtilizationAsync(
         TenantContext tenant, ReportingQuery query, CancellationToken ct = default)
@@ -69,21 +74,21 @@ public sealed class ReportingQueryService : IReportingQueryService
             },
             reader =>
             {
-                totalCount = reader.GetInt32(7);
-                var allocated = reader.GetDouble(5);
+                totalCount = reader.GetInt32("total_count");
+                var allocated = reader.GetDouble("allocated_hours");
                 var utilPct = periodHours > 0 ? Math.Round(allocated / periodHours * 100, 1) : 0;
                 return new SpaceUtilizationRow
                 {
-                    SiteName = reader.GetString(0),
-                    SpaceName = reader.GetString(1),
-                    SpaceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    SiteName = reader.GetString("site_name"),
+                    SpaceName = reader.GetString("space_name"),
+                    SpaceGroupName = reader.GetNullableString("group_name"),
                     PeriodStartUtc = from,
                     PeriodEndUtc = to,
                     AvailableHours = periodHours,
                     AllocatedHours = Math.Round(allocated, 2),
                     UtilizationPercent = utilPct,
                     OverbookedHours = 0,
-                    RequestCount = reader.GetInt32(6),
+                    RequestCount = reader.GetInt32("request_count"),
                 };
             }, ct);
 
@@ -134,16 +139,16 @@ public sealed class ReportingQueryService : IReportingQueryService
             },
             reader =>
             {
-                totalCount = reader.GetInt32(8);
-                var availPct = reader.IsDBNull(5) ? 100.0 : reader.GetDouble(5);
+                totalCount = reader.GetInt32("total_count");
+                var availPct = reader.GetNullableDouble("base_availability_percent") ?? 100.0;
                 var effectiveHours = periodHours * availPct / 100.0;
-                var allocated = reader.GetDouble(6);
+                var allocated = reader.GetDouble("allocated_hours");
                 var utilPct = effectiveHours > 0 ? Math.Round(allocated / effectiveHours * 100, 1) : 0;
                 return new ResourceUtilizationRow
                 {
-                    ResourceType = reader.GetString(0),
-                    ResourceName = reader.GetString(1),
-                    ResourceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    ResourceType = reader.GetString("resource_type"),
+                    ResourceName = reader.GetString("resource_name"),
+                    ResourceGroupName = reader.GetNullableString("group_name"),
                     PeriodStartUtc = from,
                     PeriodEndUtc = to,
                     AvailableHours = Math.Round(effectiveHours, 2),
@@ -216,17 +221,17 @@ public sealed class ReportingQueryService : IReportingQueryService
             },
             reader => new AllocationRow
             {
-                AllocationId = $"rpt_alloc_{reader.GetGuid(0):N}",
-                RequestReference = reader.IsDBNull(1) ? null : reader.GetString(1),
-                RequestTitle = reader.GetString(2),
-                ResourceType = reader.GetString(3),
-                ResourceName = reader.GetString(4),
-                SiteName = reader.IsDBNull(5) ? null : reader.GetString(5),
-                StartsAtUtc = reader.GetDateTime(6),
-                EndsAtUtc = reader.GetDateTime(7),
-                DurationHours = Math.Round(reader.GetDouble(8), 2),
-                Status = reader.GetString(9),
-                UpdatedAtUtc = reader.GetDateTime(10),
+                AllocationId = $"rpt_alloc_{reader.GetGuid("allocation_id"):N}",
+                RequestReference = reader.GetNullableString("request_reference"),
+                RequestTitle = reader.GetString("request_title"),
+                ResourceType = reader.GetString("resource_type"),
+                ResourceName = reader.GetString("resource_name"),
+                SiteName = reader.GetNullableString("site_name"),
+                StartsAtUtc = reader.GetDateTime("start_utc"),
+                EndsAtUtc = reader.GetDateTime("end_utc"),
+                DurationHours = Math.Round(reader.GetDouble("duration_hours"), 2),
+                Status = reader.GetString("status"),
+                UpdatedAtUtc = reader.GetDateTime("updated_at"),
             }, ct);
 
         return ReportingResult<AllocationRow>.Create(rows, totalCount, paged, query.ToMetadata());
@@ -262,11 +267,13 @@ public sealed class ReportingQueryService : IReportingQueryService
             {
                 PeriodStartUtc = from,
                 PeriodEndUtc = to,
-                CreatedCount = reader.GetInt32(0),
-                InProgressCount = reader.GetInt32(1),
-                CompletedCount = reader.GetInt32(2),
-                CancelledCount = reader.GetInt32(3),
-                AverageLeadTimeHours = reader.IsDBNull(4) ? null : Math.Round(reader.GetDouble(4), 1),
+                CreatedCount = reader.GetInt32("created"),
+                InProgressCount = reader.GetInt32("in_progress"),
+                CompletedCount = reader.GetInt32("done"),
+                CancelledCount = reader.GetInt32("cancelled"),
+                AverageLeadTimeHours = reader.GetNullableDouble("avg_lead_hours") is { } leadHours
+                    ? Math.Round(leadHours, 1)
+                    : null,
             }, ct);
 
         return ReportingResult<RequestThroughputRow>.Create(row is null ? [] : [row], row is null ? 0 : 1, paged, query.ToMetadata());
@@ -318,16 +325,16 @@ public sealed class ReportingQueryService : IReportingQueryService
             },
             reader =>
             {
-                totalCount = reader.GetInt32(6);
+                totalCount = reader.GetInt32("total_count");
                 return new ConflictRow
                 {
                     ConflictType = "Overbooking",
-                    ResourceType = reader.GetString(0),
-                    ResourceName = reader.GetString(1),
-                    RequestReference = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    StartsAtUtc = reader.GetDateTime(3),
-                    EndsAtUtc = reader.GetDateTime(4),
-                    OverbookedHours = Math.Round(reader.GetDouble(5), 2),
+                    ResourceType = reader.GetString("resource_type"),
+                    ResourceName = reader.GetString("resource_name"),
+                    RequestReference = reader.GetNullableString("request_ref"),
+                    StartsAtUtc = reader.GetDateTime("overlap_start"),
+                    EndsAtUtc = reader.GetDateTime("overlap_end"),
+                    OverbookedHours = Math.Round(reader.GetDouble("overlap_hours"), 2),
                 };
             }, ct);
 
@@ -386,13 +393,13 @@ public sealed class ReportingQueryService : IReportingQueryService
             },
             reader => new AbsenceRow
             {
-                ResourceType = reader.GetString(0),
-                ResourceName = reader.IsDBNull(1) ? null : reader.GetString(1),
-                ResourceGroupName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                AbsenceCategory = reader.IsDBNull(3) ? null : reader.GetString(3),
-                StartsAtUtc = reader.GetDateTime(4),
-                EndsAtUtc = reader.GetDateTime(5),
-                AbsenceHours = Math.Round(reader.GetDouble(6), 2),
+                ResourceType = reader.GetString("resource_type"),
+                ResourceName = reader.GetNullableString("resource_name"),
+                ResourceGroupName = reader.GetNullableString("group_name"),
+                AbsenceCategory = reader.GetNullableString("absence_category"),
+                StartsAtUtc = reader.GetDateTime("start_ts"),
+                EndsAtUtc = reader.GetDateTime("end_ts"),
+                AbsenceHours = Math.Round(reader.GetDouble("absence_hours"), 2),
             }, ct);
 
         return ReportingResult<AbsenceRow>.Create(rows, totalCount, paged, query.ToMetadata());
@@ -492,13 +499,13 @@ public sealed class ReportingQueryService : IReportingQueryService
             },
             reader =>
             {
-                var available = reader.GetDouble(4);
-                var allocated = reader.GetDouble(5);
-                var demand = reader.GetDouble(6);
+                var available = reader.GetDouble("available_hours");
+                var allocated = reader.GetDouble("allocated_hours");
+                var demand = reader.GetDouble("demand_hours");
                 return new CapacityVsDemandRow
                 {
-                    ResourceType = reader.GetString(0),
-                    ResourceGroupName = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    ResourceType = reader.GetString("resource_type"),
+                    ResourceGroupName = reader.GetNullableString("group_name"),
                     PeriodStartUtc = from,
                     PeriodEndUtc = to,
                     AvailableHours = Math.Round(available, 2),

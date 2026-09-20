@@ -19,7 +19,18 @@ import {
   X,
 } from "lucide-react";
 import { markTourSeen } from "@foundation/src/lib/api/session-api";
-import { ROUTE_CONFIGURATION, ROUTE_SETTINGS } from "@foundation/src/constants/auth";
+import {
+  ROUTE_ASSETS,
+  ROUTE_CONFIGURATION_CATALOG,
+  ROUTE_HOME,
+  ROUTE_INSIGHTS_CONFLICTS,
+  ROUTE_INSIGHTS_OVERVIEW,
+  ROUTE_ORGANIZATION,
+  ROUTE_REQUESTS,
+  ROUTE_SETTINGS_CRITERIA,
+  ROUTE_SETTINGS_TEMPLATES,
+  ROUTE_STATIONS,
+} from "@foundation/src/constants/auth";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -52,7 +63,7 @@ const STEPS: TourStep[] = [
     description: "Decide what this workspace schedules.",
     detail:
       "Nothing is built in. Switch on the kinds you run — mills, benches, people, forklifts — from the catalog, or define one nobody thought of. Each type carries its own fields and the lists it needs, and every step after this one works with whatever you chose here.",
-    path: `${ROUTE_CONFIGURATION}/catalog`,
+    path: ROUTE_CONFIGURATION_CATALOG,
     requiresAdmin: true,
   },
   {
@@ -61,7 +72,7 @@ const STEPS: TourStep[] = [
     description: "Define what properties matter for your resources.",
     detail:
       "Criteria are the attributes you match on — a capability a resource offers, a requirement a job asks for. Set these up so Orkyo can tell which resources can actually do a piece of work.",
-    path: `${ROUTE_SETTINGS}/criteria`,
+    path: ROUTE_SETTINGS_CRITERIA,
     requiresEditor: true,
   },
   {
@@ -70,7 +81,7 @@ const STEPS: TourStep[] = [
     description: "Standardize resource definitions with reusable templates.",
     detail:
       "Templates bundle a set of criteria into a reusable blueprint. New resources can inherit from a template, saving time and keeping your data consistent.",
-    path: `${ROUTE_SETTINGS}/templates`,
+    path: ROUTE_SETTINGS_TEMPLATES,
     requiresEditor: true,
   },
   {
@@ -81,7 +92,7 @@ const STEPS: TourStep[] = [
       "A station is a resource with a fixed location — a mill, a cell, an assembly bay. Pick a type from the selector, then work through its tabs: the list, the Groups that cluster them, and the site Floorplan they stand on.",
     // No type key: the page lands on the first station type this workspace activated, and
     // any key we could name here is one a tenant may not have.
-    path: "/stations",
+    path: ROUTE_STATIONS,
   },
   {
     icon: Users,
@@ -89,7 +100,7 @@ const STEPS: TourStep[] = [
     description: "Manage the mobile resources you schedule.",
     detail:
       "An asset moves: a person, a tool, a vehicle. People carry skills, working availability and absences. Groups work the same way here as on stations, clustering by crew or function.",
-    path: "/assets",
+    path: ROUTE_ASSETS,
   },
   {
     icon: Building2,
@@ -97,7 +108,7 @@ const STEPS: TourStep[] = [
     description: "The reference data your workspace keeps about itself.",
     detail:
       "Departments, job titles and any other shared list you define. Departments form a real tree — each one points at its parent — and people reference these values rather than repeating them.",
-    path: "/organization",
+    path: ROUTE_ORGANIZATION,
   },
   {
     icon: Package,
@@ -105,7 +116,7 @@ const STEPS: TourStep[] = [
     description: "Capture the work that needs scheduling.",
     detail:
       "A request is a piece of work with requirements attached. Orkyo matches it against your resources, so you find out what can satisfy it before you commit to a date.",
-    path: "/requests",
+    path: ROUTE_REQUESTS,
   },
   {
     icon: AlertTriangle,
@@ -113,7 +124,7 @@ const STEPS: TourStep[] = [
     description: "See what does not add up, as it happens.",
     detail:
       "Overbooked resources, missing capabilities, work booked over someone's absence or a site shutdown. Conflicts surface the moment they are created rather than on the morning the job was due to run.",
-    path: "/insights/conflicts",
+    path: ROUTE_INSIGHTS_CONFLICTS,
   },
   {
     icon: LayoutDashboard,
@@ -121,7 +132,7 @@ const STEPS: TourStep[] = [
     description: "The board where the plan gets built.",
     detail:
       "One row per resource across time. Drag requests into place, or let auto-scheduling propose placements and tell you what it could not fit and why.",
-    path: "/",
+    path: ROUTE_HOME,
   },
   {
     icon: BarChart3,
@@ -129,7 +140,7 @@ const STEPS: TourStep[] = [
     description: "How your capacity is actually used.",
     detail:
       "Utilization per resource type, conflict counts and trends over a period you choose. This is where a chronically overbooked machine or a quiet quarter shows up.",
-    path: "/insights/overview",
+    path: ROUTE_INSIGHTS_OVERVIEW,
   },
 ];
 

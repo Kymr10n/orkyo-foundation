@@ -60,8 +60,9 @@ export function PlaceDrawnShapeDialog({
     try {
       await onAssign(selectedId);
     } catch {
-      // The mutation's own toast already reported it; this keeps the dialog open so the choice
-      // is not lost, and says so where the reader is looking.
+      // This dialog is the surface for this failure: its mutation instance suppresses the toast
+      // (see useMovePlaceableResource), so the message goes here, where the reader is looking,
+      // and the dialog stays open so the choice is not lost.
       setError(`Could not place this ${resourceTypeLabel.toLowerCase()}. Nothing was changed.`);
     } finally {
       setIsSubmitting(false);

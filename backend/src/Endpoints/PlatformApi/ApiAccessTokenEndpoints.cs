@@ -95,8 +95,12 @@ public record CreateApiAccessTokenRequest(
 
 public sealed class CreateApiAccessTokenRequestValidator : AbstractValidator<CreateApiAccessTokenRequest>
 {
-    public CreateApiAccessTokenRequestValidator()
+    private readonly TimeProvider _time;
+
+    public CreateApiAccessTokenRequestValidator(TimeProvider time)
     {
+        _time = time;
+
         RuleFor(x => x.Name)
             .NotEmpty().WithMessage("Name is required.")
             .MaximumLength(255);
@@ -111,7 +115,7 @@ public sealed class CreateApiAccessTokenRequestValidator : AbstractValidator<Cre
             .WithMessage(s => $"Unknown scope. Valid scopes: {string.Join(", ", PlatformApiScopes.All)}");
 
         RuleFor(x => x.ExpiresAt)
-            .Must(d => d is null || d > DateTime.UtcNow)
+            .Must(d => d is null || d > _time.GetUtcNow().UtcDateTime)
             .WithMessage("Expiry must be in the future.");
     }
 }

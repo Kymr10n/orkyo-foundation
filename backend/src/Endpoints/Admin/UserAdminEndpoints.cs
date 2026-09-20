@@ -175,7 +175,12 @@ public static class UserAdminEndpoints
         await using var identityReader = await identityCmd.ExecuteReaderAsync(ct);
         var identityRows = new List<(Guid Id, string Provider, string ProviderSubject, string? ProviderEmail, DateTime CreatedAt)>();
         while (await identityReader.ReadAsync(ct))
-            identityRows.Add((identityReader.GetGuid(0), identityReader.GetString(1), identityReader.GetString(2), identityReader.IsDBNull(3) ? null : identityReader.GetString(3), identityReader.GetDateTime(4)));
+            identityRows.Add((
+                identityReader.GetGuid("id"),
+                identityReader.GetString("provider"),
+                identityReader.GetString("provider_subject"),
+                identityReader.GetNullableString("provider_email"),
+                identityReader.GetDateTime("created_at")));
         foreach (var (Id, Provider, ProviderSubject, ProviderEmail, CreatedAt) in identityRows)
         {
             user.Identities.Add(new AdminUserIdentity

@@ -1,4 +1,4 @@
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { usePlaceableResources } from '@foundation/src/hooks/usePlaceableResources';
 import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
@@ -34,7 +34,7 @@ function PlaceableTransfer({
  * fields. They live here rather than on the page above: this is the only thing on the surface.
  */
 export function FloorplanView() {
-  const selectedSiteId = useAppStore((state) => state.selectedSiteId);
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
   const { data: resourceTypes = [] } = useResourceTypes(true);
   const { data: placeableResources = [] } = usePlaceableResources(selectedSiteId);
   const placeableTypes = resourceTypes.filter((t) => t.hasGeometry);

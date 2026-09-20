@@ -1,5 +1,4 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { Check, Loader2, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import type { AiProposal } from "@foundation/src/lib/api/ai-api";
 
@@ -52,8 +51,8 @@ export function ProposalCard({
 
       {canApply ? (
         <div className="flex gap-2">
-          <Button size="sm" onClick={onApply} disabled={isApplying}>
-            {isApplying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          <Button size="sm" onClick={onApply} loading={isApplying}>
+            {!isApplying && <Check className="h-4 w-4" />}
             Apply
           </Button>
           <Button size="sm" variant="ghost" onClick={onDecline} disabled={isApplying}>

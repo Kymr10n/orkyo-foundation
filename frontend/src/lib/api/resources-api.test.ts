@@ -7,8 +7,8 @@ import {
   updateResource,
   deleteResource,
   type ResourceInfo,
-  type ResourcesResponse,
 } from './resources-api';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
   getAuthTokenSync: () => null,
@@ -55,12 +55,7 @@ const mockResource: ResourceInfo = {
   updatedAt: '2026-01-01T00:00:00Z',
 };
 
-const mockResponse: ResourcesResponse = {
-  data: [mockResource],
-  total: 1,
-  page: 1,
-  pageSize: 50,
-};
+const mockResponse = pagedResult([mockResource], { pageSize: 50 });
 
 describe('resources-api', () => {
   beforeEach(() => {
@@ -85,6 +80,21 @@ describe('resources-api', () => {
         expect.stringContaining('resourceTypeKey=person'),
         expect.any(Object),
       );
+    });
+
+    it('reads the pre-PagedResult {data} body while the fallback stands', async () => {
+      // The compat branch in getResources. Remove this test with the fallback itself.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [mockResource], total: 1, page: 1, pageSize: 50 }),
+      });
+      const result = await getResources();
+      expect(result.items).toEqual([mockResource]);
+    });
+
+    it('answers with an empty list when the body carries neither items nor data', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({}) });
+      expect((await getResources()).items).toEqual([]);
     });
 
     it('passes siteId filter as query param', async () => {

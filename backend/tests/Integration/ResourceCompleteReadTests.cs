@@ -11,10 +11,10 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// <summary>
 /// The difference between the two list reads, at the size where it starts to matter.
 ///
-/// <c>GetAllAsync</c> stops at 1000 rows and reports neither the total nor the fact that it cut.
-/// That is the right bound for a list view and the wrong one for anything that aggregates,
-/// exports or schedules: a utilization figure computed over the first 1000 of 1001 resources is
-/// not a partial answer, it is a wrong one. <c>GetEveryAsync</c> pages until the total is reached.
+/// The capped read the list endpoint uses stops at <c>PageRequest.MaxUnpagedItems</c> rows. That
+/// is the right bound for a list view and the wrong one for anything that aggregates, exports or
+/// schedules: a utilization figure computed over the first 1000 of 1001 resources is not a
+/// partial answer, it is a wrong one. <c>GetEveryAsync</c> pages until the total is reached.
 ///
 /// Runs against the isolated integration database with its own resource type, because the point
 /// of the test is to hold more than a thousand rows for the duration.
@@ -30,7 +30,7 @@ public sealed class ResourceCompleteReadTests
     private const int RowCount = 1001;
 
     [Fact]
-    public async Task GetEveryAsync_ReadsPastTheCapThatGetAllAsyncStopsAt()
+    public async Task GetEveryAsync_ReadsPastTheCapTheListEndpointStopsAt()
     {
         var typeKey = $"bulk_{Guid.NewGuid():N}"[..20];
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
@@ -72,10 +72,14 @@ public sealed class ResourceCompleteReadTests
 
             var filter = new ResourceListFilter { IsActive = true, ResourceTypeKey = typeKey };
 
-            var capped = await repo.GetAllAsync(filter);
+            var (capped, cappedTotal) = await repo.GetPageAsync(
+                filter, PageRequest.MaxUnpagedItems, offset: 0);
             var every = await repo.GetEveryAsync(filter);
 
-            Assert.Equal(1000, capped.Count);
+            Assert.Equal(PageRequest.MaxUnpagedItems, capped.Count);
+            // The cap shortens the rows but not the count, so the endpoint's hasNextPage can
+            // tell the caller the answer was cut.
+            Assert.Equal(RowCount, cappedTotal);
             Assert.Equal(RowCount, every.Count);
 
             // Paging must not double-count or skip across the page boundary, which a count alone

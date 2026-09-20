@@ -79,8 +79,8 @@ public class SettingsEndpointsTests
         await using var cpCmd = new NpgsqlCommand("DELETE FROM site_settings", cpConn);
         await cpCmd.ExecuteNonQueryAsync();
 
-        // Also clear the static in-memory cache so stale entries don't bleed between tests
-        TenantSettingsService.ClearCache();
+        // Also clear the host's in-memory cache so stale entries don't bleed between tests
+        _fixture.Factory.ResetCaches();
     }
 
     // ── GET /api/settings ───────────────────────────────────────────

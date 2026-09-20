@@ -1,28 +1,25 @@
 import { Badge } from "@foundation/src/components/ui/badge";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
-import { getResources, type ResourceInfo } from "@foundation/src/lib/api/resources-api";
-import { getResourceTypes } from "@foundation/src/lib/api/resource-types-api";
 import {
-  getAssignmentsByRequest,
   createAssignment,
   cancelAssignment,
   validateAssignment,
   hardBlockers,
   softBlockers,
-  type ResourceAssignmentInfo,
   type ValidationResult,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { ValidationIssueList } from "./ValidationIssueList";
 import { ConflictIndicator } from "./ConflictIndicator";
 import type { Conflict } from "@foundation/src/types/requests";
-import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
 import { randomId } from "@foundation/src/lib/core/ids";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
+import { useRequestPeople } from "@foundation/src/hooks/useRequestPeople";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface RequestPeopleSectionProps {
@@ -61,50 +58,11 @@ export function RequestPeopleSection({
   conflictsByResourceId,
   readOnly = false,
 }: RequestPeopleSectionProps) {
-  const [people, setPeople] = useState<ResourceInfo[]>([]);
-  const [assignments, setAssignments] = useState<ResourceAssignmentInfo[]>([]);
-  // true until the type list proves otherwise, so the "activate a type" hint never flashes
-  // during the initial load.
-  const [hasDirectoryType, setHasDirectoryType] = useState(true);
+  const { people, assignments, setAssignments, hasDirectoryType, isLoading } =
+    useRequestPeople(requestId);
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const queryClient = useQueryClient();
-
-  // Load available people and existing assignments. "People" means every active type with a
-  // directory profile — nothing is keyed to `person`, which is just a catalog entry a tenant
-  // may or may not have activated (or renamed).
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setIsLoading(true);
-      try {
-        const types = await getResourceTypes(true);
-        const directoryKeys = new Set(
-          types.filter((t) => t.hasDirectoryProfile).map((t) => t.key),
-        );
-        const [peopleLists, assignmentsRes] = await Promise.all([
-          Promise.all(
-            [...directoryKeys].map((key) =>
-              getResources({ resourceTypeKey: key, isActive: true }),
-            ),
-          ),
-          requestId ? getAssignmentsByRequest(requestId) : Promise.resolve([]),
-        ]);
-        if (!cancelled) {
-          setHasDirectoryType(directoryKeys.size > 0);
-          setPeople(peopleLists.flatMap((res) => res.data));
-          setAssignments(assignmentsRes.filter((a) => directoryKeys.has(a.resourceTypeKey)));
-        }
-      } catch {
-        // Non-critical: section remains empty
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [requestId]);
+  const invalidateRequestData = useInvalidateRequestData();
 
   // Cancel every pending validation when the section goes away. Each row schedules a 400ms
   // debounce, and without this they outlive the component: closing the dialog within that window
@@ -226,7 +184,7 @@ export function RequestPeopleSection({
       // An assignment changes occupancy + conflicts — refresh the request-derived views (grids,
       // conflict badges, insights). The host form is reducer-driven and doesn't read these keys, so
       // this can't clobber the open dialog. Mirrors ResourceAssignmentDialog.
-      invalidateRequestData(queryClient);
+      invalidateRequestData();
       removePendingRow(key);
     } catch (err) {
       updatePendingRow(key, { saving: false, error: errorMessage(err) });
@@ -237,7 +195,7 @@ export function RequestPeopleSection({
     try {
       await cancelAssignment(id);
       setAssignments((prev) => prev.filter((a) => a.id !== id));
-      invalidateRequestData(queryClient);
+      invalidateRequestData();
     } catch {
       // Assignment may already be cancelled; refresh on next open
     }
@@ -256,7 +214,7 @@ export function RequestPeopleSection({
       </div>
       <div className="space-y-3 pt-4">
           {isLoading && (
-            <p className="text-xs text-muted-foreground">Loading…</p>
+            <LoadingSpinner fullScreen={false} size="xs" muted className="py-2" />
           )}
 
           {/* Existing assignments */}

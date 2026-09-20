@@ -27,7 +27,7 @@ public static class CriteriaEndpoints
             }
             if (page.HasValue || pageSize.HasValue)
             {
-                var paged = await criteriaService.GetAllAsync(new PageRequest { Page = page ?? 1, PageSize = pageSize ?? PageRequest.DefaultPageSize }, ct);
+                var paged = await criteriaService.GetAllAsync(PageRequest.From(page, pageSize), ct);
                 return Results.Ok(paged);
             }
             return Results.Ok(await criteriaService.GetAllAsync(ct));

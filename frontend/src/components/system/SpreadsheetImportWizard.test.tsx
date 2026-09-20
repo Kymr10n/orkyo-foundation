@@ -5,6 +5,7 @@ import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { SpreadsheetImportWizard } from './SpreadsheetImportWizard';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import type { SheetData } from '@foundation/src/lib/utils/spreadsheet-import';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 const readWorkbook = vi.fn<(file: File) => Promise<SheetData[]>>();
 const getSpaces = vi.fn();
@@ -34,8 +35,8 @@ vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
 vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: () => ({ data: [{ id: 'site-1', name: 'Main plant' }] }),
 }));
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: (selector: (s: { selectedSiteId: string | null }) => unknown) =>
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: (selector: (s: { selectedSiteId: string | null }) => unknown) =>
     selector({ selectedSiteId: 'site-1' }),
 }));
 
@@ -70,7 +71,7 @@ beforeEach(() => {
   dataExportAvailable = true;
   activeTypes = [{ key: 'space', hasGeometry: true }];
   readWorkbook.mockReset().mockResolvedValue(TEMPLATE);
-  getSpaces.mockReset().mockResolvedValue({ data: [], total: 0, page: 1, pageSize: 0 });
+  getSpaces.mockReset().mockResolvedValue(pagedResult([]));
   createSpace.mockReset().mockImplementation((req) =>
     Promise.resolve({ id: `space-${req.code}`, code: req.code, name: req.name }),
   );
@@ -113,7 +114,7 @@ describe('SpreadsheetImportWizard', () => {
   });
 
   it('reuses a workstation whose code already exists on the site', async () => {
-    getSpaces.mockResolvedValue({ data: [{ id: 'existing-1', code: 'WS-01', name: 'Mill 1' }], total: 1, page: 1, pageSize: 1 });
+    getSpaces.mockResolvedValue(pagedResult([{ id: 'existing-1', code: 'WS-01', name: 'Mill 1' }]));
     const user = userEvent.setup();
     renderWizard();
     await pickFileAndReview(user);

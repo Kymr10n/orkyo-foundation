@@ -30,6 +30,7 @@ public static class ContactEndpoints
             IDbConnectionFactory connectionFactory,
             IEmailService emailService,
             IConfiguration configuration,
+            TimeProvider time,
             CancellationToken ct,
             ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -47,7 +48,7 @@ public static class ContactEndpoints
                         p.AddNullable("company", request.Company?.Trim());
                         p.AddWithValue("subject", request.Subject);
                         p.AddWithValue("message", request.Message.Trim());
-                        p.AddWithValue("createdAt", DateTime.UtcNow);
+                        p.AddWithValue("createdAt", time.GetUtcNow().UtcDateTime);
                     }, ct);
 
                 logger.LogInformation("Contact form submitted: {Email}, subject={Subject}", request.Email, request.Subject);

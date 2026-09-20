@@ -118,8 +118,8 @@ public class ResourceCustomFieldRepository(OrgContext orgContext, IOrgDbConnecti
             readCmd.Parameters.AddWithValue("id", id);
             await using var reader = await readCmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct)) return false;
-            resourceTypeId = reader.GetGuid(0);
-            key = reader.GetString(1);
+            resourceTypeId = reader.GetGuid("resource_type_id");
+            key = reader.GetString("key");
         }
 
         await using (var stripCmd = new NpgsqlCommand(

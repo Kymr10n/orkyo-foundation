@@ -4,15 +4,13 @@ import { renderHook, waitFor } from '@testing-library/react';
 import {
   useCriteria,
   useCreateCriterion,
-  useUpdateCriterion,
   useDeleteCriterion,
-  useUpdateCriterionApplicability,
 } from './useCriteria';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
 import type { Criterion } from '@foundation/src/types/criterion';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { createTestQueryWrapper, createTestQueryClient } from '@foundation/src/test-utils';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
@@ -85,26 +83,6 @@ describe('useCriteria', () => {
     });
   });
 
-  describe('useUpdateCriterion', () => {
-    it('updates a criterion and invalidates caches', async () => {
-      const updatedCriterion = { ...mockCriterion, description: 'Updated' };
-      vi.mocked(criteriaApi.updateCriterion).mockResolvedValue(updatedCriterion);
-
-      const { result } = renderHook(() => useUpdateCriterion(), {
-        wrapper: createTestQueryWrapper(),
-      });
-
-      await result.current.mutateAsync({
-        id: 'criterion-1',
-        data: {
-          description: 'Updated',
-        },
-      });
-
-      expect(criteriaApi.updateCriterion).toHaveBeenCalledWith('criterion-1', expect.any(Object));
-    });
-  });
-
   describe('useDeleteCriterion', () => {
     it('deletes a criterion and invalidates caches', async () => {
       vi.mocked(criteriaApi.deleteCriterion).mockResolvedValue();
@@ -116,33 +94,6 @@ describe('useCriteria', () => {
       await result.current.mutateAsync('criterion-1');
 
       expect(criteriaApi.deleteCriterion).toHaveBeenCalledWith('criterion-1');
-    });
-  });
-
-  describe('useUpdateCriterionApplicability', () => {
-    it('calls updateCriterionApplicability and invalidates criteria cache', async () => {
-      const applicabilityResult = {
-        criterionId: 'criterion-1',
-        applicableToRequests: true,
-        resourceTypeKeys: ['space', 'person'],
-      };
-      vi.mocked(criteriaApi.updateCriterionApplicability).mockResolvedValue(applicabilityResult);
-
-      const { spy, wrapper } = createTestQueryClient({ feedback: true });
-      const { result } = renderHook(() => useUpdateCriterionApplicability(), { wrapper });
-
-      await result.current.mutateAsync({
-        id: 'criterion-1',
-        data: { resourceTypeKeys: ['space', 'person'] },
-      });
-
-      await waitFor(() => {
-        expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'], exact: false });
-      });
-      expect(criteriaApi.updateCriterionApplicability).toHaveBeenCalledWith(
-        'criterion-1',
-        { resourceTypeKeys: ['space', 'person'] },
-      );
     });
   });
 });

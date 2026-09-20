@@ -1,6 +1,5 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 2 legacy hand-rolled empty/loading sites; converge on touch, then drop this line. */
-import { useEffect, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
@@ -16,15 +15,12 @@ import {
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
-import { getResources, type ResourceInfo } from "@foundation/src/lib/api/resources-api";
-import {
-  getResourceGroups,
-  getResourceGroupMembers,
-  setResourceGroupMembers,
-} from "@foundation/src/lib/api/resource-groups-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import {
+  useResourceGroupMembershipRoster,
+  useSetResourceGroupMembers,
+} from "@foundation/src/hooks/useResourceGroups";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
@@ -47,16 +43,40 @@ export function ResourceGroupMembersEditor({
 }: ResourceGroupMembersEditorProps) {
   // Viewers see the roster read-only: the backend 403s the save either way.
   const canEdit = useCanEdit();
-  const [allResources, setAllResources] = useState<ResourceInfo[]>([]);
-  const [selectedResourceIds, setSelectedResourceIds] = useState<Set<string>>(new Set());
-  // resourceId → the OTHER group it currently belongs to (1:1 rule).
-  const [otherGroupByResource, setOtherGroupByResource] = useState<Map<string, string>>(new Map());
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   // Pending move confirmation: resources that will be moved out of another group on save.
   const [pendingMoves, setPendingMoves] = useState<{ name: string; from: string }[] | null>(null);
   const [search, setSearch] = useState('');
   const [showOnlySelected, setShowOnlySelected] = useState(false);
+
+  // Whether this type's resources belong to at most one group is a property of the type — the
+  // DB enforces it through a trigger keyed on the same flag — not of the space key. Keying on the
+  // key meant a machine cell's members were moved between cells without the warning this dialog
+  // exists to give.
+  const { data: resourceTypes = [] } = useResourceTypes(true);
+  const singleGroup = resourceTypes.find((t) => t.key === resourceTypeKey)?.singleGroupMembership ?? false;
+
+  const {
+    allResources,
+    selectedResourceIds,
+    setSelectedResourceIds,
+    otherGroupByResource,
+    isLoading,
+    error,
+    setError,
+  } = useResourceGroupMembershipRoster(open, groupId, resourceTypeKey, singleGroup);
+
+  // The roster hook owns the fetch; these two are this dialog's own view state, reset on the
+  // same terms so a reopen never lands on the move-confirmation step or a stale filter. A
+  // render-phase update, not an effect (see useEntityFormDialog.ts).
+  const rosterTarget = `${open}|${groupId}|${resourceTypeKey}|${singleGroup}`;
+  const [syncedTarget, setSyncedTarget] = useState(rosterTarget);
+  if (syncedTarget !== rosterTarget) {
+    setSyncedTarget(rosterTarget);
+    if (open) {
+      setPendingMoves(null);
+      setShowOnlySelected(false);
+    }
+  }
 
   const filteredResources = useMemo(() => {
     let result = allResources;
@@ -71,57 +91,6 @@ export function ResourceGroupMembersEditor({
     }
     return result;
   }, [allResources, search, showOnlySelected, selectedResourceIds]);
-
-  // Whether this type's resources belong to at most one group is a property of the type — the
-  // DB enforces it through a trigger keyed on the same flag — not of the space key. Keying on the
-  // key meant a machine cell's members were moved between cells without the warning this dialog
-  // exists to give.
-  const { data: resourceTypes = [] } = useResourceTypes(true);
-  const singleGroup = resourceTypes.find((t) => t.key === resourceTypeKey)?.singleGroupMembership ?? false;
-
-  useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
-    const load = async () => {
-      setIsLoading(true);
-      setError(null);
-      setPendingMoves(null);
-      setShowOnlySelected(false);
-      try {
-        const [resourcesRes, membersRes] = await Promise.all([
-          getResources({ resourceTypeKey, isActive: true }),
-          getResourceGroupMembers(groupId),
-        ]);
-        if (cancelled) return;
-        setAllResources(resourcesRes.data);
-        setSelectedResourceIds(new Set(membersRes.members.map((m) => m.id)));
-
-        // Single-group types are 1:1 with groups: map each resource already in a *different*
-        // group so we can warn before moving it. Group count is small, so per-group fetch is cheap.
-        if (singleGroup) {
-          const groups = await getResourceGroups(resourceTypeKey);
-          const others = groups.filter((g) => g.id !== groupId);
-          const memberLists = await Promise.all(others.map((g) => getResourceGroupMembers(g.id)));
-          if (cancelled) return;
-          const map = new Map<string, string>();
-          others.forEach((g, i) => {
-            for (const m of memberLists[i].members) map.set(m.id, g.name);
-          });
-          setOtherGroupByResource(map);
-        } else {
-          setOtherGroupByResource(new Map());
-        }
-      } catch (err) {
-        if (cancelled) return;
-        logger.error("Failed to load resources / group members:", err);
-        setError(err instanceof Error ? err.message : "Failed to load");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [open, groupId, resourceTypeKey, singleGroup]);
 
   const handleToggle = (resourceId: string) => {
     const next = new Set(selectedResourceIds);
@@ -156,27 +125,22 @@ export function ResourceGroupMembersEditor({
     commit();
   };
 
-  const saveMutation = useMutation({
-    mutationFn: () => setResourceGroupMembers(groupId, Array.from(selectedResourceIds)),
-    meta: {
-      successMessage: "Members updated",
-      errorMessage: "Failed to update members",
-      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
-    },
-    onSuccess: () => {
-      setError(null);
-      onSuccess?.();
-      onOpenChange(false);
-    },
-    onError: (err) => {
-      logger.error("Failed to update group members:", err);
-      setError(errorMessage(err));
-    },
-    onSettled: () => setPendingMoves(null),
-  });
+  const saveMutation = useSetResourceGroupMembers(groupId, resourceTypeKey);
 
   const isSubmitting = saveMutation.isPending;
-  const commit = () => saveMutation.mutate();
+  const commit = () =>
+    saveMutation.mutate(Array.from(selectedResourceIds), {
+      onSuccess: () => {
+        setError(null);
+        onSuccess?.();
+        onOpenChange(false);
+      },
+      onError: (err) => {
+        logger.error("Failed to update group members:", err);
+        setError(errorMessage(err));
+      },
+      onSettled: () => setPendingMoves(null),
+    });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
 import { Calendar, Check, Copy, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@foundation/src/components/ui/button';
 import { ScrollableDialogBody } from '@foundation/src/components/ui/dialog';
-import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
@@ -13,15 +12,14 @@ import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { FeatureKeys } from '@foundation/contracts/plans';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
+import { type CalendarSubscriptionInfo } from '@foundation/src/lib/api/calendar-feed-api';
 import {
-  createCalendarSubscription,
-  getCalendarSubscriptions,
-  revokeCalendarSubscription,
-  type CalendarSubscriptionInfo,
-} from '@foundation/src/lib/api/calendar-feed-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+  useCalendarSubscriptions,
+  useCreateCalendarSubscription,
+  useRevokeCalendarSubscription,
+} from '@foundation/src/hooks/useCalendarFeed';
 import { formatLocalized } from '@foundation/src/lib/formatters';
-import { useAppStore } from '@foundation/src/store/app-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 interface CalendarFeedDialogProps {
   open: boolean;
@@ -43,17 +41,13 @@ interface CalendarFeedDialogProps {
  */
 export function CalendarFeedDialog({ open, onOpenChange, label, description, upgradeHref }: CalendarFeedDialogProps) {
   const available = useFeatureEnabled(FeatureKeys.CalendarFeed);
-  const selectedSiteId = useAppStore((s) => s.selectedSiteId);
+  const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
   const [subscriptionLabel, setSubscriptionLabel] = useState('');
   const [newUrl, setNewUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [revoking, setRevoking] = useState<CalendarSubscriptionInfo | null>(null);
 
-  const { data: allSubscriptions = [], isLoading } = useQuery({
-    queryKey: qk.calendarSubscriptions(),
-    queryFn: getCalendarSubscriptions,
-    enabled: open,
-  });
+  const { data: allSubscriptions = [], isLoading } = useCalendarSubscriptions(open);
 
   // The endpoint returns every subscription the user owns, across sites. Show the
   // ones for the site on screen, plus any site-less ones: those cover every site
@@ -63,32 +57,21 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
     (s) => s.siteId === selectedSiteId || s.siteId == null,
   );
 
-  const createMutation = useMutation({
-    mutationFn: () => createCalendarSubscription({
-      label: subscriptionLabel.trim() || undefined,
-      siteId: selectedSiteId,
-    }),
-    onSuccess: (created) => {
-      // Shown once and never again: only a hash is stored, so this is the
-      // user's single chance to copy it.
-      setNewUrl(created.feedUrl);
-      setSubscriptionLabel('');
-    },
-    meta: {
-      errorMessage: 'Could not create the calendar subscription',
-      invalidates: [qk.calendarSubscriptions()],
-    },
-  });
+  const createMutation = useCreateCalendarSubscription();
+  const revokeMutation = useRevokeCalendarSubscription();
 
-  const revokeMutation = useMutation({
-    mutationFn: (id: string) => revokeCalendarSubscription(id),
-    onSuccess: () => setRevoking(null),
-    meta: {
-      successMessage: 'Subscription revoked',
-      errorMessage: 'Could not revoke the subscription',
-      invalidates: [qk.calendarSubscriptions()],
-    },
-  });
+  const createSubscription = () =>
+    createMutation.mutate(
+      { label: subscriptionLabel.trim() || undefined, siteId: selectedSiteId },
+      {
+        onSuccess: (created) => {
+          // Shown once and never again: only a hash is stored, so this is the
+          // user's single chance to copy it.
+          setNewUrl(created.feedUrl);
+          setSubscriptionLabel('');
+        },
+      },
+    );
 
   // Cleared on unmount so closing the dialog inside the window can't set state on
   // a gone component.
@@ -116,7 +99,8 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
   };
 
   return (
-    <ScaffoldDialog
+    <FormDialog
+      footer={null}
       open={open}
       onOpenChange={handleOpenChange}
       size="md"
@@ -172,7 +156,7 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
                   />
                 </div>
                 <Button
-                  onClick={() => createMutation.mutate()}
+                  onClick={createSubscription}
                   disabled={createMutation.isPending || !selectedSiteId}
                   title={selectedSiteId ? undefined : 'Select a site first'}
                 >
@@ -237,8 +221,10 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
           description="The calendar stops updating and the address stops working immediately. Anyone you shared it with loses access too."
           confirmLabel="Revoke"
           destructive
-          onConfirm={() => { if (revoking) revokeMutation.mutate(revoking.id); }}
+          onConfirm={() => {
+            if (revoking) revokeMutation.mutate(revoking.id, { onSuccess: () => setRevoking(null) });
+          }}
         />
-    </ScaffoldDialog>
+    </FormDialog>
   );
 }

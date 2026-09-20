@@ -2,7 +2,7 @@ import React, { useMemo } from "react";
 import { AlertTriangle, Briefcase } from "lucide-react";
 import type { ResourceUtilizationSegment } from "@foundation/src/domain/scheduling/utilization-segments";
 import { segmentDisplayData } from "@foundation/src/domain/scheduling/utilization-segments";
-import type { BucketStatus } from "./schedule-colors";
+import type { BucketStatus } from "@foundation/src/domain/scheduling/types";
 import { STATUS_CELL_CLASS, STATUS_BORDER_CLASS, STATUS_FILL_CLASS, STATUS_PATTERN_CLASS } from "./schedule-colors";
 import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
 

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { generateWeekendRanges } from '@foundation/src/domain/scheduling/weekend-ranges';
 import { EMPTY_RESOURCE_GRID_FILTER, type ResourceGridFilter } from './resource-grid-filter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceUtilizationGrid } from './ResourceUtilizationGrid';
-import { useAppStore } from '@foundation/src/store/app-store';
-import type { ResourcesResponse } from '@foundation/src/lib/api/resources-api';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
 import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
@@ -45,13 +45,14 @@ import { getUtilizationByResource } from '@foundation/src/lib/api/resource-utili
 import { getResourceGroups, getResourceGroupMembers } from '@foundation/src/lib/api/resource-groups-api';
 import { getAssignmentsByResourceType, validateAssignmentsBatch } from '@foundation/src/lib/api/resource-assignments-api';
 import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 const ANCHOR = new Date('2026-05-01T00:00:00Z');
 
-const emptyPeople: ResourcesResponse = { data: [], total: 0, page: 1, pageSize: 50 };
+const emptyPeople = pagedResult<ResourceInfo>([], { pageSize: 50 });
 
-const twoPeople: ResourcesResponse = {
-  data: [
+const twoPeople = pagedResult([
     {
       id: 'p-alice',
       resourceTypeId: 'rt-resource',
@@ -78,12 +79,16 @@ const twoPeople: ResourcesResponse = {
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
     },
-  ],
-  total: 2,
-  page: 1,
-  pageSize: 50,
-};
+  ] as ResourceInfo[], { pageSize: 50 });
 
+const DAY_MS = 86400_000;
+const WEEK_MS = 7 * DAY_MS;
+
+/**
+ * `stepMs` matters: the grid's default scale is month, whose granularity is a WEEK, so
+ * day-sized buckets do not represent what that scale actually receives. Every test here used
+ * day buckets regardless of scale, which is one reason a month-scale bug went unnoticed.
+ */
 function makeBuckets(
   count: number,
   overrides: Partial<{
@@ -91,10 +96,11 @@ function makeBuckets(
     effectiveAvailabilityPercent: number;
     isExclusiveOccupied: boolean;
   }> = {},
+  stepMs: number = DAY_MS,
 ): ResourceUtilizationBucket[] {
   return Array.from({ length: count }, (_, i) => ({
-    start: new Date(ANCHOR.getTime() + i * 86400_000).toISOString(),
-    end: new Date(ANCHOR.getTime() + (i + 1) * 86400_000).toISOString(),
+    start: new Date(ANCHOR.getTime() + i * stepMs).toISOString(),
+    end: new Date(ANCHOR.getTime() + (i + 1) * stepMs).toISOString(),
     allocatedPercent: 0,
     effectiveAvailabilityPercent: 100,
     isExclusiveOccupied: false,
@@ -107,7 +113,7 @@ const availableBuckets: ResourceUtilizationBucket[] = makeBuckets(31);
 // The bulk endpoint returns one entry per resource; mirror the same buckets for
 // every resource in the fixture set.
 function bulkUtil(buckets: ResourceUtilizationBucket[]) {
-  return twoPeople.data.map((p) => ({ resourceId: p.id, buckets }));
+  return twoPeople.items.map((p) => ({ resourceId: p.id, buckets }));
 }
 
 const PERSON_TYPE = {
@@ -145,7 +151,7 @@ describe('ResourceUtilizationGrid', () => {
   beforeEach(() => {
     lookupLabels = {};
     vi.clearAllMocks();
-    useAppStore.setState({ collapsedGroupIds: [] });
+    useLayoutStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
     vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableBuckets));
     vi.mocked(getResourceGroups).mockResolvedValue([]);
@@ -178,16 +184,16 @@ describe('ResourceUtilizationGrid', () => {
   });
 
   it('uses a type-scoped collapse id so space groups do not collapse people', async () => {
-    useAppStore.setState({ collapsedGroupIds: ['spaces:ungrouped'] });
+    useLayoutStore.setState({ collapsedGroupIds: ['spaces:ungrouped'] });
     renderGrid();
 
     await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
 
     fireEvent.click(screen.getByText('Ungrouped'));
 
-    expect(useAppStore.getState().collapsedGroupIds).toContain('spaces:ungrouped');
-    expect(useAppStore.getState().collapsedGroupIds).toContain('person:ungrouped');
-    expect(useAppStore.getState().collapsedGroupIds).not.toContain('ungrouped');
+    expect(useLayoutStore.getState().collapsedGroupIds).toContain('spaces:ungrouped');
+    expect(useLayoutStore.getState().collapsedGroupIds).toContain('person:ungrouped');
+    expect(useLayoutStore.getState().collapsedGroupIds).not.toContain('ungrouped');
   });
 
   it('shows the job title resolved from the organization lookup', async () => {
@@ -465,7 +471,7 @@ describe('ResourceUtilizationGrid', () => {
     }]);
     vi.mocked(getResourceGroupMembers).mockResolvedValue({
       groupId: 'g1',
-      members: [twoPeople.data[0]], // Alice belongs to the group; Bob does not
+      members: [twoPeople.items[0]], // Alice belongs to the group; Bob does not
     });
     renderGrid();
     await waitFor(() => expect(screen.getByText('Production Crew')).toBeInTheDocument());
@@ -482,6 +488,51 @@ describe('ResourceUtilizationGrid', () => {
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
     await waitFor(() => expect(screen.getAllByText('0%').length).toBeGreaterThan(0));
+  });
+
+  /**
+   * The regression this file could not have caught before. Every other test passes no off-time
+   * ranges at all, so the weekend set the page really supplies was never exercised at a coarse
+   * scale. With week-sized buckets and one 24-hour range per weekend day, the old overlap test
+   * marked every bucket non-working: the bars read "Off" and the row read 0%, while the backend
+   * had reported a fully booked week.
+   */
+  it('reports a booked week at month scale even though weekend off-time ranges exist', async () => {
+    const weekBuckets = makeBuckets(5, { allocatedPercent: 80 }, WEEK_MS);
+    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(weekBuckets));
+
+    renderGrid({
+      offTimeRanges: generateWeekendRanges(
+        ANCHOR.getTime(),
+        ANCHOR.getTime() + 5 * WEEK_MS,
+      ),
+    });
+
+    await waitFor(() => screen.getByText('Alice Smith'));
+    await waitFor(() => expect(screen.getAllByText('80%').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Off')).not.toBeInTheDocument();
+  });
+
+  /**
+   * Year scale was broken the same way and nobody reported it, because nobody looks at it. Its
+   * buckets are months, which contain four or five weekends each.
+   */
+  it('reports a booked month at year scale even though weekend off-time ranges exist', async () => {
+    const MONTH_MS = 30 * DAY_MS;
+    const monthBuckets = makeBuckets(12, { allocatedPercent: 45 }, MONTH_MS);
+    vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(monthBuckets));
+
+    renderGrid({
+      scale: 'year',
+      offTimeRanges: generateWeekendRanges(
+        ANCHOR.getTime(),
+        ANCHOR.getTime() + 12 * MONTH_MS,
+      ),
+    });
+
+    await waitFor(() => screen.getByText('Alice Smith'));
+    await waitFor(() => expect(screen.getAllByText('45%').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Off')).not.toBeInTheDocument();
   });
 
   // ── Dialog lifecycle ─────────────────────────────────────────────────────────

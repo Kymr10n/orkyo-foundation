@@ -12,6 +12,7 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useDeleteRouting, useRoutings } from "@foundation/src/hooks/useRoutings";
 import type { Routing } from "@foundation/src/types/routings";
 import { RoutingEditDialog } from "./RoutingEditDialog";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 /** @internal Exported for unit testing. "Saw → Mill → Deburr", in step order. */
 export function describeSteps(routing: Routing): string {
@@ -121,7 +122,7 @@ export function RoutingSettings() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading routings…</p>
+        <LoadingSpinner inline size="xs" muted message="Loading routings…" />
       </div>
     );
   }

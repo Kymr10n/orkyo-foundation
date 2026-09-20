@@ -1,19 +1,11 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { FormField } from "@foundation/src/components/ui/FormField";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@foundation/src/components/ui/select";
-import { createInvitation, type CreateInvitationRequest } from "@foundation/src/lib/api/user-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { RoleSelect, ROLE_SUMMARIES } from "@foundation/src/components/ui/RoleSelect";
+import { useCreateInvitation } from "@foundation/src/hooks/useTenantUsers";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
 
@@ -22,6 +14,12 @@ type InvitableRole = Exclude<
   (typeof TENANT_ROLE)[keyof typeof TENANT_ROLE],
   typeof TENANT_ROLE.None | typeof TENANT_ROLE.Inactive
 >;
+
+const INVITABLE_ROLES: readonly InvitableRole[] = [
+  TENANT_ROLE.Viewer,
+  TENANT_ROLE.Editor,
+  TENANT_ROLE.Admin,
+];
 
 interface InviteUserDialogProps {
   open: boolean;
@@ -38,23 +36,7 @@ export function InviteUserDialog({
   const [role, setRole] = useState<InvitableRole>(TENANT_ROLE.Viewer);
   const [error, setError] = useState<string | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: (data: CreateInvitationRequest) => createInvitation(data),
-    meta: {
-      successMessage: "Invitation sent",
-      errorMessage: "Failed to send invitation",
-      invalidates: [qk.invitations.all()],
-    },
-    onSuccess: () => {
-      setEmail("");
-      setRole(TENANT_ROLE.Viewer);
-      setError(null);
-      onSuccess();
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
+  const mutation = useCreateInvitation();
 
   const handleSubmit = () => {
     setError(null);
@@ -69,7 +51,20 @@ export function InviteUserDialog({
       return;
     }
 
-    mutation.mutate({ email: email.trim(), role });
+    mutation.mutate(
+      { email: email.trim(), role },
+      {
+        onSuccess: () => {
+          setEmail("");
+          setRole(TENANT_ROLE.Viewer);
+          setError(null);
+          onSuccess();
+        },
+        onError: (err: Error) => {
+          setError(err.message);
+        },
+      },
+    );
   };
 
   const handleClose = (newOpen: boolean) => {
@@ -116,53 +111,20 @@ export function InviteUserDialog({
       {/* Role Field */}
       <div className="space-y-2">
         <Label htmlFor="role">Role</Label>
-        <Select
+        <RoleSelect
+          id="role"
           value={role}
-          onValueChange={(value: InvitableRole) => setRole(value)}
+          onValueChange={setRole}
+          roles={INVITABLE_ROLES}
+          withDescriptions
           disabled={mutation.isPending}
-        >
-          <SelectTrigger id="role">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TENANT_ROLE.Viewer}>
-              <div>
-                <div className="font-medium">Viewer</div>
-                <div className="text-xs text-muted-foreground">
-                  Can view data but cannot make changes
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value={TENANT_ROLE.Editor}>
-              <div>
-                <div className="font-medium">Editor</div>
-                <div className="text-xs text-muted-foreground">
-                  Can create and modify utilization and requests
-                </div>
-              </div>
-            </SelectItem>
-            <SelectItem value={TENANT_ROLE.Admin}>
-              <div>
-                <div className="font-medium">Admin</div>
-                <div className="text-xs text-muted-foreground">
-                  Full access including settings and user management
-                </div>
-              </div>
-            </SelectItem>
-          </SelectContent>
-        </Select>
+          className="w-full"
+        />
       </div>
 
       {/* Role Description */}
       <div className="rounded-lg bg-muted p-3 text-sm">
-        <p className="text-muted-foreground">
-          {role === TENANT_ROLE.Admin &&
-            "Admins have full access to all features including user management and settings."}
-          {role === TENANT_ROLE.Editor &&
-            "Editors can create and modify utilization, requests, and spaces but cannot access settings."}
-          {role === TENANT_ROLE.Viewer &&
-            "Viewers have read-only access to view utilization and plans."}
-        </p>
+        <p className="text-muted-foreground">{ROLE_SUMMARIES[role]}</p>
       </div>
     </FormDialog>
   );

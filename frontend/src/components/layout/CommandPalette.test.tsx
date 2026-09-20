@@ -25,8 +25,8 @@ vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
 }));
 
 // Mock the store
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: vi.fn((selector) => {
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: vi.fn((selector) => {
     const state = {
       selectedSiteId: 'site-1',
       setSelectedSiteId: vi.fn(),

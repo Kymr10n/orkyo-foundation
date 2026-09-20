@@ -6,8 +6,8 @@ import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
 import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 
-vi.mock('@foundation/src/store/app-store', () => ({
-  useAppStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
+vi.mock('@foundation/src/store/site-store', () => ({
+  useSiteStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
     selector({ selectedSiteId: 'site-1', setSelectedSiteId: vi.fn() }),
   ),
 }));

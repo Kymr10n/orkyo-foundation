@@ -58,7 +58,7 @@ public static class TestHelpers
             $"/api/resources?hasGeometry=true&isActive=true&siteId={siteId}");
         if (!response.IsSuccessStatusCode) return [];
         var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return envelope.GetProperty("data").Deserialize<List<ResourceInfo>>(JsonOpts) ?? [];
+        return envelope.GetProperty("items").Deserialize<List<ResourceInfo>>(JsonOpts) ?? [];
     }
 
     private static async Task<Guid> CreatePlaceableAsync(HttpClient client, Guid siteId, string name, string code)

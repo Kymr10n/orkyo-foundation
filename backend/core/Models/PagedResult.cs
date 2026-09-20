@@ -15,6 +15,13 @@ public record PageRequest
     public const int DefaultPageSize = 50;
     public const int MaxPageSize = 100;
 
+    /// <summary>
+    /// Cap on a list branch that answers with the whole list instead of a page — the pickers
+    /// that need every row. The single home for that number: a caller passes it to
+    /// <see cref="PagedResult{T}.Capped"/> so a truncated answer still reports the real total.
+    /// </summary>
+    public const int MaxUnpagedItems = 1000;
+
     /// <summary>Return a sanitised copy with clamped values.</summary>
     public PageRequest Sanitize() => this with
     {
@@ -23,6 +30,24 @@ public record PageRequest
     };
 
     public int Offset => (Math.Max(1, Page) - 1) * Math.Clamp(PageSize, 1, MaxPageSize);
+
+    /// <summary>
+    /// Clamp a caller-supplied row limit for a list that is not offset-paged (search). Returns
+    /// <paramref name="fallback"/> when nothing was requested, and never more than
+    /// <paramref name="max"/> nor less than 1.
+    /// </summary>
+    public static int ClampLimit(int? requested, int fallback, int max)
+        => Math.Clamp(requested ?? fallback, 1, max);
+
+    /// <summary>
+    /// Build a sanitised request from the optional <c>page</c>/<c>pageSize</c> query parameters
+    /// an endpoint receives. Absent values fall back to page 1 and <see cref="DefaultPageSize"/>.
+    /// </summary>
+    public static PageRequest From(int? page, int? pageSize) => new PageRequest
+    {
+        Page = page ?? 1,
+        PageSize = pageSize ?? DefaultPageSize,
+    }.Sanitize();
 }
 
 /// <summary>
@@ -47,6 +72,30 @@ public record PagedResult<T>
             Items = items,
             Page = sanitized.Page,
             PageSize = sanitized.PageSize,
+            TotalItems = totalItems
+        };
+    }
+
+    /// <summary>
+    /// Envelope for the branch that answers with the whole list up to <paramref name="cap"/>
+    /// rather than a page: page 1, page size <paramref name="cap"/>, and the real unpaged
+    /// <paramref name="totalItems"/>, so <see cref="HasNextPage"/> is the truncation signal.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately bypasses <see cref="PageRequest.Sanitize"/>. The cap is the caller's, not a
+    /// page size a client asked for, so <see cref="PageSize"/> on this one branch is above
+    /// <see cref="PageRequest.MaxPageSize"/> — sanitising would silently shrink the cap to 100.
+    /// </remarks>
+    public static PagedResult<T> Capped(IReadOnlyList<T> items, int totalItems, int cap)
+    {
+        // A non-positive cap would make TotalPages 0 and HasNextPage false whatever totalItems
+        // says, silently destroying the truncation signal this overload exists to carry.
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(cap);
+        return new()
+        {
+            Items = items,
+            Page = 1,
+            PageSize = cap,
             TotalItems = totalItems
         };
     }

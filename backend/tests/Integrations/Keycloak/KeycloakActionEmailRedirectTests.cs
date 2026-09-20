@@ -61,7 +61,8 @@ public class KeycloakActionEmailRedirectTests
         };
 
         return new KeycloakAdminService(
-            new HttpClient(handler), configuration, NullLogger<KeycloakAdminService>.Instance, options);
+            new HttpClient(handler), configuration, NullLogger<KeycloakAdminService>.Instance, options,
+            TimeProvider.System);
     }
 
     private static Uri ActionEmailRequest(CapturingHandler handler) =>

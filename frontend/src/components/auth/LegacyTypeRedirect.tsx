@@ -2,6 +2,7 @@ import { Navigate, useLocation, useParams } from 'react-router';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import { typeRoute } from '@foundation/src/constants/resource-class';
+import { ROUTE_HOME } from "@foundation/src/constants/auth";
 
 /**
  * Forwards a pre-class URL (`/resources/mill/list`, `/people/list`) to wherever that type lives
@@ -25,7 +26,7 @@ export function LegacyTypeRedirect({
 
   const type = types.find((t) => t.key === key);
   // A type that no longer exists is a dead link; root is somewhere real.
-  if (!type) return <Navigate to="/" replace />;
+  if (!type) return <Navigate to={ROUTE_HOME} replace />;
 
   // The query string carries the deep link — `?edit=<id>` from global search — so it has to
   // survive the hop. Dropping it would turn every search hit into a plain list view.

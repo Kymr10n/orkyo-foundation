@@ -11,12 +11,8 @@ const mockQueryResult = vi.hoisted(() => ({
   current: { data: null as unknown, isLoading: false, error: null as unknown },
 }));
 
-vi.mock('@tanstack/react-query', () => ({
-  useQuery: () => mockQueryResult.current,
-}));
-
-vi.mock('@foundation/src/lib/api/security-api', () => ({
-  getSecurityInfo: vi.fn(),
+vi.mock('@foundation/src/hooks/useSecuritySettings', () => ({
+  useSecurityInfo: () => mockQueryResult.current,
 }));
 
 vi.mock('./PasswordSection', () => ({

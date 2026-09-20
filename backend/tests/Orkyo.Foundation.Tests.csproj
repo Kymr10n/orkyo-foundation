@@ -13,6 +13,7 @@
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="GitHubActionsTestLogger" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="Moq" />
     <PackageReference Include="Testcontainers.PostgreSql" />
@@ -38,6 +39,7 @@
   <ItemGroup>
     <ProjectReference Include="..\testsupport\Orkyo.Foundation.TestSupport.csproj" />
     <ProjectReference Include="..\core\Orkyo.Foundation.Core.csproj" />
+    <ProjectReference Include="..\hosting\Orkyo.Foundation.Hosting.csproj" />
     <ProjectReference Include="..\src\Orkyo.Foundation.Web.csproj" />
     <ProjectReference Include="..\seeding\Orkyo.Foundation.Seed.csproj" />
     <ProjectReference Include="..\migration-abstractions\Orkyo.Migration.Abstractions.csproj" />

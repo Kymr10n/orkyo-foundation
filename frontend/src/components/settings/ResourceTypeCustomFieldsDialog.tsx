@@ -7,7 +7,7 @@ import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Separator } from '@foundation/src/components/ui/separator';
 import { DialogFooter, ScrollableDialogBody } from '@foundation/src/components/ui/dialog';
-import { ScaffoldDialog } from '@foundation/src/components/ui/ScaffoldDialog';
+import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { CustomFieldEditDialog } from './CustomFieldEditDialog';
 import {
@@ -123,7 +123,8 @@ export function ResourceTypeCustomFieldsDialog({
 
   return (
     <>
-      <ScaffoldDialog
+      <FormDialog
+        footer={null}
         open={open}
         onOpenChange={onOpenChange}
         size="xl"
@@ -156,7 +157,7 @@ export function ResourceTypeCustomFieldsDialog({
             Close
           </Button>
         </DialogFooter>
-      </ScaffoldDialog>
+      </FormDialog>
 
       <CustomFieldEditDialog
         resourceTypeId={resourceType.id}

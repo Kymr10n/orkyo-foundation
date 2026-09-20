@@ -20,6 +20,7 @@ public sealed class InvitationService : IInvitationService
     private readonly ITenantSettingsService _settingsService;
     private readonly IQuotaEnforcer _quotaEnforcer;
     private readonly ILogger<InvitationService> _logger;
+    private readonly TimeProvider _time;
 
     public InvitationService(
         IDbConnectionFactory connectionFactory,
@@ -28,7 +29,8 @@ public sealed class InvitationService : IInvitationService
         IUserProvisioningService userProvisioning,
         ITenantSettingsService settingsService,
         IQuotaEnforcer quotaEnforcer,
-        ILogger<InvitationService> logger)
+        ILogger<InvitationService> logger,
+        TimeProvider time)
     {
         _connectionFactory = connectionFactory;
         _emailService = emailService;
@@ -37,6 +39,7 @@ public sealed class InvitationService : IInvitationService
         _settingsService = settingsService;
         _quotaEnforcer = quotaEnforcer;
         _logger = logger;
+        _time = time;
     }
 
     public async Task<(Models.Invitation invitation, string token)?> InviteUserAsync(
@@ -104,7 +107,7 @@ public sealed class InvitationService : IInvitationService
         insertCmd.Parameters.AddWithValue("invitedBy", invitedBy);
         insertCmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
         insertCmd.Parameters.AddWithValue("tokenHash", tokenHash);
-        insertCmd.Parameters.AddWithValue("expiresAt", DateTime.UtcNow.AddDays(settings.Invitation_ExpiryDays));
+        insertCmd.Parameters.AddWithValue("expiresAt", _time.GetUtcNow().UtcDateTime.AddDays(settings.Invitation_ExpiryDays));
 
         await using var reader = await insertCmd.ExecuteReaderAsync(ct);
         await reader.ReadAsync(ct);
@@ -134,13 +137,13 @@ public sealed class InvitationService : IInvitationService
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return (null, null, null, "Invalid or expired invitation");
 
-        var email = reader.GetString(0);
-        var expiresAt = reader.GetDateTime(1);
-        var acceptedAt = reader.IsDBNull(2) ? (DateTime?)null : reader.GetDateTime(2);
-        var tenantName = reader.GetString(3);
+        var email = reader.GetString("email");
+        var expiresAt = reader.GetDateTime("expires_at");
+        var acceptedAt = reader.GetNullableDateTime("accepted_at");
+        var tenantName = reader.GetString("display_name");
 
         if (acceptedAt.HasValue) return (null, null, null, "Invitation has already been accepted");
-        if (expiresAt < DateTime.UtcNow) return (null, null, null, "Invitation has expired");
+        if (expiresAt < _time.GetUtcNow().UtcDateTime) return (null, null, null, "Invitation has expired");
 
         return (email, expiresAt, tenantName, null);
     }
@@ -162,18 +165,18 @@ public sealed class InvitationService : IInvitationService
         await using var reader = await findCmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return (null, "Invalid or expired invitation");
 
-        var invitationId = reader.GetGuid(0);
-        var email = reader.GetString(1);
-        var role = UserHelper.ParseUserRole(reader.GetString(2));
-        var tenantId = reader.GetGuid(3);
-        var expiresAt = reader.GetDateTime(4);
-        var acceptedAt = reader.IsDBNull(5) ? (DateTime?)null : reader.GetDateTime(5);
-        var dbIdentifier = reader.GetString(6);
-        var tenantSlug = reader.GetString(7);
+        var invitationId = reader.GetGuid("id");
+        var email = reader.GetString("email");
+        var role = UserHelper.ParseUserRole(reader.GetString("role"));
+        var tenantId = reader.GetGuid("tenant_id");
+        var expiresAt = reader.GetDateTime("expires_at");
+        var acceptedAt = reader.GetNullableDateTime("accepted_at");
+        var dbIdentifier = reader.GetString("db_identifier");
+        var tenantSlug = reader.GetString("slug");
         await reader.CloseAsync();
 
         if (acceptedAt.HasValue) return (null, "Invitation has already been accepted");
-        if (expiresAt < DateTime.UtcNow) return (null, "Invitation has expired");
+        if (expiresAt < _time.GetUtcNow().UtcDateTime) return (null, "Invitation has expired");
 
         // Build the org context using the factory so each product routes correctly.
         // SaaS: CreateConnectionForDatabase routes to the per-tenant database.
@@ -227,8 +230,8 @@ public sealed class InvitationService : IInvitationService
                 DisplayName = displayName,
                 Role = role,
                 IsTenantAdmin = false,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
+                CreatedAt = _time.GetUtcNow().UtcDateTime,
+                UpdatedAt = _time.GetUtcNow().UtcDateTime
             };
 
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvitationAccepted, userId, "user", userId.ToString(), ct: ct);
@@ -301,7 +304,7 @@ public sealed class InvitationService : IInvitationService
             WHERE id = @invitationId AND tenant_id = @tenantId AND accepted_at IS NULL
             RETURNING email, expires_at", conn);
         cmd.Parameters.AddWithValue("tokenHash", HashToken(token));
-        cmd.Parameters.AddWithValue("expiresAt", DateTime.UtcNow.AddDays(settings.Invitation_ExpiryDays));
+        cmd.Parameters.AddWithValue("expiresAt", _time.GetUtcNow().UtcDateTime.AddDays(settings.Invitation_ExpiryDays));
         cmd.Parameters.AddWithValue("invitationId", invitationId);
         cmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
 
@@ -310,8 +313,8 @@ public sealed class InvitationService : IInvitationService
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             if (!await reader.ReadAsync(ct)) return false;
-            email = reader.GetString(0);
-            expiresAt = reader.GetDateTime(1);
+            email = reader.GetString("email");
+            expiresAt = reader.GetDateTime("expires_at");
         }
 
         await _emailService.SendInvitationEmailAsync(email, token, expiresAt, ct);
@@ -324,14 +327,14 @@ public sealed class InvitationService : IInvitationService
 
     private static Models.Invitation MapInvitation(NpgsqlDataReader reader) => new()
     {
-        Id = reader.GetGuid(0),
-        Email = reader.GetString(1),
-        Role = UserHelper.ParseUserRole(reader.GetString(2)),
-        InvitedBy = reader.GetGuid(3),
-        TokenHash = reader.GetString(4),
-        ExpiresAt = reader.GetDateTime(5),
-        AcceptedAt = reader.IsDBNull(6) ? null : reader.GetDateTime(6),
-        CreatedAt = reader.GetDateTime(7)
+        Id = reader.GetGuid("id"),
+        Email = reader.GetString("email"),
+        Role = UserHelper.ParseUserRole(reader.GetString("role")),
+        InvitedBy = reader.GetGuid("invited_by"),
+        TokenHash = reader.GetString("token_hash"),
+        ExpiresAt = reader.GetDateTime("expires_at"),
+        AcceptedAt = reader.GetNullableDateTime("accepted_at"),
+        CreatedAt = reader.GetDateTime("created_at")
     };
 
     private static string GenerateSecureToken() => SecureTokens.Generate();

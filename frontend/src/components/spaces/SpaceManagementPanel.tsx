@@ -4,13 +4,9 @@ import { FloorplanUploadDialog } from "@foundation/src/components/requests/Floor
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
 import { Button } from "@foundation/src/components/ui/button";
 import { Separator } from "@foundation/src/components/ui/separator";
-import {
-  deleteFloorplan,
-  getFloorplanImageUrl,
-  type FloorplanMetadata,
-  getFloorplanMetadata,
-} from "@foundation/src/lib/api/floorplan-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
+import { deleteFloorplan, type FloorplanMetadata } from "@foundation/src/lib/api/floorplan-api";
+import { useSiteFloorplan } from "@foundation/src/hooks/useSpaces";
+import { useInvalidateFloorplanViewData } from "@foundation/src/hooks/useFloorplan";
 import { cn } from "@foundation/src/lib/utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
@@ -41,8 +37,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { EditSpaceDialog } from "./EditSpaceDialog";
@@ -74,10 +69,17 @@ export function SpaceManagementPanel({
 }: SpaceManagementPanelProps) {
   // React Query hooks
   const { data: spaces = [], isLoading: isLoadingSpaces } = usePlaceableResources(siteId);
-  const createSpaceMutation = useCreatePlaceableResource(siteId);
+  // The create dialog stays open on failure and renders the message inline, so its instance
+  // suppresses the toast. Duplicating from the context menu opens no dialog, so that instance
+  // keeps the toast — one surface per error, and never zero.
+  const createSpaceMutation = useCreatePlaceableResource(siteId, { suppressErrorToast: true });
+  const duplicateSpaceMutation = useCreatePlaceableResource(siteId);
   // One mutation for both move and resize: a resize writes the same geometry through the same
   // endpoint, so a second instance of it was two names for one call.
   const moveSpaceMutation = useMovePlaceableResource(siteId);
+  // The place-a-drawn-shape path is the same call with a different error surface: that dialog
+  // stays open and reports inline, so its instance suppresses the toast.
+  const placeShapeMutation = useMovePlaceableResource(siteId, { suppressErrorToast: true });
   const deleteSpaceMutation = useDeletePlaceableResource(siteId);
 
   const canEdit = useCanEdit();
@@ -97,10 +99,13 @@ export function SpaceManagementPanel({
   // hidden; pan/zoom navigation stays. Tablet keeps the full toolset.
   const { isPhone } = useBreakpoint();
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
-  const [floorplanMetadata, setFloorplanMetadata] =
-    useState<FloorplanMetadata | null>(null);
-  const [floorplanBlobUrl, setFloorplanBlobUrl] = useState<string | null>(null);
+  const invalidateFloorplanViewData = useInvalidateFloorplanViewData(siteId);
+  const {
+    metadata: floorplanMetadata,
+    blobUrl: floorplanBlobUrl,
+    setMetadata: setFloorplanMetadata,
+    clear: clearFloorplan,
+  } = useSiteFloorplan(siteId);
   const [zoom, setZoom] = useState(1);
   const [drawingMode, setDrawingMode] = useState<DrawingMode>("none");
   const [drawnGeometry, setDrawnGeometry] = useState<ResourceGeometry | null>(
@@ -126,36 +131,6 @@ export function SpaceManagementPanel({
   // param itself and guards StrictMode's double-invoked mount, which this hand-rolled copy did not.
   useEditQueryParam(spaces, setEditingSpace, { ready: !isLoadingSpaces });
 
-
-  // Load floorplan metadata on mount
-  useEffect(() => {
-    if (siteId) {
-      getFloorplanMetadata(siteId)
-        .then(setFloorplanMetadata)
-        .catch((err: unknown) => logger.error(err));
-    }
-  }, [siteId]);
-
-  // Fetch floorplan image with auth headers and create a data URL. Keyed on the metadata
-  // object, not merely on whether one exists: replacing a floorplan swaps the metadata while
-  // it stays truthy, and that must refetch rather than leave the previous image on the canvas.
-  // No clearing here — `floorplanUrl` below already reads through the current metadata, so a
-  // stale blob url is never rendered.
-  useEffect(() => {
-    if (!siteId || !floorplanMetadata) return;
-    let cancelled = false;
-    getFloorplanImageUrl(siteId)
-      .then((url) => {
-        if (!cancelled) {
-          setFloorplanBlobUrl(url);
-        }
-      })
-      .catch((err: unknown) => logger.error("Failed to load floorplan image:", err));
-    return () => {
-      cancelled = true;
-    };
-  }, [siteId, floorplanMetadata]);
-
   const handleUploadComplete = (metadata: FloorplanMetadata) => {
     logger.debug("handleUploadComplete called with metadata:", metadata);
     setFloorplanMetadata(metadata);
@@ -165,9 +140,8 @@ export function SpaceManagementPanel({
     setIsDeletingFloorplan(true);
     try {
       await deleteFloorplan(siteId);
-      await queryClient.invalidateQueries({ queryKey: qk.floorplan.viewData(siteId) });
-      setFloorplanMetadata(null);
-      setFloorplanBlobUrl(null);
+      await invalidateFloorplanViewData();
+      clearFloorplan();
       setDeleteFloorplanOpen(false);
     } catch (error) {
       logger.error("Failed to delete floorplan:", error);
@@ -223,7 +197,7 @@ export function SpaceManagementPanel({
    */
   const handleAssignDrawnShape = async (resourceId: string) => {
     if (!drawnGeometry) return;
-    await moveSpaceMutation.mutateAsync({ resourceId, geometry: drawnGeometry });
+    await placeShapeMutation.mutateAsync({ resourceId, geometry: drawnGeometry });
     setPlaceDialogOpen(false);
     setDrawnGeometry(null);
     setSelectedResourceId(resourceId);
@@ -284,9 +258,9 @@ export function SpaceManagementPanel({
     if (!contextMenuSpace) return;
     setContextMenu(null);
     try {
-      await createSpaceMutation.mutateAsync(duplicateResourceRequest(contextMenuSpace, siteId));
+      await duplicateSpaceMutation.mutateAsync(duplicateResourceRequest(contextMenuSpace, siteId));
     } catch (error) {
-      // Feedback owned by the create mutation's meta.errorMessage (central MutationCache).
+      // No dialog on this path, so the toast from meta.errorMessage is the only surface.
       logger.error("Failed to duplicate resource:", error);
     }
   };

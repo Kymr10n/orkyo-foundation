@@ -49,7 +49,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
+        body.GetProperty("code").GetString().Should().Be(ApiErrorCodes.NotFound);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
+        body.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
     }
 
     [Fact]
@@ -115,7 +115,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(nameof(ErrorCodes.ValidationError));
+        body.GetProperty("code").GetString().Should().Be(nameof(ApiErrorCodes.ValidationError));
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.NotFound);
+        body.GetProperty("code").GetString().Should().Be(ApiErrorCodes.NotFound);
         body.GetProperty("detail").GetString().Should().Be("kc missing");
     }
 
@@ -150,7 +150,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(nameof(ErrorCodes.ValidationError));
+        body.GetProperty("code").GetString().Should().Be(nameof(ApiErrorCodes.ValidationError));
     }
 
     [Fact]
@@ -162,7 +162,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
+        body.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public class AppExceptionHandlerTests
         handled.Should().BeTrue();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
         var body = await ReadJsonAsync(ctx);
-        body.GetProperty("code").GetString().Should().Be(ErrorCodes.Conflict);
+        body.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
     }
 
     [Fact]

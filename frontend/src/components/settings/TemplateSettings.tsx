@@ -3,16 +3,12 @@ import { Badge } from "@foundation/src/components/ui/badge";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Button } from "@foundation/src/components/ui/button";
 import { Card } from "@foundation/src/components/ui/card";
-import {
-    deleteTemplate,
-    getTemplates,
-    createTemplate,
-} from "@foundation/src/lib/api/template-api";
+import { createTemplate } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
 import { DURATION_TO_MINUTES } from "@foundation/src/domain/constants";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useDeleteTemplate, useTemplates } from "@foundation/src/hooks/useTemplates";
 import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
@@ -27,6 +23,7 @@ import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 interface TemplateSettingsProps {
   entityType?: 'request' | 'space' | 'group';
@@ -45,23 +42,12 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
     isLoading,
     error,
     refetch,
-  } = useQuery({
-    queryKey: qk.templates(entityType),
-    queryFn: () => getTemplates(entityType),
-  });
+  } = useTemplates(entityType);
 
   // Open the edit dialog when arriving with ?edit=<id> from global search.
   useEditQueryParam(templates, setEditingTemplate, { ready: !isLoading });
 
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: deleteTemplate,
-    meta: {
-      successMessage: 'Template deleted',
-      errorMessage: 'Failed to delete template',
-      invalidates: [qk.templates(entityType)],
-    },
-  });
+  const deleteMutation = useDeleteTemplate(entityType);
 
   // Handle export/import
   useExportHandler('templates', async (format) => {
@@ -213,7 +199,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading request templates…</p>
+        <LoadingSpinner inline size="xs" muted message="Loading request templates…" />
       </div>
     );
   }

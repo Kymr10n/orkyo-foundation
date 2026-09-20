@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { CustomFieldInput, hasCustomFieldValue } from './CustomFieldInput';
+import { CustomFieldInput } from './CustomFieldInput';
 import type { ResourceCustomField } from '@foundation/src/lib/api/resource-custom-fields-api';
 
 function field(overrides: Partial<ResourceCustomField> = {}): ResourceCustomField {
@@ -99,18 +99,5 @@ describe('CustomFieldInput — list fields', () => {
 
     expect(screen.getByText('Maintenance log')).toBeInTheDocument();
     expect(screen.queryByText('*')).not.toBeInTheDocument();
-  });
-});
-
-describe('hasCustomFieldValue', () => {
-  it('treats null, undefined and whitespace as unfilled', () => {
-    expect(hasCustomFieldValue(null)).toBe(false);
-    expect(hasCustomFieldValue(undefined)).toBe(false);
-    expect(hasCustomFieldValue('   ')).toBe(false);
-  });
-
-  it('treats zero and false as filled in — they are answers', () => {
-    expect(hasCustomFieldValue(0)).toBe(true);
-    expect(hasCustomFieldValue(false)).toBe(true);
   });
 });

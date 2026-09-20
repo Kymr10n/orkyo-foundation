@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Services;
 using Npgsql;
 
@@ -5,7 +6,7 @@ namespace Api.Repositories;
 
 public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
 {
-    /// <summary>Column list every <see cref="TenantRecord"/> read/RETURNING uses, in <see cref="MapTenantRecord"/> ordinal order.</summary>
+    /// <summary>Column list every <see cref="TenantRecord"/> read/RETURNING uses; <see cref="MapTenantRecord"/> reads it by name.</summary>
     private const string TenantProjection = "id, slug, display_name, status, db_identifier, owner_user_id, created_at";
 
     private readonly IDbConnectionFactory _connectionFactory;
@@ -16,13 +17,13 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     }
 
     private static TenantRecord MapTenantRecord(NpgsqlDataReader reader) => new(
-        reader.GetGuid(0),
-        reader.GetString(1),
-        reader.GetString(2),
-        reader.GetString(3),
-        reader.GetString(4),
-        reader.IsDBNull(5) ? null : reader.GetGuid(5),
-        reader.GetDateTime(6));
+        reader.GetGuid("id"),
+        reader.GetString("slug"),
+        reader.GetString("display_name"),
+        reader.GetString("status"),
+        reader.GetString("db_identifier"),
+        reader.GetNullableGuid("owner_user_id"),
+        reader.GetDateTime("created_at"));
 
     public async Task<bool> OwnsActiveTenantAsync(Guid userId, CancellationToken ct = default)
     {
@@ -117,8 +118,8 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
             "SELECT owner_user_id, status FROM tenants WHERE id = @tenantId",
             p => p.AddWithValue("tenantId", tenantId),
             reader => new TenantOwnerStatus(
-                reader.IsDBNull(0) ? null : reader.GetGuid(0),
-                reader.GetString(1)), ct);
+                reader.GetNullableGuid("owner_user_id"),
+                reader.GetString("status")), ct);
     }
 
     public async Task<TenantMembershipRoleStatus?> GetMembershipRoleStatusAsync(
@@ -133,7 +134,7 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
                 p.AddWithValue("tenantId", tenantId);
                 p.AddWithValue("userId", userId);
             },
-            reader => new TenantMembershipRoleStatus(reader.GetString(0), reader.GetString(1)), ct);
+            reader => new TenantMembershipRoleStatus(reader.GetString("role"), reader.GetString("status")), ct);
     }
 
     public async Task<List<TenantMembershipRow>> GetUserMembershipsAsync(Guid userId, CancellationToken ct = default)
@@ -141,22 +142,22 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         return await conn.QueryListAsync(@"
             SELECT
-                t.id, t.slug, t.display_name, t.status, t.owner_user_id,
-                tm.role, tm.status, tm.created_at
+                t.id, t.slug, t.display_name, t.status AS tenant_status, t.owner_user_id,
+                tm.role, tm.status AS membership_status, tm.created_at AS joined_at
             FROM tenant_memberships tm
             JOIN tenants t ON t.id = tm.tenant_id
             WHERE tm.user_id = @userId
             ORDER BY tm.created_at DESC",
             p => p.AddWithValue("userId", userId),
             reader => new TenantMembershipRow(
-                reader.GetGuid(0),
-                reader.GetString(1),
-                reader.GetString(2),
-                reader.GetString(3),
-                reader.IsDBNull(4) ? null : reader.GetGuid(4),
-                reader.GetString(5),
-                reader.GetString(6),
-                reader.GetDateTime(7)), ct);
+                reader.GetGuid("id"),
+                reader.GetString("slug"),
+                reader.GetString("display_name"),
+                reader.GetString("tenant_status"),
+                reader.GetNullableGuid("owner_user_id"),
+                reader.GetString("role"),
+                reader.GetString("membership_status"),
+                reader.GetDateTime("joined_at")), ct);
     }
 
     public async Task<TenantLeaveLookup> GetLeaveLookupAsync(Guid tenantId, Guid userId, CancellationToken ct = default)
@@ -164,20 +165,20 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         // Owner check, active-admin count, and the user's current active role in one round trip.
         var lookup = await conn.QuerySingleOrDefaultAsync(@"
-            SELECT (SELECT owner_user_id FROM tenants WHERE id = @tenantId),
+            SELECT (SELECT owner_user_id FROM tenants WHERE id = @tenantId) AS owner_user_id,
                    (SELECT COUNT(*) FROM tenant_memberships
-                    WHERE tenant_id = @tenantId AND role = 'admin' AND status = 'active'),
+                    WHERE tenant_id = @tenantId AND role = 'admin' AND status = 'active') AS active_admin_count,
                    (SELECT role FROM tenant_memberships
-                    WHERE tenant_id = @tenantId AND user_id = @userId AND status = 'active')",
+                    WHERE tenant_id = @tenantId AND user_id = @userId AND status = 'active') AS user_role",
             p =>
             {
                 p.AddWithValue("tenantId", tenantId);
                 p.AddWithValue("userId", userId);
             },
             reader => new TenantLeaveLookup(
-                reader.IsDBNull(0) ? null : reader.GetGuid(0),
-                reader.GetInt64(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2)), ct);
+                reader.GetNullableGuid("owner_user_id"),
+                reader.GetInt64("active_admin_count"),
+                reader.GetNullableString("user_role")), ct);
         // Scalar subselects always yield exactly one row; keep the compiler happy.
         return lookup ?? new TenantLeaveLookup(null, 0, null);
     }

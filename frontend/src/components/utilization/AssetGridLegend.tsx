@@ -1,4 +1,5 @@
-import { type BucketStatus, STATUS_BORDER_CLASS, STATUS_CELL_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
+import { STATUS_BORDER_CLASS, STATUS_CELL_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
+import type { BucketStatus } from '@foundation/src/domain/scheduling/types';
 
 function LegendDot({ status, label, title }: { status: BucketStatus; label: string; title?: string }) {
   return (

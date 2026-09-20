@@ -8,29 +8,35 @@ namespace Api.Services.AutoSchedule;
 public class SchedulingProblemBuilder
 {
     private readonly IRequestRepository _requestRepository;
+    private readonly IRequestScheduleReadRepository _scheduleReads;
     private readonly IResourceRepository _resourceRepository;
     private readonly IResourceCapabilityRepository _capabilityRepository;
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IAvailabilityResolver _resolver;
     private readonly IRequestDependencyRepository _dependencyRepository;
     private readonly ICriteriaRepository _criteriaRepository;
+    private readonly TimeProvider _time;
 
     public SchedulingProblemBuilder(
         IRequestRepository requestRepository,
+        IRequestScheduleReadRepository scheduleReads,
         IResourceRepository resourceRepository,
         IResourceCapabilityRepository capabilityRepository,
         ISchedulingRepository schedulingRepository,
         IAvailabilityResolver resolver,
         IRequestDependencyRepository dependencyRepository,
-        ICriteriaRepository criteriaRepository)
+        ICriteriaRepository criteriaRepository,
+        TimeProvider time)
     {
         _requestRepository = requestRepository;
+        _scheduleReads = scheduleReads;
         _resourceRepository = resourceRepository;
         _capabilityRepository = capabilityRepository;
         _schedulingRepository = schedulingRepository;
         _dependencyRepository = dependencyRepository;
         _resolver = resolver;
         _criteriaRepository = criteriaRepository;
+        _time = time;
     }
 
     public virtual async Task<SchedulingProblem> BuildAsync(
@@ -53,9 +59,9 @@ public class SchedulingProblemBuilder
         //     (no end_ts, or a target type with no assignment). These are excluded from both the
         //     unscheduled backlog and the fixed-occupancy fetch, so without this second set
         //     they'd be invisible to the solver despite being auto-schedulable before.
-        var unscheduled = await _requestRepository.GetUnscheduledAsync(
+        var unscheduled = await _scheduleReads.GetUnscheduledAsync(
             includeRequirements: true, ct: cancellationToken);
-        var partiallyScheduled = await _requestRepository.GetPartiallyScheduledLeavesAsync(
+        var partiallyScheduled = await _scheduleReads.GetPartiallyScheduledLeavesAsync(
             includeRequirements: true, ct: cancellationToken);
 
         // The types the run fills are resolved by AutoScheduleService before this is called; an
@@ -177,7 +183,7 @@ public class SchedulingProblemBuilder
         // site+window fetch is solver-equivalent to the previous tenant-wide scan. The upper bound
         // is exclusive-day so an assignment starting late on the last horizon day is still seen.
         // No scheduling_settings_apply filter — manually scheduled requests occupy resources too.
-        var scheduled = await _requestRepository.GetScheduledBySiteWindowAsync(
+        var scheduled = await _scheduleReads.GetScheduledBySiteWindowAsync(
             request.SiteId, horizonFrom, horizonTo, cancellationToken);
         // Holding a resource is what occupies it — not being fully scheduled. A request still
         // waiting on its technician has its room booked all the same, and offering that room to
@@ -263,7 +269,7 @@ public class SchedulingProblemBuilder
         // Triage runs per SUCCESSOR, not per edge: a join condition is a property of a request's
         // whole incoming set ("2 of my 3"), so no single edge can be classified on its own.
         var eligibleById = eligibleRequests.ToDictionary(r => r.Id);
-        var now = DateTime.UtcNow;
+        var now = _time.GetUtcNow().UtcDateTime;
 
         foreach (var incoming in edges.GroupBy(e => e.SuccessorRequestId))
         {

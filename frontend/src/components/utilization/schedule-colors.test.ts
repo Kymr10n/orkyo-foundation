@@ -5,9 +5,9 @@ import {
   SPACE_CANVAS_COLORS,
   SPACE_LEGEND_CELL_CLASS,
   SPACE_LEGEND_BORDER_CLASS,
-  type BucketStatus,
   type SpaceStatus,
 } from './schedule-colors';
+import type { BucketStatus } from '@foundation/src/domain/scheduling/types';
 
 const BUCKET_STATUSES: BucketStatus[] = [
   'available',

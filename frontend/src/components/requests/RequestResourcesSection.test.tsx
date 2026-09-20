@@ -6,6 +6,7 @@ import { RequestResourcesSection } from "./RequestResourcesSection";
 import { Tabs } from "@foundation/src/components/ui/tabs";
 import { getResources } from "@foundation/src/lib/api/resources-api";
 import { getUtilizationByResource } from "@foundation/src/lib/api/resource-utilization-api";
+import { pagedResult } from "@foundation/src/test-utils/paged-result";
 
 vi.mock("@foundation/src/lib/api/resources-api", () => ({ getResources: vi.fn() }));
 vi.mock("@foundation/src/lib/api/resource-utilization-api", () => ({
@@ -33,14 +34,12 @@ vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
   }),
 }));
 
-const MILLS = {
-  data: [
-    { id: "m-1", name: "PMF Mill VMC-1" },
-    { id: "m-2", name: "PMF Mill VMC-2" },
-    { id: "m-3", name: "PMF Mill VMC-3" },
-    { id: "m-4", name: "PMF Mill VMC-4" },
-  ],
-};
+const MILLS = pagedResult([
+  { id: "m-1", name: "PMF Mill VMC-1" },
+  { id: "m-2", name: "PMF Mill VMC-2" },
+  { id: "m-3", name: "PMF Mill VMC-3" },
+  { id: "m-4", name: "PMF Mill VMC-4" },
+]);
 
 function bucket(over: Partial<Record<string, unknown>> = {}) {
   return {

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models.Preset;
@@ -45,7 +44,7 @@ public static class PresetEndpoints
             if (string.IsNullOrWhiteSpace(presetId) || string.IsNullOrWhiteSpace(name))
                 return ErrorResponses.BadRequest("presetId and name are required");
             var preset = await presetService.ExportAsync(presetId, name, description, ct);
-            return Results.Json(preset, new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+            return Results.Json(preset, DownloadJson.Options);
         })
         .WithName("ExportPreset")
         .WithDescription("Exports the current tenant configuration as a preset JSON");
