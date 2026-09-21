@@ -64,27 +64,26 @@ public class SchedulingProblemBuilderTypeTests
         UpdatedAt = DateTime.UtcNow,
     };
 
-    private static RequestRequirementInfo Requirement(Guid criterionId) => new()
+    /// <summary>A requirement as the repository loads it: the criterion's scope rides along.</summary>
+    private static RequestRequirementInfo Requirement(Guid criterionId, params string[] typeKeys) => new()
     {
         Id = Guid.NewGuid(),
         RequestId = Guid.NewGuid(),
         CriterionId = criterionId,
         Value = System.Text.Json.JsonDocument.Parse("true").RootElement,
-    };
-
-    private static CriterionInfo Criterion(Guid id, params string[] typeKeys) => new()
-    {
-        Id = id,
-        Name = "crit",
-        DataType = CriterionDataType.Boolean,
-        ResourceTypeKeys = typeKeys,
+        Criterion = new CriterionBasicInfo
+        {
+            Id = criterionId,
+            Name = "crit",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = typeKeys,
+        },
     };
 
     /// <summary>Wires the builder with the given backlog and candidate pool; captures the filters.</summary>
     private static (SchedulingProblemBuilder Builder, List<ResourceListFilter> Filters) Build(
         List<RequestInfo> backlog, List<ResourceInfo> candidates,
-        SchedulingSettingsInfo? settings = null,
-        List<CriterionInfo>? criteria = null)
+        SchedulingSettingsInfo? settings = null)
     {
         var filters = new List<ResourceListFilter>();
 
@@ -123,13 +122,9 @@ public class SchedulingProblemBuilderTypeTests
                 It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var criteriaRepo = new Mock<ICriteriaRepository>();
-        criteriaRepo.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(criteria ?? []);
-
         return (new SchedulingProblemBuilder(
             Mock.Of<IRequestRepository>(), scheduleReads.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object, criteriaRepo.Object,
+            scheduling.Object, resolver.Object, dependencies.Object,
             TimeProvider.System), filters);
     }
 
@@ -271,20 +266,20 @@ public class SchedulingProblemBuilderTypeTests
     [Fact]
     public async Task CriterionTypeScopes_TravelWithTheProblem()
     {
-        // Only the criteria the backlog requires are looked up, and each carries the types it
-        // applies to — so the analyzer can demand the mill's tolerance of the mill, not the van.
+        // Each required criterion carries the types it applies to, read off the loaded
+        // requirements — so the analyzer can demand the mill's tolerance of the mill, not the van.
         var millOnly = Guid.NewGuid();
-        var unused = Guid.NewGuid();
-        var request = Leaf(["mill", "van"], requirements: [Requirement(millOnly)]);
-        var (builder, _) = Build(
-            [request], [Resource("mill", "Mill"), Resource("van", "Van")],
-            criteria: [Criterion(millOnly, "mill"), Criterion(unused, "van")]);
+        var unscoped = Guid.NewGuid();
+        var request = Leaf(["mill", "van"], requirements:
+            [Requirement(millOnly, "mill"), Requirement(unscoped) with { Criterion = null }]);
+        var (builder, _) = Build([request], [Resource("mill", "Mill"), Resource("van", "Van")]);
 
         var problem = await builder.BuildAsync(Preview("mill", "van"), CancellationToken.None);
 
         problem.CriterionTypeScopes.Should().ContainKey(millOnly)
             .WhoseValue.Should().BeEquivalentTo(["mill"]);
-        problem.CriterionTypeScopes.Should().NotContainKey(unused);
+        // No criterion joined → no scope recorded; the analyzer then demands it of every type.
+        problem.CriterionTypeScopes.Should().NotContainKey(unscoped);
     }
 
     [Fact]

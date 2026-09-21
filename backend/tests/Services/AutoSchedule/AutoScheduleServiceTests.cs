@@ -43,7 +43,6 @@ public class AutoScheduleServiceTests
             Mock.Of<ISchedulingRepository>(),
             Mock.Of<IAvailabilityResolver>(),
             Mock.Of<IRequestDependencyRepository>(),
-            Mock.Of<ICriteriaRepository>(),
             TimeProvider.System);
 
         var problem = new SchedulingProblem(
