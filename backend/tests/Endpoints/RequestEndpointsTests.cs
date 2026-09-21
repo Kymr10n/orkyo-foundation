@@ -365,6 +365,39 @@ public class RequestEndpointsTests
     }
 
     [Fact]
+    public async Task GetRequest_RequirementCarriesTheCriterionResourceTypeKeys()
+    {
+        // The validator and the candidate panel decide from this projection which resource a
+        // requirement is asked of, so the criterion's scope must ride along with it.
+        var criterionResp = await _client.PostAsJsonAsync("/api/criteria", new
+        {
+            name = $"c_{Guid.NewGuid():N}"[..20],
+            dataType = "Boolean",
+            resourceTypeKeys = new[] { "person" },
+        });
+        Assert.Equal(HttpStatusCode.Created, criterionResp.StatusCode);
+        var criterionId = (await criterionResp.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"Scope {Guid.NewGuid():N}".Substring(0, 30),
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            Requirements = [new() { CriterionId = criterionId, Value = JsonSerializer.SerializeToElement(true) }],
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
+
+        var response = await _client.GetAsync($"/api/requests/{created!.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var request = await response.Content.ReadFromJsonAsync<RequestInfo>();
+        var requirement = Assert.Single(request!.Requirements!);
+        Assert.NotNull(requirement.Criterion);
+        Assert.Equal(["person"], requirement.Criterion!.ResourceTypeKeys);
+    }
+
+    [Fact]
     public async Task GetRequest_WithInvalidId_ReturnsNotFound()
     {
         // Act

@@ -44,17 +44,18 @@ internal static class RequestSql
     /// The requirement read's SELECT list and join, with the criterion columns aliased.
     /// </summary>
     /// <remarks>
-    /// One home because the five <c>criterion_*</c> aliases are a contract with
+    /// One home because the six <c>criterion_*</c> aliases are a contract with
     /// <see cref="RequestMapper.MapRequirementWithCriterionFromReader"/>, which reads by those
     /// names. Both reads — one request, and a batch of them — differ only in their WHERE and
     /// ORDER BY, so they interpolate this and supply their own. Two copies of the alias list
     /// meant renaming one alias broke the other at run time with nothing failing to compile.
     /// </remarks>
-    internal const string RequirementSelect = @"
+    internal static readonly string RequirementSelect = $@"
         SELECT rr.id, rr.request_id, rr.criterion_id, rr.value, rr.created_at,
                rr.operator, rr.allowed_values,
                c.id AS criterion_pk, c.name AS criterion_name, c.data_type AS criterion_data_type,
-               c.unit AS criterion_unit, c.enum_values AS criterion_enum_values
+               c.unit AS criterion_unit, c.enum_values AS criterion_enum_values,
+               {CriteriaRepository.ResourceTypeKeysAgg("c.id")} AS criterion_resource_type_keys
         FROM request_requirements rr
         JOIN criteria c ON rr.criterion_id = c.id";
 

@@ -86,6 +86,7 @@ public static class RequestMapper
                 EnumValues = reader.GetNullableString("criterion_enum_values") is { } enumValues
                     ? JsonSerializer.Deserialize<List<string>>(enumValues)
                     : null,
+                ResourceTypeKeys = reader.GetStringArray("criterion_resource_type_keys"),
             },
         };
     }

@@ -20,19 +20,25 @@ public class CriteriaRepository : ICriteriaRepository
         $"  UNION ALL SELECT 1 FROM template_items WHERE criterion_id = {idExpr} " +
         ")";
 
+    // The resource-type keys a criterion applies to, as a never-null text[]. Shared with the
+    // request-requirement read (RequestSql.RequirementSelect) so both sides of a match see the
+    // same scope. {criterionIdExpr} is a hardcoded column reference, never user input.
+    internal static string ResourceTypeKeysAgg(string criterionIdExpr) =>
+        "COALESCE(" +
+        "  (SELECT ARRAY_AGG(rt.key ORDER BY rt.key) " +
+        "   FROM criterion_resource_types crt " +
+        "   JOIN resource_types rt ON rt.id = crt.resource_type_id " +
+        $"   WHERE crt.criterion_id = {criterionIdExpr}), " +
+        "  '{}'::text[]" +
+        ")";
+
     // Columns are always selected with the `c.` alias on `criteria c` so the
     // aggregate sub-selects can correlate. `resource_type_keys` is a text[]; `in_use`
     // is a boolean computed from value references across four tables.
     private static readonly string SelectColumns =
         "c.id, c.name, c.description, c.data_type, c.enum_values, c.unit, c.validation_json, " +
         "c.applicable_to_requests, c.created_at, c.updated_at, " +
-        "COALESCE(" +
-        "  (SELECT ARRAY_AGG(rt.key ORDER BY rt.key) " +
-        "   FROM criterion_resource_types crt " +
-        "   JOIN resource_types rt ON rt.id = crt.resource_type_id " +
-        "   WHERE crt.criterion_id = c.id), " +
-        "  '{}'::text[]" +
-        ") AS resource_type_keys, " +
+        ResourceTypeKeysAgg("c.id") + " AS resource_type_keys, " +
         InUseExists("c.id") + " AS in_use";
 
     private readonly OrgContext _orgContext;

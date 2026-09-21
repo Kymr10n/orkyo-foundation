@@ -184,13 +184,53 @@ public class RequestModelsTests
             Name = "Shift Model",
             DataType = CriterionDataType.Enum,
             Unit = null,
-            EnumValues = new List<string> { "2-shift", "3-shift" }
+            EnumValues = new List<string> { "2-shift", "3-shift" },
+            ResourceTypeKeys = ["person"],
         };
 
         info.Id.Should().Be(id);
         info.Name.Should().Be("Shift Model");
         info.DataType.Should().Be(CriterionDataType.Enum);
         info.EnumValues.Should().HaveCount(2);
+        info.ResourceTypeKeys.Should().BeEquivalentTo(["person"]);
+    }
+
+    [Fact]
+    public void CriterionBasicInfo_ResourceTypeKeys_DefaultsToEmpty()
+    {
+        var info = new CriterionBasicInfo { Id = Guid.NewGuid(), Name = "Crane", DataType = CriterionDataType.Boolean };
+
+        info.ResourceTypeKeys.Should().BeEmpty();
+    }
+
+    // ── RequestRequirementInfo.AppliesTo ──────────────────────────────────
+
+    [Theory]
+    [InlineData(null, "mill", true)]                 // no criterion joined: applies to every type
+    [InlineData(new string[0], "mill", true)]        // no scope recorded: applies to every type
+    [InlineData(new[] { "mill" }, "mill", true)]
+    [InlineData(new[] { "mill" }, "person", false)]
+    [InlineData(new[] { "mill", "person" }, "person", true)]
+    [InlineData(new[] { "mill" }, "Mill", false)]    // ordinal, like the analyzer and the builder
+    public void RequestRequirementInfo_AppliesTo_FollowsTheCriterionScope(string[]? scope, string typeKey, bool expected)
+    {
+        var criterionId = Guid.NewGuid();
+        var req = new RequestRequirementInfo
+        {
+            Id = Guid.NewGuid(),
+            RequestId = Guid.NewGuid(),
+            CriterionId = criterionId,
+            Value = JsonDocument.Parse("true").RootElement,
+            Criterion = scope is null ? null : new CriterionBasicInfo
+            {
+                Id = criterionId,
+                Name = "Tolerance",
+                DataType = CriterionDataType.Boolean,
+                ResourceTypeKeys = scope,
+            },
+        };
+
+        req.AppliesTo(typeKey).Should().Be(expected);
     }
 
     // ── ScheduleRequestRequest ─────────────────────────────────────────────
