@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using Api.Constants;
 using Api.Helpers;
@@ -189,7 +190,13 @@ public class TemplateRepository : ITemplateRepository
 
         // Null leaves the types alone; a list, empty included, replaces them.
         if (request.TargetResourceTypeKeys is { } keys)
+        {
             await WriteTargetTypesAsync(conn, id, request.EntityType, keys, ct);
+            // Narrowing the types must not strand an item no resource of the template's
+            // requests could satisfy. Only request templates carry targets to check against.
+            if (request.EntityType == TemplateEntityTypes.Request)
+                await CriterionScopeSql.EnsureTemplateItemsApplyAsync(conn, tx, id, ct);
+        }
 
         await tx.CommitAsync(ct);
         return await ReadAsync(conn, id, ct);
@@ -273,9 +280,15 @@ public class TemplateRepository : ITemplateRepository
         if (!criterionExists)
             throw new ArgumentException($"Criterion not found: {item.CriterionId}");
 
+        // Written, then checked with the template's other items in one transaction: a
+        // criterion no request made from the template could carry rolls the write back.
+        if (conn.State != ConnectionState.Open) await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
+
+        TemplateItem created;
         try
         {
-            return (await conn.QuerySingleOrDefaultAsync(@"
+            created = (await conn.QuerySingleOrDefaultAsync(@"
                 INSERT INTO template_items (template_id, criterion_id, value)
                 VALUES (@TemplateId, @CriterionId, @Value::jsonb)
                 RETURNING id, template_id, criterion_id, value, created_at, updated_at",
@@ -299,6 +312,11 @@ public class TemplateRepository : ITemplateRepository
         {
             throw new ConflictException($"Template already has this criterion: {item.CriterionId}");
         }
+
+        if (template.EntityType == TemplateEntityTypes.Request)
+            await CriterionScopeSql.EnsureTemplateItemsApplyAsync(conn, tx, item.TemplateId, ct);
+        await tx.CommitAsync(ct);
+        return created;
     }
 
     public async Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default)

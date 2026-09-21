@@ -334,6 +334,7 @@ public class RequestRepository : IRequestRepository
         if (request.Requirements is { Count: > 0 })
         {
             await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
+            await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(db, transaction, requestId, ct);
         }
 
         return requestId;
@@ -493,6 +494,11 @@ public class RequestRepository : IRequestRepository
             if (request.Requirements.Count > 0)
                 await CreateRequirements(id, request.Requirements, db, transaction, ct);
         }
+
+        // Either side can invalidate the pairing: a new requirement, or targets narrowed away
+        // from one the request already carries.
+        if (request.TargetResourceTypeKeys is not null || request.Requirements is not null)
+            await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(db, transaction, id, ct);
 
         await transaction.CommitAsync(ct);
 
@@ -1019,15 +1025,13 @@ public class RequestRepository : IRequestRepository
         if (!await conn.ExistsAsync("criteria", requirement.CriterionId, ct))
             throw new ArgumentException("Invalid criterion_id: criterion does not exist");
 
-        // Validate criterion is applicable to requests
-        var applicableToRequests = await conn.ExecuteScalarAsync<bool?>(
-            "SELECT applicable_to_requests FROM criteria WHERE id = @criterionId",
-            p => p.AddWithValue("criterionId", requirement.CriterionId), ct);
-        if (applicableToRequests == false)
-            throw new InvalidOperationException(
-                $"Criterion {requirement.CriterionId} is not applicable to requests");
+        // Written first, then checked with the request's other requirements inside one
+        // transaction: a criterion the request cannot hold (not applicable to requests, or
+        // scoped to a type it neither targets nor staffs) rolls the write back.
+        if (conn.State != ConnectionState.Open) await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
-        return (await conn.QuerySingleOrDefaultAsync(@"
+        var created = (await conn.QuerySingleOrDefaultAsync(@"
             INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
             VALUES (@request_id, @criterion_id, @value::jsonb, @operator, @allowed_values::jsonb)
             ON CONFLICT (request_id, criterion_id) DO UPDATE SET
@@ -1045,6 +1049,10 @@ public class RequestRepository : IRequestRepository
             },
             RequestMapper.MapRequirementFromReader,
             ct))!;
+
+        await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(conn, tx, requestId, ct);
+        await tx.CommitAsync(ct);
+        return created;
     }
 
     public async Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default)
