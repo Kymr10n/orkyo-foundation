@@ -103,7 +103,7 @@ public class ResourceAssignmentValidatorTests
         };
     }
 
-    private static RequestRequirementInfo CreateRequirement(Guid criterionId = default)
+    private static RequestRequirementInfo CreateRequirement(Guid criterionId = default, params string[] resourceTypeKeys)
     {
         return new RequestRequirementInfo
         {
@@ -116,10 +116,27 @@ public class ResourceAssignmentValidatorTests
             {
                 Id = criterionId == default ? Guid.NewGuid() : criterionId,
                 Name = "Test Criterion",
-                DataType = CriterionDataType.Number
+                DataType = CriterionDataType.Number,
+                ResourceTypeKeys = resourceTypeKeys,
             }
         };
     }
+
+    private static RequestInfo CreateRequestWithRequirements(Guid id, params RequestRequirementInfo[] requirements) => new()
+    {
+        Id = id,
+        Name = "test",
+        PlanningMode = PlanningMode.Leaf,
+        Status = RequestStatus.New,
+        SchedulingSettingsApply = false,
+        Requirements = requirements.ToList(),
+        Assignments = new List<ResourceAssignmentInfo>(),
+        TargetResourceTypeKeys = ["mill"],
+        MinimalDurationValue = 1,
+        MinimalDurationUnit = DurationUnit.Hours,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow
+    };
 
     private static RequestInfo CreateRequestInfo(Guid id, Guid? siteId) => new()
     {
@@ -285,6 +302,124 @@ public class ResourceAssignmentValidatorTests
         Assert.Equal(ValidationSeverity.Blocker, result.Severity);
         Assert.Single(result.Blockers);
         Assert.Equal(ValidationReasonCode.CapabilityMissing, result.Blockers[0].Code);
+    }
+
+    // ===== Requirement scoping: a criterion is demanded only of the types it applies to =====
+
+    [Fact]
+    public async Task Capability_ScopedToAnotherType_IsNotDemandedOfThisResource()
+    {
+        // The tester's scenario: a request needs a mill and a person, with one criterion for
+        // each. Validating the person must not ask them for the mill's tolerance.
+        var person = CreateResource();
+        var request = CreateValidationRequest(resourceId: person.Id);
+        var millReq = CreateRequirement(resourceTypeKeys: "mill");
+        var personReq = CreateRequirement(resourceTypeKeys: "person");
+
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(person.Id)).ReturnsAsync(person);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
+            .ReturnsAsync(CreateRequestWithRequirements(request.RequestId!.Value, millReq, personReq));
+        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(person.Id))
+            .ReturnsAsync((Guid?)null);
+        _capabilityRepoMock.Setup(c => c.GetByResourceAsync(person.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceCapabilityInfo>());
+        _capabilityMatcherMock
+            .Setup(c => c.Satisfies(It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), personReq))
+            .Returns(true);
+
+        var result = await _validator.ValidateAsync(request);
+
+        Assert.DoesNotContain(result.Blockers, b => b.Code == ValidationReasonCode.CapabilityMissing);
+        _capabilityMatcherMock.Verify(
+            c => c.Satisfies(It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), millReq), Times.Never);
+    }
+
+    [Fact]
+    public async Task Capability_PersonLackingPersonScopedSkill_StillBlocks()
+    {
+        // Scoping narrows what is asked, not how strictly: the person's own skill is still required.
+        var person = CreateResource();
+        var request = CreateValidationRequest(resourceId: person.Id);
+        var millReq = CreateRequirement(resourceTypeKeys: "mill");
+        var personReq = CreateRequirement(resourceTypeKeys: "person");
+
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(person.Id)).ReturnsAsync(person);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
+            .ReturnsAsync(CreateRequestWithRequirements(request.RequestId!.Value, millReq, personReq));
+        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(person.Id))
+            .ReturnsAsync((Guid?)null);
+        _capabilityRepoMock.Setup(c => c.GetByResourceAsync(person.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceCapabilityInfo>());
+        _capabilityMatcherMock
+            .Setup(c => c.Satisfies(It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), personReq))
+            .Returns(false);
+
+        var result = await _validator.ValidateAsync(request);
+
+        var blocker = Assert.Single(result.Blockers);
+        Assert.Equal(ValidationReasonCode.CapabilityMissing, blocker.Code);
+        Assert.Equal(personReq.CriterionId, blocker.CriterionId);
+    }
+
+    [Fact]
+    public async Task Capability_NoCriterionLoaded_AppliesToEveryType()
+    {
+        // A requirement whose criterion was not joined carries no scope, so it is demanded of
+        // every resource — the behaviour every consumer saw before scoping existed.
+        var person = CreateResource();
+        var request = CreateValidationRequest(resourceId: person.Id);
+        var unscoped = CreateRequirement() with { Criterion = null };
+
+        _resourceRepoMock.Setup(r => r.GetByIdAsync(person.Id)).ReturnsAsync(person);
+        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
+            .ReturnsAsync(CreateRequestWithRequirements(request.RequestId!.Value, unscoped));
+        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(person.Id))
+            .ReturnsAsync((Guid?)null);
+        _capabilityRepoMock.Setup(c => c.GetByResourceAsync(person.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceCapabilityInfo>());
+        _capabilityMatcherMock
+            .Setup(c => c.Satisfies(It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), unscoped))
+            .Returns(false);
+
+        var result = await _validator.ValidateAsync(request);
+
+        var blocker = Assert.Single(result.Blockers);
+        Assert.Equal(ValidationReasonCode.CapabilityMissing, blocker.Code);
+    }
+
+    [Fact]
+    public async Task ValidateBatchAsync_DemandsEachRequirementOnlyOfItsOwnType()
+    {
+        // One request, two resources of different types, one criterion per type, nothing
+        // satisfied: each resource is blocked on its own criterion and on nothing else.
+        var person = CreateResource();
+        var mill = CreateResource() with { ResourceTypeKey = "mill" };
+        var requestId = Guid.NewGuid();
+        var millReq = CreateRequirement(resourceTypeKeys: "mill");
+        var personReq = CreateRequirement(resourceTypeKeys: "person");
+
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<ResourceInfo> { person, mill });
+        _requestRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RequestInfo> { CreateRequestWithRequirements(requestId, millReq, personReq) });
+
+        var results = await _validator.ValidateBatchAsync(new[]
+        {
+            CreateValidationRequest(resourceId: person.Id, requestId: requestId),
+            CreateValidationRequest(resourceId: mill.Id, requestId: requestId),
+        });
+
+        var personResult = Assert.Single(results, r => r.ResourceId == person.Id);
+        var personBlocker = Assert.Single(personResult.Result.Blockers);
+        Assert.Equal(ValidationReasonCode.CapabilityMissing, personBlocker.Code);
+        Assert.Equal(personReq.CriterionId, personBlocker.CriterionId);
+
+        var millResult = Assert.Single(results, r => r.ResourceId == mill.Id);
+        var millBlocker = Assert.Single(millResult.Result.Blockers);
+        Assert.Equal(ValidationReasonCode.CapabilityMissing, millBlocker.Code);
+        Assert.Equal(millReq.CriterionId, millBlocker.CriterionId);
     }
 
     [Fact]

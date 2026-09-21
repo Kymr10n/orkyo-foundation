@@ -14,7 +14,6 @@ public class SchedulingProblemBuilder
     private readonly ISchedulingRepository _schedulingRepository;
     private readonly IAvailabilityResolver _resolver;
     private readonly IRequestDependencyRepository _dependencyRepository;
-    private readonly ICriteriaRepository _criteriaRepository;
     private readonly TimeProvider _time;
 
     public SchedulingProblemBuilder(
@@ -25,7 +24,6 @@ public class SchedulingProblemBuilder
         ISchedulingRepository schedulingRepository,
         IAvailabilityResolver resolver,
         IRequestDependencyRepository dependencyRepository,
-        ICriteriaRepository criteriaRepository,
         TimeProvider time)
     {
         _requestRepository = requestRepository;
@@ -35,7 +33,6 @@ public class SchedulingProblemBuilder
         _schedulingRepository = schedulingRepository;
         _dependencyRepository = dependencyRepository;
         _resolver = resolver;
-        _criteriaRepository = criteriaRepository;
         _time = time;
     }
 
@@ -125,19 +122,16 @@ public class SchedulingProblemBuilder
             .ToList();
 
         // A criterion is scoped to resource types, so a requirement written for the mill must
-        // not be demanded of the van the same request also needs. Read once for the criteria
-        // the backlog actually requires.
-        var requiredCriterionIds = eligibleRequests
+        // not be demanded of the van the same request also needs. The scope rides on each
+        // loaded requirement (the same projection the assignment validator decides from), so
+        // no second read of the criteria table is needed.
+        var criterionTypeScopes = eligibleRequests
             .SelectMany(r => r.Requirements ?? [])
-            .Select(q => q.CriterionId)
-            .ToHashSet();
-        var criterionTypeScopes = requiredCriterionIds.Count == 0
-            ? new Dictionary<Guid, IReadOnlySet<string>>()
-            : (await _criteriaRepository.GetAllAsync(cancellationToken))
-                .Where(c => requiredCriterionIds.Contains(c.Id))
-                .ToDictionary(
-                    c => c.Id,
-                    c => (IReadOnlySet<string>)c.ResourceTypeKeys.ToHashSet(StringComparer.Ordinal));
+            .Where(q => q.Criterion is not null)
+            .GroupBy(q => q.CriterionId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlySet<string>)g.First().Criterion!.ResourceTypeKeys.ToHashSet(StringComparer.Ordinal));
 
         var candidateIds = resourceNodes.Select(n => n.ResourceId).ToList();
         var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(

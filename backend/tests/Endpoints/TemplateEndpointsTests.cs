@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Constants;
 using Api.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
@@ -43,6 +44,90 @@ public class TemplateEndpointsTests
 
         await cmd.ExecuteNonQueryAsync();
         return criterionId;
+    }
+
+    // The scope tests write through the API as an editor, like the assignment and request
+    // suites do, rather than through the raw-SQL helper above.
+    private HttpClient Authorized => _authorized ??= _fixture.CreateAuthorizedClient();
+    private HttpClient? _authorized;
+
+    private async Task<Guid> CreateScopedCriterionAsync(params string[] resourceTypeKeys)
+    {
+        var response = await Authorized.PostAsJsonAsync("/api/criteria", new
+        {
+            name = $"c_{Guid.NewGuid():N}"[..20],
+            dataType = "Boolean",
+            resourceTypeKeys,
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+    }
+
+    private async Task<Template> CreateRequestTemplateAsync(params string[] targetResourceTypeKeys)
+    {
+        var response = await Authorized.PostAsJsonAsync("/api/templates", new CreateTemplateRequest
+        {
+            Name = $"Scoped {Guid.NewGuid():N}"[..20],
+            EntityType = "request",
+            DurationValue = 1,
+            DurationUnit = "hours",
+            TargetResourceTypeKeys = targetResourceTypeKeys,
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<Template>())!;
+    }
+
+    // ── Item scope: a criterion must apply to a type the template's requests can hold ──
+
+    [Fact]
+    public async Task AddItem_RejectsACriterionThatAppliesToNoTargetType()
+    {
+        var template = await CreateRequestTemplateAsync(ResourceTypeKeys.Space);
+        var toolCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Tool);
+
+        var response = await Authorized.PostAsJsonAsync($"/api/templates/{template.Id}/items",
+            new CreateTemplateItemRequest { CriterionId = toolCriterion, Value = "true" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var items = await Authorized.GetFromJsonAsync<List<TemplateItem>>($"/api/templates/{template.Id}/items");
+        Assert.Empty(items!);
+    }
+
+    [Fact]
+    public async Task AddItem_AcceptsAPersonSkillOnATemplateThatTargetsNoPeople()
+    {
+        // People are staffed on the request rather than named under Needs, so their skills
+        // are always a valid item.
+        var template = await CreateRequestTemplateAsync(ResourceTypeKeys.Space);
+        var personCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Person);
+
+        var response = await Authorized.PostAsJsonAsync($"/api/templates/{template.Id}/items",
+            new CreateTemplateItemRequest { CriterionId = personCriterion, Value = "true" });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateTemplate_RejectsNarrowingTheTargetsAwayFromAnItem()
+    {
+        var template = await CreateRequestTemplateAsync(ResourceTypeKeys.Space, ResourceTypeKeys.Tool);
+        var toolCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Tool);
+        var added = await Authorized.PostAsJsonAsync($"/api/templates/{template.Id}/items",
+            new CreateTemplateItemRequest { CriterionId = toolCriterion, Value = "true" });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+
+        var response = await Authorized.PutAsJsonAsync($"/api/templates/{template.Id}", new UpdateTemplateRequest
+        {
+            Name = template.Name,
+            EntityType = "request",
+            DurationValue = 1,
+            DurationUnit = "hours",
+            TargetResourceTypeKeys = [ResourceTypeKeys.Space],
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var after = await Authorized.GetFromJsonAsync<Template>($"/api/templates/{template.Id}");
+        Assert.Equal([ResourceTypeKeys.Space, ResourceTypeKeys.Tool], after!.TargetResourceTypeKeys.Order());
     }
 
     private async Task<string> GetAuthTokenAsync()

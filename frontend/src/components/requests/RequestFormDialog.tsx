@@ -57,7 +57,7 @@ export const REQUEST_NAME_PLACEHOLDER = "e.g., Bracket run \u2014 200 pcs";
 export function RequestFormDialog(props: RequestFormDialogProps) {
   const { open, onOpenChange, request, parentRequest, conflicts = [], onNavigate, onOpenPlan } = props;
   const {
-    state, setField, sites, isMultiSite, availableCriteria, availableTemplates, isLoading,
+    state, setField, sites, isMultiSite, availableCriteria, requirementTypeKeys, availableTemplates, isLoading,
     isChildCreation, readOnly, isLeaf, isGroup, isContainer, typeChoice, setTypeChoice,
     setGroupBoundaryMode, hasEditableSchedule, hasChildren, showChildrenTab, showDependenciesTab,
     activeTab, setActiveTab, validationError, isSaving, handleSubmit, nameInputRef,
@@ -479,6 +479,7 @@ export function RequestFormDialog(props: RequestFormDialogProps) {
                 <RequestRequirementsSection
                   state={state}
                   availableCriteria={availableCriteria}
+                  requirementTypeKeys={requirementTypeKeys}
                   selectedCriterionId={selectedCriterionId}
                   setSelectedCriterionId={setSelectedCriterionId}
                   isLoading={isLoading}

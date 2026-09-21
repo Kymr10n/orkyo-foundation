@@ -131,7 +131,8 @@ public static class ResourceEndpoints
             DateTime end,
             CancellationToken ct) =>
         {
-            if (await resourceService.GetByIdAsync(id, ct) is null)
+            var resource = await resourceService.GetByIdAsync(id, ct);
+            if (resource is null)
                 return ErrorResponses.NotFound("Resource", id);
 
             var candidates = await requestRepository.GetCandidatesOverlappingAsync(id, start, end, ct);
@@ -142,6 +143,9 @@ public static class ResourceEndpoints
                 var requirements = new List<CandidateRequirementInfo>(req.Requirements?.Count ?? 0);
                 foreach (var r in req.Requirements ?? [])
                 {
+                    // A requirement scoped to another resource type is not this resource's to satisfy.
+                    if (!r.AppliesTo(resource.ResourceTypeKey)) continue;
+
                     var satisfied = await capabilityMatcher.ResourceSatisfiesRequirementAsync(id, r, ct);
                     requirements.Add(new CandidateRequirementInfo(r.Criterion?.Name ?? r.CriterionId.ToString(), satisfied));
                 }

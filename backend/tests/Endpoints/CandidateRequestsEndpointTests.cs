@@ -30,7 +30,20 @@ public class CandidateRequestsEndpointTests
         return (await resp.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid();
     }
 
-    private async Task<Guid> CreateScheduledRequestAsync(DateTime start, DateTime end, string status = "new")
+    private async Task<Guid> CreateBooleanCriterionAsync(string resourceTypeKey, string name)
+    {
+        var created = await _client.PostAsJsonAsync("/api/criteria", new
+        {
+            name,
+            dataType = "Boolean",
+            resourceTypeKeys = new[] { resourceTypeKey },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        return (await created.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+    }
+
+    private async Task<Guid> CreateScheduledRequestAsync(
+        DateTime start, DateTime end, string status = "new", IReadOnlyList<Guid>? requiredCriterionIds = null)
     {
         // Create, then schedule it
         var createResp = await _client.PostAsJsonAsync("/api/requests", new
@@ -39,6 +52,7 @@ public class CandidateRequestsEndpointTests
             MinimalDurationValue = 1,
             MinimalDurationUnit = "hours",
             SchedulingSettingsApply = false,
+            Requirements = (requiredCriterionIds ?? []).Select(id => new { CriterionId = id, Value = true }).ToArray(),
         });
         createResp.EnsureSuccessStatusCode();
         var created = await createResp.Content.ReadFromJsonAsync<JsonElement>();
@@ -181,6 +195,29 @@ public class CandidateRequestsEndpointTests
         Assert.NotNull(body);
         Assert.DoesNotContain(body!, item => item.GetProperty("requestId").GetGuid() == doneId);
         Assert.DoesNotContain(body!, item => item.GetProperty("requestId").GetGuid() == cancelledId);
+    }
+
+    [Fact]
+    public async Task ListsOnlyTheRequirementsScopedToTheResourceType()
+    {
+        // The panel lists what this resource must satisfy. A space-scoped criterion is not a
+        // person's to satisfy, so it is left out rather than shown as unmet.
+        var personId = await CreatePersonAsync();
+        var spaceCriterion = await CreateBooleanCriterionAsync("space", $"Crane-{Guid.NewGuid():N}"[..20]);
+        var personCriterionName = $"Forklift-{Guid.NewGuid():N}"[..20];
+        var personCriterion = await CreateBooleanCriterionAsync("person", personCriterionName);
+        var start = new DateTime(2026, 9, 16, 9, 0, 0, DateTimeKind.Utc);
+        var end = start.AddHours(4);
+        var reqId = await CreateScheduledRequestAsync(start, end, requiredCriterionIds: [spaceCriterion, personCriterion]);
+
+        var resp = await _client.GetAsync(CandidateUrl(personId, start, end));
+        resp.EnsureSuccessStatusCode();
+        var body = await resp.Content.ReadFromJsonAsync<List<JsonElement>>();
+        var item = Assert.Single(body!, x => x.GetProperty("requestId").GetGuid() == reqId);
+
+        var requirement = Assert.Single(item.GetProperty("requirements").EnumerateArray());
+        Assert.Equal(personCriterionName, requirement.GetProperty("label").GetString());
+        Assert.False(requirement.GetProperty("satisfied").GetBoolean());
     }
 
     [Fact]

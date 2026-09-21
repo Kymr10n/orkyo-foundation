@@ -150,7 +150,7 @@ public class RequestEndpointsTests
         // Arrange
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
 
         var request = new CreateRequestRequest
@@ -295,7 +295,7 @@ public class RequestEndpointsTests
         // Arrange
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
 
         var createRequest = new CreateRequestRequest
@@ -362,6 +362,39 @@ public class RequestEndpointsTests
         Assert.Equal(created.Id, request.Id);
         Assert.Equal(createRequest.Name, request.Name);
         Assert.NotNull(request.Requirements); // Always included in single get
+    }
+
+    [Fact]
+    public async Task GetRequest_RequirementCarriesTheCriterionResourceTypeKeys()
+    {
+        // The validator and the candidate panel decide from this projection which resource a
+        // requirement is asked of, so the criterion's scope must ride along with it.
+        var criterionResp = await _client.PostAsJsonAsync("/api/criteria", new
+        {
+            name = $"c_{Guid.NewGuid():N}"[..20],
+            dataType = "Boolean",
+            resourceTypeKeys = new[] { "person" },
+        });
+        Assert.Equal(HttpStatusCode.Created, criterionResp.StatusCode);
+        var criterionId = (await criterionResp.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"Scope {Guid.NewGuid():N}".Substring(0, 30),
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            Requirements = [new() { CriterionId = criterionId, Value = JsonSerializer.SerializeToElement(true) }],
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
+
+        var response = await _client.GetAsync($"/api/requests/{created!.Id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var request = await response.Content.ReadFromJsonAsync<RequestInfo>();
+        var requirement = Assert.Single(request!.Requirements!);
+        Assert.NotNull(requirement.Criterion);
+        Assert.Equal(["person"], requirement.Criterion!.ResourceTypeKeys);
     }
 
     [Fact]
@@ -532,7 +565,7 @@ public class RequestEndpointsTests
 
         // Get available criteria
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
 
         // Act - Update with name change AND add requirements (testing both at once)
@@ -567,8 +600,8 @@ public class RequestEndpointsTests
         // Arrange - Create request with one requirement
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
-        var textCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.String);
+        var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
+        var textCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.String);
         Assert.NotNull(numberCriterion);
         Assert.NotNull(textCriterion);
 
@@ -626,7 +659,7 @@ public class RequestEndpointsTests
         // Arrange - Create request with requirements
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
 
         var createRequest = new CreateRequestRequest
@@ -674,7 +707,7 @@ public class RequestEndpointsTests
         // Arrange - Create request with requirements
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
 
         var createRequest = new CreateRequestRequest
@@ -734,7 +767,7 @@ public class RequestEndpointsTests
         // Arrange - Create request with requirements
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var numberCriterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
 
         var createRequest = new CreateRequestRequest
@@ -830,7 +863,7 @@ public class RequestEndpointsTests
         // Arrange
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
 
         var createRequest = new CreateRequestRequest
@@ -864,6 +897,110 @@ public class RequestEndpointsTests
 
     #endregion
 
+    #region Requirement scope - a criterion must apply to a type the request can hold
+
+    private async Task<Guid> CreateScopedCriterionAsync(params string[] resourceTypeKeys)
+    {
+        var response = await _client.PostAsJsonAsync("/api/criteria", new
+        {
+            name = $"c_{Guid.NewGuid():N}"[..20],
+            dataType = "Boolean",
+            resourceTypeKeys,
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+    }
+
+    private static CreateRequestRequest ScopedRequest(IReadOnlyList<string> targets, params Guid[] criterionIds) => new()
+    {
+        Name = $"Scope {Guid.NewGuid():N}".Substring(0, 30),
+        MinimalDurationValue = 1,
+        MinimalDurationUnit = DurationUnit.Hours,
+        TargetResourceTypeKeys = targets,
+        Requirements = criterionIds
+            .Select(id => new CreateRequestRequirementRequest { CriterionId = id, Value = JsonSerializer.SerializeToElement(true) })
+            .ToList(),
+    };
+
+    [Fact]
+    public async Task CreateRequest_RejectsARequirementWhoseCriterionAppliesToNoTargetType()
+    {
+        // A tool-only criterion on a request that needs a space: no resource on the request
+        // could ever carry it, so the write is refused rather than left to block scheduling.
+        var toolCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Tool);
+
+        var response = await _client.PostAsJsonAsync("/api/requests", ScopedRequest([ResourceTypeKeys.Space], toolCriterion));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("applies to tool", problem.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public async Task CreateRequest_AcceptsACriterionScopedToATargetType()
+    {
+        var toolCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Tool);
+
+        var response = await _client.PostAsJsonAsync("/api/requests", ScopedRequest([ResourceTypeKeys.Space, ResourceTypeKeys.Tool], toolCriterion));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task UpdateRequest_RejectsNarrowingTheTargetsAwayFromARequirement()
+    {
+        // The requirement was valid when written; dropping the tool from Needs strands it.
+        var toolCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Tool);
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", ScopedRequest([ResourceTypeKeys.Space, ResourceTypeKeys.Tool], toolCriterion));
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
+
+        var response = await _client.PutAsJsonAsync($"/api/requests/{created!.Id}",
+            new UpdateRequestRequest { TargetResourceTypeKeys = [ResourceTypeKeys.Space] });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        // Nothing was written: the request still targets both types.
+        var after = await _client.GetFromJsonAsync<RequestInfo>($"/api/requests/{created.Id}");
+        Assert.Equal([ResourceTypeKeys.Space, ResourceTypeKeys.Tool], after!.TargetResourceTypeKeys.Order());
+    }
+
+    [Fact]
+    public async Task AddRequirement_RejectsACriterionScopedToAnotherType()
+    {
+        var toolCriterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Tool);
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", ScopedRequest([ResourceTypeKeys.Space]));
+        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
+
+        var response = await _client.PostAsJsonAsync($"/api/requests/{created!.Id}/requirements",
+            new CreateRequestRequirementRequest { CriterionId = toolCriterion, Value = JsonSerializer.SerializeToElement(true) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var after = await _client.GetFromJsonAsync<RequestInfo>($"/api/requests/{created.Id}");
+        Assert.Empty(after!.Requirements!);
+    }
+
+    [Fact]
+    public async Task AddRequirement_RejectsACriterionNotApplicableToRequests()
+    {
+        // Was a 500 (unmapped exception); the scope check now answers it as a 400.
+        var criterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Space);
+        var toggled = await _client.PutAsJsonAsync($"/api/criteria/{criterion}/applicability",
+            new UpdateCriterionApplicabilityRequest { ApplicableToRequests = false });
+        Assert.True(toggled.IsSuccessStatusCode, toggled.StatusCode.ToString());
+        var createResponse = await _client.PostAsJsonAsync("/api/requests", ScopedRequest([ResourceTypeKeys.Space]));
+        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
+
+        var response = await _client.PostAsJsonAsync($"/api/requests/{created!.Id}/requirements",
+            new CreateRequestRequirementRequest { CriterionId = criterion, Value = JsonSerializer.SerializeToElement(true) });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("not applicable to requests", problem.GetProperty("detail").GetString());
+    }
+
+    #endregion
+
     #region POST /requests/{id}/requirements - Add Requirement
 
     [Fact]
@@ -872,7 +1009,7 @@ public class RequestEndpointsTests
         // Arrange
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Boolean);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Boolean);
         Assert.NotNull(criterion);
 
         var createRequest = new CreateRequestRequest
@@ -966,7 +1103,7 @@ public class RequestEndpointsTests
         // Arrange
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
 
         var createRequest = new CreateRequestRequest
@@ -1021,7 +1158,7 @@ public class RequestEndpointsTests
         // Arrange
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Number);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
 
         var createRequest = new CreateRequestRequest
@@ -1445,7 +1582,7 @@ public class RequestEndpointsTests
     {
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Boolean);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Boolean);
         Assert.NotNull(criterion);
 
         var request = new CreateRequestRequest
@@ -1477,7 +1614,7 @@ public class RequestEndpointsTests
     {
         var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
-        var criterion = criteria.FirstOrDefault(c => c.DataType == CriterionDataType.Enum);
+        var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Enum);
         Assert.NotNull(criterion);
         Assert.NotNull(criterion.EnumValues);
         Assert.NotEmpty(criterion.EnumValues);

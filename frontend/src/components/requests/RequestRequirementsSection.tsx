@@ -13,6 +13,8 @@ import { ConflictIndicator } from "./ConflictIndicator";
 interface RequestRequirementsSectionProps {
   state: ReturnType<typeof useRequestForm>['state'];
   availableCriteria: Criterion[];
+  /** Resource-type keys a requirement can be asked of: the request's targets plus people. */
+  requirementTypeKeys: ReadonlySet<string>;
   selectedCriterionId: string;
   setSelectedCriterionId: (id: string) => void;
   isLoading: boolean;
@@ -28,6 +30,7 @@ interface RequestRequirementsSectionProps {
 export function RequestRequirementsSection({
   state,
   availableCriteria,
+  requirementTypeKeys,
   selectedCriterionId,
   setSelectedCriterionId,
   isLoading,
@@ -37,8 +40,12 @@ export function RequestRequirementsSection({
   onRemoveRequirement,
   onRequirementChange,
 }: RequestRequirementsSectionProps) {
+  // Offer only criteria some resource on this request can carry: a mill's tolerance is
+  // demanded of the mill, never of the person, so a criterion no target type applies to
+  // could never be satisfied. Rows below still render from the unfiltered list, so a
+  // requirement added before its type was unticked stays visible.
   const unusedCriteria = availableCriteria.filter(
-    (c) => !state.requirements.has(c.id)
+    (c) => !state.requirements.has(c.id) && c.resourceTypeKeys.some((k) => requirementTypeKeys.has(k))
   );
 
   return (

@@ -103,12 +103,9 @@ public class SchedulingProblemBuilderOccupancyTests
                 It.IsAny<IReadOnlyCollection<Guid>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([]);
 
-        var criteria = new Mock<ICriteriaRepository>();
-        criteria.Setup(c => c.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync([]);
-
         return new SchedulingProblemBuilder(
             Mock.Of<IRequestRepository>(), scheduleReads.Object, resources.Object, capabilities.Object,
-            scheduling.Object, resolver.Object, dependencies.Object, criteria.Object,
+            scheduling.Object, resolver.Object, dependencies.Object,
             TimeProvider.System);
     }
 

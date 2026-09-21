@@ -21,7 +21,7 @@ import type { CriterionValue } from "@foundation/src/types/criterion";
 import type { CreateTemplateRequest, Template, UpdateTemplateRequest } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
 import { RequestTargetTypesField } from "../requests/RequestTargetTypesField";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
@@ -43,9 +43,13 @@ export function TemplateDialogBase({
   onOpenChange,
   onSuccess,
   template,
-  entityType = 'request',
+  entityType: entityTypeProp = 'request',
 }: TemplateDialogBaseProps) {
   const isEditMode = template !== null;
+  // A template being edited knows its own kind; the prop only names the kind to create.
+  // Trusting the prop in edit mode rendered Needs on every template and silently rewrote a
+  // space or group template as a request template on save.
+  const entityType = template?.entityType ?? entityTypeProp;
 
   const {
     state,
@@ -65,6 +69,19 @@ export function TemplateDialogBase({
 
   // Criteria are loaded while the dialog is open.
   const { data: availableCriteria = [], isLoading: isLoadingCriteria } = useCriteria(open);
+
+  // Same rule as the request form: a criterion is offered only if some resource type the
+  // template's requests can hold carries it — the ticked Needs plus every directory type,
+  // since people are staffed on the request rather than through Needs. A non-request
+  // template has no target types, so its picker stays unscoped. Rows below still render
+  // from the unfiltered list, so unticking a type does not hide a criterion already added.
+  const requirementTypeKeys = useMemo(() => new Set([
+    ...state.targetResourceTypeKeys,
+    ...resourceTypes.filter((t) => t.hasDirectoryProfile).map((t) => t.key),
+  ]), [state.targetResourceTypeKeys, resourceTypes]);
+  const unusedCriteria = availableCriteria.filter((c) =>
+    !state.requirements.has(c.id)
+    && (entityType !== 'request' || c.resourceTypeKeys.some((k) => requirementTypeKeys.has(k))));
 
   const handleAddRequirement = () => {
     if (!selectedCriterionId) return;
@@ -105,7 +122,7 @@ export function TemplateDialogBase({
       ? {
           name: state.name.trim(),
           description: state.description.trim() || undefined,
-          entityType: 'request',
+          entityType,
           durationValue: durationVal,
           durationUnit: state.durationUnit,
           targetResourceTypeKeys: state.targetResourceTypeKeys,
@@ -251,7 +268,7 @@ export function TemplateDialogBase({
                 </div>
 
                 {/* Add Criterion */}
-                {availableCriteria.filter((c) => !state.requirements.has(c.id)).length > 0 && (
+                {unusedCriteria.length > 0 && (
                   <div className="flex gap-2">
                     <Select
                       value={selectedCriterionId}
@@ -262,8 +279,7 @@ export function TemplateDialogBase({
                         <SelectValue placeholder="Select a criterion to add" />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableCriteria
-                          .filter((c) => !state.requirements.has(c.id))
+                        {unusedCriteria
                           .map((criterion) => (
                             <SelectItem key={criterion.id} value={criterion.id}>
                               <div className="flex items-center gap-2">

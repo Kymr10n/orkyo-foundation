@@ -242,6 +242,62 @@ public class ResourceAssignmentEndpointTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    private async Task<Guid> CreateBooleanCriterionAsync(string resourceTypeKey)
+    {
+        var created = await _client.PostAsJsonAsync("/api/criteria", new
+        {
+            name = $"c_{Guid.NewGuid():N}"[..20],
+            dataType = "Boolean",
+            resourceTypeKeys = new[] { resourceTypeKey },
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        return (await created.Content.ReadFromJsonAsync<CriterionInfo>())!.Id;
+    }
+
+    [Fact]
+    public async Task Validate_DemandsOfAPersonOnlyTheRequirementsScopedToPeople()
+    {
+        // A request needing a space and a person carries one criterion for each. The person
+        // must not be blocked on the space's criterion — that made every such request
+        // unschedulable — but is still blocked on the person skill they lack.
+        var spaceCriterion = await CreateBooleanCriterionAsync("space");
+        var personCriterion = await CreateBooleanCriterionAsync("person");
+        var person = await CreateFractionalResource(100);
+
+        var createResp = await _client.PostAsJsonAsync("/api/requests", new
+        {
+            Name = $"Scoped-{Guid.NewGuid():N}"[..20],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = "hours",
+            SchedulingSettingsApply = false,
+            Requirements = new[]
+            {
+                new { CriterionId = spaceCriterion, Value = true },
+                new { CriterionId = personCriterion, Value = true },
+            },
+        });
+        Assert.Equal(HttpStatusCode.Created, createResp.StatusCode);
+        var requestId = (await createResp.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>())
+            .GetProperty("id").GetGuid();
+
+        var response = await _client.PostAsJsonAsync("/api/resource-assignments/validate",
+            new ValidateResourceAssignmentRequest
+            {
+                RequestId = requestId,
+                ResourceId = person.Id,
+                StartUtc = new DateTime(2027, 5, 3, 9, 0, 0, DateTimeKind.Utc),
+                EndUtc = new DateTime(2027, 5, 3, 17, 0, 0, DateTimeKind.Utc),
+                AllocationPercent = 50,
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<ValidationResult>();
+        Assert.NotNull(result);
+        var capabilityBlockers = result!.Blockers.Where(b => b.Code == ValidationReasonCode.CapabilityMissing).ToList();
+        var blocker = Assert.Single(capabilityBlockers);
+        Assert.Equal(personCriterion, blocker.CriterionId);
+    }
+
     [Fact]
     public async Task ValidateBatch_EmptyItems_Returns200_WithEmptyList()
     {

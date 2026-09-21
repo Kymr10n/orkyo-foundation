@@ -202,6 +202,17 @@ public record RequestRequirementInfo
 
     // Populated from join
     public CriterionBasicInfo? Criterion { get; init; }
+
+    /// <summary>
+    /// Whether this requirement is demanded of a resource of the given type. A criterion is
+    /// scoped to the types that can carry it, so a mill's tolerance is not asked of the person
+    /// the same request also needs. No criterion loaded, or one with no scope recorded, applies
+    /// to every type — the fallback <c>SchedulingFeasibilityAnalyzer</c> already uses.
+    /// </summary>
+    public bool AppliesTo(string resourceTypeKey) =>
+        Criterion is null
+        || Criterion.ResourceTypeKeys.Count == 0
+        || Criterion.ResourceTypeKeys.Contains(resourceTypeKey, StringComparer.Ordinal);
 }
 
 /// <summary>
@@ -214,6 +225,9 @@ public record CriterionBasicInfo
     public required CriterionDataType DataType { get; init; }
     public string? Unit { get; init; }
     public List<string>? EnumValues { get; init; }
+
+    /// <summary>Resource-type keys the criterion applies to (see <see cref="CriterionInfo.ResourceTypeKeys"/>).</summary>
+    public IReadOnlyList<string> ResourceTypeKeys { get; init; } = [];
 }
 
 /// <summary>

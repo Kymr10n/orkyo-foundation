@@ -121,9 +121,7 @@ public class ResourceAssignmentValidator(
             if (request.RequestId is { } reqId && requestsById.TryGetValue(reqId, out var requestInfo))
             {
                 var caps = capabilitiesByResource.GetValueOrDefault(resource.Id, []);
-                foreach (var requirement in requestInfo.Requirements ?? [])
-                    if (!capabilityMatcher.Satisfies(caps, requirement))
-                        blockers.Add(CapabilityMissing(resource.Id, requirement));
+                EvaluateCapabilities(resource, caps, requestInfo.Requirements ?? [], blockers);
 
                 if (requestInfo.SiteId is not null)
                 {
@@ -199,13 +197,9 @@ public class ResourceAssignmentValidator(
         if (requirements.Count == 0) return;
 
         // Load the resource's capabilities once, then match in memory — avoids the
-        // per-requirement N+1 the batch path (CheckCapabilitiesAsync above) already avoids.
+        // per-requirement N+1 the batch path (ValidateBatchAsync above) already avoids.
         var capabilities = await capabilityRepository.GetByResourceAsync(resource.Id, ct);
-        foreach (var req in requirements)
-        {
-            if (!capabilityMatcher.Satisfies(capabilities, req))
-                blockers.Add(CapabilityMissing(resource.Id, req));
-        }
+        EvaluateCapabilities(resource, capabilities, requirements, blockers);
     }
 
     private async Task CheckAllocationAsync(
@@ -227,6 +221,22 @@ public class ResourceAssignmentValidator(
     }
 
     // ── Pure rule evaluators (no I/O) — shared by the single and batch paths ──
+
+    private void EvaluateCapabilities(
+        ResourceInfo resource, IReadOnlyList<ResourceCapabilityInfo> capabilities,
+        IEnumerable<RequestRequirementInfo> requirements, List<ValidationIssue> blockers)
+    {
+        foreach (var req in requirements)
+        {
+            // A criterion written for the mill says nothing about the person the same request
+            // also needs: demanding every requirement of every resource made a request that
+            // needs two types unschedulable, since each resource failed the other's criterion.
+            if (!req.AppliesTo(resource.ResourceTypeKey)) continue;
+
+            if (!capabilityMatcher.Satisfies(capabilities, req))
+                blockers.Add(CapabilityMissing(resource.Id, req));
+        }
+    }
 
     /// <summary>
     /// Allocation-mode rules. Callers pre-compute the inputs so this stays pure:

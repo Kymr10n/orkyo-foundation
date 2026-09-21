@@ -33,6 +33,8 @@ const mockCriteria: Criterion[] = [
       createdAt: '', updatedAt: '' },
   { id: 'c2', name: 'Load', dataType: 'Number', description: '', unit: 'kg', enumValues: [], resourceTypeKeys: ['space'],
       createdAt: '', updatedAt: '' },
+  { id: 'c3', name: 'Forklift license', dataType: 'Boolean', description: '', unit: undefined, enumValues: [], resourceTypeKeys: ['person'],
+      createdAt: '', updatedAt: '' },
 ];
 
 const baseState = {
@@ -63,6 +65,7 @@ describe('RequestRequirementsSection', () => {
   const defaultProps = {
     state: baseState,
     availableCriteria: mockCriteria,
+    requirementTypeKeys: new Set(['space']),
     selectedCriterionId: '',
     setSelectedCriterionId: vi.fn(),
     isLoading: false,
@@ -136,6 +139,37 @@ describe('RequestRequirementsSection', () => {
     const removeBtn = buttons[buttons.length - 1];
     fireEvent.click(removeBtn);
     expect(onRemove).toHaveBeenCalledWith('c1');
+  });
+
+  it('offers only criteria that apply to a type the request can hold', () => {
+    render(<RequestRequirementsSection {...defaultProps} />);
+    // Space criteria are offered; the person skill is not, because people are not a target type here.
+    expect(screen.getByText('Power')).toBeInTheDocument();
+    expect(screen.getByText('Load')).toBeInTheDocument();
+    expect(screen.queryByText('Forklift license')).not.toBeInTheDocument();
+  });
+
+  it('offers a person skill once people are among the requirement types', () => {
+    render(
+      <RequestRequirementsSection {...defaultProps} requirementTypeKeys={new Set(['space', 'person'])} />,
+    );
+    expect(screen.getByText('Forklift license')).toBeInTheDocument();
+  });
+
+  it('keeps rendering a requirement whose criterion no longer matches a requirement type', () => {
+    const stateWithPersonSkill = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([['c3', { value: true }]]),
+    };
+    render(<RequestRequirementsSection {...defaultProps} state={stateWithPersonSkill} />);
+    // Already added → still shown as a row (with its input), even though the dropdown would not offer it.
+    expect(screen.getByText('1 active')).toBeInTheDocument();
+    expect(screen.getByTestId('input-c3')).toBeInTheDocument();
+  });
+
+  it('hides add row when no criterion applies to any requirement type', () => {
+    render(<RequestRequirementsSection {...defaultProps} requirementTypeKeys={new Set()} />);
+    expect(screen.queryByText('Select a criterion to add')).not.toBeInTheDocument();
   });
 
   it('hides add row when all criteria already have requirements', () => {
