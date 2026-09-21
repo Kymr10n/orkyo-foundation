@@ -43,9 +43,13 @@ export function TemplateDialogBase({
   onOpenChange,
   onSuccess,
   template,
-  entityType = 'request',
+  entityType: entityTypeProp = 'request',
 }: TemplateDialogBaseProps) {
   const isEditMode = template !== null;
+  // A template being edited knows its own kind; the prop only names the kind to create.
+  // Trusting the prop in edit mode rendered Needs on every template and silently rewrote a
+  // space or group template as a request template on save.
+  const entityType = template?.entityType ?? entityTypeProp;
 
   const {
     state,
@@ -118,7 +122,7 @@ export function TemplateDialogBase({
       ? {
           name: state.name.trim(),
           description: state.description.trim() || undefined,
-          entityType: 'request',
+          entityType,
           durationValue: durationVal,
           durationUnit: state.durationUnit,
           targetResourceTypeKeys: state.targetResourceTypeKeys,

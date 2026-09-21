@@ -294,6 +294,19 @@ describe('TemplateDialogBase', () => {
     expect(screen.queryByText('Needs')).not.toBeInTheDocument();
   });
 
+  it('takes the kind from the template being edited, not from the prop', async () => {
+    // The edit wrapper passes no entityType; the space template must not grow a Needs
+    // field, and saving must keep it a space template.
+    render(<TemplateDialogBase {...defaultProps} template={{ ...existingTemplate, entityType: 'space' }} />);
+    await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
+    expect(screen.queryByText('Needs')).not.toBeInTheDocument();
+
+    submit();
+    await waitFor(() => {
+      expect(mockUpdateTemplate).toHaveBeenCalledWith('tpl-1', expect.objectContaining({ entityType: 'space' }));
+    });
+  });
+
   // ── Submit – edit mode ────────────────────────────────
   it('updates template on submit in edit mode', async () => {
     render(<TemplateDialogBase {...defaultProps} template={existingTemplate} />);
