@@ -1,4 +1,5 @@
 import { useCriteria } from "@foundation/src/hooks/useCriteria";
+import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useTemplates } from "@foundation/src/hooks/useTemplates";
 import { createChildRequest, getRequestChildren, moveRequest } from "@foundation/src/lib/api/request-api";
 import { useSites, useIsMultiSite } from "@foundation/src/hooks/useSites";
@@ -166,6 +167,15 @@ export function useRequestFormDialog({
   const { data: availableTemplates = EMPTY_TEMPLATES, isLoading: templatesLoading } =
     useTemplates('request', open);
   const isLoading = criteriaLoading || templatesLoading;
+
+  // The resource types a requirement can be asked of: the targeted ones plus every
+  // directory type. People are staffed from the People section, never through Needs, so
+  // their skills would otherwise never be offered. Same query key the form already uses.
+  const { data: resourceTypes } = useResourceTypes(true);
+  const requirementTypeKeys = useMemo(() => new Set([
+    ...state.targetResourceTypeKeys,
+    ...(resourceTypes ?? []).filter((t) => t.hasDirectoryProfile).map((t) => t.key),
+  ]), [state.targetResourceTypeKeys, resourceTypes]);
 
   // Additional state not managed by the form hook
   const [isSaving, setIsSaving] = useState(false);
@@ -703,7 +713,7 @@ export function useRequestFormDialog({
 
 
   return {
-    state, setField, sites, isMultiSite, availableCriteria, availableTemplates, isLoading,
+    state, setField, sites, isMultiSite, availableCriteria, requirementTypeKeys, availableTemplates, isLoading,
     isChildCreation, readOnly, isLeaf, isGroup, isContainer, typeChoice, setTypeChoice,
     setGroupBoundaryMode, hasEditableSchedule, hasChildren, showChildrenTab, showDependenciesTab,
     activeTab, setActiveTab, validationError, isSaving, handleSubmit, nameInputRef,
