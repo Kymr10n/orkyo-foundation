@@ -18,6 +18,7 @@ import {
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 import { useIsMultiSite, useSites } from '@foundation/src/hooks/useSites';
+import { useSiteStore } from '@foundation/src/store/site-store';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import type { CustomFieldValue } from '@foundation/src/lib/api/resource-custom-fields-api';
@@ -62,6 +63,7 @@ export function ResourceEditDialog({
 }: ResourceEditDialogProps) {
   const { data: sites = [] } = useSites();
   const isMultiSite = useIsMultiSite();
+  const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
   // A placeable resource is anchored: its shape belongs to one floorplan, and scheduling
   // rules pick the first resource that cannot travel to decide where work happens. So
   // "available for other sites" is not a choice for these types — the server rejects the
@@ -88,7 +90,11 @@ export function ResourceEditDialog({
       // Exclusive matches the default for physical, one-at-a-time resources.
       allocationMode: ALLOCATION_MODE.EXCLUSIVE,
       baseAvailabilityPercent: 100,
-      homeSiteId: '',
+      // The list that opened this dialog is scoped by the top-bar site, so a resource created
+      // from it belongs there unless the user says otherwise. On a single-site tenant the Home
+      // Site picker below is hidden, and this seed is the only thing that sets the site; without
+      // it the row was saved with no site and listed under none.
+      homeSiteId: selectedSiteId ?? '',
       crossSiteAllowed: !isPlaceable,
       customFields: {},
       email: '',
