@@ -38,12 +38,11 @@ vi.mock('../requests/CriterionRequirementInput', () => ({
 // ── API / hook mocks ───────────────────────────────────
 const mockCreateTemplate = vi.fn((..._args: any[]) => Promise.resolve({ id: 'new-id' }));
 const mockUpdateTemplate = vi.fn((..._args: any[]) => Promise.resolve({ id: 'tpl-1' }));
-const mockGetCriteria = vi.fn(() =>
-  Promise.resolve([
-    { id: 'c1', name: 'Capacity', dataType: 'Number', description: '', unit: 'seats', enumValues: [] },
-    { id: 'c2', name: 'HasProjector', dataType: 'Boolean', description: '', unit: null, enumValues: [] },
-  ]),
-);
+// One criterion per targetable type in the resource-type mock below, plus a person skill.
+const millCriterion = { id: 'c1', name: 'Capacity', dataType: 'Number', description: '', unit: 'seats', enumValues: [], resourceTypeKeys: ['mill'], createdAt: '', updatedAt: '' };
+const sawCriterion = { id: 'c2', name: 'HasProjector', dataType: 'Boolean', description: '', unit: null, enumValues: [], resourceTypeKeys: ['saw'], createdAt: '', updatedAt: '' };
+const personCriterion = { id: 'c3', name: 'Forklift license', dataType: 'Boolean', description: '', unit: null, enumValues: [], resourceTypeKeys: ['person'], createdAt: '', updatedAt: '' };
+const mockGetCriteria = vi.fn(() => Promise.resolve([millCriterion, sawCriterion]));
 
 vi.mock('@foundation/src/lib/api/template-api', () => ({
   createTemplate: (...args: unknown[]) => mockCreateTemplate(...args),
@@ -161,6 +160,52 @@ describe('TemplateDialogBase', () => {
     render(<TemplateDialogBase {...defaultProps} template={existingTemplate} />);
     await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
     expect(screen.getByText('1 active')).toBeInTheDocument();
+  });
+
+  // ── Criteria picker scope ─────────────────────────────
+  // The add row renders only while some criterion is offered, so its presence is the
+  // observable for what the picker holds.
+  const ADD_ROW = 'Select a criterion to add';
+
+  it('offers no machine criterion until its type is ticked under Needs', async () => {
+    render(<TemplateDialogBase {...defaultProps} />);
+    await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
+    expect(screen.queryByText(ADD_ROW)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Mill'));
+    expect(screen.getByText(ADD_ROW)).toBeInTheDocument();
+  });
+
+  it('offers only the criteria of the ticked types', async () => {
+    // Only the saw criterion exists; ticking Mill offers nothing, ticking Saw does.
+    mockGetCriteria.mockResolvedValueOnce([sawCriterion]);
+    render(<TemplateDialogBase {...defaultProps} />);
+    await waitFor(() => expect(mockGetCriteria).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByLabelText('Mill'));
+    expect(screen.queryByText(ADD_ROW)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Saw'));
+    expect(screen.getByText(ADD_ROW)).toBeInTheDocument();
+  });
+
+  it('offers a person skill without any type ticked, because people are staffed on the request', async () => {
+    mockGetCriteria.mockResolvedValueOnce([personCriterion]);
+    render(<TemplateDialogBase {...defaultProps} />);
+    await waitFor(() => expect(screen.getByText(ADD_ROW)).toBeInTheDocument());
+  });
+
+  it('keeps rendering an added criterion whose type is not ticked, without offering more', async () => {
+    // existingTemplate carries the mill criterion but names no type: the row stays, the
+    // saw criterion is not offered, so the add row is gone.
+    render(<TemplateDialogBase {...defaultProps} template={existingTemplate} />);
+    await waitFor(() => expect(screen.getByTestId('req-input-c1')).toBeInTheDocument());
+    expect(screen.getByText('1 active')).toBeInTheDocument();
+    expect(screen.queryByText(ADD_ROW)).not.toBeInTheDocument();
+  });
+
+  it('leaves the picker unscoped on a non-request template', async () => {
+    render(<TemplateDialogBase {...defaultProps} entityType="space" />);
+    await waitFor(() => expect(screen.getByText(ADD_ROW)).toBeInTheDocument());
   });
 
   // ── Validation ────────────────────────────────────────
