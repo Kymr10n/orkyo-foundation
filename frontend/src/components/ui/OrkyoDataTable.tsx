@@ -172,10 +172,14 @@ export function OrkyoDataTable<TData extends RowData>({
     columns: resolvedColumns,
     onColumnFiltersChange: handleColumnFiltersChange,
     onSortingChange: handleSortingChange,
+    // The paginated row model is always on the getRowModel() chain in v9, and it slices to a
+    // default of 10 rows when nobody says otherwise. manualPagination is the switch that hands
+    // back the unsliced rows: server-paged data is already one page, and a table without
+    // pageSize renders everything it was given.
+    manualPagination: !pageSize || isServerPagination,
     ...(pageSize
       ? {
           onPaginationChange: isServerPagination ? undefined : setPagination,
-          manualPagination: isServerPagination,
           pageCount: serverPageCount,
         }
       : {}),

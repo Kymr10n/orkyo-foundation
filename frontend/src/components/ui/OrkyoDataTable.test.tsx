@@ -213,10 +213,38 @@ describe('OrkyoDataTable', () => {
 
   // ── Pagination (client-side) ──────────────────────────────────────────────
 
-  it('does not show pagination controls without pageSize', () => {
+  // TanStack's row pagination feature is always registered (src/lib/table/features.ts) and
+  // defaults to 10 rows per page, so an unpaged fixture must hold more than 10 rows or a
+  // silent slice would pass unnoticed. It did once: see the react-table 9 migration.
+  it('renders every row and no pager without pageSize', () => {
     render(<OrkyoDataTable columns={columns} data={makeRows(50)} />);
+    expect(screen.getAllByText(/Item \d+/)).toHaveLength(50);
     expect(screen.queryByRole('button', { name: '' })).not.toBeInTheDocument();
     expect(screen.queryByText(/page/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps every filtered row without pageSize', async () => {
+    const user = userEvent.setup();
+    render(<OrkyoDataTable columns={columns} data={makeRows(30)} filterColumn="name" filterPlaceholder="Search" />);
+    await user.type(screen.getByPlaceholderText('Search'), 'Item 1');
+    // Item 1 and Item 10..19: eleven matches, one more than the library default page.
+    expect(screen.getAllByText(/Item \d+/)).toHaveLength(11);
+  });
+
+  it('server-paged table renders the page it was given', () => {
+    render(
+      <OrkyoDataTable
+        columns={columns}
+        data={makeRows(10)}
+        pageSize={10}
+        page={2}
+        totalCount={30}
+        onPageChange={vi.fn()}
+      />,
+    );
+    // The data is already one page; a client-side slice at index 2 would leave nothing.
+    expect(screen.getAllByText(/Item \d+/)).toHaveLength(10);
+    expect(screen.getByText('Page 3 of 3')).toBeInTheDocument();
   });
 
   it('shows pagination controls when pageSize is set', () => {
@@ -397,6 +425,12 @@ describe('OrkyoDataTable — card mode', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getAllByTestId('card')).toHaveLength(3);
     expect(screen.getByText('Item 2')).toBeInTheDocument();
+  });
+
+  it('renders every card on the phone layout without pageSize', () => {
+    setViewport(500);
+    render(<OrkyoDataTable columns={columns} data={makeRows(50)} renderCard={renderCard} />);
+    expect(screen.getAllByTestId('card')).toHaveLength(50);
   });
 
   it('keeps the grid on tablet/desktop even when renderCard is provided', () => {

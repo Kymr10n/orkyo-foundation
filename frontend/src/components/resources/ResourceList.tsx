@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CalendarDays, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
+import { Building2, CalendarDays, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -8,9 +8,11 @@ import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { ResourceEditDialog } from './ResourceEditDialog';
 import { ResourceScheduleDialog } from './ResourceScheduleDialog';
 import { ResourceCapabilitiesEditor } from './ResourceCapabilitiesEditor';
+import { MoveResourceSiteDialog } from './MoveResourceSiteDialog';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { useDeleteResource, useResourcesOfType } from '@foundation/src/hooks/useResources';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useIsMultiSite } from '@foundation/src/hooks/useSites';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { useResourceTransfer } from '@foundation/src/hooks/useResourceTransfer';
@@ -40,6 +42,7 @@ interface ResourceListProps {
  */
 export function ResourceList({ resourceType }: ResourceListProps) {
   const canEdit = useCanEdit();
+  const isMultiSite = useIsMultiSite();
   // Scoped by the top-bar site picker, like the board and the requests list. The backend reads
   // site membership as "home site, or the site it is currently assigned to", so a resource with
   // neither is not listed under any site — pick "All sites" to see it.
@@ -49,6 +52,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   const [removing, setRemoving] = useState<ResourceInfo | null>(null);
   const [capabilitiesFor, setCapabilitiesFor] = useState<ResourceInfo | null>(null);
   const [scheduleFor, setScheduleFor] = useState<ResourceInfo | null>(null);
+  const [movingSite, setMovingSite] = useState<ResourceInfo | null>(null);
 
 
   const {
@@ -105,6 +109,18 @@ export function ResourceList({ resourceType }: ResourceListProps) {
           onSelect: () => setScheduleFor(r),
           disabled: !canEdit,
         },
+        // A placeable's site is the floorplan its shape is drawn on, so it moves with the
+        // floorplan, not by changing the home site on its own.
+        ...(isMultiSite && !resourceType.hasGeometry
+          ? [
+              {
+                label: 'Move to another site',
+                icon: Building2,
+                onSelect: () => setMovingSite(r),
+                disabled: !canEdit,
+              },
+            ]
+          : []),
         {
           label: `Deactivate ${label}`,
           icon: Trash2,
@@ -252,6 +268,14 @@ export function ResourceList({ resourceType }: ResourceListProps) {
           resourceId={scheduleFor.id}
           resourceName={scheduleFor.name}
           allocationMode={scheduleFor.allocationMode}
+        />
+      )}
+
+      {movingSite && (
+        <MoveResourceSiteDialog
+          resource={movingSite}
+          open
+          onOpenChange={(open) => !open && setMovingSite(null)}
         />
       )}
 

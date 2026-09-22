@@ -1,5 +1,10 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { deleteResource, getResources } from "@foundation/src/lib/api/resources-api";
+import {
+  deleteResource,
+  getResources,
+  updateResource,
+  type ResourceInfo,
+} from "@foundation/src/lib/api/resources-api";
 import type { ResourceTypeInfo } from "@foundation/src/lib/api/resource-types-api";
 import {
   deleteResourceCapability,
@@ -41,6 +46,27 @@ export const useDeleteResource = (resourceType: ResourceTypeInfo) =>
       successMessage: `${resourceType.displayName} deactivated`,
       errorMessage: `Failed to deactivate ${resourceType.displayName.toLowerCase()}`,
       invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
+    },
+  });
+
+/**
+ * Change one resource's home site and nothing else: the backend leaves every absent field
+ * alone. The caller names the site so the toast can, without a second lookup here.
+ */
+interface MoveResourceSiteVars {
+  siteId: string;
+  siteName: string;
+}
+export const useMoveResourceSite = (resource: ResourceInfo) =>
+  useMutation({
+    mutationFn: ({ siteId }: MoveResourceSiteVars) =>
+      updateResource(resource.id, { homeSiteId: siteId }),
+    meta: {
+      successMessage: (_data, vars) =>
+        `${resource.name} moved to ${(vars as MoveResourceSiteVars).siteName}`,
+      // The failure stays in the dialog so the user can pick again: one surface per error.
+      suppressErrorToast: true,
+      invalidates: [qk.resources.byType(resource.resourceTypeKey), qk.resources.allFlat()],
     },
   });
 

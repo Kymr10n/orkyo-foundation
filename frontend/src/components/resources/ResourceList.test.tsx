@@ -55,6 +55,17 @@ vi.mock('./ResourceScheduleDialog', () => ({
     open ? <div data-testid="resource-schedule" data-resource-id={resourceId} /> : null,
 }));
 
+vi.mock('./MoveResourceSiteDialog', () => ({
+  MoveResourceSiteDialog: ({ open, resource }: { open: boolean; resource: { id: string } }) =>
+    open ? <div data-testid="move-site-dialog" data-resource-id={resource.id} /> : null,
+}));
+
+// Mutable so a case can pick the single- or multi-site tenant before rendering.
+let isMultiSite = true;
+vi.mock('@foundation/src/hooks/useSites', () => ({
+  useIsMultiSite: () => isMultiSite,
+}));
+
 // Mutable so a case can decide what the resolver returns before rendering.
 let lookupLabels: Record<string, Record<string, string>> = {};
 
@@ -128,6 +139,7 @@ function renderPeople() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  isMultiSite = true;
   // getResources returns a paged envelope, not a bare array.
   (getResources as Mock).mockResolvedValue(pagedResult(cars));
   lookupLabels = { 'p-1': { job_title: 'Machinist', department: 'Assembly' } };
@@ -141,6 +153,22 @@ describe('ResourceList', () => {
     expect(screen.getByText('Van 2')).toBeInTheDocument();
     // Only the deactivated one carries the badge.
     expect(screen.getAllByText('Inactive')).toHaveLength(1);
+  });
+
+  it('lists every resource the API returns', async () => {
+    // Twelve rows: more than the data table's library default page of 10, which once hid
+    // every row past the tenth on this list.
+    const fleet = Array.from({ length: 12 }, (_, i) => ({
+      id: `car-${i + 1}`,
+      name: `Van ${String(i + 1).padStart(2, '0')}`,
+      resourceTypeKey: 'car',
+      isActive: true,
+    }));
+    (getResources as Mock).mockResolvedValue(pagedResult(fleet));
+    renderList();
+
+    expect(await screen.findByText('Van 12')).toBeInTheDocument();
+    expect(screen.getAllByText(/^Van \d\d$/)).toHaveLength(12);
   });
 
   it('requests only its own resource type', async () => {
@@ -225,6 +253,37 @@ describe('ResourceList', () => {
 });
 
 // The person merge: what used to be PersonList's job is the directory flag on the type.
+describe('ResourceList — move to another site', () => {
+  it('opens the move dialog for the chosen resource on a multi-site tenant', async () => {
+    renderList();
+    await chooseAction('Van 1', /Move to another site/);
+
+    expect(screen.getByTestId('move-site-dialog')).toHaveAttribute('data-resource-id', 'car-1');
+  });
+
+  it('offers no move on a single-site tenant', async () => {
+    isMultiSite = false;
+    renderList();
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Van 1' }));
+
+    expect(screen.queryByRole('menuitem', { name: /Move to another site/ })).not.toBeInTheDocument();
+  });
+
+  it('offers no move for a placeable type, whose site is its floorplan', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <ResourceList resourceType={{ ...carType, hasGeometry: true }} />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Van 1' }));
+
+    expect(screen.queryByRole('menuitem', { name: /Move to another site/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('ResourceList — directory types', () => {
   it('shows no directory columns for a type without a directory profile', async () => {
     renderList();
