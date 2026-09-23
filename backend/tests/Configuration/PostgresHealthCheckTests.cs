@@ -1,6 +1,7 @@
 using Api.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Configuration;
 
@@ -38,8 +39,9 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
         var connectionString =
             $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
 
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
         var services = new ServiceCollection();
-        services.AddHealthChecks().AddPostgresCheck(connectionString, "postgres", "ready");
+        services.AddHealthChecks().AddPostgresCheck(dataSource, "postgres", "ready");
         var check = Resolve(services, "postgres");
 
         var result = await check.CheckHealthAsync(ContextFor("postgres"), CancellationToken.None);
@@ -51,8 +53,9 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
     [Fact]
     public async Task UnreachableDatabase_ReportsFailureStatus()
     {
+        await using var dataSource = NpgsqlDataSource.Create(UnreachableConnectionString);
         var services = new ServiceCollection();
-        services.AddHealthChecks().AddPostgresCheck(UnreachableConnectionString, "postgres", "db", "ready");
+        services.AddHealthChecks().AddPostgresCheck(dataSource, "postgres", "db", "ready");
         var check = Resolve(services, "postgres");
 
         var result = await check.CheckHealthAsync(ContextFor("postgres"), CancellationToken.None);
@@ -63,8 +66,9 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
     [Fact]
     public async Task UnreachableDatabase_LeaksNoConnectionDetailInTheDescription()
     {
+        await using var dataSource = NpgsqlDataSource.Create(UnreachableConnectionString);
         var services = new ServiceCollection();
-        services.AddHealthChecks().AddPostgresCheck(UnreachableConnectionString, "postgres", "ready");
+        services.AddHealthChecks().AddPostgresCheck(dataSource, "postgres", "ready");
         var check = Resolve(services, "postgres");
 
         var result = await check.CheckHealthAsync(ContextFor("postgres"), CancellationToken.None);
@@ -84,8 +88,9 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
     [Fact]
     public async Task RespectsTheRegisteredFailureStatus()
     {
+        await using var dataSource = NpgsqlDataSource.Create(UnreachableConnectionString);
         var services = new ServiceCollection();
-        services.AddHealthChecks().AddPostgresCheck(UnreachableConnectionString, "postgres");
+        services.AddHealthChecks().AddPostgresCheck(dataSource, "postgres");
         var check = Resolve(services, "postgres");
 
         // A product registering the probe as Degraded must not get Unhealthy back.
@@ -97,10 +102,41 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
     }
 
     [Fact]
+    public async Task UsesTheSharedDataSourceRatherThanAnIndependentConnection()
+    {
+        // The probe must open a logical connection from the application-owned data source
+        // (and pool) rather than constructing its own NpgsqlConnection from a raw connection
+        // string — that is what lets it inherit the application's real connection security
+        // policy (for example GssEncryptionMode) instead of diverging from it just for /health.
+        var connectionString =
+            $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        await using var dataSource = NpgsqlDataSource.Create(connectionString);
+
+        var services = new ServiceCollection();
+        services.AddHealthChecks().AddPostgresCheck(dataSource, "postgres", "ready");
+        var check = Resolve(services, "postgres");
+
+        var first = await check.CheckHealthAsync(ContextFor("postgres"), CancellationToken.None);
+        var second = await check.CheckHealthAsync(ContextFor("postgres"), CancellationToken.None);
+
+        first.Status.Should().Be(HealthStatus.Healthy);
+        second.Status.Should().Be(HealthStatus.Healthy);
+
+        // The data source is still open and usable after the checks: the health check only
+        // disposed the logical connections it borrowed from the pool, never the data source
+        // itself, which is owned by the application's lifetime.
+        await using var stillUsable = await dataSource.OpenConnectionAsync(CancellationToken.None);
+        await using var command = stillUsable.CreateCommand();
+        command.CommandText = "SELECT 1";
+        (await command.ExecuteScalarAsync(CancellationToken.None)).Should().Be(1);
+    }
+
+    [Fact]
     public void RegistersUnderTheGivenNameAndTags()
     {
+        using var dataSource = NpgsqlDataSource.Create(UnreachableConnectionString);
         var services = new ServiceCollection();
-        services.AddHealthChecks().AddPostgresCheck(UnreachableConnectionString, "postgres", "db", "ready");
+        services.AddHealthChecks().AddPostgresCheck(dataSource, "postgres", "db", "ready");
 
         var registration = services.BuildServiceProvider()
             .GetRequiredService<Microsoft.Extensions.Options.IOptions<HealthCheckServiceOptions>>()
