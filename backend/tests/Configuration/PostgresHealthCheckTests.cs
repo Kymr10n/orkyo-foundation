@@ -1,6 +1,8 @@
+using System.Reflection;
 using Api.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Configuration;
 
@@ -94,6 +96,25 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
             CancellationToken.None);
 
         result.Status.Should().Be(HealthStatus.Degraded);
+    }
+
+    [Fact]
+    public void DisablesGssEncryptionRegardlessOfTheSuppliedConnectionString()
+    {
+        // Without this, the server's AuthenticationGSS advertisement makes Npgsql try to load
+        // libgssapi_krb5.so.2 on the first physical connect. The Alpine runtime image does not
+        // carry that library, so the load fails and Npgsql logs an error before falling back to
+        // the configured auth method (see #199/#207).
+        var services = new ServiceCollection();
+        services.AddHealthChecks().AddPostgresCheck(UnreachableConnectionString, "postgres", "ready");
+        var check = Resolve(services, "postgres");
+
+        var connectionString = (string)typeof(PostgresHealthCheck)
+            .GetField("_connectionString", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(check)!;
+
+        new NpgsqlConnectionStringBuilder(connectionString).GssEncryptionMode
+            .Should().Be(GssEncryptionMode.Disable);
     }
 
     [Fact]

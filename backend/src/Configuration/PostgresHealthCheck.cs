@@ -12,15 +12,31 @@ namespace Api.Configuration;
 /// already the entire data layer — so the package bought nothing but a supply-chain edge
 /// and a major version (9.x) trailing the rest of the stack.
 /// </summary>
-internal sealed class PostgresHealthCheck(string connectionString) : IHealthCheck
+internal sealed class PostgresHealthCheck : IHealthCheck
 {
+    private readonly string _connectionString;
+
+    public PostgresHealthCheck(string connectionString)
+    {
+        // The probe opens a fresh connection per check rather than a shared NpgsqlDataSource
+        // (see the type doc), so it disables GSS encryption negotiation up front: without this,
+        // the server's AuthenticationGSS advertisement makes Npgsql try to load
+        // libgssapi_krb5.so.2 on the first physical connect, which the Alpine runtime image does
+        // not carry, logging a load-failure error even though the fallback auth method succeeds.
+        var builder = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            GssEncryptionMode = GssEncryptionMode.Disable,
+        };
+        _connectionString = builder.ConnectionString;
+    }
+
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            await using var connection = new NpgsqlConnection(connectionString);
+            await using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
 
             await using var command = connection.CreateCommand();
