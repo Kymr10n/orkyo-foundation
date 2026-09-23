@@ -5,29 +5,29 @@ using Npgsql;
 namespace Api.Configuration;
 
 /// <summary>
-/// Readiness probe for a Postgres database: opens a connection and runs <c>SELECT 1</c>.
+/// Readiness probe for a Postgres database: opens a logical connection from the
+/// application's <see cref="NpgsqlDataSource"/> and runs <c>SELECT 1</c>.
 ///
 /// Replaces the third-party AspNetCore.HealthChecks.NpgSql package, which both products
 /// carried for this single call. The probe is four lines of Npgsql — a dependency that is
 /// already the entire data layer — so the package bought nothing but a supply-chain edge
 /// and a major version (9.x) trailing the rest of the stack.
+///
+/// The probe takes the same <see cref="NpgsqlDataSource"/> the product registers for its
+/// repositories, rather than building its own <see cref="NpgsqlConnection"/> from a raw
+/// connection string. That way the probe exercises the same pool and the same connection
+/// security policy (for example <c>GssEncryptionMode</c>) as the application's real
+/// database traffic — a product that needs to disable GSSAPI encryption negotiation
+/// configures it once, on the shared <see cref="NpgsqlDataSourceBuilder"/>, not only for
+/// this probe.
 /// </summary>
 internal sealed class PostgresHealthCheck : IHealthCheck
 {
-    private readonly string _connectionString;
+    private readonly NpgsqlDataSource _dataSource;
 
-    public PostgresHealthCheck(string connectionString)
+    public PostgresHealthCheck(NpgsqlDataSource dataSource)
     {
-        // The probe opens a fresh connection per check rather than a shared NpgsqlDataSource
-        // (see the type doc), so it disables GSS encryption negotiation up front: without this,
-        // the server's AuthenticationGSS advertisement makes Npgsql try to load
-        // libgssapi_krb5.so.2 on the first physical connect, which the Alpine runtime image does
-        // not carry, logging a load-failure error even though the fallback auth method succeeds.
-        var builder = new NpgsqlConnectionStringBuilder(connectionString)
-        {
-            GssEncryptionMode = GssEncryptionMode.Disable,
-        };
-        _connectionString = builder.ConnectionString;
+        _dataSource = dataSource;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(
@@ -36,8 +36,8 @@ internal sealed class PostgresHealthCheck : IHealthCheck
     {
         try
         {
-            await using var connection = new NpgsqlConnection(_connectionString);
-            await connection.OpenAsync(cancellationToken);
+            // A logical connection from the pool — dispose only this, never the data source.
+            await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
 
             await using var command = connection.CreateCommand();
             command.CommandText = "SELECT 1";
@@ -62,19 +62,23 @@ internal sealed class PostgresHealthCheck : IHealthCheck
 
 /// <summary>
 /// Registration helper for the shared infrastructure health checks. The product supplies the
-/// connection string, because control-plane (SaaS) and single-tenant (Community) resolve it
-/// from different configuration keys.
+/// <see cref="NpgsqlDataSource"/>, because control-plane (SaaS) and single-tenant (Community)
+/// resolve their connection strings from different configuration keys, and each registers its
+/// own data source(s) for its repositories to share.
 /// </summary>
 public static class OrkyoHealthCheckExtensions
 {
     /// <summary>
-    /// Adds a Postgres readiness probe. Tag it <c>ready</c> to have
-    /// <c>MapOrkyoHealthEndpoints</c> include it in <c>/health/ready</c>.
+    /// Adds a Postgres readiness probe over the given <paramref name="dataSource"/>. Tag it
+    /// <c>ready</c> to have <c>MapOrkyoHealthEndpoints</c> include it in <c>/health/ready</c>.
+    /// The probe opens a logical connection from <paramref name="dataSource"/> per check; it
+    /// never disposes the data source itself, so it shares the same pool and connection
+    /// security policy (for example <c>GssEncryptionMode</c>) as the rest of the application.
     /// </summary>
     public static IHealthChecksBuilder AddPostgresCheck(
         this IHealthChecksBuilder builder,
-        string connectionString,
+        NpgsqlDataSource dataSource,
         string name,
         params string[] tags)
-        => builder.AddCheck(name, new PostgresHealthCheck(connectionString), failureStatus: null, tags: tags);
+        => builder.AddCheck(name, new PostgresHealthCheck(dataSource), failureStatus: null, tags: tags);
 }
