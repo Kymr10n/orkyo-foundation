@@ -35,7 +35,7 @@ describe('startQrDecoder', () => {
     expect(onCode).toHaveBeenCalledTimes(1);
     expect(onCode).toHaveBeenCalledWith('STICKER-1');
 
-    await controls.setTorch!(true);
+    await controls.switchTorch!(true);
     controls.stop();
     expect(zxing.switchTorch).toHaveBeenCalledWith(true);
     expect(zxing.stop).toHaveBeenCalled();
@@ -46,6 +46,6 @@ describe('startQrDecoder', () => {
 
     const controls = await startQrDecoder(document.createElement('video'), vi.fn());
 
-    expect(controls.setTorch).toBeUndefined();
+    expect(controls.switchTorch).toBeUndefined();
   });
 });

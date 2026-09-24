@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { QrCode, ScanLine, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { QrScannerDialog } from '@foundation/src/components/scan/QrScannerDialog';
 import { Button } from '@foundation/src/components/ui/button';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
-import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import {
   useLinkResourceScanCode,
   useResourceScanCodes,
+  useScanCodeLookup,
   useUnlinkResourceScanCode,
 } from '@foundation/src/hooks/useResourceScanCodes';
-import { lookupScanCode } from '@foundation/src/lib/api/resource-scan-codes-api';
 
 interface ResourceScanCodesSectionProps {
   resourceId: string;
@@ -31,29 +31,22 @@ interface PendingMove {
 export function ResourceScanCodesSection({ resourceId }: ResourceScanCodesSectionProps) {
   const canEdit = useCanEdit();
   const { data: codes = [], isLoading } = useResourceScanCodes(resourceId);
+  const lookup = useScanCodeLookup();
   const link = useLinkResourceScanCode();
   const unlink = useUnlinkResourceScanCode(resourceId);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  const handleScan = async (code: string) => {
+  const handleScan = (code: string) => {
     setScannerOpen(false);
-    setNotice(null);
-    setError(null);
-    try {
-      const result = await lookupScanCode(code);
-      if (result.status === 'unknown') {
-        link.mutate({ resourceId, code });
-      } else if (result.status === 'linked' && result.resource?.id === resourceId) {
-        setNotice('This QR code is already linked to this resource.');
-      } else {
-        setPendingMove({ code, ownerName: result.resource?.name ?? null });
-      }
-    } catch {
-      setError('The scanned code could not be checked. Try again.');
-    }
+    lookup.mutate(code, {
+      onSuccess: (result) => {
+        if (result.status === 'unknown') link.mutate({ resourceId, code });
+        else if (result.status === 'linked' && result.resource?.id === resourceId)
+          toast.info('This QR code is already linked to this resource.');
+        else setPendingMove({ code, ownerName: result.resource?.name ?? null });
+      },
+    });
   };
 
   return (
@@ -67,9 +60,6 @@ export function ResourceScanCodesSection({ resourceId }: ResourceScanCodesSectio
           </Button>
         )}
       </div>
-
-      <ErrorAlert message={error} />
-      {notice && <p className="text-muted-foreground text-sm" role="status">{notice}</p>}
 
       {!isLoading && codes.length === 0 && (
         <p className="text-muted-foreground text-sm">No QR code is linked to this resource.</p>
@@ -103,7 +93,7 @@ export function ResourceScanCodesSection({ resourceId }: ResourceScanCodesSectio
         onOpenChange={setScannerOpen}
         title="Scan QR code"
         description="Point the camera at the sticker on this resource."
-        onScan={(code) => void handleScan(code)}
+        onScan={handleScan}
       />
 
       <ConfirmDialog
@@ -116,12 +106,7 @@ export function ResourceScanCodesSection({ resourceId }: ResourceScanCodesSectio
             : 'This QR code is linked to another resource. Move it to this resource?'
         }
         confirmLabel="Move link"
-        isPending={link.isPending}
-        onConfirm={async () => {
-          if (!pendingMove) return;
-          await link.mutateAsync({ resourceId, code: pendingMove.code, move: true }).catch(() => undefined);
-          setPendingMove(null);
-        }}
+        onConfirm={() => link.mutate({ resourceId, code: pendingMove!.code, move: true })}
       />
     </div>
   );

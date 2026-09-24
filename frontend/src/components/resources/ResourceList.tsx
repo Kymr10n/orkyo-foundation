@@ -74,10 +74,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   // so an id it does not hold is fetched — and only opened when it is this page's type.
   useEditQueryParam(list, setEditing, {
     ready: !isLoading && canEdit,
-    resolveMissing: (id) =>
-      getResource(id)
-        .then((r) => (r.resourceTypeKey === resourceType.key ? r : null))
-        .catch(() => null),
+    resolveMissing: (id) => getResource(id).then((r) => (r.resourceTypeKey === resourceType.key ? r : null)),
   });
   const openResourceStatus = useUiActionsStore((s) => s.openResourceStatus);
   const lookupLabels = useLookupFieldLabels(

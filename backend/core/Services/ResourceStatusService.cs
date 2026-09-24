@@ -53,12 +53,10 @@ public class ResourceStatusService(
             Name = resource.Name,
             ResourceTypeKey = resource.ResourceTypeKey,
             IsActive = resource.IsActive,
-            AsOfUtc = now,
             Current = ToBooking(current, names),
             Next = ToBooking(next, names),
             ActiveAbsence = absence is null ? null : new ResourceStatusAbsence
             {
-                Id = absence.Id,
                 Title = absence.Title,
                 AbsenceType = absence.AbsenceType,
                 EndTs = absence.EndTs,
@@ -84,8 +82,6 @@ public class ResourceStatusService(
     private static ResourceStatusBooking? ToBooking(ResourceAssignmentInfo? a, Dictionary<Guid, string> names)
         => a is null ? null : new ResourceStatusBooking
         {
-            AssignmentId = a.Id,
-            RequestId = a.RequestId,
             RequestName = names.GetValueOrDefault(a.RequestId, ""),
             StartUtc = a.StartUtc,
             EndUtc = a.EndUtc,

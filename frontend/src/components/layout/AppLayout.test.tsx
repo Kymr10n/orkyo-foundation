@@ -78,21 +78,22 @@ function renderLayout() {
   // AppLayout loads sites via the useSites() React Query hook, so a client is
   // required. retry: false surfaces the getSites-throws case without retry delays.
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return {
-    queryClient,
-    ...render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <AppLayout />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    ),
-  };
+  // A fresh element each time: React skips a rerender of the very same element object.
+  const tree = () => (
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <AppLayout />
+      </MemoryRouter>
+    </QueryClientProvider>
+  );
+  const result = render(tree());
+  return { ...result, rerenderLayout: () => result.rerender(tree()) };
 }
 
 describe('AppLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0 }));
   });
 
   it('shows loading initially then renders layout', async () => {
@@ -111,22 +112,14 @@ describe('AppLayout', () => {
     });
   });
 
-  it('loads the scan flow only once Scan is pressed, and opens its scanner', async () => {
-    const { rerender, queryClient } = renderLayout();
-    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
-    expect(screen.queryByTestId('scan-flow')).not.toBeInTheDocument();
+  it('opens the scanner when Scan is pressed', async () => {
+    const { rerenderLayout } = renderLayout();
+    expect(await screen.findByTestId('scan-flow')).toHaveAttribute('data-open', 'false');
 
     mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0, scanTick: 1 }));
-    rerender(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <AppLayout />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    rerenderLayout();
 
-    expect(await screen.findByTestId('scan-flow')).toHaveAttribute('data-open', 'true');
-    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0 }));
+    await waitFor(() => expect(screen.getByTestId('scan-flow')).toHaveAttribute('data-open', 'true'));
   });
 
   it('still validates when getSites returns an empty array', async () => {
@@ -204,7 +197,7 @@ describe('AppLayout — responsive shell', () => {
 
   it('restores the inline sidebar (and drops the hamburger) when growing past phone width', async () => {
     setViewport(500);
-    const { rerender, queryClient } = renderLayout();
+    const { rerenderLayout } = renderLayout();
     await waitFor(() => expect(screen.getByTestId('hamburger')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('hamburger'));
     await waitFor(() => expect(screen.getByTestId('sidebar')).toBeInTheDocument());
@@ -212,13 +205,7 @@ describe('AppLayout — responsive shell', () => {
     // Resize up to desktop and re-render: the drawer-close effect runs, the
     // inline store-driven sidebar returns and the hamburger disappears.
     setViewport(1280);
-    rerender(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
-          <AppLayout />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    rerenderLayout();
     await waitFor(() =>
       expect(screen.getByTestId('sidebar')).toHaveAttribute('data-forced', 'undefined'),
     );

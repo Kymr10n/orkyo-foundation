@@ -316,17 +316,8 @@ public static class ResourceEndpoints
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await service.LinkAsync(id, request, principal.UserIdOrNull, ct);
-                return result.Outcome switch
-                {
-                    LinkScanCodeOutcome.ResourceNotFound => ErrorResponses.NotFound("Resource", id),
-                    LinkScanCodeOutcome.TypeDisabled => ErrorResponses.UnprocessableEntity(
-                        "QR codes are turned off for this resource type."),
-                    LinkScanCodeOutcome.OwnedByOther => ErrorResponses.Conflict(
-                        $"This code is already linked to '{result.OtherResource!.Name}'."),
-                    LinkScanCodeOutcome.AlreadyLinked => Results.Ok(result.Code),
-                    _ => Results.Created($"/api/resources/{id}/scan-codes/{result.Code!.Id}", result.Code),
-                };
+                var code = await service.LinkAsync(id, request, principal.UserIdOrNull, ct);
+                return Results.Created($"/api/resources/{id}/scan-codes/{code.Id}", code);
             }, logger, "link resource scan code", new { id }))
             .WithName("LinkResourceScanCode")
             .WithSummary("Link a QR code to a resource");

@@ -1,5 +1,6 @@
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router';
-import { AlertTriangle, CalendarClock, CalendarOff, Gauge, Pencil } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CalendarOff, Gauge, type LucideIcon, Pencil } from 'lucide-react';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
@@ -8,6 +9,7 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
+  SheetFooter,
   SheetHeader,
   SheetTitle,
 } from '@foundation/src/components/ui/sheet';
@@ -17,36 +19,28 @@ import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useResourceStatus } from '@foundation/src/hooks/useResourceScanCodes';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 import type { ResourceStatusBooking } from '@foundation/src/lib/api/resource-status-api';
-import { formatLocalized, HOUR_CYCLE } from '@foundation/src/lib/formatters';
+import { formatDateTimeShort, formatPeriod } from '@foundation/src/lib/formatters';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
-const WHEN_OPTS: Intl.DateTimeFormatOptions = {
-  month: 'short',
-  day: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  hourCycle: HOUR_CYCLE,
-};
-
-const when = (iso: string) => formatLocalized(new Date(iso), WHEN_OPTS);
-
-function BookingLine({ label, booking, empty }: { label: string; booking?: ResourceStatusBooking | null; empty: string }) {
+function StatRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
   return (
-    <div>
-      <dt className="text-muted-foreground text-xs">{label}</dt>
-      <dd className="text-sm">
-        {booking ? (
-          <>
-            <span className="font-medium">{booking.requestName || 'Untitled request'}</span>
-            <span className="text-muted-foreground block">
-              {when(booking.startUtc)} – {when(booking.endUtc)}
-            </span>
-          </>
-        ) : (
-          <span className="text-muted-foreground">{empty}</span>
-        )}
-      </dd>
+    <div className="flex gap-3">
+      <Icon className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <div>
+        <dt className="text-muted-foreground text-xs">{label}</dt>
+        <dd className="text-sm">{children}</dd>
+      </div>
     </div>
+  );
+}
+
+function BookingLine({ booking, empty }: { booking?: ResourceStatusBooking | null; empty: string }) {
+  if (!booking) return <span className="text-muted-foreground">{empty}</span>;
+  return (
+    <>
+      <span className="font-medium">{booking.requestName || 'Untitled request'}</span>
+      <span className="text-muted-foreground block">{formatPeriod(booking.startUtc, booking.endUtc)}</span>
+    </>
   );
 }
 
@@ -87,54 +81,34 @@ export function ResourceStatusSheet() {
 
         {status && (
           <dl className="space-y-4 px-4">
-            <div className="flex gap-3">
-              <CalendarClock className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <div className="space-y-3">
-                <BookingLine label="Now" booking={status.current} empty="Not booked" />
-                <BookingLine label="Next" booking={status.next} empty={`No booking in the next ${status.lookAheadDays} days`} />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <CalendarOff className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <div>
-                <dt className="text-muted-foreground text-xs">Absence</dt>
-                <dd className="text-sm">
-                  {status.activeAbsence
-                    ? `${status.activeAbsence.title} until ${when(status.activeAbsence.endTs)}`
-                    : 'Available'}
-                </dd>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <AlertTriangle className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <div>
-                <dt className="text-muted-foreground text-xs">Conflicts, next {status.lookAheadDays} days</dt>
-                <dd className="text-sm">{status.conflictCount === 0 ? 'None' : status.conflictCount}</dd>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Gauge className="text-muted-foreground mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-              <div>
-                <dt className="text-muted-foreground text-xs">Utilization, last {status.utilizationDays} days</dt>
-                <dd className="text-sm">
-                  {status.utilizationPercent == null ? 'No data' : `${status.utilizationPercent}%`}
-                </dd>
-              </div>
-            </div>
+            <StatRow icon={CalendarClock} label="Now">
+              <BookingLine booking={status.current} empty="Not booked" />
+            </StatRow>
+            <StatRow icon={CalendarClock} label="Next">
+              <BookingLine booking={status.next} empty={`No booking in the next ${status.lookAheadDays} days`} />
+            </StatRow>
+            <StatRow icon={CalendarOff} label="Absence">
+              {status.activeAbsence
+                ? `${status.activeAbsence.title} until ${formatDateTimeShort(status.activeAbsence.endTs)}`
+                : 'Available'}
+            </StatRow>
+            <StatRow icon={AlertTriangle} label={`Bookings with conflicts, next ${status.lookAheadDays} days`}>
+              {status.conflictCount === 0 ? 'None' : status.conflictCount}
+            </StatRow>
+            <StatRow icon={Gauge} label={`Utilization, last ${status.utilizationDays} days`}>
+              {status.utilizationPercent == null ? 'No data' : `${status.utilizationPercent}%`}
+            </StatRow>
           </dl>
         )}
 
         {/* Editors only: the resource list opens the edit dialog for Editors only. */}
         {status && type && canEdit && (
-          <div className="mt-auto flex justify-end gap-2 p-4">
+          <SheetFooter className="mt-auto p-4">
             <Button onClick={edit}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </Button>
-          </div>
+          </SheetFooter>
         )}
       </SheetContent>
     </Sheet>

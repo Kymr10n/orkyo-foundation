@@ -57,9 +57,6 @@ export function useEditQueryParam<T>(
       return;
     }
     if (!ready || handledIdRef.current === editId) return;
-    // An empty list is either still filling (wait) or scoped away from the id — the resolver
-    // exists for the second case, so an empty list must reach it.
-    if (!items?.length && !hasResolver) return;
 
     const clearParam = () =>
       setSearchParams(

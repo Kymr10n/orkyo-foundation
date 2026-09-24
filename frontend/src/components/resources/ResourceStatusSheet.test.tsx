@@ -20,10 +20,7 @@ const STATUS: ResourceStatusInfo = {
   name: 'Drill 3',
   resourceTypeKey: machineResourceType.key,
   isActive: true,
-  asOfUtc: '2026-09-24T10:00:00Z',
   current: {
-    assignmentId: 'a1',
-    requestId: 'q1',
     requestName: 'Bracket batch',
     startUtc: '2026-09-24T08:00:00Z',
     endUtc: '2026-09-24T12:00:00Z',
@@ -92,7 +89,7 @@ describe('ResourceStatusSheet', () => {
       isActive: false,
       current: null,
       next: { ...STATUS.current!, requestName: '' },
-      activeAbsence: { id: 'ab', title: 'Service', absenceType: 'maintenance', endTs: '2026-09-25T10:00:00Z' },
+      activeAbsence: { title: 'Service', absenceType: 'maintenance', endTs: '2026-09-25T10:00:00Z' },
       conflictCount: 2,
       utilizationPercent: null,
     });
@@ -102,7 +99,7 @@ describe('ResourceStatusSheet', () => {
     expect(screen.getByText('Not booked')).toBeInTheDocument();
     expect(screen.getByText('Untitled request')).toBeInTheDocument();
     expect(screen.getByText(/^Service until/)).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText(/^Bookings with conflicts/).nextElementSibling).toHaveTextContent('2');
     expect(screen.getByText('No data')).toBeInTheDocument();
   });
 

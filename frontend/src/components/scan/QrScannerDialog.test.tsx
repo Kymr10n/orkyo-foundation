@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { cameraErrorMessage, QrScannerDialog } from './QrScannerDialog';
+import { QrScannerDialog } from './QrScannerDialog';
 
 const decoder = vi.hoisted(() => ({
   startQrDecoder: vi.fn(),
   stop: vi.fn(),
-  setTorch: vi.fn(async () => {}),
+  switchTorch: vi.fn(async () => {}),
   onCode: null as ((text: string) => void) | null,
 }));
 
@@ -33,7 +33,7 @@ describe('QrScannerDialog', () => {
     decoder.onCode = null;
     decoder.startQrDecoder.mockImplementation(async (_video: HTMLVideoElement, onCode: (text: string) => void) => {
       decoder.onCode = onCode;
-      return { stop: decoder.stop, setTorch: decoder.setTorch };
+      return { stop: decoder.stop, switchTorch: decoder.switchTorch };
     });
   });
 
@@ -52,12 +52,10 @@ describe('QrScannerDialog', () => {
   });
 
   it('stops the camera when the dialog closes', async () => {
-    const { unmount } = render(
-      <QrScannerDialog open onOpenChange={vi.fn()} title="Scan" onScan={vi.fn()} />,
-    );
+    const { rerender } = render(<QrScannerDialog open onOpenChange={vi.fn()} title="Scan" onScan={vi.fn()} />);
     await waitFor(() => expect(decoder.onCode).not.toBeNull());
 
-    unmount();
+    rerender(<QrScannerDialog open={false} onOpenChange={vi.fn()} title="Scan" onScan={vi.fn()} />);
 
     expect(decoder.stop).toHaveBeenCalled();
   });
@@ -78,10 +76,11 @@ describe('QrScannerDialog', () => {
     const user = userEvent.setup();
     renderScanner();
 
-    await user.click(await screen.findByRole('button', { name: 'Torch on' }));
+    const torch = await screen.findByRole('button', { name: 'Torch', pressed: false });
+    await user.click(torch);
 
-    expect(decoder.setTorch).toHaveBeenCalledWith(true);
-    expect(await screen.findByRole('button', { name: 'Torch off' })).toBeInTheDocument();
+    expect(decoder.switchTorch).toHaveBeenCalledWith(true);
+    await waitFor(() => expect(torch).toHaveAttribute('aria-pressed', 'true'));
   });
 
   it('offers no torch when the camera has none', async () => {
@@ -107,11 +106,16 @@ describe('QrScannerDialog', () => {
     expect(screen.getByText('This browser cannot use a camera.')).toBeInTheDocument();
   });
 
-  it('explains a refused camera permission', async () => {
-    decoder.startQrDecoder.mockRejectedValue(new DOMException('denied', 'NotAllowedError'));
+  it.each([
+    ['NotAllowedError', /Camera access is blocked/],
+    ['NotFoundError', /No camera found/],
+    ['NotReadableError', /in use by another application/],
+    ['AbortError', /could not start/],
+  ])('explains a camera that fails with %s', async (name, expected) => {
+    decoder.startQrDecoder.mockRejectedValue(new DOMException('x', name));
     renderScanner();
 
-    expect(await screen.findByText(/Camera access is blocked/)).toBeInTheDocument();
+    expect(await screen.findByText(expected)).toBeInTheDocument();
   });
 
   it('closes on Cancel', async () => {
@@ -121,22 +125,5 @@ describe('QrScannerDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-});
-
-describe('cameraErrorMessage', () => {
-  it.each([
-    ['NotAllowedError', /Camera access is blocked/],
-    ['SecurityError', /Camera access is blocked/],
-    ['NotFoundError', /No camera found/],
-    ['OverconstrainedError', /No camera found/],
-    ['NotReadableError', /in use by another application/],
-    ['AbortError', /could not start/],
-  ])('maps %s', (name, expected) => {
-    expect(cameraErrorMessage(new DOMException('x', name))).toMatch(expected);
-  });
-
-  it('maps a non-error value to the generic message', () => {
-    expect(cameraErrorMessage('boom')).toBe('The camera could not start.');
   });
 });

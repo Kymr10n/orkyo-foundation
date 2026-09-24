@@ -3,8 +3,6 @@ import { API_PATHS } from '../core/api-paths';
 import type { AbsenceType } from './resource-absences-api';
 
 export interface ResourceStatusBooking {
-  assignmentId: string;
-  requestId: string;
   requestName: string;
   startUtc: string;
   endUtc: string;
@@ -15,11 +13,10 @@ export interface ResourceStatusInfo {
   name: string;
   resourceTypeKey: string;
   isActive: boolean;
-  asOfUtc: string;
   current?: ResourceStatusBooking | null;
   next?: ResourceStatusBooking | null;
-  activeAbsence?: { id: string; title: string; absenceType: AbsenceType; endTs: string } | null;
-  /** Resource-level conflicts of the bookings in the next `lookAheadDays`. */
+  activeAbsence?: { title: string; absenceType: AbsenceType; endTs: string } | null;
+  /** Bookings in the next `lookAheadDays` that have a resource-level conflict. */
   conflictCount: number;
   lookAheadDays: number;
   /** Average daily allocation over the last `utilizationDays`, 0–100. */

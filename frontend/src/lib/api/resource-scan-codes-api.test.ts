@@ -6,7 +6,6 @@ import {
   lookupScanCode,
   unlinkResourceScanCode,
 } from './resource-scan-codes-api';
-import { getResourceStatus } from './resource-status-api';
 
 vi.mock('../core/api-client');
 
@@ -36,13 +35,5 @@ describe('resource-scan-codes-api', () => {
     expect(apiClient.apiPost).toHaveBeenCalledWith('/api/resources/r1/scan-codes', { code: 'A', moveFromOtherResource: false });
     expect(apiClient.apiPost).toHaveBeenCalledWith('/api/resources/r1/scan-codes', { code: 'B', moveFromOtherResource: true });
     expect(apiClient.apiDelete).toHaveBeenCalledWith('/api/resources/r1/scan-codes/c1');
-  });
-
-  it('reads the status of one resource', async () => {
-    vi.mocked(apiClient.apiGet).mockResolvedValue({ resourceId: 'r1' });
-
-    await getResourceStatus('r1');
-
-    expect(apiClient.apiGet).toHaveBeenCalledWith('/api/resources/r1/status');
   });
 });

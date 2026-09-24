@@ -5,32 +5,21 @@
  * QR only: a 1D barcode reader would also fire on labels that were never meant as Orkyo
  * codes (docs/qr-resource-linking-spec.md, §2).
  */
-import { BrowserQRCodeReader } from '@zxing/browser';
+import { BrowserQRCodeReader, type IScannerControls } from '@zxing/browser';
 
-export interface QrDecoderControls {
-  stop: () => void;
-  /** Present only when the active camera has a torch. */
-  setTorch?: (on: boolean) => Promise<void>;
-}
+/** `switchTorch` is present only when the active camera has a torch. */
+export type QrDecoderControls = Pick<IScannerControls, 'stop' | 'switchTorch'>;
 
 /**
  * Streams the rear camera into `video` and calls `onCode` with the text of each decoded QR
  * code. Rejects with the browser's DOMException when the camera cannot start.
  */
-export async function startQrDecoder(
-  video: HTMLVideoElement,
-  onCode: (text: string) => void,
-): Promise<QrDecoderControls> {
-  const reader = new BrowserQRCodeReader();
-  const controls = await reader.decodeFromConstraints(
+export function startQrDecoder(video: HTMLVideoElement, onCode: (text: string) => void): Promise<QrDecoderControls> {
+  return new BrowserQRCodeReader().decodeFromConstraints(
     { audio: false, video: { facingMode: 'environment' } },
     video,
     (result) => {
       if (result) onCode(result.getText());
     },
   );
-  return {
-    stop: () => controls.stop(),
-    setTorch: controls.switchTorch ? (on) => controls.switchTorch!(on) : undefined,
-  };
 }

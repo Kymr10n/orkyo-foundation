@@ -26,7 +26,7 @@ ALTER TABLE public.resource_types
 COMMENT ON COLUMN public.resource_types.scan_codes_enabled IS
     'Resources of this type can have QR codes linked, and a scan of such a code finds them.';
 
-UPDATE public.resource_types SET scan_codes_enabled = NOT has_directory_profile;
+UPDATE public.resource_types SET scan_codes_enabled = false WHERE has_directory_profile;
 
 CREATE TABLE public.resource_scan_codes (
     id                 uuid                     DEFAULT gen_random_uuid() NOT NULL,

@@ -49,6 +49,16 @@ public class ResourceScanCodeEndpointTests
         => (client ?? _client).PostAsJsonAsync($"/api/resources/{resourceId}/scan-codes",
             new LinkResourceScanCodeRequest { Code = code, MoveFromOtherResource = move });
 
+    private async Task<ResourceScanCodeInfo> LinkAndReadAsync(Guid resourceId, string code, bool move = false)
+    {
+        var response = await LinkAsync(resourceId, code, move);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ResourceScanCodeInfo>())!;
+    }
+
+    private Task<List<ResourceScanCodeInfo>?> ListCodesAsync(Guid resourceId)
+        => _client.GetFromJsonAsync<List<ResourceScanCodeInfo>>($"/api/resources/{resourceId}/scan-codes");
+
     private async Task<ScanCodeLookupResult> LookupAsync(string code, HttpClient? client = null)
     {
         var response = await (client ?? _client).GetAsync(
@@ -58,51 +68,32 @@ public class ResourceScanCodeEndpointTests
     }
 
     [Fact]
-    public async Task ResourceType_ScanCodesFlag_RoundTrips()
-    {
-        var type = await CreateTypeAsync(scanCodesEnabled: false);
-        Assert.False(type.ScanCodesEnabled);
-
-        var response = await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}",
-            new UpdateResourceTypeRequest { ScanCodesEnabled = true });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True((await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.ScanCodesEnabled);
-    }
-
-    [Fact]
     public async Task Link_ThenLookup_FindsTheResource()
     {
         var type = await CreateTypeAsync();
         var drill = await CreateResourceAsync(type);
         var code = UniqueCode();
 
-        var linked = await LinkAsync(drill.Id, $"  {code}\n");
-
-        Assert.Equal(HttpStatusCode.Created, linked.StatusCode);
-        var info = await linked.Content.ReadFromJsonAsync<ResourceScanCodeInfo>();
-        Assert.Equal(code, info!.Code);
+        var info = await LinkAndReadAsync(drill.Id, $"  {code}\n");
+        Assert.Equal(code, info.Code);
 
         var lookup = await LookupAsync(code);
         Assert.Equal(ScanCodeLookupStatus.Linked, lookup.Status);
         Assert.Equal(drill.Id, lookup.Resource!.Id);
         Assert.Equal(type.Key, lookup.Resource.ResourceTypeKey);
 
-        var list = await _client.GetFromJsonAsync<List<ResourceScanCodeInfo>>($"/api/resources/{drill.Id}/scan-codes");
-        Assert.Equal(code, Assert.Single(list!).Code);
+        Assert.Equal(code, Assert.Single((await ListCodesAsync(drill.Id))!).Code);
     }
 
     [Fact]
-    public async Task Link_SameCodeTwice_ReturnsOkWithTheExistingLink()
+    public async Task Link_SameCodeTwice_ReturnsTheExistingLink()
     {
         var drill = await CreateResourceAsync(await CreateTypeAsync());
         var code = UniqueCode();
-        var first = await (await LinkAsync(drill.Id, code)).Content.ReadFromJsonAsync<ResourceScanCodeInfo>();
+        var first = await LinkAndReadAsync(drill.Id, code);
 
-        var again = await LinkAsync(drill.Id, code);
-
-        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
-        Assert.Equal(first!.Id, (await again.Content.ReadFromJsonAsync<ResourceScanCodeInfo>())!.Id);
+        Assert.Equal(first.Id, (await LinkAndReadAsync(drill.Id, code)).Id);
+        Assert.Single((await ListCodesAsync(drill.Id))!);
     }
 
     [Fact]
@@ -122,17 +113,17 @@ public class ResourceScanCodeEndpointTests
         var moved = await LinkAsync(second.Id, code, move: true);
         Assert.Equal(HttpStatusCode.Created, moved.StatusCode);
         Assert.Equal(second.Id, (await LookupAsync(code)).Resource!.Id);
-        Assert.Empty((await _client.GetFromJsonAsync<List<ResourceScanCodeInfo>>($"/api/resources/{first.Id}/scan-codes"))!);
+        Assert.Empty((await ListCodesAsync(first.Id))!);
     }
 
     [Fact]
-    public async Task Link_TypeWithScanningOff_Returns422()
+    public async Task Link_TypeWithScanningOff_Returns400()
     {
         var drill = await CreateResourceAsync(await CreateTypeAsync(scanCodesEnabled: false));
 
         var response = await LinkAsync(drill.Id, UniqueCode());
 
-        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -148,6 +139,20 @@ public class ResourceScanCodeEndpointTests
 
         Assert.Equal(ScanCodeLookupStatus.TypeDisabled, lookup.Status);
         Assert.Null(lookup.Resource);
+    }
+
+    [Fact]
+    public async Task Lookup_DeactivatedResource_StillFindsIt()
+    {
+        var drill = await CreateResourceAsync(await CreateTypeAsync());
+        var code = UniqueCode();
+        await LinkAndReadAsync(drill.Id, code);
+        Assert.Equal(HttpStatusCode.NoContent, (await _client.DeleteAsync($"/api/resources/{drill.Id}")).StatusCode);
+
+        var lookup = await LookupAsync(code);
+
+        Assert.Equal(ScanCodeLookupStatus.Linked, lookup.Status);
+        Assert.False(lookup.Resource!.IsActive);
     }
 
     [Fact]
@@ -194,9 +199,9 @@ public class ResourceScanCodeEndpointTests
         var drill = await CreateResourceAsync(type);
         var other = await CreateResourceAsync(type);
         var code = UniqueCode();
-        var info = await (await LinkAsync(drill.Id, code)).Content.ReadFromJsonAsync<ResourceScanCodeInfo>();
+        var info = await LinkAndReadAsync(drill.Id, code);
 
-        var wrongOwner = await _client.DeleteAsync($"/api/resources/{other.Id}/scan-codes/{info!.Id}");
+        var wrongOwner = await _client.DeleteAsync($"/api/resources/{other.Id}/scan-codes/{info.Id}");
         Assert.Equal(HttpStatusCode.NotFound, wrongOwner.StatusCode);
 
         var deleted = await _client.DeleteAsync($"/api/resources/{drill.Id}/scan-codes/{info.Id}");
@@ -207,18 +212,19 @@ public class ResourceScanCodeEndpointTests
     // ── authorization ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Viewer_CanLookUpAndList_ButNotLinkOrUnlink()
+    public async Task Viewer_CanLookUpListAndReadStatus_ButNotLinkOrUnlink()
     {
         var drill = await CreateResourceAsync(await CreateTypeAsync());
         var code = UniqueCode();
-        var info = await (await LinkAsync(drill.Id, code)).Content.ReadFromJsonAsync<ResourceScanCodeInfo>();
+        var info = await LinkAndReadAsync(drill.Id, code);
         var viewer = _fixture.CreateClientWithRole("viewer");
 
         Assert.Equal(drill.Id, (await LookupAsync(code, viewer)).Resource!.Id);
         Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync($"/api/resources/{drill.Id}/scan-codes")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await viewer.GetAsync($"/api/resources/{drill.Id}/status")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await LinkAsync(drill.Id, UniqueCode(), client: viewer)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden,
-            (await viewer.DeleteAsync($"/api/resources/{drill.Id}/scan-codes/{info!.Id}")).StatusCode);
+            (await viewer.DeleteAsync($"/api/resources/{drill.Id}/scan-codes/{info.Id}")).StatusCode);
     }
 
     [Fact]

@@ -766,18 +766,14 @@ public class ConflictServiceTests
     // ── CountResourceConflictsAsync ──────────────────────────────────────────
 
     [Fact]
-    public async Task CountResourceConflicts_NoLiveAssignments_SkipsValidation()
+    public async Task CountResourceConflicts_NoAssignments_SkipsValidation()
     {
-        var cancelled = Assignment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "machine", Start, Start.AddHours(1))
-            with
-        { AssignmentStatus = AssignmentStatuses.Cancelled };
-
-        Assert.Equal(0, await _service.CountResourceConflictsAsync([cancelled]));
+        Assert.Equal(0, await _service.CountResourceConflictsAsync([]));
         _validator.Verify(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
-    public async Task CountResourceConflicts_CountsResourceIssues_NotCapability()
+    public async Task CountResourceConflicts_CountsABookingOnce_AndIgnoresCapability()
     {
         var resourceId = Guid.NewGuid();
         var assignment = Assignment(Guid.NewGuid(), Guid.NewGuid(), resourceId, "machine", Start, Start.AddHours(1));
@@ -813,7 +809,8 @@ public class ConflictServiceTests
 
         var count = await _service.CountResourceConflictsAsync([assignment]);
 
-        Assert.Equal(2, count);
+        // Two resource-level issues on one booking count once; the capability issue never counts.
+        Assert.Equal(1, count);
         var item = Assert.Single(validated!);
         Assert.Equal(assignment.Id, item.ExcludeAssignmentId);
         Assert.Equal(resourceId, item.ResourceId);

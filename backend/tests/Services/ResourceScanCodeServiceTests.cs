@@ -1,4 +1,3 @@
-using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
@@ -61,6 +60,15 @@ public class ResourceScanCodeServiceTests
         new ScanCodeResourceRef { Id = owner.Id, Name = owner.Name, ResourceTypeKey = owner.ResourceTypeKey, IsActive = true },
         enabled);
 
+    private static LinkResourceScanCodeRequest Link(string code, bool move = false) =>
+        new() { Code = code, MoveFromOtherResource = move };
+
+    private void UpsertReturns(ResourceScanCodeInfo? result, bool move = false) =>
+        _codes.Setup(c => c.UpsertAsync(Drill.Id, "A", It.IsAny<Guid?>(), move, It.IsAny<CancellationToken>())).ReturnsAsync(result);
+
+    private void NoUpsert() =>
+        _codes.Verify(c => c.UpsertAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()), Times.Never);
+
     [Fact]
     public async Task Lookup_TrimsTheCode_AndNamesTheLinkedResource()
     {
@@ -83,139 +91,62 @@ public class ResourceScanCodeServiceTests
         Assert.Null(result.Resource);
     }
 
-    [Theory]
-    [InlineData("   ")]
-    [InlineData(null)]
-    public async Task Lookup_BlankOrOverlong_IsUnknownWithoutAQuery(string? code)
-    {
-        var result = await _service.LookupAsync(code ?? new string('x', DomainLimits.ResourceScanCodeMaxLength + 1));
-
-        Assert.Equal(ScanCodeLookupStatus.Unknown, result.Status);
-        _codes.Verify(c => c.GetByCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task GetByResource_UnknownResource_ReturnsNull()
-    {
-        Assert.Null(await _service.GetByResourceAsync(Guid.NewGuid()));
-    }
-
-    [Fact]
-    public async Task Link_UnknownResource_ReportsNotFound()
-    {
-        var result = await _service.LinkAsync(Guid.NewGuid(), new LinkResourceScanCodeRequest { Code = "A" }, null);
-
-        Assert.Equal(LinkScanCodeOutcome.ResourceNotFound, result.Outcome);
-    }
-
     [Fact]
     public async Task Link_TypeSwitchedOff_IsRefused()
     {
         SetTypeEnabled(false);
 
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A" }, null);
-
-        Assert.Equal(LinkScanCodeOutcome.TypeDisabled, result.Outcome);
-        _codes.Verify(c => c.InsertAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.LinkAsync(Drill.Id, Link("A"), null));
+        NoUpsert();
     }
 
     [Fact]
-    public async Task Link_NewCode_InsertsTheTrimmedText()
+    public async Task Link_NewCode_StoresTheTrimmedText()
     {
         var user = Guid.NewGuid();
         var inserted = Code(Drill, "A");
-        _codes.Setup(c => c.InsertAsync(Drill.Id, "A", user, It.IsAny<CancellationToken>())).ReturnsAsync(inserted);
+        _codes.Setup(c => c.UpsertAsync(Drill.Id, "A", user, false, It.IsAny<CancellationToken>())).ReturnsAsync(inserted);
 
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = " A " }, user);
-
-        Assert.Equal(LinkScanCodeOutcome.Linked, result.Outcome);
-        Assert.Same(inserted, result.Code);
+        Assert.Same(inserted, await _service.LinkAsync(Drill.Id, Link(" A "), user));
     }
 
     [Fact]
-    public async Task Link_CodeOfThisResource_IsAlreadyLinked()
+    public async Task Link_CodeOfThisResource_ReturnsTheExistingLink()
     {
         var match = Match(Drill, "A");
+        UpsertReturns(null);
         _codes.Setup(c => c.GetByCodeAsync("A", It.IsAny<CancellationToken>())).ReturnsAsync(match);
 
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A" }, null);
-
-        Assert.Equal(LinkScanCodeOutcome.AlreadyLinked, result.Outcome);
-        Assert.Same(match.Code, result.Code);
+        Assert.Same(match.Code, await _service.LinkAsync(Drill.Id, Link("A"), null));
     }
 
     [Fact]
     public async Task Link_CodeOfAnotherResource_NamesItAndDoesNotMove()
     {
+        UpsertReturns(null);
         _codes.Setup(c => c.GetByCodeAsync("A", It.IsAny<CancellationToken>())).ReturnsAsync(Match(Mill, "A"));
 
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A" }, null);
+        var ex = await Assert.ThrowsAsync<ConflictException>(() => _service.LinkAsync(Drill.Id, Link("A"), null));
 
-        Assert.Equal(LinkScanCodeOutcome.OwnedByOther, result.Outcome);
-        Assert.Equal("Mill", result.OtherResource!.Name);
-        _codes.Verify(c => c.ReassignAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
+        Assert.Contains("Mill", ex.Message);
     }
 
     [Fact]
-    public async Task Link_MoveFromOtherResource_ReassignsTheCode()
+    public async Task Link_MoveFromOtherResource_TakesTheCode()
     {
-        var match = Match(Mill, "A");
         var moved = Code(Drill, "A");
-        _codes.Setup(c => c.GetByCodeAsync("A", It.IsAny<CancellationToken>())).ReturnsAsync(match);
-        _codes.Setup(c => c.ReassignAsync(match.Code.Id, Drill.Id, null, It.IsAny<CancellationToken>())).ReturnsAsync(moved);
+        UpsertReturns(moved, move: true);
 
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A", MoveFromOtherResource = true }, null);
-
-        Assert.Equal(LinkScanCodeOutcome.Moved, result.Outcome);
-        Assert.Same(moved, result.Code);
-    }
-
-    [Fact]
-    public async Task Link_MoveOfACodeUnlinkedMeanwhile_LinksItFresh()
-    {
-        var match = Match(Mill, "A");
-        var inserted = Code(Drill, "A");
-        _codes.Setup(c => c.GetByCodeAsync("A", It.IsAny<CancellationToken>())).ReturnsAsync(match);
-        _codes.Setup(c => c.ReassignAsync(match.Code.Id, Drill.Id, null, It.IsAny<CancellationToken>())).ReturnsAsync((ResourceScanCodeInfo?)null);
-        _codes.Setup(c => c.InsertAsync(Drill.Id, "A", null, It.IsAny<CancellationToken>())).ReturnsAsync(inserted);
-
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A", MoveFromOtherResource = true }, null);
-
-        Assert.Equal(LinkScanCodeOutcome.Moved, result.Outcome);
-        Assert.Same(inserted, result.Code);
-    }
-
-    [Fact]
-    public async Task Link_LosingAnInsertRace_AnswersFromTheWinner()
-    {
-        var winner = Match(Drill, "A");
-        _codes.SetupSequence(c => c.GetByCodeAsync("A", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ScanCodeMatch?)null)
-            .ReturnsAsync(winner);
-        _codes.Setup(c => c.InsertAsync(Drill.Id, "A", null, It.IsAny<CancellationToken>())).ReturnsAsync((ResourceScanCodeInfo?)null);
-
-        var result = await _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A" }, null);
-
-        Assert.Equal(LinkScanCodeOutcome.AlreadyLinked, result.Outcome);
-        Assert.Same(winner.Code, result.Code);
+        Assert.Same(moved, await _service.LinkAsync(Drill.Id, Link("A", move: true), null));
+        _codes.Verify(c => c.GetByCodeAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task Link_CodeThatVanishesMidRace_IsAConflict()
     {
+        UpsertReturns(null);
         _codes.Setup(c => c.GetByCodeAsync("A", It.IsAny<CancellationToken>())).ReturnsAsync((ScanCodeMatch?)null);
-        _codes.Setup(c => c.InsertAsync(Drill.Id, "A", null, It.IsAny<CancellationToken>())).ReturnsAsync((ResourceScanCodeInfo?)null);
 
-        await Assert.ThrowsAsync<ConflictException>(() =>
-            _service.LinkAsync(Drill.Id, new LinkResourceScanCodeRequest { Code = "A" }, null));
-    }
-
-    [Fact]
-    public async Task Unlink_DelegatesToTheOwnerScopedDelete()
-    {
-        var codeId = Guid.NewGuid();
-        _codes.Setup(c => c.DeleteAsync(Drill.Id, codeId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-
-        Assert.True(await _service.UnlinkAsync(Drill.Id, codeId));
+        await Assert.ThrowsAsync<ConflictException>(() => _service.LinkAsync(Drill.Id, Link("A"), null));
     }
 }

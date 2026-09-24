@@ -1,6 +1,6 @@
 import { useSites } from "@foundation/src/hooks/useSites";
 import { useSiteStore } from "@foundation/src/store/site-store";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useNavigate } from "react-router";
 import { CommandPalette } from "./CommandPalette";
 import { FeedbackButton } from "./FeedbackButton";
@@ -25,11 +25,7 @@ import { resolveView } from "@foundation/src/components/assistant/view-catalog";
 import { useApplyAssistantProposal } from "@foundation/src/hooks/useAiAssistant";
 import { ROUTE_HOME } from "@foundation/src/constants/auth";
 import { ResourceStatusSheet } from "@foundation/src/components/resources/ResourceStatusSheet";
-
-// The scan flow pulls in the camera UI; it loads on the first Scan, not with the shell.
-const GlobalScanFlow = lazy(() =>
-  import("@foundation/src/components/scan/GlobalScanFlow").then((m) => ({ default: m.GlobalScanFlow })),
-);
+import { GlobalScanFlow } from "@foundation/src/components/scan/GlobalScanFlow";
 
 interface AppLayoutProps {
   /** Edition-supplied plans-page href for the tier-gated upsells (calendar subscription, data export / import). */
@@ -97,8 +93,6 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const scanTick = useUiActionsStore((s) => s.scanTick);
   const lastScanTick = useRef(scanTick);
   const [scannerOpen, setScannerOpen] = useState(false);
-  // Stays mounted after the first scan: its result dialogs outlive the scanner itself.
-  const [scanFlowMounted, setScanFlowMounted] = useState(false);
 
   useEffect(() => {
     if (commandPaletteTick !== lastCommandPaletteTick.current) {
@@ -124,7 +118,6 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   useEffect(() => {
     if (scanTick !== lastScanTick.current) {
       lastScanTick.current = scanTick;
-      setScanFlowMounted(true);
       setScannerOpen(true);
     }
   }, [scanTick]);
@@ -222,11 +215,7 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
         }}
         onApplyProposal={applyAssistantProposal}
       />
-      {scanFlowMounted && (
-        <Suspense fallback={<span role="status" className="sr-only">Loading…</span>}>
-          <GlobalScanFlow open={scannerOpen} onOpenChange={setScannerOpen} />
-        </Suspense>
-      )}
+      <GlobalScanFlow open={scannerOpen} onOpenChange={setScannerOpen} />
       <ResourceStatusSheet />
     </div>
   );

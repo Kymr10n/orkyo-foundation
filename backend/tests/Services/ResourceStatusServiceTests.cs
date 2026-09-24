@@ -98,7 +98,6 @@ public class ResourceStatusServiceTests
         var status = await _service.GetAsync(_drill.Id);
 
         Assert.Equal("Drill", status!.Name);
-        Assert.Equal(Now, status.AsOfUtc);
         Assert.Null(status.Current);
         Assert.Null(status.Next);
         Assert.Null(status.ActiveAbsence);
@@ -116,9 +115,9 @@ public class ResourceStatusServiceTests
 
         var status = await _service.GetAsync(_drill.Id);
 
-        Assert.Equal(running.Id, status!.Current!.AssignmentId);
+        Assert.Equal(running.StartUtc, status!.Current!.StartUtc);
         Assert.Equal($"Job {running.RequestId.ToString()[..4]}", status.Current.RequestName);
-        Assert.Equal(sooner.Id, status.Next!.AssignmentId);
+        Assert.Equal(sooner.StartUtc, status.Next!.StartUtc);
     }
 
     [Fact]
@@ -142,7 +141,7 @@ public class ResourceStatusServiceTests
 
         var status = await _service.GetAsync(_drill.Id);
 
-        Assert.Equal(active.Id, status!.ActiveAbsence!.Id);
+        Assert.Equal(active.EndTs, status!.ActiveAbsence!.EndTs);
         Assert.Equal(AbsenceType.Maintenance, status.ActiveAbsence.AbsenceType);
     }
 

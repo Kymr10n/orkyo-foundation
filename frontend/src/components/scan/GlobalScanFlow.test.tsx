@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
@@ -17,7 +17,8 @@ vi.mock('@foundation/src/lib/api/resources-api', () => resourcesApi);
 const typesApi = vi.hoisted(() => ({ getResourceTypes: vi.fn() }));
 vi.mock('@foundation/src/lib/api/resource-types-api', () => typesApi);
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }));
+vi.mock('sonner', () => ({ toast }));
 
 vi.mock('@foundation/src/components/scan/QrScannerDialog', () => ({
   QrScannerDialog: ({ open, onScan }: { open: boolean; onScan: (code: string) => void }) =>
@@ -46,11 +47,23 @@ function renderFlow() {
 
 const resource = (id: string, name: string, resourceTypeKey: string) => ({ id, name, resourceTypeKey });
 
+/** Renders the flow and scans STICKER-9, which the lookup answers as given. */
+async function scanWith(lookupResult: unknown) {
+  const user = userEvent.setup();
+  api.lookupScanCode.mockResolvedValue(lookupResult);
+  renderFlow();
+  await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
+  return user;
+}
+
+/** What the last plain toast offered as its action. */
+const toastAction = () => (toast.mock.lastCall![1] as { action: { label: string; onClick: () => void } }).action;
+
 describe('GlobalScanFlow', () => {
   beforeEach(() => {
     useUiActionsStore.setState({ statusResourceId: null });
     typesApi.getResourceTypes.mockResolvedValue([
-      { ...machineResourceType, scanCodesEnabled: true },
+      machineResourceType,
       { ...machineResourceType, id: 'rt-person', key: 'person', displayName: 'Person', scanCodesEnabled: false },
     ]);
     resourcesApi.getResources.mockResolvedValue({
@@ -65,25 +78,17 @@ describe('GlobalScanFlow', () => {
   });
 
   it('opens the status sheet of a linked resource', async () => {
-    const user = userEvent.setup();
-    api.lookupScanCode.mockResolvedValue({
+    await scanWith({
       status: 'linked',
       resource: { id: 'r-drill', name: 'Drill', resourceTypeKey: 'machine', isActive: true },
     });
-    renderFlow();
-
-    await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
 
     await waitFor(() => expect(useUiActionsStore.getState().statusResourceId).toBe('r-drill'));
     expect(screen.getByTestId('scanner-open')).toHaveTextContent('false');
   });
 
   it('lets an Editor link an unknown code to a resource whose type has QR codes on', async () => {
-    const user = userEvent.setup();
-    api.lookupScanCode.mockResolvedValue({ status: 'unknown' });
-    renderFlow();
-
-    await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
+    const user = await scanWith({ status: 'unknown' });
     expect(await screen.findByText('Link QR code')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Link' })).toBeDisabled();
 
@@ -98,12 +103,8 @@ describe('GlobalScanFlow', () => {
   });
 
   it('shows a failed link inside the dialog', async () => {
-    const user = userEvent.setup();
-    api.lookupScanCode.mockResolvedValue({ status: 'unknown' });
     api.linkResourceScanCode.mockRejectedValue(new Error("This code is already linked to 'Mill'."));
-    renderFlow();
-
-    await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
+    const user = await scanWith({ status: 'unknown' });
     fireEvent.click(await screen.findByRole('combobox'));
     fireEvent.click(await within(await screen.findByRole('listbox')).findByText(/^Drill/));
     await user.click(screen.getByRole('button', { name: 'Link' }));
@@ -113,29 +114,23 @@ describe('GlobalScanFlow', () => {
   });
 
   it('tells a Viewer that the code is not linked, and offers another scan', async () => {
-    const user = userEvent.setup();
     vi.mocked(useCanEdit).mockReturnValue(false);
-    api.lookupScanCode.mockResolvedValue({ status: 'unknown' });
-    renderFlow();
+    await scanWith({ status: 'unknown' });
 
-    await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
-    expect(await screen.findByText('This QR code is not linked to a resource.')).toBeInTheDocument();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('This QR code is not linked to a resource.', expect.anything()));
+    expect(screen.getByTestId('scanner-open')).toHaveTextContent('false');
     expect(resourcesApi.getResources).not.toHaveBeenCalled();
 
-    await user.click(screen.getByRole('button', { name: 'Scan again' }));
+    act(() => toastAction().onClick());
+    expect(toastAction().label).toBe('Scan again');
     expect(screen.getByTestId('scanner-open')).toHaveTextContent('true');
   });
 
   it('does not name a resource whose type has scanning off', async () => {
-    const user = userEvent.setup();
-    api.lookupScanCode.mockResolvedValue({ status: 'type_disabled' });
-    renderFlow();
+    await scanWith({ status: 'type_disabled' });
 
-    await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
-
-    expect(await screen.findByText('Scanning is off for this resource type.')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Close' }));
-    expect(screen.queryByText('Scanning is off for this resource type.')).not.toBeInTheDocument();
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Scanning is off for this resource type.', expect.anything()));
+    expect(screen.queryByText('Link QR code')).not.toBeInTheDocument();
   });
 
   it('reports a lookup that fails', async () => {
@@ -145,6 +140,8 @@ describe('GlobalScanFlow', () => {
 
     await user.click(screen.getByRole('button', { name: 'Simulate scan' }));
 
-    expect(await screen.findByText('The scanned code could not be checked. Try again.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('The scanned code could not be checked. Try again.', expect.anything()),
+    );
   });
 });

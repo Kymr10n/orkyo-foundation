@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   formatCompactTime,
   formatDateDisplay,
+  formatDateTimeShort,
   formatLocalized,
+  formatPeriod,
   formatScheduledWindow,
 } from "./formatters";
 
@@ -54,5 +56,20 @@ describe("formatScheduledWindow", () => {
 
   it("spans a month boundary", () => {
     expect(formatScheduledWindow("2026-04-29T09:00:00", "2026-05-02T09:00:00")).toContain("· 4d");
+  });
+});
+
+describe("formatPeriod", () => {
+  const start = "2026-04-17T09:05:00Z";
+  const end = "2026-04-17T13:15:00Z";
+
+  it("returns an empty string when either end is missing", () => {
+    expect(formatPeriod("", end)).toBe("");
+    expect(formatPeriod(start, "")).toBe("");
+  });
+
+  it("joins the two short stamps with an en dash", () => {
+    expect(formatPeriod(start, end)).toBe(`${formatDateTimeShort(start)} – ${formatDateTimeShort(end)}`);
+    expect(formatDateTimeShort(start)).toMatch(/\d/);
   });
 });

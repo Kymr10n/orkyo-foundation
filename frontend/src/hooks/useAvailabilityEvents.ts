@@ -5,9 +5,9 @@ import {
   type ScopeEffect,
   type ScopeTargetType,
 } from "@foundation/src/lib/api/availability-events-api";
-import { getResources } from "@foundation/src/lib/api/resources-api";
 import { getResourceGroups } from "@foundation/src/lib/api/resource-groups-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useAllActiveResources } from "@foundation/src/hooks/useResources";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
@@ -20,11 +20,7 @@ export interface ScopeDraft {
 
 /** Everything an availability event can be scoped to: resources, groups and types. */
 export function useScopePickerOptions() {
-  const { data: resources } = useQuery({
-    queryKey: qk.resources.allFlat(),
-    queryFn: () => getResources({ isActive: true }).then((r) => r.items),
-    staleTime: STALE.OPERATIONAL,
-  });
+  const { data: resources } = useAllActiveResources();
   const { data: resourceTypes } = useResourceTypes();
   const { data: groups } = useQuery({
     queryKey: qk.resourceGroups.allFlat(),

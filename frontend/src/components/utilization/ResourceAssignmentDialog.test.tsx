@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import {
   ResourceAssignmentDialog,
   assignmentWindow,
-  formatPeriod,
   formatSpan,
   timelineExtent,
 } from "./ResourceAssignmentDialog";
@@ -620,15 +619,6 @@ describe("ResourceAssignmentDialog window/format helpers", () => {
       startUtc: START,
       endUtc: END,
     });
-  });
-
-  it("formatPeriod: returns empty string when either endpoint is missing", () => {
-    expect(formatPeriod("", END)).toBe("");
-    expect(formatPeriod(START, "")).toBe("");
-  });
-
-  it("formatPeriod: renders a range for valid endpoints", () => {
-    expect(formatPeriod(START, END)).toContain("–");
   });
 
   it("formatSpan: returns empty string for a non-positive or invalid span", () => {

@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('@foundation/src/lib/api/resource-scan-codes-api', () => api);
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }));
 vi.mock('sonner', () => ({ toast }));
 
 // The camera is the scanner's own concern (QrScannerDialog.test); here a button stands in for a scan.
@@ -77,7 +77,7 @@ describe('ResourceScanCodesSection', () => {
 
     await scan(user);
 
-    expect(await screen.findByText('This QR code is already linked to this resource.')).toBeInTheDocument();
+    await waitFor(() => expect(toast.info).toHaveBeenCalledWith('This QR code is already linked to this resource.'));
     expect(api.linkResourceScanCode).not.toHaveBeenCalled();
   });
 
@@ -111,7 +111,7 @@ describe('ResourceScanCodesSection', () => {
     expect(api.linkResourceScanCode).not.toHaveBeenCalled();
   });
 
-  it('keeps the confirmation usable when the move fails', async () => {
+  it('closes the confirmation and reports a failed move', async () => {
     const user = userEvent.setup();
     api.lookupScanCode.mockResolvedValue({ status: 'type_disabled' });
     api.linkResourceScanCode.mockRejectedValue(new Error('API Error (409): taken'));
@@ -124,14 +124,17 @@ describe('ResourceScanCodesSection', () => {
     await waitFor(() => expect(screen.queryByText(/Move it to this resource/)).not.toBeInTheDocument());
   });
 
-  it('shows an inline error when the lookup fails', async () => {
+  it('reports a lookup that fails', async () => {
     const user = userEvent.setup();
     api.lookupScanCode.mockRejectedValue(new Error('offline'));
     renderSection();
 
     await scan(user);
 
-    expect(await screen.findByText('The scanned code could not be checked. Try again.')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('The scanned code could not be checked. Try again.', expect.anything()),
+    );
+    expect(api.linkResourceScanCode).not.toHaveBeenCalled();
   });
 
   it('lists the codes and removes one', async () => {

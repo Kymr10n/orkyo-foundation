@@ -113,7 +113,7 @@ No new group convention is necessary.
 |---|---|
 | `GET /api/resources/scan-codes/lookup?code=` | `{ status, resource? }`. `status` is `linked`, `unknown` or `type_disabled`. `resource` holds `id`, `name`, `resourceTypeKey`. |
 | `GET /api/resources/{id}/scan-codes` | The codes of one resource. |
-| `POST /api/resources/{id}/scan-codes` | Body `{ code, moveFromOtherResource }`. Returns 201. If a different resource owns the code and `moveFromOtherResource` is false, returns 409 with that resource. If the type flag is off, returns 422. |
+| `POST /api/resources/{id}/scan-codes` | Body `{ code, moveFromOtherResource }`. Returns 201 with the link; a code already on this resource returns the existing link. If a different resource owns the code and `moveFromOtherResource` is false, returns 409 and names that resource in the message. If the type flag is off, returns 400. |
 | `DELETE /api/resources/{id}/scan-codes/{codeId}` | Returns 204. If the code does not belong to the resource, returns 404. |
 
 The lookup uses a query parameter, not a path segment, because a code can contain `/`,
@@ -236,7 +236,7 @@ the normal foundation version bump.
    `backend/core/Validators/`.
 4. Routes in `backend/src/Endpoints/ResourceEndpoints.cs` with `EndpointHelpers.ExecuteAsync`.
    Registration in `FoundationServiceExtensions.cs`.
-5. `SecurityHeadersMiddleware` sends `camera=(self)`.
+5. `SecurityHeadersMiddleware` stays `camera=()`: it covers JSON responses only (section 1).
 6. Tests: lookup (linked, unknown, type off), link, conflict, move, unlink, Viewer 403,
    deactivated resource. Patch coverage 80% or more with `scripts/ci/patch-coverage.sh`.
 7. `./scripts/test-downstream.sh`, because the route table changes.
@@ -258,8 +258,9 @@ the normal foundation version bump.
 
 ### Phase 1c — infrastructure and documentation
 
-1. orkyo-infra: `camera=(self)` in `security-headers.conf` and `csp-app.conf`. This change
-   must deploy before or with the foundation release that contains the scanner.
+1. orkyo-infra: `camera=(self)` in `csp-app.conf` only. `security-headers.conf` keeps
+   `camera=()` for the other hosts. This change must deploy before or with the foundation
+   release that contains the scanner.
 2. orkyo-community: a note in `release/docs/OPERATIONS.md` that scanning needs HTTPS.
 3. orkyo-documentation: a user-guide page for QR stickers. The product commits carry a
    `Docs-impact:` trailer that points to that page.
@@ -285,3 +286,14 @@ the normal foundation version bump.
 - The Scan button is visible on the phone, not in the overflow menu.
 - If the loaded list is empty, `useEditQueryParam` now calls `resolveMissing`. Before, a
   deep link to a resource on an empty site list did nothing.
+- The link service throws, like every other service: `NotFoundException`, `ConflictException`
+  and `ArgumentException` map to 404, 409 and 400 in `AppExceptionHandler`. A type with the
+  flag off therefore answers 400, not 422. The client looks a code up before it links, so
+  this answer only occurs in a race.
+- One upsert (`ON CONFLICT DO UPDATE ... WHERE move`) replaces the insert and the reassign.
+- The global Scan action reports "not linked", "scanning is off" and a failed lookup as a
+  toast with a "Scan again" action, not in a dialog. The link dialog for Editors stays.
+- `AppLayout` mounts `GlobalScanFlow` directly. The decoder is the heavy part, and
+  `QrScannerDialog` already loads it through a dynamic import.
+- The status sheet counts bookings that have a conflict, not conflict issues: two overlapping
+  bookings count as two bookings, not four issues.

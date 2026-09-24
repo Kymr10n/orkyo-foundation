@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceList } from './ResourceList';
@@ -91,12 +91,18 @@ const cars = [
   { id: 'car-2', name: 'Van 2', resourceTypeKey: 'car', isActive: false },
 ];
 
+function Location() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname + location.search}</span>;
+}
+
 function renderList(url = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <MemoryRouter initialEntries={[url]}>
       <QueryClientProvider client={client}>
         <ResourceList resourceType={carType} />
+        <Location />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -247,7 +253,9 @@ describe('ResourceList', () => {
     (getResource as Mock).mockResolvedValue({ id: 'p-9', name: 'Ada', resourceTypeKey: 'person', isActive: true });
     renderList('/?edit=p-9');
 
-    await waitFor(() => expect(getResource).toHaveBeenCalledWith('p-9'));
+    // The param clears once the fetch has settled, so the dialog had its chance to open.
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/));
+    expect(getResource).toHaveBeenCalledWith('p-9');
     expect(screen.queryByTestId('resource-edit-dialog')).not.toBeInTheDocument();
   });
 

@@ -8,12 +8,13 @@
  * - Calls switchTenant() in local dev; navigates to apex in production
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
+import { restoreViewport, setViewport } from '@foundation/src/test-utils/viewport';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -424,13 +425,14 @@ describe('TopBar — Scan QR code', () => {
     mockUseAuth.mockReturnValue(authState());
   });
 
-  it('is offered at every width and asks the layout to open the scanner', () => {
+  afterEach(restoreViewport);
+
+  it('is offered on a phone and asks the layout to open the scanner', () => {
+    setViewport(375);
     const before = useUiActionsStore.getState().scanTick;
     renderTopBar();
 
-    const scan = screen.getByRole('button', { name: 'Scan QR code' });
-    expect(scan).not.toHaveClass('hidden');
-    fireEvent.click(scan);
+    fireEvent.click(screen.getByRole('button', { name: 'Scan QR code' }));
 
     expect(useUiActionsStore.getState().scanTick).toBe(before + 1);
   });

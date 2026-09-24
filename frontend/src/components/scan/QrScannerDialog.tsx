@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
-import { Flashlight, FlashlightOff } from 'lucide-react';
+import { Flashlight } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
@@ -16,7 +16,7 @@ interface QrScannerDialogProps {
 }
 
 /** The camera error, as one sentence a user can act on. */
-export function cameraErrorMessage(error: unknown): string {
+function cameraErrorMessage(error: unknown): string {
   const name = error instanceof Error || error instanceof DOMException ? error.name : '';
   if (name === 'NotAllowedError' || name === 'SecurityError')
     return 'Camera access is blocked. Allow the camera for this site in the browser settings, then try again.';
@@ -48,11 +48,11 @@ export function QrScannerDialog({ open, onOpenChange, title, description, onScan
 
 function ScannerView({ onScan, onCancel }: { onScan: (code: string) => void; onCancel: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const controlsRef = useRef<QrDecoderControls | null>(null);
   const [unsupported] = useState(unsupportedReason);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [starting, setStarting] = useState(unsupported === null);
-  const [torchAvailable, setTorchAvailable] = useState(false);
+  /** The camera's torch switch, once it is running and has one. */
+  const [switchTorch, setSwitchTorch] = useState<QrDecoderControls['switchTorch']>();
   const [torchOn, setTorchOn] = useState(false);
   const emitScan = useEffectEvent((code: string) => onScan(code));
   const error = unsupported ?? cameraError;
@@ -61,9 +61,10 @@ function ScannerView({ onScan, onCancel }: { onScan: (code: string) => void; onC
     if (unsupported) return;
     let cancelled = false;
     let done = false;
+    let running: QrDecoderControls | null = null;
     const stop = () => {
-      controlsRef.current?.stop();
-      controlsRef.current = null;
+      running?.stop();
+      running = null;
     };
 
     void (async () => {
@@ -82,8 +83,9 @@ function ScannerView({ onScan, onCancel }: { onScan: (code: string) => void; onC
           controls.stop();
           return;
         }
-        controlsRef.current = controls;
-        setTorchAvailable(controls.setTorch !== undefined);
+        running = controls;
+        // A state setter treats a function as an updater, hence the thunk.
+        if (controls.switchTorch) setSwitchTorch(() => controls.switchTorch);
       } catch (e) {
         if (!cancelled) setCameraError(cameraErrorMessage(e));
       } finally {
@@ -97,11 +99,10 @@ function ScannerView({ onScan, onCancel }: { onScan: (code: string) => void; onC
     };
   }, [unsupported]);
 
-  const toggleTorch = async () => {
-    const next = !torchOn;
-    await controlsRef.current?.setTorch?.(next);
-    setTorchOn(next);
-  };
+  const toggleTorch = () =>
+    switchTorch?.(!torchOn)
+      .then(() => setTorchOn((on) => !on))
+      .catch(() => setCameraError('The torch could not be switched.'));
 
   return (
     <ScrollableDialogBody className="space-y-4 px-6 pb-6">
@@ -128,10 +129,10 @@ function ScannerView({ onScan, onCancel }: { onScan: (code: string) => void; onC
       )}
       {!error && <p className="text-muted-foreground text-sm">Hold the QR code inside the frame.</p>}
       <div className="flex justify-end gap-2">
-        {torchAvailable && (
-          <Button variant="outline" onClick={() => void toggleTorch()}>
-            {torchOn ? <FlashlightOff className="mr-2 h-4 w-4" /> : <Flashlight className="mr-2 h-4 w-4" />}
-            {torchOn ? 'Torch off' : 'Torch on'}
+        {switchTorch && (
+          <Button variant="outline" aria-pressed={torchOn} onClick={() => void toggleTorch()}>
+            <Flashlight className="mr-2 h-4 w-4" />
+            Torch
           </Button>
         )}
         <Button variant="outline" onClick={onCancel}>

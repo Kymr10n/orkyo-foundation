@@ -1,6 +1,7 @@
 # QR sticker linking and resource status sheet — implementation plan
 
-Status: **implemented** on branch `claude/orkyo-qr-resource-linking-u77if7`.
+Status: **implemented** on branch `claude/orkyo-qr-resource-linking-u77if7`, reviewed and
+simplified 2026-09-24 (spec section 10 lists what changed).
 
 - orkyo-foundation: `a19a032` (spec), `53918a2` (backend), `e4f0b3c` (frontend),
   `abf51df` (spec update), `88b95af` (tests)
@@ -64,13 +65,13 @@ Copies the `ResourceCustomField*` shape.
 - **Models:** `core/Models/ResourceScanCode.cs`
 - **Repository:** `core/Repositories/ResourceScanCodeRepository.cs`
   - `GetByCodeAsync`, `GetByResourceAsync`
-  - `InsertAsync` uses `ON CONFLICT DO NOTHING`
-  - `ReassignAsync`
+  - `UpsertAsync`: `ON CONFLICT DO UPDATE ... WHERE @move`; null when the code exists and
+    the request does not move it
   - `DeleteAsync` is scoped to the owning resource
 - **Service:** `core/Services/ResourceScanCodeService.cs`
   - Lookup returns linked / unknown / type_disabled.
-  - Link returns an outcome enum: Linked, AlreadyLinked, Moved, ResourceNotFound,
-    TypeDisabled, OwnedByOther.
+  - Link returns the link and throws `NotFoundException`, `ArgumentException` (type off) or
+    `ConflictException` (another owner, or a race), which `AppExceptionHandler` maps.
   - Unlink.
 - **Validator:** `core/Validators/ResourceScanCodeValidators.cs`, with the length limit from
   `DomainLimits.ResourceScanCodeMaxLength`.
@@ -78,7 +79,8 @@ Copies the `ResourceCustomField*` shape.
   `RequireMemberReadEditorWrite`):
   - `GET scan-codes/lookup?code=`
   - `GET /{id}/scan-codes`
-  - `POST /{id}/scan-codes`: 201, 200 already linked, 404, 409 names the owner, 422 type off
+  - `POST /{id}/scan-codes`: 201 (also for a code already on this resource), 404, 409 names
+    the owner, 400 type off
   - `DELETE /{id}/scan-codes/{codeId}`
 
 ### Status (phase 2)
@@ -98,7 +100,7 @@ Copies the `ResourceCustomField*` shape.
 - `tests/Services/ResourceScanCodeServiceTests.cs`, including the race branches
 - `tests/Services/ResourceStatusServiceTests.cs` (`FakeTimeProvider`)
 - `CountResourceConflicts` cases in `ConflictServiceTests.cs`
-- `tests/Endpoints/ResourceScanCodeEndpointTests.cs`: round trip, 409, 422, 400, 404, Viewer
+- `tests/Endpoints/ResourceScanCodeEndpointTests.cs`: round trip, 409, 400, 404, Viewer
   403, Editor allowed, type flag round trip, status endpoint
 
 ## Frontend — orkyo-foundation (`frontend/src/`)
@@ -127,8 +129,7 @@ Copies the `ResourceCustomField*` shape.
   - `ui-actions-store` gains `scanTick`/`openScanner` and
     `statusResourceId`/`openResourceStatus`.
   - `TopBar` has a Scan button at every width.
-  - `AppLayout` lazily mounts `components/scan/GlobalScanFlow.tsx` and mounts
-    `ResourceStatusSheet` once.
+  - `AppLayout` mounts `components/scan/GlobalScanFlow.tsx` and `ResourceStatusSheet` once.
 - **`components/resources/ResourceStatusSheet.tsx`:** a bottom sheet on a phone and a right
   panel otherwise. Edit for Editors goes to `${typeRoute(type)}?edit=${id}`.
 - **`ResourceList`:**

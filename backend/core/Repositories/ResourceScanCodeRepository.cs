@@ -10,10 +10,11 @@ public interface IResourceScanCodeRepository
     /// <summary>The resource a code names, with its type switch, or null for an unknown code.</summary>
     Task<ScanCodeMatch?> GetByCodeAsync(string code, CancellationToken ct = default);
     Task<List<ResourceScanCodeInfo>> GetByResourceAsync(Guid resourceId, CancellationToken ct = default);
-    /// <summary>Null when the code already exists — a concurrent link won; re-read it.</summary>
-    Task<ResourceScanCodeInfo?> InsertAsync(Guid resourceId, string code, Guid? userId, CancellationToken ct = default);
-    /// <summary>Points an existing code at another resource. Null when the code is gone.</summary>
-    Task<ResourceScanCodeInfo?> ReassignAsync(Guid codeId, Guid resourceId, Guid? userId, CancellationToken ct = default);
+    /// <summary>
+    /// Links a code to a resource. With <paramref name="move"/> an existing code is pointed at
+    /// this resource; without it an existing code is left alone and null is returned.
+    /// </summary>
+    Task<ResourceScanCodeInfo?> UpsertAsync(Guid resourceId, string code, Guid? userId, bool move, CancellationToken ct = default);
     /// <summary>False when the code does not exist or belongs to a different resource.</summary>
     Task<bool> DeleteAsync(Guid resourceId, Guid codeId, CancellationToken ct = default);
 }
@@ -54,35 +55,22 @@ public class ResourceScanCodeRepository(OrgContext orgContext, IOrgDbConnectionF
             p => p.AddWithValue("resourceId", resourceId), Map, ct);
     }
 
-    public async Task<ResourceScanCodeInfo?> InsertAsync(Guid resourceId, string code, Guid? userId, CancellationToken ct = default)
+    public async Task<ResourceScanCodeInfo?> UpsertAsync(Guid resourceId, string code, Guid? userId, bool move, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         return await conn.QuerySingleOrDefaultAsync(
             $@"INSERT INTO resource_scan_codes (resource_id, code, created_by_user_id)
                VALUES (@resourceId, @code, @userId)
-               ON CONFLICT (code) DO NOTHING
+               ON CONFLICT (code) DO UPDATE
+                 SET resource_id = EXCLUDED.resource_id, created_by_user_id = EXCLUDED.created_by_user_id, created_at = now()
+                 WHERE @move
                RETURNING {SelectColumns}",
             p =>
             {
                 p.AddWithValue("resourceId", resourceId);
                 p.AddWithValue("code", code);
                 p.AddNullable("userId", userId);
-            }, Map, ct);
-    }
-
-    public async Task<ResourceScanCodeInfo?> ReassignAsync(Guid codeId, Guid resourceId, Guid? userId, CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.QuerySingleOrDefaultAsync(
-            $@"UPDATE resource_scan_codes
-                  SET resource_id = @resourceId, created_by_user_id = @userId, created_at = now()
-                WHERE id = @id
-                RETURNING {SelectColumns}",
-            p =>
-            {
-                p.AddWithValue("id", codeId);
-                p.AddWithValue("resourceId", resourceId);
-                p.AddNullable("userId", userId);
+                p.AddWithValue("move", move);
             }, Map, ct);
     }
 
