@@ -75,6 +75,7 @@ interface UiActionsState {
   tourTick: number;
   assistantTick: number;
   autoScheduleTick: number;
+  scanTick: number;
   // Last payload for actions that carry data
   lastExport: ExportPayload | null;
   lastImport: ImportPayload | null;
@@ -89,6 +90,11 @@ interface UiActionsState {
    * the person approved.
    */
   autoScheduleRequestIds: string[] | null;
+  /**
+   * The resource whose status sheet is open, or null. State rather than a tick: the sheet
+   * is mounted once in AppLayout and both the scanner and the resource list open it.
+   */
+  statusResourceId: string | null;
   /**
    * Live capabilities, keyed by context. Insertion-ordered (Map semantics), so
    * the most recently mounted registrant wins when a tab registers inside a
@@ -119,6 +125,10 @@ interface UiActionsState {
    * person approved long ago.
    */
   clearAutoSchedule: () => void;
+  /** Opens the global QR scanner (docs/qr-resource-linking-spec.md §5.3). */
+  openScanner: () => void;
+  openResourceStatus: (resourceId: string) => void;
+  closeResourceStatus: () => void;
 
   // Registration (called from the useExportHandler / useImportHandler effects)
   registerExport: (context: ExportContext, capability: ExportCapability) => void;
@@ -144,10 +154,12 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   tourTick: 0,
   assistantTick: 0,
   autoScheduleTick: 0,
+  scanTick: 0,
   lastExport: null,
   lastImport: null,
   assistantContext: null,
   autoScheduleRequestIds: null,
+  statusResourceId: null,
   exportRegistry: new Map(),
   importRegistry: new Map(),
   calendarFeedRegistry: new Map(),
@@ -164,6 +176,9 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
   requestAutoSchedule: (requestIds) =>
     set((s) => ({ autoScheduleTick: s.autoScheduleTick + 1, autoScheduleRequestIds: requestIds })),
   clearAutoSchedule: () => set({ autoScheduleRequestIds: null }),
+  openScanner: () => set((s) => ({ scanTick: s.scanTick + 1 })),
+  openResourceStatus: (resourceId) => set({ statusResourceId: resourceId }),
+  closeResourceStatus: () => set({ statusResourceId: null }),
 
   // Re-registering an existing context deletes first, so the re-inserted entry
   // moves to the end and stays the active one.

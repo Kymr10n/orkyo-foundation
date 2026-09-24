@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Building2, CalendarDays, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
+import { Activity, Building2, CalendarDays, Pencil, Plus, Sliders, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { StatusBadge } from '@foundation/src/components/ui/status-badge';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
@@ -9,7 +9,9 @@ import { ResourceEditDialog } from './ResourceEditDialog';
 import { ResourceScheduleDialog } from './ResourceScheduleDialog';
 import { ResourceCapabilitiesEditor } from './ResourceCapabilitiesEditor';
 import { MoveResourceSiteDialog } from './MoveResourceSiteDialog';
-import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { getResource, type ResourceInfo } from '@foundation/src/lib/api/resources-api';
+import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { useDeleteResource, useResourcesOfType } from '@foundation/src/hooks/useResources';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useIsMultiSite } from '@foundation/src/hooks/useSites';
@@ -67,6 +69,17 @@ export function ResourceList({ resourceType }: ResourceListProps) {
   // from anything person-shaped here.
   const hasDirectory = resourceType.hasDirectoryProfile;
   const list = resources?.items ?? EMPTY_RESOURCES;
+
+  // `?edit=<id>` deep links: global search and the QR status sheet. The list is scoped by site,
+  // so an id it does not hold is fetched — and only opened when it is this page's type.
+  useEditQueryParam(list, setEditing, {
+    ready: !isLoading && canEdit,
+    resolveMissing: (id) =>
+      getResource(id)
+        .then((r) => (r.resourceTypeKey === resourceType.key ? r : null))
+        .catch(() => null),
+  });
+  const openResourceStatus = useUiActionsStore((s) => s.openResourceStatus);
   const lookupLabels = useLookupFieldLabels(
     hasDirectory ? resourceType.id : undefined,
     list,
@@ -97,6 +110,8 @@ export function ResourceList({ resourceType }: ResourceListProps) {
       triggerLabel={`Actions for ${r.name}`}
       actions={[
         { label: `Edit ${label}`, icon: Pencil, onSelect: () => setEditing(r), disabled: !canEdit },
+        // Read-only, so every role gets it — the same sheet a QR scan opens.
+        { label: 'Show status', icon: Activity, onSelect: () => openResourceStatus(r.id) },
         {
           label: `Manage ${capabilityLabel?.plural ?? 'Capabilities'}`,
           icon: Sliders,

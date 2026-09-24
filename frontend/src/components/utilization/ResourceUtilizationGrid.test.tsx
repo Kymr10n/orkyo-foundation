@@ -124,6 +124,7 @@ const PERSON_TYPE = {
   hasGeometry: false,
   hasDirectoryProfile: true,
   singleGroupMembership: false,
+  scanCodesEnabled: false,
   isSystem: true,
   isActive: true,
   createdAt: '2026-01-01T00:00:00Z',

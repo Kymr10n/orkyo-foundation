@@ -64,6 +64,11 @@ const banHeavyAndRawDialogImports = [
     message:
       'jspdf is heavy: only src/lib/utils/gantt-pdf-export.ts may load it, via the existing dynamic import(). A static import drags it into the main chunk. See plan G3.',
   },
+  ...['@zxing/browser', '@zxing/library'].map((name) => ({
+    name,
+    message:
+      'The QR decoder is heavy: only src/lib/scan/qr-decoder.ts may load it, and QrScannerDialog reaches that file through a dynamic import(). A static import drags it into the main chunk.',
+  })),
   {
     name: '@foundation/src/components/ui/dialog',
     importNames: ['Dialog', 'DialogContent'],
@@ -312,7 +317,7 @@ export default defineConfig(
       }],
     },
   },
-  // The sanctioned dialog shells and the sole jspdf loader are exempt from the raw-Dialog
+  // The sanctioned dialog shells and the sole jspdf and QR-decoder loaders are exempt from the raw-Dialog
   // and jspdf bans — they ARE the primitives those bans steer everything else toward.
   // They are under components/, so they restate the data-fetching ban rather than
   // switching the rule off wholesale.
@@ -323,7 +328,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['src/lib/utils/gantt-pdf-export.ts'],
+    files: ['src/lib/utils/gantt-pdf-export.ts', 'src/lib/scan/qr-decoder.ts'],
     rules: {
       'no-restricted-imports': 'off',
     },

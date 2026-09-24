@@ -417,3 +417,21 @@ describe('TopBar — calendar subscription availability', () => {
     ).toBeDisabled();
   });
 });
+
+describe('TopBar — Scan QR code', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue(authState());
+  });
+
+  it('is offered at every width and asks the layout to open the scanner', () => {
+    const before = useUiActionsStore.getState().scanTick;
+    renderTopBar();
+
+    const scan = screen.getByRole('button', { name: 'Scan QR code' });
+    expect(scan).not.toHaveClass('hidden');
+    fireEvent.click(scan);
+
+    expect(useUiActionsStore.getState().scanTick).toBe(before + 1);
+  });
+});

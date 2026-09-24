@@ -25,6 +25,8 @@ export interface ResourceTypeInfo {
   hasDirectoryProfile: boolean;
   /** Belongs to at most one group; enforced in the database. */
   singleGroupMembership: boolean;
+  /** QR stickers can be linked to its resources, and a scan finds them. */
+  scanCodesEnabled: boolean;
   /** Historical flag — no type is system-owned any more; the server always sends false. */
   isSystem: boolean;
   isActive: boolean;
@@ -42,6 +44,7 @@ export interface CreateResourceTypeRequest {
   hasGeometry?: boolean;
   hasDirectoryProfile?: boolean;
   singleGroupMembership?: boolean;
+  scanCodesEnabled?: boolean;
 }
 
 export interface UpdateResourceTypeRequest {
@@ -53,6 +56,7 @@ export interface UpdateResourceTypeRequest {
   hasGeometry?: boolean;
   hasDirectoryProfile?: boolean;
   singleGroupMembership?: boolean;
+  scanCodesEnabled?: boolean;
   isActive?: boolean;
 }
 

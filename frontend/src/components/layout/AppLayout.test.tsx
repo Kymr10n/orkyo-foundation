@@ -66,6 +66,14 @@ vi.mock('@foundation/src/components/tour/TourDialog', () => ({
   TourDialog: ({ open }: { open: boolean }) => (open ? <div data-testid="tour-dialog" /> : null),
 }));
 
+vi.mock('@foundation/src/components/scan/GlobalScanFlow', () => ({
+  GlobalScanFlow: ({ open }: { open: boolean }) => <div data-testid="scan-flow" data-open={String(open)} />,
+}));
+
+vi.mock('@foundation/src/components/resources/ResourceStatusSheet', () => ({
+  ResourceStatusSheet: () => null,
+}));
+
 function renderLayout() {
   // AppLayout loads sites via the useSites() React Query hook, so a client is
   // required. retry: false surfaces the getSites-throws case without retry delays.
@@ -101,6 +109,24 @@ describe('AppLayout', () => {
     await waitFor(() => {
       expect(screen.getByTestId('feedback')).toBeInTheDocument();
     });
+  });
+
+  it('loads the scan flow only once Scan is pressed, and opens its scanner', async () => {
+    const { rerender, queryClient } = renderLayout();
+    await waitFor(() => expect(screen.getByTestId('topbar')).toBeInTheDocument());
+    expect(screen.queryByTestId('scan-flow')).not.toBeInTheDocument();
+
+    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0, scanTick: 1 }));
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <AppLayout />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(await screen.findByTestId('scan-flow')).toHaveAttribute('data-open', 'true');
+    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0 }));
   });
 
   it('still validates when getSites returns an empty array', async () => {

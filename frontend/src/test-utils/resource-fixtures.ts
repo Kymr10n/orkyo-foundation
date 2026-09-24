@@ -10,6 +10,7 @@ export const machineResourceType: ResourceTypeInfo = {
   hasGeometry: false,
   hasDirectoryProfile: false,
   singleGroupMembership: false,
+  scanCodesEnabled: false,
   isSystem: false,
   isActive: true,
   createdAt: '2026-01-01T00:00:00Z',

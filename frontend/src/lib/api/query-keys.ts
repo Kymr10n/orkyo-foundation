@@ -82,6 +82,12 @@ export const qk = {
       ["resource-assignments", resourceId, iso(from), iso(to)] as const,
     /** Capability/skill assignments for one resource. */
     capabilities: (resourceId: string) => ["resource-capabilities", resourceId] as const,
+    /** QR sticker codes linked to one resource. */
+    scanCodes: (resourceId: string) => ["resource-scan-codes", resourceId] as const,
+    /** Prefix over every resource's codes — a moved code leaves another resource's list stale. */
+    scanCodesAll: () => ["resource-scan-codes"] as const,
+    /** One resource at a glance — the status sheet a scan opens. */
+    status: (resourceId: string) => ["resource-status", resourceId] as const,
     /**
      * Flat list of ALL active resources across types (availability-event scope picker).
      * Deliberately a distinct key from `byType` — different fetch/payload; do not fold

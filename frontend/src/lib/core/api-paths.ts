@@ -99,6 +99,11 @@ export const API_PATHS = {
   resourceCapabilities: (resourceId: string) => `/api/resources/${resourceId}/capabilities`,
   resourceCapability: (resourceId: string, capabilityId: string) =>
     `/api/resources/${resourceId}/capabilities/${capabilityId}`,
+  resourceStatus: (resourceId: string) => `/api/resources/${resourceId}/status`,
+  RESOURCE_SCAN_CODE_LOOKUP: '/api/resources/scan-codes/lookup',
+  resourceScanCodes: (resourceId: string) => `/api/resources/${resourceId}/scan-codes`,
+  resourceScanCode: (resourceId: string, codeId: string) =>
+    `/api/resources/${resourceId}/scan-codes/${codeId}`,
 
   // Person Profiles
   calendarSubscriptions: '/api/calendar/subscriptions',

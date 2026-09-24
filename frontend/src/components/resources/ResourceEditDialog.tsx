@@ -26,6 +26,7 @@ import { useResourceCustomFieldForm } from '@foundation/src/hooks/useResourceCus
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { CustomFieldInput } from './CustomFieldInput';
 import { ResourceDirectoryFields, type DirectoryFormValues } from './ResourceDirectoryFields';
+import { ResourceScanCodesSection } from './ResourceScanCodesSection';
 import { isValidEmail } from '@foundation/src/lib/utils/validation';
 
 interface ResourceEditDialogProps {
@@ -311,6 +312,9 @@ export function ResourceEditDialog({
           ))}
         </div>
       )}
+
+      {/* Codes hang off the resource, so there is nothing to link while creating it. */}
+      {resource && resourceType.scanCodesEnabled && <ResourceScanCodesSection resourceId={resource.id} />}
     </FormDialog>
   );
 }
