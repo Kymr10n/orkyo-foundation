@@ -25,6 +25,15 @@ public interface IConflictService
     /// it for the authoritative all-time view).
     /// </summary>
     Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// The resource-level conflicts (overlap, capacity, absence, off-time, site) of one
+    /// resource's <paramref name="assignments"/>, for a status summary. Validates only those
+    /// assignments, never the tenant: request-level kinds (capability, timing, precedence) are
+    /// not counted, because they belong to a request rather than to the resource.
+    /// </summary>
+    Task<int> CountResourceConflictsAsync(
+        IReadOnlyList<ResourceAssignmentInfo> assignments, CancellationToken ct = default);
 }
 
 public class ConflictService(
@@ -113,6 +122,30 @@ public class ConflictService(
         }
 
         return result;
+    }
+
+    public async Task<int> CountResourceConflictsAsync(
+        IReadOnlyList<ResourceAssignmentInfo> assignments, CancellationToken ct = default)
+    {
+        var items = assignments
+            .Where(a => a.AssignmentStatus != AssignmentStatuses.Cancelled)
+            .Select(a => new ValidateResourceAssignmentRequest
+            {
+                RequestId = a.RequestId,
+                ResourceId = a.ResourceId,
+                StartUtc = a.StartUtc,
+                EndUtc = a.EndUtc,
+                AllocationPercent = a.AllocationPercent,
+                ExcludeAssignmentId = a.Id,
+            })
+            .ToList();
+        if (items.Count == 0) return 0;
+
+        var noPeers = new Dictionary<Guid, Guid>();
+        return (await validator.ValidateBatchAsync(items, ct))
+            .SelectMany(v => v.Result.Blockers.Concat(v.Result.Warnings)
+                .Select(issue => MapIssue(v.RequestId ?? Guid.Empty, issue, noPeers)))
+            .Count(c => c is not null);
     }
 
     /// <summary>

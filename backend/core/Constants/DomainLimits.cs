@@ -13,6 +13,9 @@ public static class DomainLimits
     /// <summary>Maximum length for a placeable resource's code — matches resources.code VARCHAR(63).</summary>
     public const int ResourceCodeMaxLength = 63;
 
+    /// <summary>Maximum length for a QR sticker code — matches the CHECK on resource_scan_codes.code.</summary>
+    public const int ResourceScanCodeMaxLength = 512;
+
     /// <summary>Maximum length for site names</summary>
     public const int SiteNameMaxLength = 200;
 

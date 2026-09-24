@@ -762,4 +762,60 @@ public class ConflictServiceTests
 
         Assert.DoesNotContain(conflicts, c => c.Kind == ConflictKinds.DependencyViolation);
     }
+
+    // ── CountResourceConflictsAsync ──────────────────────────────────────────
+
+    [Fact]
+    public async Task CountResourceConflicts_NoLiveAssignments_SkipsValidation()
+    {
+        var cancelled = Assignment(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "machine", Start, Start.AddHours(1))
+            with
+        { AssignmentStatus = AssignmentStatuses.Cancelled };
+
+        Assert.Equal(0, await _service.CountResourceConflictsAsync([cancelled]));
+        _validator.Verify(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CountResourceConflicts_CountsResourceIssues_NotCapability()
+    {
+        var resourceId = Guid.NewGuid();
+        var assignment = Assignment(Guid.NewGuid(), Guid.NewGuid(), resourceId, "machine", Start, Start.AddHours(1));
+        IReadOnlyList<ValidateResourceAssignmentRequest>? validated = null;
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .Callback((IReadOnlyList<ValidateResourceAssignmentRequest> items, CancellationToken _) => validated = items)
+            .ReturnsAsync(
+            [
+                new AssignmentValidationBatchItem
+                {
+                    RequestId = assignment.RequestId,
+                    ResourceId = resourceId,
+                    Result = new ValidationResult
+                    {
+                        Severity = ValidationSeverity.Blocker,
+                        Blockers =
+                        [
+                            new ValidationIssue { Code = ValidationReasonCode.ResourceAbsence, Message = "Away", ResourceId = resourceId },
+                            new ValidationIssue { Code = ValidationReasonCode.CapabilityMissing, Message = "Skill", ResourceId = resourceId },
+                        ],
+                        Warnings =
+                        [
+                            new ValidationIssue
+                            {
+                                Code = ValidationReasonCode.AssignmentOverbooked, Message = "Double",
+                                ResourceId = resourceId, ConflictingAssignmentId = Guid.NewGuid(),
+                            },
+                        ],
+                    },
+                },
+            ]);
+
+        var count = await _service.CountResourceConflictsAsync([assignment]);
+
+        Assert.Equal(2, count);
+        var item = Assert.Single(validated!);
+        Assert.Equal(assignment.Id, item.ExcludeAssignmentId);
+        Assert.Equal(resourceId, item.ResourceId);
+    }
 }

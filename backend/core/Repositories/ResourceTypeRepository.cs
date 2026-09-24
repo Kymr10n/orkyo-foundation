@@ -48,7 +48,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
 {
     private const string SelectColumns =
         "id, key, display_name, display_name_plural, description, icon, has_geometry, "
-        + "has_directory_profile, single_group_membership, is_system, is_active, created_at, updated_at";
+        + "has_directory_profile, single_group_membership, scan_codes_enabled, is_system, is_active, created_at, updated_at";
 
     public async Task<IReadOnlyList<string>> GetPlaceableKeysAsync(CancellationToken ct = default)
     {
@@ -87,9 +87,10 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
         return (await db.QuerySingleOrDefaultAsync(
             $@"INSERT INTO resource_types (key, display_name, display_name_plural, description, icon,
                                              has_geometry, has_directory_profile, single_group_membership,
-                                             is_system, is_active)
+                                             scan_codes_enabled, is_system, is_active)
                VALUES (@key, @displayName, @displayNamePlural, @description, @icon,
-                       @hasGeometry, @hasDirectoryProfile, @singleGroupMembership, false, true)
+                       @hasGeometry, @hasDirectoryProfile, @singleGroupMembership,
+                       @scanCodesEnabled, false, true)
                RETURNING {SelectColumns}",
             p =>
             {
@@ -101,6 +102,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
                 p.AddWithValue("hasGeometry", request.HasGeometry);
                 p.AddWithValue("hasDirectoryProfile", request.HasDirectoryProfile);
                 p.AddWithValue("singleGroupMembership", request.SingleGroupMembership);
+                p.AddWithValue("scanCodesEnabled", request.ScanCodesEnabled);
             }, Map, ct))!;
     }
 
@@ -112,6 +114,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
         update.SetIfNotNull("has_geometry", request.HasGeometry);
         update.SetIfNotNull("has_directory_profile", request.HasDirectoryProfile);
         update.SetIfNotNull("single_group_membership", request.SingleGroupMembership);
+        update.SetIfNotNull("scan_codes_enabled", request.ScanCodesEnabled);
         update.SetIfNotNull("description", request.Description);
         update.SetIfNotNull("icon", request.Icon);
         if (request.IsActive.HasValue) update.Set("is_active", request.IsActive.Value);
@@ -253,6 +256,7 @@ public class ResourceTypeRepository(OrgContext orgContext, IOrgDbConnectionFacto
         HasGeometry = r.GetBoolean(r.GetOrdinal("has_geometry")),
         HasDirectoryProfile = r.GetBoolean(r.GetOrdinal("has_directory_profile")),
         SingleGroupMembership = r.GetBoolean(r.GetOrdinal("single_group_membership")),
+        ScanCodesEnabled = r.GetBoolean(r.GetOrdinal("scan_codes_enabled")),
         Description = r.IsDBNull(r.GetOrdinal("description")) ? null : r.GetString(r.GetOrdinal("description")),
         Icon = r.IsDBNull(r.GetOrdinal("icon")) ? null : r.GetString(r.GetOrdinal("icon")),
         IsSystem = r.GetBoolean(r.GetOrdinal("is_system")),

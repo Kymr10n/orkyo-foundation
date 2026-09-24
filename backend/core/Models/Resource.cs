@@ -29,6 +29,12 @@ public record ResourceTypeInfo
     /// enforce_single_group_membership().
     /// </summary>
     public required bool SingleGroupMembership { get; init; }
+    /// <summary>
+    /// Resources of this type can have QR codes linked to them, and a scan of such a code
+    /// finds the resource. Off, the links are kept but a scan does not name the resource.
+    /// Not <c>required</c>, so callers built against an earlier minor version still compile.
+    /// </summary>
+    public bool ScanCodesEnabled { get; init; }
     public required bool IsSystem { get; init; }
     public required bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
@@ -107,6 +113,7 @@ public record CreateResourceTypeRequest
     public bool HasGeometry { get; init; }
     public bool HasDirectoryProfile { get; init; }
     public bool SingleGroupMembership { get; init; }
+    public bool ScanCodesEnabled { get; init; } = true;
 }
 
 public record UpdateResourceTypeRequest
@@ -118,6 +125,7 @@ public record UpdateResourceTypeRequest
     public bool? HasGeometry { get; init; }
     public bool? HasDirectoryProfile { get; init; }
     public bool? SingleGroupMembership { get; init; }
+    public bool? ScanCodesEnabled { get; init; }
     public string? Description { get; init; }
     public string? Icon { get; init; }
     public bool? IsActive { get; init; }

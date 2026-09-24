@@ -129,6 +129,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceGroupMemberRepository, ResourceGroupMemberRepository>();
         services.AddScoped<IResourceGroupRepository, ResourceGroupRepository>();
         services.AddScoped<IResourceCustomFieldRepository, ResourceCustomFieldRepository>();
+        services.AddScoped<IResourceScanCodeRepository, ResourceScanCodeRepository>();
         services.AddScoped<IListDefinitionRepository, ListDefinitionRepository>();
         services.AddScoped<IListInstanceRepository, ListInstanceRepository>();
         services.AddScoped<IResourceRepository, ResourceRepository>();
@@ -186,6 +187,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IResourceAssignmentValidator, ResourceAssignmentValidator>();
         services.AddScoped<IConflictService, ConflictService>();
         services.AddScoped<IResourceCustomFieldService, ResourceCustomFieldService>();
+        services.AddScoped<IResourceScanCodeService, ResourceScanCodeService>();
+        services.AddScoped<IResourceStatusService, ResourceStatusService>();
         services.AddScoped<IListDefinitionService, ListDefinitionService>();
         services.AddScoped<IListRowService, ListRowService>();
         services.AddScoped<IResourceService, ResourceService>();
