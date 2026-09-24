@@ -604,6 +604,9 @@ export function SitePlanCanvas({
             </div>
 
             <div className="relative" style={{ height: geometry.height }}>
+              {bandsContent}
+              {/* After the bars, unlike the structure views: a bar spans its whole duration,
+                  so an edge painted underneath disappears wherever it crosses one. */}
               <PlanEdgeLayer
                 edges={drawableEdges}
                 rectsById={geometry.rectsById}
@@ -612,7 +615,6 @@ export function SitePlanCanvas({
                 selectedEdgeId={null}
                 violatingEdgeIds={violatingEdgeIds}
               />
-              {bandsContent}
               {/* Below the header, like NowLine on the grids — the pill can no longer
                   collide with the date row. */}
               {nowPct !== null && (

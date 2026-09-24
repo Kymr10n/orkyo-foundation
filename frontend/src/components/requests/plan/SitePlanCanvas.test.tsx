@@ -296,6 +296,18 @@ describe("SitePlanCanvas — timeline view", () => {
     expect(container.querySelectorAll("svg g").length).toBe(1);
   });
 
+  it("paints the edge over the bars, which would otherwise hide it where they overlap", async () => {
+    const { container } = renderCanvas({ view: "timeline" });
+    await userEvent.click(await screen.findByText("Contract One"));
+    await userEvent.click(screen.getByText("Contract Two"));
+    const svg = container.querySelector("#plan-edge-arrowhead")!.closest("svg")!;
+    const bar = screen.getByTestId("plan-bar-Cut");
+    // A later sibling paints above an earlier one; the svg box itself must not take the
+    // pointer, or the bars under it would stop opening.
+    expect(bar.compareDocumentPosition(svg) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(svg.classList.contains("pointer-events-none")).toBe(true);
+  });
+
   it("draws no edge to an undated task", async () => {
     (getSitePlan as Mock).mockResolvedValue(sitePlan({
       children: [dated("Cut", "g1", 1), child("Weld", "g1")],
