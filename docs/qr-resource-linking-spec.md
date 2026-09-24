@@ -1,7 +1,8 @@
 # QR stickers on resources — specification and implementation plan
 
-Status: **draft for approval**, written 2026-09-24 on branch
-`claude/orkyo-qr-resource-linking-u77if7`.
+Status: **implemented** (phases 1 and 2), written 2026-09-24 on branch
+`claude/orkyo-qr-resource-linking-u77if7`. Section 10 records where the implementation
+differs from the first draft.
 
 This document connects Orkyo to physical objects. A user puts a QR sticker on a resource.
 The user links the sticker to the resource with the phone camera. A later scan of the
@@ -12,7 +13,7 @@ Three product decisions apply:
 | Decision | Value |
 |---|---|
 | Sticker source | Any existing sticker: bought label rolls, vendor asset tags. Orkyo reads codes. Orkyo does not create or print codes. |
-| Scan target | Phase 1 opens the resource edit dialog. Phase 2 opens a read-only status sheet with an Edit button. |
+| Scan target | A read-only status sheet with an Edit button. Both phases shipped together, so the edit dialog is never the scan target. |
 | Plan gating | None. The feature is in every SaaS plan and in Community. The resource type setting is the only switch. |
 
 ## 1. Evaluation
@@ -20,10 +21,10 @@ Three product decisions apply:
 The idea fits the current model. Resource types already carry behaviour flags, and dialogs
 already open from a URL parameter. The source idea needs nine corrections or additions.
 
-1. **The camera is blocked today.** Three places send `Permissions-Policy: camera=()`:
-   `backend/src/Middleware/SecurityHeadersMiddleware.cs`, and in orkyo-infra
-   `nginx/snippets/security-headers.conf` and `nginx/snippets/csp-app.conf`. All three must
-   send `camera=(self)`.
+1. **The camera is blocked today.** The nginx snippet `csp-app.conf` in orkyo-infra sends
+   `Permissions-Policy: camera=()` on the app document. That snippet must send
+   `camera=(self)`. The API also sends `camera=()`, but on JSON responses only. A header on
+   a JSON response has no effect on the page, so the API header stays.
 2. **The camera needs a secure context.** Browsers give camera access only on HTTPS or on
    `localhost`. A Community installation on a plain-HTTP LAN address cannot scan. The scanner
    shows the message "Scanning needs HTTPS" in that case.
@@ -47,7 +48,8 @@ already open from a URL parameter. The source idea needs nine corrections or add
 8. **The access rules follow the three roles.** A Viewer can scan to find a resource. The
    edit dialog then opens read-only, because `FormDialog` already disables Save. Only an
    Editor can link or unlink a code. A code is not a secret. Every lookup needs a signed-in
-   member and runs in the tenant database. There is no anonymous lookup.
+   member and runs in the tenant database. There is no anonymous lookup. The status sheet is
+   read-only for all roles, and only an Editor sees its Edit button.
 9. **The resource list ignores `?edit=<id>` today.** The command palette already links to
    `…/instances?edit=<id>`, but `ResourceList.tsx` does not read the parameter. The scan
    result uses the same link. The fix connects `useEditQueryParam` in `ResourceList.tsx`, so
@@ -83,24 +85,21 @@ and as `bool?` on `UpdateResourceTypeRequest`.
 
 ```sql
 CREATE TABLE public.resource_scan_codes (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    resource_id UUID NOT NULL REFERENCES public.resources(id) ON DELETE CASCADE,
-    code        TEXT NOT NULL,
-    created_by  UUID NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id                 uuid DEFAULT gen_random_uuid() NOT NULL,
+    resource_id        uuid NOT NULL,   -- FK to resources, ON DELETE CASCADE
+    code               text NOT NULL,   -- CHECK length 1..512, UNIQUE
+    created_by_user_id uuid NULL,       -- no FK, like updated_by_user_id in 1920
+    created_at         timestamptz DEFAULT now() NOT NULL
 );
--- after COMMIT:
-CREATE UNIQUE INDEX CONCURRENTLY ux_resource_scan_codes_code ON public.resource_scan_codes (code);
-CREATE INDEX CONCURRENTLY ix_resource_scan_codes_resource ON public.resource_scan_codes (resource_id);
+CREATE INDEX CONCURRENTLY idx_resource_scan_codes_resource ON public.resource_scan_codes (resource_id);
 ```
 
 Each tenant has its own database, so a unique index on `code` is unique per tenant. Two
 tenants can use the same sticker text.
 
 The migration is `tenant/1990.foundation.resource_scan_codes.sql` with the header
-`-- @migration-class: expand`. It follows the layout of
-`1700.foundation.dissolve_side_tables_expand.sql`: changes in a transaction, then the
-indexes with `CONCURRENTLY` after `COMMIT`.
+`-- @migration-class: expand`. The table is new and empty, so the unique constraint is part
+of `CREATE TABLE`. Only the index on `resource_id` uses `CONCURRENTLY`.
 
 A soft-deactivated resource keeps its codes. A lookup of such a code returns the resource,
 and the dialog shows it as inactive.
@@ -156,22 +155,23 @@ After a scan, the dialog does one of three things:
 
 ### 5.3 Global Scan action
 
-`TopBar` gets a Scan icon button. On a phone, the Scan item is in the overflow menu. The
-action increments a new `openScanner` tick in `store/ui-actions-store.ts`, and `AppLayout`
-opens the scanner. This is the same pattern as `openAssistant`. There is no floating button,
+`TopBar` gets a Scan icon button on every screen size. The phone is where users scan, so
+the button is not in the phone overflow menu. The action increments a new `scanTick` in
+`store/ui-actions-store.ts`, and `AppLayout` loads `GlobalScanFlow` and opens the scanner. This is the same pattern as `openAssistant`. There is no floating button,
 because `FeedbackButton` already uses the bottom-right corner.
 
 After a scan, the result decides the next step:
 
 | Lookup status | Viewer | Editor |
 |---|---|---|
-| `linked` | Opens the resource. | Opens the resource. |
-| `unknown` | Shows "This code is not linked". | Shows "Link to a resource…" with a resource picker. The picker lists types with the flag on. |
-| `type_disabled` | Shows "Scanning is off for this resource type". | Same as Viewer. |
+| `linked` | Opens the status sheet. | Opens the status sheet. |
+| `unknown` | Shows "This QR code is not linked to a resource." | Opens "Link QR code" with a resource picker. The picker lists resources of types with the flag on. |
+| `type_disabled` | Shows "Scanning is off for this resource type." | Same as Viewer. |
 
-"Opens the resource" means navigation to `typeRoute(type, 'instances')?edit=<id>`.
+The Edit button of the status sheet navigates to `typeRoute(type, 'instances')?edit=<id>`.
 `ResourceList` resolves the parameter with `useEditQueryParam` and `resolveMissing`, because
-the resource is not always on the loaded page.
+the resource is not always on the loaded page. `resolveMissing` opens only a resource of the
+type of the list.
 
 ### 5.4 Resource type dialog
 
@@ -182,8 +182,8 @@ the resource is not always on the loaded page.
 
 ## 6. Security
 
-- `Permissions-Policy` changes from `camera=()` to `camera=(self)` in the three places in
-  section 1. Microphone, geolocation and payment stay blocked.
+- `Permissions-Policy` changes from `camera=()` to `camera=(self)` in `csp-app.conf` only.
+  Microphone, geolocation and payment stay blocked. Other hosts keep `camera=()`.
 - Orkyo never opens, fetches or renders a code as a link. The UI shows a code as escaped text.
 - A lookup needs an authenticated member of the tenant. The tenant database is the only
   data source, so one tenant cannot find a resource of a different tenant.
@@ -205,17 +205,22 @@ prevents accidental edits. It also gives a Viewer useful information.
 | Current assignment | `ResourceAssignmentService.GetByResourceAsync` |
 | Next assignment | `ResourceAssignmentService.GetByResourceAsync` |
 | Active absence | `IResourceAbsenceRepository` |
-| Open conflicts count | `ConflictService`, filtered to the resource |
+| Open conflicts count | `ConflictService.CountResourceConflictsAsync` |
 | Utilization, last 30 days | `UtilizationService.GetResourceUtilizationAsync` |
 
-`ConflictService` works for the full tenant today. The endpoint must not load all tenant
-conflicts for one resource. Phase 2 therefore adds a resource filter to the conflict query.
+`ConflictService.GetAllAsync` works for the full tenant. The status endpoint does not call
+it. `CountResourceConflictsAsync` checks only the bookings of the resource in the next 30
+days. It counts overlap, capacity, absence, off-time and site conflicts. Capability, timing
+and precedence conflicts belong to a request, so the count does not include them.
+
+The active absence uses the rule of the scheduler: an enabled absence whose start and end
+contain the current time.
 
 ### 7.2 Frontend
 
-`ResourceStatusSheet` is a bottom sheet on a phone and a side panel on larger screens. It
-also opens from the resource list row menu. One constant selects the scan target. There is
-no user setting for it.
+`ResourceStatusSheet` is a bottom sheet on a phone and a side panel on larger screens.
+`AppLayout` mounts it once. The store field `statusResourceId` opens it. The scanner and the
+"Show status" row action of the resource list both set this field.
 
 ## 8. Implementation plan
 
@@ -264,10 +269,19 @@ the normal foundation version bump.
 1. Resource filter on the conflict query, and the `GET /api/resources/{id}/status` endpoint.
 2. `ResourceStatusSheet`, the row-menu entry, and the change of the scan target.
 
-## 9. Open questions
+## 9. Decisions and open questions
 
-- Does a scan of a code with the type flag off show the resource name? This document says
-  no. The flag then works as a real off switch.
-- Are link and unlink events written to the audit log? This depends on the audit scope for
-  resource changes.
-- Does phase 1 accept 1D barcodes? Asset tags from some vendors are Code 128 only.
+- A scan of a code with the type flag off does not show the resource name. Decided.
+- The scanner accepts QR codes only. Decided.
+- Link and unlink events are not in the audit log. This is open.
+
+## 10. Differences from the first draft
+
+- The API security header stays `camera=()`. Only the nginx app snippet changes (section 1).
+- `ScanCodesEnabled` on `ResourceTypeInfo` is not `required` in C#. Code that a product
+  compiled against an earlier minor version still compiles.
+- A link that loses a race uses `ON CONFLICT DO NOTHING` and a second read. The loser gets
+  the result of the winner, not an error.
+- The Scan button is visible on the phone, not in the overflow menu.
+- If the loaded list is empty, `useEditQueryParam` now calls `resolveMissing`. Before, a
+  deep link to a resource on an empty site list did nothing.
