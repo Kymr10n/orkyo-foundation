@@ -33,9 +33,11 @@ function edgePath(from: { x: number; y: number }, to: { x: number; y: number }):
 const ARROWHEAD_ID = "plan-edge-arrowhead";
 
 /**
- * The edges of a plan, under the node layer.
+ * The edges of a plan. The structure views paint it under their cards, the timeline over its
+ * bars; either way the svg box itself ignores the pointer, so only the edges' hit paths take
+ * clicks and the nodes stay reachable through it.
  *
- * SVG rather than HTML because these are curves; the nodes above are HTML so they keep real
+ * SVG rather than HTML because these are curves; the nodes are HTML so they keep real
  * buttons and native focus behaviour, which foreignObject would put at risk on the oldest
  * browser this product supports.
  */
@@ -62,7 +64,7 @@ export const PlanEdgeLayer = memo(function PlanEdgeLayer({
 }) {
   return (
     <svg
-      className="absolute left-0 top-0 overflow-visible"
+      className="pointer-events-none absolute left-0 top-0 overflow-visible"
       width={width}
       height={height}
       aria-hidden="true"
