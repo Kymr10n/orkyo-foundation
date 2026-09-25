@@ -25,6 +25,16 @@ public interface IConflictService
     /// it for the authoritative all-time view).
     /// </summary>
     Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// How many of one resource's <paramref name="assignments"/> have a resource-level conflict
+    /// (overlap, capacity, absence, off-time, site), for a status summary. Validates only those
+    /// assignments, never the tenant: request-level kinds (capability, timing, precedence) are
+    /// not counted, because they belong to a request rather than to the resource. The list is
+    /// expected to hold live assignments only, as the repository returns them.
+    /// </summary>
+    Task<int> CountResourceConflictsAsync(
+        IReadOnlyList<ResourceAssignmentInfo> assignments, CancellationToken ct = default);
 }
 
 public class ConflictService(
@@ -54,15 +64,7 @@ public class ConflictService(
             foreach (var a in r.Assignments.Where(a => a.AssignmentStatus != AssignmentStatuses.Cancelled))
             {
                 requestByAssignmentId[a.Id] = r.Id;
-                items.Add(new ValidateResourceAssignmentRequest
-                {
-                    RequestId = r.Id,
-                    ResourceId = a.ResourceId,
-                    StartUtc = a.StartUtc,
-                    EndUtc = a.EndUtc,
-                    AllocationPercent = a.AllocationPercent,
-                    ExcludeAssignmentId = a.Id,
-                });
+                items.Add(ToValidationItem(r.Id, a));
             }
 
         // Multiple items per request now → group results rather than keying by request id.
@@ -114,6 +116,27 @@ public class ConflictService(
 
         return result;
     }
+
+    public async Task<int> CountResourceConflictsAsync(
+        IReadOnlyList<ResourceAssignmentInfo> assignments, CancellationToken ct = default)
+    {
+        if (assignments.Count == 0) return 0;
+
+        var noPeers = new Dictionary<Guid, Guid>();
+        return (await validator.ValidateBatchAsync(assignments.Select(a => ToValidationItem(a.RequestId, a)).ToList(), ct))
+            .Count(v => v.Result.Blockers.Concat(v.Result.Warnings)
+                .Any(issue => MapIssue(v.RequestId ?? Guid.Empty, issue, noPeers) is not null));
+    }
+
+    private static ValidateResourceAssignmentRequest ToValidationItem(Guid requestId, ResourceAssignmentInfo a) => new()
+    {
+        RequestId = requestId,
+        ResourceId = a.ResourceId,
+        StartUtc = a.StartUtc,
+        EndUtc = a.EndUtc,
+        AllocationPercent = a.AllocationPercent,
+        ExcludeAssignmentId = a.Id,
+    };
 
     /// <summary>
     /// Request-level capability: a requirement is satisfied iff at least one assigned resource has a

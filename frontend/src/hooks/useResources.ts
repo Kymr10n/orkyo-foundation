@@ -27,6 +27,15 @@ export const useResourcesOfType = (resourceTypeKey: string, siteId: string | nul
     queryFn: () => getResources({ resourceTypeKey, siteId: siteId ?? undefined }),
   });
 
+/** Every active resource, flat, for pickers that span all types. */
+export const useAllActiveResources = (enabled = true) =>
+  useQuery({
+    queryKey: qk.resources.allFlat(),
+    queryFn: () => getResources({ isActive: true }).then((r) => r.items),
+    staleTime: STALE.OPERATIONAL,
+    enabled,
+  });
+
 /**
  * Resources of one type backing that type's utilization grid — name/metadata lookup, tenant-wide.
  * Its own key on purpose (see `qk.resources.utilizationGrid`).

@@ -91,6 +91,8 @@ public class ResourceTypeCatalogService(
                     HasGeometry = spec.HasGeometry,
                     HasDirectoryProfile = spec.HasDirectoryProfile,
                     SingleGroupMembership = spec.SingleGroupMembership,
+                    // People rarely carry a sticker; the same default the 1990 backfill uses.
+                    ScanCodesEnabled = !spec.HasDirectoryProfile,
                 }, ct);
             }
             catch (Npgsql.PostgresException pg) when (pg.SqlState == Npgsql.PostgresErrorCodes.UniqueViolation)

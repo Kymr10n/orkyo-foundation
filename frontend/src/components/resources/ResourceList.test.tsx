@@ -1,16 +1,18 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceList } from './ResourceList';
-import { deleteResource, getResources } from '@foundation/src/lib/api/resources-api';
+import { deleteResource, getResource, getResources } from '@foundation/src/lib/api/resources-api';
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
+  getResource: vi.fn(),
   deleteResource: vi.fn(),
 }));
 
@@ -77,6 +79,7 @@ const carType: ResourceTypeInfo = {
   hasGeometry: false,
   hasDirectoryProfile: false,
   singleGroupMembership: false,
+  scanCodesEnabled: false,
   isSystem: false,
   isActive: true,
   createdAt: '2026-01-01T00:00:00Z',
@@ -88,12 +91,18 @@ const cars = [
   { id: 'car-2', name: 'Van 2', resourceTypeKey: 'car', isActive: false },
 ];
 
-function renderList() {
+function Location() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname + location.search}</span>;
+}
+
+function renderList(url = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <QueryClientProvider client={client}>
         <ResourceList resourceType={carType} />
+        <Location />
       </QueryClientProvider>
     </MemoryRouter>,
   );
@@ -217,6 +226,37 @@ describe('ResourceList', () => {
       'data-resource-id',
       'car-1',
     );
+  });
+
+  it('opens the status sheet from the row menu', async () => {
+    useUiActionsStore.setState({ statusResourceId: null });
+    renderList();
+    await chooseAction('Van 2', /Show status/);
+
+    expect(useUiActionsStore.getState().statusResourceId).toBe('car-2');
+  });
+
+  it('opens the edit dialog from a ?edit= deep link', async () => {
+    renderList('/?edit=car-2');
+
+    expect(await screen.findByTestId('resource-edit-dialog')).toHaveAttribute('data-resource-id', 'car-2');
+  });
+
+  it('fetches a deep-linked resource the site-scoped list does not hold', async () => {
+    (getResource as Mock).mockResolvedValue({ id: 'car-9', name: 'Van 9', resourceTypeKey: 'car', isActive: true });
+    renderList('/?edit=car-9');
+
+    expect(await screen.findByTestId('resource-edit-dialog')).toHaveAttribute('data-resource-id', 'car-9');
+  });
+
+  it('ignores a deep link to a resource of another type', async () => {
+    (getResource as Mock).mockResolvedValue({ id: 'p-9', name: 'Ada', resourceTypeKey: 'person', isActive: true });
+    renderList('/?edit=p-9');
+
+    // The param clears once the fetch has settled, so the dialog had its chance to open.
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/));
+    expect(getResource).toHaveBeenCalledWith('p-9');
+    expect(screen.queryByTestId('resource-edit-dialog')).not.toBeInTheDocument();
   });
 
   it('deactivates only after confirmation', async () => {

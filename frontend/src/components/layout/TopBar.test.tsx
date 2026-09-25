@@ -8,12 +8,13 @@
  * - Calls switchTenant() in local dev; navigates to apex in production
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
+import { restoreViewport, setViewport } from '@foundation/src/test-utils/viewport';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
@@ -415,5 +416,24 @@ describe('TopBar — calendar subscription availability', () => {
     expect(
       screen.getByRole('button', { name: 'Calendar subscription not available' }),
     ).toBeDisabled();
+  });
+});
+
+describe('TopBar — Scan QR code', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseAuth.mockReturnValue(authState());
+  });
+
+  afterEach(restoreViewport);
+
+  it('is offered on a phone and asks the layout to open the scanner', () => {
+    setViewport(375);
+    const before = useUiActionsStore.getState().scanTick;
+    renderTopBar();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scan QR code' }));
+
+    expect(useUiActionsStore.getState().scanTick).toBe(before + 1);
   });
 });

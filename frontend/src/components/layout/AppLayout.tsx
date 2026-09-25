@@ -24,6 +24,8 @@ import { AssistantPanel } from "@foundation/src/components/assistant/AssistantPa
 import { resolveView } from "@foundation/src/components/assistant/view-catalog";
 import { useApplyAssistantProposal } from "@foundation/src/hooks/useAiAssistant";
 import { ROUTE_HOME } from "@foundation/src/constants/auth";
+import { ResourceStatusSheet } from "@foundation/src/components/resources/ResourceStatusSheet";
+import { GlobalScanFlow } from "@foundation/src/components/scan/GlobalScanFlow";
 
 interface AppLayoutProps {
   /** Edition-supplied plans-page href for the tier-gated upsells (calendar subscription, data export / import). */
@@ -88,6 +90,9 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const lastTourTick = useRef(tourTick);
   const lastAssistantTick = useRef(assistantTick);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const scanTick = useUiActionsStore((s) => s.scanTick);
+  const lastScanTick = useRef(scanTick);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   useEffect(() => {
     if (commandPaletteTick !== lastCommandPaletteTick.current) {
@@ -109,6 +114,13 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
       setAssistantOpen(true);
     }
   }, [assistantTick]);
+
+  useEffect(() => {
+    if (scanTick !== lastScanTick.current) {
+      lastScanTick.current = scanTick;
+      setScannerOpen(true);
+    }
+  }, [scanTick]);
 
   // Load sites (shared React Query cache) and validate/set default selection.
   const { data: sites, isSuccess: sitesLoaded, isError: sitesError, error: sitesLoadError } = useSites();
@@ -203,6 +215,8 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
         }}
         onApplyProposal={applyAssistantProposal}
       />
+      <GlobalScanFlow open={scannerOpen} onOpenChange={setScannerOpen} />
+      <ResourceStatusSheet />
     </div>
   );
 }

@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
+using Api.Security;
 using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
@@ -121,6 +122,14 @@ public static class ResourceEndpoints
         })
             .WithName("GetResourceAssignments")
             .WithSummary("Get assignments for a resource");
+
+        group.MapGet("/{id:guid}/status", async (
+            Guid id,
+            IResourceStatusService service,
+            CancellationToken ct) =>
+            EndpointHelpers.OkOrNotFound(await service.GetAsync(id, ct), "Resource", id))
+            .WithName("GetResourceStatus")
+            .WithSummary("Get a resource's current booking, next booking, absence, conflicts and utilization");
 
         group.MapGet("/{id:guid}/candidate-requests", async (
             Guid id,
@@ -276,6 +285,51 @@ public static class ResourceEndpoints
         })
             .WithName("DeleteResourceAbsence")
             .WithSummary("Delete an absence for a resource");
+
+        // ── QR scan codes (docs/qr-resource-linking-spec.md) ─────────
+
+        // A query parameter, not a path segment: a sticker's text can hold '/', '?' and '#'.
+        group.MapGet("/scan-codes/lookup", async (
+            string? code,
+            IResourceScanCodeService service,
+            CancellationToken ct) =>
+            string.IsNullOrWhiteSpace(code)
+                ? ErrorResponses.BadRequest("A code is required.")
+                : Results.Ok(await service.LookupAsync(code, ct)))
+            .WithName("LookupResourceScanCode")
+            .WithSummary("Find the resource a scanned QR code is linked to");
+
+        group.MapGet("/{id:guid}/scan-codes", async (
+            Guid id,
+            IResourceScanCodeService service,
+            CancellationToken ct) =>
+            EndpointHelpers.OkOrNotFound(await service.GetByResourceAsync(id, ct), "Resource", id))
+            .WithName("GetResourceScanCodes")
+            .WithSummary("Get the QR codes linked to a resource");
+
+        group.MapPost("/{id:guid}/scan-codes", async (
+            Guid id,
+            [FromBody] LinkResourceScanCodeRequest request,
+            IResourceScanCodeService service,
+            ICurrentPrincipal principal,
+            IValidator<LinkResourceScanCodeRequest> validator,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+            await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var code = await service.LinkAsync(id, request, principal.UserIdOrNull, ct);
+                return Results.Created($"/api/resources/{id}/scan-codes/{code.Id}", code);
+            }, logger, "link resource scan code", new { id }))
+            .WithName("LinkResourceScanCode")
+            .WithSummary("Link a QR code to a resource");
+
+        group.MapDelete("/{id:guid}/scan-codes/{codeId:guid}", async (
+            Guid id,
+            Guid codeId,
+            IResourceScanCodeService service,
+            CancellationToken ct) =>
+            EndpointHelpers.NoContentOrNotFound(await service.UnlinkAsync(id, codeId, ct), "Scan code", codeId))
+            .WithName("UnlinkResourceScanCode")
+            .WithSummary("Remove a QR code from a resource");
     }
 }
 

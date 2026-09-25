@@ -32,6 +32,7 @@ interface FormState {
   hasGeometry: boolean;
   hasDirectoryProfile: boolean;
   singleGroupMembership: boolean;
+  scanCodesEnabled: boolean;
   isActive: boolean;
 }
 
@@ -56,6 +57,11 @@ const BEHAVIOUR_FLAGS = [
     field: 'singleGroupMembership',
     label: 'Belongs to one group at a time',
     hint: 'Adding it to a second group moves it, rather than listing it in both.',
+  },
+  {
+    field: 'scanCodesEnabled',
+    label: 'Can have QR codes',
+    hint: 'Lets users link QR stickers to these resources and scan them to open a resource.',
   },
 ] as const satisfies readonly { field: keyof FormState; label: string; hint: string }[];
 
@@ -100,7 +106,7 @@ export function ResourceTypeEditDialog({
     emptyForm: () => ({
       key: '', displayName: '', displayNamePlural: '', description: '', icon: '',
       hasGeometry: false, hasDirectoryProfile: false, singleGroupMembership: false,
-      isActive: true,
+      scanCodesEnabled: true, isActive: true,
     }),
     toForm: (rt) => ({
       key: rt.key,
@@ -111,6 +117,7 @@ export function ResourceTypeEditDialog({
       hasGeometry: rt.hasGeometry,
       hasDirectoryProfile: rt.hasDirectoryProfile,
       singleGroupMembership: rt.singleGroupMembership,
+      scanCodesEnabled: rt.scanCodesEnabled,
       isActive: rt.isActive,
     }),
     save: (form, rt) =>
@@ -123,6 +130,7 @@ export function ResourceTypeEditDialog({
             hasGeometry: form.hasGeometry,
             hasDirectoryProfile: form.hasDirectoryProfile,
             singleGroupMembership: form.singleGroupMembership,
+            scanCodesEnabled: form.scanCodesEnabled,
             isActive: form.isActive,
           })
         : createResourceType({
@@ -134,6 +142,7 @@ export function ResourceTypeEditDialog({
             hasGeometry: form.hasGeometry,
             hasDirectoryProfile: form.hasDirectoryProfile,
             singleGroupMembership: form.singleGroupMembership,
+            scanCodesEnabled: form.scanCodesEnabled,
           }),
     entityLabel: 'Resource type',
     invalidates: RESOURCE_TYPE_INVALIDATES,

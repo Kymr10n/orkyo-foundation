@@ -77,6 +77,25 @@ export function formatCompactTime(date: Date): string {
   return formatLocalized(date, { hour: "2-digit", minute: "2-digit", hourCycle: HOUR_CYCLE });
 }
 
+/** Day, month and clock time without a year, for bookings and other short-lived periods. "Apr 2, 14:30" */
+const DATETIME_SHORT_OPTS: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: HOUR_CYCLE,
+};
+
+export function formatDateTimeShort(iso: string): string {
+  return formatLocalized(new Date(iso), DATETIME_SHORT_OPTS);
+}
+
+/** A period as two {@link formatDateTimeShort} stamps. Empty when either end is missing. */
+export function formatPeriod(start: string, end: string): string {
+  if (!start || !end) return "";
+  return `${formatDateTimeShort(start)} – ${formatDateTimeShort(end)}`;
+}
+
 /** Shared day-column / week-day-header options so the grid and calendar headers can't drift. */
 export const GRID_DAY_HEADER_OPTS: Intl.DateTimeFormatOptions = { weekday: "short", day: "2-digit" };
 /** Shared week-column header options (month + day). */

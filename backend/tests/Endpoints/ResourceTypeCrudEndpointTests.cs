@@ -414,4 +414,24 @@ public class ResourceTypeCrudEndpointTests
         resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
+    [Fact]
+    public async Task ScanCodesFlag_RoundTrips()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = UniqueKey("tagged"),
+            DisplayName = "Tagged",
+            DisplayNamePlural = "Tagged",
+            ScanCodesEnabled = false,
+        });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var type = (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
+        Assert.False(type.ScanCodesEnabled);
+
+        var updated = await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}",
+            new UpdateResourceTypeRequest { ScanCodesEnabled = true });
+
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.True((await updated.Content.ReadFromJsonAsync<ResourceTypeInfo>())!.ScanCodesEnabled);
+    }
 }

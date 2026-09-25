@@ -47,6 +47,7 @@ import {
     Megaphone,
     Menu,
     Moon,
+    ScanLine,
     Search,
     Shield,
     Sun,
@@ -102,6 +103,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
   const uiTriggerImport = useUiActionsStore((s) => s.triggerImport);
   const uiOpenCommandPalette = useUiActionsStore((s) => s.openCommandPalette);
   const openAssistant = useUiActionsStore((s) => s.openAssistant);
+  const openScanner = useUiActionsStore((s) => s.openScanner);
 
   // Two conditions, deliberately: the workspace's plan has to include the assistant,
   // and this person has to have a grant with budget left. Either one missing means no
@@ -235,6 +237,18 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
           aria-label="Search (⌘K)"
         >
           <Search className="h-4 w-4" />
+        </Button>
+
+        {/* Scan — every width, not in the phone overflow menu: the phone is where the
+            stickers are scanned. */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => openScanner()}
+          title="Scan QR code"
+          aria-label="Scan QR code"
+        >
+          <ScanLine className="h-4 w-4" />
         </Button>
 
         {/* Assistant — only when the workspace is entitled AND this person has a

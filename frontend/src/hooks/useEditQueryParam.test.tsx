@@ -135,6 +135,17 @@ describe('useEditQueryParam', () => {
     expect(resolveMissing).toHaveBeenCalledWith('zzz');
   });
 
+  it('fetches the item when the scoped list is empty', async () => {
+    // A site with no resources of this type still must not swallow a link to one elsewhere.
+    const onOpen = vi.fn();
+    const missing = { id: 'zzz', name: 'Elsewhere' };
+
+    renderAt('/?edit=zzz', { items: [], onOpen, resolveMissing: vi.fn().mockResolvedValue(missing) });
+
+    await waitFor(() => expect(onOpen).toHaveBeenCalledWith(missing));
+    expect(screen.getByTestId('qs')).toHaveTextContent('');
+  });
+
   it('says so when the id resolves to nothing, rather than doing nothing', async () => {
     const onOpen = vi.fn();
     const onMissing = vi.fn();

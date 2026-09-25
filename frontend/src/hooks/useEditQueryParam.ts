@@ -56,7 +56,7 @@ export function useEditQueryParam<T>(
       handledIdRef.current = null;
       return;
     }
-    if (!ready || !items?.length || handledIdRef.current === editId) return;
+    if (!ready || handledIdRef.current === editId) return;
 
     const clearParam = () =>
       setSearchParams(
@@ -67,7 +67,7 @@ export function useEditQueryParam<T>(
         { replace: true },
       );
 
-    const match = items.find((item) => readId(item) === editId);
+    const match = items?.find((item) => readId(item) === editId);
     if (match) {
       handledIdRef.current = editId;
       openItem(match);

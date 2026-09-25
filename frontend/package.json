@@ -66,6 +66,8 @@
     "zustand": "^5.0.0"
   },
   "dependencies": {
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
     "clsx": "^2.1.1",
     "jspdf": "^4.2.1",
     "sonner": "^2.0.8",
