@@ -8,6 +8,7 @@ import {
 import { getResourceStatus } from "@foundation/src/lib/api/resource-status-api";
 import { useAllActiveResources } from "@foundation/src/hooks/useResources";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
+import { useIsMultiSite, useSites } from "@foundation/src/hooks/useSites";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 
@@ -47,17 +48,52 @@ export const useLinkResourceScanCode = () =>
     },
   });
 
+export interface ScanLinkType {
+  key: string;
+  displayName: string;
+}
+
+export interface ScanLinkCandidate {
+  id: string;
+  name: string;
+  typeKey: string;
+  typeName: string;
+  /** Set on a multi-site tenant, so two resources with one name still read apart. */
+  siteName?: string;
+}
+
 /**
- * Active resources a scanned, unknown code can be linked to: those whose type has QR
- * codes turned on.
+ * What the "Link QR code" dialog can pick from: the types with QR codes turned on, and the
+ * active resources of those types. The dialog narrows by type itself, so the two lists come
+ * back separately rather than pre-flattened into options.
  */
-export const useScanLinkCandidates = (enabled: boolean) => {
+export const useScanLinkCandidates = (enabled: boolean): { types: ScanLinkType[]; candidates: ScanLinkCandidate[] } => {
   const { data: resources } = useAllActiveResources(enabled);
-  const { data: types } = useResourceTypes();
-  const scannable = new Map((types ?? []).filter((t) => t.scanCodesEnabled).map((t) => [t.key, t]));
-  return (resources ?? [])
-    .filter((r) => scannable.has(r.resourceTypeKey))
-    .map((r) => ({ id: r.id, label: `${r.name} (${scannable.get(r.resourceTypeKey)!.displayName})` }));
+  const { data: resourceTypes } = useResourceTypes();
+  const { data: sites } = useSites();
+  const isMultiSite = useIsMultiSite();
+
+  const types = (resourceTypes ?? [])
+    .filter((t) => t.isActive && t.scanCodesEnabled)
+    .map((t) => ({ key: t.key, displayName: t.displayName }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  const typeName = new Map(types.map((t) => [t.key, t.displayName]));
+  const siteName = new Map((sites ?? []).map((s) => [s.id, s.name]));
+
+  const candidates = (resources ?? [])
+    .filter((r) => typeName.has(r.resourceTypeKey))
+    .map((r) => {
+      const siteId = r.homeSiteId ?? r.currentSiteId;
+      return {
+        id: r.id,
+        name: r.name,
+        typeKey: r.resourceTypeKey,
+        typeName: typeName.get(r.resourceTypeKey)!,
+        siteName: isMultiSite && siteId ? siteName.get(siteId) : undefined,
+      };
+    });
+
+  return { types, candidates };
 };
 
 export const useUnlinkResourceScanCode = (resourceId: string) =>
