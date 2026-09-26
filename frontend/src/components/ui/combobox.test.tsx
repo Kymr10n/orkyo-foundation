@@ -13,6 +13,19 @@ function open() {
 }
 
 describe('Combobox', () => {
+  it('opens as a modal popover, so its list scrolls inside a modal dialog', () => {
+    // A modal Dialog's scroll lock blocks scrolling on everything outside it, and the popover is
+    // portalled outside it. A modal popover brings its own lock, which then wins. The only
+    // observable trace of that mode is the outside-pointer block it also switches on.
+    render(<Combobox value="" onChange={() => {}} options={options} />);
+    open();
+
+    expect(document.body.style.pointerEvents).toBe('none');
+
+    fireEvent.click(within(screen.getByRole('listbox')).getByText('Apple'));
+    expect(document.body.style.pointerEvents).toBe('');
+  });
+
   it('shows the placeholder when nothing is selected', () => {
     render(<Combobox value="" onChange={() => {}} options={options} placeholder="Pick fruit" />);
     expect(screen.getByText('Pick fruit')).toBeInTheDocument();

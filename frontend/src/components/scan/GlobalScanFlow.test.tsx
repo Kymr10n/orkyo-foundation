@@ -20,6 +20,13 @@ vi.mock('@foundation/src/lib/api/resource-types-api', () => typesApi);
 const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }));
 vi.mock('sonner', () => ({ toast }));
 
+// Sites decide whether a resource label carries its site name. One site by default.
+const sitesState = vi.hoisted(() => ({ sites: [{ id: 'site-1', name: 'North' }] }));
+vi.mock('@foundation/src/hooks/useSites', () => ({
+  useSites: () => ({ data: sitesState.sites }),
+  useIsMultiSite: () => sitesState.sites.length > 1,
+}));
+
 vi.mock('@foundation/src/components/scan/QrScannerDialog', () => ({
   QrScannerDialog: ({ open, onScan }: { open: boolean; onScan: (code: string) => void }) =>
     open ? <button onClick={() => onScan('STICKER-9')}>Simulate scan</button> : null,
@@ -45,7 +52,24 @@ function renderFlow() {
   );
 }
 
-const resource = (id: string, name: string, resourceTypeKey: string) => ({ id, name, resourceTypeKey });
+const resource = (id: string, name: string, resourceTypeKey: string, homeSiteId?: string) => ({
+  id,
+  name,
+  resourceTypeKey,
+  homeSiteId,
+});
+
+const toolResourceType = { ...machineResourceType, id: 'rt-tool', key: 'tool', displayName: 'Tool', scanCodesEnabled: true };
+
+/** The two pickers of the link dialog, told apart by their labels. */
+const typeFilter = () => screen.getByRole('combobox', { name: 'Resource type' });
+const resourcePicker = () => screen.getByRole('combobox', { name: 'Resource' });
+const optionLabels = async () => {
+  const listbox = await screen.findByRole('listbox');
+  return within(listbox)
+    .getAllByRole('option')
+    .map((o) => o.textContent?.trim());
+};
 
 /** Renders the flow and scans STICKER-9, which the lookup answers as given. */
 async function scanWith(lookupResult: unknown) {
@@ -75,6 +99,72 @@ describe('GlobalScanFlow', () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
+    sitesState.sites = [{ id: 'site-1', name: 'North' }];
+  });
+
+  it('hides the type filter when only one type has QR codes turned on', async () => {
+    await scanWith({ status: 'unknown' });
+    await screen.findByText('Link QR code');
+
+    expect(screen.queryByRole('combobox', { name: 'Resource type' })).not.toBeInTheDocument();
+    expect(resourcePicker()).toBeInTheDocument();
+  });
+
+  it('narrows the list by resource type, and drops a selection the filter hides', async () => {
+    typesApi.getResourceTypes.mockResolvedValue([machineResourceType, toolResourceType]);
+    resourcesApi.getResources.mockResolvedValue({
+      items: [resource('r-drill', 'Drill', 'machine'), resource('r-saw', 'Saw', 'tool')],
+    });
+    await scanWith({ status: 'unknown' });
+    await screen.findByText('Link QR code');
+
+    // Unfiltered: every scannable resource, in one list.
+    fireEvent.click(resourcePicker());
+    await waitFor(async () => expect(await optionLabels()).toEqual(['Drill (Machine)', 'Saw (Tool)']));
+    fireEvent.click(screen.getByRole('option', { name: 'Saw (Tool)' }));
+    expect(screen.getByRole('button', { name: 'Link' })).toBeEnabled();
+
+    // A filter that hides the chosen resource also unchooses it: submit would link it otherwise.
+    fireEvent.click(typeFilter());
+    fireEvent.click(screen.getByRole('option', { name: 'Machine' }));
+    expect(screen.getByRole('button', { name: 'Link' })).toBeDisabled();
+
+    fireEvent.click(resourcePicker());
+    expect(await optionLabels()).toEqual(['Drill (Machine)']);
+  });
+
+  it('says which type came up empty', async () => {
+    typesApi.getResourceTypes.mockResolvedValue([machineResourceType, toolResourceType]);
+    resourcesApi.getResources.mockResolvedValue({ items: [resource('r-drill', 'Drill', 'machine')] });
+    await scanWith({ status: 'unknown' });
+    await screen.findByText('Link QR code');
+
+    fireEvent.click(typeFilter());
+    fireEvent.click(screen.getByRole('option', { name: 'Tool' }));
+    fireEvent.click(resourcePicker());
+
+    expect(await screen.findByText('No Tool resource found.')).toBeInTheDocument();
+  });
+
+  it('names the site of each resource on a multi-site tenant, so same-named ones read apart', async () => {
+    sitesState.sites = [
+      { id: 'site-1', name: 'North' },
+      { id: 'site-2', name: 'South' },
+    ];
+    resourcesApi.getResources.mockResolvedValue({
+      items: [resource('r-n', 'Break Room', 'machine', 'site-1'), resource('r-s', 'Break Room', 'machine', 'site-2')],
+    });
+    await scanWith({ status: 'unknown' });
+    await screen.findByText('Link QR code');
+
+    fireEvent.click(resourcePicker());
+    await waitFor(async () =>
+      expect(await optionLabels()).toEqual(['Break Room (Machine) · North', 'Break Room (Machine) · South']),
+    );
+
+    // The site is part of the label, so the search box finds it.
+    fireEvent.change(screen.getByPlaceholderText('Search resources…'), { target: { value: 'south' } });
+    expect(await optionLabels()).toEqual(['Break Room (Machine) · South']);
   });
 
   it('opens the status sheet of a linked resource', async () => {

@@ -83,8 +83,13 @@ export function Combobox({
   );
   const truncated = matches.length - filtered.length;
 
+  // `modal`, so the list scrolls inside a dialog. A modal Dialog wraps its content in
+  // react-remove-scroll, which cancels touch and wheel scrolling on everything outside it —
+  // and this popover is portalled outside it. A modal popover mounts its own scroll lock, and
+  // the most recent lock wins, so the listbox becomes the scrollable region again. Without
+  // this, the list could only be filtered on a phone, never scrolled. Select does the same.
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           id={id}

@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { QrScannerDialog } from '@foundation/src/components/scan/QrScannerDialog';
-import { Combobox } from '@foundation/src/components/ui/combobox';
+import { Combobox, type ComboboxOption } from '@foundation/src/components/ui/combobox';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Label } from '@foundation/src/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@foundation/src/components/ui/select';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import {
@@ -18,6 +25,9 @@ interface GlobalScanFlowProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** The type filter's "no filter" value. A type key is `[a-z][a-z0-9_]*`, so it cannot collide. */
+const ALL_TYPES = '*';
+
 /**
  * The top-bar Scan action (docs/qr-resource-linking-spec.md §5.3). A known code opens the
  * resource's status sheet. An unknown code lets an Editor link it to a resource on the spot,
@@ -31,7 +41,25 @@ export function GlobalScanFlow({ open, onOpenChange }: GlobalScanFlowProps) {
   /** An unknown code an Editor is about to link. */
   const [linkCode, setLinkCode] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState('');
-  const candidates = useScanLinkCandidates(linkCode !== null);
+  const [typeFilter, setTypeFilter] = useState(ALL_TYPES);
+  const { types, candidates } = useScanLinkCandidates(linkCode !== null);
+
+  // A whole workshop is a long list; the type is how a person on the floor narrows it.
+  const shown = typeFilter === ALL_TYPES ? candidates : candidates.filter((c) => c.typeKey === typeFilter);
+  const options: ComboboxOption[] = shown.map((c) => ({
+    id: c.id,
+    // The site is part of the label, so the search box finds "break north" too.
+    label: c.siteName ? `${c.name} (${c.typeName}) · ${c.siteName}` : `${c.name} (${c.typeName})`,
+  }));
+  const filterTypeName = types.find((t) => t.key === typeFilter)?.displayName;
+
+  const changeTypeFilter = (next: string) => {
+    setTypeFilter(next);
+    // A selection the new filter hides would still be linked on submit; drop it instead.
+    if (selectedId && next !== ALL_TYPES && !candidates.some((c) => c.id === selectedId && c.typeKey === next)) {
+      setSelectedId('');
+    }
+  };
 
   const handleScan = (code: string) => {
     onOpenChange(false);
@@ -40,6 +68,7 @@ export function GlobalScanFlow({ open, onOpenChange }: GlobalScanFlowProps) {
         if (result.status === 'linked' && result.resource) return openResourceStatus(result.resource.id);
         if (result.status === 'unknown' && canEdit) {
           setSelectedId('');
+          setTypeFilter(ALL_TYPES);
           link.reset();
           return setLinkCode(code);
         }
@@ -86,16 +115,37 @@ export function GlobalScanFlow({ open, onOpenChange }: GlobalScanFlowProps) {
             )
           }
         >
+          {/* One type to choose from is nothing to choose; the filter appears from two up. */}
+          {types.length > 1 && (
+            <div className="space-y-2">
+              <Label htmlFor="scan-link-type">Resource type</Label>
+              <Select value={typeFilter} onValueChange={changeTypeFilter}>
+                <SelectTrigger id="scan-link-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_TYPES}>All types</SelectItem>
+                  {types.map((t) => (
+                    <SelectItem key={t.key} value={t.key}>
+                      {t.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="scan-link-resource">Resource</Label>
             <Combobox
               id="scan-link-resource"
               value={selectedId}
               onChange={setSelectedId}
-              options={candidates}
+              options={options}
               placeholder="Select a resource…"
               searchPlaceholder="Search resources…"
-              emptyText="No resource of a type with QR codes turned on."
+              emptyText={
+                filterTypeName ? `No ${filterTypeName} resource found.` : 'No resource of a type with QR codes turned on.'
+              }
             />
           </div>
         </FormDialog>
