@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { restoreViewport, setViewport } from '@foundation/src/test-utils/viewport';
 import { Combobox, type ComboboxOption } from './combobox';
 
 const options: ComboboxOption[] = [
@@ -67,5 +68,56 @@ describe('Combobox', () => {
     open();
     const selected = within(screen.getByRole('listbox')).getByText('Apple').closest('button');
     expect(selected).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('Combobox on a phone', () => {
+  beforeEach(() => setViewport(375));
+  afterEach(restoreViewport);
+
+  it('opens as a full-screen sheet titled with the placeholder, listing every option', () => {
+    render(<Combobox value="" onChange={() => {}} options={options} placeholder="Select a resource…" />);
+    open();
+
+    const sheet = screen.getByRole('dialog', { name: 'Select a resource…' });
+    expect(within(sheet).getByPlaceholderText('Search…')).toBeInTheDocument();
+    expect(within(sheet).getAllByRole('option')).toHaveLength(3);
+  });
+
+  it('does not raise the keyboard on open: the search box is not focused', async () => {
+    render(<Combobox value="" onChange={() => {}} options={options} />);
+    open();
+    // The popover branch focuses on a timeout; give it the same chance here.
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(document.activeElement).not.toBe(screen.getByPlaceholderText('Search…'));
+  });
+
+  it('filters inside the sheet', () => {
+    render(<Combobox value="" onChange={() => {}} options={options} />);
+    open();
+    fireEvent.change(screen.getByPlaceholderText('Search…'), { target: { value: 'ban' } });
+
+    const listbox = screen.getByRole('listbox');
+    expect(within(listbox).getAllByRole('option')).toHaveLength(1);
+    expect(within(listbox).getByText('Banana')).toBeInTheDocument();
+  });
+
+  it('choosing an option reports it and closes the sheet', async () => {
+    const onChange = vi.fn();
+    render(<Combobox value="" onChange={onChange} options={options} />);
+    open();
+    fireEvent.click(within(screen.getByRole('listbox')).getByText('Cherry'));
+
+    expect(onChange).toHaveBeenCalledWith('c');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
+  it('shows the empty text in the sheet when nothing matches', () => {
+    render(<Combobox value="" onChange={() => {}} options={options} emptyText="Nope" />);
+    open();
+    fireEvent.change(screen.getByPlaceholderText('Search…'), { target: { value: 'zzz' } });
+
+    expect(screen.getByText('Nope')).toBeInTheDocument();
   });
 });
