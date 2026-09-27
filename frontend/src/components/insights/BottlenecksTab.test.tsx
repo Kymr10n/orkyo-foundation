@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BottlenecksTab } from "./BottlenecksTab";
 import { getInsightsBottlenecks } from "@foundation/src/lib/api/insights-api";
 import { getCriticalPath } from "@foundation/src/lib/api/request-dependency-api";
 import { getRequest } from "@foundation/src/lib/api/request-api";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 vi.mock("@foundation/src/components/insights/insightsTabContext", () => ({
   useInsightsTabContext: () => ({
@@ -81,12 +81,7 @@ function node(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 function renderTab() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <BottlenecksTab />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<BottlenecksTab />);
 }
 
 beforeEach(() => {

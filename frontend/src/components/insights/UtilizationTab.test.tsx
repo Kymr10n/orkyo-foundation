@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen, waitFor } from "@testing-library/react";
 import { UtilizationTab } from "./UtilizationTab";
 import { getInsightsUtilization } from "@foundation/src/lib/api/insights-api";
 import type { InsightsUtilization } from "@foundation/src/lib/api/insights-api";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 // Window comes from the router <Outlet context> — pin it.
 vi.mock("@foundation/src/components/insights/insightsTabContext", () => ({
@@ -44,12 +44,7 @@ function response(resourceType: string, resourceCount: number): InsightsUtilizat
 }
 
 function renderTab() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <UtilizationTab />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<UtilizationTab />);
 }
 
 beforeEach(() => vi.clearAllMocks());

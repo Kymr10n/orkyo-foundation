@@ -10,8 +10,8 @@ public interface IRoutingService
 {
     Task<List<RoutingInfo>> GetAllAsync(CancellationToken ct = default);
     Task<RoutingInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<RoutingInfo> CreateAsync(CreateRoutingRequest request, CancellationToken ct = default);
-    Task<RoutingInfo?> UpdateAsync(Guid id, UpdateRoutingRequest request, CancellationToken ct = default);
+    Task<RoutingInfo> CreateAsync(SaveRoutingRequest request, CancellationToken ct = default);
+    Task<RoutingInfo?> UpdateAsync(Guid id, SaveRoutingRequest request, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 
     /// <summary>
@@ -37,13 +37,13 @@ public class RoutingService(
 
     public Task<RoutingInfo?> GetByIdAsync(Guid id, CancellationToken ct = default) => routings.GetByIdAsync(id, ct);
 
-    public async Task<RoutingInfo> CreateAsync(CreateRoutingRequest request, CancellationToken ct = default)
+    public async Task<RoutingInfo> CreateAsync(SaveRoutingRequest request, CancellationToken ct = default)
     {
         await EnsureOperationsAsync(request.Steps, ct);
         return await routings.CreateAsync(request, ct);
     }
 
-    public async Task<RoutingInfo?> UpdateAsync(Guid id, UpdateRoutingRequest request, CancellationToken ct = default)
+    public async Task<RoutingInfo?> UpdateAsync(Guid id, SaveRoutingRequest request, CancellationToken ct = default)
     {
         await EnsureOperationsAsync(request.Steps, ct);
         return await routings.UpdateAsync(id, request, ct);

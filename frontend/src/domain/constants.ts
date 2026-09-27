@@ -63,22 +63,6 @@ export const DURATION_UNIT_MS: Record<DurationUnit, number> = {
 export const SUNDAY = 0;
 export const SATURDAY = 6;
 
-export function isWeekendDay(dow: number): boolean {
-  return dow === SUNDAY || dow === SATURDAY;
-}
-
-// ---------------------------------------------------------------------------
-// Validation error codes (request-tree validation)
-// ---------------------------------------------------------------------------
-
-export const ValidationCode = {
-  LEAF_HAS_CHILDREN: "LEAF_HAS_CHILDREN",
-  START_AFTER_END: "START_AFTER_END",
-  BELOW_MIN_DURATION: "BELOW_MIN_DURATION",
-  CHILD_BEFORE_CONTAINER_START: "CHILD_BEFORE_CONTAINER_START",
-  CHILD_AFTER_CONTAINER_END: "CHILD_AFTER_CONTAINER_END",
-} as const;
-
 // ---------------------------------------------------------------------------
 // RRULE constants
 // ---------------------------------------------------------------------------

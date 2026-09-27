@@ -1,10 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using AwesomeAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -26,7 +24,7 @@ public class NotificationPreferencesEndpointsTests
     {
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
-        _conn = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _conn = databaseFixture.ControlPlaneConnectionString;
     }
 
     private async Task SetOptOutAsync(bool optOut)

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ResourceScheduleDialog } from "./ResourceScheduleDialog";
 
 // Capture what the shared calendar is handed, and drive its callbacks — the same approach
@@ -43,6 +42,7 @@ import { scheduleRequest } from "@foundation/src/lib/api/utilization-api";
 import { getResourceAbsences, updateResourceAbsence } from "@foundation/src/lib/api/resource-absences-api";
 import { getRequests } from "@foundation/src/lib/api/request-api";
 import { toast } from "sonner";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 const ASSIGNMENT = {
   id: "a1", requestId: "r1", resourceId: "res1", resourceTypeKey: "machine",
@@ -56,17 +56,14 @@ const ABSENCE = {
 };
 
 function renderDialog() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <ResourceScheduleDialog
-        open
-        onOpenChange={() => {}}
-        resourceId="res1"
-        resourceName="PPF Assembly Bench 1"
-        allocationMode="Exclusive"
-      />
-    </QueryClientProvider>,
+  return renderWithQuery(
+    <ResourceScheduleDialog
+      open
+      onOpenChange={() => {}}
+      resourceId="res1"
+      resourceName="PPF Assembly Bench 1"
+      allocationMode="Exclusive"
+    />,
   );
 }
 

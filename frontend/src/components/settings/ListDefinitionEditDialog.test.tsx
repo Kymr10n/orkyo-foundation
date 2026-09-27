@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ListDefinitionEditDialog } from './ListDefinitionEditDialog';
 import type { ListDefinition } from '@foundation/src/lib/api/lists-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const createDefinition = vi.fn();
 const updateDefinition = vi.fn();
@@ -25,12 +25,7 @@ vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
 }));
 
 function renderDialog(definition: ListDefinition | null = null) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <ListDefinitionEditDialog open onOpenChange={() => {}} definition={definition} />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<ListDefinitionEditDialog open onOpenChange={() => {}} definition={definition} />);
 }
 
 beforeEach(() => {

@@ -50,7 +50,7 @@ internal sealed class HttpContextOrgContextAccessor(IHttpContextAccessor httpCon
                 return orgContext;
 
             if (context.Items.TryGetValue(HttpContextItemKeys.TenantContext, out var tenant) && tenant is TenantContext tenantContext)
-                return OrgContextExtensions.FromTenant(tenantContext);
+                return tenantContext.ToOrgContext();
 
             return null;
         }

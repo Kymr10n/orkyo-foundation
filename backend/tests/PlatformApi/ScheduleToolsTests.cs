@@ -3,10 +3,7 @@ using Api.PlatformApi.Mcp;
 using Api.Security;
 using Api.Services;
 using Api.Validators;
-using AwesomeAssertions;
 using ModelContextProtocol;
-using Moq;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.PlatformApi;
 

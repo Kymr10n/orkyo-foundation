@@ -1,6 +1,5 @@
 using Api.Helpers;
 using Api.Models;
-using Xunit;
 
 namespace Api.Tests.Services;
 

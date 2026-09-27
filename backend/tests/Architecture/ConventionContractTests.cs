@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
 
@@ -13,6 +12,8 @@ namespace Orkyo.Foundation.Tests.Architecture;
 /// Unlike ErrorShapeContractTests this scans backend/core and backend/seeding as well as
 /// backend/src — the earlier scan's src-only root is why most of the drift lived
 /// unnoticed in core, where most of the code is.
+///
+/// Every guard is a <see cref="Ratchet"/> row; the two theories at the bottom run them all.
 /// </summary>
 public partial class ConventionContractTests
 {
@@ -21,46 +22,11 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"throw\s+new\s+KeyNotFoundException")]
     private static partial Regex KeyNotFoundThrowRegex();
 
-    [Fact]
-    public void NoSourceFile_ThrowsKeyNotFoundException()
-    {
-        KeyNotFoundThrowRegex().IsMatch("throw new KeyNotFoundException(\"x\")")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"), ("backend", "seeding"))
-            .Where(x => KeyNotFoundThrowRegex().IsMatch(x.Text))
-            .Select(x => x.Rel).ToList();
-
-        offenders.Should().BeEmpty(
-            "\"no such resource\" is NotFoundException (mapped to 404); a BCL "
-            + "KeyNotFoundException is a programming error and falls through to a 500 "
-            + "(AppExceptionHandlerTests pins that). For an internal catalog miss use "
-            + "InvalidOperationException. Offenders:\n  " + string.Join("\n  ", offenders));
-    }
-
     // ── (b) ^/$ anchors in validator patterns ────────────────────────────────
 
     // A string literal starting with ^ or ending with $ inside a .Matches( call.
     [GeneratedRegex(@"\.Matches\(\s*@?""(\^[^""]*|[^""]*\$)""")]
     private static partial Regex DollarAnchoredMatchesRegex();
-
-    [Fact]
-    public void NoValidator_UsesDollarAnchoredPatterns()
-    {
-        DollarAnchoredMatchesRegex().IsMatch(@".Matches(@""^#[0-9A-Fa-f]{6}$"")")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => x.Rel.Contains("Validators/"))
-            .Where(x => DollarAnchoredMatchesRegex().IsMatch(x.Text))
-            .Select(x => x.Rel).ToList();
-
-        offenders.Should().BeEmpty(
-            "anchor with \\A and \\z, not ^ and $: in .NET `$` also matches before a "
-            + "trailing newline, so \"#ffffff\\n\" passes a $-anchored check. Shared "
-            + "patterns live in ValidationPatterns / ResourceTypeKeyRules. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
 
     // ── (c) param-style upserts ──────────────────────────────────────────────
 
@@ -83,40 +49,6 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"DO UPDATE SET[^;""]*?=\s*@\w+", RegexOptions.Singleline)]
     private static partial Regex ParamUpsertRegex();
 
-    [Fact]
-    public void NoNewFile_WritesParamStyleUpserts()
-    {
-        ParamUpsertRegex().IsMatch("ON CONFLICT (key) DO UPDATE SET value = @value, updated_at = NOW()")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => ParamUpsertRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownParamUpsertFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "upserts read the inserted value via EXCLUDED.col, not the parameter that "
-            + "happens to hold it (docs/conventions.md). The grandfathered files are in "
-            + "KnownParamUpsertFiles and shrink on touch. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void ParamUpsertBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => ParamUpsertRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownParamUpsertFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these baseline entries no longer contain a param-style upsert — remove them "
-            + "so the ratchet moves forward and cannot silently regress:\n  "
-            + string.Join("\n  ", stale));
-    }
-
     // ── (d) raw config indexer with a fallback ───────────────────────────────
 
     /// <summary>
@@ -135,26 +67,6 @@ public partial class ConventionContractTests
         // The primitive itself: GetOptionalString normalizes null to "" with `?? ""`.
         "core:Configuration/ConfigurationExtensions.cs",
     };
-
-    [Fact]
-    public void NoSourceFile_FallsBackOnARawConfigRead()
-    {
-        ConfigFallbackRegex().IsMatch("var x = configuration[ConfigKeys.Foo] ?? \"bar\";")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => ConfigFallbackRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !ConfigFallbackExemptFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "`configuration[key] ?? fallback` misses empty values (the .env writes KEY= "
-            + "for unset keys) and hides missing required config. Use GetRequired* for "
-            + "required values (fail at startup) or GetOptionalString/IsSet for optional "
-            + "ones — never a compiled fallback. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
 
     // ── (e) SQL status literals ──────────────────────────────────────────────
 
@@ -175,79 +87,121 @@ public partial class ConventionContractTests
         "core:Services/UserLifecycleService.cs",
         "core:Services/AnnouncementBroadcastService.cs",
         "src:Endpoints/QuotaEndpoints.cs",
-        "src:Endpoints/Admin/UserAdminEndpoints.cs",
     };
 
     private static readonly HashSet<string> SqlLiteralExemptFiles = new(StringComparer.Ordinal)
     {
         // Constants files whose doc comments quote the raw values they define.
         "core:Constants/MembershipStatusConstants.cs",
-        "core:Constants/UserStatusConstants.cs",
-        "core:Constants/RoleConstants.cs",
     };
 
     [GeneratedRegex(@"'(active|admin|keycloak)'")]
     private static partial Regex SqlStatusLiteralRegex();
 
-    [Fact]
-    public void NoNewFile_HardcodesStatusLiteralsInSql()
-    {
-        SqlStatusLiteralRegex().IsMatch("WHERE status = 'active'")
-            .Should().BeTrue("the guard regex must match its own exemplar");
+    private static IEnumerable<Ratchet> DriftRatchets() =>
+    [
+        new("KeyNotFoundException", KeyNotFoundThrowRegex(), ["src", "core", "seeding"],
+            Exemplars: [new("throw new KeyNotFoundException(\"x\")")],
+            ForbidMessage: "\"no such resource\" is NotFoundException (mapped to 404); a BCL "
+                + "KeyNotFoundException is a programming error and falls through to a 500 "
+                + "(AppExceptionHandlerTests pins that). For an internal catalog miss use "
+                + "InvalidOperationException."),
 
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => SqlStatusLiteralRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownSqlLiteralFiles.Contains(key) && !SqlLiteralExemptFiles.Contains(key))
-            .ToList();
+        new("DollarAnchoredValidatorPattern", DollarAnchoredMatchesRegex(), ["src", "core"],
+            Scope: rel => rel.Contains("Validators/"),
+            Exemplars: [new(@".Matches(@""^#[0-9A-Fa-f]{6}$"")")],
+            ForbidMessage: "anchor with \\A and \\z, not ^ and $: in .NET `$` also matches before a "
+                + "trailing newline, so \"#ffffff\\n\" passes a $-anchored check. Shared "
+                + "patterns live in ValidationPatterns / ResourceTypeKeyRules."),
 
-        offenders.Should().BeEmpty(
-            "'active'/'admin'/'keycloak' in SQL bypass MembershipStatusConstants / "
-            + "RoleConstants / the provider constant. Bind a parameter from the constant "
-            + "instead. The grandfathered files are in KnownSqlLiteralFiles and shrink on "
-            + "touch. Offenders:\n  " + string.Join("\n  ", offenders));
-    }
+        new("ParamStyleUpsert", ParamUpsertRegex(), ["src", "core"],
+            Baseline: KnownParamUpsertFiles,
+            Exemplars: [new("ON CONFLICT (key) DO UPDATE SET value = @value, updated_at = NOW()")],
+            ForbidMessage: "upserts read the inserted value via EXCLUDED.col, not the parameter that "
+                + "happens to hold it (docs/conventions.md). The grandfathered files are in "
+                + "KnownParamUpsertFiles and shrink on touch."),
 
-    [Fact]
-    public void SqlLiteralBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => SqlStatusLiteralRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
+        new("RawConfigFallback", ConfigFallbackRegex(), ["src", "core"],
+            Exempt: ConfigFallbackExemptFiles,
+            Exemplars: [new("var x = configuration[ConfigKeys.Foo] ?? \"bar\";")],
+            ForbidMessage: "`configuration[key] ?? fallback` misses empty values (the .env writes KEY= "
+                + "for unset keys) and hides missing required config. Use GetRequired* for "
+                + "required values (fail at startup) or GetOptionalString/IsSet for optional "
+                + "ones — never a compiled fallback."),
 
-        var stale = KnownSqlLiteralFiles.Where(f => !stillOffending.Contains(f)).ToList();
+        new("SqlStatusLiteral", SqlStatusLiteralRegex(), ["src", "core"],
+            Baseline: KnownSqlLiteralFiles,
+            Exempt: SqlLiteralExemptFiles,
+            Exemplars: [new("WHERE status = 'active'")],
+            ForbidMessage: "'active'/'admin'/'keycloak' in SQL bypass MembershipStatusConstants / "
+                + "RoleConstants / the provider constant. Bind a parameter from the constant "
+                + "instead. The grandfathered files are in KnownSqlLiteralFiles and shrink on "
+                + "touch."),
+    ];
 
-        stale.Should().BeEmpty(
-            "these baseline entries no longer contain a hardcoded status literal — remove "
-            + "them so the ratchet moves forward:\n  " + string.Join("\n  ", stale));
-    }
-
-    // ── shared scan ──────────────────────────────────────────────────────────
+    // ── the ratchet shape and the two theories that run every row ────────────
 
     /// <summary>
-    /// Files across the given roots, keyed "<root>:<relative path>" so a baseline entry
-    /// is unambiguous when the same file name exists under two roots.
+    /// One source guard. A file under <see cref="Roots"/> whose relative path passes
+    /// <see cref="Scope"/> must not match <see cref="Pattern"/> unless it is grandfathered in
+    /// <see cref="Baseline"/> (shrinks on touch) or allowed for a stated reason in
+    /// <see cref="Exempt"/>. A ratchet with a <see cref="Baseline"/> also fails when a
+    /// baseline entry stops offending, so the baseline only goes down. The same scope applies
+    /// to both checks. Each exemplar pins what the regex must (or must not) match, so a rotted
+    /// regex fails loudly instead of matching nothing.
     /// </summary>
-    private static List<(string Key, string Rel, string Text)> ScanSources(params (string, string)[] roots)
+    private sealed record Ratchet(
+        string Name,
+        Regex Pattern,
+        string[] Roots,
+        Exemplar[] Exemplars,
+        string ForbidMessage,
+        Func<string, bool>? Scope = null,
+        IReadOnlySet<string>? Baseline = null,
+        IReadOnlySet<string>? Exempt = null);
+
+    private sealed record Exemplar(string Text, bool Matches = true, string Because = "the guard regex must match its own exemplar");
+
+    private static Ratchet[] AllRatchets() => [.. DriftRatchets(), .. ConventionRatchets()];
+
+    private static Ratchet Find(string name) => AllRatchets().Single(r => r.Name == name);
+
+    public static TheoryData<string> RatchetNames => new(AllRatchets().Select(r => r.Name));
+
+    public static TheoryData<string> BaselinedRatchetNames =>
+        new(AllRatchets().Where(r => r.Baseline is not null).Select(r => r.Name));
+
+    /// <summary>Keys ("root:rel") of the in-scope files that match the ratchet's pattern.</summary>
+    private static IEnumerable<string> Matching(Ratchet ratchet) =>
+        TestRepoPaths.BackendSources(ratchet.Roots)
+            .Where(f => (ratchet.Scope?.Invoke(f.Rel) ?? true) && ratchet.Pattern.IsMatch(f.Text))
+            .Select(f => f.Key);
+
+    [Theory]
+    [MemberData(nameof(RatchetNames))]
+    public void NoNewFile_BreaksTheRatchet(string ratchet)
     {
-        var results = new List<(string, string, string)>();
-        foreach (var (top, sub) in roots)
-        {
-            var dir = TestRepoPaths.FindDirectory(top, sub);
-            dir.Should().NotBeNull($"could not locate {top}/{sub}");
+        var r = Find(ratchet);
+        foreach (var (text, matches, because) in r.Exemplars)
+            r.Pattern.IsMatch(text).Should().Be(matches, because);
 
-            var files = Directory.GetFiles(dir!, "*.cs", SearchOption.AllDirectories)
-                .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                         && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-                .ToList();
-            files.Should().NotBeEmpty($"the source scan found no .cs files under {top}/{sub} — did the layout move?");
+        var offenders = Matching(r)
+            .Where(key => !(r.Baseline?.Contains(key) ?? false) && !(r.Exempt?.Contains(key) ?? false))
+            .ToList();
 
-            results.AddRange(files.Select(f =>
-            {
-                var rel = Path.GetRelativePath(dir!, f).Replace('\\', '/');
-                return ($"{sub}:{rel}", rel, File.ReadAllText(f));
-            }));
-        }
-        return results;
+        offenders.Should().BeEmpty(r.ForbidMessage + " Offenders:\n  " + string.Join("\n  ", offenders));
+    }
+
+    [Theory]
+    [MemberData(nameof(BaselinedRatchetNames))]
+    public void RatchetBaseline_HasNoStaleEntries(string ratchet)
+    {
+        var r = Find(ratchet);
+        var stillOffending = Matching(r).ToHashSet(StringComparer.Ordinal);
+
+        var stale = r.Baseline!.Where(f => !stillOffending.Contains(f)).ToList();
+
+        stale.Should().BeEmpty("these baseline entries no longer offend — remove them so the ratchet "
+            + "moves forward and cannot silently regress:\n  " + string.Join("\n  ", stale));
     }
 }

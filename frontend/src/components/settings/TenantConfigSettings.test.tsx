@@ -1,8 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TenantConfigSettings } from "./TenantConfigSettings";
 import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import type { TenantSettingsResponse } from "@foundation/src/lib/api/tenant-settings-api";
@@ -30,6 +29,7 @@ import {
   useTenantSettings,
   useUpdateTenantSettings,
 } from "@foundation/src/hooks/useTenantSettings";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 // Auth mock — mutable so tests can override
 let mockAuth: any = {
@@ -126,17 +126,7 @@ const mockSettingsWithOverride: TenantSettingsResponse = {
 // ── Helpers ─────────────────────────────────────────────────────────
 
 function renderComponent() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <TenantConfigSettings />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<TenantConfigSettings />);
 }
 
 function setupHook(overrides?: Partial<ReturnType<typeof useTenantSettings>>) {
@@ -544,18 +534,7 @@ describe("TenantConfigSettings", () => {
   it("filters settings to tenant scope when scope prop is set", () => {
     setupHook({ data: mockSettings } as any);
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <TenantConfigSettings scope="tenant" />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<TenantConfigSettings scope="tenant" />);
 
     // The site-scoped brute_force setting should NOT be visible
     expect(
@@ -570,18 +549,7 @@ describe("TenantConfigSettings", () => {
   it("filters settings to site scope when scope='site'", () => {
     setupHook({ data: mockSettings } as any);
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <TenantConfigSettings scope="site" />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<TenantConfigSettings scope="site" />);
 
     // Site-scoped setting should be visible
     expect(screen.getByText("Lockout Threshold")).toBeInTheDocument();
@@ -605,18 +573,7 @@ describe("TenantConfigSettings", () => {
   it("renders with tenantSlug prop for cross-tenant admin", () => {
     setupHook({ data: mockSettings } as any);
 
-    const queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-    });
-
-    render(
-      <QueryClientProvider client={queryClient}>
-        <TenantConfigSettings tenantSlug="acme" scope="tenant" />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<TenantConfigSettings tenantSlug="acme" scope="tenant" />);
 
     // Should render tenant-scoped settings (admin guard bypassed via tenantSlug prop)
     expect(screen.getByText("Minimum Password Length")).toBeInTheDocument();

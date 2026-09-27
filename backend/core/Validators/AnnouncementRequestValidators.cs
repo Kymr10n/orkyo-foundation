@@ -11,7 +11,7 @@ namespace Api.Validators;
 public class CreateAnnouncementRequestValidator : AbstractValidator<CreateAnnouncementRequest>
 {
     public const int TitleMaxLength = 200;
-    public const int BodyMaxLength = 10_000;
+    public const int BodyMaxLength = 5000;
 
     public CreateAnnouncementRequestValidator()
     {

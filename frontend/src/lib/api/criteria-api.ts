@@ -14,9 +14,7 @@ const criteriaApi = createCrudApi<Criterion, CreateCriterionRequest, UpdateCrite
 });
 
 export async function getCriteria(params?: GetCriteriaParams): Promise<Criterion[]> {
-  return criteriaApi.list(
-    params?.resourceType ? { resourceType: encodeURIComponent(params.resourceType) } : undefined,
-  );
+  return criteriaApi.list({ resourceType: params?.resourceType || undefined });
 }
 
 export async function createCriterion(request: CreateCriterionRequest): Promise<Criterion> {

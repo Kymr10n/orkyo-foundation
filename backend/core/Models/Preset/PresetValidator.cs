@@ -57,9 +57,9 @@ public static partial class PresetValidator
         {
             errors.Add("PresetId must contain only lowercase letters, numbers, and hyphens (e.g., 'manufacturing-ch-v1')");
         }
-        else if (preset.PresetId.Length > 100)
+        else if (preset.PresetId.Length > DomainLimits.PresetIdMaxLength)
         {
-            errors.Add("PresetId cannot exceed 100 characters");
+            errors.Add($"PresetId cannot exceed {DomainLimits.PresetIdMaxLength} characters");
         }
 
         if (string.IsNullOrWhiteSpace(preset.Name))
@@ -71,9 +71,9 @@ public static partial class PresetValidator
             errors.Add("Name cannot exceed 255 characters");
         }
 
-        if (preset.Description?.Length > 1000)
+        if (preset.Description?.Length > DomainLimits.PresetDescriptionMaxLength)
         {
-            errors.Add("Description cannot exceed 1000 characters");
+            errors.Add($"Description cannot exceed {DomainLimits.PresetDescriptionMaxLength} characters");
         }
 
         if (string.IsNullOrWhiteSpace(preset.Version))
@@ -85,14 +85,14 @@ public static partial class PresetValidator
             errors.Add($"Unsupported preset version '{preset.Version}'. Supported versions: {string.Join(", ", SupportedVersions)}");
         }
 
-        if (preset.Vendor?.Length > 100)
+        if (preset.Vendor?.Length > DomainLimits.PresetVendorMaxLength)
         {
-            errors.Add("Vendor cannot exceed 100 characters");
+            errors.Add($"Vendor cannot exceed {DomainLimits.PresetVendorMaxLength} characters");
         }
 
-        if (preset.Industry?.Length > 100)
+        if (preset.Industry?.Length > DomainLimits.PresetIndustryMaxLength)
         {
-            errors.Add("Industry cannot exceed 100 characters");
+            errors.Add($"Industry cannot exceed {DomainLimits.PresetIndustryMaxLength} characters");
         }
     }
 

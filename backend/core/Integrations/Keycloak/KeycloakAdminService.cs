@@ -40,11 +40,11 @@ public class KeycloakAdminService : IKeycloakAdminService
     public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
     {
         // Verify current password first — "incorrect password" is a user error (400), not an upstream failure.
-        await VerifyCurrentPasswordAsync(keycloakSub, currentPassword);
+        await VerifyCurrentPasswordAsync(keycloakSub, currentPassword, ct);
 
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-        await SetUserPasswordAsync(userId, token, newPassword, "Failed to update password");
+        await SetUserPasswordAsync(userId, token, newPassword, "Failed to update password", ct);
 
         _logger.LogInformation("Password changed for user {Sub}", keycloakSub);
     }
@@ -54,54 +54,29 @@ public class KeycloakAdminService : IKeycloakAdminService
     /// Shared by <see cref="ChangePasswordAsync"/> and <see cref="CreateUserAsync"/> so the
     /// non-temporary password-credential shape lives in one place.
     /// </summary>
-    private async Task SetUserPasswordAsync(
-        string userId, string token, string password, string failureMessage)
-    {
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/reset-password";
-        var request = CreateAdminRequest(HttpMethod.Put, url, token,
+    private Task SetUserPasswordAsync(
+        string userId, string token, string password, string failureMessage, CancellationToken ct) =>
+        SendAdminAsync(HttpMethod.Put, $"users/{userId}/reset-password", token, failureMessage, ct,
             new { type = "password", value = password, temporary = false });
-
-        var response = await _httpClient.SendAsync(request);
-        await EnsureSuccessAsync(response, failureMessage);
-    }
 
     public async Task<List<KeycloakSession>> GetUserSessionsAsync(string keycloakSub, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/sessions";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to retrieve sessions");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        return JsonSerializer.Deserialize<List<KeycloakSession>>(json) ?? new List<KeycloakSession>();
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
+        return await GetAdminJsonAsync<List<KeycloakSession>>($"users/{userId}/sessions", token, "Failed to retrieve sessions", ct)
+            ?? new List<KeycloakSession>();
     }
 
     public async Task RevokeSessionAsync(string sessionId, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/sessions/{sessionId}";
-        var request = CreateAdminRequest(HttpMethod.Delete, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to revoke session");
-
+        var token = await GetAdminTokenAsync(ct);
+        await SendAdminAsync(HttpMethod.Delete, $"sessions/{sessionId}", token, "Failed to revoke session", ct);
         _logger.LogInformation("Session {SessionId} revoked", sessionId);
     }
 
     public async Task LogoutAllSessionsAsync(string keycloakSub, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/logout";
-        var request = CreateAdminRequest(HttpMethod.Post, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to logout from all sessions");
-
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
+        await SendAdminAsync(HttpMethod.Post, $"users/{userId}/logout", token, "Failed to logout from all sessions", ct);
         _logger.LogInformation("All sessions logged out for user {Sub}", keycloakSub);
     }
 
@@ -112,19 +87,16 @@ public class KeycloakAdminService : IKeycloakAdminService
         // outage shouldn't make that UI disappear.
         try
         {
-            var (token, userId) = await ResolveUserAsync(keycloakSub);
+            var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-            var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/federated-identity";
-            var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-            var response = await _httpClient.SendAsync(request, ct);
+            using var request = CreateAdminRequest(HttpMethod.Get, AdminUrl($"users/{userId}/federated-identity"), token);
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
                 return new FederationStatus(false, null);
             }
 
-            var json = await response.Content.ReadAsStringAsync(ct);
-            var identities = JsonSerializer.Deserialize<List<FederatedIdentity>>(json);
+            var identities = await ReadJsonAsync<List<FederatedIdentity>>(response, ct);
 
             return identities is { Count: > 0 }
                 ? new FederationStatus(true, identities[0].IdentityProvider)
@@ -140,7 +112,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     public async Task CreateUserAsync(
         string email, string password, string? firstName = null, string? lastName = null, bool emailVerified = false, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
+        var token = await GetAdminTokenAsync(ct);
 
         if (await UserExistsAsync(email, ct))
         {
@@ -161,10 +133,8 @@ public class KeycloakAdminService : IKeycloakAdminService
             requiredActions = emailVerified ? Array.Empty<string>() : new[] { KeycloakRequiredActions.VerifyEmail }
         };
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users";
-        var request = CreateAdminRequest(HttpMethod.Post, url, token, userPayload);
-
-        var response = await _httpClient.SendAsync(request, ct);
+        using var request = CreateAdminRequest(HttpMethod.Post, AdminUrl("users"), token, userPayload);
+        using var response = await _httpClient.SendAsync(request, ct);
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync(ct);
@@ -182,11 +152,13 @@ public class KeycloakAdminService : IKeycloakAdminService
         if (string.IsNullOrEmpty(userId))
             throw new KeycloakAdminException("Failed to retrieve user ID after creation");
 
-        await SetUserPasswordAsync(userId, token, password, "Failed to set password for new user");
+        // The user exists in Keycloak from here on. A cancelled request must not leave it without
+        // a password, so the remaining steps run to completion regardless of the caller's token.
+        await SetUserPasswordAsync(userId, token, password, "Failed to set password for new user", CancellationToken.None);
 
         if (!emailVerified)
         {
-            await SendVerificationEmailAsync(userId, token);
+            await SendVerificationEmailAsync(userId, token, CancellationToken.None);
         }
 
         _logger.LogInformation("User created: {Email}", email);
@@ -194,48 +166,29 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     public async Task<bool> UserExistsAsync(string email, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users?email={Uri.EscapeDataString(email)}&exact=true";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to check if user exists");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var users = JsonSerializer.Deserialize<List<KeycloakUser>>(json);
+        var token = await GetAdminTokenAsync(ct);
+        var users = await GetAdminJsonAsync<List<KeycloakUser>>(
+            $"users?email={Uri.EscapeDataString(email)}&exact=true", token, "Failed to check if user exists", ct);
         return users is { Count: > 0 };
     }
 
-    public Task DisableUserAsync(string keycloakId, CancellationToken ct = default) => SetUserEnabledAsync(keycloakId, enabled: false);
+    public Task DisableUserAsync(string keycloakId, CancellationToken ct = default) => SetUserEnabledAsync(keycloakId, enabled: false, ct);
 
-    public Task EnableUserAsync(string keycloakId, CancellationToken ct = default) => SetUserEnabledAsync(keycloakId, enabled: true);
+    public Task EnableUserAsync(string keycloakId, CancellationToken ct = default) => SetUserEnabledAsync(keycloakId, enabled: true, ct);
 
     public async Task DeleteUserAsync(string keycloakId, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}";
-        var request = CreateAdminRequest(HttpMethod.Delete, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to delete user from Keycloak");
-
+        var token = await GetAdminTokenAsync(ct);
+        await SendAdminAsync(HttpMethod.Delete, $"users/{keycloakId}", token, "Failed to delete user from Keycloak", ct);
         _logger.LogInformation("Deleted user {KeycloakId} from Keycloak", keycloakId);
     }
 
     public async Task<MfaStatus> GetMfaStatusAsync(string keycloakSub, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/credentials";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to retrieve MFA status");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var credentials = JsonSerializer.Deserialize<List<KeycloakCredential>>(json) ?? new();
+        var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
+            $"users/{userId}/credentials", token, "Failed to retrieve MFA status", ct) ?? new();
 
         var totpCred = credentials.FirstOrDefault(c => c.Type == "otp");
         var recoveryCred = credentials.FirstOrDefault(c => c.Type == "recovery-authn-codes");
@@ -255,44 +208,32 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     public async Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
         // Verify the credential belongs to this user before deleting
-        var credUrl = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/credentials";
-        var credRequest = CreateAdminRequest(HttpMethod.Get, credUrl, token);
-        var credResponse = await _httpClient.SendAsync(credRequest, ct);
-
-        if (credResponse.IsSuccessStatusCode)
+        using (var credRequest = CreateAdminRequest(HttpMethod.Get, AdminUrl($"users/{userId}/credentials"), token))
+        using (var credResponse = await _httpClient.SendAsync(credRequest, ct))
         {
-            var credJson = await credResponse.Content.ReadAsStringAsync(ct);
-            var credentials = JsonSerializer.Deserialize<List<KeycloakCredential>>(credJson) ?? new();
-            if (!credentials.Any(c => c.Id == credentialId))
+            if (credResponse.IsSuccessStatusCode)
             {
-                throw new KeycloakAdminException("Credential not found for this user", 404);
+                var credentials = await ReadJsonAsync<List<KeycloakCredential>>(credResponse, ct) ?? new();
+                if (!credentials.Any(c => c.Id == credentialId))
+                {
+                    throw new KeycloakAdminException("Credential not found for this user", 404);
+                }
             }
         }
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/credentials/{credentialId}";
-        var request = CreateAdminRequest(HttpMethod.Delete, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to remove credential");
+        await SendAdminAsync(HttpMethod.Delete, $"users/{userId}/credentials/{credentialId}", token, "Failed to remove credential", ct);
 
         _logger.LogInformation("Deleted credential {CredentialId} for user {Sub}", credentialId, keycloakSub);
     }
 
     public async Task<UserProfile> GetUserProfileAsync(string keycloakSub, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to retrieve profile");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var userData = JsonSerializer.Deserialize<KeycloakUserFull>(json)
+        var userData = await GetAdminJsonAsync<KeycloakUserFull>($"users/{userId}", token, "Failed to retrieve profile", ct)
             ?? throw new KeycloakAdminException("Failed to parse user profile");
 
         return new UserProfile
@@ -306,20 +247,14 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     public async Task UpdateUserProfileAsync(string keycloakSub, string firstName, string lastName, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
-        var request = CreateAdminRequest(HttpMethod.Put, url, token, new { firstName, lastName });
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to update profile");
-
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
+        await SendAdminAsync(HttpMethod.Put, $"users/{userId}", token, "Failed to update profile", ct, new { firstName, lastName });
         _logger.LogInformation("Profile updated for user {Sub}", keycloakSub);
     }
 
     public async Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
         await UpdateEmailByUserIdAsync(token, userId, newEmail, ct);
         _logger.LogInformation("Email updated for user {Sub}", keycloakSub);
@@ -327,10 +262,10 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     public async Task UpdateEmailForAccountAsync(string? keycloakSub, string currentEmail, string newEmail, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
+        var token = await GetAdminTokenAsync(ct);
         if (!string.IsNullOrWhiteSpace(keycloakSub))
         {
-            var userId = await GetKeycloakUserIdAsync(keycloakSub, token);
+            var userId = await GetKeycloakUserIdAsync(keycloakSub, token, ct);
             if (!string.IsNullOrWhiteSpace(userId))
             {
                 await UpdateEmailByUserIdAsync(token, userId, newEmail, ct);
@@ -350,29 +285,19 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Email updated for account with previous email {CurrentEmail}", currentEmail);
     }
 
-    private async Task UpdateEmailByUserIdAsync(string token, string userId, string newEmail, CancellationToken ct)
-    {
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
-        var request = CreateAdminRequest(HttpMethod.Put, url, token, new { email = newEmail, emailVerified = true });
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to update email");
-    }
+    private Task UpdateEmailByUserIdAsync(string token, string userId, string newEmail, CancellationToken ct) =>
+        SendAdminAsync(HttpMethod.Put, $"users/{userId}", token, "Failed to update email", ct,
+            new { email = newEmail, emailVerified = true });
 
     public async Task EnableMfaAsync(string keycloakSub, CancellationToken ct = default)
     {
-        var (token, userId) = await ResolveUserAsync(keycloakSub);
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
         // Keycloak's user PUT replaces any field present in the body, so writing just
         // [CONFIGURE_TOTP] would drop pending actions like VERIFY_EMAIL or
         // UPDATE_PASSWORD. Read the current list and append instead.
-        var getRequest = CreateAdminRequest(HttpMethod.Get, url, token);
-        var getResponse = await _httpClient.SendAsync(getRequest, ct);
-        await EnsureSuccessAsync(getResponse, "Failed to read user before enabling MFA");
-        var json = await getResponse.Content.ReadAsStringAsync(ct);
-        var userData = JsonSerializer.Deserialize<KeycloakUserFull>(json)
+        var userData = await GetAdminJsonAsync<KeycloakUserFull>(
+            $"users/{userId}", token, "Failed to read user before enabling MFA", ct)
             ?? throw new KeycloakAdminException("Failed to parse user while enabling MFA");
 
         var actions = userData.RequiredActions ?? new List<string>();
@@ -381,101 +306,75 @@ public class KeycloakAdminService : IKeycloakAdminService
             actions.Add(KeycloakRequiredActions.ConfigureTotp);
         }
 
-        var request = CreateAdminRequest(HttpMethod.Put, url, token, new
-        {
-            requiredActions = actions
-        });
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to enable MFA");
+        await SendAdminAsync(HttpMethod.Put, $"users/{userId}", token, "Failed to enable MFA", ct,
+            new { requiredActions = actions });
 
         _logger.LogInformation("CONFIGURE_TOTP required action added for user {Sub}", keycloakSub);
     }
 
     public async Task<bool> HasRealmRoleAsync(string keycloakId, string roleName, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}/role-mappings/realm";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to check realm roles");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var roles = JsonSerializer.Deserialize<List<KeycloakRole>>(json) ?? new();
+        var token = await GetAdminTokenAsync(ct);
+        var roles = await GetAdminJsonAsync<List<KeycloakRole>>(
+            $"users/{keycloakId}/role-mappings/realm", token, "Failed to check realm roles", ct) ?? new();
         return roles.Any(r => r.Name == roleName);
     }
 
     public Task AssignRealmRoleAsync(string keycloakId, string roleName, CancellationToken ct = default)
-        => ModifyRealmRoleAsync(keycloakId, roleName, assign: true);
+        => ModifyRealmRoleAsync(keycloakId, roleName, assign: true, ct);
 
     public Task RevokeRealmRoleAsync(string keycloakId, string roleName, CancellationToken ct = default)
-        => ModifyRealmRoleAsync(keycloakId, roleName, assign: false);
+        => ModifyRealmRoleAsync(keycloakId, roleName, assign: false, ct);
 
     public async Task<int> CountRealmRoleMembersAsync(string roleName, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/roles/{Uri.EscapeDataString(roleName)}/users";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-        var response = await _httpClient.SendAsync(request, ct);
-
-        await EnsureSuccessAsync(response, $"Failed to count members of role '{roleName}'");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var users = JsonSerializer.Deserialize<JsonElement[]>(json);
+        var token = await GetAdminTokenAsync(ct);
+        var users = await GetAdminJsonAsync<JsonElement[]>(
+            $"roles/{Uri.EscapeDataString(roleName)}/users", token, $"Failed to count members of role '{roleName}'", ct);
         return users?.Length ?? 0;
     }
 
-    private async Task ModifyRealmRoleAsync(string keycloakId, string roleName, bool assign)
+    private async Task ModifyRealmRoleAsync(string keycloakId, string roleName, bool assign, CancellationToken ct)
     {
-        var token = await GetAdminTokenAsync();
+        var token = await GetAdminTokenAsync(ct);
 
         // Look up the role to get its ID (required by Keycloak API)
-        var roleUrl = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/roles/{Uri.EscapeDataString(roleName)}";
-        var roleRequest = CreateAdminRequest(HttpMethod.Get, roleUrl, token);
-        var roleResponse = await _httpClient.SendAsync(roleRequest);
-
-        if (!roleResponse.IsSuccessStatusCode)
+        KeycloakRole? role;
+        using (var roleRequest = CreateAdminRequest(HttpMethod.Get, AdminUrl($"roles/{Uri.EscapeDataString(roleName)}"), token))
+        using (var roleResponse = await _httpClient.SendAsync(roleRequest, ct))
         {
-            _logger.LogWarning("Realm role {Role} not found", roleName);
-            throw new KeycloakAdminException($"Realm role '{roleName}' not found", 404);
+            if (!roleResponse.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Realm role {Role} not found", roleName);
+                throw new KeycloakAdminException($"Realm role '{roleName}' not found", 404);
+            }
+
+            role = await ReadJsonAsync<KeycloakRole>(roleResponse, ct);
         }
 
-        var roleJson = await roleResponse.Content.ReadAsStringAsync();
-        var role = JsonSerializer.Deserialize<KeycloakRole>(roleJson);
         if (role?.Id == null || role.Name == null)
         {
             throw new KeycloakAdminException($"Failed to parse realm role '{roleName}'");
         }
 
         var method = assign ? HttpMethod.Post : HttpMethod.Delete;
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}/role-mappings/realm";
-        var request = CreateAdminRequest(method, url, token,
+        await SendAdminAsync(method, $"users/{keycloakId}/role-mappings/realm", token,
+            $"Failed to {(assign ? "assign" : "revoke")} role", ct,
             new[] { new { id = role.Id, name = role.Name } });
-
-        var response = await _httpClient.SendAsync(request);
-        await EnsureSuccessAsync(response, $"Failed to {(assign ? "assign" : "revoke")} role");
 
         _logger.LogInformation("{Action} realm role {Role} for user {KeycloakId}",
             assign ? "Assigned" : "Revoked", roleName, keycloakId);
     }
 
-    private async Task SetUserEnabledAsync(string keycloakId, bool enabled)
+    private async Task SetUserEnabledAsync(string keycloakId, bool enabled, CancellationToken ct)
     {
-        var token = await GetAdminTokenAsync();
-
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakId}";
-        var request = CreateAdminRequest(HttpMethod.Put, url, token, new { enabled });
-
-        var response = await _httpClient.SendAsync(request);
-        await EnsureSuccessAsync(response, $"Failed to {(enabled ? "enable" : "disable")} user in Keycloak");
-
+        var token = await GetAdminTokenAsync(ct);
+        await SendAdminAsync(HttpMethod.Put, $"users/{keycloakId}", token,
+            $"Failed to {(enabled ? "enable" : "disable")} user in Keycloak", ct, new { enabled });
         _logger.LogInformation("Set enabled={Enabled} for user {KeycloakId}", enabled, keycloakId);
     }
 
-    private async Task SendVerificationEmailAsync(string userId, string token)
+    private async Task SendVerificationEmailAsync(string userId, string token, CancellationToken ct)
     {
         // Best-effort — user creation succeeds even if the email dispatch fails
         try
@@ -484,14 +383,14 @@ public class KeycloakAdminService : IKeycloakAdminService
             var frontendUrl = _configuration.GetRequired(ConfigKeys.AppBaseUrl);
             var redirectUri = Uri.EscapeDataString(frontendUrl);
 
-            var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/send-verify-email?client_id={clientId}&redirect_uri={redirectUri}";
-            var request = new HttpRequestMessage(HttpMethod.Put, url);
+            using var request = new HttpRequestMessage(HttpMethod.Put,
+                AdminUrl($"users/{userId}/send-verify-email?client_id={clientId}&redirect_uri={redirectUri}"));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-            var response = await _httpClient.SendAsync(request);
+            using var response = await _httpClient.SendAsync(request, ct);
             if (!response.IsSuccessStatusCode)
             {
-                var error = await response.Content.ReadAsStringAsync();
+                var error = await response.Content.ReadAsStringAsync(ct);
                 _logger.LogWarning("Failed to send verification email: {Error}", error);
             }
             else
@@ -505,22 +404,12 @@ public class KeycloakAdminService : IKeycloakAdminService
         }
     }
 
-    private async Task VerifyCurrentPasswordAsync(string keycloakSub, string password)
+    private async Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct)
     {
-        var adminToken = await GetAdminTokenAsync();
-
-        var userId = await GetKeycloakUserIdAsync(keycloakSub, adminToken)
-            ?? throw new KeycloakAdminException("User not found in Keycloak", 404);
+        var (adminToken, userId) = await ResolveUserAsync(keycloakSub, ct);
 
         // Get user details to get username
-        var userUrl = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}";
-        var userRequest = CreateAdminRequest(HttpMethod.Get, userUrl, adminToken);
-
-        var userResponse = await _httpClient.SendAsync(userRequest);
-        await EnsureSuccessAsync(userResponse, "Failed to get user details");
-
-        var userJson = await userResponse.Content.ReadAsStringAsync();
-        var userData = JsonSerializer.Deserialize<KeycloakUser>(userJson);
+        var userData = await GetAdminJsonAsync<KeycloakUser>($"users/{userId}", adminToken, "Failed to get user details", ct);
         var username = userData?.Username ?? userData?.Email;
 
         if (string.IsNullOrEmpty(username))
@@ -536,7 +425,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         // (3) the token endpoint is rate-limited in Nginx.
         var tokenUrl = $"{_kc.EffectiveInternalBaseUrl}/realms/{_kc.Realm}/protocol/openid-connect/token";
 
-        var verifyRequest = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
+        using var verifyRequest = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
         {
             Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -549,7 +438,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         };
         SetInternalProxyHeaders(verifyRequest);
 
-        var response = await _httpClient.SendAsync(verifyRequest);
+        using var response = await _httpClient.SendAsync(verifyRequest, ct);
         if (!response.IsSuccessStatusCode)
         {
             throw new KeycloakAdminException("Current password is incorrect", 400);
@@ -558,27 +447,60 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     // ── helpers ─────────────────────────────────────────────────────
 
+    /// <summary>The realm's admin REST URL for <paramref name="path"/> (no leading slash).</summary>
+    private string AdminUrl(string path) => $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/{path}";
+
+    /// <summary>
+    /// Sends an admin request that must succeed and whose response body is not needed.
+    /// Throws <see cref="KeycloakAdminException"/> with <paramref name="failureMessage"/> otherwise.
+    /// </summary>
+    private async Task SendAdminAsync(
+        HttpMethod method, string path, string token, string failureMessage, CancellationToken ct, object? body = null)
+    {
+        using var request = CreateAdminRequest(method, AdminUrl(path), token, body);
+        using var response = await _httpClient.SendAsync(request, ct);
+        await EnsureSuccessAsync(response, failureMessage, ct);
+    }
+
+    /// <summary>
+    /// GETs an admin resource that must exist and deserializes its JSON body.
+    /// Throws <see cref="KeycloakAdminException"/> with <paramref name="failureMessage"/> on a non-success status.
+    /// </summary>
+    private async Task<T?> GetAdminJsonAsync<T>(string path, string token, string failureMessage, CancellationToken ct)
+    {
+        using var request = CreateAdminRequest(HttpMethod.Get, AdminUrl(path), token);
+        using var response = await _httpClient.SendAsync(request, ct);
+        await EnsureSuccessAsync(response, failureMessage, ct);
+        return await ReadJsonAsync<T>(response, ct);
+    }
+
+    private static async Task<T?> ReadJsonAsync<T>(HttpResponseMessage response, CancellationToken ct)
+    {
+        var json = await response.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize<T>(json);
+    }
+
     /// <summary>
     /// Throws <see cref="KeycloakAdminException"/> with <paramref name="publicErrorMessage"/>
     /// if the response isn't successful, logging the upstream body first.
     /// </summary>
-    private async Task EnsureSuccessAsync(HttpResponseMessage response, string publicErrorMessage, int statusCode = 502)
+    private async Task EnsureSuccessAsync(HttpResponseMessage response, string publicErrorMessage, CancellationToken ct)
     {
         if (response.IsSuccessStatusCode) return;
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(ct);
         _logger.LogWarning("Keycloak admin request failed: {Status} - {Body}", response.StatusCode, body);
-        throw new KeycloakAdminException(publicErrorMessage, statusCode);
+        throw new KeycloakAdminException(publicErrorMessage, 502);
     }
 
     /// <summary>
     /// Resolve admin token + Keycloak user ID for a given subject.
     /// Throws <see cref="KeycloakAdminException"/> if either step fails.
     /// </summary>
-    private async Task<(string token, string userId)> ResolveUserAsync(string keycloakSub)
+    private async Task<(string token, string userId)> ResolveUserAsync(string keycloakSub, CancellationToken ct)
     {
-        var token = await GetAdminTokenAsync();
-        var userId = await GetKeycloakUserIdAsync(keycloakSub, token)
+        var token = await GetAdminTokenAsync(ct);
+        var userId = await GetKeycloakUserIdAsync(keycloakSub, token, ct)
             ?? throw new KeycloakAdminException("User not found in Keycloak", 404);
         return (token, userId);
     }
@@ -623,7 +545,7 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     private static readonly SemaphoreSlim _tokenLock = new(1, 1);
 
-    private async Task<string> GetAdminTokenAsync()
+    private async Task<string> GetAdminTokenAsync(CancellationToken ct)
     {
         // Fast path: return cached token if still valid (read is safe without lock)
         if (_accessToken != null && _time.GetUtcNow().UtcDateTime < _tokenExpiry.AddMinutes(-1))
@@ -631,7 +553,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             return _accessToken;
         }
 
-        await _tokenLock.WaitAsync();
+        await _tokenLock.WaitAsync(ct);
         try
         {
             // Double-check after acquiring lock (another thread may have refreshed)
@@ -651,21 +573,20 @@ public class KeycloakAdminService : IKeycloakAdminService
                 ["client_secret"] = _kc.BackendClientSecret
             });
 
-            var request = new HttpRequestMessage(HttpMethod.Post, tokenUrl) { Content = content };
+            using var request = new HttpRequestMessage(HttpMethod.Post, tokenUrl) { Content = content };
             SetInternalProxyHeaders(request);
-            var response = await _httpClient.SendAsync(request);
+            using var response = await _httpClient.SendAsync(request, ct);
 
             if (!response.IsSuccessStatusCode)
             {
-                var body = await response.Content.ReadAsStringAsync();
+                var body = await response.Content.ReadAsStringAsync(ct);
                 _logger.LogError(
                     "Failed to get Keycloak admin token: {Status} — {Body} (URL: {Url})",
                     response.StatusCode, body, tokenUrl);
                 throw new KeycloakAdminException("Failed to authenticate with Keycloak admin");
             }
 
-            var json = await response.Content.ReadAsStringAsync();
-            var tokenResponse = JsonSerializer.Deserialize<TokenResponse>(json);
+            var tokenResponse = await ReadJsonAsync<TokenResponse>(response, ct);
 
             if (tokenResponse?.AccessToken == null)
             {
@@ -684,22 +605,19 @@ public class KeycloakAdminService : IKeycloakAdminService
         }
     }
 
-    private async Task<string?> GetKeycloakUserIdAsync(string keycloakSub, string token)
+    private async Task<string?> GetKeycloakUserIdAsync(string keycloakSub, string token, CancellationToken ct)
     {
         // The 'sub' claim is typically the Keycloak user ID; verify by looking up the user.
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{keycloakSub}";
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        SetInternalProxyHeaders(request);
-
-        var response = await _httpClient.SendAsync(request);
+        var url = AdminUrl($"users/{keycloakSub}");
+        using var request = CreateAdminRequest(HttpMethod.Get, url, token);
+        using var response = await _httpClient.SendAsync(request, ct);
 
         if (response.IsSuccessStatusCode)
         {
             return keycloakSub;
         }
 
-        var body = await response.Content.ReadAsStringAsync();
+        var body = await response.Content.ReadAsStringAsync(ct);
         _logger.LogError(
             "Keycloak user lookup failed for {Sub}: {Status} — {Body} (URL: {Url})",
             keycloakSub, response.StatusCode, body, url);
@@ -709,7 +627,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     public async Task<bool> SendExecuteActionsEmailAsync(
         string email, IReadOnlyCollection<string> actions, CancellationToken ct = default)
     {
-        var token = await GetAdminTokenAsync();
+        var token = await GetAdminTokenAsync(ct);
 
         var userId = await GetKeycloakUserIdByEmailAsync(email, token, ct);
         if (userId is null)
@@ -726,12 +644,9 @@ public class KeycloakAdminService : IKeycloakAdminService
         var clientId = _kc.BackendClientId;
         var redirectUri = Uri.EscapeDataString(_configuration.GetRequired(ConfigKeys.AppBaseUrl));
 
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users/{userId}/execute-actions-email"
-                  + $"?client_id={clientId}&redirect_uri={redirectUri}";
-        var request = CreateAdminRequest(HttpMethod.Put, url, token, actions);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to send required-actions email");
+        await SendAdminAsync(HttpMethod.Put,
+            $"users/{userId}/execute-actions-email?client_id={clientId}&redirect_uri={redirectUri}",
+            token, "Failed to send required-actions email", ct, actions);
 
         _logger.LogInformation("Sent required-actions email ({Actions}) to {Email}",
             string.Join(",", actions), email);
@@ -740,14 +655,8 @@ public class KeycloakAdminService : IKeycloakAdminService
 
     private async Task<string?> GetKeycloakUserIdByEmailAsync(string email, string token, CancellationToken ct)
     {
-        var url = $"{_kc.EffectiveInternalBaseUrl}/admin/realms/{_kc.Realm}/users?email={Uri.EscapeDataString(email)}&exact=true";
-        var request = CreateAdminRequest(HttpMethod.Get, url, token);
-
-        var response = await _httpClient.SendAsync(request, ct);
-        await EnsureSuccessAsync(response, "Failed to find user by email");
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        var users = JsonSerializer.Deserialize<List<KeycloakUser>>(json);
+        var users = await GetAdminJsonAsync<List<KeycloakUser>>(
+            $"users?email={Uri.EscapeDataString(email)}&exact=true", token, "Failed to find user by email", ct);
         return users?.FirstOrDefault()?.Id;
     }
 

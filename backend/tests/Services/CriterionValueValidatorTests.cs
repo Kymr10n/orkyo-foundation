@@ -1,7 +1,6 @@
 using System.Text.Json;
 using Api.Models;
 using Api.Services;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 

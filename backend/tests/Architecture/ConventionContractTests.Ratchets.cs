@@ -1,13 +1,13 @@
 using System.Text.RegularExpressions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
 
 /// <summary>
 /// Ratchets for the conventions docs/conventions.md states but that had no guard until the
 /// 2026-09 design review measured them (findings B5 and B6). Same house pattern as the first
-/// file: a file-key baseline, a forbid-outside-baseline fact, and a reverse staleness fact so
-/// an entry that stops offending must be removed and the number only goes down.
+/// file: a file-key baseline, a forbid-outside-baseline check, and a reverse staleness check so
+/// an entry that stops offending must be removed and the number only goes down. The rows are
+/// in <see cref="ConventionRatchets"/>; the first file's theories run them.
 /// </summary>
 public partial class ConventionContractTests
 {
@@ -27,12 +27,10 @@ public partial class ConventionContractTests
         "core:Services/DbHealthProbe.cs",
         "core:Services/Insights/InsightsService.cs",
         "core:Services/InvitationService.cs",
-        "core:Services/PlatformApi/ApiAccessTokenService.cs",
         "core:Services/Preset/PresetApplier.cs",
         "core:Services/PresetService.cs",
         // Reaches the DB through NpgsqlQueryExtensions rather than a raw command.
         "core:Services/Reporting/ReportingQueryService.cs",
-        "core:Services/Reporting/ReportingTokenService.cs",
         "core:Services/SessionService.cs",
         "core:Services/StarterTemplateService.cs",
         "core:Services/TenantUserService.cs",
@@ -49,44 +47,6 @@ public partial class ConventionContractTests
     // or `db` (docs/conventions.md, "Opening a connection").
     [GeneratedRegex(@"new\s+(?:Npgsql\.)?NpgsqlCommand|(?<![\w.])(?:conn|db)\.(?:QueryListAsync|QuerySingleOrDefaultAsync|ExecuteAsync|ExecuteScalarAsync|ExistsAsync|QueryPagedAsync)\(")]
     private static partial Regex ServiceSqlAccessRegex();
-
-    [Fact]
-    public void NoNewService_WritesSql()
-    {
-        ServiceSqlAccessRegex().IsMatch("await using var cmd = new NpgsqlCommand(sql, conn);")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-        ServiceSqlAccessRegex().IsMatch("var rows = await conn.QueryListAsync(sql, Map, ct);")
-            .Should().BeTrue("the guard regex must match the extension-helper exemplar");
-        ServiceSqlAccessRegex().IsMatch("if (await _repository.ExistsAsync(id, ct))")
-            .Should().BeFalse("a repository call is not the service reaching the DB");
-
-        var offenders = ScanSources(("backend", "core"))
-            .Where(x => x.Rel.StartsWith("Services/", StringComparison.Ordinal))
-            .Where(x => ServiceSqlAccessRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownSqlWritingServiceFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "services do not write SQL (docs/conventions.md, Layering): put the query in a "
-            + "repository and inject it. The grandfathered files are in "
-            + "KnownSqlWritingServiceFiles and shrink on touch. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void SqlWritingServiceBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "core"))
-            .Where(x => ServiceSqlAccessRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownSqlWritingServiceFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these services no longer construct NpgsqlCommand — remove them from the baseline "
-            + "so the ratchet moves forward:\n  " + string.Join("\n  ", stale));
-    }
 
     // ── (g) `db` connection locals ───────────────────────────────────────────
 
@@ -119,38 +79,6 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"await\s+using\s+var\s+db\s*=")]
     private static partial Regex DbConnectionLocalRegex();
 
-    [Fact]
-    public void NoNewFile_NamesTheConnectionLocalDb()
-    {
-        DbConnectionLocalRegex().IsMatch("await using var db = connectionFactory.CreateOrgConnection(orgContext);")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => DbConnectionLocalRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownDbLocalFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "the connection local is named `conn` (docs/conventions.md). The grandfathered "
-            + "files are in KnownDbLocalFiles and shrink on touch. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void DbLocalBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => DbConnectionLocalRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownDbLocalFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these files no longer name a connection local `db` — remove them from the "
-            + "baseline:\n  " + string.Join("\n  ", stale));
-    }
-
     // ── (h) bare numeric length limits in validators ─────────────────────────
 
     /// <summary>
@@ -175,41 +103,6 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"(MaximumLength|MinimumLength)\(\d+\)")]
     private static partial Regex BareLengthLimitRegex();
 
-    [Fact]
-    public void NoNewValidator_UsesBareLengthLimits()
-    {
-        BareLengthLimitRegex().IsMatch("RuleFor(x => x.Name).MaximumLength(200);")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => x.Rel.Contains("Validators/", StringComparison.Ordinal))
-            .Where(x => BareLengthLimitRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownBareLengthLimitFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "length limits come from DomainLimits, not a bare number (docs/conventions.md). "
-            + "Add the constant if it is missing. The grandfathered files are in "
-            + "KnownBareLengthLimitFiles and shrink on touch. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void BareLengthLimitBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => x.Rel.Contains("Validators/", StringComparison.Ordinal))
-            .Where(x => BareLengthLimitRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownBareLengthLimitFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these validators no longer use a bare length limit — remove them from the "
-            + "baseline:\n  " + string.Join("\n  ", stale));
-    }
-
     // ── (i) bare Results.NotFound() outside the calendar feed ────────────────
 
     /// <summary>
@@ -233,41 +126,6 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"Results\.NotFound\(\)")]
     private static partial Regex BareNotFoundRegex();
 
-    [Fact]
-    public void NoNewEndpoint_ReturnsABareNotFound()
-    {
-        BareNotFoundRegex().IsMatch("if (found is null) return Results.NotFound();")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"))
-            .Where(x => x.Rel.StartsWith("Endpoints/", StringComparison.Ordinal))
-            .Where(x => BareNotFoundRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownBareNotFoundFiles.Contains(key) && !BareNotFoundExemptFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "a 404 carries a `code` (ErrorResponses.NotFound / OkOrNotFound / "
-            + "NoContentOrNotFound) so the frontend can switch on it; a bare Results.NotFound() "
-            + "is only for the anonymous calendar feed. The grandfathered files are in "
-            + "KnownBareNotFoundFiles and shrink on touch. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void BareNotFoundBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"))
-            .Where(x => BareNotFoundRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownBareNotFoundFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these endpoint files no longer return a bare Results.NotFound() — remove them "
-            + "from the baseline:\n  " + string.Join("\n  ", stale));
-    }
-
     // ── (j) read verbs ───────────────────────────────────────────────────────
 
     /// <summary>
@@ -290,38 +148,6 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"Task(<[^>]*>)?\s+(Fetch|Load|Find)\w*Async\(")]
     private static partial Regex NonGetReadVerbRegex();
 
-    [Fact]
-    public void NoNewFile_DeclaresANonGetReadVerb()
-    {
-        NonGetReadVerbRegex().IsMatch("public async Task<User?> FindByEmailAsync(string email)")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => NonGetReadVerbRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownNonGetReadVerbFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "reads are Get* (docs/conventions.md, Naming): not Fetch, Load or Find. The "
-            + "grandfathered files are in KnownNonGetReadVerbFiles and shrink on touch. "
-            + "Offenders:\n  " + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void NonGetReadVerbBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => NonGetReadVerbRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownNonGetReadVerbFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these files no longer declare a Fetch/Load/Find read — remove them from the "
-            + "baseline:\n  " + string.Join("\n  ", stale));
-    }
-
     // ── (k) ordinal row reads ────────────────────────────────────────────────
 
     /// <summary>
@@ -329,50 +155,14 @@ public partial class ConventionContractTests
     /// positional: it keeps compiling and starts returning the wrong column the moment a
     /// SELECT list is reordered, and nothing fails until a user sees the wrong value. A JOIN
     /// whose two tables share a column name aliases the duplicate rather than reading by
-    /// position. The baseline is empty — every grandfathered file was converted — so the
-    /// forbid fact now guards the whole of <c>backend/src</c> and <c>backend/core</c>.
+    /// position. Every grandfathered file was converted, so there is no baseline: the forbid
+    /// row guards the whole of <c>backend/src</c> and <c>backend/core</c>.
     /// </summary>
-    private static readonly HashSet<string> KnownOrdinalReadFiles = new(StringComparer.Ordinal);
 
     // Any identifier ending in "reader", not just the two conventional names: a local called
     // `checkReader` held a positional read that this guard could not see for as long as it existed.
     [GeneratedRegex(@"\b(?:[A-Za-z_][A-Za-z0-9_]*)?[Rr]eader\.(?:Get[A-Za-z0-9]+|IsDBNull)\(\d+\)|\br\.(?:Get[A-Za-z0-9]+|IsDBNull)\(\d+\)")]
     private static partial Regex OrdinalRowReadRegex();
-
-    [Fact]
-    public void NoNewFile_ReadsARowByOrdinal()
-    {
-        OrdinalRowReadRegex().IsMatch("Id = reader.GetGuid(0),")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-        OrdinalRowReadRegex().IsMatch("Id = reader.GetGuid(\"id\"),")
-            .Should().BeFalse("a name-based read is the rule, not an offence");
-
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => OrdinalRowReadRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownOrdinalReadFiles.Contains(key))
-            .ToList();
-
-        offenders.Should().BeEmpty(
-            "rows are read by column name via ReaderExtensions, never by ordinal. Alias the "
-            + "column if a JOIN makes the name ambiguous. The grandfathered files are in "
-            + "KnownOrdinalReadFiles and shrink on touch. Offenders:\n  "
-            + string.Join("\n  ", offenders));
-    }
-
-    [Fact]
-    public void OrdinalReadBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => OrdinalRowReadRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
-
-        var stale = KnownOrdinalReadFiles.Where(f => !stillOffending.Contains(f)).ToList();
-
-        stale.Should().BeEmpty(
-            "these files no longer read a row by ordinal — remove them from the baseline so "
-            + "the ratchet moves forward:\n  " + string.Join("\n  ", stale));
-    }
 
     // ── (l) reading the clock directly ───────────────────────────────────────
 
@@ -381,7 +171,7 @@ public partial class ConventionContractTests
     /// <c>AddFoundationWorkerServices</c>. A direct <c>UtcNow</c> read is untestable: nothing
     /// can move it, so every rule that depends on "now" — expiry, dormancy, the effective
     /// request status — is pinned only at whatever time the suite happens to run. These files
-    /// predate the rule and shrink on touch; the reverse staleness fact locks in each
+    /// predate the rule and shrink on touch; the reverse staleness row locks in each
     /// conversion. There is no burn-down schedule.
     /// </summary>
     private static readonly HashSet<string> KnownDirectClockFiles = new(StringComparer.Ordinal)
@@ -405,37 +195,68 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"DateTime(?:Offset)?\.UtcNow")]
     private static partial Regex DirectClockReadRegex();
 
-    [Fact]
-    public void NoNewFile_ReadsTheClockDirectly()
-    {
-        DirectClockReadRegex().IsMatch("var now = DateTime.UtcNow;")
-            .Should().BeTrue("the guard regex must match its own exemplar");
-        DirectClockReadRegex().IsMatch("var now = _time.GetUtcNow();")
-            .Should().BeFalse("reading through TimeProvider is the rule, not an offence");
+    private static IEnumerable<Ratchet> ConventionRatchets() =>
+    [
+        new("SqlWritingService", ServiceSqlAccessRegex(), ["core"],
+            Scope: rel => rel.StartsWith("Services/", StringComparison.Ordinal),
+            Baseline: KnownSqlWritingServiceFiles,
+            Exemplars:
+            [
+                new("await using var cmd = new NpgsqlCommand(sql, conn);"),
+                new("var rows = await conn.QueryListAsync(sql, Map, ct);", true, "the guard regex must match the extension-helper exemplar"),
+                new("if (await _repository.ExistsAsync(id, ct))", false, "a repository call is not the service reaching the DB"),
+            ],
+            ForbidMessage: "services do not write SQL (docs/conventions.md, Layering): put the query in a "
+                + "repository and inject it. The grandfathered files are in "
+                + "KnownSqlWritingServiceFiles and shrink on touch."),
 
-        var offenders = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => DirectClockReadRegex().IsMatch(x.Text))
-            .Select(x => x.Key)
-            .Where(key => !KnownDirectClockFiles.Contains(key))
-            .ToList();
+        new("DbConnectionLocal", DbConnectionLocalRegex(), ["src", "core"],
+            Baseline: KnownDbLocalFiles,
+            Exemplars: [new("await using var db = connectionFactory.CreateOrgConnection(orgContext);")],
+            ForbidMessage: "the connection local is named `conn` (docs/conventions.md). The grandfathered "
+                + "files are in KnownDbLocalFiles and shrink on touch."),
 
-        offenders.Should().BeEmpty(
-            "the clock comes from an injected TimeProvider, not DateTime.UtcNow. The "
-            + "grandfathered files are in KnownDirectClockFiles and shrink on touch. "
-            + "Offenders:\n  " + string.Join("\n  ", offenders));
-    }
+        new("BareLengthLimit", BareLengthLimitRegex(), ["src", "core"],
+            Scope: rel => rel.Contains("Validators/", StringComparison.Ordinal),
+            Baseline: KnownBareLengthLimitFiles,
+            Exemplars: [new("RuleFor(x => x.Name).MaximumLength(200);")],
+            ForbidMessage: "length limits come from DomainLimits, not a bare number (docs/conventions.md). "
+                + "Add the constant if it is missing. The grandfathered files are in "
+                + "KnownBareLengthLimitFiles and shrink on touch."),
 
-    [Fact]
-    public void DirectClockBaseline_HasNoStaleEntries()
-    {
-        var stillOffending = ScanSources(("backend", "src"), ("backend", "core"))
-            .Where(x => DirectClockReadRegex().IsMatch(x.Text))
-            .Select(x => x.Key).ToHashSet(StringComparer.Ordinal);
+        new("BareNotFound", BareNotFoundRegex(), ["src"],
+            Scope: rel => rel.StartsWith("Endpoints/", StringComparison.Ordinal),
+            Baseline: KnownBareNotFoundFiles,
+            Exempt: BareNotFoundExemptFiles,
+            Exemplars: [new("if (found is null) return Results.NotFound();")],
+            ForbidMessage: "a 404 carries a `code` (ErrorResponses.NotFound / OkOrNotFound / "
+                + "NoContentOrNotFound) so the frontend can switch on it; a bare Results.NotFound() "
+                + "is only for the anonymous calendar feed. The grandfathered files are in "
+                + "KnownBareNotFoundFiles and shrink on touch."),
 
-        var stale = KnownDirectClockFiles.Where(f => !stillOffending.Contains(f)).ToList();
+        new("NonGetReadVerb", NonGetReadVerbRegex(), ["src", "core"],
+            Baseline: KnownNonGetReadVerbFiles,
+            Exemplars: [new("public async Task<User?> FindByEmailAsync(string email)")],
+            ForbidMessage: "reads are Get* (docs/conventions.md, Naming): not Fetch, Load or Find. The "
+                + "grandfathered files are in KnownNonGetReadVerbFiles and shrink on touch."),
 
-        stale.Should().BeEmpty(
-            "these files no longer read the clock directly — remove them from the baseline so "
-            + "the ratchet moves forward:\n  " + string.Join("\n  ", stale));
-    }
+        new("OrdinalRowRead", OrdinalRowReadRegex(), ["src", "core"],
+            Exemplars:
+            [
+                new("Id = reader.GetGuid(0),"),
+                new("Id = reader.GetGuid(\"id\"),", false, "a name-based read is the rule, not an offence"),
+            ],
+            ForbidMessage: "rows are read by column name via ReaderExtensions, never by ordinal. Alias the "
+                + "column if a JOIN makes the name ambiguous."),
+
+        new("DirectClockRead", DirectClockReadRegex(), ["src", "core"],
+            Baseline: KnownDirectClockFiles,
+            Exemplars:
+            [
+                new("var now = DateTime.UtcNow;"),
+                new("var now = _time.GetUtcNow();", false, "reading through TimeProvider is the rule, not an offence"),
+            ],
+            ForbidMessage: "the clock comes from an injected TimeProvider, not DateTime.UtcNow. The "
+                + "grandfathered files are in KnownDirectClockFiles and shrink on touch."),
+    ];
 }

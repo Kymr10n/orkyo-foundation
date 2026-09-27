@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -39,7 +40,7 @@ public static class TokenCredentialHelper
         var prefix = GeneratePrefix();
         var secretBytes = RandomNumberGenerator.GetBytes(SecretByteLength);
         return new GeneratedToken(
-            RawToken: $"{scheme}_{prefix}_{Base64UrlEncode(secretBytes)}",
+            RawToken: $"{scheme}_{prefix}_{Base64Url.EncodeToString(secretBytes)}",
             Prefix: prefix,
             Hash: ComputeHash(secretBytes, pepper));
     }
@@ -103,12 +104,8 @@ public static class TokenCredentialHelper
         return new string(buf.ToArray().Select(b => chars[b % chars.Length]).ToArray());
     }
 
-    private static string Base64UrlEncode(byte[] data)
-        => Convert.ToBase64String(data)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
-
+    // Hand-written on purpose, unlike the encoder: it also accepts the standard '+' '/' alphabet,
+    // which System.Buffers.Text.Base64Url rejects, and a presented token must keep validating.
     private static byte[] Base64UrlDecode(string s)
     {
         s = s.Replace('-', '+').Replace('_', '/');

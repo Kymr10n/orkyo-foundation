@@ -1,9 +1,9 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessagesTab } from './MessagesTab';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 // Mock the user announcements API
 const mockGetActiveAnnouncements = vi.fn();
@@ -13,15 +13,6 @@ vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({
   getActiveAnnouncements: (...args: unknown[]) => mockGetActiveAnnouncements(...args),
   markAnnouncementRead: (...args: unknown[]) => mockMarkAnnouncementRead(...args),
 }));
-
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-}
 
 const unreadAnnouncement = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -66,26 +57,26 @@ describe('MessagesTab', () => {
 
   it('should show loading state', () => {
     mockGetActiveAnnouncements.mockReturnValue(new Promise(() => {}));
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     expect(screen.getByText('Loading messages…')).toBeInTheDocument();
   });
 
   it('should show empty state when no messages', async () => {
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('No messages at this time.')).toBeInTheDocument();
     });
   });
 
   it('should show "Messages" heading', async () => {
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('Messages')).toBeInTheDocument();
     });
   });
 
   it('should show description text', async () => {
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('Platform announcements from the Orkyo team')).toBeInTheDocument();
     });
@@ -100,7 +91,7 @@ describe('MessagesTab', () => {
       announcements: [unreadAnnouncement, readAnnouncement],
     });
 
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('Scheduled Maintenance')).toBeInTheDocument();
       expect(screen.getByText('Welcome to Orkyo')).toBeInTheDocument();
@@ -112,7 +103,7 @@ describe('MessagesTab', () => {
       announcements: [unreadAnnouncement, readAnnouncement],
     });
 
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('1 unread')).toBeInTheDocument();
     });
@@ -123,7 +114,7 @@ describe('MessagesTab', () => {
       announcements: [readAnnouncement],
     });
 
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.queryByText(/unread/)).not.toBeInTheDocument();
     });
@@ -139,7 +130,7 @@ describe('MessagesTab', () => {
     });
 
     const user = userEvent.setup();
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
 
     await waitFor(() => screen.getByText('Welcome to Orkyo'));
 
@@ -157,7 +148,7 @@ describe('MessagesTab', () => {
     });
 
     const user = userEvent.setup();
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
 
     await waitFor(() => screen.getByText('Welcome to Orkyo'));
 
@@ -176,7 +167,7 @@ describe('MessagesTab', () => {
     });
 
     const user = userEvent.setup();
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
 
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
     await user.click(screen.getByText('Scheduled Maintenance'));
@@ -192,7 +183,7 @@ describe('MessagesTab', () => {
     });
 
     const user = userEvent.setup();
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
 
     await waitFor(() => screen.getByText('Welcome to Orkyo'));
     await user.click(screen.getByText('Welcome to Orkyo'));
@@ -208,7 +199,7 @@ describe('MessagesTab', () => {
     });
 
     const user = userEvent.setup();
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
 
     await waitFor(() => {
       expect(screen.getByText('1 unread')).toBeInTheDocument();
@@ -231,7 +222,7 @@ describe('MessagesTab', () => {
       announcements: [importantAnnouncement],
     });
 
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('Critical Security Update')).toBeInTheDocument();
     });
@@ -244,7 +235,7 @@ describe('MessagesTab', () => {
   it('should show error when API call fails', async () => {
     mockGetActiveAnnouncements.mockRejectedValue(new Error('Network error'));
 
-    render(<MessagesTab />, { wrapper: createWrapper() });
+    renderWithQuery(<MessagesTab />);
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeInTheDocument();
     });

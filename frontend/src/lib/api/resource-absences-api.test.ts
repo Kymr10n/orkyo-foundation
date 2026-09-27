@@ -3,7 +3,6 @@ import {
   getResourceAbsences,
   createResourceAbsence,
   updateResourceAbsence,
-  deleteResourceAbsence,
 } from './resource-absences-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -36,14 +35,6 @@ describe('resource-absences-api', () => {
       const result = await createResourceAbsence('res-1', req);
       expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.resourceAbsences('res-1'), req);
       expect(result).toEqual(mockAbsence);
-    });
-  });
-
-  describe('deleteResourceAbsence', () => {
-    it('calls apiDelete on the specific absence endpoint', async () => {
-      vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
-      await deleteResourceAbsence('res-1', 'abs-1');
-      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.resourceAbsence('res-1', 'abs-1'));
     });
   });
 

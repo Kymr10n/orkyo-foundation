@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RequestResourcesSection } from "./RequestResourcesSection";
 import { Tabs } from "@foundation/src/components/ui/tabs";
 import { getResources } from "@foundation/src/lib/api/resources-api";
 import { getUtilizationByResource } from "@foundation/src/lib/api/resource-utilization-api";
 import { pagedResult } from "@foundation/src/test-utils/paged-result";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 vi.mock("@foundation/src/lib/api/resources-api", () => ({ getResources: vi.fn() }));
 vi.mock("@foundation/src/lib/api/resource-utilization-api", () => ({
@@ -61,11 +61,9 @@ function renderSection(withWindow = true) {
     endDate: withWindow ? "2026-09-08" : "",
     endTime: withWindow ? "12:00" : "",
   };
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      {/* The section renders a TabsContent, so it needs the Radix Tabs context. */}
-      <Tabs value="resources">
+  // The section renders a TabsContent, so it needs the Radix Tabs context.
+  return renderWithQuery(
+    <Tabs value="resources">
       <RequestResourcesSection
         activeTab="resources"
         state={state as never}
@@ -77,8 +75,7 @@ function renderSection(withWindow = true) {
         onBlockersChange={vi.fn()}
         conflictsByResourceId={new Map()}
       />
-      </Tabs>
-    </QueryClientProvider>,
+    </Tabs>,
   );
 }
 

@@ -980,7 +980,7 @@ public class RequestRepository : IRequestRepository
             "SELECT planning_mode FROM requests WHERE id = @id",
             p => p.AddWithValue("id", id), ct);
         if (result is null) return null;
-        return EnumMapper.ToPlanningMode(result);
+        return EnumMapper.FromDbValue<PlanningMode>(result);
     }
 
     /// <summary>
@@ -1015,7 +1015,7 @@ public class RequestRepository : IRequestRepository
         return rows.ToDictionary(r => r.Id, r => r.Status);
     }
 
-    public async Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default)
+    public async Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, CreateRequestRequirementRequest requirement, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 

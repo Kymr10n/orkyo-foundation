@@ -296,7 +296,6 @@ export default defineConfig(
   // `no-restricted-globals`, distinct rules from the `no-restricted-syntax`
   // colour/date bans above, so they compose without the flat-config
   // last-match-wins clobber.
-  // See orkyo-infra/docs/optimization-plan-2026-07.md §Guardrails (G1, G3).
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
@@ -357,20 +356,19 @@ export default defineConfig(
       'src/components/settings/api-tokens/token-ui.tsx',
       'src/components/admin/FeedbackTab.tsx',
       // Compound in-place sub-forms / special flows — FormDialog convergence is
-      // tracked as follow-up work, not forced here (W2.2 backlog).
+      // tracked as follow-up work, not forced here.
       'src/components/layout/FeedbackButton.tsx',
       'src/components/settings/PasswordSection.tsx',
       'src/components/settings/PresetSettings.tsx',
       'src/components/system/ImportExportDialog.tsx',
       'src/components/requests/FloorplanUploadDialog.tsx',
-      'src/pages/AccountPage.tsx',
     ],
     rules: {
       'no-restricted-imports': ['error', { paths: banDirectDataAccess }],
     },
   },
 
-  // G3 (W1.2): the utils barrel must never re-export gantt-pdf-export — that is
+  // The utils barrel must never re-export gantt-pdf-export — that is
   // the exact line that dragged jspdf into the main chunk. `error` here (0
   // violations since the re-export was removed) locks the fix. Scoped to the one
   // file, so it overrides — not merges with — the date-format no-restricted-syntax

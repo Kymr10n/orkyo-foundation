@@ -11,8 +11,7 @@ namespace Orkyo.Foundation.Seed.Narrative;
 /// in shift hours within the calendar, each with skill requirements and capability-matched, facility-
 /// local, timeline-aware assignments (Exclusive machines/people aren't accidentally double-booked;
 /// Fractional forklifts/cranes and shared storage rooms hold several jobs at partial load). Injects a
-/// small, bounded set of intentional conflicts so conflict detection has something to surface. Replaces
-/// the random WorkItemFactories for the demo.
+/// small, bounded set of intentional conflicts so conflict detection has something to surface.
 /// </summary>
 public static class NarrativeYearSeeder
 {
@@ -30,7 +29,7 @@ public static class NarrativeYearSeeder
 
     // Backlog of unscheduled tasks the demo user schedules themselves. Scaled, but bounded: a
     // backlog nobody could work through is not a demo of anything.
-    private static int BacklogCount(IScale scale) => Math.Clamp(scale.Requests / 250, 12, 24);
+    private static int BacklogCount(ScaleSpec scale) => Math.Clamp(scale.Requests / 250, 12, 24);
 
     // How many times in a row the day's fill may fail to place a job before it gives up. A miss
     // means no capable person or no free station at that hour — the shop is saturated in the way
@@ -81,7 +80,7 @@ public static class NarrativeYearSeeder
         IReadOnlyDictionary<string, Guid> criteria,
         IReadOnlyDictionary<Guid, HashSet<Guid>> personSkills,
         YearCalendar cal,
-        IScale scale,
+        ScaleSpec scale,
         Faker faker,
         IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> vacations,
         IReadOnlyList<(Guid ResourceId, DateTime Start, DateTime End)> absences)

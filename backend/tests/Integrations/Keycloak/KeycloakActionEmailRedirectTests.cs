@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orkyo.Shared;
 using Orkyo.Shared.Keycloak;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Integrations.Keycloak;
 
@@ -21,31 +20,24 @@ public class KeycloakActionEmailRedirectTests
 {
     private const string AppUrl = "https://app.example.com";
 
-    /// <summary>Captures every outgoing request and answers each with the minimum the caller needs.</summary>
-    private sealed class CapturingHandler : HttpMessageHandler
+    /// <summary>Answers each outgoing request with the minimum the caller needs.</summary>
+    private static StubHttpMessageHandler NewHandler() => new(request =>
     {
-        public List<Uri> Requests { get; } = [];
+        // The admin token fetch and the user lookup both happen before the mail call.
+        var path = request.RequestUri!.AbsolutePath;
+        var body = path.EndsWith("/token", StringComparison.Ordinal)
+            ? """{"access_token":"test-token","expires_in":300}"""
+            : path.EndsWith("/users", StringComparison.Ordinal)
+                ? """[{"id":"user-1"}]"""
+                : "{}";
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        return new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Requests.Add(request.RequestUri!);
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+        };
+    });
 
-            // The admin token fetch and the user lookup both happen before the mail call.
-            var path = request.RequestUri!.AbsolutePath;
-            var body = path.EndsWith("/token", StringComparison.Ordinal)
-                ? """{"access_token":"test-token","expires_in":300}"""
-                : path.EndsWith("/users", StringComparison.Ordinal)
-                    ? """[{"id":"user-1"}]"""
-                    : "{}";
-
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
-            });
-        }
-    }
-
-    private static KeycloakAdminService CreateSut(CapturingHandler handler)
+    private static KeycloakAdminService CreateSut(StubHttpMessageHandler handler)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { [ConfigKeys.AppBaseUrl] = AppUrl })
@@ -65,13 +57,13 @@ public class KeycloakActionEmailRedirectTests
             TimeProvider.System);
     }
 
-    private static Uri ActionEmailRequest(CapturingHandler handler) =>
-        handler.Requests.Single(u => u.AbsolutePath.EndsWith("/execute-actions-email", StringComparison.Ordinal));
+    private static Uri ActionEmailRequest(StubHttpMessageHandler handler) =>
+        handler.Requests.Select(r => r.RequestUri!).Single(u => u.AbsolutePath.EndsWith("/execute-actions-email", StringComparison.Ordinal));
 
     [Fact]
     public async Task RequiredActionsEmail_NamesTheClientAndWhereToReturn()
     {
-        var handler = new CapturingHandler();
+        var handler = NewHandler();
 
         await CreateSut(handler).SendExecuteActionsEmailAsync("owner@example.com", ["UPDATE_PASSWORD"]);
 
@@ -83,7 +75,7 @@ public class KeycloakActionEmailRedirectTests
     [Fact]
     public async Task RequiredActionsEmail_EscapesTheRedirect_SoTheQueryStaysOneParameter()
     {
-        var handler = new CapturingHandler();
+        var handler = NewHandler();
 
         await CreateSut(handler).SendExecuteActionsEmailAsync("owner@example.com", ["UPDATE_PASSWORD"]);
 

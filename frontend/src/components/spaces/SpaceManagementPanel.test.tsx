@@ -73,7 +73,7 @@ vi.mock('./EditSpaceDialog', () => ({
     open ? <button data-testid="edit-dialog-save" onClick={() => onSuccess({})}>Save Edit</button> : null,
 }));
 
-vi.mock('@/components/requests/CreateSpaceDialog', () => ({
+vi.mock('@foundation/src/components/requests/CreateSpaceDialog', () => ({
   // The real dialog takes onSubmit and is told which type it is creating.
   CreateSpaceDialog: ({ open, onSubmit, resourceTypeKey }: any) =>
     open ? (
@@ -87,12 +87,12 @@ vi.mock('@/components/requests/CreateSpaceDialog', () => ({
     ) : null,
 }));
 
-vi.mock('@/components/requests/FloorplanUploadDialog', () => ({
+vi.mock('@foundation/src/components/requests/FloorplanUploadDialog', () => ({
   FloorplanUploadDialog: ({ open, onUploadComplete }: any) =>
     open ? <button data-testid="upload-complete" onClick={() => onUploadComplete({ id: 'fp-1' })}>Upload Done</button> : null,
 }));
 
-vi.mock('@/components/requests/SpaceDrawingCanvas', () => ({
+vi.mock('@foundation/src/components/requests/SpaceDrawingCanvas', () => ({
   SpaceDrawingCanvas: ({ onSpaceDoubleClick, onSpaceContextMenu, onDrawingComplete, editEnabled, drawingMode }: any) => (
     <div
       data-testid="drawing-canvas"

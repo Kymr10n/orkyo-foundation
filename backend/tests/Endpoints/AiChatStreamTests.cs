@@ -3,7 +3,6 @@ using Api.Endpoints.Ai;
 using Api.Services.Ai;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

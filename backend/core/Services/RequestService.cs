@@ -41,7 +41,7 @@ public interface IRequestService
     /// <summary>Updates only the schedule fields of a request. Throws if a non-leaf request is scheduled directly.</summary>
     Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);
     /// <summary>Adds a requirement to a request.</summary>
-    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default);
+    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, CreateRequestRequirementRequest requirement, CancellationToken ct = default);
     /// <summary>Removes a requirement. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default);
     /// <summary>Returns direct children of the given parent request.</summary>
@@ -220,7 +220,7 @@ public class RequestService : IRequestService
         return await _repository.UpdateScheduleAsync(id, request, ct);
     }
 
-    public Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default)
+    public Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, CreateRequestRequirementRequest requirement, CancellationToken ct = default)
         => _repository.AddRequirementAsync(requestId, requirement, ct);
 
     public Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default)

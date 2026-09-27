@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
-import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
+import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
+import { updateRequest } from '@foundation/src/lib/api/request-api';
 import {
+  useApplyAssistantProposal,
   useDeleteAiCredential,
   useRevokeAiAllowance,
   useSaveAiAllowance,
@@ -23,6 +26,8 @@ vi.mock('@foundation/src/lib/api/ai-api', () => ({
   getAiStatus: vi.fn(),
   listAiAllowances: vi.fn(),
 }));
+
+vi.mock('@foundation/src/lib/api/request-api', () => ({ updateRequest: vi.fn() }));
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -100,5 +105,20 @@ describe('useAiAssistant mutation feedback', () => {
     await result.current.mutateAsync('u1');
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Access removed.'));
+  });
+});
+
+describe('useApplyAssistantProposal', () => {
+  it('refreshes every request-derived view after writing the change', async () => {
+    vi.mocked(updateRequest).mockResolvedValue({} as never);
+    const { spy, wrapper } = createTestQueryClient();
+    const { result } = renderHook(() => useApplyAssistantProposal(), { wrapper });
+
+    await result.current('req-1', { name: 'Renamed' });
+
+    expect(updateRequest).toHaveBeenCalledWith('req-1', { name: 'Renamed' });
+    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+      expect(spy).toHaveBeenCalledWith({ queryKey });
+    }
   });
 });

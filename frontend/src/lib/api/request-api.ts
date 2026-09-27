@@ -1,7 +1,3 @@
-/**
- * API client for Request CRUD operations
- */
-
 import type {
   CreateRequestRequest,
   DurationUnit,
@@ -25,12 +21,12 @@ export async function getRequests(
   includeRequirements = false,
   siteId?: string,
 ): Promise<Request[]> {
-  const params = new URLSearchParams();
-  if (includeRequirements) params.set("includeRequirements", "true");
-  // Site-neutral requests stay in the result — the backend keeps them under every site.
-  if (siteId) params.set("siteId", siteId);
-  const query = params.toString();
-  return apiGet<Request[]>(query ? `${API_PATHS.REQUESTS}?${query}` : API_PATHS.REQUESTS);
+  const params = {
+    includeRequirements: includeRequirements || undefined,
+    // Site-neutral requests stay in the result — the backend keeps them under every site.
+    siteId: siteId || undefined,
+  };
+  return apiGet<Request[]>(API_PATHS.REQUESTS, { params });
 }
 
 /**
@@ -58,9 +54,6 @@ export async function getRequestChildren(requestId: string): Promise<Request[]> 
   return apiGet<Request[]>(API_PATHS.requestChildren(requestId));
 }
 
-/**
- * Create a new request
- */
 export async function createRequest(
   request: CreateRequestRequest,
 ): Promise<Request> {
@@ -90,9 +83,6 @@ export async function createChildRequest(
   });
 }
 
-/**
- * Update an existing request
- */
 export async function updateRequest(
   requestId: string,
   request: UpdateRequestRequest,
@@ -100,16 +90,10 @@ export async function updateRequest(
   return apiPut<Request>(API_PATHS.request(requestId), request);
 }
 
-/**
- * Delete a request
- */
 export async function deleteRequest(requestId: string): Promise<void> {
   return apiDelete(API_PATHS.request(requestId));
 }
 
-/**
- * Move/reparent a request in the tree
- */
 export async function moveRequest(
   requestId: string,
   request: MoveRequestRequest,

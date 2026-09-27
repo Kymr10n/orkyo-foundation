@@ -22,7 +22,7 @@ describe('routing-api', () => {
   it('getRoutings reads the collection', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([routing]);
     expect(await getRoutings()).toEqual([routing]);
-    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ROUTINGS);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ROUTINGS, { params: undefined });
   });
 
   it('createRouting posts to the collection', async () => {

@@ -1,27 +1,16 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   useTenantSettings,
   useUpdateTenantSettings,
   useResetTenantSetting,
 } from "@foundation/src/hooks/useTenantSettings";
 import * as settingsApi from "@foundation/src/lib/api/tenant-settings-api";
-import { createTestQueryWrapper } from "@foundation/src/test-utils";
-import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
+import { createTestQueryWrapper, createTestQueryClient } from "@foundation/src/test-utils";
 
 vi.mock("@foundation/src/lib/api/tenant-settings-api");
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
-// Settings mutations invalidate through the meta-driven MutationCache.
-function makeFeedbackClient() {
-  const client: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => client),
-  });
-  return client;
-}
 
 const mockResponse: settingsApi.TenantSettingsResponse = {
   settings: [
@@ -134,14 +123,8 @@ describe("useTenantSettings", () => {
 
   describe("useUpdateTenantSettings", () => {
     it("calls updateTenantSettings and invalidates cache", async () => {
-      const queryClient = makeFeedbackClient();
-      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      );
+      // Settings mutations invalidate through the meta-driven MutationCache.
+      const { spy: invalidateSpy, wrapper } = createTestQueryClient({ feedback: true });
 
       vi.mocked(settingsApi.updateTenantSettings).mockResolvedValue(
         mockResponse,
@@ -170,14 +153,8 @@ describe("useTenantSettings", () => {
 
   describe("useResetTenantSetting", () => {
     it("calls resetTenantSetting and invalidates cache", async () => {
-      const queryClient = makeFeedbackClient();
-      const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
-      const wrapper = ({ children }: { children: React.ReactNode }) => (
-        <QueryClientProvider client={queryClient}>
-          {children}
-        </QueryClientProvider>
-      );
+      // Settings mutations invalidate through the meta-driven MutationCache.
+      const { spy: invalidateSpy, wrapper } = createTestQueryClient({ feedback: true });
 
       vi.mocked(settingsApi.resetTenantSetting).mockResolvedValue(undefined);
 

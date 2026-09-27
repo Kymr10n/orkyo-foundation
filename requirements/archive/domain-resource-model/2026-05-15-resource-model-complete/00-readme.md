@@ -82,7 +82,7 @@ is reviewable only as a whole because no half-renamed state is operable.
 
 ## Where supporting docs live
 
-- Phase 0 inventory: `orkyo-foundation/docs/resource-model/current-space-dependencies.md`.
+- Phase 0 inventory: `requirements/archive/superseded-docs/current-space-dependencies.md`.
 - Live initiative status + per-phase notes: `STATUS.md` in this pack.
 - Migrations: `backend/migrations-foundation/sql/tenant/13xx.*.sql`.
 - Code: `backend/src/` (Models, Services, Repositories, Endpoints).

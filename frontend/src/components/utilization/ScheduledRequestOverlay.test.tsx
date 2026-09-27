@@ -7,7 +7,7 @@ import { buildIndex } from "@foundation/src/domain/scheduling/schedule-index";
 import type { PreviewEntry, PreviewSchedule, ValidationResult } from "@foundation/src/domain/scheduling/schedule-model";
 import type { Request } from "@foundation/src/types/requests";
 import type { TimeColumn } from "./scheduler-types";
-import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { spaceAssignment, makeRequest as fixtureRequest } from '@foundation/src/test-utils/request-fixtures';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,22 +27,15 @@ const COLUMNS: TimeColumn[] = [
 const CONTAINER_WIDTH_PX = 800;
 
 function makeRequest(overrides: Partial<Request> = {}): Request {
-  return {
+  return fixtureRequest({
     id: "req-1",
-    name: "Test Request",
-    planningMode: "leaf",
-    sortOrder: 0,
     assignments: [spaceAssignment('space-1')],
     startTs: "2024-01-15T09:00:00Z",
     endTs: "2024-01-15T11:00:00Z",
     minimalDurationValue: 120,
-    minimalDurationUnit: "minutes",
     schedulingSettingsApply: false,
-    status: "new",
-    createdAt: "2024-01-01T00:00:00Z",
-    updatedAt: "2024-01-01T00:00:00Z",
     ...overrides,
-  };
+  });
 }
 
 function makeEntry(request: Request, isDraft = false): PreviewEntry {

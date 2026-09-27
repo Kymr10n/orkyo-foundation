@@ -3,7 +3,6 @@ using Api.Models;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Repositories;
 

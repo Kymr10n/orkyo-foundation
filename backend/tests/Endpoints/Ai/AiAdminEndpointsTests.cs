@@ -5,7 +5,6 @@ using System.Text.Json;
 using Api.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints.Ai;
 
@@ -42,19 +41,8 @@ public class AiAdminEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(
             email, "AI Admin", TenantSlug, "admin", active: true);
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "AI Admin",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug,
-            IsTenantAdmin = true,
-            Role = "admin"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        _cachedAdminToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        _cachedAdminToken = TestConstants.BearerToken(userId.ToString(), email, "AI Admin", "00000000-0000-0000-0000-000000000001", TenantSlug,
+            isTenantAdmin: true, role: "admin");
         return _cachedAdminToken;
     }
 

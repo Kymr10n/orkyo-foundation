@@ -4,7 +4,7 @@ All items in `archive/` are fully shipped. This index is the entry point.
 
 | Initiative | Completed | Files | What shipped |
 |---|---|---|---|
-| [Resource model](archive/domain-resource-model/2026-05-15-resource-model-complete/) | 2026-05-15 | 23 | Core domain refactor: Space/Resource/Person/Tool as first-class entities; OrgContext abstraction; multi-tenant-safe repositories |
+| [Resource model](archive/domain-resource-model/2026-05-15-resource-model-complete/) | 2026-05-15 | 13 | Core domain refactor: Space/Resource/Person/Tool as first-class entities; OrgContext abstraction; multi-tenant-safe repositories |
 | [Criterion applicability](archive/domain-criteria/2026-05-15-criterion-applicability-complete/) | 2026-05-15 | 6 | Scope tags on criteria (Space / People / Tool); consistent filtering across Settings and resource-domain pages |
 | [People resources](archive/domain-people/2026-05-16-people-resources-complete/) | 2026-05-16 | 4 | People as bookable resources; capacity, skills, availability surfaced through the resource model |
 | [Availability model](archive/domain-availability/2026-05-28-availability-model-complete/) | 2026-05-28 | 1 | `availability_events` + `resource_absences` replacing `off_times`; migration 1490 |
@@ -18,3 +18,14 @@ All items in `archive/` are fully shipped. This index is the entry point.
 | [Home-site resource model](archive/domain-resource-model/2026-06-14-home-site-resource-model-complete/) | 2026-06-14 | 5 | Unified resource location model: stored `home_site_id` + `cross_site_allowed`, derived read-only `currentSiteId` (drop migration 1560), cross-site request validation |
 | [Request calendar view](archive/domain-utilization/2026-06-22-calendar-view-for-requests-complete/) | 2026-06-22 | 1 | FullCalendar-based day/week/month calendar for requests; drag/resize reschedule and empty-slot scheduling |
 | [Built-in insights](archive/domain-insights/2026-06-23-insights-complete/) | 2026-06-23 | 8 | Tenant-safe built-in insights semantic layer; overview/utilization/conflicts/requests APIs + KPI & trend dashboard, composed into saas + community |
+
+## Superseded documents
+
+[`archive/superseded-docs/`](archive/superseded-docs/) holds audits and inventories that left `docs/`
+in 2026-09. Each one describes a state of the code that no longer exists. They are historical records.
+
+| Document | Written | Why it is here |
+|---|---|---|
+| `current-space-dependencies.md` | 2026-05 | Phase 0 inventory of the `spaces` side tables. Migrations 1700 and 1710 removed those tables. |
+| `reusable-ui-candidates.md` | 2026-05 | Candidate list for shared UI components. Its own status note marks it as partially stale. |
+| `main-branch-findings-2026-07.md` | 2026-07 | Review findings from 2026-07. Some files it names no longer exist. |

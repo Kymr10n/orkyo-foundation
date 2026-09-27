@@ -1,8 +1,10 @@
 /**
- * Shared test utilities for React Query hooks
+ * Shared test utilities for React Query hooks and components
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { type ReactNode } from "react";
+import { render } from "@testing-library/react";
+import { type ReactElement, type ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
 
@@ -44,4 +46,32 @@ export function createTestQueryClient({ feedback = false }: TestQueryClientOptio
  */
 export function createTestQueryWrapper(options: TestQueryClientOptions = {}) {
   return createTestQueryClient(options).wrapper;
+}
+
+export interface RenderWithQueryOptions extends TestQueryClientOptions {
+  /** Wrap the UI in a MemoryRouter; a path sets its initial entry. */
+  router?: boolean | string;
+}
+
+/**
+ * Render `ui` inside a fresh test QueryClient (see `createTestQueryClient`), optionally under a
+ * MemoryRouter. Returns the Testing Library result plus the client and its `invalidateQueries`
+ * spy; `rerender` keeps the same client.
+ */
+export function renderWithQuery(
+  ui: ReactElement,
+  { router, ...clientOptions }: RenderWithQueryOptions = {},
+) {
+  const { queryClient, spy, wrapper: QueryWrapper } = createTestQueryClient(clientOptions);
+  const initialEntries = typeof router === "string" ? [router] : undefined;
+  const wrapper = router
+    ? ({ children }: { children: ReactNode }) => (
+        <QueryWrapper>
+          <MemoryRouter initialEntries={initialEntries}>
+            {children}
+          </MemoryRouter>
+        </QueryWrapper>
+      )
+    : QueryWrapper;
+  return { ...render(ui, { wrapper }), queryClient, invalidateSpy: spy };
 }

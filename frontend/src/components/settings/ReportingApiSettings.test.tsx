@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComponentProps } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReportingApiSettings } from './ReportingApiSettings';
 import type { ReportingTokenSummary } from '@foundation/src/lib/api/reporting-tokens-api';
 
@@ -41,7 +39,8 @@ import {
   revokeReportingToken,
   type CreatedReportingToken,
 } from '@foundation/src/lib/api/reporting-tokens-api';
-import { createTestQueryClient } from '@foundation/src/test-utils';
+import { renderWithQuery } from '@foundation/src/test-utils';
+import { formatDateForInput } from '@foundation/src/lib/utils';
 
 const activeToken: ReportingTokenSummary = {
   id: 'tok-1',
@@ -73,14 +72,7 @@ const revokedToken: ReportingTokenSummary = {
 
 function renderPage(props?: ComponentProps<typeof ReportingApiSettings>) {
   // Production-identical feedback MutationCache (dialog-feedback.md).
-  const { queryClient } = createTestQueryClient({ feedback: true });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <ReportingApiSettings {...props} />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<ReportingApiSettings {...props} />, { router: true, feedback: true });
 }
 
 function addLocalDays(date: Date, days: number): Date {
@@ -89,13 +81,8 @@ function addLocalDays(date: Date, days: number): Date {
   return next;
 }
 
-function toDateOnly(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 function expectedPresetExpiry(days: number): string {
-  return toDateOnly(addLocalDays(new Date(), days));
+  return formatDateForInput(addLocalDays(new Date(), days));
 }
 
 function expectedPresetLabel(days: number): string {
@@ -140,13 +127,9 @@ describe('ReportingApiSettings', () => {
 
   it('shows an upsell with a plans link (no redirect) when an upgrade href is provided', async () => {
     authState.membership = notEntitled;
-    render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={['/settings/integrations']}>
-          <ReportingApiSettings upgradeHref="/account?tab=upgrade" />
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<ReportingApiSettings upgradeHref="/account?tab=upgrade" />, {
+      router: '/settings/integrations',
+    });
 
     // Upsell renders in place — the user is not silently redirected, and the generic
     // "not available" notice is not used when an upgrade path exists.

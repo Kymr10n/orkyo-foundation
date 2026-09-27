@@ -93,10 +93,4 @@ public static class EnumMapper
     {
         return Enum.Parse<T>(value, ignoreCase: true);
     }
-
-    /// <summary>
-    /// Convenience: convert a DB planning_mode string to the PlanningMode enum.
-    /// </summary>
-    public static Models.PlanningMode ToPlanningMode(string dbValue)
-        => FromDbValue<Models.PlanningMode>(dbValue);
 }

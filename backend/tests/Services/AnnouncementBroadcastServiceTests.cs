@@ -24,7 +24,7 @@ public class AnnouncementBroadcastServiceTests
     public AnnouncementBroadcastServiceTests(DatabaseFixture fixture)
     {
         _fixture = fixture;
-        _conn = $"Host=localhost;Port={_fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _conn = _fixture.ControlPlaneConnectionString;
         var scope = fixture.Factory.Services.CreateScope();
         _repository = scope.ServiceProvider.GetRequiredService<IAnnouncementRepository>();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>();

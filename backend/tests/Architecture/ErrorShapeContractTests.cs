@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
 
@@ -28,7 +27,6 @@ public partial class ErrorShapeContractTests
         // surface deliberately keeps its own shape. Nothing in the Orkyo frontends calls it.
         "Reporting/Auth/ReportingTokenAuthHandler.cs",
         "Endpoints/Reporting/ReportingEndpoints.cs",
-        "Endpoints/Reporting/ReportingTokenEndpoints.cs",
     };
 
     // An anonymous body whose first member is `error = ...` — the old hand-rolled shape.
@@ -100,24 +98,12 @@ public partial class ErrorShapeContractTests
             + "entry with its reason:\n  " + string.Join("\n  ", offenders));
     }
 
-    private static List<string> ScanSources(Func<string, string, string?> inspect)
-    {
-        var srcDir = TestRepoPaths.FindDirectory("backend", "src");
-        srcDir.Should().NotBeNull("could not locate backend/src");
-
-        var files = Directory.GetFiles(srcDir!, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-            .ToList();
-        files.Should().NotBeEmpty("the source scan found no .cs files — did the layout move?");
-
-        return files
-            .Select(f => (Rel: Path.GetRelativePath(srcDir!, f).Replace('\\', '/'), Text: File.ReadAllText(f)))
+    private static List<string> ScanSources(Func<string, string, string?> inspect) =>
+        TestRepoPaths.BackendSources("src")
             .Where(x => !ExemptFiles.Contains(x.Rel))
             .Select(x => inspect(x.Rel, x.Text))
             .Where(rel => rel is not null)
             .Select(rel => rel!)
             .OrderBy(rel => rel, StringComparer.Ordinal)
             .ToList();
-    }
 }

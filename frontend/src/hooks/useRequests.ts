@@ -1,5 +1,4 @@
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createRequest,
   deleteRequest,
@@ -11,10 +10,10 @@ import {
 import { qk } from "@foundation/src/lib/api/query-keys";
 import {
   REQUEST_DERIVED_QUERY_KEYS,
-  invalidateRequestData,
 } from "@foundation/src/lib/core/invalidate-request-data";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import type { Request, RequestFormData } from "@foundation/src/types/requests";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 /**
  * The request list for a site. Site-neutral requests are kept in by the backend, so the
@@ -35,8 +34,7 @@ export function useRequests(siteId: string | null) {
  * hold the query client themselves.
  */
 export function useInvalidateRequestData(): () => void {
-  const queryClient = useQueryClient();
-  return useCallback(() => invalidateRequestData(queryClient), [queryClient]);
+  return useInvalidateKeys(...REQUEST_DERIVED_QUERY_KEYS);
 }
 
 /** Reparent a request under `targetId`. Resolves to the new parent id. */

@@ -208,8 +208,8 @@ public class BffCookieAuthenticationHandlerTests
         _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
 
-        var mockHandler = new MockHttpMessageHandler(
-            new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
+        var mockHandler = new StubHttpMessageHandler(
+            _ => new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
         _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
             .Returns(new HttpClient(mockHandler));
 
@@ -227,7 +227,7 @@ public class BffCookieAuthenticationHandlerTests
         _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
             .ReturnsAsync(session);
 
-        var mockHandler = new MockHttpMessageHandler(new HttpRequestException("Connection refused"));
+        var mockHandler = new StubHttpMessageHandler(_ => throw new HttpRequestException("Connection refused"));
         _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
             .Returns(new HttpClient(mockHandler));
 
@@ -255,7 +255,7 @@ public class BffCookieAuthenticationHandlerTests
             refresh_token = "new-refresh-token",
             expires_in = 300,
         });
-        var mockHandler = new MockHttpMessageHandler(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        var mockHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
         {
             Content = new StringContent(responseJson, System.Text.Encoding.UTF8, "application/json"),
         });
@@ -291,7 +291,7 @@ public class BffCookieAuthenticationHandlerTests
             refresh_token = "new-refresh-token",
             expires_in = 300,
         });
-        var mockHandler = new MockHttpMessageHandler(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+        var mockHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.OK)
         {
             Content = new StringContent(responseJson, System.Text.Encoding.UTF8, "application/json"),
         });
@@ -303,7 +303,7 @@ public class BffCookieAuthenticationHandlerTests
 
         result.Succeeded.Should().BeTrue();
         registry.Verify(r => r.Resolve("demo"), Times.Once);
-        mockHandler.LastRequestBody.Should().Contain("client_id=demo-client")
+        mockHandler.Bodies[^1].Should().Contain("client_id=demo-client")
             .And.Contain("client_secret=demo-secret");
     }
 
@@ -499,28 +499,5 @@ public class BffCookieAuthenticationHandlerTests
 
         result.Succeeded.Should().BeTrue();
         result.Principal!.FindFirst(BffCookieAuthenticationHandler.AuthClientClaim).Should().BeNull();
-    }
-
-    // ── Mock HTTP message handler ──────────────────────────────────────────
-
-    private sealed class MockHttpMessageHandler : HttpMessageHandler
-    {
-        private readonly HttpResponseMessage? _response;
-        private readonly Exception? _exception;
-
-        public MockHttpMessageHandler(HttpResponseMessage response) => _response = response;
-        public MockHttpMessageHandler(Exception exception) => _exception = exception;
-
-        /// <summary>Form body of the last request, for asserting grant parameters.</summary>
-        public string? LastRequestBody { get; private set; }
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            if (request.Content is not null)
-                LastRequestBody = await request.Content.ReadAsStringAsync(cancellationToken);
-            if (_exception is not null) throw _exception;
-            return _response!;
-        }
     }
 }

@@ -1,13 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { NotificationPreferencesSection } from './NotificationPreferencesSection';
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from '@foundation/src/lib/api/security-api';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { toast } from 'sonner';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/security-api', () => ({
   getNotificationPreferences: vi.fn(),
@@ -22,15 +21,7 @@ vi.mock('sonner', () => ({
 // feedback MutationCache (meta), not the component — so wire the real cache here
 // (with the mocked toast) exactly as production does. See docs/dialog-feedback.md.
 function renderNotif(props: { locked?: boolean } = {}) {
-  const queryClient: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <NotificationPreferencesSection {...props} />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<NotificationPreferencesSection {...props} />, { feedback: true });
 }
 
 describe('NotificationPreferencesSection', () => {

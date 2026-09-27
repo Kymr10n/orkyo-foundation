@@ -1,21 +1,11 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router";
 import { CollapsibleFloorplan } from "./CollapsibleFloorplan";
 import type { Request } from "@foundation/src/types/requests";
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
-function renderWithQuery(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>{ui}</MemoryRouter>
-    </QueryClientProvider>
-  );
-}
+const renderInRouter = (ui: React.ReactElement) => renderWithQuery(ui, { router: true });
 
 let mockSelectedSiteId: string | null = null;
 vi.mock("@foundation/src/store/site-store", () => ({
@@ -64,34 +54,34 @@ describe("CollapsibleFloorplan", () => {
   });
 
   it("renders header with Floorplan title", () => {
-    renderWithQuery(<CollapsibleFloorplan {...defaultProps} />);
+    renderInRouter(<CollapsibleFloorplan {...defaultProps} />);
     expect(screen.getByText("Floorplan")).toBeInTheDocument();
   });
 
   it("shows Expand button when collapsed", () => {
-    renderWithQuery(<CollapsibleFloorplan {...defaultProps} isCollapsed={true} />);
+    renderInRouter(<CollapsibleFloorplan {...defaultProps} isCollapsed={true} />);
     expect(screen.getByText("Expand")).toBeInTheDocument();
   });
 
   it("shows Collapse button when expanded", () => {
-    renderWithQuery(<CollapsibleFloorplan {...defaultProps} isCollapsed={false} />);
+    renderInRouter(<CollapsibleFloorplan {...defaultProps} isCollapsed={false} />);
     expect(screen.getByText("Collapse")).toBeInTheDocument();
   });
 
   it("calls onToggle when toggle button is clicked", () => {
     const onToggle = vi.fn();
-    renderWithQuery(<CollapsibleFloorplan {...defaultProps} onToggle={onToggle} />);
+    renderInRouter(<CollapsibleFloorplan {...defaultProps} onToggle={onToggle} />);
     fireEvent.click(screen.getByText("Collapse"));
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 
   it("does not render content when collapsed", () => {
-    renderWithQuery(<CollapsibleFloorplan {...defaultProps} isCollapsed={true} />);
+    renderInRouter(<CollapsibleFloorplan {...defaultProps} isCollapsed={true} />);
     expect(screen.queryByText("Select a site to view floorplan")).not.toBeInTheDocument();
   });
 
   it("shows site selection prompt when no site selected", () => {
-    renderWithQuery(<CollapsibleFloorplan {...defaultProps} />);
+    renderInRouter(<CollapsibleFloorplan {...defaultProps} />);
     expect(screen.getByText("Select a site to view floorplan")).toBeInTheDocument();
   });
 
@@ -155,7 +145,7 @@ describe("CollapsibleFloorplan", () => {
       // space-3 is on Feb 16, so should not be occupied
       const timeCursorTs = new Date("2026-02-15T12:00:00Z");
 
-      renderWithQuery(
+      renderInRouter(
         <CollapsibleFloorplan
           {...defaultProps}
           requests={mockRequests}
@@ -190,7 +180,7 @@ describe("CollapsibleFloorplan", () => {
 
       // Should not throw error
       expect(() => {
-        renderWithQuery(
+        renderInRouter(
           <CollapsibleFloorplan
             {...defaultProps}
             requests={requestsWithoutSpace}
@@ -260,7 +250,7 @@ describe("CollapsibleFloorplan", () => {
 
       // Should not throw error and should handle conflicts correctly
       expect(() => {
-        renderWithQuery(
+        renderInRouter(
           <CollapsibleFloorplan
             {...defaultProps}
             requests={mockRequests}
@@ -273,7 +263,7 @@ describe("CollapsibleFloorplan", () => {
 
     it("handles empty conflicts set", () => {
       expect(() => {
-        renderWithQuery(
+        renderInRouter(
           <CollapsibleFloorplan
             {...defaultProps}
             requests={mockRequests}
@@ -292,7 +282,7 @@ describe("CollapsibleFloorplan", () => {
       // At this cursor time, space-1's conflict shouldn't be highlighted
       // because req-1 is not active at that time
       expect(() => {
-        renderWithQuery(
+        renderInRouter(
           <CollapsibleFloorplan
             {...defaultProps}
             requests={mockRequests}
@@ -311,7 +301,7 @@ describe("CollapsibleFloorplan", () => {
       mockSelectedSiteId = "site-without-floorplan";
       mockFloorplan.data = null;
 
-      renderWithQuery(<CollapsibleFloorplan {...defaultProps} />);
+      renderInRouter(<CollapsibleFloorplan {...defaultProps} />);
 
       expect(screen.getByText("No floorplan uploaded for this site")).toBeInTheDocument();
       const cta = screen.getByRole("link", { name: /upload floorplan/i });
@@ -326,7 +316,7 @@ describe("CollapsibleFloorplan", () => {
       mockFloorplan.data = undefined;
       mockFloorplan.error = new Error("boom");
 
-      renderWithQuery(<CollapsibleFloorplan {...defaultProps} />);
+      renderInRouter(<CollapsibleFloorplan {...defaultProps} />);
 
       expect(screen.getByText(/failed to load floorplan/i)).toBeInTheDocument();
       expect(

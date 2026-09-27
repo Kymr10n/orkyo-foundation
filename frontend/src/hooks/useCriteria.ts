@@ -1,9 +1,9 @@
 import { createCriterion, deleteCriterion, getCriteria } from "@foundation/src/lib/api/criteria-api";
 import type { CreateCriterionRequest } from "@foundation/src/types/criterion";
-import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 // Criteria drive request requirements; mutating them invalidates the request feed too.
 // Exported for CriterionEditDialog, which composes its own multi-call save through
@@ -38,13 +38,8 @@ export const useCriteriaForResourceType = (resourceType: string, enabled: boolea
   });
 
 /** Refresh that list after a criterion was created for the type from inside the editor. */
-export const useInvalidateCriteriaForResourceType = (resourceType: string): (() => Promise<void>) => {
-  const queryClient = useQueryClient();
-  return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.criteria.byResourceType(resourceType) }),
-    [queryClient, resourceType],
-  );
-};
+export const useInvalidateCriteriaForResourceType = (resourceType: string): (() => Promise<void>) =>
+  useInvalidateKeys(qk.criteria.byResourceType(resourceType));
 
 export const useCreateCriterion = () =>
   useMutation({

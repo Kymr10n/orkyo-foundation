@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Routes, Route, Navigate, useLocation } from 'react-router';
 import { ResourceClassPage } from './ResourceClassPage';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import type { ResourceCustomField } from '@foundation/src/lib/api/resource-custom-fields-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 let types: ResourceTypeInfo[] = [];
 let customFields: ResourceCustomField[] = [];
@@ -58,41 +58,33 @@ function field(over: Partial<ResourceCustomField> = {}): ResourceCustomField {
 
 /** The typeless floorplan surface: /stations/floorplan, with the canvas as the whole body. */
 function renderFloorplan() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/stations/floorplan']}>
-        <Routes>
-          <Route
-            path="/stations/floorplan"
-            element={<ResourceClassPage resourceClass="station" surface="floorplan" />}
-          >
-            <Route index element={<Stub id="canvas" />} />
-          </Route>
-          <Route path="*" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderWithQuery(
+    <Routes>
+      <Route
+        path="/stations/floorplan"
+        element={<ResourceClassPage resourceClass="station" surface="floorplan" />}
+      >
+        <Route index element={<Stub id="canvas" />} />
+      </Route>
+      <Route path="*" element={<LocationProbe />} />
+    </Routes>,
+    { router: '/stations/floorplan' },
   );
 }
 
 function renderAt(path: string, resourceClass: 'station' | 'asset' = 'station') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const segment = resourceClass === 'station' ? 'stations' : 'assets';
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path={`/${segment}/:typeKey`} element={<ResourceClassPage resourceClass={resourceClass} />}>
-            <Route index element={<Navigate to="instances" replace />} />
-            <Route path="instances" element={<Stub id="instances" />} />
-            <Route path="groups" element={<Stub id="groups" />} />
-            <Route path="lists" element={<Stub id="lists" />} />
-          </Route>
-          <Route path="*" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+  return renderWithQuery(
+    <Routes>
+      <Route path={`/${segment}/:typeKey`} element={<ResourceClassPage resourceClass={resourceClass} />}>
+        <Route index element={<Navigate to="instances" replace />} />
+        <Route path="instances" element={<Stub id="instances" />} />
+        <Route path="groups" element={<Stub id="groups" />} />
+        <Route path="lists" element={<Stub id="lists" />} />
+      </Route>
+      <Route path="*" element={<LocationProbe />} />
+    </Routes>,
+    { router: path },
   );
 }
 

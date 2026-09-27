@@ -28,12 +28,8 @@ vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   importTemplates: vi.fn(),
 }));
 
-vi.mock('./CreateTemplateDialog', () => ({
-  CreateTemplateDialog: () => null,
-}));
-
-vi.mock('./EditTemplateDialog', () => ({
-  EditTemplateDialog: ({ open, template }: { open: boolean; template: unknown }) =>
+vi.mock('./TemplateDialogBase', () => ({
+  TemplateDialogBase: ({ open, template }: { open: boolean; template: unknown }) =>
     open && template ? <div data-testid="edit-template-dialog" /> : null,
 }));
 

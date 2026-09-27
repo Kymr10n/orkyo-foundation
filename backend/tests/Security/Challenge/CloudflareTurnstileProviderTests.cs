@@ -19,11 +19,11 @@ public class CloudflareTurnstileProviderTests
             })
             .Build();
 
-    private static HttpClient FakeClient(string json, HttpStatusCode status = HttpStatusCode.OK)
-    {
-        var handler = new FakeHttpMessageHandler(json, status);
-        return new HttpClient(handler);
-    }
+    private static HttpClient FakeClient(string json) =>
+        new(new StubHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        }));
 
     private static CloudflareTurnstileProvider Create(string json, string secretKey = "test-secret") =>
         new(FakeClient(json), BuildConfig(secretKey), Mock.Of<ILogger<CloudflareTurnstileProvider>>());
@@ -73,7 +73,7 @@ public class CloudflareTurnstileProviderTests
     [Fact]
     public async Task VerifyAsync_HttpClientThrows_FailsOpenWithMarkerCode()
     {
-        var handler = new ThrowingHttpMessageHandler();
+        var handler = new StubHttpMessageHandler(_ => throw new HttpRequestException("simulated network failure"));
         var sut = new CloudflareTurnstileProvider(
             new HttpClient(handler),
             BuildConfig(),
@@ -91,22 +91,5 @@ public class CloudflareTurnstileProviderTests
         var result = await sut.VerifyAsync("token", "1.2.3.4");
         result.Success.Should().BeTrue();
         result.ErrorCode.Should().Be("verification_unavailable");
-    }
-
-    // ── fake handlers ─────────────────────────────────────────────────────────
-
-    private sealed class FakeHttpMessageHandler(string body, HttpStatusCode status) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-            Task.FromResult(new HttpResponseMessage(status)
-            {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
-            });
-    }
-
-    private sealed class ThrowingHttpMessageHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
-            throw new HttpRequestException("simulated network failure");
     }
 }

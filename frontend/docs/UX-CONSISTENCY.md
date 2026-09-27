@@ -272,7 +272,7 @@ The additive, no-API-break P0 primitives are implemented. They remove the *cause
 friction without touching the ~30 call sites (deferred to P1/P2 so they can get visual QA and,
 where exported, the `CLAUDE.md` coordination):
 
-- **`ScrollableDialogBody`** (`components/ui/dialog.tsx`, exported from `components/ui/index.ts`) —
+- **`ScrollableDialogBody`** (`components/ui/dialog.tsx`) —
   the single sanctioned dialog scroll region (pinned header/footer, body scrolls). Replaces the
   three divergent per-dialog overflow recipes from [Finding B](#b-every-dialog-reinvents-its-overflow-strategy).
 - **`FormDialog` is now height-bounded** (`components/ui/FormDialog.tsx`) — `max-h-[85dvh] flex

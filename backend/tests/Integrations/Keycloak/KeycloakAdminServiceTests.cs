@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Microsoft.AspNetCore.Http;
@@ -54,7 +55,7 @@ public class KeycloakAdminServiceTests
     /// </summary>
     private static KeycloakAdminService Build(IEnumerable<(string urlFragment, HttpStatusCode status, string body)> routes)
     {
-        var handler = new DispatchHandler(routes);
+        var handler = new StubHttpMessageHandler(Dispatch(routes));
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         return new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
             TimeProvider.System);
@@ -65,10 +66,10 @@ public class KeycloakAdminServiceTests
     /// requests (and their bodies) are captured for assertion — used where header control or
     /// call-sequence assertions are needed (e.g. the create-user + reset-password flow).
     /// </summary>
-    private static (KeycloakAdminService svc, CapturingHandler handler) BuildCapturing(
+    private static (KeycloakAdminService svc, StubHttpMessageHandler handler) BuildCapturing(
         Func<HttpRequestMessage, HttpResponseMessage> responder)
     {
-        var handler = new CapturingHandler(responder);
+        var handler = new StubHttpMessageHandler(responder);
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         return (new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
             TimeProvider.System), handler);
@@ -316,6 +317,47 @@ public class KeycloakAdminServiceTests
         pwIndex.Should().BeGreaterThanOrEqualTo(0, "the password must be set via reset-password");
         handler.Bodies[pwIndex].Should().Contain("s3cret-pass");
         handler.Bodies[pwIndex].Should().Contain("\"temporary\":false");
+    }
+
+    /// <summary>An empty body that cancels <paramref name="cts"/> as the client reads it, so the
+    /// caller goes away exactly when the create response arrives.</summary>
+    private sealed class CancelOnReadContent(CancellationTokenSource cts) : HttpContent
+    {
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            cts.Cancel();
+            return Task.CompletedTask;
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = 0;
+            return true;
+        }
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_StillSetsPassword_WhenCallerCancelsAfterCreate()
+    {
+        // The user exists in Keycloak once POST /users answers 201. If the caller's token is
+        // cancelled at that point, the password PUT must still be sent — otherwise the account
+        // stays passwordless and every retry gets a 409.
+        using var cts = new CancellationTokenSource();
+        var (svc, handler) = BuildCapturing(req =>
+        {
+            var resp = CreateUserResponder(req);
+            if (req.Method == HttpMethod.Post && req.RequestUri!.ToString().EndsWith("/users"))
+                resp.Content = new CancelOnReadContent(cts);
+            return resp;
+        });
+
+        var act = () => svc.CreateUserAsync("new@example.com", "s3cret-pass", emailVerified: true, ct: cts.Token);
+
+        await act.Should().NotThrowAsync();
+        handler.Requests.Should().Contain(r =>
+            r.Method == HttpMethod.Put &&
+            r.RequestUri!.ToString().Contains("/users/new-user-id/reset-password"),
+            "the password must be set even when the caller has gone away");
     }
 
     [Fact]
@@ -704,11 +746,9 @@ public class KeycloakAdminServiceTests
     [Fact]
     public async Task GetAdminToken_IsCached_BetweenCalls()
     {
-        var callCount = 0;
         var tokenFetched = false; // tracks lifetime of the single token fetch
-        var handler = new CountingHandler(() =>
+        var handler = new StubHttpMessageHandler(_ =>
         {
-            callCount++;
             if (!tokenFetched)
             {
                 tokenFetched = true;
@@ -729,78 +769,37 @@ public class KeycloakAdminServiceTests
 
         // Two calls — token should only be fetched once
         await svc.UserExistsAsync("a@a.com");
-        callCount = 0;                          // reset counter
+        var requestsAfterFirstCall = handler.Requests.Count; // token + users-search
 
-        // If the token is cached the first HTTP request sent for this call
-        // will be the actual user-search request (not another token request).
+        // If the token is cached the only HTTP request sent for this call
+        // is the actual user-search request (not another token request).
         await svc.UserExistsAsync("b@b.com");
 
-        callCount.Should().Be(1);   // only the users-search, no token request
+        (handler.Requests.Count - requestsAfterFirstCall).Should().Be(1);
     }
 
-    // ── Private dispatch handler ───────────────────────────────────────────
+    // ── Private dispatch responder ─────────────────────────────────────────
 
-    private sealed class DispatchHandler : HttpMessageHandler
+    // Sort by descending fragment length so the most-specific fragment wins when
+    // one fragment is a prefix of another (e.g. /users/id vs /users/id/credentials).
+    private static Func<HttpRequestMessage, HttpResponseMessage> Dispatch(
+        IEnumerable<(string urlFragment, HttpStatusCode status, string body)> routes)
     {
-        private readonly IReadOnlyList<(string urlFragment, HttpStatusCode status, string body)> _routes;
-
-        // Sort by descending fragment length so the most-specific fragment wins when
-        // one fragment is a prefix of another (e.g. /users/id vs /users/id/credentials).
-        public DispatchHandler(IEnumerable<(string, HttpStatusCode, string)> routes)
-            => _routes = routes.OrderByDescending(r => r.Item1.Length).ToList();
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
+        var ordered = routes.OrderByDescending(r => r.urlFragment.Length).ToList();
+        return request =>
         {
             var url = request.RequestUri?.ToString() ?? string.Empty;
 
-            foreach (var (fragment, status, body) in _routes)
+            foreach (var (fragment, status, body) in ordered)
             {
                 if (string.IsNullOrEmpty(fragment) || url.Contains(fragment, StringComparison.OrdinalIgnoreCase))
-                {
-                    return Task.FromResult(new HttpResponseMessage(status)
-                    {
-                        Content = new StringContent(body)
-                    });
-                }
+                    return new HttpResponseMessage(status) { Content = new StringContent(body) };
             }
 
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound)
+            return new HttpResponseMessage(HttpStatusCode.NotFound)
             {
                 Content = new StringContent($"No route matched: {url}")
-            });
-        }
-    }
-
-    private sealed class CountingHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpResponseMessage> _factory;
-        public CountingHandler(Func<HttpResponseMessage> factory) => _factory = factory;
-
-        protected override Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(_factory());
-    }
-
-    /// <summary>
-    /// Records every request (method, URI, and serialized body) and delegates the response
-    /// to a caller-supplied responder. Lets tests assert on call sequence and request bodies
-    /// and lets responders set headers (e.g. a Location header on user creation).
-    /// </summary>
-    private sealed class CapturingHandler : HttpMessageHandler
-    {
-        private readonly Func<HttpRequestMessage, HttpResponseMessage> _responder;
-        public CapturingHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) => _responder = responder;
-
-        public List<HttpRequestMessage> Requests { get; } = [];
-        public List<string> Bodies { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            Bodies.Add(request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken));
-            Requests.Add(request);
-            return _responder(request);
-        }
+            };
+        };
     }
 }

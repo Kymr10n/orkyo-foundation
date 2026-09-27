@@ -112,7 +112,7 @@ public static class SessionEndpoints
                 return Results.Unauthorized();
             }
 
-            var sessionInfo = await sessionService.GetSessionByUserIdAsync(currentPrincipal.UserId, ct);
+            var sessionInfo = await sessionService.BuildSessionResponseAsync(currentPrincipal.UserId, ct);
             if (sessionInfo == null)
             {
                 return ErrorResponses.NotFound("User");

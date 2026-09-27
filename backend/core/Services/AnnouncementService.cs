@@ -6,8 +6,6 @@ namespace Api.Services;
 public class AnnouncementService : IAnnouncementService
 {
     private const int DefaultRetentionDays = 90;
-    private const int MaxTitleLength = 200;
-    private const int MaxBodyLength = 5000;
 
     private readonly IAnnouncementRepository _repository;
     private readonly TimeProvider _time;
@@ -24,16 +22,11 @@ public class AnnouncementService : IAnnouncementService
     public Task<AnnouncementDto?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => _repository.GetByIdAsync(id, ct);
 
+    // Title, body and retention shape: CreateAnnouncementRequestValidator, which every endpoint
+    // runs before calling in.
     public async Task<AnnouncementDto> CreateAsync(CreateAnnouncementRequest request, Guid userId, CancellationToken ct = default)
     {
-        var error = Validate(request.Title, request.Body);
-        if (error != null)
-            throw new ArgumentException(error);
-
         var retentionDays = request.RetentionDays ?? DefaultRetentionDays;
-        if (retentionDays < 1 || retentionDays > 3650)
-            throw new ArgumentException("Retention must be between 1 and 3650 days.");
-
         var channels = NormalizeChannels(request.Channels);
 
         var announcement = new Announcement
@@ -54,10 +47,6 @@ public class AnnouncementService : IAnnouncementService
 
     public async Task<AnnouncementDto?> UpdateAsync(Guid id, UpdateAnnouncementRequest request, Guid userId, CancellationToken ct = default)
     {
-        var error = Validate(request.Title, request.Body);
-        if (error != null)
-            throw new ArgumentException(error);
-
         if (request.ExpiresAt.HasValue && request.ExpiresAt.Value <= _time.GetUtcNow().UtcDateTime)
             throw new ArgumentException("Expiration date must be in the future.");
 
@@ -68,15 +57,6 @@ public class AnnouncementService : IAnnouncementService
     public Task<List<UserAnnouncementDto>> GetActiveForUserAsync(Guid userId, CancellationToken ct = default) => _repository.GetActiveForUserAsync(userId, ct);
     public Task<int> GetUnreadCountAsync(Guid userId, CancellationToken ct = default) => _repository.GetUnreadCountAsync(userId, ct);
     public Task MarkReadAsync(Guid announcementId, Guid userId, CancellationToken ct = default) => _repository.MarkReadAsync(announcementId, userId, ct);
-
-    private static string? Validate(string title, string body)
-    {
-        if (string.IsNullOrWhiteSpace(title)) return "Title is required.";
-        if (title.Length > MaxTitleLength) return $"Title must be {MaxTitleLength} characters or fewer.";
-        if (string.IsNullOrWhiteSpace(body)) return "Body is required.";
-        if (body.Length > MaxBodyLength) return $"Body must be {MaxBodyLength} characters or fewer.";
-        return null;
-    }
 
     /// <summary>Normalize + validate requested channels: lowercased, de-duped, non-empty subset of {site, email}.</summary>
     private static string[] NormalizeChannels(string[]? requested)

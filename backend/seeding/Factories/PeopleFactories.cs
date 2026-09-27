@@ -58,7 +58,7 @@ public static class PeopleFactories
 
     public static async Task<SeededOrgLists> SeedOrganizationListsAsync(
         NpgsqlConnection conn, NpgsqlTransaction tx,
-        IProfile profile, IScale scale, Guid personResourceTypeId)
+        IProfile profile, ScaleSpec scale, Guid personResourceTypeId)
     {
         var now = DateTime.UtcNow;
         _ = tx;
@@ -165,7 +165,7 @@ public static class PeopleFactories
         return resolved;
     }
 
-    private static List<Dictionary<string, object>> BuildJobTitleNames(IProfile profile, IScale scale)
+    private static List<Dictionary<string, object>> BuildJobTitleNames(IProfile profile, ScaleSpec scale)
     {
         var pool = profile.JobTitlePool;
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -184,7 +184,7 @@ public static class PeopleFactories
     /// Two levels. Roots come first so that by the time a child is inserted, the row it points at
     /// exists — see <see cref="ResolveRowRefs"/>.
     /// </remarks>
-    private static List<Dictionary<string, object>> BuildDepartmentRows(IProfile profile, IScale scale)
+    private static List<Dictionary<string, object>> BuildDepartmentRows(IProfile profile, ScaleSpec scale)
     {
         var pool = profile.DepartmentRootPool;
         var rootCount = Math.Max(2, scale.Departments / 3);
@@ -221,22 +221,17 @@ public static class PeopleFactories
         return rows;
     }
 
+    /// <remarks>
+    /// Job title and department stay empty here: <see cref="PersonaFactory"/> writes both from the
+    /// person's role once the cohorts exist, so a QA Tech lands in Quality.
+    /// </remarks>
     public static async Task<IReadOnlyList<SeededPerson>> SeedPeopleAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx,
-        IProfile profile, IScale scale, Faker faker,
-        Guid personResourceTypeId,
-        IReadOnlyList<SeededJobTitle> jobTitles,
-        IReadOnlyList<SeededDepartment> departments,
-        /// <summary>False when a later pass assigns job title and department by role.</summary>
-        bool assignOrgFields = true)
+        NpgsqlConnection conn, ScaleSpec scale, Faker faker, Guid personResourceTypeId)
     {
         var now = DateTime.UtcNow;
         var people = new List<SeededPerson>(scale.People);
 
-        // Email is a column on resources (migration 1700). Job title and department are list
-        // lookups since 1820, so they ride in custom_fields as arrays of row ids — the same shape
-        // the API validates and the resource form writes.
-        _ = tx;
+        // Email is a column on resources (migration 1700).
         using (var writer = await conn.BeginBinaryImportAsync(
             "COPY public.resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, " +
             "email, custom_fields, created_at, updated_at) " +
@@ -246,17 +241,8 @@ public static class PeopleFactories
             {
                 var id = Guid.NewGuid();
                 var fullName = faker.Name.FullName();
-                var email = $"{Slugify(fullName)}@orkyo.example";
-                // Random title and department only where nothing better follows. The demo path
-                // passes false and PersonaFactory writes both from the person's role instead, so
-                // a QA Tech lands in Quality rather than wherever the shuffle put them.
-                var jobTitleId = !assignOrgFields || jobTitles.Count == 0
-                    ? (Guid?)null : jobTitles[faker.Random.Int(0, jobTitles.Count - 1)].Id;
-                var deptId = !assignOrgFields || departments.Count == 0
-                    ? (Guid?)null : departments[faker.Random.Int(0, departments.Count - 1)].Id;
-                var customFields = new Dictionary<string, object>();
-                if (jobTitleId is not null) customFields["job_title"] = new[] { jobTitleId.Value.ToString() };
-                if (deptId is not null) customFields["department"] = new[] { deptId.Value.ToString() };
+                // The position keeps two people who share a name apart, and keeps --seed repeatable.
+                var email = $"{Slugify(fullName)}.{i + 1:D5}@orkyo.example";
 
                 await writer.StartRowAsync();
                 await writer.WriteAsync(id, NpgsqlDbType.Uuid);
@@ -268,9 +254,7 @@ public static class PeopleFactories
                 await writer.WriteAsync(email, NpgsqlDbType.Citext);
                 // An empty document, never null: the column is NOT NULL, and "this person has no
                 // custom values yet" is what {} means. PersonaFactory merges into it afterwards.
-                await writer.WriteAsync(
-                    customFields.Count == 0 ? "{}" : JsonSerializer.Serialize(customFields),
-                    NpgsqlDbType.Jsonb);
+                await writer.WriteAsync("{}", NpgsqlDbType.Jsonb);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
                 people.Add(new SeededPerson(id, fullName));
@@ -278,92 +262,7 @@ public static class PeopleFactories
             await writer.CompleteAsync();
         }
 
-        _ = profile;
         return people;
-    }
-
-    public static async Task<IReadOnlyList<SeededPersonGroup>> SeedPersonGroupsAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx,
-        IProfile profile, IScale scale, Faker faker,
-        Guid personResourceTypeId)
-    {
-        var pool = profile.PersonGroupPool;
-        var names = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; names.Count < scale.ResourceGroups && i < scale.ResourceGroups * 5; i++)
-        {
-            var baseName = pool[i % pool.Count];
-            var candidate = i < pool.Count ? baseName : $"{baseName} {i / pool.Count + 1}";
-            if (seen.Add(candidate)) names.Add(candidate);
-        }
-
-        var seeded = new List<SeededPersonGroup>(names.Count);
-        var now = DateTime.UtcNow;
-        _ = tx;
-        using var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)");
-
-        for (var i = 0; i < names.Count; i++)
-        {
-            var id = Guid.NewGuid();
-            await writer.StartRowAsync();
-            await writer.WriteAsync(id, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(names[i], NpgsqlDbType.Varchar);
-            await writer.WriteNullAsync();                               // description
-            await writer.WriteNullAsync();                               // color
-            await writer.WriteAsync(i, NpgsqlDbType.Integer);           // display_order
-            await writer.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            seeded.Add(new SeededPersonGroup(id, names[i]));
-        }
-        await writer.CompleteAsync();
-        _ = faker;
-        return seeded;
-    }
-
-    public static async Task<int> SeedPersonGroupMembersAsync(
-        NpgsqlConnection conn, NpgsqlTransaction tx,
-        Faker faker,
-        IReadOnlyList<SeededPerson> people,
-        IReadOnlyList<SeededPersonGroup> groups,
-        Guid personResourceTypeId)
-    {
-        if (groups.Count == 0 || people.Count == 0) return 0;
-
-        // Each person gets one primary group (round-robin for even distribution).
-        // ~25 % also get a second distinct group.
-        var memberships = new List<(Guid GroupId, Guid ResourceId)>(
-            (int)(people.Count * 1.25));
-
-        for (var i = 0; i < people.Count; i++)
-        {
-            var primaryGroup = groups[i % groups.Count];
-            memberships.Add((primaryGroup.Id, people[i].ResourceId));
-
-            if (faker.Random.Bool(0.25f))
-            {
-                var secondaryGroup = groups[faker.Random.Int(0, groups.Count - 1)];
-                if (secondaryGroup.Id != primaryGroup.Id)
-                    memberships.Add((secondaryGroup.Id, people[i].ResourceId));
-            }
-        }
-
-        _ = tx;
-        using var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
-            "FROM STDIN (FORMAT BINARY)");
-
-        foreach (var (groupId, resourceId) in memberships)
-        {
-            await writer.StartRowAsync();
-            await writer.WriteAsync(groupId, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(resourceId, NpgsqlDbType.Uuid);
-            await writer.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
-        }
-        await writer.CompleteAsync();
-        return memberships.Count;
     }
 
     /// <summary>Team display order; the catch-all "Production Crew" comes first.</summary>
@@ -390,7 +289,7 @@ public static class PeopleFactories
     /// <summary>
     /// Seeds person groups + memberships by team/role (curated-floorplan path), derived from the
     /// skills assigned by <see cref="CapabilityFactory"/>. One group per team that has at least one
-    /// member; each person joins exactly one team. Replaces the round-robin assignment for the demo.
+    /// member; each person joins exactly one team.
     /// </summary>
     public static async Task<(IReadOnlyList<SeededPersonGroup> Groups, int MemberCount)> SeedRoleGroupsAndMembersAsync(
         NpgsqlConnection conn,
@@ -469,7 +368,6 @@ public static class PeopleFactories
         var chars = lower.Select(c => char.IsLetterOrDigit(c) ? c : '.').ToArray();
         var slug = new string(chars).Trim('.');
         while (slug.Contains("..")) slug = slug.Replace("..", ".");
-        // Add a short suffix to avoid email collisions when many seeded people share a name.
-        return $"{slug}.{Random.Shared.Next(0, 99999):D5}";
+        return slug;
     }
 }

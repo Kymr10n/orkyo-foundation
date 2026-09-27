@@ -23,92 +23,14 @@ public class SettingsAdminEndpointsTests
     {
         _fixture = fixture;
         _client = fixture.Factory.CreateClient();
-        _connectionString = $"Host=localhost;Port={_fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _connectionString = _fixture.ControlPlaneConnectionString;
     }
 
-    private async Task<(Guid UserId, string Token)> CreateSiteAdminAsync()
-    {
-        var userId = Guid.NewGuid();
-        var email = $"settings-admin-{userId}@test.com";
-        var keycloakSub = $"kc-{userId}";
+    private static Task<LinkedTestUser> CreateSiteAdminAsync()
+        => DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
-
-        await using var userCmd = new NpgsqlCommand(
-            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Settings Admin', 'active')",
-            conn);
-        userCmd.Parameters.AddWithValue("id", userId);
-        userCmd.Parameters.AddWithValue("email", email);
-        await userCmd.ExecuteNonQueryAsync();
-
-        await using var linkCmd = new NpgsqlCommand(
-            "INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email) VALUES (@id, @userId, 'keycloak', @sub, @email)",
-            conn);
-        linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        linkCmd.Parameters.AddWithValue("userId", userId);
-        linkCmd.Parameters.AddWithValue("sub", keycloakSub);
-        linkCmd.Parameters.AddWithValue("email", email);
-        await linkCmd.ExecuteNonQueryAsync();
-
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Settings Admin",
-            TenantId = Guid.Empty.ToString(),
-            TenantSlug = "",
-            IsTenantAdmin = false,
-            Role = "viewer",
-            Sub = keycloakSub,
-            RealmRoles = new[] { "user", "site-admin" },
-        };
-        var json = JsonSerializer.Serialize(tokenData);
-        var token = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-
-        return (userId, token);
-    }
-
-    private async Task<string> CreateRegularUserTokenAsync()
-    {
-        var userId = Guid.NewGuid();
-        var email = $"settings-regular-{userId}@test.com";
-        var keycloakSub = $"kc-{userId}";
-
-        await using var conn = new NpgsqlConnection(_connectionString);
-        await conn.OpenAsync();
-
-        await using var cmd = new NpgsqlCommand(
-            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Regular User', 'active')",
-            conn);
-        cmd.Parameters.AddWithValue("id", userId);
-        cmd.Parameters.AddWithValue("email", email);
-        await cmd.ExecuteNonQueryAsync();
-
-        await using var linkCmd = new NpgsqlCommand(
-            "INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email) VALUES (@id, @userId, 'keycloak', @sub, @email)",
-            conn);
-        linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        linkCmd.Parameters.AddWithValue("userId", userId);
-        linkCmd.Parameters.AddWithValue("sub", keycloakSub);
-        linkCmd.Parameters.AddWithValue("email", email);
-        await linkCmd.ExecuteNonQueryAsync();
-
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Regular User",
-            TenantId = Guid.Empty.ToString(),
-            TenantSlug = "",
-            IsTenantAdmin = false,
-            Role = "viewer",
-            Sub = keycloakSub,
-            RealmRoles = new[] { "user" },
-        };
-        var json = JsonSerializer.Serialize(tokenData);
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
-    }
+    private static async Task<string> CreateRegularUserTokenAsync()
+        => (await DatabaseTestUtils.CreateLinkedUserAsync("settings-regular")).Token;
 
     // ── GET /api/admin/settings ─────────────────────────────────
 

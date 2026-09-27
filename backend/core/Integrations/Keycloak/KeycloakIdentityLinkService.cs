@@ -110,7 +110,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
             await emailReader.CloseAsync();
 
-            if (status != MembershipStatusConstants.Active)
+            if (status != UserStatusConstants.Active)
             {
                 return IdentityLinkResult.Failed(
                     "User account is not active. Please contact your administrator.",

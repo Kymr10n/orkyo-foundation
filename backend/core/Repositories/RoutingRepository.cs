@@ -9,9 +9,9 @@ public interface IRoutingRepository
 {
     Task<List<RoutingInfo>> GetAllAsync(CancellationToken ct = default);
     Task<RoutingInfo?> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<RoutingInfo> CreateAsync(CreateRoutingRequest request, CancellationToken ct = default);
+    Task<RoutingInfo> CreateAsync(SaveRoutingRequest request, CancellationToken ct = default);
     /// <summary>Replaces the header and the whole step list. Null when the routing does not exist.</summary>
-    Task<RoutingInfo?> UpdateAsync(Guid id, UpdateRoutingRequest request, CancellationToken ct = default);
+    Task<RoutingInfo?> UpdateAsync(Guid id, SaveRoutingRequest request, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
 }
 
@@ -89,7 +89,7 @@ public class RoutingRepository(OrgContext orgContext, IOrgDbConnectionFactory co
         return Assemble(header, steps.Select(s => s.Step));
     }
 
-    public async Task<RoutingInfo> CreateAsync(CreateRoutingRequest request, CancellationToken ct = default)
+    public async Task<RoutingInfo> CreateAsync(SaveRoutingRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
@@ -108,7 +108,7 @@ public class RoutingRepository(OrgContext orgContext, IOrgDbConnectionFactory co
         return (await ReadAsync(conn, id, ct))!;
     }
 
-    public async Task<RoutingInfo?> UpdateAsync(Guid id, UpdateRoutingRequest request, CancellationToken ct = default)
+    public async Task<RoutingInfo?> UpdateAsync(Guid id, SaveRoutingRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);

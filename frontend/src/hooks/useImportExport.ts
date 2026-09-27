@@ -4,13 +4,14 @@
  * means a fresh trigger to consume.
  */
 
-import { useCallback, useEffect, useEffectEvent, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import { invalidateRequestData } from '@foundation/src/lib/core/invalidate-request-data';
+import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
 import { useUiActionsStore, type CalendarFeedCapability, type ExportCapability } from '@foundation/src/store/ui-actions-store';
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 /**
  * What the page tells the TopBar about itself when it registers — the store's
@@ -93,7 +94,7 @@ export interface ImportFeedbackOptions<T> {
 export function useImportHandler<T = void>(
   context: ExportContext,
   handler: (file: File, format: ImportFormat) => T | Promise<T>,
-  options?: ImportFeedbackOptions<T>,
+  options: ImportFeedbackOptions<T>,
 ) {
   const queryClient = useQueryClient();
   const tick = useUiActionsStore((s) => s.importTick);
@@ -104,25 +105,22 @@ export function useImportHandler<T = void>(
   // The whole import run is an effect event: it must see the latest handler and options
   // without either becoming a dependency of the tick effect below.
   const runImport = useEffectEvent(async (file: File, format: ImportFormat) => {
-    const opts = options;
     try {
       const result = await handler(file, format);
-      if (!opts) return; // legacy consumers own their feedback
-      opts.invalidates?.forEach((queryKey) => {
+      options.invalidates?.forEach((queryKey) => {
         void queryClient.invalidateQueries({ queryKey, exact: false });
       });
       const successMessage =
-        typeof opts.successMessage === 'function' ? opts.successMessage(result) : opts.successMessage;
+        typeof options.successMessage === 'function' ? options.successMessage(result) : options.successMessage;
       if (successMessage) toast.success(successMessage);
     } catch (error) {
-      if (!opts) throw error; // preserve legacy behavior (handler's own try/catch)
-      toast.error(opts.errorMessage ?? 'Import failed', {
+      toast.error(options.errorMessage ?? 'Import failed', {
         description: error instanceof Error ? error.message : undefined,
       });
     }
   });
 
-  const importFormatsKey = (options?.formats ?? ['csv']).join(',');
+  const importFormatsKey = (options.formats ?? ['csv']).join(',');
   useEffect(() => {
     registerImport(context, { formats: importFormatsKey.split(',') as ImportFormat[] });
     return () => unregisterImport(context);
@@ -144,11 +142,6 @@ export function useImportHandler<T = void>(
  * there is no `meta` to carry the invalidation. It runs after a partial failure too — whatever
  * was written before the error is real, and the screen has to show it.
  */
-export function useInvalidateImportedData() {
-  const queryClient = useQueryClient();
-
-  return useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: qk.resources.all() });
-    invalidateRequestData(queryClient);
-  }, [queryClient]);
+export function useInvalidateImportedData(): () => void {
+  return useInvalidateKeys(qk.resources.all(), ...REQUEST_DERIVED_QUERY_KEYS);
 }

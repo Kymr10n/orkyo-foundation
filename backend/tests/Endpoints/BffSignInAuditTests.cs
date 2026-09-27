@@ -1,7 +1,6 @@
 using Api.Models;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

@@ -1,5 +1,4 @@
 using Api.Services;
-using AwesomeAssertions;
 
 namespace Orkyo.Foundation.Tests.Services;
 

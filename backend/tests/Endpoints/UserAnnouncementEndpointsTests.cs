@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -24,7 +23,7 @@ public class UserAnnouncementEndpointsTests
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
         _noRedirect = databaseFixture.Factory.CreateClient();
-        _conn = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _conn = databaseFixture.ControlPlaneConnectionString;
     }
 
     #region GET /api/announcements

@@ -17,7 +17,7 @@ public class ReaderExtensionsTests
     public ReaderExtensionsTests(DatabaseFixture fixture)
     {
         _connectionString =
-            $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+            fixture.ControlPlaneConnectionString;
     }
 
     // All types in one literal row so that each individual test can open its own

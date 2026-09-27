@@ -28,14 +28,7 @@ import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@foundation/src/components/ui/dialog";
+import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Building2, LogOut, Trash2, ArrowRight, Crown, AlertCircle, ChevronLeft, User, Pencil, Check } from "lucide-react";
 import { useAuth, type AppUser, type TenantMembership as AuthTenantMembership } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
@@ -255,16 +248,16 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     navigate("/", { replace: true });
   };
 
-  const handleLeave = async () => {
+  const runTenantAction = async (action: (tenantId: string) => Promise<void>, label: string) => {
     if (!selectedTenant) return;
 
     setActionLoading(selectedTenant.tenantId);
     setError(null);
 
     try {
-      await leaveTenant(selectedTenant.tenantId);
+      await action(selectedTenant.tenantId);
 
-      // If we left the active tenant, send back through the apex pipeline
+      // If we left or deleted the active tenant, send back through the apex pipeline
       if (activeMembership?.tenantId === selectedTenant.tenantId) {
         if (!navigateToApex("/")) window.location.href = "/";
         return;
@@ -273,37 +266,11 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       // Reload memberships
       await loadMemberships();
     } catch (err) {
-      logger.error("Leave tenant error:", err);
+      logger.error(`${label} tenant error:`, err);
       setError(errorMessage(err));
     } finally {
       setActionLoading(null);
       setLeaveDialogOpen(false);
-      setSelectedTenant(null);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!selectedTenant) return;
-
-    setActionLoading(selectedTenant.tenantId);
-    setError(null);
-
-    try {
-      await deleteTenant(selectedTenant.tenantId);
-
-      // If we deleted the active tenant, send back through the apex pipeline
-      if (activeMembership?.tenantId === selectedTenant.tenantId) {
-        if (!navigateToApex("/")) window.location.href = "/";
-        return;
-      }
-
-      // Reload memberships
-      await loadMemberships();
-    } catch (err) {
-      logger.error("Delete tenant error:", err);
-      setError(errorMessage(err));
-    } finally {
-      setActionLoading(null);
       setDeleteDialogOpen(false);
       setSelectedTenant(null);
     }
@@ -727,68 +694,37 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
       </PageTabs>
 
-      {/* Leave Confirmation Dialog */}
-      <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Leave Organization?</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to leave{" "}
-              <strong>{selectedTenant?.tenantDisplayName}</strong>? You will
-              lose access to this organization until you are invited again.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setLeaveDialogOpen(false)}
-              disabled={actionLoading !== null}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleLeave}
-              disabled={actionLoading !== null}
-              loading={!!actionLoading}
-              variant="destructive"
-            >
-              Leave
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={leaveDialogOpen}
+        onOpenChange={setLeaveDialogOpen}
+        title="Leave Organization?"
+        description={
+          <>
+            Are you sure you want to leave <strong>{selectedTenant?.tenantDisplayName}</strong>? You
+            will lose access to this organization until you are invited again.
+          </>
+        }
+        confirmLabel="Leave"
+        destructive
+        isPending={actionLoading !== null}
+        onConfirm={() => runTenantAction(leaveTenant, "Leave")}
+      />
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Organization?</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete{" "}
-              <strong>{selectedTenant?.tenantDisplayName}</strong>? This action
-              will initiate deletion of all organization data. This cannot be
-              undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteDialogOpen(false)}
-              disabled={actionLoading !== null}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleDelete}
-              disabled={actionLoading !== null}
-              loading={!!actionLoading}
-              variant="destructive"
-            >
-              Delete Organization
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Organization?"
+        description={
+          <>
+            Are you sure you want to delete <strong>{selectedTenant?.tenantDisplayName}</strong>?
+            This action will initiate deletion of all organization data. This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete Organization"
+        destructive
+        isPending={actionLoading !== null}
+        onConfirm={() => runTenantAction(deleteTenant, "Delete")}
+      />
     </FocusedPageLayout>
   );
 }

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Api.Models;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -21,7 +20,7 @@ public class RequestDependencyEndpointsTests
     public RequestDependencyEndpointsTests(DatabaseFixture fixture)
     {
         _client = fixture.CreateAuthorizedClient();
-        _tenantCs = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        _tenantCs = fixture.TenantConnectionString;
     }
 
     private async Task<Guid> SeedRequestAsync(string planningMode = "leaf")

@@ -2,7 +2,6 @@ using Api.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Seed.Factories;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 

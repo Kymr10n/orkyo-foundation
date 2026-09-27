@@ -12,12 +12,10 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class AuditEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly string _connString;
 
     public AuditEndpointsTests(DatabaseFixture fixture)
     {
         _client = fixture.Factory.CreateClient();
-        _connString = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
     }
 
     private HttpRequestMessage Auth(HttpMethod method, string url, string token)
@@ -27,69 +25,11 @@ public class AuditEndpointsTests
         return req;
     }
 
-    private async Task<string> CreateSiteAdminTokenAsync()
-    {
-        var id = Guid.NewGuid();
-        var email = $"audit-admin-{id}@test.com";
-        var sub = $"kc-audit-{id}";
+    private static async Task<string> CreateSiteAdminTokenAsync()
+        => (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
 
-        await using var conn = new Npgsql.NpgsqlConnection(_connString);
-        await conn.OpenAsync();
-
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Audit Admin', 'active')", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("email", email);
-        await cmd.ExecuteNonQueryAsync();
-
-        await using var linkCmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email) VALUES (@id, @uid, 'keycloak', @sub, @email)", conn);
-        linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        linkCmd.Parameters.AddWithValue("uid", id);
-        linkCmd.Parameters.AddWithValue("sub", sub);
-        linkCmd.Parameters.AddWithValue("email", email);
-        await linkCmd.ExecuteNonQueryAsync();
-
-        var data = new
-        {
-            UserId = id.ToString(),
-            Email = email,
-            DisplayName = "Audit Admin",
-            TenantId = Guid.Empty.ToString(),
-            TenantSlug = "",
-            IsTenantAdmin = false,
-            Role = "viewer",
-            Sub = sub,
-            RealmRoles = new[] { "user", "site-admin" },
-        };
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(data)));
-    }
-
-    private async Task<string> CreateRegularUserTokenAsync()
-    {
-        var id = Guid.NewGuid();
-        var email = $"audit-user-{id}@test.com";
-        await using var conn = new Npgsql.NpgsqlConnection(_connString);
-        await conn.OpenAsync();
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO users (id, email, status) VALUES (@id, @email, 'active')", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("email", email);
-        await cmd.ExecuteNonQueryAsync();
-        var data = new
-        {
-            UserId = id.ToString(),
-            Email = email,
-            DisplayName = "User",
-            TenantId = Guid.Empty.ToString(),
-            TenantSlug = "",
-            IsTenantAdmin = false,
-            Role = "viewer",
-            Sub = $"kc-{id}",
-            RealmRoles = new[] { "user" },
-        };
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(data)));
-    }
+    private static async Task<string> CreateRegularUserTokenAsync()
+        => (await DatabaseTestUtils.CreateLinkedUserAsync("audit-user")).Token;
 
     // ── Auth guards ───────────────────────────────────────────────────────────
 

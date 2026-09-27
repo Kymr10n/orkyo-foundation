@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Services;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints.Ai;
 
@@ -34,19 +33,8 @@ public class AiConversationEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(
             email, "AI Conversation User", TenantSlug, "editor", active: true);
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "AI Conversation User",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug,
-            IsTenantAdmin = false,
-            Role = "editor"
-        };
-
-        _cachedToken = Convert.ToBase64String(
-            System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(tokenData)));
+        _cachedToken = TestConstants.BearerToken(userId.ToString(), email, "AI Conversation User", "00000000-0000-0000-0000-000000000001", TenantSlug,
+            isTenantAdmin: false, role: "editor");
         return _cachedToken;
     }
 

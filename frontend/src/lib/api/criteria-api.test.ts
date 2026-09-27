@@ -26,7 +26,7 @@ describe('criteria-api', () => {
 
       const result = await getCriteria();
 
-      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.CRITERIA);
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.CRITERIA, { params: {} });
       expect(result).toEqual([mockCriterion]);
     });
 
@@ -43,7 +43,9 @@ describe('criteria-api', () => {
 
       await getCriteria({ resourceType: 'person' });
 
-      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.CRITERIA}?resourceType=person`);
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.CRITERIA, {
+        params: { resourceType: 'person' },
+      });
     });
   });
 

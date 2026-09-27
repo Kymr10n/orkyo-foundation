@@ -1,14 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { UserSettings } from './UserSettings';
 import * as userApi from '@foundation/src/lib/api/user-api';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -65,8 +63,12 @@ vi.mock('./EditUserRoleDialog', () => ({
     open ? <button data-testid="role-success" onClick={() => onSuccess()}>Role Done</button> : null,
 }));
 
+// The UserSettings mutations declare `meta` (successMessage/errorMessage/invalidates) per
+// docs/dialog-feedback.md, so tests wire the same feedback MutationCache as production — the
+// toast originates from the cache, not the component.
+const renderSettings = () => renderWithQuery(<UserSettings />, { router: true, feedback: true });
+
 describe('UserSettings', () => {
-  let queryClient: QueryClient;
   const mockUsers: userApi.UserWithRole[] = [
     {
       id: '1',
@@ -101,16 +103,6 @@ describe('UserSettings', () => {
   ];
 
   beforeEach(() => {
-    // The UserSettings mutations declare `meta` (successMessage/errorMessage/invalidates)
-    // per docs/dialog-feedback.md, so tests wire the same feedback MutationCache as
-    // production — the toast now originates from the cache, not the component.
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-        mutations: { retry: false },
-      },
-      mutationCache: createFeedbackMutationCache(() => queryClient, toast),
-    });
     vi.clearAllMocks();
     vi.mocked(userApi.getUsers).mockResolvedValue(mockUsers);
     vi.mocked(userApi.getInvitations).mockResolvedValue(mockInvitations);
@@ -127,16 +119,12 @@ describe('UserSettings', () => {
     vi.mocked(userApi.getUsers).mockReturnValue(
       new Promise(() => {}) as any
     );
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
     expect(screen.getByText('Loading users…')).toBeInTheDocument();
   });
 
   it('displays user list after loading', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText('Admin User')).toBeInTheDocument();
@@ -147,9 +135,7 @@ describe('UserSettings', () => {
   });
 
   it('displays pending invitations section', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText(/Pending Invitations/)).toBeInTheDocument();
@@ -158,9 +144,7 @@ describe('UserSettings', () => {
   });
 
   it('shows invite user button', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       const inviteButtons = screen.getAllByText('Invite User');
@@ -169,9 +153,7 @@ describe('UserSettings', () => {
   });
 
   it('displays correct role badges', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       const adminBadge = screen.getByText('admin');
@@ -185,9 +167,7 @@ describe('UserSettings', () => {
   });
 
   it('displays user status badges', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       const statusBadges = screen.getAllByText('active');
@@ -197,9 +177,7 @@ describe('UserSettings', () => {
 
   it('handles cancel invitation', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText('pending@example.com')).toBeInTheDocument();
@@ -222,9 +200,7 @@ describe('UserSettings', () => {
 
   it('handles resend invitation', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText('pending@example.com')).toBeInTheDocument();
@@ -246,9 +222,7 @@ describe('UserSettings', () => {
 
   it('handles delete user with confirmation', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText('Admin User')).toBeInTheDocument();
@@ -272,9 +246,7 @@ describe('UserSettings', () => {
   it('does not delete user if confirmation declined', async () => {
     const user = userEvent.setup();
 
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText('Admin User')).toBeInTheDocument();
@@ -293,9 +265,7 @@ describe('UserSettings', () => {
     vi.mocked(userApi.getUsers).mockResolvedValue([]);
     vi.mocked(userApi.getInvitations).mockResolvedValue([]);
 
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText('No users yet')).toBeInTheDocument();
@@ -306,9 +276,7 @@ describe('UserSettings', () => {
   it('displays error state on API failure', async () => {
     vi.mocked(userApi.getUsers).mockRejectedValue(new Error('API Error'));
 
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       expect(screen.getByText(/API Error|Failed to load users/)).toBeInTheDocument();
@@ -317,9 +285,7 @@ describe('UserSettings', () => {
   });
 
   it('shows last login date when available', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       // "Last Login" is the column header in the OrkyoDataTable users section
@@ -328,9 +294,7 @@ describe('UserSettings', () => {
   });
 
   it('displays creation dates', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       // "Created" column headers exist in both invitations and users tables
@@ -340,9 +304,7 @@ describe('UserSettings', () => {
   });
 
   it('displays invitation expiry dates', async () => {
-    render(<MemoryRouter><QueryClientProvider client={queryClient}>
-        <UserSettings />
-      </QueryClientProvider></MemoryRouter>);
+    renderSettings();
 
     await waitFor(() => {
       // "Expires" and "Sent" are column headers in the invitations OrkyoDataTable
@@ -353,7 +315,7 @@ describe('UserSettings', () => {
 
   it('clicking Invite User button opens invite dialog', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('admin@example.com'));
     const inviteBtns = screen.getAllByRole('button').filter(b => b.textContent?.includes('Invite'));
     if (inviteBtns.length > 0) await user.click(inviteBtns[0]);
@@ -362,7 +324,7 @@ describe('UserSettings', () => {
 
   it('onSuccess of InviteUserDialog closes dialog', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('admin@example.com'));
     const inviteBtns = screen.getAllByRole('button').filter(b => b.textContent?.includes('Invite'));
     if (inviteBtns.length > 0) await user.click(inviteBtns[0]);
@@ -373,7 +335,7 @@ describe('UserSettings', () => {
 
   it('clicking Edit user role button opens edit dialog (setEditingUser)', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('admin@example.com'));
     const editBtns = screen.queryAllByTitle('Edit user role');
     if (editBtns.length > 0) await user.click(editBtns[0]);
@@ -382,7 +344,7 @@ describe('UserSettings', () => {
 
   it('onSuccess of EditUserRoleDialog closes dialog', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('admin@example.com'));
     const editBtns = screen.queryAllByTitle('Edit user role');
     if (editBtns.length > 0) await user.click(editBtns[0]);
@@ -397,7 +359,7 @@ describe('UserSettings', () => {
       { id: '10', email: 'y@example.com', displayName: 'Unknown Person', role: 'guest' as any, status: 'mystery' as any, createdAt: '2024-01-01T00:00:00Z', lastLoginAt: undefined },
     ]);
     vi.mocked(userApi.getInvitations).mockResolvedValue([]);
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => expect(screen.getByText('Inactive Person')).toBeInTheDocument());
     expect(screen.getByText('inactive')).toBeInTheDocument();
     expect(screen.getByText('suspended')).toBeInTheDocument();
@@ -406,7 +368,7 @@ describe('UserSettings', () => {
 
   it('does not cancel an invitation when confirmation is declined', async () => {
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
@@ -416,7 +378,7 @@ describe('UserSettings', () => {
   it('shows an error toast with a fallback description when a non-Error cancel failure is thrown', async () => {
     vi.mocked(userApi.cancelInvitation).mockRejectedValueOnce('boom');
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Cancel invitation/i })[0]);
     await user.click(await screen.findByRole('button', { name: 'Cancel Invitation' }));
@@ -428,7 +390,7 @@ describe('UserSettings', () => {
   it('shows an error toast with a fallback description when a non-Error resend failure is thrown', async () => {
     vi.mocked(userApi.resendInvitation).mockRejectedValueOnce('boom');
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('pending@example.com'));
     await user.click(screen.getAllByRole('button', { name: /Resend invitation/i })[0]);
     await waitFor(() =>
@@ -439,7 +401,7 @@ describe('UserSettings', () => {
   it('shows an error toast with a fallback description when a non-Error delete failure is thrown', async () => {
     vi.mocked(userApi.deleteUser).mockRejectedValueOnce('boom');
     const user = userEvent.setup();
-    render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+    renderSettings();
     await waitFor(() => screen.getByText('Admin User'));
     await user.click(screen.getAllByRole('button', { name: /^Remove /i })[0]);
     await user.click(await screen.findByRole('button', { name: 'Remove' }));
@@ -450,7 +412,7 @@ describe('UserSettings', () => {
 
   describe('export / import handlers', () => {
     it('exports the current users in the requested format', async () => {
-      render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+      renderSettings();
       await waitFor(() => screen.getByText('admin@example.com'));
       await ioHandlers.exportCb!('csv');
       expect(exportUsers).toHaveBeenCalledWith(mockUsers, 'csv');
@@ -462,7 +424,7 @@ describe('UserSettings', () => {
         { email: '', role: 'admin' } as any,
         { email: 'demoted@example.com', role: 'inactive' } as any,
       ]);
-      render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+      renderSettings();
       await waitFor(() => screen.getByText('admin@example.com'));
       await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'new@example.com', role: 'editor' });
@@ -473,7 +435,7 @@ describe('UserSettings', () => {
 
     it('shows an error toast when the imported file has no valid users', async () => {
       vi.mocked(importUsers).mockResolvedValueOnce([]);
-      render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+      renderSettings();
       await waitFor(() => screen.getByText('admin@example.com'));
       await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
       expect(toast.error).toHaveBeenCalledWith('Failed to import users', {
@@ -483,7 +445,7 @@ describe('UserSettings', () => {
 
     it('shows an error toast with the error message as description when import fails', async () => {
       vi.mocked(importUsers).mockRejectedValueOnce(new Error('Bad import'));
-      render(<MemoryRouter><QueryClientProvider client={queryClient}><UserSettings /></QueryClientProvider></MemoryRouter>);
+      renderSettings();
       await waitFor(() => screen.getByText('admin@example.com'));
       await ioHandlers.importCb!(new File(['x'], 'users.csv'), 'csv');
       expect(toast.error).toHaveBeenCalledWith('Failed to import users', {

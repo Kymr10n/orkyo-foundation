@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  toDateTimeLocalValue,
   formatCompactTime,
   formatDateDisplay,
   formatDateTimeShort,
@@ -71,5 +72,17 @@ describe("formatPeriod", () => {
   it("joins the two short stamps with an en dash", () => {
     expect(formatPeriod(start, end)).toBe(`${formatDateTimeShort(start)} – ${formatDateTimeShort(end)}`);
     expect(formatDateTimeShort(start)).toMatch(/\d/);
+  });
+});
+
+describe("toDateTimeLocalValue", () => {
+  it("renders local date and time for a datetime-local input", () => {
+    expect(toDateTimeLocalValue(new Date(2026, 0, 5, 9, 7))).toBe("2026-01-05T09:07");
+  });
+
+  it("accepts an ISO string and answers empty for an unparseable one", () => {
+    const iso = new Date(2026, 5, 30, 23, 59).toISOString();
+    expect(toDateTimeLocalValue(iso)).toBe("2026-06-30T23:59");
+    expect(toDateTimeLocalValue("not a date")).toBe("");
   });
 });

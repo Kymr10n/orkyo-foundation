@@ -62,6 +62,13 @@ export const qk = {
     /** Resources of one type (e.g. the People list; also its own invalidation prefix). */
     byType: (resourceTypeKey: string) => ["resources", resourceTypeKey] as const,
     /**
+     * The active resources of one type a request can pick. A distinct key from the unfiltered
+     * list under `byType`, which fetches inactive resources too; keeps the `byType` prefix so
+     * per-type invalidations still reach it.
+     */
+    options: (resourceTypeKey: string, siteId: string | null) =>
+      ["resources", resourceTypeKey, "options", { siteId }] as const,
+    /**
      * Placeable resources at one site — everything the floorplan holds, across every type that
      * declares geometry. Sits under the `["resources", …]` prefix so `all()` reaches it.
      */

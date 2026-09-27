@@ -41,7 +41,7 @@ describe('request-api', () => {
 
       const result = await getRequests();
 
-      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.REQUESTS);
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.REQUESTS, { params: {} });
       expect(result).toEqual([mockRequest]);
     });
 
@@ -50,7 +50,9 @@ describe('request-api', () => {
 
       await getRequests(true);
 
-      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.REQUESTS}?includeRequirements=true`);
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.REQUESTS, {
+        params: { includeRequirements: true },
+      });
     });
 
     it('returns empty array when no requests exist', async () => {

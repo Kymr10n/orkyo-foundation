@@ -1,7 +1,3 @@
-/**
- * API client for Global Search operations
- */
-
 import { apiGet } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 

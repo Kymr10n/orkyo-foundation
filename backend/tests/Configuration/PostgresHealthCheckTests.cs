@@ -37,7 +37,7 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
         // accepts connections, so it is exercised against the real test database rather than
         // asserted only in the negative.
         var connectionString =
-            $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+            fixture.ControlPlaneConnectionString;
 
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
         var services = new ServiceCollection();
@@ -109,7 +109,7 @@ public class PostgresHealthCheckTests(DatabaseFixture fixture)
         // string — that is what lets it inherit the application's real connection security
         // policy (for example GssEncryptionMode) instead of diverging from it just for /health.
         var connectionString =
-            $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+            fixture.ControlPlaneConnectionString;
         await using var dataSource = NpgsqlDataSource.Create(connectionString);
 
         var services = new ServiceCollection();

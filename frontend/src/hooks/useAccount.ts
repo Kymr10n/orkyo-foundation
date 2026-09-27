@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   getUserProfile,
   requestEmailChange,
@@ -12,6 +12,7 @@ import {
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { logger } from "@foundation/src/lib/core/logger";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 export const useUserProfile = () =>
   useQuery({
@@ -40,13 +41,7 @@ export const useRequestEmailChange = () =>
  * send it back to `initializing`, which unmounts TenantApp (and its Toaster)
  * before Sonner can display a pending toast.
  */
-export const useInvalidateUserProfile = () => {
-  const queryClient = useQueryClient();
-  return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.userProfile.all() }),
-    [queryClient],
-  );
-};
+export const useInvalidateUserProfile = () => useInvalidateKeys(qk.userProfile.all());
 
 /**
  * The caller's tenant memberships. Loaded manually by design on this operator

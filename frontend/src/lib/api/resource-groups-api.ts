@@ -44,7 +44,7 @@ const resourceGroupsApi = createCrudApi<ResourceGroupInfo, CreateResourceGroupRe
 });
 
 export async function getResourceGroups(resourceTypeKey: string): Promise<ResourceGroupInfo[]> {
-  return resourceGroupsApi.list({ resourceTypeKey: encodeURIComponent(resourceTypeKey) });
+  return resourceGroupsApi.list({ resourceTypeKey });
 }
 
 export async function createResourceGroup(request: CreateResourceGroupRequest): Promise<ResourceGroupInfo> {

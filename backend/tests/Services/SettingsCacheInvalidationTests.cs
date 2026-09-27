@@ -5,7 +5,6 @@ using Api.Services;
 using Api.Services.Caching;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 

@@ -33,7 +33,7 @@ public static class FloorplanEndpoints
 
             try
             {
-                var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
+                var userId = principal.UserIdOrNull;
                 var metadata = await assetStorage.UploadSiteFloorplanAsync(
                     tenant.TenantId, siteId,
                     new UploadFloorplanRequest
@@ -51,6 +51,8 @@ public static class FloorplanEndpoints
 
                 return Results.Ok(new { success = true, metadata });
             }
+            // These two catches stay although AppExceptionHandler maps both exceptions: the
+            // catch-all below would otherwise turn them into the generic 500.
             catch (NotFoundException)
             {
                 return ErrorResponses.NotFound("Site", siteId);
@@ -81,36 +83,29 @@ public static class FloorplanEndpoints
         {
             var tenant = ctx.GetTenantContext();
 
-            try
-            {
-                var download = await assetStorage.GetSiteFloorplanDownloadAsync(
-                    tenant.TenantId, siteId, ct);
-                if (download is null)
-                    return ErrorResponses.NotFoundMessage("No floorplan found for this site");
+            var download = await assetStorage.GetSiteFloorplanDownloadAsync(
+                tenant.TenantId, siteId, ct);
+            if (download is null)
+                return ErrorResponses.NotFoundMessage("No floorplan found for this site");
 
-                var asset = download.Metadata;
-                var eTag = $"\"{asset.ChecksumSha256}\"";
-                ctx.Response.Headers.ETag = eTag;
-                ctx.Response.Headers.CacheControl = "private, max-age=300";
-                ctx.Response.Headers.Append("Vary", "Cookie");
-                ctx.Response.ContentLength = asset.SizeBytes;
+            var asset = download.Metadata;
+            var eTag = $"\"{asset.ChecksumSha256}\"";
+            ctx.Response.Headers.ETag = eTag;
+            ctx.Response.Headers.CacheControl = "private, max-age=300";
+            ctx.Response.Headers.Append("Vary", "Cookie");
+            ctx.Response.ContentLength = asset.SizeBytes;
 
-                if (ctx.Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
-                    && ifNoneMatch.Any(v => string.Equals(v, eTag, StringComparison.Ordinal)))
-                    return Results.StatusCode(StatusCodes.Status304NotModified);
+            if (ctx.Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
+                && ifNoneMatch.Any(v => string.Equals(v, eTag, StringComparison.Ordinal)))
+                return Results.StatusCode(StatusCodes.Status304NotModified);
 
-                // Audit actual content delivery (304 cache hits above are skipped to avoid noise).
-                var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
-                await tenantAudit.RecordAuditEventAsync(
-                    ctx.GetOrgContext(), "floorplan.download", userId, "site", siteId.ToString(),
-                    new { asset.FileName, asset.SizeBytes }, ct);
+            // Audit actual content delivery (304 cache hits above are skipped to avoid noise).
+            var userId = principal.UserIdOrNull;
+            await tenantAudit.RecordAuditEventAsync(
+                ctx.GetOrgContext(), "floorplan.download", userId, "site", siteId.ToString(),
+                new { asset.FileName, asset.SizeBytes }, ct);
 
-                return Results.Bytes(download.Data, asset.ContentType, asset.FileName);
-            }
-            catch (NotFoundException)
-            {
-                return ErrorResponses.NotFound("Site", siteId);
-            }
+            return Results.Bytes(download.Data, asset.ContentType, asset.FileName);
         })
         .WithName("GetFloorplan")
         .WithDescription("Get the floorplan image for a site");
@@ -123,18 +118,11 @@ public static class FloorplanEndpoints
         {
             var tenant = ctx.GetTenantContext();
 
-            try
-            {
-                var metadata = await assetStorage.GetSiteFloorplanMetadataAsync(
-                    tenant.TenantId, siteId, ct);
-                return metadata is null
-                    ? Results.Content("null", "application/json")
-                    : Results.Ok(metadata);
-            }
-            catch (NotFoundException)
-            {
-                return ErrorResponses.NotFound("Site", siteId);
-            }
+            var metadata = await assetStorage.GetSiteFloorplanMetadataAsync(
+                tenant.TenantId, siteId, ct);
+            return metadata is null
+                ? Results.Content("null", "application/json")
+                : Results.Ok(metadata);
         })
         .WithName("GetFloorplanMetadata")
         .WithDescription("Get metadata information for a site's floorplan");
@@ -150,24 +138,17 @@ public static class FloorplanEndpoints
         {
             var tenant = ctx.GetTenantContext();
 
-            try
-            {
-                var deleted = await assetStorage.DeleteSiteFloorplanAsync(
-                    tenant.TenantId, siteId, ct);
-                if (!deleted)
-                    return ErrorResponses.NotFoundMessage("No floorplan found for this site");
+            var deleted = await assetStorage.DeleteSiteFloorplanAsync(
+                tenant.TenantId, siteId, ct);
+            if (!deleted)
+                return ErrorResponses.NotFoundMessage("No floorplan found for this site");
 
-                var userId = principal.IsAuthenticated ? principal.UserId : (Guid?)null;
-                await tenantAudit.RecordAuditEventAsync(
-                    ctx.GetOrgContext(), "floorplan.delete", userId, "site", siteId.ToString(), null, ct);
+            var userId = principal.UserIdOrNull;
+            await tenantAudit.RecordAuditEventAsync(
+                ctx.GetOrgContext(), "floorplan.delete", userId, "site", siteId.ToString(), null, ct);
 
-                logger.LogInformation("Deleted floorplan asset for site {SiteId}", siteId);
-                return Results.NoContent();
-            }
-            catch (NotFoundException)
-            {
-                return ErrorResponses.NotFound("Site", siteId);
-            }
+            logger.LogInformation("Deleted floorplan asset for site {SiteId}", siteId);
+            return Results.NoContent();
         })
         .WithName("DeleteFloorplan")
         .WithDescription("Delete a site's floorplan");

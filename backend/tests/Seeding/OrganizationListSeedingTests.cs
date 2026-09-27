@@ -4,7 +4,6 @@ using Npgsql;
 using Orkyo.Foundation.Seed.Factories;
 using Orkyo.Foundation.Seed.Profiles;
 using Orkyo.Foundation.Seed.Scales;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 
@@ -39,7 +38,7 @@ public class OrganizationListSeedingTests
 
         var personTypeId = await PeopleFactories.ResolvePersonResourceTypeIdAsync(conn, tx);
         await PeopleFactories.SeedOrganizationListsAsync(
-            conn, tx, new Manufacturing(), new Small(), personTypeId);
+            conn, tx, new Manufacturing(), ScaleCatalog.Resolve("small"), personTypeId);
 
         await using var find = new NpgsqlCommand(
             @"SELECT i.id FROM list_instances i

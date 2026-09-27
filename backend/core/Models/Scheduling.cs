@@ -146,7 +146,20 @@ public record CreateAvailabilityEventRequest
     public List<AddScopeRequest> Scopes { get; init; } = [];
 }
 
-public record UpdateAvailabilityEventRequest
+/// <summary>
+/// The partial window both an availability-event update and an absence update carry; one
+/// validator base checks it for both.
+/// </summary>
+public interface IRecurringWindowUpdate
+{
+    string? Title { get; }
+    DateTime? StartTs { get; }
+    DateTime? EndTs { get; }
+    bool? IsRecurring { get; }
+    string? RecurrenceRule { get; }
+}
+
+public record UpdateAvailabilityEventRequest : IRecurringWindowUpdate
 {
     public string? Title { get; init; }
     public string? Description { get; init; }
@@ -211,7 +224,7 @@ public record CreateResourceAbsenceRequest
     public bool Enabled { get; init; } = true;
 }
 
-public record UpdateResourceAbsenceRequest
+public record UpdateResourceAbsenceRequest : IRecurringWindowUpdate
 {
     public AbsenceType? AbsenceType { get; init; }
     public string? Title { get; init; }

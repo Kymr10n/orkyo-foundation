@@ -1,10 +1,10 @@
 /** @jsxImportSource react */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ListRowsEditor } from './ListRowsEditor';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const getListRows = vi.fn();
 const createListRow = vi.fn();
@@ -59,14 +59,7 @@ const existingRow: ListRow = {
 };
 
 function renderEditor(props: Partial<React.ComponentProps<typeof ListRowsEditor>> = {}) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={client}>
-      <ListRowsEditor columns={columns} instanceId="i1" {...props} />
-    </QueryClientProvider>,
-  );
+  return renderWithQuery(<ListRowsEditor columns={columns} instanceId="i1" {...props} />);
 }
 
 describe('ListRowsEditor', () => {

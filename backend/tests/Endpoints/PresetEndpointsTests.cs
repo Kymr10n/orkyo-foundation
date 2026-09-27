@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Models.Preset;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -44,20 +43,8 @@ public class PresetEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName, TestConstants.TenantSlug, "admin", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = displayName,
-            TenantId = tenantId.ToString(),
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = true,  // Admin required for preset endpoints
-            Role = "admin"
-        };
-
-        var json = System.Text.Json.JsonSerializer.Serialize(tokenData);
-        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-        _cachedAuthToken = Convert.ToBase64String(bytes);
+        _cachedAuthToken = TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: true, role: "admin");
         return _cachedAuthToken;
     }
 

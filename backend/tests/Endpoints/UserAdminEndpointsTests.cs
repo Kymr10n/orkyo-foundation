@@ -28,7 +28,7 @@ public class UserAdminEndpointsTests
     {
         _fixture = fixture;
         _client = fixture.Factory.CreateClient();
-        _connString = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _connString = fixture.ControlPlaneConnectionString;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -40,77 +40,11 @@ public class UserAdminEndpointsTests
         return req;
     }
 
-    private async Task<(Guid UserId, string Token)> CreateSiteAdminAsync(string prefix = "ua-admin")
-    {
-        var id = Guid.NewGuid();
-        var email = $"{prefix}-{id}@test.com";
-        var sub = $"kc-{id}";
+    private static Task<LinkedTestUser> CreateSiteAdminAsync(string prefix = "ua-admin")
+        => DatabaseTestUtils.CreateLinkedUserAsync(prefix, siteAdmin: true);
 
-        await using var conn = new Npgsql.NpgsqlConnection(_connString);
-        await conn.OpenAsync();
-
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Admin', 'active')", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("email", email);
-        await cmd.ExecuteNonQueryAsync();
-
-        await using var linkCmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email) VALUES (@id, @uid, 'keycloak', @sub, @email)", conn);
-        linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        linkCmd.Parameters.AddWithValue("uid", id);
-        linkCmd.Parameters.AddWithValue("sub", sub);
-        linkCmd.Parameters.AddWithValue("email", email);
-        await linkCmd.ExecuteNonQueryAsync();
-
-        var token = MakeToken(id, email, sub, isSiteAdmin: true);
-        return (id, token);
-    }
-
-    private async Task<(Guid UserId, string Token)> CreateRegularUserAsync(string prefix = "ua-user")
-    {
-        var id = Guid.NewGuid();
-        var email = $"{prefix}-{id}@test.com";
-        var sub = $"kc-{id}";
-
-        await using var conn = new Npgsql.NpgsqlConnection(_connString);
-        await conn.OpenAsync();
-
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Regular', 'active')", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("email", email);
-        await cmd.ExecuteNonQueryAsync();
-
-        await using var linkCmd = new Npgsql.NpgsqlCommand(
-            "INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email) VALUES (@id, @uid, 'keycloak', @sub, @email)", conn);
-        linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        linkCmd.Parameters.AddWithValue("uid", id);
-        linkCmd.Parameters.AddWithValue("sub", sub);
-        linkCmd.Parameters.AddWithValue("email", email);
-        await linkCmd.ExecuteNonQueryAsync();
-
-        var token = MakeToken(id, email, sub, isSiteAdmin: false);
-        return (id, token);
-    }
-
-    private static string MakeToken(Guid userId, string email, string sub, bool isSiteAdmin)
-    {
-        var roles = isSiteAdmin ? new[] { "user", "site-admin" } : new[] { "user" };
-        var data = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = isSiteAdmin ? "Admin" : "Regular",
-            TenantId = Guid.Empty.ToString(),
-            TenantSlug = "",
-            IsTenantAdmin = false,
-            Role = "viewer",
-            Sub = sub,
-            RealmRoles = roles,
-        };
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(data)));
-    }
+    private static Task<LinkedTestUser> CreateRegularUserAsync(string prefix = "ua-user")
+        => DatabaseTestUtils.CreateLinkedUserAsync(prefix);
 
     private void ResetKeycloak() => _fixture.Factory.MockKeycloakAdminService.Reset();
 

@@ -1,8 +1,6 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createElement, type ReactNode } from 'react';
 import {
   useAllSharedListInstances,
   useCreateListColumn,
@@ -18,6 +16,7 @@ import {
   useUpdateListDefinition,
   useUpdateSharedListInstance,
 } from './useListDefinitions';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 const api = {
   getListDefinitions: vi.fn(),
@@ -53,12 +52,7 @@ const DEF = 'def-1';
 const COL = 'col-1';
 const INST = 'inst-1';
 
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return createElement(QueryClientProvider, { client }, children);
-}
+let wrapper: ReturnType<typeof createTestQueryWrapper>;
 
 /**
  * The data layer behind the list-definitions admin. The mutations all declare the same broad
@@ -68,6 +62,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useListDefinitions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    wrapper = createTestQueryWrapper();
     api.getListDefinitions.mockResolvedValue([]);
     api.getListDefinition.mockResolvedValue({ id: DEF });
     api.getSharedListInstances.mockResolvedValue([]);

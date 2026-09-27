@@ -4,7 +4,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Tests.TestHelpers;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -22,7 +21,7 @@ public class FloorplanEndpointsTests
     public FloorplanEndpointsTests(DatabaseFixture fixture)
     {
         _client = fixture.CreateAuthorizedClient();
-        _connectionString = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        _connectionString = fixture.TenantConnectionString;
     }
 
     [Fact]

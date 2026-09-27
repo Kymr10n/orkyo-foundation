@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Api.Models.Insights;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -27,7 +26,7 @@ public class InsightsEndpointsTests
     {
         _fixture = fixture;
         _client = fixture.CreateAuthorizedClient();
-        _tenantCs = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        _tenantCs = fixture.TenantConnectionString;
     }
 
     // ── Validation (fail fast, no silent defaults) ────────────────────────────

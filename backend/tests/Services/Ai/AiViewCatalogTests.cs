@@ -1,6 +1,5 @@
 using Api.Security;
 using Api.Services.Ai;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services.Ai;
 

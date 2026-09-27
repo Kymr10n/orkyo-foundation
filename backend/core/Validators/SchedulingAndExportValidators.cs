@@ -9,9 +9,9 @@ namespace Api.Validators;
 /// is the invariant that matters: the solver would otherwise be handed an empty window and
 /// return "no solution" rather than reporting bad input.
 /// </summary>
-public class AutoSchedulePreviewRequestValidator : AbstractValidator<AutoSchedulePreviewRequest>
+public abstract class AutoScheduleScopeValidator<T> : AbstractValidator<T> where T : IAutoScheduleScope
 {
-    public AutoSchedulePreviewRequestValidator()
+    protected AutoScheduleScopeValidator()
     {
         RuleFor(x => x.SiteId).NotEmpty();
         RuleFor(x => x.HorizonEnd).GreaterThanOrEqualTo(x => x.HorizonStart)
@@ -25,21 +25,9 @@ public class AutoSchedulePreviewRequestValidator : AbstractValidator<AutoSchedul
     }
 }
 
-public class AutoScheduleApplyRequestValidator : AbstractValidator<AutoScheduleApplyRequest>
-{
-    public AutoScheduleApplyRequestValidator()
-    {
-        RuleFor(x => x.SiteId).NotEmpty();
-        RuleFor(x => x.HorizonEnd).GreaterThanOrEqualTo(x => x.HorizonStart)
-            .WithMessage("HorizonEnd must be on or after HorizonStart");
-        RuleForEach(x => x.RequestIds!).NotEmpty()
-            .WithMessage("RequestIds must not contain empty GUIDs")
-            .When(x => x.RequestIds is not null);
-        RuleForEach(x => x.ResourceTypeKeys!).NotEmpty()
-            .WithMessage("ResourceTypeKeys must not contain empty keys")
-            .When(x => x.ResourceTypeKeys is not null);
-    }
-}
+public class AutoSchedulePreviewRequestValidator : AutoScheduleScopeValidator<AutoSchedulePreviewRequest> { }
+
+public class AutoScheduleApplyRequestValidator : AutoScheduleScopeValidator<AutoScheduleApplyRequest> { }
 
 public class ExportRequestValidator : AbstractValidator<ExportRequest>
 {

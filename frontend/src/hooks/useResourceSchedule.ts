@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getAssignmentsByResource } from "@foundation/src/lib/api/resource-assignments-api";
 import { getRequests } from "@foundation/src/lib/api/request-api";
 import {
@@ -8,7 +8,8 @@ import {
 } from "@foundation/src/lib/api/resource-candidate-requests-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
-import { invalidateRequestData } from "@foundation/src/lib/core/invalidate-request-data";
+import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 /** One resource's assignments over a window — the blocks on its own calendar. */
 export const useResourceAssignments = (
@@ -40,14 +41,12 @@ export const useScheduleRequestNames = (enabled: boolean) =>
  * Everything one resource's calendar shows after a block moved: its absences, its assignment
  * windows, and the request-derived feeds the board reads.
  */
-export const useRefreshResourceSchedule = (resourceId: string): (() => void) => {
-  const queryClient = useQueryClient();
-  return useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: qk.resources.absences(resourceId) });
-    void queryClient.invalidateQueries({ queryKey: qk.resources.assignmentsFor(resourceId) });
-    invalidateRequestData(queryClient);
-  }, [queryClient, resourceId]);
-};
+export const useRefreshResourceSchedule = (resourceId: string): (() => void) =>
+  useInvalidateKeys(
+    qk.resources.absences(resourceId),
+    qk.resources.assignmentsFor(resourceId),
+    ...REQUEST_DERIVED_QUERY_KEYS,
+  );
 
 export interface ResourceAssignmentOptions {
   options: ResourceAssignmentOption[];

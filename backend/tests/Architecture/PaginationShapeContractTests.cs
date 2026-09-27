@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
 
@@ -50,7 +49,6 @@ public partial class PaginationShapeContractTests
         // PagedResult and the admin audit views read those two names. Renaming them is a wire
         // break for no gain that the envelope fields do not already give these endpoints.
         "Endpoints/Admin/AuditEndpoints.cs",
-        "Endpoints/TenantAuditEndpoints.cs",
     };
 
     // A raw row bound as an endpoint parameter — the pre-PageRequest way of paging.
@@ -131,17 +129,7 @@ public partial class PaginationShapeContractTests
         // they all live here. Scanning backend/core as well reported nine internal helpers whose
         // `int limit` is an ordinary argument — a buffer bound, a row cap passed down by a service
         // that already took page/pageSize above it. A guard that cries wolf on those gets ignored.
-        var srcDir = TestRepoPaths.FindDirectory("backend", "src");
-        srcDir.Should().NotBeNull("could not locate backend/src");
-
-        var files = Directory.GetFiles(srcDir!, "*.cs", SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                     && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-            .ToList();
-        files.Should().NotBeEmpty("the source scan found no .cs files — did the layout move?");
-
-        return files
-            .Select(f => (Rel: Path.GetRelativePath(srcDir!, f).Replace('\\', '/'), Text: File.ReadAllText(f)))
+        return TestRepoPaths.BackendSources("src")
             .Where(x => forbidden.IsMatch(x.Text))
             .Select(x => x.Rel)
             .Order(StringComparer.Ordinal)

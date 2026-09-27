@@ -22,6 +22,7 @@ comment:
 flags:
   backend:
     paths:
+      - backend/core/**
       - backend/src/**
       - backend/shared/**
     carryforward: true
@@ -37,8 +38,6 @@ ignore:
   - "backend/migrations-foundation/**"
   - "backend/migration-abstractions/**"
   - "backend/migrator-runtime/**"
-  - "backend/src/DependencyInjection/**"
-  - "backend/src/Extensions/**"
   - "backend/**/*Options.cs"
   - "backend/**/*Settings.cs"
   - "backend/**/*Constants.cs"

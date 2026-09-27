@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Api.Models;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -25,7 +24,7 @@ public class RequestPlanEndpointTests
     {
         _client = fixture.CreateAuthorizedClient();
         _fixture = fixture;
-        _tenantCs = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        _tenantCs = fixture.TenantConnectionString;
         _site = new Lazy<Task<Guid>>(SeedSiteAsync);
     }
 

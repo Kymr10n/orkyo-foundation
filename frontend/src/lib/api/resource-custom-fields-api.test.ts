@@ -40,7 +40,7 @@ describe('resource-custom-fields-api', () => {
 
     const result = await getResourceCustomFields(TYPE_ID);
 
-    expect(apiClient.apiGet).toHaveBeenCalledWith(COLLECTION);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(COLLECTION, { params: undefined });
     expect(result).toEqual([field]);
   });
 

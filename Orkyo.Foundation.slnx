@@ -28,6 +28,5 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="backend/tests/Orkyo.Foundation.Tests.csproj" />
-    <Project Path="backend/seeding-tests/Orkyo.Foundation.Seed.Tests.csproj" />
   </Folder>
 </Solution>

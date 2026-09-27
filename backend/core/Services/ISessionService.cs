@@ -11,11 +11,6 @@ public interface ISessionService
     Task<SessionBootstrapResponse?> BuildSessionResponseAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Get full session info by internal user ID.
-    /// </summary>
-    Task<SessionBootstrapResponse?> GetSessionByUserIdAsync(Guid userId, CancellationToken ct = default);
-
-    /// <summary>
     /// Accept a ToS version for the current user.
     /// </summary>
     Task AcceptTosAsync(Guid userId, string tosVersion, string? ipAddress, string? userAgent, CancellationToken ct = default);

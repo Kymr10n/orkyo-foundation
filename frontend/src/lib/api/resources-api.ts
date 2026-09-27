@@ -1,10 +1,6 @@
-/**
- * API client for Resource CRUD operations
- */
-
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
-import { normalizePagedResult, type PagedResult } from '../core/paged-result';
+import type { PagedResult } from '../core/paged-result';
 import type { CustomFieldValue } from './resource-custom-fields-api';
 import type { ResourceGeometry } from '../../types/geometry';
 
@@ -118,42 +114,26 @@ export interface ResourceListFilter {
 export async function getResources(
   filter?: ResourceListFilter,
 ): Promise<PagedResult<ResourceInfo>> {
-  const params = new URLSearchParams();
-  if (filter?.resourceTypeKey) params.append('resourceTypeKey', filter.resourceTypeKey);
-  if (filter?.isActive !== undefined) params.append('isActive', String(filter.isActive));
-  if (filter?.search) params.append('search', filter.search);
-  if (filter?.siteId) params.append('siteId', filter.siteId);
-  if (filter?.hasGeometry !== undefined) params.append('hasGeometry', String(filter.hasGeometry));
-  if (filter?.page) params.append('page', String(filter.page));
-  if (filter?.pageSize) params.append('pageSize', String(filter.pageSize));
-
-  const queryString = params.toString();
-  const response = await apiGet<PagedResult<ResourceInfo> & { data?: ResourceInfo[]; total?: number }>(
-    `${API_PATHS.RESOURCES}?${queryString}`,
-  );
-  // Tolerates the pre-0.26.0 {data,total} shape for one release. See normalizePagedResult —
-  // it also fills totalItems, which the earlier inline `items ?? data` did not, leaving
-  // export-handlers' paging loop comparing a length against undefined.
-  return normalizePagedResult(response, filter?.pageSize ?? response.items?.length ?? 0);
+  const params = {
+    resourceTypeKey: filter?.resourceTypeKey || undefined,
+    isActive: filter?.isActive,
+    search: filter?.search || undefined,
+    siteId: filter?.siteId || undefined,
+    hasGeometry: filter?.hasGeometry,
+    page: filter?.page || undefined,
+    pageSize: filter?.pageSize || undefined,
+  };
+  return apiGet<PagedResult<ResourceInfo>>(API_PATHS.RESOURCES, { params });
 }
 
-/**
- * Get a single resource by ID
- */
 export async function getResource(id: string): Promise<ResourceInfo> {
   return apiGet<ResourceInfo>(API_PATHS.resource(id));
 }
 
-/**
- * Create a new resource
- */
 export async function createResource(request: CreateResourceRequest): Promise<ResourceInfo> {
   return apiPost<ResourceInfo>(API_PATHS.RESOURCES, request);
 }
 
-/**
- * Update an existing resource
- */
 export async function updateResource(id: string, request: UpdateResourceRequest): Promise<ResourceInfo> {
   return apiPut<ResourceInfo>(API_PATHS.resource(id), request);
 }

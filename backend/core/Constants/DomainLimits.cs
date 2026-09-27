@@ -19,6 +19,9 @@ public static class DomainLimits
     /// <summary>Maximum length for site names</summary>
     public const int SiteNameMaxLength = 200;
 
+    /// <summary>Maximum length for resource names</summary>
+    public const int ResourceNameMaxLength = 200;
+
     /// <summary>Maximum length for request names</summary>
     public const int RequestNameMaxLength = 200;
 

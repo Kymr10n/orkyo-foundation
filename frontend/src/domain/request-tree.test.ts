@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Request } from "@foundation/src/types/requests";
+import { makeRequest as fixtureRequest } from "@foundation/src/test-utils/request-fixtures";
 import {
   buildChildCountMap,
   buildRequestTree,
@@ -19,19 +20,7 @@ import {
 function makeRequest(
   overrides: Partial<Request> & { id: string },
 ): Request {
-  return {
-    name: `Request ${overrides.id}`,
-    minimalDurationValue: 60,
-    minimalDurationUnit: "minutes",
-    schedulingSettingsApply: false,
-    status: "new",
-    planningMode: "leaf",
-    sortOrder: 0,
-    createdAt: "2025-01-01T00:00:00Z",
-    updatedAt: "2025-01-01T00:00:00Z",
-    assignments: [],
-    ...overrides,
-  };
+  return fixtureRequest({ name: `Request ${overrides.id}`, ...overrides });
 }
 
 const flat: Request[] = [

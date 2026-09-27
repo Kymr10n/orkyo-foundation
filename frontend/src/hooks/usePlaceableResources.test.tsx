@@ -1,7 +1,6 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   usePlaceableResources,
   useCreatePlaceableResource,
@@ -13,29 +12,16 @@ import * as resourcesApi from '@foundation/src/lib/api/resources-api';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceGeometry } from '@foundation/src/types/geometry';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import type { ReactNode } from 'react';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 
 vi.mock('@foundation/src/lib/api/resources-api');
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
+import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // Non-optimistic mutations route toast + invalidation through the meta-driven MutationCache;
 // wire it (like production) so those fire in tests.
-function makeFeedbackClient() {
-  const client: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => client),
-  });
-  return client;
-}
-
-function feedbackWrapper(client: QueryClient) {
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-}
+const feedbackWrapper = () => createTestQueryWrapper({ feedback: true });
 
 function placeable(overrides: Partial<ResourceInfo> = {}): ResourceInfo {
   return {
@@ -78,7 +64,7 @@ describe('usePlaceableResources', () => {
     vi.mocked(resourcesApi.getResources).mockResolvedValue(listResponse([placeable()]));
 
     const { result } = renderHook(() => usePlaceableResources('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -99,7 +85,7 @@ describe('usePlaceableResources', () => {
     ]));
 
     const { result } = renderHook(() => usePlaceableResources('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -108,7 +94,7 @@ describe('usePlaceableResources', () => {
 
   it('does not query without a site', () => {
     renderHook(() => usePlaceableResources(null), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
     // No wait: a query with enabled:false is never scheduled.
     expect(resourcesApi.getResources).not.toHaveBeenCalled();
@@ -117,7 +103,7 @@ describe('usePlaceableResources', () => {
   it('creates through the generic resource endpoint', async () => {
     vi.mocked(resourcesApi.createResource).mockResolvedValue(placeable());
     const { result } = renderHook(() => useCreatePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
 
     result.current.mutate({
@@ -139,7 +125,7 @@ describe('usePlaceableResources', () => {
   it('updates by resource id, with no site in the path', async () => {
     vi.mocked(resourcesApi.updateResource).mockResolvedValue(placeable());
     const { result } = renderHook(() => useUpdatePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
 
     result.current.mutate({ resourceId: 'space-1', data: { name: 'Renamed' } });
@@ -157,7 +143,7 @@ describe('usePlaceableResources', () => {
       coordinates: [{ x: 0, y: 0 }, { x: 10, y: 10 }],
     };
     const { result } = renderHook(() => useMovePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
 
     result.current.mutate({ resourceId: 'space-1', geometry });
@@ -168,11 +154,11 @@ describe('usePlaceableResources', () => {
 
   it('removes the row immediately on delete', async () => {
     vi.mocked(resourcesApi.deleteResource).mockResolvedValue(undefined);
-    const client = makeFeedbackClient();
+    const { queryClient: client, wrapper } = createTestQueryClient({ feedback: true });
     client.setQueryData(qk.resources.placeable('site-1'), [placeable(), placeable({ id: 'space-2' })]);
 
     const { result } = renderHook(() => useDeletePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(client),
+      wrapper,
     });
     result.current.mutate('space-1');
 
@@ -184,11 +170,11 @@ describe('usePlaceableResources', () => {
 
   it('puts the row back when the delete fails', async () => {
     vi.mocked(resourcesApi.deleteResource).mockRejectedValue(new Error('nope'));
-    const client = makeFeedbackClient();
+    const { queryClient: client, wrapper } = createTestQueryClient({ feedback: true });
     client.setQueryData(qk.resources.placeable('site-1'), [placeable()]);
 
     const { result } = renderHook(() => useDeletePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(client),
+      wrapper,
     });
     result.current.mutate('space-1');
 
@@ -215,7 +201,7 @@ describe('usePlaceableResources', () => {
   it('toasts a failed create when no dialog will show it', async () => {
     vi.mocked(resourcesApi.createResource).mockRejectedValue(new Error('nope'));
     const { result } = renderHook(() => useCreatePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
     result.current.mutate(CREATE_INPUT);
 
@@ -230,7 +216,7 @@ describe('usePlaceableResources', () => {
     vi.mocked(resourcesApi.createResource).mockRejectedValue(new Error('nope'));
     const { result } = renderHook(
       () => useCreatePlaceableResource('site-1', { suppressErrorToast: true }),
-      { wrapper: feedbackWrapper(makeFeedbackClient()) },
+      { wrapper: feedbackWrapper() },
     );
     result.current.mutate(CREATE_INPUT);
 
@@ -241,7 +227,7 @@ describe('usePlaceableResources', () => {
   it('toasts a failed move, because a drag has nowhere to put the message', async () => {
     vi.mocked(resourcesApi.updateResource).mockRejectedValue(new Error('nope'));
     const { result } = renderHook(() => useMovePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(makeFeedbackClient()),
+      wrapper: feedbackWrapper(),
     });
     result.current.mutate({ resourceId: 'space-1', geometry: {} as ResourceGeometry });
 
@@ -256,7 +242,7 @@ describe('usePlaceableResources', () => {
     vi.mocked(resourcesApi.updateResource).mockRejectedValue(new Error('nope'));
     const { result } = renderHook(
       () => useMovePlaceableResource('site-1', { suppressErrorToast: true }),
-      { wrapper: feedbackWrapper(makeFeedbackClient()) },
+      { wrapper: feedbackWrapper() },
     );
     result.current.mutate({ resourceId: 'space-1', geometry: {} as ResourceGeometry });
 

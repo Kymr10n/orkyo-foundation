@@ -8,26 +8,10 @@ import {
 } from './useCriteria';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
 import type { Criterion } from '@foundation/src/types/criterion';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { createTestQueryWrapper } from '@foundation/src/test-utils';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
+import { createTestQueryWrapper, createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
-// CRUD mutations invalidate through the meta-driven MutationCache; wire it so the spy fires.
-function createFeedbackClientWithSpy() {
-  const client: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => client),
-  });
-  const spy = vi.spyOn(client, 'invalidateQueries');
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
-  return { client, spy, wrapper };
-}
 
 const mockCriterion: Criterion = {
   id: 'criterion-1',
@@ -62,7 +46,8 @@ describe('useCriteria', () => {
 
   describe('useCreateCriterion', () => {
     it('creates a criterion and invalidates caches', async () => {
-      const { spy, wrapper } = createFeedbackClientWithSpy();
+      // CRUD mutations invalidate through the meta-driven MutationCache; wire it so the spy fires.
+      const { spy, wrapper } = createTestQueryClient({ feedback: true });
 
       vi.mocked(criteriaApi.createCriterion).mockResolvedValue(mockCriterion);
 

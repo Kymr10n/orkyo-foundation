@@ -1,7 +1,6 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useScheduleRequest } from "./useUtilization";
 import type { Request } from "@foundation/src/types/requests";
 
@@ -19,34 +18,25 @@ vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
 }));
 
 import * as utilizationApi from "@foundation/src/lib/api/utilization-api";
-import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { makeRequest, spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { createTestQueryClient } from "@foundation/src/test-utils";
 
 // ---------------------------------------------------------------------------
 // Shared mock data
 // ---------------------------------------------------------------------------
 
-const mockRequest: Request = {
+const mockRequest: Request = makeRequest({
   id: "req-001",
   name: "Deep-Sea Survey",
   description: "Seismic scan of sector 7",
   assignments: [spaceAssignment('space-A')],
   startTs: "2026-04-01T08:00:00Z",
   endTs: "2026-04-01T10:00:00Z",
-  earliestStartTs: null,
-  latestEndTs: null,
   minimalDurationValue: 90,
-  minimalDurationUnit: "minutes",
   actualDurationValue: 120,
   actualDurationUnit: "minutes",
   durationMin: 90,
-  status: "new",
-  requirements: [],
-  schedulingSettingsApply: true,
-  planningMode: "leaf",
-  sortOrder: 0,
-  createdAt: "2026-03-20T09:00:00Z",
-  updatedAt: "2026-03-25T14:00:00Z",
-};
+});
 
 const mockRequest2: Request = {
   id: "req-002",
@@ -72,23 +62,6 @@ const mockRequest2: Request = {
 };
 
 // ---------------------------------------------------------------------------
-// Helper: build a QueryClient + wrapper with direct access to the client
-// ---------------------------------------------------------------------------
-
-function createClientAndWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-  const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-  return { queryClient, wrapper };
-}
-
-// ---------------------------------------------------------------------------
 // useScheduleRequest
 // ---------------------------------------------------------------------------
 
@@ -107,7 +80,7 @@ describe("useScheduleRequest", () => {
 
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(updatedRequest);
 
-    const { queryClient, wrapper } = createClientAndWrapper();
+    const { queryClient, wrapper } = createTestQueryClient();
     queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
@@ -141,7 +114,7 @@ describe("useScheduleRequest", () => {
 
     vi.mocked(utilizationApi.scheduleRequest).mockReturnValue(deferred);
 
-    const { queryClient, wrapper } = createClientAndWrapper();
+    const { queryClient, wrapper } = createTestQueryClient();
 
     // Seed the cache with the original request
     queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
@@ -193,7 +166,7 @@ describe("useScheduleRequest", () => {
       new Error("Conflict detected")
     );
 
-    const { queryClient, wrapper } = createClientAndWrapper();
+    const { queryClient, wrapper } = createTestQueryClient();
 
     // Seed the cache
     queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
@@ -233,7 +206,7 @@ describe("useScheduleRequest", () => {
 
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(serverResponse);
 
-    const { queryClient, wrapper } = createClientAndWrapper();
+    const { queryClient, wrapper } = createTestQueryClient();
     queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest, mockRequest2]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
@@ -277,7 +250,7 @@ describe("useScheduleRequest", () => {
 
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(serverResponse);
 
-    const { queryClient, wrapper } = createClientAndWrapper();
+    const { queryClient, wrapper } = createTestQueryClient();
     queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest2]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });

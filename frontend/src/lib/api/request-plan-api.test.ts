@@ -20,18 +20,18 @@ describe('getRequestPlan', () => {
 describe('getSitePlan', () => {
   it('scopes the plan to a site when one is selected', async () => {
     await getSitePlan('site-1');
-    expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.sitePlan}?siteId=site-1`);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.sitePlan, { params: { siteId: 'site-1' } });
   });
 
   it('asks for the whole tenant when no site is selected', async () => {
     // "All sites" is null, not a missing argument — the query param must be absent rather
     // than sent as the string "null", which the backend would reject as a malformed guid.
     await getSitePlan(null);
-    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.sitePlan);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.sitePlan, { params: { siteId: undefined } });
   });
 
   it('asks for the whole tenant when the argument is omitted', async () => {
     await getSitePlan();
-    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.sitePlan);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.sitePlan, { params: { siteId: undefined } });
   });
 });

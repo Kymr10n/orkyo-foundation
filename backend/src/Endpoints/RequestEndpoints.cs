@@ -93,8 +93,8 @@ public static class RequestEndpoints
         .WithName("ScheduleRequest")
         .WithSummary("Schedule or unschedule a request");
 
-        group.MapPost("/{id:guid}/requirements", async (Guid id, AddRequirementRequest requirement,
-            IValidator<AddRequirementRequest> validator, IRequestService requestService, CancellationToken ct) =>
+        group.MapPost("/{id:guid}/requirements", async (Guid id, CreateRequestRequirementRequest requirement,
+            IValidator<CreateRequestRequirementRequest> validator, IRequestService requestService, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(requirement, validator, async () =>
             {
                 var created = await requestService.AddRequirementAsync(id, requirement, ct);
@@ -137,7 +137,7 @@ public static class RequestEndpoints
         group.MapGet("/{id:guid}/plan", async (Guid id, IRequestPlanService planService, CancellationToken ct) =>
         {
             var plan = await planService.GetPlanAsync(id, ct);
-            return plan is null ? ErrorResponses.NotFound("Request", id) : Results.Ok(plan);
+            return EndpointHelpers.OkOrNotFound(plan, "Request", id);
         })
         .WithName("GetRequestPlan")
         .WithSummary("Get a request's children, the dependencies among them, and whether each may start");

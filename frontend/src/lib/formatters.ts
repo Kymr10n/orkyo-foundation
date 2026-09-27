@@ -9,7 +9,7 @@
  *   import { DATE_FORMATS } from '@foundation/src/lib/formatters';
  *   format(date, DATE_FORMATS.DATE_LOCALE_SHORT)
  */
-import { differenceInCalendarDays } from "date-fns";
+import { differenceInCalendarDays, format, isValid } from "date-fns";
 
 export const DATE_FORMATS = {
   /** Locale-aware short date. Renders as "Oct 14, 2025" in en-US. */
@@ -28,6 +28,8 @@ export const DATE_FORMATS = {
   MONTH_YEAR: "MMM yy",
   /** Quarter + year for chart axes. "Q4 2025" */
   QUARTER_YEAR: "QQQ yyyy",
+  /** Local date and time for input[type=datetime-local]. "2025-10-14T14:30" */
+  DATETIME_LOCAL_INPUT: "yyyy-MM-dd'T'HH:mm",
   /** ISO date string, safe for filenames and input[type=date]. "2025-10-14" */
   DATE_ISO: "yyyy-MM-dd",
   /** Full year only. "2025" */
@@ -129,4 +131,10 @@ export function formatScheduledWindow(startTs?: string | null, endTs?: string | 
   const end = new Date(endTs);
   const days = differenceInCalendarDays(end, start) + 1;
   return `${formatLocalized(start, WINDOW_DAY_OPTS)} – ${formatLocalized(end, WINDOW_DAY_OPTS)} · ${days}d`;
+}
+
+/** A date (or ISO string) as a `datetime-local` input value in local time; "" when unparseable. */
+export function toDateTimeLocalValue(value: Date | string): string {
+  const date = new Date(value);
+  return isValid(date) ? format(date, DATE_FORMATS.DATETIME_LOCAL_INPUT) : "";
 }

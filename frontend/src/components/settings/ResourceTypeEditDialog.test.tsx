@@ -56,3 +56,15 @@ describe('ResourceTypeEditDialog — QR codes flag', () => {
     );
   });
 });
+
+describe('ResourceTypeEditDialog — suggested key', () => {
+  it('suggests a valid key for a name that starts with a digit', async () => {
+    const user = userEvent.setup();
+    renderDialog(null);
+
+    await user.type(screen.getByLabelText('Name'), '3D Printer');
+
+    // The server rule wants a leading letter; "3d_printer" would leave Save disabled.
+    expect(screen.getByLabelText('Key')).toHaveValue('f_3d_printer');
+  });
+});

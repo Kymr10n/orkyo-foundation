@@ -6,7 +6,6 @@ using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Orkyo.Shared;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 
@@ -30,7 +29,7 @@ public sealed class InvitationResendServiceTests
 
     public InvitationResendServiceTests(DatabaseFixture fixture)
     {
-        _connString = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _connString = fixture.ControlPlaneConnectionString;
     }
 
     private (InvitationService Service, Mock<IEmailService> Email, Mock<ITenantUserService> TenantUsers) BuildService()

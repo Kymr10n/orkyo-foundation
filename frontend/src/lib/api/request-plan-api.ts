@@ -63,6 +63,5 @@ export interface SiteRequestPlan {
 }
 
 export function getSitePlan(siteId?: string | null): Promise<SiteRequestPlan> {
-  const query = siteId ? `?siteId=${siteId}` : "";
-  return apiGet<SiteRequestPlan>(`${API_PATHS.sitePlan}${query}`);
+  return apiGet<SiteRequestPlan>(API_PATHS.sitePlan, { params: { siteId: siteId || undefined } });
 }

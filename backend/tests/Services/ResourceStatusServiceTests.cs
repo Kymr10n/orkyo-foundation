@@ -3,8 +3,6 @@ using Api.Models;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.Time.Testing;
-using Moq;
-using Xunit;
 
 namespace Api.Tests.Services;
 

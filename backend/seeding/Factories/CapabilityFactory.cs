@@ -45,7 +45,8 @@ public static class CapabilityFactory
             await writer.CompleteAsync();
         }
 
-        var typeIds = await ResolveTypeIdsAsync(conn);
+        var typeIds = await ResourceTypeSeedHelpers.GetTypeIdsAsync(
+            conn, "room", "person", "tool", "mill", "drill", "lathe", "cnc", "assembly_station", "test_station");
         using (var writer = await conn.BeginBinaryImportAsync(
             "COPY public.criterion_resource_types (criterion_id, resource_type_id) FROM STDIN (FORMAT BINARY)"))
         {
@@ -180,15 +181,4 @@ public static class CapabilityFactory
         SkillCatalog.MaxLoadTons => ["tool", "room"],
         _ => ["person"],
     };
-
-    private static async Task<Dictionary<string, Guid>> ResolveTypeIdsAsync(NpgsqlConnection conn)
-    {
-        var result = new Dictionary<string, Guid>();
-        await using var cmd = new NpgsqlCommand(
-            "SELECT key, id FROM public.resource_types WHERE key IN " +
-            "('room','person','tool','mill','drill','lathe','cnc','assembly_station','test_station')", conn);
-        await using var reader = await cmd.ExecuteReaderAsync();
-        while (await reader.ReadAsync()) result[reader.GetString(0)] = reader.GetGuid(1);
-        return result;
-    }
 }

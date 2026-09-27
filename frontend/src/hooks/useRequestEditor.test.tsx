@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { useRequestEditor } from '@foundation/src/hooks/useRequestEditor';
 import type { Request } from '@foundation/src/types/requests';
 import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -72,17 +72,7 @@ function TestHookComponent() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function renderWithClient(queryClient: QueryClient) {
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <TestHookComponent />
-    </QueryClientProvider>
-  );
-}
-
-function makeQueryClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false } } });
-}
+const renderEditor = () => renderWithQuery(<TestHookComponent />);
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -97,28 +87,28 @@ describe('useRequestEditor', () => {
   describe('role gate', () => {
     it('opens the form dialog in edit mode for admin role', () => {
       mockRole = 'admin';
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
     });
 
     it('opens the form dialog in edit mode for editor role', () => {
       mockRole = 'editor';
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
     });
 
     it('opens the form dialog in view mode for member role', () => {
       mockRole = 'member';
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
     });
 
     it('opens the form dialog in view mode when membership is null', () => {
       mockRole = undefined;
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
     });
@@ -126,7 +116,7 @@ describe('useRequestEditor', () => {
 
   describe('save handler', () => {
     it('calls updateRequest with the request id on save', async () => {
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
@@ -137,13 +127,7 @@ describe('useRequestEditor', () => {
     it('invalidates the requests AND conflicts queries on save', async () => {
       // Conflicts are derived from request state, so an edit must refresh both — otherwise the
       // grid's conflict badges go stale (e.g. a newly-recorded below_min_duration conflict).
-      const queryClient = makeQueryClient();
-      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
-      render(
-        <QueryClientProvider client={queryClient}>
-          <TestHookComponent />
-        </QueryClientProvider>
-      );
+      const { invalidateSpy } = renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
@@ -153,7 +137,7 @@ describe('useRequestEditor', () => {
     });
 
     it('closes the edit dialog after save', async () => {
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
       fireEvent.click(screen.getByTestId('save-btn'));
@@ -163,7 +147,7 @@ describe('useRequestEditor', () => {
     });
 
     it('can re-open the dialog after a save', async () => {
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
@@ -176,7 +160,7 @@ describe('useRequestEditor', () => {
 
   describe('dialog close via onOpenChange', () => {
     it('closes edit dialog when onOpenChange fires false', () => {
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
       fireEvent.click(screen.getByTestId('close-edit-btn'));
@@ -185,7 +169,7 @@ describe('useRequestEditor', () => {
 
     it('closes the view-mode form dialog when onOpenChange fires false', () => {
       mockRole = 'member';
-      renderWithClient(makeQueryClient());
+      renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
       fireEvent.click(screen.getByTestId('close-edit-btn'));

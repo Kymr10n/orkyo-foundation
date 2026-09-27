@@ -4,7 +4,6 @@ using System.Text.Json;
 using Api.Endpoints;
 using Api.Models;
 using Api.Repositories;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

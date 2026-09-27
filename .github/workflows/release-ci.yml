@@ -254,7 +254,7 @@ jobs:
         working-directory: frontend
 
       - name: Test with coverage
-        run: npm test -- --run --coverage --reporter=verbose
+        run: npm test -- --coverage --reporter=verbose
         working-directory: frontend
 
       - name: Upload frontend coverage to Codecov

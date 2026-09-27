@@ -68,6 +68,19 @@ public abstract record TokenRecordBase
 }
 
 /// <summary>
+/// The verification half of a token service: what a bearer-token auth handler calls on every
+/// request. Each credential class implements it against its own table, scheme and pepper.
+/// </summary>
+public interface ITokenVerifier<TRecord> where TRecord : TokenRecordBase
+{
+    /// <summary>Validates a raw token string. Returns the record on success, null otherwise.</summary>
+    Task<TRecord?> ValidateAsync(string rawToken, CancellationToken ct = default);
+
+    /// <summary>Updates last_used_at (fire-and-forget from the auth handler).</summary>
+    Task TouchLastUsedAsync(Guid tokenId, CancellationToken ct = default);
+}
+
+/// <summary>
 /// Reads a token row by column name into the caller's record type.
 /// </summary>
 /// <remarks>

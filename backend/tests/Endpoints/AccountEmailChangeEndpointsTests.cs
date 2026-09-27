@@ -1,10 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using AwesomeAssertions;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -25,11 +23,9 @@ public class AccountEmailChangeEndpointsTests
         _mockEmail = factory.MockEmailService;
         _mockKeycloak.Reset();
         _mockEmail.Reset();
-        _cpConnectionString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _cpConnectionString = databaseFixture.ControlPlaneConnectionString;
 
-        _client = factory.CreateClient();
-        _client.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.TestBearerToken}");
-        _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
+        _client = databaseFixture.CreateAuthorizedClient();
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────

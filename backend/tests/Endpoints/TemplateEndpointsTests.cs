@@ -6,7 +6,6 @@ using Api.Constants;
 using Api.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -27,7 +26,7 @@ public class TemplateEndpointsTests
     private async Task<Guid> CreateTestCriterionAsync()
     {
         // Create a test criterion for template items
-        using var conn = new NpgsqlConnection($"Host=localhost;Port={_fixture.DatabasePort};Database=tenant_{_testTenant};Username=postgres;Password=postgres");
+        using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
         await conn.OpenAsync();
 
         var criterionId = Guid.NewGuid();
@@ -138,26 +137,14 @@ public class TemplateEndpointsTests
 
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Template Test User",
-            TenantId = tenantId.ToString(),
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "user"
-        };
-
-        var json = System.Text.Json.JsonSerializer.Serialize(tokenData);
-        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-        return Convert.ToBase64String(bytes);
+        return TestConstants.BearerToken(userId.ToString(), email, "Template Test User", tenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "user");
     }
 
     private async Task CleanupTestDataAsync()
     {
         // Clean up test data
-        using var conn = new NpgsqlConnection($"Host=localhost;Port={_fixture.DatabasePort};Database=tenant_{_testTenant};Username=postgres;Password=postgres");
+        using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
         await conn.OpenAsync();
 
         await using var cmd = new NpgsqlCommand(@"

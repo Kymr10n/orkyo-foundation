@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CustomFieldInput } from './CustomFieldInput';
 import type { ResourceCustomField } from '@foundation/src/lib/api/resource-custom-fields-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 function field(overrides: Partial<ResourceCustomField> = {}): ResourceCustomField {
   return {
@@ -62,18 +62,13 @@ describe('CustomFieldInput', () => {
 
 describe('CustomFieldInput — list fields', () => {
   function renderList(resourceId: string | null) {
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    return render(
-      <QueryClientProvider client={client}>
-        <CustomFieldInput
-          field={field({ dataType: 'list', label: 'Maintenance log', listDefinitionId: 'def-1' })}
-          value={null}
-          onChange={() => {}}
-          resourceId={resourceId}
-        />
-      </QueryClientProvider>,
+    return renderWithQuery(
+      <CustomFieldInput
+        field={field({ dataType: 'list', label: 'Maintenance log', listDefinitionId: 'def-1' })}
+        value={null}
+        onChange={() => {}}
+        resourceId={resourceId}
+      />,
     );
   }
 

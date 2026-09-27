@@ -94,4 +94,10 @@ public interface IPlatformUserRepository
 
     /// <summary>The user's tenant memberships (tenant + role + status), ordered by tenant display name.</summary>
     Task<List<AdminUserMembership>> GetMembershipsAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>The user's linked identities, any provider.</summary>
+    Task<List<AdminUserIdentity>> GetIdentitiesAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>The user's Keycloak subject, or null when no Keycloak identity is linked.</summary>
+    Task<string?> GetKeycloakSubjectAsync(Guid userId, CancellationToken ct = default);
 }

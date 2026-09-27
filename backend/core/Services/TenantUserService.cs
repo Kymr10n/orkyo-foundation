@@ -77,7 +77,7 @@ public class TenantUserService : ITenantUserService
             await conn.OpenAsync(ct);
             await using var transaction = await conn.BeginTransactionAsync(ct);
 
-            var cmd = new NpgsqlCommand(@"
+            await using var cmd = new NpgsqlCommand(@"
                 INSERT INTO audit_events (actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
                 VALUES (@actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())",
                 conn, transaction);

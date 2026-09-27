@@ -34,7 +34,6 @@ public static class LifecyclePolicyConstants
     // Warn the owner/admins this many days before auto-suspension kicks in.
     public const int TenantSuspendWarnBeforeDays = 7;
 
-    public const int UserWarningReminderDays = 14;
     public const int UserPurgeAfterDormantDays = 90;
 
     public const string TenantSuspendAfterDormantSqlInterval = "30 days";

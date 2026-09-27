@@ -1,9 +1,8 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { BrowserRouter } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { MessagesPage } from './MessagesPage';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 // Mock navigate
 const mockNavigate = vi.fn();
@@ -21,20 +20,9 @@ vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({
   markAnnouncementRead: vi.fn().mockResolvedValue(undefined),
 }));
 
-function renderWithProviders(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>{ui}</BrowserRouter>
-    </QueryClientProvider>
-  );
-}
-
 describe('MessagesPage', () => {
   it('renders page heading and description', async () => {
-    renderWithProviders(<MessagesPage />);
+    renderWithQuery(<MessagesPage />, { router: true });
 
     await waitFor(() => {
       expect(screen.getByText('Messages')).toBeInTheDocument();
@@ -43,7 +31,7 @@ describe('MessagesPage', () => {
   });
 
   it('renders Back button', async () => {
-    renderWithProviders(<MessagesPage />);
+    renderWithQuery(<MessagesPage />, { router: true });
 
     await waitFor(() => {
       expect(screen.getByText('Back')).toBeInTheDocument();
@@ -51,7 +39,7 @@ describe('MessagesPage', () => {
   });
 
   it('renders the MessagesTab component', async () => {
-    renderWithProviders(<MessagesPage />);
+    renderWithQuery(<MessagesPage />, { router: true });
 
     // MessagesTab shows "No messages at this time." when empty
     await waitFor(() => {
@@ -60,7 +48,7 @@ describe('MessagesPage', () => {
   });
 
   it('clicking Back calls navigate(-1)', async () => {
-    renderWithProviders(<MessagesPage />);
+    renderWithQuery(<MessagesPage />, { router: true });
     await waitFor(() => expect(screen.getByText('Back')).toBeInTheDocument());
     fireEvent.click(screen.getByText('Back'));
     expect(mockNavigate).toHaveBeenCalledWith(-1);

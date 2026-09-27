@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   deleteAiCredential,
   getAiCredential,
@@ -18,6 +18,8 @@ import { updateRequest } from "@foundation/src/lib/api/request-api";
 import type { UpdateRequestRequest } from "@foundation/src/types/requests";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 
 /** The workspace's stored key — configured or not, plus its display hint. Admin surface. */
 export function useAiCredential(enabled = true) {
@@ -148,38 +150,29 @@ export function useAiConversations(enabled = true) {
  * assistant writes conversations outside react-query, so both caches are refreshed by hand.
  */
 export function useInvalidateAiStatus() {
-  const queryClient = useQueryClient();
-  return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.ai.status() }),
-    [queryClient],
-  );
+  return useInvalidateKeys(qk.ai.status());
 }
 
 /** Re-read the conversation list after a save or a delete. */
 export function useInvalidateAiConversations() {
-  const queryClient = useQueryClient();
-  return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.ai.conversations() }),
-    [queryClient],
-  );
+  return useInvalidateKeys(qk.ai.conversations());
 }
 
 /**
  * Write the change an accepted proposal describes.
  *
  * It goes through the ordinary request endpoint under this person's own session, so the same
- * validation and permissions apply as to a manual edit. A request change can create or clear a
- * conflict, so both caches are re-read.
+ * validation and permissions apply as to a manual edit. A request change reaches every
+ * request-derived view (conflicts, occupancy, insights), so all of them are re-read.
  */
 export function useApplyAssistantProposal() {
-  const queryClient = useQueryClient();
+  const refresh = useInvalidateKeys(...REQUEST_DERIVED_QUERY_KEYS);
 
   return useCallback(
     async (requestId: string, changes: Record<string, unknown>) => {
       await updateRequest(requestId, changes as UpdateRequestRequest);
-      await queryClient.invalidateQueries({ queryKey: qk.requests.all() });
-      await queryClient.invalidateQueries({ queryKey: qk.conflicts.all() });
+      await refresh();
     },
-    [queryClient],
+    [refresh],
   );
 }

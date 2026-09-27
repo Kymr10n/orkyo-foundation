@@ -1,7 +1,6 @@
 using System.Reflection;
 using Npgsql;
 using Orkyo.Foundation.Migrations;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Integration;
 

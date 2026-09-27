@@ -7,13 +7,15 @@
 
 import { API_BASE_URL, getApiHeaders, handleApiError } from '../core/api-utils';
 
+export type QueryParams = Record<string, string | number | boolean | undefined>;
+
 export interface ApiRequestOptions {
   /** Additional headers to merge with default headers */
   headers?: Record<string, string>;
   /** Header names to remove after merging (e.g. strip tenant slug for site-scope calls) */
   omitHeaders?: string[];
-  /** Query parameters to append to URL */
-  params?: Record<string, string | number | boolean>;
+  /** Query parameters to append to URL; `undefined` values are left out */
+  params?: QueryParams;
   /** Optional Request cache mode override */
   cache?: RequestCache;
   /** Whether to skip automatic JSON parsing (for void returns) */
@@ -62,9 +64,6 @@ async function apiFetch(
   return response;
 }
 
-/**
- * Generic GET request
- */
 export async function apiGet<T>(
   endpoint: string,
   options?: ApiRequestOptions
@@ -74,39 +73,19 @@ export async function apiGet<T>(
   return response.json();
 }
 
-/**
- * Generic POST request
- */
-export async function apiPost<TResponse>(
+/** POST/PUT/PATCH share one path: send JSON, then parse the body unless there is none. */
+async function sendJson<TResponse>(
+  method: 'POST' | 'PUT' | 'PATCH',
   endpoint: string,
   data: unknown,
-  options?: ApiRequestOptions
+  options?: ApiRequestOptions,
 ): Promise<TResponse> {
   const url = buildUrl(endpoint, options?.params);
-  const response = await apiFetch(url, 'POST', options, data);
-
-  if (options?.skipJsonParse || response.status === 204) {
-    return undefined as TResponse;
-  }
-
-  return response.json();
-}
-
-/**
- * Generic PUT request
- */
-export async function apiPut<TResponse>(
-  endpoint: string,
-  data: unknown,
-  options?: ApiRequestOptions
-): Promise<TResponse> {
-  const url = buildUrl(endpoint, options?.params);
-  const response = await apiFetch(url, 'PUT', options, data);
+  const response = await apiFetch(url, method, options, data);
 
   // A 204 has no body, so parsing one throws and turns a successful write into a
   // rejected promise — the caller's onSuccess never runs and the UI reports a failure
-  // for a save that happened. POST has always guarded this; PUT and PATCH did not, and
-  // every endpoint returning NoContent was affected.
+  // for a save that happened.
   if (options?.skipJsonParse || response.status === 204) {
     return undefined as TResponse;
   }
@@ -114,9 +93,22 @@ export async function apiPut<TResponse>(
   return response.json();
 }
 
-/**
- * Generic DELETE request
- */
+export function apiPost<TResponse>(
+  endpoint: string,
+  data: unknown,
+  options?: ApiRequestOptions
+): Promise<TResponse> {
+  return sendJson('POST', endpoint, data, options);
+}
+
+export function apiPut<TResponse>(
+  endpoint: string,
+  data: unknown,
+  options?: ApiRequestOptions
+): Promise<TResponse> {
+  return sendJson('PUT', endpoint, data, options);
+}
+
 export async function apiDelete(
   endpoint: string,
   options?: ApiRequestOptions
@@ -125,22 +117,12 @@ export async function apiDelete(
   await apiFetch(url, 'DELETE', options);
 }
 
-/**
- * Generic PATCH request
- */
-export async function apiPatch<TResponse>(
+export function apiPatch<TResponse>(
   endpoint: string,
   data: unknown,
   options?: ApiRequestOptions
 ): Promise<TResponse> {
-  const url = buildUrl(endpoint, options?.params);
-  const response = await apiFetch(url, 'PATCH', options, data);
-
-  if (options?.skipJsonParse || response.status === 204) {
-    return undefined as TResponse;
-  }
-
-  return response.json();
+  return sendJson('PATCH', endpoint, data, options);
 }
 
 /**
@@ -164,23 +146,16 @@ export async function apiRawFetch(
  * its URL here — a bare relative path is same-origin, which is wrong whenever
  * API_BASE_URL points the API at another origin.
  */
-export function buildUrl(endpoint: string, params?: Record<string, string | number | boolean>): string {
+export function buildUrl(endpoint: string, params?: QueryParams): string {
   // When API_BASE_URL is empty (subdomain mode), use same-origin
   const base = API_BASE_URL || window.location.origin;
   const url = new URL(endpoint, base);
 
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, String(value));
+      if (value !== undefined) url.searchParams.append(key, String(value));
     });
   }
 
   return url.toString();
-}
-
-/**
- * Legacy helper for building endpoint paths
- */
-export function endpoint(...parts: (string | number)[]): string {
-  return parts.join('/');
 }

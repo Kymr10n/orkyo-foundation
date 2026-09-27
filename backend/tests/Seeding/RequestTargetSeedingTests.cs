@@ -8,7 +8,6 @@ using Orkyo.Foundation.Seed.Factories;
 using Orkyo.Foundation.Seed.Floorplans;
 using Orkyo.Foundation.Seed.Narrative;
 using Orkyo.Foundation.Seed.Scales;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 

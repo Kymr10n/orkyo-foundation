@@ -71,9 +71,8 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   `GET /api/admin/feedback` now answer with `items` plus page metadata, replacing `{data,total}` and
   `{items,total}`. The feedback endpoint's query parameters change from `limit`/`offset` to
   `page`/`pageSize`, **and its maximum page size narrows from 200 to 100** (`PageRequest.MaxPageSize`);
-  the shipped frontend never requested more than 50. The npm client tolerates the old shapes for one
-  release through `normalizePagedResult`, so a product that bumps the NuGet package a little before the
-  npm package does not render an empty list; that tolerance is removed in the release after this one.
+  the shipped frontend never requested more than 50. The npm client tolerated the old shapes through
+  `normalizePagedResult` from 0.26.0 on; that tolerance is removed (see Removed).
   `GET /api/search` is unchanged — it is a relevance-ranked union, where offset paging is meaningless,
   and only its row clamp converged.
 - **The MCP `list_resources` result reports truncation explicitly.** The tool answers with at most
@@ -88,6 +87,34 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   hard-coded two-entry list — which had made it impossible to tag a criterion for `tool`, a seeded
   type since the resource-model migration. Labels now come from each type's display name, so they read
   "Space"/"Person"/"Tool" (and whatever tenants name their own types) instead of "Spaces"/"People".
+
+### Removed
+- **Declutter, backend (package API).** Deleted with zero callers in either product: `ICriteriaService`
+  and `CriteriaService` (endpoints take `ICriteriaRepository`), `EffectiveConfig`, the `Tenant`, `Site`
+  and `UserIdentity` models in `Auth.cs`, `PredecessorLogics`, `UpsertResourceCapabilityRequest` and
+  its validator, `UpdateRequestRequirementRequest`, `EnumMapper.ToPlanningMode`,
+  `KeycloakTokenProfile.HasRealmRole`, `ConfigurationValidator.LogConfigurationStatus`,
+  `TenantCacheKeyPolicy.Canonicalize`, `LifecyclePolicyConstants.UserWarningReminderDays`,
+  `ISessionService.GetSessionByUserIdAsync` (use `BuildSessionResponseAsync`),
+  `CreateResourceRequestValidator.KnownAllocationModes` (use `AllocationModes.All`), and the
+  `TokenPrefix`/`TokenScheme` constants on the two token auth handlers (the services own the scheme).
+  Merged: `CreateRoutingRequest` and `UpdateRoutingRequest` into `SaveRoutingRequest`;
+  `AddRequirementRequest` into `CreateRequestRequirementRequest` (identical shape). `AuditEventListFilter`
+  is internal. `OrgContextExtensions.FromTenant` stays and delegates to `ToOrgContext`.
+- **Declutter, seed package.** The random seed path is gone: `--floorplans` is no longer an option, the
+  curated floorplan sites are the only path, and `manufacturing` is the only profile (an unknown profile
+  exits with code 2). The `IScale` classes are one `ScaleSpec` record; `Sites`, `SpacesPerSite`,
+  `ResourceGroups`, `Criteria`, `TimeWindowDays` and `Templates` are removed. Seeded person emails are
+  now deterministic for a given `--seed`.
+- **Declutter, npm package.** Removed with zero importers in either product: `contracts/index`,
+  `contracts/roles`, `contracts/claims`, `contracts/errorCodes` (its `ValidationError` value was wrong)
+  and `src/contracts`; the `components/ui/index` barrel and `components/ui/collapsible`;
+  `domain/scheduling/working-time` and `duration-calculator`; `endpoint()` in `lib/core/api-client`;
+  `normalizePagedResult` and `LegacyListShape`; `getAllRequests` (utilization-api);
+  `deleteResourceAbsence`; the `FeedbackType` export of `feedback-admin-api` (import it from
+  `feedback-api`); the `PlanCode` re-export of `AuthContext`; `Create`/`EditTemplateDialog` (use
+  `TemplateDialogBase`). The `@radix-ui/react-collapsible` peer dependency is dropped.
+  `useImportHandler` requires its options argument.
 
 ## [0.6.14] — 2026-07-05
 

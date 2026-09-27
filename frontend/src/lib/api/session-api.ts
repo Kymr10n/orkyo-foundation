@@ -23,9 +23,6 @@ export async function markTourSeen(): Promise<void> {
   );
 }
 
-/**
- * Accept Terms of Service
- */
 export async function acceptTos(tosVersion: string): Promise<void> {
   await apiPost<void>(
     API_PATHS.SESSION.TOS_ACCEPT,

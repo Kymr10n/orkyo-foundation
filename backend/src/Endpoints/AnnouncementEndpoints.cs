@@ -81,7 +81,7 @@ public static class AnnouncementEndpoints
         => await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             var result = await service.UpdateAsync(id, request, principal.UserId, ct);
-            return result != null ? Results.Ok(result) : ErrorResponses.NotFound("Announcement");
+            return EndpointHelpers.OkOrNotFound(result, "Announcement");
         });
 
     private static async Task<IResult> Delete(Guid id, IAnnouncementService service, CancellationToken ct = default)

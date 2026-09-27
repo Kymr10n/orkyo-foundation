@@ -3,7 +3,6 @@ using Api.Services;
 using Api.Services.Caching;
 using Api.Services.Insights;
 using Microsoft.Extensions.Caching.Memory;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 

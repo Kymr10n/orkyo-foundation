@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import type * as ReactRouter from "react-router";
 
@@ -19,6 +18,7 @@ import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigatio
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
+import { renderWithQuery, createTestQueryWrapper } from "@foundation/src/test-utils";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -390,18 +390,10 @@ vi.mock("@foundation/src/components/requests/plan/SitePlanCanvas", () => ({
 
 // The scheduler tab is identified by its surface now, not by the space type key.
 const createWrapper = (initialTab = "stations", types?: string) => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
+  const QueryWrapper = createTestQueryWrapper();
   return ({ children }: { children: React.ReactNode }) => (
     <MemoryRouter initialEntries={[`/?tab=${initialTab}${types ? `&${initialTab === "stations" ? "stationTypes" : "assetTypes"}=${types}` : ""}`]}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
+      <QueryWrapper>{children}</QueryWrapper>
     </MemoryRouter>
   );
 };
@@ -1385,16 +1377,7 @@ describe("UtilizationPage", () => {
   // --- Tab default + site-scoped hook args ---
 
   it("defaults to the calendar tab when no tab param is present", () => {
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    render(
-      <MemoryRouter initialEntries={["/"]}>
-        <QueryClientProvider client={queryClient}>
-          <UtilizationPage />
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
+    renderWithQuery(<UtilizationPage />, { router: "/" });
     expect(screen.getByText("Utilization")).toBeInTheDocument();
   });
 

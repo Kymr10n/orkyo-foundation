@@ -33,14 +33,12 @@ export async function getUtilizationByResource(
   resourceTypeKey?: string,
   siteId?: string | null,
 ): Promise<ResourceUtilizationByResource[]> {
-  const params = new URLSearchParams({
+  const params = {
     from: from.toISOString(),
     to: to.toISOString(),
     granularity,
-  });
-  if (resourceTypeKey) params.set('resourceTypeKey', resourceTypeKey);
-  if (siteId) params.set('siteId', siteId);
-  return apiGet<ResourceUtilizationByResource[]>(
-    `${API_PATHS.UTILIZATION_BY_RESOURCE}?${params}`,
-  );
+    resourceTypeKey: resourceTypeKey || undefined,
+    siteId: siteId || undefined,
+  };
+  return apiGet<ResourceUtilizationByResource[]>(API_PATHS.UTILIZATION_BY_RESOURCE, { params });
 }

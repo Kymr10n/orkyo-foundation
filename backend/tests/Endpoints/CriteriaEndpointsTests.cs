@@ -5,7 +5,6 @@ using System.Text.Json.Serialization;
 using Api.Endpoints;
 using Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

@@ -349,9 +349,7 @@ public sealed class GetRequestTool(IRequestService requests) : IAiTool
 /// <summary>Small helpers so each tool reads its input the same way.</summary>
 internal static class AiToolInput
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = false };
-
-    public static string Json(object value) => JsonSerializer.Serialize(value, Options);
+    public static string Json(object value) => JsonSerializer.Serialize(value);
 
     public static string? String(JsonElement input, string name) =>
         input.ValueKind == JsonValueKind.Object

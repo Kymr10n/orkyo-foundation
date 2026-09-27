@@ -7,8 +7,7 @@ import { stableStringify } from '@foundation/src/lib/utils/stable-stringify';
  * Shared scaffold for the standard entity edit dialog (see docs/dialog-feedback.md):
  * form + baseline state, reset-on-open, JSON dirty check, and a create-or-update
  * mutation wired to the central meta feedback (toast + invalidation) with the
- * inline setError kept for in-context display. Extracted from the repeated
- * pattern in JobTitleEditDialog / DepartmentEditDialog (W2.4).
+ * inline setError kept for in-context display.
  *
  * The caller keeps: field rendering, validity (`submitDisabled`), and any
  * entity-specific data fetching. `entity === null` means create mode.

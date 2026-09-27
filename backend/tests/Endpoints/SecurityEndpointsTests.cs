@@ -3,11 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services;
-using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -36,22 +34,8 @@ public class SecurityEndpointsTests
 
     private string GetAuthToken(string? keycloakSub = null, string? sessionId = null, Guid? userId = null)
     {
-        var tokenData = new
-        {
-            UserId = (userId ?? Guid.NewGuid()).ToString(),
-            Email = $"securitytest_{Guid.NewGuid()}@example.com",
-            DisplayName = "Security Test User",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "user",
-            Sub = keycloakSub ?? _testKeycloakSub,
-            Sid = sessionId ?? _testSessionId
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-        return Convert.ToBase64String(bytes);
+        return TestConstants.BearerToken((userId ?? Guid.NewGuid()).ToString(), $"securitytest_{Guid.NewGuid()}@example.com", "Security Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "user", sub: keycloakSub ?? _testKeycloakSub, sid: sessionId ?? _testSessionId);
     }
 
     /// <summary>
@@ -65,7 +49,7 @@ public class SecurityEndpointsTests
         var keycloakSub = Guid.NewGuid().ToString();
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Profile User", role: "viewer", active: true);
 
-        var controlPlaneConn = $"Host=localhost;Port={_databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        var controlPlaneConn = _databaseFixture.ControlPlaneConnectionString;
         await using var conn = new NpgsqlConnection(controlPlaneConn);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(

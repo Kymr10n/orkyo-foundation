@@ -5,7 +5,6 @@ using Api.Services;
 using Api.Tests.TestHelpers;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

@@ -11,7 +11,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Orkyo.Foundation.Seed.Tests" />
+    <InternalsVisibleTo Include="Orkyo.Foundation.Tests" />
   </ItemGroup>
 
   <!-- Floorplan demo images ship inside the assembly so they're present on every reset. -->

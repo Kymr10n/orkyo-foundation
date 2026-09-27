@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useQueries, useQuery } from '@tanstack/react-query';
-import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
+import { useQueries } from '@tanstack/react-query';
+import { useResourceCustomFields } from '@foundation/src/hooks/useResourceCustomFields';
 import { getListDefinition, getListInstance, getListRows } from '@foundation/src/lib/api/lists-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
@@ -21,11 +21,7 @@ export function useLookupFieldLabels(
   /** Restricts the work to the keys a caller actually renders. Omit for every lookup field. */
   fieldKeys?: readonly string[],
 ): Record<string, Record<string, string>> {
-  const { data: fields = [] } = useQuery({
-    queryKey: qk.resourceTypes.customFields(resourceTypeId ?? 'none'),
-    queryFn: () => getResourceCustomFields(resourceTypeId!),
-    enabled: !!resourceTypeId,
-  });
+  const { data: fields = [] } = useResourceCustomFields(resourceTypeId ?? 'none', !!resourceTypeId);
 
   const lookups = useMemo(
     () =>

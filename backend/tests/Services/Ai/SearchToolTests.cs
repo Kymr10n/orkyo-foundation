@@ -2,8 +2,6 @@ using System.Text.Json;
 using Api.Models;
 using Api.Repositories;
 using Api.Services.Ai;
-using Moq;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services.Ai;
 

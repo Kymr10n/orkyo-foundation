@@ -4,7 +4,6 @@ using System.Text.Json;
 using Api.Constants;
 using Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -159,8 +158,12 @@ public class SpaceEndpointsTests
         Assert.Equal(250, space.Geometry?.Coordinates[1].X);
     }
 
-    [Fact]
-    public async Task CreateSpace_CircleWithOneCoordinate_ReturnsBadRequest()
+    [Theory]
+    [InlineData("circle", 1)]    // a centre without a rim point
+    [InlineData("rectangle", 1)] // a rectangle is two corners
+    [InlineData("polygon", 2)]   // a polygon needs at least three points
+    [InlineData("hexagon", 2)]   // a type the allow-list has never heard of
+    public async Task CreateSpace_InvalidGeometry_ReturnsBadRequest(string type, int pointCount)
     {
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
         var request = new CreateResourceRequest
@@ -169,12 +172,12 @@ public class SpaceEndpointsTests
             AllocationMode = AllocationModes.Exclusive,
             HomeSiteId = siteId,
             CrossSiteAllowed = false,
-            Name = "Centre without a rim",
+            Name = "Invalid Geometry",
             IsPhysical = true,
             Geometry = new ResourceGeometry
             {
-                Type = "circle",
-                Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 } }
+                Type = type,
+                Coordinates = Enumerable.Range(0, pointCount).Select(i => new Coordinate { X = i * 10, Y = i * 10 }).ToList()
             }
         };
 
@@ -295,95 +298,6 @@ public class SpaceEndpointsTests
 
         // Assert
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateSpace_InvalidGeometryType_ReturnsBadRequest()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Invalid Geometry",
-            IsPhysical = true,
-            Geometry = new ResourceGeometry
-            {
-                // Must be a type the allow-list has never heard of. This fixture used to say
-                // "circle", which stopped testing what it means to test the day circles became
-                // valid — it would still have failed the request, but on the coordinate count.
-                Type = "hexagon",
-                Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 }, new() { X = 10, Y = 10 } }
-            }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateSpace_RectangleWithWrongNumberOfPoints_ReturnsBadRequest()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Bad Rectangle",
-            IsPhysical = true,
-            Geometry = new ResourceGeometry
-            {
-                Type = "rectangle",
-                Coordinates = new List<Coordinate> { new() { X = 0, Y = 0 } } // Rectangle needs 2 points
-            }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateSpace_PolygonWithTooFewPoints_ReturnsBadRequest()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Bad Polygon",
-            IsPhysical = true,
-            Geometry = new ResourceGeometry
-            {
-                Type = "polygon",
-                Coordinates = new List<Coordinate>
-                {
-                    new() { X = 0, Y = 0 },
-                    new() { X = 100, Y = 0 }
-                    // Polygon needs at least 3 points
-                }
-            }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     #endregion
@@ -573,258 +487,71 @@ public class SpaceEndpointsTests
     #region Description Field Tests
 
     [Fact]
-    public async Task CreateSpace_WithDescription_StoresDescription()
+    public async Task Description_IsReturnedByCreateGetAndList_AndNullWhenOmitted()
     {
-        // Arrange
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var uniqueCode = $"DESC-{Guid.NewGuid():N}".Substring(0, 10);
-        var request = new CreateResourceRequest
+        var withCode = $"DESC-{Guid.NewGuid():N}".Substring(0, 10);
+        var withoutCode = $"NODESC-{Guid.NewGuid():N}".Substring(0, 10);
+
+        var withResponse = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
             AllocationMode = AllocationModes.Exclusive,
             HomeSiteId = siteId,
             CrossSiteAllowed = false,
             Name = "Conference Room",
-            Code = uniqueCode,
+            Code = withCode,
             Description = "Large meeting room with projector and whiteboard",
             IsPhysical = false
-        };
+        });
+        withResponse.EnsureSuccessStatusCode();
+        var created = (await withResponse.Content.ReadFromJsonAsync<ResourceInfo>())!;
+        Assert.Equal("Large meeting room with projector and whiteboard", created.Description);
 
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var space = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.NotNull(space);
-        Assert.Equal("Large meeting room with projector and whiteboard", space.Description);
-    }
-
-    [Fact]
-    public async Task CreateSpace_WithoutDescription_DescriptionIsNull()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var uniqueCode = $"NODESC-{Guid.NewGuid():N}".Substring(0, 10);
-        var request = new CreateResourceRequest
+        var withoutResponse = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
             AllocationMode = AllocationModes.Exclusive,
             HomeSiteId = siteId,
             CrossSiteAllowed = false,
             Name = "Storage Room",
-            Code = uniqueCode,
+            Code = withoutCode,
             IsPhysical = false
-        };
+        });
+        withoutResponse.EnsureSuccessStatusCode();
+        Assert.Null((await withoutResponse.Content.ReadFromJsonAsync<ResourceInfo>())!.Description);
 
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
+        var fetched = await _client.GetFromJsonAsync<ResourceInfo>($"/api/resources/{created.Id}");
+        Assert.Equal("Large meeting room with projector and whiteboard", fetched!.Description);
 
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var space = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.NotNull(space);
-        Assert.Null(space.Description);
+        var list = await _client.GetAsync($"/api/resources?hasGeometry=true&isActive=true&siteId={siteId}");
+        list.EnsureSuccessStatusCode();
+        var spaces = await ReadListAsync(list);
+        Assert.Equal("Large meeting room with projector and whiteboard", spaces.Single(s => s.Code == withCode).Description);
+        Assert.Null(spaces.Single(s => s.Code == withoutCode).Description);
     }
 
     [Fact]
-    public async Task UpdateSpace_AddDescription_UpdatesSuccessfully()
+    public async Task UpdateSpace_Description_CanBeAddedChangedAndCleared()
     {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var space = await CreateTestSpace(siteId, "Office", $"OFF-{Guid.NewGuid():N}".Substring(0, 10));
-
-        var updateRequest = new UpdateResourceRequest
-        {
-            Description = "Open office space with natural lighting"
-        };
-
-        // Act
-        var response = await _client.PutAsJsonAsync($"/api/resources/{space.Id}", updateRequest);
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.NotNull(updated);
-        Assert.Equal("Open office space with natural lighting", updated.Description);
-    }
-
-    [Fact]
-    public async Task UpdateSpace_ChangeDescription_UpdatesSuccessfully()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var uniqueCode = $"CHG-{Guid.NewGuid():N}".Substring(0, 10);
-        var createRequest = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Lab",
-            Code = uniqueCode,
-            Description = "Original description",
-            IsPhysical = false
-        };
-
-        var createResponse = await _client.PostAsJsonAsync("/api/resources", createRequest);
-        var space = await createResponse.Content.ReadFromJsonAsync<ResourceInfo>();
-
-        var updateRequest = new UpdateResourceRequest
-        {
-            Description = "Updated description with more details"
-        };
-
-        // Act
-        var response = await _client.PutAsJsonAsync($"/api/resources/{space!.Id}", updateRequest);
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.Equal("Updated description with more details", updated?.Description);
-    }
-
-    [Fact]
-    public async Task UpdateSpace_ClearDescription_RemovesDescription()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var uniqueCode = $"CLR-{Guid.NewGuid():N}".Substring(0, 10);
-        var createRequest = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Workshop",
-            Code = uniqueCode,
-            Description = "Original description to be cleared",
-            IsPhysical = false
-        };
-
-        var createResponse = await _client.PostAsJsonAsync("/api/resources", createRequest);
-        var space = await createResponse.Content.ReadFromJsonAsync<ResourceInfo>();
-
-        var updateRequest = new UpdateResourceRequest
-        {
-            Description = "" // Clear the description
-        };
-
-        // Act
-        var response = await _client.PutAsJsonAsync($"/api/resources/{space!.Id}", updateRequest);
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.True(string.IsNullOrEmpty(updated?.Description));
-    }
-
-    [Fact]
-    public async Task UpdateSpace_LongDescription_HandlesCorrectly()
-    {
-        // Arrange
         var siteId = await TestHelpers.GetOrCreateTestSite(_client);
         var space = await CreateTestSpace(siteId, "Auditorium", $"AUD-{Guid.NewGuid():N}".Substring(0, 10));
 
+        async Task<string?> UpdateAsync(string description)
+        {
+            var response = await _client.PutAsJsonAsync($"/api/resources/{space.Id}",
+                new UpdateResourceRequest { Description = description });
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<ResourceInfo>())!.Description;
+        }
+
+        Assert.Equal("Open office space with natural lighting", await UpdateAsync("Open office space with natural lighting"));
+
         var longDescription = string.Join(" ", Enumerable.Repeat(
             "This is a detailed description of the space with many features and amenities.", 20));
+        Assert.Equal(longDescription, await UpdateAsync(longDescription));
 
-        var updateRequest = new UpdateResourceRequest
-        {
-            Description = longDescription
-        };
-
-        // Act
-        var response = await _client.PutAsJsonAsync($"/api/resources/{space.Id}", updateRequest);
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var updated = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.NotNull(updated);
-        Assert.Equal(longDescription, updated.Description);
-    }
-
-    [Fact]
-    public async Task GetSpace_ReturnsDescription()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var uniqueCode = $"GET-{Guid.NewGuid():N}".Substring(0, 10);
-        var createRequest = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Cafeteria",
-            Code = uniqueCode,
-            Description = "Employee dining area with seating for 50",
-            IsPhysical = false
-        };
-
-        var createResponse = await _client.PostAsJsonAsync("/api/resources", createRequest);
-        var createdSpace = await createResponse.Content.ReadFromJsonAsync<ResourceInfo>();
-
-        // Act
-        var response = await _client.GetAsync($"/api/resources/{createdSpace!.Id}");
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var space = await response.Content.ReadFromJsonAsync<ResourceInfo>();
-        Assert.NotNull(space);
-        Assert.Equal("Employee dining area with seating for 50", space.Description);
-    }
-
-    [Fact]
-    public async Task GetSpaces_ListIncludesDescriptions()
-    {
-        // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-
-        // Create spaces with descriptions
-        var uniqueCode1 = $"LST1-{Guid.NewGuid():N}".Substring(0, 10);
-        var uniqueCode2 = $"LST2-{Guid.NewGuid():N}".Substring(0, 10);
-
-        await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Space 1",
-            Code = uniqueCode1,
-            Description = "Description for space 1",
-            IsPhysical = false
-        });
-
-        await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Space 2",
-            Code = uniqueCode2,
-            Description = "Description for space 2",
-            IsPhysical = false
-        });
-
-        // Act
-        var response = await _client.GetAsync(
-            $"/api/resources?hasGeometry=true&isActive=true&siteId={siteId}");
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var spaces = await ReadListAsync(response);
-        Assert.NotNull(spaces);
-
-        var space1 = spaces.FirstOrDefault(s => s.Code == uniqueCode1);
-        var space2 = spaces.FirstOrDefault(s => s.Code == uniqueCode2);
-
-        Assert.NotNull(space1);
-        Assert.NotNull(space2);
-        Assert.Equal("Description for space 1", space1.Description);
-        Assert.Equal("Description for space 2", space2.Description);
+        Assert.True(string.IsNullOrEmpty(await UpdateAsync("")));
     }
 
     #endregion

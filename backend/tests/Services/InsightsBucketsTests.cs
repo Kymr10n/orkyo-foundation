@@ -1,5 +1,4 @@
 using Api.Services.Insights;
-using Xunit;
 
 namespace Api.Tests.Services;
 

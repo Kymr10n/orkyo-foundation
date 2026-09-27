@@ -14,12 +14,6 @@ public record ResourceCapabilityInfo
     public DateTime UpdatedAt { get; init; }
 }
 
-public record UpsertResourceCapabilityRequest
-{
-    public required Guid CriterionId { get; init; }
-    public required JsonElement Value { get; init; }
-}
-
 public record CriterionApplicabilityInfo
 {
     public required Guid CriterionId { get; init; }

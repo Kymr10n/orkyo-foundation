@@ -57,12 +57,3 @@ export interface OffTimeRange {
   /** Null means applies to all spaces. */
   resourceIds: string[] | null;
 }
-
-/** Compiled calendar for a site — the single immutable object passed to all calculations. */
-export interface EffectiveCalendar {
-  settings: SchedulingSettings;
-  /** Expanded and sorted by startMs. */
-  offTimeRanges: readonly OffTimeRange[];
-  /** "YYYY-MM-DD" strings for O(1) lookup. */
-  holidays: ReadonlySet<string>;
-}

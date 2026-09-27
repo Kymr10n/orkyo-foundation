@@ -1,6 +1,5 @@
 using Api.Services;
 using Api.Tests.TestHelpers;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 

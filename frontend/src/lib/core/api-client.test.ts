@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete, endpoint } from './api-client';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api-client';
 import * as apiUtils from '../core/api-utils';
 
 vi.mock('./api-utils');
@@ -271,20 +271,6 @@ describe('api-client', () => {
     });
   });
 
-  describe('endpoint helper', () => {
-    it('joins path parts with slashes', () => {
-      expect(endpoint('sites', 'site-1', 'spaces')).toBe('sites/site-1/spaces');
-    });
-
-    it('handles numbers', () => {
-      expect(endpoint('items', 123)).toBe('items/123');
-    });
-
-    it('works with single part', () => {
-      expect(endpoint('users')).toBe('users');
-    });
-  });
-
   describe('URL construction (buildUrl)', () => {
     it('constructs full URL with explicit API_BASE_URL', async () => {
       // API_BASE_URL is auto-mocked to its real value (http://localhost:8080 from .env)
@@ -313,6 +299,15 @@ describe('api-client', () => {
       const url = new URL(calledUrl);
       expect(url.searchParams.get('page')).toBe('1');
       expect(url.searchParams.get('size')).toBe('10');
+    });
+
+    it('leaves undefined parameters out and encodes the rest', async () => {
+      vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+
+      await apiGet('/api/sites', { params: { search: 'a&b=c d', siteId: undefined } });
+
+      const url = new URL(vi.mocked(fetch).mock.calls[0][0] as string);
+      expect(url.search).toBe('?search=a%26b%3Dc+d');
     });
   });
 });

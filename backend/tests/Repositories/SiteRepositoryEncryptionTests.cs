@@ -2,7 +2,6 @@ using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Repositories;
 

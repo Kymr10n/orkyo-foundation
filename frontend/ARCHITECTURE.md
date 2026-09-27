@@ -67,7 +67,7 @@ Products import foundation by its **published package name**, never by a path al
 ```typescript
 import { ApexGateway } from "@kymr10n/foundation/src/components/auth/ApexGateway";
 import { TenantApp } from "@kymr10n/foundation/src/components/auth/TenantApp";
-import type { Roles } from "@kymr10n/foundation/contracts/roles";
+import type { PlanCode } from "@kymr10n/foundation/contracts/plans";
 ```
 
 The `@foundation/*` alias exists only inside this repository (its `tsconfig.json` and

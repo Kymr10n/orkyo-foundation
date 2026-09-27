@@ -82,21 +82,6 @@ describe('resources-api', () => {
       );
     });
 
-    it('reads the pre-PagedResult {data} body while the fallback stands', async () => {
-      // The compat branch in getResources. Remove this test with the fallback itself.
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ data: [mockResource], total: 1, page: 1, pageSize: 50 }),
-      });
-      const result = await getResources();
-      expect(result.items).toEqual([mockResource]);
-    });
-
-    it('answers with an empty list when the body carries neither items nor data', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({}) });
-      expect((await getResources()).items).toEqual([]);
-    });
-
     it('passes siteId filter as query param', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResponse) });
       await getResources({ resourceTypeKey: 'tool', siteId: 'site-1' });

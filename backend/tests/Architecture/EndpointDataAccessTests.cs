@@ -32,25 +32,30 @@ public partial class EndpointDataAccessTests
     private static readonly HashSet<string> KnownRawDataAccessFiles =
     [
         "Admin/DiagnosticsAdminEndpoints.cs",
-        "Admin/UserAdminEndpoints.cs",
         "QuotaEndpoints.cs",
     ];
 
     [GeneratedRegex(@"new\s+NpgsqlCommand|NpgsqlDataReader|\.OpenAsync\(")]
     private static partial Regex RawDataAccessRegex();
 
+    /// <summary>Endpoint files issuing raw ADO.NET, as paths relative to <c>backend/src/Endpoints</c>.</summary>
+    private static List<string> RawDataAccessEndpointFiles()
+    {
+        var endpoints = TestRepoPaths.BackendSources("src")
+            .Where(f => f.Rel.StartsWith("Endpoints/", StringComparison.Ordinal))
+            .ToList();
+        endpoints.Should().NotBeEmpty("the Endpoints scan found no .cs files — did the layout move?");
+
+        return endpoints
+            .Where(f => RawDataAccessRegex().IsMatch(f.Text))
+            .Select(f => f.Rel["Endpoints/".Length..])
+            .ToList();
+    }
+
     [Fact]
     public void NoNewEndpointFile_IssuesRawAdoNet()
     {
-        var endpointsDir = TestRepoPaths.FindDirectory("backend", "src", "Endpoints");
-        endpointsDir.Should().NotBeNull("could not locate backend/src/Endpoints");
-
-        var files = Directory.GetFiles(endpointsDir!, "*.cs", SearchOption.AllDirectories);
-        files.Should().NotBeEmpty("the Endpoints scan found no .cs files — did the layout move?");
-
-        var offenders = files
-            .Where(f => RawDataAccessRegex().IsMatch(File.ReadAllText(f)))
-            .Select(f => RelativeEndpointPath(endpointsDir!, f))
+        var offenders = RawDataAccessEndpointFiles()
             .Where(rel => !KnownRawDataAccessFiles.Contains(rel))
             .OrderBy(rel => rel, StringComparer.Ordinal)
             .ToList();
@@ -64,15 +69,10 @@ public partial class EndpointDataAccessTests
     [Fact]
     public void BaselineFiles_StillContainRawAdoNet()
     {
-        var endpointsDir = TestRepoPaths.FindDirectory("backend", "src", "Endpoints");
-        endpointsDir.Should().NotBeNull("could not locate backend/src/Endpoints");
+        var stillOffending = RawDataAccessEndpointFiles().ToHashSet(StringComparer.Ordinal);
 
         var stale = KnownRawDataAccessFiles
-            .Where(rel =>
-            {
-                var path = Path.Combine([endpointsDir!, .. rel.Split('/')]);
-                return !File.Exists(path) || !RawDataAccessRegex().IsMatch(File.ReadAllText(path));
-            })
+            .Where(rel => !stillOffending.Contains(rel))
             .OrderBy(rel => rel, StringComparer.Ordinal)
             .ToList();
 
@@ -81,7 +81,4 @@ public partial class EndpointDataAccessTests
             "(or were removed) — delete them from KnownRawDataAccessFiles so the ratchet " +
             "can't slip back:\n  " + string.Join("\n  ", stale));
     }
-
-    private static string RelativeEndpointPath(string endpointsDir, string file) =>
-        Path.GetRelativePath(endpointsDir, file).Replace('\\', '/');
 }

@@ -357,32 +357,13 @@ public record UpdateRequestRequest
 }
 
 /// <summary>
-/// Request to create a request requirement.
+/// A requirement on a request: sent inline with a create or update, or on its own to add one
+/// to an existing request.
 /// </summary>
 public record CreateRequestRequirementRequest
 {
     public required Guid CriterionId { get; init; }
     public required JsonElement Value { get; init; }
-    public string? Operator { get; init; }
-    public JsonElement? AllowedValues { get; init; }
-}
-
-/// <summary>
-/// Request to update a request requirement.
-/// </summary>
-public record UpdateRequestRequirementRequest
-{
-    public required JsonElement Value { get; init; }
-}
-
-/// <summary>
-/// Request to add a requirement to an existing request.
-/// </summary>
-public record AddRequirementRequest
-{
-    public required Guid CriterionId { get; init; }
-    public required JsonElement Value { get; init; }
-    // Typed operator support
     public string? Operator { get; init; }
     public JsonElement? AllowedValues { get; init; }
 }

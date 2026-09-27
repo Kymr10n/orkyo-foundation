@@ -2,7 +2,6 @@ using Api.Constants;
 using Api.Models;
 using Api.Validators;
 using FluentValidation;
-using Xunit;
 
 namespace Api.Tests.Validators;
 
