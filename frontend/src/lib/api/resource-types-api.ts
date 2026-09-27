@@ -70,7 +70,7 @@ const resourceTypesApi = createCrudApi<
 });
 
 export function getResourceTypes(isActive?: boolean): Promise<ResourceTypeInfo[]> {
-  return resourceTypesApi.list(isActive === undefined ? undefined : { isActive: String(isActive) });
+  return resourceTypesApi.list({ isActive });
 }
 
 export function createResourceType(request: CreateResourceTypeRequest): Promise<ResourceTypeInfo> {

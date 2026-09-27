@@ -113,4 +113,49 @@ public static class DatabaseTestUtils
         return userId;
     }
 
+    /// <summary>
+    /// Inserts an active control-plane user plus its Keycloak identity link (subject
+    /// <c>kc-{userId}</c>), and returns a bearer token for that user carrying the <c>user</c>
+    /// realm role (plus <c>site-admin</c> when <paramref name="siteAdmin"/>) and no tenant. This
+    /// is the identity an admin-surface test needs: the link lets the context middleware resolve
+    /// the caller, and the realm roles decide whether it is a site admin.
+    /// </summary>
+    /// <param name="prefix">Email prefix; the email is <c>{prefix}-{userId}@test.com</c>. Also
+    /// the display name.</param>
+    public static async Task<LinkedTestUser> CreateLinkedUserAsync(string prefix, bool siteAdmin = false)
+    {
+        var userId = Guid.NewGuid();
+        var email = $"{prefix}-{userId}@test.com";
+        var subject = $"kc-{userId}";
+        var displayName = prefix;
+        string[] realmRoles = siteAdmin ? ["user", "site-admin"] : ["user"];
+
+        await using var conn = new NpgsqlConnection(TestControlPlaneConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            @"INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, @displayName, 'active');
+              INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email)
+              VALUES (@identityId, @id, 'keycloak', @sub, @email)", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        cmd.Parameters.AddWithValue("email", email);
+        cmd.Parameters.AddWithValue("displayName", displayName);
+        cmd.Parameters.AddWithValue("identityId", Guid.NewGuid());
+        cmd.Parameters.AddWithValue("sub", subject);
+        await cmd.ExecuteNonQueryAsync();
+
+        var token = TestConstants.BearerToken(
+            userId: userId.ToString(),
+            email: email,
+            displayName: displayName,
+            tenantId: Guid.Empty.ToString(),
+            tenantSlug: "",
+            isTenantAdmin: false,
+            role: "viewer",
+            sub: subject,
+            realmRoles: realmRoles);
+        return new LinkedTestUser(userId, token);
+    }
 }
+
+/// <summary>A user created by <see cref="DatabaseTestUtils.CreateLinkedUserAsync"/>.</summary>
+public sealed record LinkedTestUser(Guid UserId, string Token);

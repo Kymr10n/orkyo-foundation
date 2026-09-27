@@ -11,29 +11,6 @@ public class PresetModelsTests
     // ── PresetApplication ──────────────────────────────────────────────────
 
     [Fact]
-    public void PresetApplication_StoresAllFields()
-    {
-        var id = Guid.NewGuid();
-        var userId = Guid.NewGuid();
-        var now = DateTime.UtcNow;
-
-        var application = new PresetApplication
-        {
-            Id = id,
-            PresetId = "manufacturing-ch-v1",
-            PresetVersion = "1.0.0",
-            AppliedAt = now,
-            UpdatedAt = now,
-            AppliedByUserId = userId
-        };
-
-        application.Id.Should().Be(id);
-        application.PresetId.Should().Be("manufacturing-ch-v1");
-        application.PresetVersion.Should().Be("1.0.0");
-        application.AppliedByUserId.Should().Be(userId);
-    }
-
-    [Fact]
     public void PresetApplication_OptionalFields_AreNullByDefault()
     {
         var application = new PresetApplication

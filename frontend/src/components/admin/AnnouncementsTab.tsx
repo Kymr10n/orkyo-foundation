@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { formatDateDisplay } from '@foundation/src/lib/formatters';
+import { formatDateDisplay, toDateTimeLocalValue } from '@foundation/src/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
@@ -344,7 +344,7 @@ function AnnouncementFormDialog({
         setBody(announcement.body);
         setIsImportant(announcement.isImportant);
         // Format for datetime-local input
-        setExpiresAt(announcement.expiresAt ? toLocalDatetimeString(announcement.expiresAt) : '');
+        setExpiresAt(announcement.expiresAt ? toDateTimeLocalValue(announcement.expiresAt) : '');
       } else {
         setTitle('');
         setBody('');
@@ -487,15 +487,4 @@ function AnnouncementFormDialog({
     </div>
     </FormDialog>
   );
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-/** Converts an ISO date string to a `datetime-local` input value. */
-function toLocalDatetimeString(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

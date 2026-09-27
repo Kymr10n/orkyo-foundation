@@ -10,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -31,7 +30,7 @@ public class ReportingEndpointsTests
     {
         _fixture = fixture;
         _adminClient = fixture.CreateAuthorizedClient();
-        _cpConnStr = $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _cpConnStr = fixture.ControlPlaneConnectionString;
     }
 
     // ── Token CRUD ────────────────────────────────────────────────────────────
@@ -86,7 +85,6 @@ public class ReportingEndpointsTests
         }
     }
 
-
     [Fact]
     public async Task ListTokens_AsAdmin_ReturnsList()
     {
@@ -138,7 +136,7 @@ public class ReportingEndpointsTests
     public async Task AllReportingEndpoints_WithValidToken_Return200()
     {
         var created = await CreateTokenAsync("All-Endpoints-Test");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         string[] endpoints =
         [
@@ -168,7 +166,7 @@ public class ReportingEndpointsTests
     [Fact]
     public async Task ReportingEndpoint_WithMalformedToken_Returns401()
     {
-        using var client = MakeReportingClient("orkyo_rpt_notvalid");
+        using var client = _fixture.CreateClientWithToken("orkyo_rpt_notvalid");
         var response = await client.GetAsync("/api/reporting/v1/allocations");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -179,7 +177,7 @@ public class ReportingEndpointsTests
         var created = await CreateTokenAsync("Revoke-Test-Token");
         await _adminClient.DeleteAsync($"/api/reporting/v1/tokens/{created.Summary.Id}");
 
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
         var response = await client.GetAsync("/api/reporting/v1/allocations");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -188,7 +186,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_WithJwtBearerToken_Returns401()
     {
         // Standard Keycloak-style JWT tokens must NOT be accepted by reporting endpoints
-        using var client = MakeReportingClient(TestConstants.TestBearerToken);
+        using var client = _fixture.CreateClientWithToken(TestConstants.TestBearerToken);
         var response = await client.GetAsync("/api/reporting/v1/allocations");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
@@ -199,7 +197,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_WithTenantIdParam_Returns400()
     {
         var created = await CreateTokenAsync("Param-Abuse-TenantId");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var response = await client.GetAsync(
             "/api/reporting/v1/allocations?tenantId=00000000-0000-0000-0000-999999999999");
@@ -210,7 +208,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_WithTenantSlugParam_Returns400()
     {
         var created = await CreateTokenAsync("Param-Abuse-TenantSlug");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var response = await client.GetAsync("/api/reporting/v1/allocations?tenantSlug=other-tenant");
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -220,7 +218,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_FromAfterTo_Returns400()
     {
         var created = await CreateTokenAsync("Date-Range-Bad");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var response = await client.GetAsync(
             "/api/reporting/v1/allocations?from=2025-12-01&to=2025-01-01");
@@ -231,7 +229,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_ExcessivePageSize_Returns400()
     {
         var created = await CreateTokenAsync("PageSize-Abuse");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var response = await client.GetAsync("/api/reporting/v1/allocations?pageSize=99999");
         ((int)response.StatusCode).Should().BeOneOf(400, 422);
@@ -243,7 +241,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_WithCsvFormat_ReturnsCsv()
     {
         var created = await CreateTokenAsync("Csv-Format-Test");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var response = await client.GetAsync("/api/reporting/v1/allocations?format=csv");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -254,7 +252,7 @@ public class ReportingEndpointsTests
     public async Task AllReportingEndpoints_CsvFormat_ReturnsCsvOnEachEndpoint()
     {
         var created = await CreateTokenAsync("Csv-All-Endpoints");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         string[] endpoints =
         [
@@ -285,7 +283,7 @@ public class ReportingEndpointsTests
         // returns 403 when they don't match.
         var foreignTenantId = await SeedForeignTenantAsync();
         var rawToken = await InsertRawTokenForTenantAsync(foreignTenantId, "foreign-tenant-token");
-        using var client = MakeReportingClient(rawToken);
+        using var client = _fixture.CreateClientWithToken(rawToken);
 
         var response = await client.GetAsync("/api/reporting/v1/allocations");
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
@@ -300,7 +298,7 @@ public class ReportingEndpointsTests
         var testTenantId = new Guid("00000000-0000-0000-0000-000000000001");
         var rawToken = await InsertRawTokenForTenantAsync(
             testTenantId, "expired-token", expiresAt: DateTime.UtcNow.AddHours(-1));
-        using var client = MakeReportingClient(rawToken);
+        using var client = _fixture.CreateClientWithToken(rawToken);
 
         var response = await client.GetAsync("/api/reporting/v1/allocations");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
@@ -312,7 +310,7 @@ public class ReportingEndpointsTests
     [Fact]
     public async Task CreateToken_AsViewer_Returns403()
     {
-        using var viewerClient = MakeViewerClient();
+        using var viewerClient = _fixture.CreateClientWithRole("viewer");
         var response = await viewerClient.PostAsJsonAsync(
             "/api/reporting/v1/tokens", new { name = "Should-Fail" });
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -321,7 +319,7 @@ public class ReportingEndpointsTests
     [Fact]
     public async Task ListTokens_AsViewer_Returns403()
     {
-        using var viewerClient = MakeViewerClient();
+        using var viewerClient = _fixture.CreateClientWithRole("viewer");
         var response = await viewerClient.GetAsync("/api/reporting/v1/tokens");
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -330,7 +328,7 @@ public class ReportingEndpointsTests
     public async Task RevokeToken_AsViewer_Returns403()
     {
         var created = await CreateTokenAsync("Viewer-Revoke-Target");
-        using var viewerClient = MakeViewerClient();
+        using var viewerClient = _fixture.CreateClientWithRole("viewer");
         var response = await viewerClient.DeleteAsync($"/api/reporting/v1/tokens/{created.Summary.Id}");
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -341,7 +339,7 @@ public class ReportingEndpointsTests
     public async Task ReportingEndpoint_OnSuccess_WritesAuditEvent()
     {
         var created = await CreateTokenAsync("Audit-Test-Token");
-        using var client = MakeReportingClient(created.RawToken);
+        using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var before = DateTime.UtcNow.AddSeconds(-1);
         await client.GetAsync("/api/reporting/v1/allocations");
@@ -372,39 +370,6 @@ public class ReportingEndpointsTests
             "/api/reporting/v1/tokens", new { name });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<CreatedReportingToken>())!;
-    }
-
-    private HttpClient MakeReportingClient(string rawToken)
-    {
-        var client = _fixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {rawToken}");
-        return client;
-    }
-
-
-    /// <summary>
-    /// Creates a viewer (non-admin) HTTP client using the test auth scheme.
-    /// </summary>
-    private HttpClient MakeViewerClient()
-    {
-        var tokenData = new
-        {
-            UserId = "11111111-1111-1111-1111-111111111111",
-            Email = "test@orkyo.example",
-            DisplayName = "Test User",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "viewer",
-        };
-        var bearerToken = Convert.ToBase64String(
-            Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(tokenData)));
-
-        var client = _fixture.Factory.CreateClient();
-        client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearerToken}");
-        return client;
     }
 
     /// <summary>

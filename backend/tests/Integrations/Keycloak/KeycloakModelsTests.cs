@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Api.Integrations.Keycloak;
-using AwesomeAssertions;
 
 namespace Orkyo.Foundation.Tests.Integrations.Keycloak;
 

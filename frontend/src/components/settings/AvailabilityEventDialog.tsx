@@ -15,6 +15,7 @@ import {
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Combobox, type ComboboxOption } from "@foundation/src/components/ui/combobox";
 import { DateTimePicker } from "@foundation/src/components/ui/date-time-picker";
+import { toDateTimeLocalValue } from "@foundation/src/lib/formatters";
 import { Plus, X } from "lucide-react";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
@@ -71,13 +72,6 @@ const TARGET_TYPES: { value: ScopeTargetType; label: string }[] = [
 // Sentinel used by the type-filter Select to represent "no filter" — Radix
 // Select does not allow an empty string as an item value.
 const ALL_TYPES_VALUE = "__all__";
-
-function toDateTimeLocal(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 // ── Scope row (controlled) ──────────────────────────────────────────────────
 
@@ -383,8 +377,8 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
       setTitle(event?.title ?? "");
       setEventType(event?.eventType ?? "public_holiday");
       setDefaultEffect(event?.defaultEffect ?? "closed");
-      setStartLocal(event ? toDateTimeLocal(event.startTs) : "");
-      setEndLocal(event ? toDateTimeLocal(event.endTs) : "");
+      setStartLocal(event ? toDateTimeLocalValue(event.startTs) : "");
+      setEndLocal(event ? toDateTimeLocalValue(event.endTs) : "");
       setIsRecurring(event?.isRecurring ?? false);
       setRecurrenceRule(event?.recurrenceRule ?? "");
       setEnabled(event?.enabled ?? true);
@@ -396,8 +390,8 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
           title: event?.title ?? "",
           eventType: event?.eventType ?? "public_holiday",
           defaultEffect: event?.defaultEffect ?? "closed",
-          startLocal: event ? toDateTimeLocal(event.startTs) : "",
-          endLocal: event ? toDateTimeLocal(event.endTs) : "",
+          startLocal: event ? toDateTimeLocalValue(event.startTs) : "",
+          endLocal: event ? toDateTimeLocalValue(event.endTs) : "",
           isRecurring: event?.isRecurring ?? false,
           recurrenceRule: event?.recurrenceRule ?? "",
           enabled: event?.enabled ?? true,

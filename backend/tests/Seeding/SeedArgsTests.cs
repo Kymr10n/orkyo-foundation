@@ -43,19 +43,17 @@ public class SeedArgsTests
     [Fact]
     public void FallsBackToDefaultsForAbsentOptions()
     {
-        var args = Parse("--profile", "generic");
+        var args = Parse("--profile", "manufacturing");
 
         args.String("scale", "medium").Should().Be("medium");
         args.Int("seed", 1337).Should().Be(1337);
         args.Bool("random", false).Should().BeFalse();
-        // --floorplans defaults ON, which is the case a naive parser gets wrong.
-        args.Bool("floorplans", true).Should().BeTrue();
     }
 
     [Fact]
     public void TreatsABareFlagAsTrue()
     {
-        var args = Parse("--profile", "generic", "--random", "--force-non-local");
+        var args = Parse("--profile", "manufacturing", "--random", "--force-non-local");
 
         args.Bool("random", false).Should().BeTrue();
         args.Bool("force-non-local", false).Should().BeTrue();
@@ -64,30 +62,37 @@ public class SeedArgsTests
     [Fact]
     public void AllowsADefaultOnFlagToBeSwitchedOff()
     {
-        // Documented usage: `--floorplans false`.
-        Parse("--profile", "generic", "--floorplans", "false").Bool("floorplans", true).Should().BeFalse();
-        Parse("--profile", "generic", "--floorplans=false").Bool("floorplans", true).Should().BeFalse();
+        Parse("--profile", "manufacturing", "--random", "false").Bool("random", true).Should().BeFalse();
+        Parse("--profile", "manufacturing", "--random=false").Bool("random", true).Should().BeFalse();
     }
 
     [Fact]
     public void ABareFlagFollowedByAnotherOptionStaysTrue()
     {
         // The next token starts with --, so it is the next option and not this flag's value.
-        var args = Parse("--random", "--profile", "generic");
+        var args = Parse("--random", "--profile", "manufacturing");
 
         args.Bool("random", false).Should().BeTrue();
-        args.String("profile").Should().Be("generic");
+        args.String("profile").Should().Be("manufacturing");
     }
 
     [Fact]
     public void RefusesAnUnknownOption()
     {
-        var parsed = SeedArgs.Parse(["--profile", "generic", "--floorplan", "true"], Known, out var error);
+        var parsed = SeedArgs.Parse(["--profile", "manufacturing", "--floorplan", "true"], Known, out var error);
 
         // A near-miss typo is exactly what must not be ignored: seeding the wrong shape into a
         // demo tenant looks like a product bug later.
         parsed.Should().BeNull();
         error.Should().Contain("--floorplan");
+    }
+
+    [Fact]
+    public void RefusesTheRetiredFloorplansFlag()
+    {
+        // The floorplan seed is the only seed now, so the switch that turned it off is gone.
+        SeedArgs.Parse(["--profile", "manufacturing", "--floorplans"], Known, out var error).Should().BeNull();
+        error.Should().Contain("--floorplans");
     }
 
     [Fact]
@@ -120,7 +125,7 @@ public class SeedArgsTests
     {
         // Matches the previous parser's default. Accepting "--Profile" would be a behaviour
         // change, and a silently-accepted variant spelling is how a flag ends up unread.
-        SeedArgs.Parse(["--Profile", "generic"], Known, out var error).Should().BeNull();
+        SeedArgs.Parse(["--Profile", "manufacturing"], Known, out var error).Should().BeNull();
         error.Should().Contain("--Profile");
     }
 
@@ -128,11 +133,10 @@ public class SeedArgsTests
     public void BindSharedAppliesEveryDefaultAndOverride()
     {
         var options = new SeedCliOptions();
-        options.BindShared(Parse("--profile", "manufacturing", "--mode", "append", "--floorplans", "false"));
+        options.BindShared(Parse("--profile", "manufacturing", "--mode", "append"));
 
         options.Profile.Should().Be("manufacturing");
         options.Mode.Should().Be("append");
-        options.Floorplans.Should().BeFalse();
         options.Scale.Should().Be("medium");
         options.RandomSeed.Should().Be(1337);
         options.UseRandom.Should().BeFalse();
@@ -148,12 +152,12 @@ public class SeedArgsTests
         // It is checked before parsing: help is not an option among the others, and answering a
         // fair question with "Unknown option '--help'" is a rude way to greet someone.
         SeedCliSupport.IsHelpRequested([flag]).Should().BeTrue();
-        SeedCliSupport.IsHelpRequested(["--profile", "generic", flag]).Should().BeTrue();
+        SeedCliSupport.IsHelpRequested(["--profile", "manufacturing", flag]).Should().BeTrue();
     }
 
     [Fact]
     public void AnOrdinaryCommandLineIsNotAHelpRequest() =>
-        SeedCliSupport.IsHelpRequested(["--profile", "generic"]).Should().BeFalse();
+        SeedCliSupport.IsHelpRequested(["--profile", "manufacturing"]).Should().BeFalse();
 
     [Fact]
     public void ValidateProfileAndScaleRejectsAMissingProfile()
@@ -174,5 +178,14 @@ public class SeedArgsTests
         options.BindShared(Parse("--profile", "manufacturing", "--scale", "large"));
 
         SeedCliSupport.ValidateProfileAndScale(options).Should().BeNull();
+    }
+
+    [Fact]
+    public void ValidateProfileAndScaleRejectsARetiredProfile()
+    {
+        var options = new SeedCliOptions();
+        options.BindShared(Parse("--profile", "camping"));
+
+        SeedCliSupport.ValidateProfileAndScale(options).Should().Be(2);
     }
 }

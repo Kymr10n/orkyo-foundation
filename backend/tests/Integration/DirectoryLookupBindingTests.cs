@@ -1,7 +1,6 @@
 using Api.Repositories;
 using Api.Services;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Integration;
 

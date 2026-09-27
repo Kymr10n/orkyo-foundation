@@ -1,6 +1,4 @@
 using Api.Models.Preset;
-using AwesomeAssertions;
-using Xunit;
 
 namespace Api.Tests.Models;
 

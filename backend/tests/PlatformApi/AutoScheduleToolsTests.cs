@@ -4,12 +4,9 @@ using Api.PlatformApi.Mcp;
 using Api.Security;
 using Api.Services;
 using Api.Services.AutoSchedule;
-using AwesomeAssertions;
 using FluentValidation;
 using FluentValidation.Results;
 using ModelContextProtocol;
-using Moq;
-using Xunit;
 // Api.Models also defines a ValidationResult; FluentValidation's is the one the
 // validators actually return.
 using ValidationResult = FluentValidation.Results.ValidationResult;

@@ -4,7 +4,6 @@ using Api.Repositories;
 using Api.Security.Encryption;
 using Api.Services;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Integration;
 

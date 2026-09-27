@@ -2,25 +2,22 @@ using Api.Models;
 
 namespace Api.PlatformApi.Mcp;
 
-/// <summary>
-/// Result shapes for the tools that deliberately return a <em>projection</em> rather than a domain
-/// record — a subset, a derivation, or a pairing the domain has no type for.
-///
-/// Tools whose service already produces a well-shaped response record return it directly instead of
-/// appearing here: <c>CriticalPathResult</c>, <c>RequestDependencyInfo</c>, <c>InsightsBottlenecks</c>,
-/// <c>AutoSchedulePreviewResponse</c>, <c>ResourceAbsenceInfo</c> and <c>SiteInfo</c> are already
-/// serialized verbatim by HTTP endpoints, so mirroring them here would be a hand-copy that drifts
-/// the first time a field is added.
-///
-/// These records live beside the tools rather than in <c>core/Models</c> because they are wire
-/// shapes for one transport; putting them in core would enter foundation's published package
-/// surface and make every future field a compatibility question.
-///
-/// Serialization note: the MCP SDK uses <c>JsonSerializerDefaults.Web</c>, so these PascalCase
-/// members emit the same camelCase the previous hand-written anonymous objects produced. Renaming a
-/// member is therefore a breaking change for any connected agent.
-/// </summary>
-internal static class McpToolResultsDoc;
+// Result shapes for the tools that deliberately return a projection rather than a domain
+// record — a subset, a derivation, or a pairing the domain has no type for.
+//
+// Tools whose service already produces a well-shaped response record return it directly instead of
+// appearing here: CriticalPathResult, RequestDependencyInfo, InsightsBottlenecks,
+// AutoSchedulePreviewResponse, ResourceAbsenceInfo and SiteInfo are already
+// serialized verbatim by HTTP endpoints, so mirroring them here would be a hand-copy that drifts
+// the first time a field is added.
+//
+// These records live beside the tools rather than in core/Models because they are wire
+// shapes for one transport; putting them in core would enter foundation's published package
+// surface and make every future field a compatibility question.
+//
+// Serialization note: the MCP SDK uses JsonSerializerDefaults.Web, so these PascalCase
+// members emit the same camelCase the previous hand-written anonymous objects produced. Renaming a
+// member is therefore a breaking change for any connected agent.
 
 // ── list_requests ────────────────────────────────────────────────────────────
 

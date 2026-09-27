@@ -1,8 +1,6 @@
 using System.Net;
-using AwesomeAssertions;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -18,7 +16,7 @@ public class AccountLifecycleEndpointsTests
         var factory = databaseFixture.Factory;
         _mockKeycloak = factory.MockKeycloakAdminService;
         _mockKeycloak.Reset();
-        _cpConnectionString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _cpConnectionString = databaseFixture.ControlPlaneConnectionString;
 
         _client = factory.CreateClient();
         // /api/account/* skips API-key and tenant-slug requirements — no default headers needed

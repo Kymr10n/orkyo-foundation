@@ -9,7 +9,6 @@ using Api.Security;
 using Api.Security.Features;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
-using Npgsql;
 
 namespace Api.Endpoints.Admin;
 
@@ -118,7 +117,6 @@ public static class UserAdminEndpoints
     private static async Task<IResult> GetUser(
         Guid userId,
         IPlatformUserRepository userRepository,
-        IDbConnectionFactory connectionFactory,
         IKeycloakAdminService keycloak,
         ITenantPlanInfoProvider planInfoProvider,
         ILogger<EndpointLoggerCategory> logger,
@@ -144,9 +142,6 @@ public static class UserAdminEndpoints
             Memberships = new List<AdminUserMembership>()
         };
 
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
         if (user.OwnedTenantId is Guid ownedTenantId)
         {
             var planInfo = await planInfoProvider.GetPlanInfoAsync(new[] { ownedTenantId }, ct);
@@ -155,7 +150,7 @@ public static class UserAdminEndpoints
         }
 
         // Check site-admin role via Keycloak (best-effort — failures shouldn't hide the user)
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
+        var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
         {
             try
@@ -169,32 +164,7 @@ public static class UserAdminEndpoints
             }
         }
 
-        await using var identityCmd = new Npgsql.NpgsqlCommand(
-            "SELECT id, provider, provider_subject, provider_email, created_at FROM user_identities WHERE user_id = @userId", conn);
-        identityCmd.Parameters.AddWithValue("userId", userId);
-        await using var identityReader = await identityCmd.ExecuteReaderAsync(ct);
-        var identityRows = new List<(Guid Id, string Provider, string ProviderSubject, string? ProviderEmail, DateTime CreatedAt)>();
-        while (await identityReader.ReadAsync(ct))
-            identityRows.Add((
-                identityReader.GetGuid("id"),
-                identityReader.GetString("provider"),
-                identityReader.GetString("provider_subject"),
-                identityReader.GetNullableString("provider_email"),
-                identityReader.GetDateTime("created_at")));
-        foreach (var (Id, Provider, ProviderSubject, ProviderEmail, CreatedAt) in identityRows)
-        {
-            user.Identities.Add(new AdminUserIdentity
-            {
-                Id = Id,
-                Provider = Provider,
-                ProviderSubject = ProviderSubject,
-                ProviderEmail = ProviderEmail,
-                CreatedAt = CreatedAt
-            });
-        }
-
-        await identityReader.CloseAsync();
-
+        user.Identities.AddRange(await userRepository.GetIdentitiesAsync(userId, ct));
         user.Memberships.AddRange(await userRepository.GetMembershipsAsync(userId, ct));
 
         return Results.Ok(user);
@@ -216,12 +186,12 @@ public static class UserAdminEndpoints
         Guid userId,
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
-        IDbConnectionFactory connectionFactory,
+        IPlatformUserRepository userRepository,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
+        var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
         {
             try
@@ -243,12 +213,12 @@ public static class UserAdminEndpoints
         Guid userId,
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
-        IDbConnectionFactory connectionFactory,
+        IPlatformUserRepository userRepository,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
+        var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
         {
             try
@@ -270,12 +240,12 @@ public static class UserAdminEndpoints
         Guid userId,
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
-        IDbConnectionFactory connectionFactory,
+        IPlatformUserRepository userRepository,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
+        var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
         {
             try
@@ -293,26 +263,10 @@ public static class UserAdminEndpoints
         return Results.NoContent();
     }
 
-    /// <summary>
-    /// Looks up the Keycloak provider_subject for a user via user_identities.
-    /// Returns null if the user has no Keycloak identity; Keycloak operations are best-effort.
-    /// </summary>
-    private static async Task<string?> GetKeycloakIdAsync(Guid userId, IDbConnectionFactory connectionFactory, CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new Npgsql.NpgsqlCommand(
-            "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1", conn);
-        cmd.Parameters.AddWithValue("userId", userId);
-        return (await cmd.ExecuteScalarAsync(ct)) as string;
-    }
-
     private static async Task<IResult> PromoteSiteAdmin(
         Guid userId,
         IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
-        IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -320,7 +274,7 @@ public static class UserAdminEndpoints
         if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
+        var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId == null)
             return ErrorResponses.UnprocessableEntity("User has no Keycloak identity — cannot manage realm roles");
 
@@ -345,7 +299,6 @@ public static class UserAdminEndpoints
         Guid userId,
         IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
-        IDbConnectionFactory connectionFactory,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -357,7 +310,7 @@ public static class UserAdminEndpoints
         if (!await userRepository.ExistsAsync(userId, ct))
             return ErrorResponses.NotFound("User");
 
-        var keycloakId = await GetKeycloakIdAsync(userId, connectionFactory, ct);
+        var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId == null)
             return ErrorResponses.UnprocessableEntity("User has no Keycloak identity — cannot manage realm roles");
 

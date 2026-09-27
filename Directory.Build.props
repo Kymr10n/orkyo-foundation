@@ -2,11 +2,10 @@
 
   <PropertyGroup>
     <!-- Every project writes a packages.lock.json, so the locked-mode restore in CI
-         (release-ci.yml) enforces the resolved graph instead of silently passing. Four
-         projects (core, seeding, seeding-tests, testsupport) had no lock file, which made
-         that flag a partial check; without this property new projects would keep missing
-         it. The pre-commit hook regenerates and stages them when a csproj or the central
-         version list changes. -->
+         (release-ci.yml) enforces the resolved graph instead of silently passing. Some
+         projects once had no lock file, which made that flag a partial check; without
+         this property new projects would keep missing it. The pre-commit hook regenerates
+         and stages them when a csproj or the central version list changes. -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 

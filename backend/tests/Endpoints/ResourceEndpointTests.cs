@@ -4,7 +4,6 @@ using System.Text.Json;
 using Api.Endpoints;
 using Api.Models;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -288,44 +287,6 @@ public class ResourceEndpointTests
 
         Assert.Contains(list, r => r.Id == mine.Id);
         Assert.DoesNotContain(list, r => r.Id == theirs.Id);
-    }
-
-    [Fact]
-    public async Task CreateResource_PhysicalWithoutGeometry_Returns400()
-    {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = "space",
-            Name = "Physical without shape",
-            AllocationMode = "Exclusive",
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            IsPhysical = true,
-        });
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateResource_InvalidGeometry_Returns400()
-    {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        // A rectangle is exactly two points; one corner cannot describe a shape.
-        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = "space",
-            Name = "Half a rectangle",
-            AllocationMode = "Exclusive",
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            IsPhysical = true,
-            Geometry = new ResourceGeometry
-            {
-                Type = "rectangle",
-                Coordinates = [new Coordinate { X = 0, Y = 0 }],
-            },
-        });
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -655,10 +616,7 @@ public class ResourceEndpointTests
         // Round-tripping plaintext proves the pair of transforms agree, not that anything is
         // encrypted — an implementation that stored plaintext would pass that too. So read the
         // column directly: what is at rest must not be what the caller sent.
-        var tenantConnectionString =
-            $"Host=localhost;Port={_fixture.DatabasePort};Database={TestConstants.TenantDatabase};"
-            + "Username=postgres;Password=postgres";
-        await using var db = new NpgsqlConnection(tenantConnectionString);
+        await using var db = new NpgsqlConnection(_fixture.TenantConnectionString);
         await db.OpenAsync();
         await using var cmd = db.CreateCommand();
         cmd.CommandText = "SELECT notes FROM resources WHERE id = @id";

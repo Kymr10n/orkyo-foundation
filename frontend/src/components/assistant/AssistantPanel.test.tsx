@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactElement } from 'react';
 
 const proposals = vi.hoisted(() => ({ kind: 'propose_auto_schedule', input: '{}' }));
 
@@ -34,7 +32,7 @@ const aiStatus = vi.hoisted(() => ({
 }));
 
 // Only the status hook is pinned. The conversation-list and invalidation hooks stay real so the
-// panel still drives them through the QueryClientProvider below, exactly as it does in the app.
+// panel still drives them through the test QueryClient, exactly as it does in the app.
 vi.mock('@foundation/src/hooks/useAiAssistant', async (importOriginal) => ({
   ...(await importOriginal<typeof UseAiAssistantModuleNs>()),
   useAiStatus: () => ({ data: aiStatus.value }),
@@ -49,18 +47,7 @@ import {
   saveAiConversation,
   streamAiChat,
 } from '@foundation/src/lib/api/ai-api';
-
-/** The panel reads its conversation list through react-query. */
-function renderPanel(ui: ReactElement) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const result = render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
-  return {
-    ...result,
-    /** Re-renders inside the same provider — the plain `rerender` would drop it. */
-    rerenderPanel: (next: ReactElement) =>
-      result.rerender(<QueryClientProvider client={queryClient}>{next}</QueryClientProvider>),
-  };
-}
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 async function openPanelAndPropose() {
   const user = userEvent.setup();
@@ -80,7 +67,7 @@ describe('AssistantPanel proposal acceptance', () => {
     // which carries `requestIds` — fell through and the button did nothing at all.
     const onApplyAutoSchedule = vi.fn().mockResolvedValue(undefined);
 
-    renderPanel(
+    renderWithQuery(
       <AssistantPanel
         open
         onOpenChange={vi.fn()}
@@ -100,7 +87,7 @@ describe('AssistantPanel proposal acceptance', () => {
 
   it('offers no Apply button when the host cannot accept that kind', async () => {
     // Better to show no button than one that silently does nothing.
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} onApplyProposal={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} onApplyProposal={vi.fn()} />);
 
     await openPanelAndPropose();
     await screen.findByText(/solver/i);
@@ -117,7 +104,7 @@ describe('AssistantPanel proposal acceptance', () => {
     });
     const onApplyProposal = vi.fn().mockResolvedValue(undefined);
 
-    renderPanel(
+    renderWithQuery(
       <AssistantPanel
         open
         onOpenChange={vi.fn()}
@@ -144,7 +131,7 @@ describe('AssistantPanel failure reporting', () => {
       throw new TypeError('network error');
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'hi');
     await user.keyboard('{Enter}');
@@ -163,7 +150,7 @@ describe('AssistantPanel view opening', () => {
     });
     const onOpenView = vi.fn().mockReturnValue('Insights → Conflicts');
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} onOpenView={onOpenView} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} onOpenView={onOpenView} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'where are my conflicts');
     await user.keyboard('{Enter}');
@@ -182,7 +169,7 @@ describe('AssistantPanel view opening', () => {
     });
     const onOpenView = vi.fn().mockReturnValue('request details');
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} onOpenView={onOpenView} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} onOpenView={onOpenView} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'open it');
     await user.keyboard('{Enter}');
@@ -199,7 +186,7 @@ describe('AssistantPanel view opening', () => {
     });
     const onOpenView = vi.fn().mockReturnValue(null);
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} onOpenView={onOpenView} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} onOpenView={onOpenView} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'go somewhere');
     await user.keyboard('{Enter}');
@@ -214,7 +201,7 @@ describe('AssistantPanel view opening', () => {
       yield { type: 'done' as const };
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'go');
     await user.keyboard('{Enter}');
@@ -239,7 +226,7 @@ describe('AssistantPanel conversation persistence', () => {
   });
 
   it('saves the conversation once the turn is done', async () => {
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'any conflicts?');
     await user.keyboard('{Enter}');
@@ -264,7 +251,7 @@ describe('AssistantPanel conversation persistence', () => {
       transcript: [],
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(await screen.findByText('Where we left off.')).toBeInTheDocument();
   });
@@ -279,7 +266,7 @@ describe('AssistantPanel conversation persistence', () => {
       }),
     );
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'live question');
     await user.keyboard('{Enter}');
@@ -293,7 +280,7 @@ describe('AssistantPanel conversation persistence', () => {
   });
 
   it('starts a fresh conversation on request', async () => {
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'first');
     await user.keyboard('{Enter}');
@@ -316,7 +303,7 @@ describe('AssistantPanel conversation persistence', () => {
       yield { type: 'done' as const };
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'and then?');
     await user.keyboard('{Enter}');
@@ -330,7 +317,7 @@ describe('AssistantPanel conversation persistence', () => {
   it('a save failure costs history, never the conversation', async () => {
     vi.mocked(saveAiConversation).mockRejectedValue(new Error('offline'));
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'still works?');
     await user.keyboard('{Enter}');
@@ -350,7 +337,7 @@ describe('AssistantPanel conversation persistence', () => {
       transcript: [],
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await screen.findByText('Restored text.');
 
@@ -383,7 +370,7 @@ describe('AssistantPanel daily interaction limit', () => {
   it('counts down the interactions that are left', () => {
     aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 15, usedTurnsToday: 8 };
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(screen.getByText(/AI interactions remaining: 7/)).toBeInTheDocument();
   });
@@ -393,13 +380,13 @@ describe('AssistantPanel daily interaction limit', () => {
     // lowered while somebody is mid-conversation.
     aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 5, usedTurnsToday: 9 };
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(screen.getByText(/AI interactions remaining: 0/)).toBeInTheDocument();
   });
 
   it('leaves the header alone for workspaces with no daily limit', () => {
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(screen.queryByText(/interactions remaining/i)).not.toBeInTheDocument();
   });
@@ -414,7 +401,7 @@ describe('AssistantPanel daily interaction limit', () => {
       dailyLimitIsWorkspaceWide: true,
     };
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(screen.getByText(/AI interactions remaining: 20 \(whole workspace\)/)).toBeInTheDocument();
   });
@@ -422,7 +409,7 @@ describe('AssistantPanel daily interaction limit', () => {
   it('does not label a personal countdown', () => {
     aiStatus.value = { ...aiStatus.value, dailyTurnLimit: 15, usedTurnsToday: 8 };
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(screen.getByText(/AI interactions remaining: 7$/)).toBeInTheDocument();
   });
@@ -438,7 +425,7 @@ describe('AssistantPanel daily interaction limit', () => {
       yield { type: 'done' as const };
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     const box = screen.getByPlaceholderText(/ask about your schedule/i);
     await user.type(box, 'one more');
@@ -462,7 +449,7 @@ describe('AssistantPanel daily interaction limit', () => {
       yield { type: 'done' as const };
     });
 
-    const { rerenderPanel } = renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    const { rerender } = renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     const box = screen.getByPlaceholderText(/ask about your schedule/i);
     await user.type(box, 'one more');
@@ -472,7 +459,7 @@ describe('AssistantPanel daily interaction limit', () => {
 
     // The next status refetch reports a fresh day.
     aiStatus.value = { ...aiStatus.value, usedTurnsToday: 0 };
-    rerenderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    rerender(<AssistantPanel open onOpenChange={vi.fn()} />);
 
     expect(screen.getByPlaceholderText(/ask about your schedule/i)).not.toBeDisabled();
   });
@@ -489,7 +476,7 @@ describe('AssistantPanel daily interaction limit', () => {
       yield { type: 'done' as const };
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'one more');
     await user.keyboard('{Enter}');
@@ -508,7 +495,7 @@ describe('AssistantPanel daily interaction limit', () => {
       yield { type: 'done' as const };
     });
 
-    renderPanel(<AssistantPanel open onOpenChange={vi.fn()} />);
+    renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'one more');
     await user.keyboard('{Enter}');

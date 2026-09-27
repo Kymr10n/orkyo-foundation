@@ -15,7 +15,7 @@ describe('site-api', () => {
   it('getSites calls apiGet with SITES path', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([mockSite]);
     const result = await getSites();
-    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.SITES);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.SITES, { params: undefined });
     expect(result).toEqual([mockSite]);
   });
 

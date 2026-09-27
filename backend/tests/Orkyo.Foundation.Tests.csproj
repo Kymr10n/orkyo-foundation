@@ -31,12 +31,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
-    <Using Include="AwesomeAssertions" />
-    <Using Include="Moq" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\testsupport\Orkyo.Foundation.TestSupport.csproj" />
     <ProjectReference Include="..\core\Orkyo.Foundation.Core.csproj" />
     <ProjectReference Include="..\hosting\Orkyo.Foundation.Hosting.csproj" />

@@ -66,7 +66,7 @@ backend/
   migration-abstractions/ ← IMigrationModule, MigrationScript
   migrator-runtime/       ← the DbUp-based runner, checksum policy, advisory lock
   migrations-foundation/  ← Orkyo.Foundation.Migrations (domain schema as embedded SQL)
-  seeding/                ← demo/seed data generator (+ seeding-tests/)
+  seeding/                ← demo/seed data generator
   testsupport/            ← shared test helpers consumed by the product test suites
   tests/                  ← Foundation tests (unit + integration)
 frontend/

@@ -163,7 +163,6 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
-        services.AddScoped<ICriteriaService, CriteriaService>();
         services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IExportService, ExportService>();

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { buildPreviewSchedule } from './schedule-preview';
 import type { DraftResize } from './schedule-model';
 import type { Request } from '@foundation/src/types/requests';
-import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { spaceAssignment, makeRequest as fixtureRequest } from '@foundation/src/test-utils/request-fixtures';
 
 // Placement is resolved by type set now; these fixtures are all spaces.
 const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
@@ -14,20 +14,7 @@ const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
 const T = (iso: string) => new Date(iso).getTime();
 
 function makeRequest(overrides: Partial<Request> = {}): Request {
-  return {
-    id: 'req-1',
-    name: 'Test',
-    status: 'new',
-    planningMode: 'leaf',
-    sortOrder: 0,
-    minimalDurationValue: 1,
-    minimalDurationUnit: 'hours',
-    schedulingSettingsApply: true,
-    createdAt: '2024-01-01T00:00:00Z',
-    updatedAt: '2024-01-01T00:00:00Z',
-    assignments: [],
-    ...overrides,
-  };
+  return fixtureRequest({ id: 'req-1', ...overrides });
 }
 
 function makeScheduledRequest(id = 'req-1', resourceId = 's1'): Request {

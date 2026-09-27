@@ -13,8 +13,7 @@ import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useState } from "react";
-import { CreateTemplateDialog } from "./CreateTemplateDialog";
-import { EditTemplateDialog } from "./EditTemplateDialog";
+import { TemplateDialogBase } from "./TemplateDialogBase";
 import { useExportHandler, useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useEditQueryParam } from '@foundation/src/hooks/useEditQueryParam';
@@ -253,15 +252,16 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
       )}
 
       {/* Dialogs */}
-      <CreateTemplateDialog
+      <TemplateDialogBase
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        template={null}
         onSuccess={handleCreateSuccess}
         entityType={entityType}
       />
 
       {editingTemplate && (
-        <EditTemplateDialog
+        <TemplateDialogBase
           open={!!editingTemplate}
           onOpenChange={(open: boolean) => !open && setEditingTemplate(null)}
           template={editingTemplate}

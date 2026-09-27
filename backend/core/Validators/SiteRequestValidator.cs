@@ -12,3 +12,7 @@ public abstract class SiteRequestValidator<T> : AbstractValidator<T> where T : I
         RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.SiteNameMaxLength);
     }
 }
+
+public class CreateSiteRequestValidator : SiteRequestValidator<CreateSiteRequest> { }
+
+public class UpdateSiteRequestValidator : SiteRequestValidator<UpdateSiteRequest> { }

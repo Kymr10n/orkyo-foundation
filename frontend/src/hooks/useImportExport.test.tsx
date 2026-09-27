@@ -1,10 +1,11 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { useExportHandler, useImportHandler } from './useImportExport';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { toast } from 'sonner';
 import type { ExportFormat, ImportFormat, ExportContext } from '../lib/utils/import-export';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -29,16 +30,12 @@ function resetStore() {
 // useImportHandler reads the query client (for options.invalidates), so hooks
 // render under a provider — mirroring every real consumer.
 let queryClient: QueryClient;
-function wrapper({ children }: { children: React.ReactNode }) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-}
+let wrapper: ReturnType<typeof createTestQueryClient>['wrapper'];
 
 beforeEach(() => {
   vi.clearAllMocks();
   resetStore();
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  ({ queryClient, wrapper } = createTestQueryClient());
 });
 
 describe('useExportHandler', () => {
@@ -109,7 +106,7 @@ describe('useImportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
-    renderHook(() => useImportHandler(context, handler), { wrapper });
+    renderHook(() => useImportHandler(context, handler, {}), { wrapper });
 
     act(() => {
       useUiActionsStore.getState().triggerImport({ context: 'spaces', format: 'csv' as ImportFormat, file: mockFile });
@@ -123,7 +120,7 @@ describe('useImportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
-    renderHook(() => useImportHandler(context, handler), { wrapper });
+    renderHook(() => useImportHandler(context, handler, {}), { wrapper });
 
     act(() => {
       useUiActionsStore.getState().triggerImport({ context: 'requests', format: 'csv' as ImportFormat, file: mockFile });
@@ -138,7 +135,7 @@ describe('useImportHandler', () => {
     const csvFile = new File(['test'], 'test.csv', { type: 'text/csv' });
     const xlsxFile = new File(['test'], 'test.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
-    renderHook(() => useImportHandler(context, handler), { wrapper });
+    renderHook(() => useImportHandler(context, handler, {}), { wrapper });
 
     act(() => {
       useUiActionsStore.getState().triggerImport({ context: 'requests', format: 'csv' as ImportFormat, file: csvFile });
@@ -156,7 +153,7 @@ describe('useImportHandler', () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
-    const { unmount } = renderHook(() => useImportHandler(context, handler), { wrapper });
+    const { unmount } = renderHook(() => useImportHandler(context, handler, {}), { wrapper });
     unmount();
 
     act(() => {
@@ -215,20 +212,6 @@ describe('useImportHandler', () => {
     );
     expect(toast.success).not.toHaveBeenCalled();
   });
-
-  it('stays silent without options (legacy consumers own their feedback)', async () => {
-    const handler = vi.fn().mockResolvedValue(undefined);
-
-    renderHook(() => useImportHandler('spaces', handler), { wrapper });
-
-    act(() => {
-      useUiActionsStore.getState().triggerImport({ context: 'spaces', format: 'csv' as ImportFormat, file: mockFile });
-    });
-
-    await waitFor(() => expect(handler).toHaveBeenCalled());
-    expect(toast.success).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
-  });
 });
 
 describe('capability registration', () => {
@@ -251,7 +234,7 @@ describe('capability registration', () => {
   });
 
   it('registers import formats separately, defaulting to CSV', () => {
-    renderHook(() => useImportHandler('spaces', vi.fn()), { wrapper });
+    renderHook(() => useImportHandler('spaces', vi.fn(), {}), { wrapper });
     expect(useUiActionsStore.getState().importRegistry.get('spaces')).toEqual({ formats: ['csv'] });
   });
 

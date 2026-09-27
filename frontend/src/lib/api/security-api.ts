@@ -79,9 +79,6 @@ export async function getSecurityInfo(): Promise<SecurityInfo> {
   return apiGet<SecurityInfo>(API_PATHS.ACCOUNT.SECURITY_INFO);
 }
 
-/**
- * Get all active sessions for the current user
- */
 export async function getSessions(): Promise<Session[]> {
   return apiGet<Session[]>(API_PATHS.ACCOUNT.SESSIONS);
 }
@@ -99,9 +96,6 @@ export async function changePassword(
   );
 }
 
-/**
- * Revoke a specific session
- */
 export async function revokeSession(sessionId: string): Promise<void> {
   return apiDelete(API_PATHS.ACCOUNT.session(sessionId));
 }
@@ -113,9 +107,6 @@ export async function logoutAllSessions(): Promise<{ message: string }> {
   return apiPost<{ message: string }>(API_PATHS.ACCOUNT.LOGOUT_ALL, undefined);
 }
 
-/**
- * Get MFA status for the current user
- */
 export async function getMfaStatus(): Promise<MfaStatus> {
   return apiGet<MfaStatus>(API_PATHS.ACCOUNT.MFA_STATUS);
 }
@@ -170,9 +161,6 @@ export interface NotificationPreferences {
   announcementEmailOptOut: boolean;
 }
 
-/**
- * Get the current user's notification preferences.
- */
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {
   return apiGet<NotificationPreferences>(API_PATHS.ACCOUNT.NOTIFICATION_PREFERENCES);
 }

@@ -67,17 +67,10 @@ public static class AiCredentialEndpoints
         if (!shape.IsValid)
             return EndpointHelpers.ValidationFailed(shape);
 
-        try
-        {
-            var status = await credentials.SaveAsync(
-                request.ApiKey, principal.UserIdOrNull, ct);
-            return Results.Ok(status);
-        }
-        catch (ArgumentException ex)
-        {
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
-        }
+        // A key without the provider's prefix throws ArgumentException: AppExceptionHandler
+        // renders it as a 400 validation error.
+        var status = await credentials.SaveAsync(request.ApiKey, principal.UserIdOrNull, ct);
+        return Results.Ok(status);
     }
 
     private static async Task<IResult> DeleteCredential(

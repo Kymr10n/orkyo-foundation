@@ -4,9 +4,7 @@ using Api.Models.Insights;
 using Api.Repositories;
 using Api.Services;
 using Api.Services.Insights;
-using Moq;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Api.Tests.Services;
 

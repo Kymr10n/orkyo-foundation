@@ -57,17 +57,4 @@ public static class ConfigurationValidator
             throw new InvalidOperationException(
                 "Configuration validation failed:\n" + string.Join("\n", errors.Select(e => $"  - {e}")));
     }
-
-    public static void LogConfigurationStatus(IConfiguration configuration, ILogger logger)
-    {
-        var environment = configuration.GetOptionalString(ConfigKeys.AspNetCoreEnvironment);
-        logger.LogInformation("Configuration Status (Environment: {Environment})", environment);
-
-        foreach (var key in DeploymentConfig.RequiredKeys)
-            logger.LogDebug("  {Key}: {Status}", key, !string.IsNullOrEmpty(configuration[key]) ? "✓" : "✗ MISSING");
-
-        var sensitiveKeys = new[] { ConfigKeys.SmtpPassword, ConfigKeys.KeycloakBackendClientSecret };
-        foreach (var key in sensitiveKeys)
-            logger.LogDebug("  {Key}: {Status}", key, !string.IsNullOrEmpty(configuration[key]) ? "configured" : "not set");
-    }
 }

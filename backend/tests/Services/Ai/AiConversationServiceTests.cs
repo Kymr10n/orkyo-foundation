@@ -2,8 +2,6 @@ using Api.Helpers;
 using Api.Repositories;
 using Api.Security;
 using Api.Services.Ai;
-using Moq;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services.Ai;
 

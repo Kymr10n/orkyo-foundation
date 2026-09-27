@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { FloorplanUploadDialog } from './FloorplanUploadDialog';
 
 vi.mock('@foundation/src/lib/api/floorplan-api', () => ({
@@ -8,6 +7,7 @@ vi.mock('@foundation/src/lib/api/floorplan-api', () => ({
 }));
 
 import { uploadFloorplan } from '@foundation/src/lib/api/floorplan-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const defaultProps = {
   siteId: 'site-1',
@@ -17,12 +17,7 @@ const defaultProps = {
 };
 
 function renderDialog(props: Partial<React.ComponentProps<typeof FloorplanUploadDialog>> = {}) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <FloorplanUploadDialog {...defaultProps} {...props} />
-    </QueryClientProvider>
-  );
+  return renderWithQuery(<FloorplanUploadDialog {...defaultProps} {...props} />);
 }
 
 function createMockFile(name: string, type: string, size: number): File {

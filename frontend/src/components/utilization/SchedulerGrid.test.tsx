@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import type { Conflict } from '@foundation/src/types/requests';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
 import userEvent from '@testing-library/user-event';
 import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
@@ -13,6 +12,7 @@ import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-
 import { DndContext } from '@dnd-kit/core';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 import { useSchedulerStore } from '@foundation/src/store/scheduler-store';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 const storeMock = vi.hoisted(() => ({
   collapsedGroupIds: [] as string[],
@@ -81,17 +81,11 @@ const flushQueries = () =>
   });
 
 const createWrapper = () => {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-  });
-
+  const QueryWrapper = createTestQueryWrapper();
   return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
+    <QueryWrapper>
       <DndContext>{children}</DndContext>
-    </QueryClientProvider>
+    </QueryWrapper>
   );
 };
 

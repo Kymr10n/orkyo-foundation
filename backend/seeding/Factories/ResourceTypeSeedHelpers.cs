@@ -46,4 +46,17 @@ public static class ResourceTypeSeedHelpers
         cmd.Parameters.AddWithValue("now", DateTime.UtcNow);
         return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
+
+    /// <summary>Type id by key, for the keys that exist. A missing key is simply absent.</summary>
+    public static async Task<Dictionary<string, Guid>> GetTypeIdsAsync(
+        NpgsqlConnection conn, params string[] keys)
+    {
+        var result = new Dictionary<string, Guid>();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT key, id FROM public.resource_types WHERE key = ANY(@keys)", conn);
+        cmd.Parameters.AddWithValue("keys", keys);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync()) result[reader.GetString(0)] = reader.GetGuid(1);
+        return result;
+    }
 }

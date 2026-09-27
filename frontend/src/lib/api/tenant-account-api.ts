@@ -50,16 +50,10 @@ interface StarterTemplateInfo {
 
 const tenantOptions = { omitHeaders: [TENANT_HEADER_NAME] };
 
-/**
- * Check if the current user can create a new tenant
- */
 export async function canCreateTenant(): Promise<CanCreateTenantResponse> {
   return apiGet<CanCreateTenantResponse>(API_PATHS.TENANTS.CAN_CREATE, tenantOptions);
 }
 
-/**
- * Create a new tenant
- */
 export async function createTenant(request: CreateTenantRequest): Promise<CreateTenantResponse> {
   return apiPost<CreateTenantResponse>(
     API_PATHS.TENANTS.CREATE,
@@ -68,16 +62,10 @@ export async function createTenant(request: CreateTenantRequest): Promise<Create
   );
 }
 
-/**
- * Get available starter templates for new tenant creation
- */
 export async function getStarterTemplates(): Promise<StarterTemplateInfo[]> {
   return apiGet<StarterTemplateInfo[]>(API_PATHS.TENANTS.STARTER_TEMPLATES, tenantOptions);
 }
 
-/**
- * Get all tenant memberships for the current user
- */
 export async function getTenantMemberships(): Promise<TenantMembership[]> {
   return apiGet<TenantMembership[]>(API_PATHS.TENANTS.MEMBERSHIPS, tenantOptions);
 }

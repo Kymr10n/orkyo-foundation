@@ -186,7 +186,7 @@ public static class ResourceEndpoints
             IValidator<AddResourceCapabilityRequest> validator,
             IResourceService service,
             IResourceCapabilityRepository repository,
-            ICriteriaService criteriaService,
+            ICriteriaRepository criteriaRepository,
             ICriterionValueValidator valueValidator,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
@@ -195,7 +195,7 @@ public static class ResourceEndpoints
             if (resource is null)
                 return ErrorResponses.NotFound("Resource", id);
 
-            var criterion = await criteriaService.GetByIdAsync(request.CriterionId, ct);
+            var criterion = await criteriaRepository.GetByIdAsync(request.CriterionId, ct);
             if (criterion is null)
                 return ErrorResponses.NotFound("Criterion", request.CriterionId);
 

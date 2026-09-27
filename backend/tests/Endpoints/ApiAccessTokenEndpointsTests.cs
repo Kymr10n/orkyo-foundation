@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Api.Security;
 using Api.Services.PlatformApi;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

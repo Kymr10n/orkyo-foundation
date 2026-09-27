@@ -24,16 +24,16 @@ public static class RoutingEndpoints
         group.MapGet("{id:guid}", async (IRoutingService service, Guid id, CancellationToken ct) =>
             EndpointHelpers.OkOrNotFound(await service.GetByIdAsync(id, ct), "Routing", id));
 
-        group.MapPost("", async (IRoutingService service, CreateRoutingRequest request,
-            IValidator<CreateRoutingRequest> validator, CancellationToken ct) =>
+        group.MapPost("", async (IRoutingService service, SaveRoutingRequest request,
+            IValidator<SaveRoutingRequest> validator, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var routing = await service.CreateAsync(request, ct);
                 return Results.Created($"/api/routings/{routing.Id}", routing);
             }));
 
-        group.MapPut("{id:guid}", async (IRoutingService service, Guid id, UpdateRoutingRequest request,
-            IValidator<UpdateRoutingRequest> validator, CancellationToken ct) =>
+        group.MapPut("{id:guid}", async (IRoutingService service, Guid id, SaveRoutingRequest request,
+            IValidator<SaveRoutingRequest> validator, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
                 EndpointHelpers.OkOrNotFound(await service.UpdateAsync(id, request, ct), "Routing", id)));
 

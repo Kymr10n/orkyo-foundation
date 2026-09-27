@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Orkyo.Foundation.Tests.Architecture;
 
 /// <summary>
@@ -14,15 +12,12 @@ namespace Orkyo.Foundation.Tests.Architecture;
 public class FrontendBarrelTests
 {
     /// <summary>
-    /// The barrels that earn their keep, by importer count at the 2026-08 review
-    /// (lib/utils ×65, store ×48, types ×42, constants ×19, components/layout ×8,
-    /// components/ui ×2). Adding a barrel means adding it here with the reason it
-    /// exists — a barrel nobody imports through is clutter with a maintenance cost.
+    /// The barrels that still have importers. A new barrel is added here only once something
+    /// imports through it — a barrel nobody imports through is clutter with a maintenance cost.
     /// </summary>
     private static readonly HashSet<string> KnownBarrels = new(StringComparer.Ordinal)
     {
         "components/layout/index.ts",
-        "components/ui/index.ts",
         "constants/index.ts",
         "lib/utils/index.ts",
     };

@@ -31,7 +31,6 @@ export async function getActiveAnnouncements(): Promise<{ announcements: UserAnn
   return apiGet<{ announcements: UserAnnouncement[] }>(API_PATHS.ANNOUNCEMENTS);
 }
 
-/** Get the count of unread announcements for the current user. */
 export async function getUnreadAnnouncementCount(): Promise<{ unreadCount: number }> {
   return apiGet<{ unreadCount: number }>(API_PATHS.ANNOUNCEMENTS_UNREAD_COUNT);
 }

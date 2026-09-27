@@ -17,7 +17,6 @@
     "skipLibCheck": true,
     "types": ["vitest/globals", "vite/client", "node"],
     "paths": {
-      "@/*": ["./src/*"],
       "@foundation/contracts/*": ["./contracts/*"],
       "@foundation/src/*": ["./src/*"]
     }

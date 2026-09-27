@@ -44,30 +44,29 @@ describe('getListDefinitions', () => {
   });
 
   it('asks for the bare collection when neither filter is set', async () => {
-    // No trailing "?" — an empty query string is not a filter, and the URL is a cache key.
     await getListDefinitions();
 
-    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions');
+    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions', { params: {} });
   });
 
   it('narrows to a scope', async () => {
     await getListDefinitions(false, 'organization');
 
-    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions?scope=organization');
+    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions', { params: { scope: 'organization' } });
   });
 
   it('asks for retired definitions too', async () => {
     await getListDefinitions(true);
 
-    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions?includeInactive=true');
+    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions', { params: { includeInactive: true } });
   });
 
   it('combines both filters', async () => {
     await getListDefinitions(true, 'resource');
 
-    expect(apiGet).toHaveBeenCalledWith(
-      '/api/list-definitions?includeInactive=true&scope=resource',
-    );
+    expect(apiGet).toHaveBeenCalledWith('/api/list-definitions', {
+      params: { includeInactive: true, scope: 'resource' },
+    });
   });
 });
 
@@ -144,7 +143,7 @@ describe('lists-api routes', () => {
 
   it('nests shared instances under their definition', async () => {
     await getSharedListInstances(DEF);
-    expect(apiGet).toHaveBeenCalledWith(`/api/list-definitions/${DEF}/instances`);
+    expect(apiGet).toHaveBeenCalledWith(`/api/list-definitions/${DEF}/instances`, { params: undefined });
 
     await createSharedListInstance(DEF, { name: 'Departments' });
     expect(apiPost).toHaveBeenCalledWith(`/api/list-definitions/${DEF}/instances`, {
@@ -164,7 +163,7 @@ describe('lists-api routes', () => {
     // Rows hang off the instance that holds them; routing them under the definition would write
     // one instance's rows into another's.
     await getListRows(INST);
-    expect(apiGet).toHaveBeenCalledWith(`/api/list-instances/${INST}/rows`);
+    expect(apiGet).toHaveBeenCalledWith(`/api/list-instances/${INST}/rows`, { params: undefined });
 
     await createListRow(INST, { values: { name: 'Quality' } });
     expect(apiPost).toHaveBeenCalledWith(`/api/list-instances/${INST}/rows`, {

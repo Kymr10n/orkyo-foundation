@@ -1,7 +1,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type * as CustomFieldsApi from '@foundation/src/lib/api/resource-custom-fields-api';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useResourceTransfer } from './useResourceTransfer';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
@@ -26,6 +25,7 @@ vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
 import { createResource } from '@foundation/src/lib/api/resources-api';
 import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { exportResources, importResources } from '@foundation/src/lib/utils/export-handlers';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 const resourceType = machineResourceType;
 
@@ -35,10 +35,7 @@ function importRow(name: string) {
   return { request: { resourceTypeKey: 'machine', name, allocationMode: 'Exclusive' }, source: {} };
 }
 
-let queryClient: QueryClient;
-function wrapper({ children }: { children: React.ReactNode }) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-}
+let wrapper: ReturnType<typeof createTestQueryWrapper>;
 
 function renderTransfer(options = {}) {
   return renderHook(() => useResourceTransfer(resourceType, resources, options), { wrapper });
@@ -67,9 +64,7 @@ beforeEach(() => {
     exportRegistry: new Map(),
     importRegistry: new Map(),
   });
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+  wrapper = createTestQueryWrapper();
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(createResource).mockResolvedValue({ id: 'created' } as ResourceInfo);
   vi.mocked(importResources).mockResolvedValue([importRow('Lathe')]);

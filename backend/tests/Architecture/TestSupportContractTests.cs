@@ -3,7 +3,7 @@ using System.Net;
 namespace Orkyo.Foundation.Tests.Architecture;
 
 /// <summary>
-/// The shared architecture helpers in <c>Orkyo.Foundation.TestSupport</c> are consumed by the
+/// The shared architecture helpers in <c>Orkyo.Foundation.TestSupport</c> are written for the
 /// products' <c>ExplicitRegistrationTests</c> / <c>RouteInventoryTests</c>; these pin the
 /// classification and probe semantics where the code lives.
 /// </summary>
@@ -68,7 +68,7 @@ public class TestSupportContractTests
     [InlineData(HttpStatusCode.InternalServerError, true)]
     public async Task RouteInventoryProbe_FlagsOnlyUnmappedOrBrokenRoutes(HttpStatusCode status, bool expectFailure)
     {
-        using var client = new HttpClient(new FixedStatusHandler(status)) { BaseAddress = new Uri("http://localhost") };
+        using var client = new HttpClient(new StubHttpMessageHandler(_ => new HttpResponseMessage(status))) { BaseAddress = new Uri("http://localhost") };
 
         var failure = await RouteInventoryProbe.ProbeAsync(client, "/api/sites", "MapSiteEndpoints");
 
@@ -76,11 +76,5 @@ public class TestSupportContractTests
             failure.Should().Contain("/api/sites").And.Contain("MapSiteEndpoints").And.Contain(((int)status).ToString());
         else
             failure.Should().BeNull();
-    }
-
-    private sealed class FixedStatusHandler(HttpStatusCode status) : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-            => Task.FromResult(new HttpResponseMessage(status));
     }
 }

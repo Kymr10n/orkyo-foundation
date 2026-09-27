@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Buffers.Text;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -55,7 +56,7 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         var (nonce, sealed_) = Seal(Encoding.UTF8.GetBytes(plaintext), tenantId);
         return string.Join(':',
             "orkyoenc", $"v{Version}", AlgName, _keyVersion.ToString(),
-            Base64Url(nonce), Base64Url(sealed_));
+            Base64Url.EncodeToString(nonce), Base64Url.EncodeToString(sealed_));
     }
 
     public string? UnprotectString(string? stored, Guid tenantId)
@@ -70,8 +71,8 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         byte[] nonce, sealed_;
         try
         {
-            nonce = FromBase64Url(parts[4]);
-            sealed_ = FromBase64Url(parts[5]);
+            nonce = Base64Url.DecodeFromChars(parts[4]);
+            sealed_ = Base64Url.DecodeFromChars(parts[5]);
         }
         catch (FormatException ex)
         {
@@ -153,14 +154,4 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         return plaintext;
     }
 
-    // ── base64url (no padding) ─────────────────────────────────────────────────
-
-    private static string Base64Url(byte[] data) =>
-        Convert.ToBase64String(data).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-
-    private static byte[] FromBase64Url(string s)
-    {
-        var b64 = s.Replace('-', '+').Replace('_', '/');
-        return Convert.FromBase64String(b64.PadRight(b64.Length + (4 - b64.Length % 4) % 4, '='));
-    }
 }

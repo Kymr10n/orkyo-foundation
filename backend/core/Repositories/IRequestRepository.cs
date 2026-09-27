@@ -105,7 +105,7 @@ public interface IRequestRepository
     /// or criterion does not exist, <see cref="ArgumentException"/> if the criterion is not applicable
     /// to requests.
     /// </summary>
-    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, AddRequirementRequest requirement, CancellationToken ct = default);
+    Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, CreateRequestRequirementRequest requirement, CancellationToken ct = default);
 
     /// <summary>Removes a requirement. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteRequirementAsync(Guid requestId, Guid requirementId, CancellationToken ct = default);

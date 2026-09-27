@@ -13,10 +13,9 @@ using Microsoft.AspNetCore.Routing;
 namespace Api.Endpoints.Reporting;
 
 /// <summary>
-/// Token management for the external reporting API. Error bodies here use the
-/// <c>{ error, message }</c> shape — the DELIBERATE, stable contract of the external
-/// reporting API surface, distinct from the internal <see cref="Api.Helpers.ErrorResponses"/>
-/// shape. Do not converge; external consumers depend on it.
+/// Token management for the external reporting API. An admin calls these routes from the app,
+/// so their errors use the canonical <see cref="Api.Helpers.ErrorResponses"/> problem shape;
+/// only the token-authenticated reporting routes keep the <c>{ error, message }</c> body.
 /// </summary>
 public static class ReportingTokenEndpoints
 {

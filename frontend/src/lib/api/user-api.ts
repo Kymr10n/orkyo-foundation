@@ -31,48 +31,30 @@ export interface UpdateUserRoleRequest {
   role: "admin" | "editor" | "viewer" | "inactive";
 }
 
-/**
- * Get all users in the tenant
- */
 export async function getUsers(): Promise<UserWithRole[]> {
   const data = await apiGet<{ users: UserWithRole[] }>(API_PATHS.USERS);
   return data.users || [];
 }
 
-/**
- * Get all pending invitations
- */
 export async function getInvitations(): Promise<Invitation[]> {
   const data = await apiGet<{ invitations: Invitation[] }>(API_PATHS.USER_INVITATIONS);
   return data.invitations || [];
 }
 
-/**
- * Create a new user invitation
- */
 export async function createInvitation(
   data: CreateInvitationRequest
 ): Promise<Invitation> {
   return apiPost<Invitation>(API_PATHS.USER_INVITE, data);
 }
 
-/**
- * Resend an invitation email
- */
 export async function resendInvitation(invitationId: string): Promise<void> {
   await apiPost<void>(API_PATHS.userInvitationResend(invitationId), undefined);
 }
 
-/**
- * Cancel/delete an invitation
- */
 export async function cancelInvitation(invitationId: string): Promise<void> {
   return apiDelete(API_PATHS.userInvitation(invitationId));
 }
 
-/**
- * Update a user's role
- */
 export async function updateUserRole(
   userId: string,
   data: UpdateUserRoleRequest

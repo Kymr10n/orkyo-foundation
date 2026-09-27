@@ -15,6 +15,7 @@ import {
   DEFAULT_RESOURCE_TYPE_ICON,
 } from '@foundation/src/components/resources/resource-type-icon';
 import { cn } from '@foundation/src/lib/utils';
+import { KEY_PATTERN, keyFromLabel } from '@foundation/src/lib/key-from-label';
 
 interface ResourceTypeEditDialogProps {
   resourceType: ResourceTypeInfo | null;
@@ -72,21 +73,9 @@ function DefaultIconPreview() {
   );
 }
 
-/** Keys are stable identifiers used in URLs and metadata documents; mirrors the server rule. */
-const KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/;
-
 /** Starting guess for the plural, editable — English is irregular and tenants aren't all English. */
 function defaultPlural(displayName: string): string {
   return displayName.trim() ? `${displayName}s` : '';
-}
-
-/** Suggests "company_car" from "Company Car" so the key is one less thing to think about. */
-function toKey(displayName: string): string {
-  return displayName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 50);
 }
 
 export function ResourceTypeEditDialog({
@@ -161,7 +150,7 @@ export function ResourceTypeEditDialog({
       // Both the key and the plural track the name until the user edits them directly, so the
       // common case is one field. "s" is only a starting guess — irregular nouns and other
       // languages are exactly why the plural is stored rather than derived.
-      if (!isEdit && prev.key === toKey(prev.displayName)) next.key = toKey(displayName);
+      if (!isEdit && prev.key === keyFromLabel(prev.displayName)) next.key = keyFromLabel(displayName);
       if (!isEdit && prev.displayNamePlural === defaultPlural(prev.displayName)) {
         next.displayNamePlural = defaultPlural(displayName);
       }

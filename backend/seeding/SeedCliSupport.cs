@@ -12,9 +12,9 @@ public class SeedCliOptions
 {
     /// <summary>Long-option names this base class binds. An edition appends its own.</summary>
     public static readonly string[] SharedOptionNames =
-        ["profile", "scale", "mode", "seed", "random", "force-non-local", "floorplans", "reference-date"];
+        ["profile", "scale", "mode", "seed", "random", "force-non-local", "reference-date"];
 
-    /// <summary>Required. One of: generic, manufacturing, construction, camping, education.</summary>
+    /// <summary>Required. The only profile is manufacturing.</summary>
     public string Profile { get; set; } = "";
 
     /// <summary>One of: tiny, small, medium, large, xlarge.</summary>
@@ -33,10 +33,10 @@ public class SeedCliOptions
     public bool ForceNonLocal { get; set; }
 
     /// <summary>
-    /// Seed the curated floorplan-backed sites (image assets + geometry-bearing spaces)
-    /// instead of scale-driven sites/spaces. On by default; pass --floorplans false to disable.
+    /// Always true: the curated floorplan sites are the only seed. The flag is gone; the property
+    /// stays because the product seed CLIs print it.
     /// </summary>
-    public bool Floorplans { get; set; } = true;
+    public bool Floorplans => true;
 
     /// <summary>
     /// The date the seeded year is anchored on (yyyy-MM-dd, UTC). Defaults to now.
@@ -50,13 +50,12 @@ public class SeedCliOptions
 
     /// <summary>Help for the shared flags. An edition prints this plus its own.</summary>
     public const string SharedHelpText = """
-          --profile          Required. One of: generic, manufacturing, construction, camping, education.
+          --profile          Required. The only profile is manufacturing.
           --scale            One of: tiny, small, medium, large, xlarge. (Default: medium)
           --mode             reset (truncate tables before seeding) or append. (Default: reset)
           --seed             Random seed for deterministic generation. (Default: 1337)
           --random           Use a fresh random seed instead of the fixed --seed value.
           --force-non-local  Override the safety guard that refuses non-local connections.
-          --floorplans       Seed the curated floorplan-backed sites. (Default: true; --floorplans false to disable)
           --reference-date   Date the seeded year is anchored on, yyyy-MM-dd. (Default: today)
         """;
 
@@ -69,7 +68,6 @@ public class SeedCliOptions
         RandomSeed = args.Int("seed", 1337);
         UseRandom = args.Bool("random", false);
         ForceNonLocal = args.Bool("force-non-local", false);
-        Floorplans = args.Bool("floorplans", true);
         ReferenceDate = args.String("reference-date");
     }
 }
@@ -131,7 +129,6 @@ public static class SeedCliSupport
         RandomSeed = opts.RandomSeed,
         UseRandom = opts.UseRandom,
         ForceNonLocal = opts.ForceNonLocal,
-        UseFloorplans = opts.Floorplans,
         ReferenceDate = opts.ReferenceDate is { } rd ? ParseReferenceDate(rd) ?? DateTime.UtcNow : DateTime.UtcNow,
         TenantId = tenantId,
     };

@@ -1,6 +1,4 @@
 using Api.Services;
-using AwesomeAssertions;
-using Xunit;
 
 namespace Api.Tests.Services;
 

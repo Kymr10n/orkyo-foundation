@@ -8,15 +8,10 @@ const withDurationMin = (r: Request): Request => ({
   durationMin: durationToMs(r.minimalDurationValue, r.minimalDurationUnit) / 60_000,
 });
 
-// Get all requests (tenant-wide). Prefer the scoped fetchers below for the utilization grid.
-export async function getAllRequests(): Promise<Request[]> {
-  return (await apiGet<Request[]>(API_PATHS.REQUESTS)).map(withDurationMin);
-}
-
 // Scheduled requests for one site whose bar overlaps [from,to] — the grid's bar feed.
 export async function getScheduledRequests(siteId: string, from: Date, to: Date): Promise<Request[]> {
-  const params = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() });
-  return (await apiGet<Request[]>(`${API_PATHS.siteRequests(siteId)}?${params}`)).map(withDurationMin);
+  const params = { from: from.toISOString(), to: to.toISOString() };
+  return (await apiGet<Request[]>(API_PATHS.siteRequests(siteId), { params })).map(withDurationMin);
 }
 
 // Unscheduled backlog (tenant-wide) — drag-to-schedule source for the panel.

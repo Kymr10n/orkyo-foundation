@@ -1,7 +1,6 @@
 using System.Reflection;
 using Api.Repositories;
 using Api.Services;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
 

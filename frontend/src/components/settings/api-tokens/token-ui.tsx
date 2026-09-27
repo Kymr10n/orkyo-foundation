@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { formatLocalized } from "@foundation/src/lib/formatters";
+import { formatDateForInput } from "@foundation/src/lib/utils";
 import { useRevokeToken } from "@foundation/src/hooks/useApiTokens";
 import type { ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 
@@ -67,11 +68,6 @@ function addLocalDays(date: Date, days: number): Date {
   return next;
 }
 
-export function toDateOnly(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
 export function fromDateOnly(value: string): Date | undefined {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return undefined;
@@ -79,7 +75,7 @@ export function fromDateOnly(value: string): Date | undefined {
 }
 
 export function getPresetExpiry(days: number): string {
-  return toDateOnly(addLocalDays(new Date(), days));
+  return formatDateForInput(addLocalDays(new Date(), days));
 }
 
 function formatExpiryLabel(dateOnly: string): string {
@@ -170,7 +166,7 @@ export function ExpiryFields({
   onCustomChange,
 }: ExpiryFieldsProps) {
   const selectedCustomDate = customExpiresAt ? fromDateOnly(customExpiresAt) : undefined;
-  const today = fromDateOnly(toDateOnly(new Date())) ?? new Date();
+  const today = fromDateOnly(formatDateForInput(new Date())) ?? new Date();
 
   return (
     <div className="space-y-1.5">
@@ -212,7 +208,7 @@ export function ExpiryFields({
                 <Calendar
                   mode="single"
                   selected={selectedCustomDate}
-                  onSelect={(date) => onCustomChange(date ? toDateOnly(date) : "")}
+                  onSelect={(date) => onCustomChange(date ? formatDateForInput(date) : "")}
                   disabled={(date) => date < today}
                   autoFocus
                 />

@@ -97,16 +97,10 @@ export interface PresetApplication {
 // API Functions
 // ============================================================================
 
-/**
- * Validate a preset without applying it
- */
 export async function validatePreset(preset: Preset): Promise<PresetValidationResult> {
   return apiPost<PresetValidationResult>(API_PATHS.ADMIN.PRESETS_VALIDATE, preset);
 }
 
-/**
- * Apply a preset to the current tenant
- */
 export async function applyPreset(preset: Preset): Promise<PresetApplicationResult> {
   return apiPost<PresetApplicationResult>(API_PATHS.ADMIN.PRESETS_APPLY, preset);
 }
@@ -115,23 +109,14 @@ export async function applyPreset(preset: Preset): Promise<PresetApplicationResu
  * Export current tenant configuration as a preset
  */
 export async function exportPreset(presetId: string, name: string, description?: string): Promise<Preset> {
-  const params = new URLSearchParams({ presetId, name });
-  if (description) {
-    params.append('description', description);
-  }
-  return apiGet<Preset>(`${API_PATHS.ADMIN.PRESETS_EXPORT}?${params}`);
+  const params = { presetId, name, description: description || undefined };
+  return apiGet<Preset>(API_PATHS.ADMIN.PRESETS_EXPORT, { params });
 }
 
-/**
- * Get preset application history
- */
 export async function getPresetApplications(): Promise<PresetApplication[]> {
   return apiGet<PresetApplication[]>(API_PATHS.ADMIN.PRESETS_APPLICATIONS);
 }
 
-/**
- * Parse a preset JSON file
- */
 export function parsePresetFile(content: string): Preset {
   try {
     return JSON.parse(content) as Preset;

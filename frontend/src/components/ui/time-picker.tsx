@@ -76,33 +76,65 @@ export function TimePicker({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-3" align="start">
         <div className="flex items-center gap-2">
-          <Select value={currentHour} onValueChange={handleHourChange}>
-            <SelectTrigger className="w-[70px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {HOURS.map((h) => (
-                <SelectItem key={h} value={h}>
-                  {h}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-sm font-medium">:</span>
-          <Select value={currentMinute} onValueChange={handleMinuteChange}>
-            <SelectTrigger className="w-[70px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {minutes.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <HourMinuteSelects
+            hour={currentHour}
+            minute={currentMinute}
+            minutes={minutes}
+            onHourChange={handleHourChange}
+            onMinuteChange={handleMinuteChange}
+          />
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+interface HourMinuteSelectsProps {
+  /** "HH" */
+  hour: string;
+  /** "mm" */
+  minute: string;
+  /** The minute options, as "mm" strings. */
+  minutes: readonly string[];
+  onHourChange: (hour: string) => void;
+  onMinuteChange: (minute: string) => void;
+}
+
+/** The hour and minute Selects shared by TimePicker and DateTimePicker. */
+export function HourMinuteSelects({
+  hour,
+  minute,
+  minutes,
+  onHourChange,
+  onMinuteChange,
+}: HourMinuteSelectsProps) {
+  return (
+    <>
+      <Select value={hour} onValueChange={onHourChange}>
+        <SelectTrigger className="w-[70px] h-8">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {HOURS.map((h) => (
+            <SelectItem key={h} value={h}>
+              {h}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-sm font-medium">:</span>
+      <Select value={minute} onValueChange={onMinuteChange}>
+        <SelectTrigger className="w-[70px] h-8">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {minutes.map((m) => (
+            <SelectItem key={m} value={m}>
+              {m}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </>
   );
 }

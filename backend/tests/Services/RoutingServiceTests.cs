@@ -3,8 +3,6 @@ using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
-using Moq;
-using Xunit;
 
 namespace Api.Tests.Services;
 
@@ -214,20 +212,20 @@ public class RoutingServiceTests
         var space = Guid.NewGuid();
         Template("Meeting room", space, "space", entityType: TemplateEntityTypes.Space);
 
-        var thrown = await Assert.ThrowsAsync<ConflictException>(() => _service.CreateAsync(new CreateRoutingRequest
+        var thrown = await Assert.ThrowsAsync<ConflictException>(() => _service.CreateAsync(new SaveRoutingRequest
         {
             Name = "Bad",
             Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = space, RunMinutesPerUnit = 10 }],
         }));
 
         thrown.Message.Should().Contain("space template");
-        _routings.Verify(r => r.CreateAsync(It.IsAny<CreateRoutingRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _routings.Verify(r => r.CreateAsync(It.IsAny<SaveRoutingRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task Create_RefusesAStepWhoseOperationDoesNotExist()
     {
-        await Assert.ThrowsAsync<NotFoundException>(() => _service.UpdateAsync(RoutingId, new UpdateRoutingRequest
+        await Assert.ThrowsAsync<NotFoundException>(() => _service.UpdateAsync(RoutingId, new SaveRoutingRequest
         {
             Name = "Bracket",
             Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = Guid.NewGuid(), RunMinutesPerUnit = 10 }],
@@ -237,7 +235,7 @@ public class RoutingServiceTests
     [Fact]
     public async Task Create_WithRequestTemplates_Writes()
     {
-        var request = new CreateRoutingRequest
+        var request = new SaveRoutingRequest
         {
             Name = "Bracket",
             Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = SawId, RunMinutesPerUnit = 10 }],
@@ -271,7 +269,7 @@ public class RoutingServiceTests
     [Fact]
     public async Task Update_WithRequestTemplates_WritesTheRouting()
     {
-        var request = new UpdateRoutingRequest
+        var request = new SaveRoutingRequest
         {
             Name = "Bracket v2",
             Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = MillId, RunMinutesPerUnit = 45 }],
@@ -289,7 +287,7 @@ public class RoutingServiceTests
     {
         var roomId = Guid.NewGuid();
         Template("Room", roomId, null, entityType: TemplateEntityTypes.Space);
-        var request = new UpdateRoutingRequest
+        var request = new SaveRoutingRequest
         {
             Name = "Bracket",
             Steps = [new RoutingStepRequest { StepNo = 1, OperationTemplateId = roomId, RunMinutesPerUnit = 5 }],
@@ -298,6 +296,6 @@ public class RoutingServiceTests
         var act = () => _service.UpdateAsync(RoutingId, request);
 
         await act.Should().ThrowAsync<ConflictException>().WithMessage("*space template, not an operation*");
-        _routings.Verify(r => r.UpdateAsync(It.IsAny<Guid>(), It.IsAny<UpdateRoutingRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        _routings.Verify(r => r.UpdateAsync(It.IsAny<Guid>(), It.IsAny<SaveRoutingRequest>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }

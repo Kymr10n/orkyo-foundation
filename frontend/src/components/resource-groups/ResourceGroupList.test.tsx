@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
 import { ResourceGroupList } from './ResourceGroupList';
 import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 
@@ -23,9 +21,9 @@ vi.mock('@foundation/src/lib/api/resources-api', () => ({
 }));
 
 import { getResourceGroups, deleteResourceGroup } from '@foundation/src/lib/api/resource-groups-api';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@foundation/src/lib/api/criteria-api', () => ({
@@ -60,19 +58,12 @@ const mockGroups: ResourceGroupInfo[] = [
   },
 ];
 
-function renderList(resourceTypeKey = 'person', initialEntries: string[] = ['/assets/person/groups']) {
+function renderList(resourceTypeKey = 'person', route = '/assets/person/groups') {
   // Delete feedback flows through the meta-driven MutationCache (matching prod).
-  const queryClient: QueryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
+  return renderWithQuery(<ResourceGroupList resourceTypeKey={resourceTypeKey} />, {
+    router: route,
+    feedback: true,
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={initialEntries}>
-        <ResourceGroupList resourceTypeKey={resourceTypeKey} />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
 }
 
 // Row actions live behind a labelled kebab menu (RowActions). The groups query
@@ -170,7 +161,7 @@ describe('ResourceGroupList', () => {
   });
 
   it('opens the Edit dialog prefilled from an ?edit= query param (global-search deep-link)', async () => {
-    renderList('person', ['/people/teams?edit=g-1']);
+    renderList('person', '/people/teams?edit=g-1');
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(await screen.findByDisplayValue('Engineering')).toBeInTheDocument();
   });

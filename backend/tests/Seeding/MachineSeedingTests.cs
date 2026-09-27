@@ -7,7 +7,6 @@ using Npgsql;
 using Orkyo.Foundation.Seed.Factories;
 using Orkyo.Foundation.Seed.Floorplans;
 using Orkyo.Foundation.Seed.Narrative;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { exportRequests, importRequests } from './export-handlers';
 import type { Request } from '@foundation/src/types/requests';
+import { spaceAssignment, makeRequest as fixtureRequest } from '@foundation/src/test-utils/request-fixtures';
 
 // Placement is resolved against the placeable type set now, not the literal 'space' key.
 const PLACEABLE_KEYS: ReadonlySet<string> = new Set(['space']);
@@ -15,11 +16,10 @@ vi.mock('./import-export', async (importOriginal) => {
 });
 
 function makeRequest(overrides: Partial<Request> = {}): Request {
-  return {
+  return fixtureRequest({
     id: 'req-1',
     name: 'Bracket run',
     description: 'First batch',
-    status: 'new',
     startTs: '2026-08-10T00:00:00Z',
     endTs: '2026-08-15T00:00:00Z',
     earliestStartTs: '2026-08-08T00:00:00Z',
@@ -28,12 +28,9 @@ function makeRequest(overrides: Partial<Request> = {}): Request {
     minimalDurationUnit: 'days',
     actualDurationValue: 4,
     actualDurationUnit: 'days',
-    assignments: [
-      { resourceId: 'space-9', resourceTypeKey: 'space', assignmentStatus: 'confirmed' },
-    ],
-    requirements: [],
+    assignments: [spaceAssignment('space-9')],
     ...overrides,
-  } as unknown as Request;
+  });
 }
 
 function fileOf(content: string) {

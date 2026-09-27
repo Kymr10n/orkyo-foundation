@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Models;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -38,8 +37,6 @@ public class ResourceTypeCrudEndpointTests
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
     }
-
-
 
     // ── type lifecycle ────────────────────────────────────────────────────────
 

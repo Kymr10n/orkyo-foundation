@@ -1,9 +1,7 @@
 using Api.Services;
-using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 
@@ -28,7 +26,7 @@ public class UserLifecycleServiceTests
         _mockKeycloak.Reset();
         _mockEmail = _factory.MockEmailService;
         _mockEmail.Reset();
-        _cpConnectionString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _cpConnectionString = databaseFixture.ControlPlaneConnectionString;
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────

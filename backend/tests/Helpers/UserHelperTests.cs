@@ -79,7 +79,7 @@ public class UserHelperMapUserTests
     {
         // Only needs a live PostgreSQL connection — any migrated DB will do
         _connectionString =
-            $"Host=localhost;Port={fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+            fixture.ControlPlaneConnectionString;
     }
 
     private async Task<NpgsqlDataReader> ExecuteReaderAsync(string sql)

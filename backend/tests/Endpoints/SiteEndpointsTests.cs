@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Models;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

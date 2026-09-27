@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 
 namespace Orkyo.Foundation.Tests.Services;
 

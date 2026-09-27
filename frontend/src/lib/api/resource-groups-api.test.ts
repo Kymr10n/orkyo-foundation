@@ -22,12 +22,12 @@ describe('resource-groups-api', () => {
   beforeEach(() => vi.clearAllMocks());
 
   describe('getResourceGroups', () => {
-    it('calls apiGet with resourceTypeKey query param (URL-encoded)', async () => {
+    it('calls apiGet with resourceTypeKey query param', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockGroup]);
       const result = await getResourceGroups('person');
-      expect(apiClient.apiGet).toHaveBeenCalledWith(
-        `${API_PATHS.RESOURCE_GROUPS}?resourceTypeKey=person`,
-      );
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.RESOURCE_GROUPS, {
+        params: { resourceTypeKey: 'person' },
+      });
       expect(result).toEqual([mockGroup]);
     });
   });

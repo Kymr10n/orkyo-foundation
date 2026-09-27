@@ -20,7 +20,7 @@ import {
   type CustomFieldDataType,
   type ResourceCustomField,
 } from '@foundation/src/lib/api/resource-custom-fields-api';
-import { keyFromLabel } from '@foundation/src/lib/key-from-label';
+import { KEY_PATTERN, keyFromLabel } from '@foundation/src/lib/key-from-label';
 import {
   useAllSharedListInstances,
   useListDefinitions,
@@ -46,9 +46,6 @@ interface FormState {
   sortOrder: string;
   isActive: boolean;
 }
-
-/** Stable identifier inside every stored value document; mirrors the server rule. */
-const KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/;
 
 export function CustomFieldEditDialog({
   resourceTypeId,

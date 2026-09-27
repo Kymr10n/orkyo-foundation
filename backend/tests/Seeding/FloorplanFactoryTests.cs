@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Seed.Factories;
 using Orkyo.Foundation.Seed.Floorplans;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 

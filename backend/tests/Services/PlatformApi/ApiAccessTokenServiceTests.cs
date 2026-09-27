@@ -1,12 +1,9 @@
 using Api.Security;
 using Api.Services;
 using Api.Services.PlatformApi;
-using AwesomeAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using Orkyo.Shared;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services.PlatformApi;
 

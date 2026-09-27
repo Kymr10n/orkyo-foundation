@@ -6,7 +6,6 @@ using System.Text.Json.Serialization;
 using Api.Models;
 using Api.Models.Export;
 using Api.Models.Preset;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -41,20 +40,8 @@ public class ExportEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName, TestConstants.TenantSlug, "admin", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = displayName,
-            TenantId = tenantId.ToString(),
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = true,
-            Role = "admin"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        var bytes = System.Text.Encoding.UTF8.GetBytes(json);
-        _cachedAuthToken = Convert.ToBase64String(bytes);
+        _cachedAuthToken = TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: true, role: "admin");
         return _cachedAuthToken;
     }
 
@@ -269,19 +256,8 @@ public class ExportEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Viewer User", TestConstants.TenantSlug, "viewer", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Viewer User",
-            TenantId = tenantId.ToString(),
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "viewer"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        var token = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Viewer User", tenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "viewer");
 
         var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/export");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);

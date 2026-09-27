@@ -1,10 +1,8 @@
 using Api.Configuration;
-using Api.Helpers;
 using Api.Models;
+using Api.Repositories;
 using Api.Security;
 using Api.Services.Tokens;
-using Microsoft.Extensions.Configuration;
-using Npgsql;
 using Orkyo.Shared;
 
 namespace Api.Services.PlatformApi;
@@ -28,7 +26,7 @@ public record CreatedApiAccessToken
     public string RawToken { get; init; } = "";
 }
 
-public interface IApiAccessTokenService
+public interface IApiAccessTokenService : ITokenVerifier<ApiAccessTokenRecord>
 {
     /// <summary>Creates a token. Throws <see cref="ArgumentException"/> on an unknown scope.</summary>
     Task<CreatedApiAccessToken> CreateAsync(
@@ -48,12 +46,6 @@ public interface IApiAccessTokenService
         Guid tenantId,
         Guid? revokedByUserId,
         CancellationToken ct = default);
-
-    /// <summary>Validates a raw token string. Returns the record on success, null otherwise.</summary>
-    Task<ApiAccessTokenRecord?> ValidateAsync(string rawToken, CancellationToken ct = default);
-
-    /// <summary>Updates last_used_at asynchronously (fire-and-forget from the auth handler).</summary>
-    Task TouchLastUsedAsync(Guid tokenId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -69,12 +61,10 @@ public interface IApiAccessTokenService
 /// </summary>
 public sealed class ApiAccessTokenService : IApiAccessTokenService
 {
-    private const string TokenScheme = "orkyo_api";
+    /// <summary>The token scheme: every API access token reads <c>orkyo_api_{prefix}_{secret}</c>.</summary>
+    public const string TokenScheme = "orkyo_api";
 
-    private readonly IDbConnectionFactory _db;
-    private readonly byte[] _pepper;
-    private readonly ILogger<ApiAccessTokenService> _logger;
-    private readonly TimeProvider _time;
+    private readonly TokenStore<ApiAccessTokenRecord, ApiAccessTokenSummary> _store;
 
     public ApiAccessTokenService(
         IDbConnectionFactory db,
@@ -82,19 +72,17 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
         ILogger<ApiAccessTokenService> logger,
         TimeProvider time)
     {
-        _db = db;
-        _logger = logger;
-        _time = time;
         // Its own pepper, falling back to the Keycloak client secret exactly as reporting does.
         // Keeping the keys distinct means a leak of one credential class's pepper does not also
         // make the write-capable class's stored hashes forgeable.
-        _pepper = TokenCredentialHelper.ResolvePepper(
+        var pepper = TokenCredentialHelper.ResolvePepper(
             configuration.IsSet(ConfigKeys.ApiAccessTokenPepper)
                 ? configuration[ConfigKeys.ApiAccessTokenPepper]
                 : null,
             configuration[ConfigKeys.KeycloakBackendClientSecret],
             $"ApiAccessTokenService: neither '{ConfigKeys.ApiAccessTokenPepper}' nor "
             + $"'{ConfigKeys.KeycloakBackendClientSecret}' is set");
+        _store = new(db, time, logger, "api_access_tokens", TokenScheme, pepper);
     }
 
     public async Task<CreatedApiAccessToken> CreateAsync(
@@ -109,127 +97,20 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
                 nameof(scopes));
 
         var scopeString = PlatformApiScopes.Join(scopes.Distinct(StringComparer.Ordinal));
-        var (rawToken, prefix, hash) = TokenCredentialHelper.Generate(TokenScheme, _pepper);
-
-        await using var conn = _db.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO api_access_tokens
-                (tenant_id, name, token_prefix, token_hash, scopes, created_by_user_id, expires_at)
-            VALUES (@tenantId, @name, @prefix, @hash, @scopes, @createdBy, @expires)
-            RETURNING id, created_at", conn);
-
-        cmd.Parameters.AddWithValue("tenantId", tenantId);
-        cmd.Parameters.AddWithValue("name", name);
-        cmd.Parameters.AddWithValue("prefix", prefix);
-        cmd.Parameters.AddWithValue("hash", hash);
-        cmd.Parameters.AddWithValue("scopes", scopeString);
-        cmd.Parameters.AddWithValue("createdBy", createdByUserId.HasValue ? (object)createdByUserId.Value : DBNull.Value);
-        cmd.Parameters.AddWithValue("expires", expiresAt.HasValue ? (object)expiresAt.Value : DBNull.Value);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        await reader.ReadAsync(ct);
-        var id = reader.GetGuid("id");
-        var createdAt = reader.GetDateTime("created_at");
-
-        var summary = new ApiAccessTokenSummary
-        {
-            Id = id,
-            TenantId = tenantId,
-            Name = name,
-            TokenPrefix = prefix,
-            Scopes = scopeString,
-            CreatedAtUtc = createdAt,
-            CreatedByUserId = createdByUserId,
-            ExpiresAtUtc = expiresAt,
-            IsActive = true,
-        };
-
+        var (rawToken, summary) = await _store.CreateAsync(tenantId, name, scopeString, expiresAt, createdByUserId, ct);
         return new CreatedApiAccessToken { Summary = summary, RawToken = rawToken };
     }
 
-    public async Task<IReadOnlyList<ApiAccessTokenSummary>> ListForTenantAsync(
-        Guid tenantId, CancellationToken ct = default)
-    {
-        await using var conn = _db.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
+    public Task<IReadOnlyList<ApiAccessTokenSummary>> ListForTenantAsync(
+        Guid tenantId, CancellationToken ct = default) => _store.ListForTenantAsync(tenantId, ct);
 
-        await using var cmd = new NpgsqlCommand($@"
-            SELECT {TokenRowMapper.SummaryColumns}
-            FROM api_access_tokens
-            WHERE tenant_id = @tenantId
-            ORDER BY created_at DESC", conn);
-        cmd.Parameters.AddWithValue("tenantId", tenantId);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var results = new List<ApiAccessTokenSummary>();
-        while (await reader.ReadAsync(ct))
-            results.Add(TokenRowMapper.MapSummary<ApiAccessTokenSummary>(reader, _time.GetUtcNow().UtcDateTime));
-        return results;
-    }
-
-    public async Task<bool> RevokeAsync(
+    public Task<bool> RevokeAsync(
         Guid tokenId, Guid tenantId, Guid? revokedByUserId, CancellationToken ct = default)
-    {
-        await using var conn = _db.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
+        => _store.RevokeAsync(tokenId, tenantId, revokedByUserId, ct);
 
-        await using var cmd = new NpgsqlCommand(@"
-            UPDATE api_access_tokens
-            SET revoked_at = NOW(), revoked_by_user_id = @revokedBy
-            WHERE id = @id AND tenant_id = @tenantId AND revoked_at IS NULL", conn);
-        cmd.Parameters.AddWithValue("id", tokenId);
-        cmd.Parameters.AddWithValue("tenantId", tenantId);
-        cmd.Parameters.AddWithValue("revokedBy", revokedByUserId.HasValue ? (object)revokedByUserId.Value : DBNull.Value);
+    public Task<ApiAccessTokenRecord?> ValidateAsync(string rawToken, CancellationToken ct = default)
+        => _store.ValidateAsync(rawToken, ct);
 
-        return await cmd.ExecuteNonQueryAsync(ct) > 0;
-    }
-
-    public async Task<ApiAccessTokenRecord?> ValidateAsync(string rawToken, CancellationToken ct = default)
-    {
-        if (!TokenCredentialHelper.TryParse(rawToken, TokenScheme, out var prefix, out var secretBytes))
-            return null;
-
-        await using var conn = _db.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand($@"
-            SELECT {TokenRowMapper.RecordColumns}
-            FROM api_access_tokens
-            WHERE token_prefix = @prefix", conn);
-        cmd.Parameters.AddWithValue("prefix", prefix);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct))
-            return null;
-
-        var record = TokenRowMapper.MapRecord<ApiAccessTokenRecord>(reader);
-
-        if (!record.IsActive)
-            return null;
-
-        var expectedHash = TokenCredentialHelper.ComputeHash(secretBytes, _pepper);
-        if (!TokenCredentialHelper.HashesMatch(expectedHash, record.TokenHash))
-            return null;
-
-        return record;
-    }
-
-    public async Task TouchLastUsedAsync(Guid tokenId, CancellationToken ct = default)
-    {
-        try
-        {
-            await using var conn = _db.CreateControlPlaneConnection();
-            await conn.OpenAsync(ct);
-            await using var cmd = new NpgsqlCommand(
-                "UPDATE api_access_tokens SET last_used_at = NOW() WHERE id = @id", conn);
-            cmd.Parameters.AddWithValue("id", tokenId);
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to update last_used_at for API access token {TokenId}", tokenId);
-        }
-    }
+    public Task TouchLastUsedAsync(Guid tokenId, CancellationToken ct = default)
+        => _store.TouchLastUsedAsync(tokenId, ct);
 }

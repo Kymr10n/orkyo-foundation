@@ -13,33 +13,33 @@ describe('resource-utilization-api', () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([]);
   });
 
-  function calledUrl(): string {
-    return vi.mocked(apiClient.apiGet).mock.calls[0][0] as string;
+  function calledParams() {
+    const [path, options] = vi.mocked(apiClient.apiGet).mock.calls[0];
+    expect(path).toBe('/api/utilization/by-resource');
+    return options?.params ?? {};
   }
 
   it('serializes from/to/granularity into the query string', async () => {
     await getUtilizationByResource(FROM, TO, 'day');
 
-    const url = calledUrl();
-    expect(url.startsWith('/api/utilization/by-resource?')).toBe(true);
-    const params = new URLSearchParams(url.split('?')[1]);
-    expect(params.get('from')).toBe(FROM.toISOString());
-    expect(params.get('to')).toBe(TO.toISOString());
-    expect(params.get('granularity')).toBe('day');
-    expect(params.has('resourceTypeKey')).toBe(false);
-    expect(params.has('siteId')).toBe(false);
+    const params = calledParams();
+    expect(params.from).toBe(FROM.toISOString());
+    expect(params.to).toBe(TO.toISOString());
+    expect(params.granularity).toBe('day');
+    expect(params.resourceTypeKey).toBeUndefined();
+    expect(params.siteId).toBeUndefined();
   });
 
   it('includes resourceTypeKey and siteId when provided', async () => {
     await getUtilizationByResource(FROM, TO, 'week', 'person', 'site-a');
 
-    const params = new URLSearchParams(calledUrl().split('?')[1]);
-    expect(params.get('resourceTypeKey')).toBe('person');
-    expect(params.get('siteId')).toBe('site-a');
+    const params = calledParams();
+    expect(params.resourceTypeKey).toBe('person');
+    expect(params.siteId).toBe('site-a');
   });
 
   it('omits siteId when null or undefined', async () => {
     await getUtilizationByResource(FROM, TO, 'week', 'person', null);
-    expect(new URLSearchParams(calledUrl().split('?')[1]).has('siteId')).toBe(false);
+    expect(calledParams().siteId).toBeUndefined();
   });
 });

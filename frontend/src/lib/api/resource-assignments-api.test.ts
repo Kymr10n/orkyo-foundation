@@ -81,8 +81,7 @@ describe('assignment queries', () => {
       new Date('2024-01-01T00:00:00Z'),
       new Date('2024-01-02T00:00:00Z'),
     );
-    const url = apiMocks.apiGet.mock.calls[0][0] as string;
-    expect(url).toContain('resourceTypeKey=person');
+    expect(apiMocks.apiGet.mock.calls[0][1]?.params).toMatchObject({ resourceTypeKey: 'person' });
   });
 
   it('queries assignments for a request by id', async () => {

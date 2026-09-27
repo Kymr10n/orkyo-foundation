@@ -7,7 +7,6 @@ using Api.Security.Encryption;
 using Api.Services;
 using Api.Services.Reporting;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Integration;
 

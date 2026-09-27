@@ -47,14 +47,14 @@ public class EnumMapperTests
         act.Should().Throw<ArgumentException>().WithMessage("*unknown_mode*");
     }
 
-    // --- ToPlanningMode convenience wrapper ---
+    // --- FromDbValue: every PlanningMode DB string ---
 
     [Theory]
     [InlineData("leaf", PlanningMode.Leaf)]
     [InlineData("summary", PlanningMode.Summary)]
     [InlineData("container", PlanningMode.Container)]
-    public void ToPlanningMode_ShouldDelegateToFromDbValue(string dbValue, PlanningMode expected) =>
-        EnumMapper.ToPlanningMode(dbValue).Should().Be(expected);
+    public void FromDbValue_ShouldMapEveryPlanningMode(string dbValue, PlanningMode expected) =>
+        EnumMapper.FromDbValue<PlanningMode>(dbValue).Should().Be(expected);
 
     // --- ToDbValue: JsonPropertyName attribute (legacy fallback) ---
 

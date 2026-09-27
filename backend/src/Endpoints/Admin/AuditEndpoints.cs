@@ -11,8 +11,8 @@ using Npgsql;
 
 namespace Api.Endpoints.Admin;
 
-/// <summary>Filter for the platform audit_events list query. All members optional.</summary>
-public sealed record AuditEventListFilter(
+/// <summary>Filter for an audit_events list query. All members optional.</summary>
+internal sealed record AuditEventListFilter(
     string? Action,
     Guid? ActorUserId,
     string? TargetType,
@@ -59,19 +59,17 @@ public static class AuditEndpoints
             FromUtc: from?.ToUniversalTime(),
             ToUtc: to?.ToUniversalTime());
 
-        var (whereClause, whereParams) = BuildWhereClause(filter);
-        var prefix = string.IsNullOrEmpty(whereClause) ? string.Empty : whereClause + "\n            ";
+        var (where, parameters) = AuditQuery.BuildWhere("", filter);
 
         var result = await conn.QueryPagedAsync(
             PageRequest.From(page, pageSize),
-            string.IsNullOrEmpty(whereClause)
-                ? "SELECT COUNT(*) FROM audit_events"
-                : $"SELECT COUNT(*) FROM audit_events {whereClause}",
+            $"SELECT COUNT(*) FROM audit_events {where}",
             $@"SELECT {SelectColumns}
                FROM audit_events
-               {prefix}ORDER BY created_at DESC
+               {where}
+               ORDER BY created_at DESC
                LIMIT @limit OFFSET @offset",
-            bind: p => { foreach (var wp in whereParams) p.Add(wp.Clone()); },
+            bind: p => { foreach (var wp in parameters) p.Add(wp.Clone()); },
             map: reader => new AuditEventDto
             {
                 Id = reader.GetGuid("id"),
@@ -90,35 +88,48 @@ public static class AuditEndpoints
         logger.LogInformation("Admin queried audit events: {Count} of {Total} (page {Page})",
             result.Items.Count, result.TotalItems, result.Page);
 
-        // Preserve the existing wire shape (events/totalCount) over the PagedResult envelope.
-        return Results.Ok(new
-        {
-            events = result.Items,
-            page = result.Page,
-            pageSize = result.PageSize,
-            totalCount = result.TotalItems,
-            totalPages = result.TotalPages,
-        });
+        return AuditQuery.Envelope(result);
     }
+}
 
-    private static (string WhereClause, List<NpgsqlParameter> Parameters) BuildWhereClause(AuditEventListFilter filter)
+/// <summary>
+/// The list query the platform audit (control plane) and the tenant audit (tenant database)
+/// share: the same filters over <c>audit_events</c>, and the same response envelope.
+/// </summary>
+internal static class AuditQuery
+{
+    /// <summary>
+    /// Builds the WHERE clause for <paramref name="filter"/>, or an empty string when nothing
+    /// filters. <paramref name="alias"/> prefixes each column, e.g. <c>"a."</c> for a joined query.
+    /// </summary>
+    internal static (string Where, List<NpgsqlParameter> Parameters) BuildWhere(string alias, AuditEventListFilter filter)
     {
         var clauses = new List<string>();
         var parameters = new List<NpgsqlParameter>();
 
         if (!string.IsNullOrWhiteSpace(filter.Action))
-        { clauses.Add("action = @action"); parameters.Add(new NpgsqlParameter("action", filter.Action)); }
+        { clauses.Add($"{alias}action = @action"); parameters.Add(new NpgsqlParameter("action", filter.Action)); }
         if (filter.ActorUserId.HasValue)
-        { clauses.Add("actor_user_id = @actorId"); parameters.Add(new NpgsqlParameter("actorId", filter.ActorUserId.Value)); }
+        { clauses.Add($"{alias}actor_user_id = @actorId"); parameters.Add(new NpgsqlParameter("actorId", filter.ActorUserId.Value)); }
         if (!string.IsNullOrWhiteSpace(filter.TargetType))
-        { clauses.Add("target_type = @targetType"); parameters.Add(new NpgsqlParameter("targetType", filter.TargetType)); }
+        { clauses.Add($"{alias}target_type = @targetType"); parameters.Add(new NpgsqlParameter("targetType", filter.TargetType)); }
         if (!string.IsNullOrWhiteSpace(filter.TargetId))
-        { clauses.Add("target_id = @targetId"); parameters.Add(new NpgsqlParameter("targetId", filter.TargetId)); }
+        { clauses.Add($"{alias}target_id = @targetId"); parameters.Add(new NpgsqlParameter("targetId", filter.TargetId)); }
         if (filter.FromUtc.HasValue)
-        { clauses.Add("created_at >= @from"); parameters.Add(new NpgsqlParameter("from", filter.FromUtc.Value)); }
+        { clauses.Add($"{alias}created_at >= @from"); parameters.Add(new NpgsqlParameter("from", filter.FromUtc.Value)); }
         if (filter.ToUtc.HasValue)
-        { clauses.Add("created_at <= @to"); parameters.Add(new NpgsqlParameter("to", filter.ToUtc.Value)); }
+        { clauses.Add($"{alias}created_at <= @to"); parameters.Add(new NpgsqlParameter("to", filter.ToUtc.Value)); }
 
         return (clauses.Count == 0 ? string.Empty : "WHERE " + string.Join(" AND ", clauses), parameters);
     }
+
+    /// <summary>The existing wire shape (events/totalCount), kept over the PagedResult envelope.</summary>
+    internal static IResult Envelope<T>(PagedResult<T> result) => Results.Ok(new
+    {
+        events = result.Items,
+        page = result.Page,
+        pageSize = result.PageSize,
+        totalCount = result.TotalItems,
+        totalPages = result.TotalPages,
+    });
 }

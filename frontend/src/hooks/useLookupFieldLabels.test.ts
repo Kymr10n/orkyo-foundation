@@ -1,9 +1,8 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createElement, type ReactNode } from 'react';
 import { useLookupFieldLabels } from './useLookupFieldLabels';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 const getResourceCustomFields = vi.fn();
 const getListRows = vi.fn();
@@ -42,10 +41,7 @@ function resource(id: string, customFields: Record<string, unknown> | null) {
   return { id, name: id, resourceTypeKey: 'person', customFields } as never;
 }
 
-function wrapper({ children }: { children: ReactNode }) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return createElement(QueryClientProvider, { client }, children);
-}
+let wrapper: ReturnType<typeof createTestQueryWrapper>;
 
 /**
  * A lookup value is stored as row ids. Everything that shows one outside a form — the resource
@@ -55,6 +51,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useLookupFieldLabels', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    wrapper = createTestQueryWrapper();
     getResourceCustomFields.mockResolvedValue([field()]);
     getListInstance.mockResolvedValue({ id: INSTANCE_ID, listDefinitionId: DEFINITION_ID });
     getListDefinition.mockResolvedValue({

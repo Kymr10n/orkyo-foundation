@@ -55,9 +55,10 @@ public class CreateAvailabilityEventRequestValidator : AbstractValidator<CreateA
     }
 }
 
-public class UpdateAvailabilityEventRequestValidator : AbstractValidator<UpdateAvailabilityEventRequest>
+/// <summary>The rules an availability-event update and an absence update share.</summary>
+public abstract class RecurringWindowUpdateValidator<T> : AbstractValidator<T> where T : IRecurringWindowUpdate
 {
-    public UpdateAvailabilityEventRequestValidator()
+    protected RecurringWindowUpdateValidator()
     {
         RuleFor(x => x.Title).MaximumLength(200).When(x => x.Title != null);
         RuleFor(x => x.EndTs)
@@ -67,6 +68,8 @@ public class UpdateAvailabilityEventRequestValidator : AbstractValidator<UpdateA
         SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
     }
 }
+
+public class UpdateAvailabilityEventRequestValidator : RecurringWindowUpdateValidator<UpdateAvailabilityEventRequest> { }
 
 public class AddScopeRequestValidator : AbstractValidator<AddScopeRequest>
 {
@@ -90,18 +93,7 @@ public class CreateResourceAbsenceRequestValidator : AbstractValidator<CreateRes
     }
 }
 
-public class UpdateResourceAbsenceRequestValidator : AbstractValidator<UpdateResourceAbsenceRequest>
-{
-    public UpdateResourceAbsenceRequestValidator()
-    {
-        RuleFor(x => x.Title).MaximumLength(200).When(x => x.Title != null);
-        RuleFor(x => x.EndTs)
-            .GreaterThan(x => x.StartTs!.Value)
-            .When(x => x.StartTs.HasValue && x.EndTs.HasValue)
-            .WithMessage("EndTs must be after StartTs");
-        SharedRecurrenceRules.Apply(this, x => x.IsRecurring, x => x.RecurrenceRule);
-    }
-}
+public class UpdateResourceAbsenceRequestValidator : RecurringWindowUpdateValidator<UpdateResourceAbsenceRequest> { }
 
 internal static class SharedRecurrenceRules
 {

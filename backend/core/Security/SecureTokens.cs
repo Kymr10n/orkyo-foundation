@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Security.Cryptography;
 
 namespace Api.Security;
@@ -15,7 +16,5 @@ namespace Api.Security;
 public static class SecureTokens
 {
     /// <summary>A new 256-bit token, base64url-encoded and unpadded.</summary>
-    public static string Generate() =>
-        Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
-            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    public static string Generate() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
 }

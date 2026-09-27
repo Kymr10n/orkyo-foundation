@@ -6,7 +6,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 /** The active resources of one type at one site — the options in a request's picker. */
 export function useResourceOptions(typeKey: string, siteId: string) {
   return useQuery({
-    queryKey: [...qk.resources.byType(typeKey), { siteId: siteId || null }],
+    queryKey: qk.resources.options(typeKey, siteId || null),
     queryFn: () => getResources({ resourceTypeKey: typeKey, isActive: true, siteId: siteId || undefined }),
   });
 }

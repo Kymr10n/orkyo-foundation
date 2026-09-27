@@ -192,13 +192,8 @@ export function getListDefinitions(
   includeInactive = false,
   scope?: ListDefinitionScope,
 ): Promise<ListDefinition[]> {
-  const params = new URLSearchParams();
-  if (includeInactive) params.set('includeInactive', 'true');
-  if (scope) params.set('scope', scope);
-  const query = params.toString();
-  return apiGet<ListDefinition[]>(
-    query ? `${API_PATHS.LIST_DEFINITIONS}?${query}` : API_PATHS.LIST_DEFINITIONS,
-  );
+  const params = { includeInactive: includeInactive || undefined, scope };
+  return apiGet<ListDefinition[]>(API_PATHS.LIST_DEFINITIONS, { params });
 }
 
 /** One definition, with its columns in form order. */

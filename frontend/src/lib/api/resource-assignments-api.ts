@@ -1,7 +1,3 @@
-/**
- * API client for Resource Assignment operations
- */
-
 import { apiGet, apiPost, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 
@@ -117,17 +113,10 @@ export async function getAssignmentsByResourceType(
   from: Date,
   to: Date,
 ): Promise<ResourceAssignmentInfo[]> {
-  const params = new URLSearchParams({
-    resourceTypeKey,
-    from: from.toISOString(),
-    to: to.toISOString(),
-  });
-  return apiGet<ResourceAssignmentInfo[]>(`${API_PATHS.RESOURCE_ASSIGNMENTS}?${params}`);
+  const params = { resourceTypeKey, from: from.toISOString(), to: to.toISOString() };
+  return apiGet<ResourceAssignmentInfo[]>(API_PATHS.RESOURCE_ASSIGNMENTS, { params });
 }
 
-/**
- * List resource assignments for a request
- */
 export async function getAssignmentsByRequest(requestId: string): Promise<ResourceAssignmentInfo[]> {
   return apiGet<ResourceAssignmentInfo[]>(`${API_PATHS.RESOURCE_ASSIGNMENTS}?requestId=${encodeURIComponent(requestId)}`);
 }
@@ -161,9 +150,6 @@ export async function validateAssignmentsBatch(
   );
 }
 
-/**
- * Create a resource assignment
- */
 export async function createAssignment(request: CreateResourceAssignmentRequest): Promise<ResourceAssignmentInfo> {
   return apiPost<ResourceAssignmentInfo>(API_PATHS.RESOURCE_ASSIGNMENTS, request);
 }

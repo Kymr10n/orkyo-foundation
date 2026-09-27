@@ -39,8 +39,7 @@ export async function getResourceAssignmentOptions(
   start: string,
   end: string,
 ): Promise<ResourceAssignmentOption[]> {
-  const params = new URLSearchParams({ start, end });
-  return apiGet<ResourceAssignmentOption[]>(
-    `${API_PATHS.resourceCandidateRequests(personId)}?${params}`,
-  );
+  return apiGet<ResourceAssignmentOption[]>(API_PATHS.resourceCandidateRequests(personId), {
+    params: { start, end },
+  });
 }

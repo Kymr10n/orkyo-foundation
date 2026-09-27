@@ -5,43 +5,11 @@ using Api.Models;
 namespace Orkyo.Foundation.Tests.Models;
 
 /// <summary>
-/// Covers the uncovered domain types in <c>Models/AutoSchedule.cs</c>:
-/// enums, SchedulingSolution.ComputeFingerprint(ResourceTypeKeys.Space), SchedulingSolution.ToScore(),
-/// and all internal record types.
+/// Covers the computed members of the domain types in <c>Models/AutoSchedule.cs</c>:
+/// SchedulingSolution.ComputeFingerprint and SchedulingSolution.ToScore().
 /// </summary>
 public class AutoScheduleModelsTests
 {
-    // ── Enum values ────────────────────────────────────────────────────────
-
-    [Theory]
-    [InlineData(SolverKind.Greedy)]
-    [InlineData(SolverKind.OrToolsCpSat)]
-    public void SolverKind_AllValues_AreDefined(SolverKind kind)
-    {
-        Enum.IsDefined(kind).Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData(SolverStatus.Optimal)]
-    [InlineData(SolverStatus.Feasible)]
-    [InlineData(SolverStatus.Infeasible)]
-    [InlineData(SolverStatus.Unknown)]
-    public void SolverStatus_AllValues_AreDefined(SolverStatus status)
-    {
-        Enum.IsDefined(status).Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData(SchedulingReasonCode.NoCompatibleResource)]
-    [InlineData(SchedulingReasonCode.InsufficientCapacity)]
-    [InlineData(SchedulingReasonCode.BlockedByFixedAssignments)]
-    [InlineData(SchedulingReasonCode.InvalidDuration)]
-    [InlineData(SchedulingReasonCode.InternalSolverLimit)]
-    public void SchedulingReasonCode_AllValues_AreDefined(SchedulingReasonCode code)
-    {
-        Enum.IsDefined(code).Should().BeTrue();
-    }
-
     // ── SchedulingSolution.ToScore() ──────────────────────────────────────
 
     [Fact]
@@ -274,130 +242,7 @@ public class AutoScheduleModelsTests
         ordered.ComputeFingerprint([ResourceTypeKeys.Space], []).Should().Be(reversed.ComputeFingerprint([ResourceTypeKeys.Space], []));
     }
 
-    // ── RequestNode ────────────────────────────────────────────────────────
-
-    [Fact]
-    public void RequestNode_StoresAllFields()
-    {
-        var reqId = Guid.NewGuid();
-        var criterionId = Guid.NewGuid();
-
-        var node = new RequestNode(
-            RequestId: reqId,
-            DisplayName: "Install HVAC",
-            EarliestStart: 0,
-            LatestEnd: 365 * 1440,
-            DurationMinutes: 5 * 1440,
-            Priority: 10,
-            RequiredCriterionIds: new HashSet<Guid> { criterionId },
-            OpenTypeKeys: new HashSet<string> { "space", "tool" });
-
-        node.RequestId.Should().Be(reqId);
-        node.DurationMinutes.Should().Be(5 * 1440);
-        node.OpenTypeKeys.Should().BeEquivalentTo(["space", "tool"]);
-        node.Priority.Should().Be(10);
-        node.RequiredCriterionIds.Should().Contain(criterionId);
-    }
-
-    // ── ResourceNode ──────────────────────────────────────────────────────────
-
-    [Fact]
-    public void SpaceNode_StoresAllFields()
-    {
-        var resourceId = Guid.NewGuid();
-        var criterionId = Guid.NewGuid();
-
-        var node = new ResourceNode(
-            ResourceId: resourceId,
-            DisplayName: "Hall A",
-            ResourceTypeKey: "space",
-            CriterionIds: new HashSet<Guid> { criterionId });
-
-        node.ResourceId.Should().Be(resourceId);
-        node.DisplayName.Should().Be("Hall A");
-        node.CriterionIds.Should().Contain(criterionId);
-    }
-
-    // ── FixedOccupancy ─────────────────────────────────────────────────────
-
-    [Fact]
-    public void FixedOccupancy_StoresAllFields()
-    {
-        var reqId = Guid.NewGuid();
-        var resourceId = Guid.NewGuid();
-        var start = 120 * 1440;
-        var end = 129 * 1440;
-
-        var occ = new FixedOccupancy(reqId, resourceId, start, end);
-
-        occ.RequestId.Should().Be(reqId);
-        occ.ResourceId.Should().Be(resourceId);
-        occ.Start.Should().Be(start);
-        occ.End.Should().Be(end);
-    }
-
-    // ── SchedulingProblem ──────────────────────────────────────────────────
-
-    [Fact]
-    public void SchedulingProblem_StoresAllFields()
-    {
-        var siteId = Guid.NewGuid();
-        var start = new DateOnly(2026, 1, 1);
-        var end = new DateOnly(2026, 12, 31);
-
-        var problem = new SchedulingProblem(
-            SiteId: siteId,
-            HorizonStart: start,
-            HorizonEnd: end,
-            Axis: Api.Services.AutoSchedule.WorkingTimeAxis.Identity(start, end),
-            Requests: new List<RequestNode>(),
-            Resources: new List<ResourceNode>(),
-            FixedAssignments: new List<FixedOccupancy>());
-
-        problem.SiteId.Should().Be(siteId);
-        problem.HorizonStart.Should().Be(start);
-    }
-
-    // ── SchedulingCandidate ────────────────────────────────────────────────
-
-    [Fact]
-    public void SchedulingCandidate_StoresAllFields()
-    {
-        var reqId = Guid.NewGuid();
-        var resourceId = Guid.NewGuid();
-
-        var candidate = new SchedulingCandidate(
-            RequestId: reqId,
-            ResourceId: resourceId,
-            ResourceTypeKey: "space",
-            EarliestStart: 0,
-            LatestEnd: 180 * 1440,
-            DurationMinutes: 5 * 1440,
-            Priority: 7,
-            FeasibleStartWindows: new List<StartWindow> { new(0, 1440), new(2880, 4320) });
-
-        candidate.RequestId.Should().Be(reqId);
-        candidate.FeasibleStartWindows.Should().HaveCount(2);
-    }
-
     // ── CandidateRejection ─────────────────────────────────────────────────
-
-    [Fact]
-    public void CandidateRejection_StoresAllFields()
-    {
-        var reqId = Guid.NewGuid();
-        var resourceId = Guid.NewGuid();
-
-        var rejection = new CandidateRejection(
-            RequestId: reqId,
-            ResourceId: resourceId,
-            ReasonCode: SchedulingReasonCode.NoCompatibleResource,
-            Message: "No space matches criteria");
-
-        rejection.RequestId.Should().Be(reqId);
-        rejection.ReasonCode.Should().Be(SchedulingReasonCode.NoCompatibleResource);
-        rejection.Message.Should().Be("No space matches criteria");
-    }
 
     [Fact]
     public void CandidateRejection_OptionalFields_AreNullByDefault()
@@ -411,72 +256,6 @@ public class AutoScheduleModelsTests
 
         rejection.ResourceId.Should().BeNull();
         rejection.Message.Should().BeNull();
-    }
-
-    // ── AnalyzedSchedulingProblem ──────────────────────────────────────────
-
-    [Fact]
-    public void AnalyzedSchedulingProblem_StoresAllFields()
-    {
-        var siteId = Guid.NewGuid();
-        var start = new DateOnly(2026, 1, 1);
-        var end = new DateOnly(2026, 12, 31);
-
-        var problem = new SchedulingProblem(
-            SiteId: siteId,
-            HorizonStart: start,
-            HorizonEnd: end,
-            Axis: Api.Services.AutoSchedule.WorkingTimeAxis.Identity(start, end),
-            Requests: new List<RequestNode>(),
-            Resources: new List<ResourceNode>(),
-            FixedAssignments: new List<FixedOccupancy>());
-
-        var analyzed = new AnalyzedSchedulingProblem(
-            Problem: problem,
-            Candidates: new List<SchedulingCandidate>(),
-            Rejections: new List<CandidateRejection>(),
-            Diagnostics: new List<string> { "No spaces available" });
-
-        analyzed.Problem.SiteId.Should().Be(siteId);
-        analyzed.Diagnostics.Should().HaveCount(1);
-    }
-
-    // ── ScheduledPlacement / UnscheduledPlacement ──────────────────────────
-
-    [Fact]
-    public void ScheduledPlacement_StoresAllFields()
-    {
-        var reqId = Guid.NewGuid();
-        var resourceId = Guid.NewGuid();
-
-        var placement = new ScheduledPlacement(
-            RequestId: reqId,
-            Resources: [new PlacedResource("space", resourceId)],
-            Start: 31 * 1440,
-            End: 35 * 1440,
-            DurationMinutes: 4 * 1440,
-            Priority: 9);
-
-        placement.RequestId.Should().Be(reqId);
-        placement.DurationMinutes.Should().Be(4 * 1440);
-        placement.Priority.Should().Be(9);
-    }
-
-    [Fact]
-    public void UnscheduledPlacement_StoresAllFields()
-    {
-        var reqId = Guid.NewGuid();
-
-        var placement = new UnscheduledPlacement(
-            RequestId: reqId,
-            ReasonCodes: new List<SchedulingReasonCode>
-            {
-                SchedulingReasonCode.InsufficientCapacity,
-                SchedulingReasonCode.NoCompatibleResource
-            });
-
-        placement.RequestId.Should().Be(reqId);
-        placement.ReasonCodes.Should().HaveCount(2);
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

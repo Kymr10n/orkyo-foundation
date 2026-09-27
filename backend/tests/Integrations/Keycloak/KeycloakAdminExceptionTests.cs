@@ -1,5 +1,4 @@
 using Api.Integrations.Keycloak;
-using AwesomeAssertions;
 using Microsoft.AspNetCore.Http;
 
 namespace Orkyo.Foundation.Tests.Integrations.Keycloak;

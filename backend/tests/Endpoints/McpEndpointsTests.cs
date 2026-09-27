@@ -7,7 +7,6 @@ using System.Text.Json;
 using Api.Security;
 using Api.Services.PlatformApi;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -88,7 +87,7 @@ public class McpEndpointsTests
     private const string TestPepper = "test-api-access-pepper-do-not-use-in-prod";
 
     private string CpConnStr =>
-        $"Host=localhost;Port={_fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _fixture.ControlPlaneConnectionString;
 
     /// <summary>
     /// Mints a valid token that belongs to a DIFFERENT tenant, via direct SQL — the API cannot

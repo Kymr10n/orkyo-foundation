@@ -48,7 +48,7 @@ vi.mock('./ScheduledRequestOverlay', () => ({
 }));
 
 import { SpaceRow } from './SpaceRow';
-import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
+import { spaceAssignment, makeRequest as fixtureRequest } from '@foundation/src/test-utils/request-fixtures';
 import type { OffTimeRange } from '@foundation/src/domain/scheduling/types';
 
 // ---- Fixtures ----
@@ -78,21 +78,15 @@ function makeColumn(label: string): TimeColumn {
 }
 
 function makeRequest(overrides: Partial<Request> = {}): Request {
-  return {
+  return fixtureRequest({
     id: 'req-1',
     name: 'Request 1',
-    parentRequestId: null,
     planningMode: 'manual' as Request['planningMode'],
-    sortOrder: 0,
     assignments: [spaceAssignment('space-1')],
-    minimalDurationValue: 60,
     minimalDurationUnit: 'minute' as Request['minimalDurationUnit'],
-    schedulingSettingsApply: true,
     status: 'pending' as Request['status'],
-    createdAt: '2026-01-01T00:00:00Z',
-    updatedAt: '2026-01-01T00:00:00Z',
     ...overrides,
-  };
+  });
 }
 
 function makePreviewEntry(overrides: Partial<PreviewEntry> = {}): PreviewEntry {

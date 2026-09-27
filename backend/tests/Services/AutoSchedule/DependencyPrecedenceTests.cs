@@ -1,7 +1,6 @@
 using Api.Models;
 using Api.Services.AutoSchedule;
 using Microsoft.Extensions.Logging.Abstractions;
-using Xunit;
 using static Orkyo.Foundation.Tests.Services.AutoSchedule.AutoScheduleTestHelpers;
 
 namespace Api.Tests.Services.AutoSchedule;

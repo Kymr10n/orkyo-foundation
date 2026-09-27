@@ -3,8 +3,6 @@ using Api.Constants;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
-using Moq;
-using Xunit;
 
 namespace Api.Tests.Services;
 

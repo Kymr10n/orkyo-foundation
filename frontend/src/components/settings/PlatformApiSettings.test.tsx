@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PlatformApiSettings } from './PlatformApiSettings';
 import type { ApiAccessTokenSummary } from '@foundation/src/lib/api/api-access-tokens-api';
 
@@ -43,6 +41,7 @@ import {
   revokeApiAccessToken,
   API_SCOPES,
 } from '@foundation/src/lib/api/api-access-tokens-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const readToken: ApiAccessTokenSummary = {
   id: 'tok-read',
@@ -67,14 +66,7 @@ const writeToken: ApiAccessTokenSummary = {
 };
 
 function renderPage() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={client}>
-        <PlatformApiSettings upgradeHref="/plans" />
-      </QueryClientProvider>
-    </MemoryRouter>,
-  );
+  return renderWithQuery(<PlatformApiSettings upgradeHref="/plans" />, { router: true });
 }
 
 beforeEach(() => {

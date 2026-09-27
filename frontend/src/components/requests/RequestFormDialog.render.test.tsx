@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { REQUEST_NAME_PLACEHOLDER, RequestFormDialog } from "./RequestFormDialog";
 import type { Request } from "@foundation/src/types/requests";
 import type { Site } from "@foundation/src/types/site";
 import { pagedResult } from "@foundation/src/test-utils/paged-result";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 // --- Mock the data-loading boundary (network) and site hooks -------------------
 const useSitesMock = vi.fn(() => ({ data: [] as Site[] }));
@@ -281,18 +281,13 @@ const TREE_WITH_CANDIDATES: Request[] = [
 function renderDialog(props?: Partial<React.ComponentProps<typeof RequestFormDialog>>) {
   const onSave = vi.fn(() => Promise.resolve());
   const onOpenChange = vi.fn();
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={queryClient}>
-      <RequestFormDialog
-        open
-        onOpenChange={onOpenChange}
-        onSave={onSave}
-        {...props}
-      />
-    </QueryClientProvider>,
+  renderWithQuery(
+    <RequestFormDialog
+      open
+      onOpenChange={onOpenChange}
+      onSave={onSave}
+      {...props}
+    />,
   );
   return { onSave, onOpenChange };
 }
@@ -372,21 +367,12 @@ describe("RequestFormDialog", () => {
   });
 
   it("hides the Site picker for single-site tenants and shows it for multi-site", () => {
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const { rerender } = render(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />
-      </QueryClientProvider>,
-    );
+    const { rerender } = renderWithQuery(<RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} />);
     expect(screen.queryByLabelText("Site")).not.toBeInTheDocument();
 
     useIsMultiSiteMock.mockReturnValue(true);
     useSitesMock.mockReturnValue({ data: [SITE_A, SITE_B] });
-    rerender(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} key="ms" />
-      </QueryClientProvider>,
-    );
+    rerender(<RequestFormDialog open onOpenChange={vi.fn()} onSave={vi.fn()} key="ms" />);
     expect(screen.getByText("Site")).toBeInTheDocument();
   });
 
@@ -468,12 +454,7 @@ describe("RequestFormDialog", () => {
         endTs: "2026-06-08T08:00:00Z",
       } as Request),
     );
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog open onOpenChange={vi.fn()} onSave={onSave} request={SCHEDULED} />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<RequestFormDialog open onOpenChange={vi.fn()} onSave={onSave} request={SCHEDULED} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
 
@@ -493,12 +474,7 @@ describe("RequestFormDialog", () => {
       endTs: "2026-06-08T08:00:00Z",
     } as Request;
     const onSave = vi.fn(() => Promise.resolve(SCHEDULED));
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog open onOpenChange={vi.fn()} onSave={onSave} request={SCHEDULED} />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<RequestFormDialog open onOpenChange={vi.fn()} onSave={onSave} request={SCHEDULED} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
 
@@ -509,12 +485,7 @@ describe("RequestFormDialog", () => {
   it("surfaces the error and stays open when save rejects", async () => {
     const onSave = vi.fn(() => Promise.reject(new Error("Server exploded")));
     const onOpenChange = vi.fn();
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />);
     fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "My Request" },
     });
@@ -1016,12 +987,7 @@ describe("RequestFormDialog", () => {
     const newGroup = { id: "new-group-id", name: "New Group" } as Request;
     const onSave = vi.fn(() => Promise.resolve(newGroup));
     const onOpenChange = vi.fn();
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />
-      </QueryClientProvider>,
-    );
+    renderWithQuery(<RequestFormDialog open onOpenChange={onOpenChange} onSave={onSave} />);
     fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "New Group" },
     });
@@ -1140,16 +1106,13 @@ describe("RequestFormDialog", () => {
     const newGroup = { id: "grp-new", name: "New Group" } as Request;
     const onSave = vi.fn(() => Promise.resolve(newGroup));
     const onOpenChange = vi.fn();
-    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <RequestFormDialog
-          open
-          onOpenChange={onOpenChange}
-          onSave={onSave}
-          allRequests={TREE_WITH_CANDIDATES}
-        />
-      </QueryClientProvider>,
+    renderWithQuery(
+      <RequestFormDialog
+        open
+        onOpenChange={onOpenChange}
+        onSave={onSave}
+        allRequests={TREE_WITH_CANDIDATES}
+      />,
     );
     fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
       target: { value: "New Group" },

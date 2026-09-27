@@ -1,3 +1,6 @@
+/** The server's key rule; see {@link keyFromLabel}. */
+export const KEY_PATTERN = /^[a-z][a-z0-9_]{0,49}$/;
+
 /**
  * Derives a storage key from a human label: "Serial number" → "serial_number".
  *
@@ -7,8 +10,8 @@
  *
  * The shape matches the server's CHECK constraint (`^[a-z][a-z0-9_]{0,49}$`) on both
  * `resource_custom_fields.key` and `list_columns.key`: lowercase, alphanumeric and underscores,
- * starting with a letter, at most 50 characters. Shared by custom fields and list columns
- * precisely so those two cannot drift apart from each other or from the constraint.
+ * starting with a letter, at most 50 characters. Shared by custom fields, list columns and
+ * resource types precisely so they cannot drift apart from each other or from the constraint.
  */
 export function keyFromLabel(label: string): string {
   return label

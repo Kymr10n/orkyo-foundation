@@ -1,5 +1,4 @@
 using System.Text.RegularExpressions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Architecture;
 
@@ -14,16 +13,10 @@ namespace Orkyo.Foundation.Tests.Architecture;
 ///
 /// <para>This is a source-level ratchet, the same idiom as
 /// <see cref="ErrorShapeContractTests"/>: it fails on the three ways a sixth private cache gets
-/// introduced. The allowlist is empty on purpose.</para>
+/// introduced. There is no allowlist, on purpose.</para>
 /// </summary>
 public partial class StaticCacheContractTests
 {
-    /// <summary>
-    /// Files allowed to hold their own process-wide cache, each for a stated reason. Empty:
-    /// a new entry needs a reason that the shared cache genuinely cannot serve.
-    /// </summary>
-    private static readonly HashSet<string> ExemptFiles = new(StringComparer.Ordinal);
-
     [GeneratedRegex(@"static\s+(?:readonly\s+)?MemoryCache\b")]
     private static partial Regex StaticMemoryCacheRegex();
 
@@ -77,25 +70,10 @@ public partial class StaticCacheContractTests
             + "ResetCaches). Offenders:\n  " + string.Join("\n  ", offenders));
     }
 
-    private static List<string> ScanSources(Regex forbidden)
-    {
-        var results = new List<string>();
-        foreach (var sub in new[] { "src", "core" })
-        {
-            var dir = TestRepoPaths.FindDirectory("backend", sub);
-            dir.Should().NotBeNull($"could not locate backend/{sub}");
-
-            var files = Directory.GetFiles(dir!, "*.cs", SearchOption.AllDirectories)
-                .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}")
-                         && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-                .ToList();
-            files.Should().NotBeEmpty($"the source scan found no .cs files under backend/{sub} — did the layout move?");
-
-            results.AddRange(files
-                .Select(f => (Key: $"{sub}:{Path.GetRelativePath(dir!, f).Replace('\\', '/')}", Text: File.ReadAllText(f)))
-                .Where(x => !ExemptFiles.Contains(x.Key) && forbidden.IsMatch(x.Text))
-                .Select(x => x.Key));
-        }
-        return results.Order(StringComparer.Ordinal).ToList();
-    }
+    private static List<string> ScanSources(Regex forbidden) =>
+        TestRepoPaths.BackendSources("src", "core")
+            .Where(x => forbidden.IsMatch(x.Text))
+            .Select(x => x.Key)
+            .Order(StringComparer.Ordinal)
+            .ToList();
 }

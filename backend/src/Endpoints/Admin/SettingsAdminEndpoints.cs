@@ -104,39 +104,32 @@ public static class SettingsAdminEndpoints
             }
         }
 
-        try
-        {
-            var updated = await siteSettingsService.UpdateRuntimeConfigAsync(dbUpdates, principal.UserId, ct);
+        var updated = await siteSettingsService.UpdateRuntimeConfigAsync(dbUpdates, principal.UserId, ct);
 
-            // Audit each changed setting
-            foreach (var (key, value) in dbUpdates)
-            {
-                await auditService.RecordEventAsync(
-                    principal.UserId,
-                    "settings.updated",
-                    "site_setting",
-                    key,
-                    new { key, newValue = value }, ct);
-            }
-
-            return Results.Ok(new
-            {
-                runtime = new RuntimeSettings
-                {
-                    DefaultTimezone = updated.DefaultTimezone,
-                    WorkingHoursStart = updated.WorkingHoursStart,
-                    WorkingHoursEnd = updated.WorkingHoursEnd,
-                    HolidayProviderEnabled = updated.HolidayProviderEnabled,
-                    BrandingName = updated.BrandingName,
-                    BrandingLogoUrl = updated.BrandingLogoUrl,
-                },
-                updatedKeys = dbUpdates.Keys.ToList(),
-            });
-        }
-        catch (ArgumentException ex)
+        // Audit each changed setting
+        foreach (var (key, value) in dbUpdates)
         {
-            return ErrorResponses.BadRequest(ex.Message);
+            await auditService.RecordEventAsync(
+                principal.UserId,
+                "settings.updated",
+                "site_setting",
+                key,
+                new { key, newValue = value }, ct);
         }
+
+        return Results.Ok(new
+        {
+            runtime = new RuntimeSettings
+            {
+                DefaultTimezone = updated.DefaultTimezone,
+                WorkingHoursStart = updated.WorkingHoursStart,
+                WorkingHoursEnd = updated.WorkingHoursEnd,
+                HolidayProviderEnabled = updated.HolidayProviderEnabled,
+                BrandingName = updated.BrandingName,
+                BrandingLogoUrl = updated.BrandingLogoUrl,
+            },
+            updatedKeys = dbUpdates.Keys.ToList(),
+        });
     });
 }
 

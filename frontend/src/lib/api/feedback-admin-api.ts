@@ -7,10 +7,10 @@
 
 import { apiGet, apiPatch } from '../core/api-client';
 import { API_BASE_URL } from '../core/api-utils';
-import { normalizePagedResult, type PagedResult } from '../core/paged-result';
+import type { PagedResult } from '../core/paged-result';
+import type { FeedbackType } from './feedback-api';
 
 export type FeedbackStatus = 'new' | 'reviewed' | 'resolved' | 'wont_fix';
-export type FeedbackType = 'bug' | 'feature' | 'question' | 'other';
 
 export interface FeedbackSummary {
   id: string;
@@ -47,11 +47,7 @@ export async function getFeedback(
   if (filters?.type) params.type = filters.type;
   if (filters?.page) params.page = String(filters.page);
   if (filters?.pageSize) params.pageSize = String(filters.pageSize);
-  // Same tolerance as the resources list, through the same function: this endpoint changed its
-  // params and its envelope in the same release, so a new client against an old backend gets
-  // page 1 of the old shape rather than an error. Remove in the release after 0.26.0.
-  const response = await apiGet<PagedResult<FeedbackSummary> & { total?: number }>(BASE, { params });
-  return normalizePagedResult(response, filters?.pageSize ?? response.items?.length ?? 0);
+  return apiGet<PagedResult<FeedbackSummary>>(BASE, { params });
 }
 
 export async function getFeedbackItem(id: string): Promise<FeedbackDetail> {

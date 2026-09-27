@@ -1,11 +1,8 @@
 using Api.Services;
 using Api.Services.Reporting;
-using AwesomeAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
 using Orkyo.Shared;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services.Reporting;
 

@@ -10,18 +10,15 @@ namespace Api.Validators;
 /// </summary>
 public class CreateResourceRequestValidator : AbstractValidator<CreateResourceRequest>
 {
-    public static readonly string[] KnownAllocationModes =
-        [AllocationModes.Exclusive, AllocationModes.Fractional, AllocationModes.ConcurrentCapacity];
-
     public CreateResourceRequestValidator()
     {
         RuleFor(x => x.ResourceTypeKey).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.SiteNameMaxLength);
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.ResourceNameMaxLength);
         RuleFor(x => x.Description!).MaximumLength(2000).When(x => x.Description is not null);
         RuleFor(x => x.ExternalReference!).MaximumLength(200).When(x => x.ExternalReference is not null);
         RuleFor(x => x.AllocationMode).NotEmpty()
-            .Must(m => KnownAllocationModes.Contains(m))
-            .WithMessage($"AllocationMode must be one of: {string.Join(", ", KnownAllocationModes)}");
+            .Must(m => AllocationModes.All.Contains(m))
+            .WithMessage($"AllocationMode must be one of: {string.Join(", ", AllocationModes.All)}");
         RuleFor(x => x.BaseAvailabilityPercent).InclusiveBetween(0, 100);
 
         // Placement shape. These are safe to apply unconditionally even though only placeable
@@ -45,13 +42,13 @@ public class UpdateResourceRequestValidator : AbstractValidator<UpdateResourceRe
 {
     public UpdateResourceRequestValidator()
     {
-        RuleFor(x => x.Name!).NotEmpty().MaximumLength(DomainLimits.SiteNameMaxLength)
+        RuleFor(x => x.Name!).NotEmpty().MaximumLength(DomainLimits.ResourceNameMaxLength)
             .When(x => x.Name is not null);
         RuleFor(x => x.Description!).MaximumLength(2000).When(x => x.Description is not null);
         RuleFor(x => x.ExternalReference!).MaximumLength(200).When(x => x.ExternalReference is not null);
         RuleFor(x => x.AllocationMode!)
-            .Must(m => CreateResourceRequestValidator.KnownAllocationModes.Contains(m))
-            .WithMessage($"AllocationMode must be one of: {string.Join(", ", CreateResourceRequestValidator.KnownAllocationModes)}")
+            .Must(m => AllocationModes.All.Contains(m))
+            .WithMessage($"AllocationMode must be one of: {string.Join(", ", AllocationModes.All)}")
             .When(x => x.AllocationMode is not null);
         RuleFor(x => x.BaseAvailabilityPercent!.Value).InclusiveBetween(0, 100)
             .When(x => x.BaseAvailabilityPercent.HasValue);
@@ -68,12 +65,6 @@ public class UpdateResourceRequestValidator : AbstractValidator<UpdateResourceRe
             .WithMessage(x => $"Invalid geometry: {x.Geometry!.Type} type requires correct number of coordinates")
             .When(x => x.Geometry is not null);
     }
-}
-
-public class UpsertResourceCapabilityRequestValidator : AbstractValidator<UpsertResourceCapabilityRequest>
-{
-    public UpsertResourceCapabilityRequestValidator() =>
-        RuleFor(x => x.CriterionId).NotEmpty();
 }
 
 public class UpdateCriterionApplicabilityRequestValidator : AbstractValidator<UpdateCriterionApplicabilityRequest>

@@ -120,11 +120,6 @@ public sealed class KeycloakTokenProfile
     /// </summary>
     public bool IsSiteAdmin => RealmRoles.Contains(KeycloakClaims.SiteAdminRole);
 
-    /// <summary>
-    /// Check if the user has a specific realm role.
-    /// </summary>
-    public bool HasRealmRole(string role) => RealmRoles.Contains(role);
-
     private IReadOnlyList<string> ParseRealmRoles()
     {
         var realmAccess = GetClaim(KeycloakClaims.RealmAccess);

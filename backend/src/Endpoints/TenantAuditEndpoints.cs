@@ -1,3 +1,4 @@
+using Api.Endpoints.Admin;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -8,7 +9,6 @@ using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Npgsql;
 
 namespace Api.Endpoints;
 
@@ -63,19 +63,13 @@ public static class TenantAuditEndpoints
         // no tenant_id predicate (and the tenant DB's audit_events has no such column).
         var org = currentTenant.ToOrgContext();
 
-        var clauses = new List<string>();
-        var parameters = new List<NpgsqlParameter>();
-        if (!string.IsNullOrWhiteSpace(action))
-        { clauses.Add("a.action = @action"); parameters.Add(new("action", action)); }
-        if (Guid.TryParse(actorId, out var actorGuid))
-        { clauses.Add("a.actor_user_id = @actorId"); parameters.Add(new("actorId", actorGuid)); }
-        if (!string.IsNullOrWhiteSpace(targetType))
-        { clauses.Add("a.target_type = @targetType"); parameters.Add(new("targetType", targetType)); }
-        if (from.HasValue)
-        { clauses.Add("a.created_at >= @from"); parameters.Add(new("from", from.Value.ToUniversalTime())); }
-        if (to.HasValue)
-        { clauses.Add("a.created_at <= @to"); parameters.Add(new("to", to.Value.ToUniversalTime())); }
-        var where = clauses.Count > 0 ? "WHERE " + string.Join(" AND ", clauses) : string.Empty;
+        var (where, parameters) = AuditQuery.BuildWhere("a.", new AuditEventListFilter(
+            Action: action,
+            ActorUserId: Guid.TryParse(actorId, out var actorGuid) ? actorGuid : null,
+            TargetType: targetType,
+            TargetId: null,
+            FromUtc: from?.ToUniversalTime(),
+            ToUtc: to?.ToUniversalTime()));
 
         await using var conn = connectionFactory.CreateOrgConnection(org);
 
@@ -104,14 +98,6 @@ public static class TenantAuditEndpoints
             },
             ct);
 
-        // Preserve the existing wire shape (events/totalCount) over the PagedResult envelope.
-        return Results.Ok(new
-        {
-            events = result.Items,
-            page = result.Page,
-            pageSize = result.PageSize,
-            totalCount = result.TotalItems,
-            totalPages = result.TotalPages,
-        });
+        return AuditQuery.Envelope(result);
     }
 }

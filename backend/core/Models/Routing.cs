@@ -38,18 +38,12 @@ public sealed record RoutingStepRequest
     public int LagMinutesAfter { get; init; }
 }
 
-public sealed record CreateRoutingRequest
+/// <summary>The body of both create and update: an update sends the whole routing.</summary>
+public sealed record SaveRoutingRequest
 {
     public required string Name { get; init; }
     public string? Description { get; init; }
-    public required IReadOnlyList<RoutingStepRequest> Steps { get; init; }
-}
-
-public sealed record UpdateRoutingRequest
-{
-    public required string Name { get; init; }
-    public string? Description { get; init; }
-    /// <summary>The whole step list; it replaces what was there.</summary>
+    /// <summary>The whole step list; on update it replaces what was there.</summary>
     public required IReadOnlyList<RoutingStepRequest> Steps { get; init; }
 }
 

@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { usePreviewAutoSchedule, useApplyAutoSchedule, useAutoScheduleAvailable } from '@foundation/src/hooks/useAutoSchedule';
+import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/auto-schedule-api', () => ({
   previewAutoSchedule: vi.fn(() => Promise.resolve({ assignments: [] })),
@@ -19,16 +18,9 @@ const { mockUseAuth, mockUseTenantSettings } = vi.hoisted(() => ({
 vi.mock('@foundation/src/contexts/AuthContext', () => ({ useAuth: mockUseAuth }));
 vi.mock('@foundation/src/hooks/useTenantSettings', () => ({ useTenantSettings: mockUseTenantSettings }));
 
-function createWrapper() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
-}
-
 describe('usePreviewAutoSchedule', () => {
   it('returns a mutation', () => {
-    const { result } = renderHook(() => usePreviewAutoSchedule(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => usePreviewAutoSchedule(), { wrapper: createTestQueryWrapper() });
     expect(result.current.mutateAsync).toBeDefined();
     expect(result.current.isPending).toBe(false);
   });
@@ -36,7 +28,7 @@ describe('usePreviewAutoSchedule', () => {
 
 describe('useApplyAutoSchedule', () => {
   it('returns a mutation', () => {
-    const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper: createTestQueryWrapper() });
     expect(result.current.mutateAsync).toBeDefined();
     expect(result.current.isPending).toBe(false);
   });
@@ -53,19 +45,19 @@ describe('useAutoScheduleAvailable', () => {
   });
 
   it('returns true for Professional tier with setting enabled', () => {
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(true);
   });
 
   it('returns true for Enterprise tier with setting enabled', () => {
     mockUseAuth.mockReturnValue({ membership: { tier: 'enterprise' } });
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(true);
   });
 
   it('returns false for Free tier even when setting is enabled', () => {
     mockUseAuth.mockReturnValue({ membership: { tier: 'Free' } });
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(false);
   });
 
@@ -73,7 +65,7 @@ describe('useAutoScheduleAvailable', () => {
     mockUseTenantSettings.mockReturnValue({
       data: { settings: [{ key: 'scheduling.auto_schedule_enabled', currentValue: 'false' }] },
     });
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(false);
   });
 
@@ -81,19 +73,19 @@ describe('useAutoScheduleAvailable', () => {
     mockUseTenantSettings.mockReturnValue({
       data: { settings: [{ key: 'scheduling.auto_schedule_enabled', currentValue: 'true' }] },
     });
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(true);
   });
 
   it('returns false when setting key is absent', () => {
     mockUseTenantSettings.mockReturnValue({ data: { settings: [] } });
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(false);
   });
 
   it('returns false when membership is null (unauthenticated)', () => {
     mockUseAuth.mockReturnValue({ membership: null as unknown as { tier: string } });
-    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(false);
   });
 });

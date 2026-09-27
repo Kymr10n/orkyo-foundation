@@ -1,7 +1,6 @@
 using Api.Services.Caching;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Internal;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Services;
 

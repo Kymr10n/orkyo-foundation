@@ -49,6 +49,16 @@ public enum SchedulingReasonCode
 
 // ── Request / Response DTOs ────────────────────────────────────────
 
+/// <summary>The scope both a preview and an apply run over; one validator checks it for both.</summary>
+public interface IAutoScheduleScope
+{
+    Guid SiteId { get; }
+    DateOnly HorizonStart { get; }
+    DateOnly HorizonEnd { get; }
+    IReadOnlyCollection<Guid>? RequestIds { get; }
+    IReadOnlyCollection<string>? ResourceTypeKeys { get; }
+}
+
 /// <param name="ResourceTypeKeys">
 /// Which resource types the run fills. A request is placed with one resource of every type it
 /// targets in this set, all at the same time. NULL means every active type a request can
@@ -61,7 +71,7 @@ public sealed record AutoSchedulePreviewRequest(
     DateOnly HorizonEnd,
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
-    IReadOnlyCollection<string>? ResourceTypeKeys = null);
+    IReadOnlyCollection<string>? ResourceTypeKeys = null) : IAutoScheduleScope;
 
 public sealed record AutoScheduleApplyRequest(
     Guid SiteId,
@@ -70,7 +80,7 @@ public sealed record AutoScheduleApplyRequest(
     IReadOnlyCollection<Guid>? RequestIds = null,
     bool RespectSchedulingSettings = true,
     string? PreviewFingerprint = null,
-    IReadOnlyCollection<string>? ResourceTypeKeys = null);
+    IReadOnlyCollection<string>? ResourceTypeKeys = null) : IAutoScheduleScope;
 
 public sealed record AutoSchedulePreviewResponse(
     SolverKind SolverUsed,

@@ -1,11 +1,9 @@
 namespace Orkyo.Foundation.Seed.Floorplans;
 
 /// <summary>
-/// Curated floorplan fixtures keyed by profile slug. A profile with a populated set produces
-/// fixed, geometry-bearing sites/spaces when the seeder runs with <c>--floorplans</c>; profiles
-/// without a set return empty (and <c>--floorplans</c> is rejected for them). Manufacturing is the
-/// first populated set — the three demo facilities. Room rectangles are authored in each image's
-/// 1536×1024 pixel space.
+/// Curated floorplan fixtures keyed by profile slug: the fixed, geometry-bearing sites and spaces
+/// the seed writes. Manufacturing is the only set — the three demo facilities; any other slug
+/// returns empty. Room rectangles are authored in each image's 1536×1024 pixel space.
 /// </summary>
 public static class FloorplanCatalog
 {

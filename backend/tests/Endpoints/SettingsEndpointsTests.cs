@@ -36,19 +36,8 @@ public class SettingsEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Admin", TenantSlug, "admin", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Settings Admin",
-            TenantId = tenantId.ToString(),
-            TenantSlug = TenantSlug,
-            IsTenantAdmin = true,
-            Role = "admin"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        _cachedAdminToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        _cachedAdminToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Admin", tenantId.ToString(), TenantSlug,
+            isTenantAdmin: true, role: "admin");
         return _cachedAdminToken;
     }
 
@@ -66,14 +55,14 @@ public class SettingsEndpointsTests
     private async Task CleanupSettingsAsync()
     {
         // Clean tenant-level overrides
-        var tenantConnStr = $"Host=localhost;Port={_fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        var tenantConnStr = _fixture.TenantConnectionString;
         await using var conn = new NpgsqlConnection(tenantConnStr);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand("DELETE FROM tenant_settings", conn);
         await cmd.ExecuteNonQueryAsync();
 
         // Clean site-level overrides in control_plane
-        var cpConnStr = $"Host=localhost;Port={_fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        var cpConnStr = _fixture.ControlPlaneConnectionString;
         await using var cpConn = new NpgsqlConnection(cpConnStr);
         await cpConn.OpenAsync();
         await using var cpCmd = new NpgsqlCommand("DELETE FROM site_settings", cpConn);
@@ -102,19 +91,8 @@ public class SettingsEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Viewer", TenantSlug, "viewer", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Settings Viewer",
-            TenantId = tenantId.ToString(),
-            TenantSlug = TenantSlug,
-            IsTenantAdmin = false,
-            Role = "viewer"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        var viewerToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var viewerToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Viewer", tenantId.ToString(), TenantSlug,
+            isTenantAdmin: false, role: "viewer");
 
         var msg = new HttpRequestMessage(HttpMethod.Get, "/api/settings");
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", viewerToken);
@@ -131,19 +109,8 @@ public class SettingsEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor", TenantSlug, "editor", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Settings Editor",
-            TenantId = tenantId.ToString(),
-            TenantSlug = TenantSlug,
-            IsTenantAdmin = false,
-            Role = "editor"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        var editorToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var editorToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Editor", tenantId.ToString(), TenantSlug,
+            isTenantAdmin: false, role: "editor");
 
         var msg = new HttpRequestMessage(HttpMethod.Get, "/api/settings");
         msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", editorToken);
@@ -160,19 +127,8 @@ public class SettingsEndpointsTests
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor W", TenantSlug, "editor", active: true);
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Settings Editor W",
-            TenantId = tenantId.ToString(),
-            TenantSlug = TenantSlug,
-            IsTenantAdmin = false,
-            Role = "editor"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        var editorToken = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var editorToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Editor W", tenantId.ToString(), TenantSlug,
+            isTenantAdmin: false, role: "editor");
 
         var msg = new HttpRequestMessage(HttpMethod.Put, "/api/settings")
         {

@@ -52,7 +52,7 @@ public class NpgsqlQueryExtensionsIntegrationTests
     public NpgsqlQueryExtensionsIntegrationTests(DatabaseFixture fixture)
     {
         _tenantCs =
-            $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+            fixture.TenantConnectionString;
     }
 
     private async Task<NpgsqlConnection> OpenAsync()

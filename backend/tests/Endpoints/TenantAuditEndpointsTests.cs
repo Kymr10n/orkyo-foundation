@@ -20,7 +20,7 @@ public class TenantAuditEndpointsTests
     public TenantAuditEndpointsTests(DatabaseFixture fixture)
     {
         _fixture = fixture;
-        _tenantConnString = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        _tenantConnString = fixture.TenantConnectionString;
     }
 
     // Seeds directly into the tenant database (the tenant audit_events has no tenant_id column).

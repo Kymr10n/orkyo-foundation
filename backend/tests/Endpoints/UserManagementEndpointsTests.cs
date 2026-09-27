@@ -8,9 +8,7 @@ using Api.Models;
 using Api.Security;
 using Api.Services;
 using Microsoft.Extensions.DependencyInjection;
-using Moq;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -35,7 +33,7 @@ public class UserManagementEndpointsTests
         _factory = databaseFixture.Factory;
         _client = databaseFixture.CreateAuthorizedClient();
         _unauthenticatedClient = databaseFixture.Factory.CreateClient();
-        _connString = $"Host=localhost;Port={databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres;Include Error Detail=true";
+        _connString = databaseFixture.ControlPlaneConnectionString + ";Include Error Detail=true";
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,

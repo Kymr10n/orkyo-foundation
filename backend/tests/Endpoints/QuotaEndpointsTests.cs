@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Headers;
-using System.Text.Json;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -27,18 +26,8 @@ public class QuotaEndpointsTests
     {
         var email = $"quota_admin_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Quota Admin", TenantSlug, "admin", active: true);
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Quota Admin",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug,
-            IsTenantAdmin = true,
-            Role = "admin",
-        };
-        return Convert.ToBase64String(
-            System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(tokenData)));
+        return TestConstants.BearerToken(userId.ToString(), email, "Quota Admin", "00000000-0000-0000-0000-000000000001", TenantSlug,
+            isTenantAdmin: true, role: "admin");
     }
 
     [Fact]

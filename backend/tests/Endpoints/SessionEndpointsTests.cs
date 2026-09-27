@@ -1,8 +1,6 @@
 using System.Net;
 using System.Text.Json;
-using AwesomeAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -39,19 +37,8 @@ public class SessionEndpointsTests
             tenantSlug: null,
             active: true);
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Session Me Test",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "user"
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        return TestConstants.BearerToken(userId.ToString(), email, "Session Me Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "user");
     }
 
     private async Task<JsonElement> GetMeAsync(string token)
@@ -152,18 +139,8 @@ public class SessionEndpointsTests
             tenantSlug: TestConstants.TenantSlug,
             active: true);
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Tier Test User",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "viewer"
-        };
-        var json = JsonSerializer.Serialize(tokenData);
-        var token = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Tier Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "viewer");
 
         var me = await GetMeAsync(token);
         me.TryGetProperty("tenants", out var tenants).Should().BeTrue();
@@ -196,18 +173,8 @@ public class SessionEndpointsTests
             tenantSlug: TestConstants.TenantSlug,
             active: true);
 
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Entitlements Test User",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "viewer"
-        };
-        var token = Convert.ToBase64String(
-            System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(tokenData)));
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Entitlements Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "viewer");
 
         var me = await GetMeAsync(token);
         var tenant = me.GetProperty("tenants")[0];
@@ -316,21 +283,8 @@ public class SessionEndpointsTests
     private static string MakeKeycloakToken(
         Guid userId, string email, string? sub, string[]? realmRoles = null)
     {
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Bootstrap Test",
-            TenantId = "00000000-0000-0000-0000-000000000001",
-            TenantSlug = TestConstants.TenantSlug,
-            IsTenantAdmin = false,
-            Role = "user",
-            Sub = sub,
-            RealmRoles = realmRoles
-        };
-
-        var json = JsonSerializer.Serialize(tokenData);
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json));
+        return TestConstants.BearerToken(userId.ToString(), email, "Bootstrap Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "user", sub: sub, realmRoles: realmRoles);
     }
 
     private async Task<HttpResponseMessage> BootstrapAsync(string token)
@@ -446,7 +400,7 @@ public class SessionEndpointsTests
         var sessionService = scope.ServiceProvider.GetRequiredService<Api.Services.ISessionService>();
 
         // Fresh user → ToS pending → text present and matching the compiled default
-        var pending = await sessionService.GetSessionByUserIdAsync(userId);
+        var pending = await sessionService.BuildSessionResponseAsync(userId);
         pending.Should().NotBeNull();
         pending!.TosRequired.Should().BeTrue();
         pending.RequiredTosVersion.Should().Be(requiredVersion);
@@ -456,7 +410,7 @@ public class SessionEndpointsTests
         await sessionService.AcceptTosAsync(userId, requiredVersion, ipAddress: null, userAgent: null);
 
         // Accepted → ToS no longer pending → text no longer sent
-        var after = await sessionService.GetSessionByUserIdAsync(userId);
+        var after = await sessionService.BuildSessionResponseAsync(userId);
         after.Should().NotBeNull();
         after!.TosRequired.Should().BeFalse();
         after.TosText.Should().BeNull();

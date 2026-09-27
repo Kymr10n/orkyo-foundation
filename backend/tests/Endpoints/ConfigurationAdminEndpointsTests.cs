@@ -23,7 +23,6 @@ public class ConfigurationAdminEndpointsTests
 {
     private readonly HttpClient _client;
     private readonly DatabaseFixture _fixture;
-    private readonly string _controlPlaneConn;
 
     // A tenant-scoped key (int, range 5–100), valid in the factory's default tenant context.
     private const string Key = "search.search_default_page_size";
@@ -32,55 +31,17 @@ public class ConfigurationAdminEndpointsTests
     {
         _fixture = fixture;
         _client = fixture.Factory.CreateClient();
-        _controlPlaneConn = $"Host=localhost;Port={_fixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
     }
 
-    private async Task<string> CreateSiteAdminTokenAsync()
-        => await CreateUserTokenAsync("config-admin", new[] { "user", "site-admin" });
+    private static async Task<string> CreateSiteAdminTokenAsync()
+        => (await DatabaseTestUtils.CreateLinkedUserAsync("config-admin", siteAdmin: true)).Token;
 
-    private async Task<string> CreateRegularUserTokenAsync()
-        => await CreateUserTokenAsync("config-regular", new[] { "user" });
-
-    private async Task<string> CreateUserTokenAsync(string prefix, string[] realmRoles)
-    {
-        var userId = Guid.NewGuid();
-        var email = $"{prefix}-{userId}@test.com";
-        var keycloakSub = $"kc-{userId}";
-
-        await using var conn = new NpgsqlConnection(_controlPlaneConn);
-        await conn.OpenAsync();
-        await using var userCmd = new NpgsqlCommand(
-            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Config User', 'active')", conn);
-        userCmd.Parameters.AddWithValue("id", userId);
-        userCmd.Parameters.AddWithValue("email", email);
-        await userCmd.ExecuteNonQueryAsync();
-        await using var linkCmd = new NpgsqlCommand(
-            "INSERT INTO user_identities (id, user_id, provider, provider_subject, provider_email) VALUES (@id, @userId, 'keycloak', @sub, @email)", conn);
-        linkCmd.Parameters.AddWithValue("id", Guid.NewGuid());
-        linkCmd.Parameters.AddWithValue("userId", userId);
-        linkCmd.Parameters.AddWithValue("sub", keycloakSub);
-        linkCmd.Parameters.AddWithValue("email", email);
-        await linkCmd.ExecuteNonQueryAsync();
-
-        var tokenData = new
-        {
-            UserId = userId.ToString(),
-            Email = email,
-            DisplayName = "Config User",
-            TenantId = Guid.Empty.ToString(),
-            TenantSlug = "",
-            IsTenantAdmin = false,
-            Role = "viewer",
-            Sub = keycloakSub,
-            RealmRoles = realmRoles,
-        };
-        return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(tokenData)));
-    }
+    private static async Task<string> CreateRegularUserTokenAsync()
+        => (await DatabaseTestUtils.CreateLinkedUserAsync("config-regular")).Token;
 
     private async Task ResetOverridesAsync()
     {
-        var tenantConn = $"Host=localhost;Port={_fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
-        await using var conn = new NpgsqlConnection(tenantConn);
+        await using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand("DELETE FROM tenant_settings", conn);
         await cmd.ExecuteNonQueryAsync();

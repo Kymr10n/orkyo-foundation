@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -460,11 +461,7 @@ public static class BffAuthEndpoints
 
     private static string GenerateRandomBase64Url(int byteLength)
     {
-        var bytes = RandomNumberGenerator.GetBytes(byteLength);
-        return Convert.ToBase64String(bytes)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
+        return Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(byteLength));
     }
 
     private static string GenerateRandomHex(int byteLength)
@@ -475,11 +472,7 @@ public static class BffAuthEndpoints
 
     private static string ComputeCodeChallenge(string codeVerifier)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(codeVerifier));
-        return Convert.ToBase64String(hash)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
+        return Base64Url.EncodeToString(SHA256.HashData(Encoding.UTF8.GetBytes(codeVerifier)));
     }
 
     public sealed record TokenResponse(

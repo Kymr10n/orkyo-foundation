@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import { ConflictsTab } from '@foundation/src/components/insights/ConflictsTab';
 import { useConflictRegistry, useConflictedRequests } from '@foundation/src/hooks/useConflictRegistry';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { useAiStatus } from '@foundation/src/hooks/useAiAssistant';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 // The tab reads its window from the router <Outlet context> and renders a conflict-trend chart.
 // Pin both so the tests focus on the conflict-list behaviour moved over from ConflictsPage.
@@ -80,13 +80,6 @@ vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
   useAiStatus: vi.fn(() => ({ data: { available: false } })),
 }));
 
-const createWrapper = () => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
-};
-
 describe('ConflictsTab', () => {
   beforeEach(() => {
     mockOpen.mockClear();
@@ -95,32 +88,32 @@ describe('ConflictsTab', () => {
 
   describe('with conflicts', () => {
     it('should display conflict count in description', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText(/3 conflicts found/i)).toBeInTheDocument();
     });
 
     it('should render all conflict items', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText('Conference Room Request')).toBeInTheDocument();
       expect(screen.getAllByText('Workshop Space Request')).toHaveLength(2);
     });
 
     it('should display conflict messages', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText('Capacity: Space has 30, but requires 50')).toBeInTheDocument();
       expect(screen.getByText('Projector: Required but not available')).toBeInTheDocument();
       expect(screen.getByText('Seating: Space has "Classroom", but requires "Theater"')).toBeInTheDocument();
     });
 
     it('should display severity badges', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       // "error"/"warning" severities render via severityPresentation as "Error"/"Warning".
       expect(screen.getAllByText('Error')).toHaveLength(2);
       expect(screen.getAllByText('Warning')).toHaveLength(1);
     });
 
     it('should display conflict kind badges', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText('Load Exceeded')).toBeInTheDocument();
       expect(screen.getByText('Capability Mismatch')).toBeInTheDocument();
       expect(screen.getByText('Size Mismatch')).toBeInTheDocument();
@@ -133,14 +126,14 @@ describe('ConflictsTab', () => {
         severity: 'error',
         message: "Starts before its predecessor 'Cut steel' finishes",
       }]]]));
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
 
       expect(screen.getByText('Dependency Violation')).toBeInTheDocument();
       expect(screen.queryByText('dependency_violation')).not.toBeInTheDocument();
     });
 
     it('should display scheduled time information', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getAllByText(/Jan 28,/).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/Jan 29,/).length).toBeGreaterThan(0);
     });
@@ -150,17 +143,17 @@ describe('ConflictsTab', () => {
     beforeEach(() => mockRegistry(new Map()));
 
     it('should display empty state message', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText('No conflicts to display')).toBeInTheDocument();
     });
 
     it('should display success message in description', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText(/No conflicts detected. All scheduled requests meet their requirements./i)).toBeInTheDocument();
     });
 
     it('should not render any conflict items', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.queryByText('Conference Room Request')).not.toBeInTheDocument();
     });
   });
@@ -178,7 +171,7 @@ describe('ConflictsTab', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(useConflictedRequests).mockReturnValue({ data: [], isPending: true, isError: false, refetch: vi.fn() } as any);
 
-      const { container } = render(<ConflictsTab />, { wrapper: createWrapper() });
+      const { container } = renderWithQuery(<ConflictsTab />);
 
       expect(container.querySelector('.animate-spin')).toBeInTheDocument();
       // Must NOT show the misleading "all good" empty state while loading.
@@ -194,7 +187,7 @@ describe('ConflictsTab', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       vi.mocked(useConflictedRequests).mockReturnValue({ data: [], isPending: false, isError: true, refetch: refetchRequests } as any);
 
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
 
       // Shown in both the description line and the error card body.
       expect(screen.getAllByText(/Couldn't load conflicts/i).length).toBeGreaterThan(0);
@@ -209,14 +202,14 @@ describe('ConflictsTab', () => {
   describe('partial conflicts', () => {
     it('should use singular form for single conflict', () => {
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded', severity: 'error', message: 'Single conflict' }]]]));
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText(/1 conflict found/i)).toBeInTheDocument();
     });
   });
 
   describe('severity icons', () => {
     it('should display error icon for error severity', () => {
-      const { container } = render(<ConflictsTab />, { wrapper: createWrapper() });
+      const { container } = renderWithQuery(<ConflictsTab />);
       const errorIcons = container.querySelectorAll('.text-destructive');
       expect(errorIcons.length).toBeGreaterThan(0);
     });
@@ -224,13 +217,13 @@ describe('ConflictsTab', () => {
 
   describe('styling', () => {
     it('should apply hover effect to conflict items', () => {
-      const { container } = render(<ConflictsTab />, { wrapper: createWrapper() });
+      const { container } = renderWithQuery(<ConflictsTab />);
       const conflictItems = container.querySelectorAll('[class*="hover:bg-accent"]');
       expect(conflictItems.length).toBeGreaterThan(0);
     });
 
     it('should apply error badge styling', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       // "error" severity renders the "Error" label with the shared red badge tint.
       const errorBadges = screen.getAllByText('Error');
       errorBadges.forEach((badge) => {
@@ -241,14 +234,14 @@ describe('ConflictsTab', () => {
 
   describe('interaction', () => {
     it('conflict rows have role="button"', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       const buttons = screen.getAllByRole('button');
       // 3 conflicts from mockConflicts, all rendered as buttons
       expect(buttons.length).toBeGreaterThanOrEqual(3);
     });
 
     it('clicking a conflict row calls open with the associated request', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -258,7 +251,7 @@ describe('ConflictsTab', () => {
     });
 
     it('pressing Enter on a conflict row calls open', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -267,7 +260,7 @@ describe('ConflictsTab', () => {
     });
 
     it('pressing Space on a conflict row calls open', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -276,7 +269,7 @@ describe('ConflictsTab', () => {
     });
 
     it('other keys do not trigger open', () => {
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       const row = screen
         .getByText('Capacity: Space has 30, but requires 50')
         .closest('[role="button"]')!;
@@ -298,7 +291,7 @@ describe('ConflictsTab', () => {
       beforeEach(() => mockRegistry(overlapConflicts));
 
       it('renders "View other request" link when peerRequestId is set', () => {
-        render(<ConflictsTab />, { wrapper: createWrapper() });
+        renderWithQuery(<ConflictsTab />);
         expect(
           screen.getByText(/View other request: Workshop Space Request/)
         ).toBeInTheDocument();
@@ -306,18 +299,18 @@ describe('ConflictsTab', () => {
 
       it('does not render a peer link for non-overlap conflicts', () => {
         mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'error' as const, message: 'Capacity exceeded' }]]]));
-        render(<ConflictsTab />, { wrapper: createWrapper() });
+        renderWithQuery(<ConflictsTab />);
         expect(screen.queryByText(/View other request/)).not.toBeInTheDocument();
       });
 
       it('clicking "View other request" calls open with the peer request', () => {
-        render(<ConflictsTab />, { wrapper: createWrapper() });
+        renderWithQuery(<ConflictsTab />);
         fireEvent.click(screen.getByText(/View other request:/));
         expect(mockOpen).toHaveBeenCalledWith(mockRequests[1], expect.any(Array));
       });
 
       it('clicking "View other request" calls open exactly once (stopPropagation prevents row click)', () => {
-        render(<ConflictsTab />, { wrapper: createWrapper() });
+        renderWithQuery(<ConflictsTab />);
         fireEvent.click(screen.getByText(/View other request:/));
         expect(mockOpen).toHaveBeenCalledTimes(1);
         expect(mockOpen).toHaveBeenCalledWith(mockRequests[1], expect.any(Array));
@@ -340,7 +333,7 @@ describe('ConflictsTab', () => {
     it.each(kindCases)('kind "%s" renders label "%s"', (kind, label) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: kind as any, severity: 'error' as const, message: 'msg' }]]]));
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText(label)).toBeInTheDocument();
     });
   });
@@ -348,14 +341,14 @@ describe('ConflictsTab', () => {
   describe('getSeverityIcon — default (info) case', () => {
     it('renders content for unknown severity without crashing', () => {
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'load_exceeded' as const, severity: 'info' as unknown as 'error', message: 'info msg' }]]]));
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
       expect(screen.getByText('info msg')).toBeInTheDocument();
     });
   });
   describe('assistant entry point', () => {
     it('is absent when the assistant is unavailable to this person', () => {
       mockRegistry(mockConflicts);
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
 
       expect(screen.queryByLabelText(/^Ask the assistant about the conflict on/)).not.toBeInTheDocument();
     });
@@ -368,7 +361,7 @@ describe('ConflictsTab', () => {
       vi.mocked(useAiStatus).mockReturnValue({ data: { available: true } } as any);
 
       mockRegistry(new Map([['req-1', [{ id: 'c1', kind: 'overlap' as const, severity: 'error' as const, message: 'clash' }]]]));
-      render(<ConflictsTab />, { wrapper: createWrapper() });
+      renderWithQuery(<ConflictsTab />);
 
       // The card itself is role="button", and its accessible name now contains this
       // button's text — so match the button's own explicit label, not the role name.

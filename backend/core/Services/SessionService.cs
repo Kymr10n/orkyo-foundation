@@ -35,16 +35,13 @@ public class SessionService : ISessionService
         _logger = logger;
     }
 
-    public async Task<SessionBootstrapResponse?> GetSessionByUserIdAsync(Guid userId, CancellationToken ct = default)
-    {
-        await using var db = _connectionFactory.CreateControlPlaneConnection();
-        await db.OpenAsync(ct);
-
-        return await BuildSessionResponseAsync(db, userId, ct);
-    }
-
     public async Task<SessionBootstrapResponse?> BuildSessionResponseAsync(Guid userId, CancellationToken ct = default)
-        => await GetSessionByUserIdAsync(userId, ct);
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        await conn.OpenAsync(ct);
+
+        return await BuildSessionResponseAsync(conn, userId, ct);
+    }
 
     private async Task<SessionBootstrapResponse?> BuildSessionResponseAsync(NpgsqlConnection db, Guid userId, CancellationToken ct = default)
     {

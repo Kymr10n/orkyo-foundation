@@ -1,10 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
 import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/store/site-store', () => ({
   useSiteStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -75,19 +74,10 @@ vi.mock('@foundation/src/components/resources/ResourceStatusSheet', () => ({
 }));
 
 function renderLayout() {
-  // AppLayout loads sites via the useSites() React Query hook, so a client is
-  // required. retry: false surfaces the getSites-throws case without retry delays.
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // AppLayout loads sites via the useSites() React Query hook, so a client is required.
+  const result = renderWithQuery(<AppLayout />, { router: true });
   // A fresh element each time: React skips a rerender of the very same element object.
-  const tree = () => (
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <AppLayout />
-      </MemoryRouter>
-    </QueryClientProvider>
-  );
-  const result = render(tree());
-  return { ...result, rerenderLayout: () => result.rerender(tree()) };
+  return { ...result, rerenderLayout: () => result.rerender(<AppLayout />) };
 }
 
 describe('AppLayout', () => {

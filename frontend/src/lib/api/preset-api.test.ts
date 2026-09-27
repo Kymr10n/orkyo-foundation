@@ -51,9 +51,9 @@ describe('preset-api', () => {
   it('exportPreset calls GET with query params', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue(mockPreset);
     await exportPreset('preset-1', 'My Preset', 'A description');
-    expect(apiClient.apiGet).toHaveBeenCalledWith(
-      expect.stringContaining(API_PATHS.ADMIN.PRESETS_EXPORT),
-    );
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ADMIN.PRESETS_EXPORT, {
+      params: { presetId: 'preset-1', name: 'My Preset', description: 'A description' },
+    });
   });
 
   it('getPresetApplications calls GET on applications endpoint', async () => {

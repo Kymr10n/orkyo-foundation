@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { RequestPeopleSection } from './RequestPeopleSection';
 import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
-import type { ReactNode, ReactElement } from 'react';
+import type { ReactNode } from 'react';
 import type * as ResourceAssignmentsApi from '@foundation/src/lib/api/resource-assignments-api';
 
 // --- Mock UI components ---
@@ -67,14 +66,7 @@ import {
 } from '@foundation/src/lib/api/resource-assignments-api';
 import type { Conflict } from '@foundation/src/types/requests';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
-
-// The component calls useQueryClient(), so every render needs a provider. This wrapper injects a
-// fresh client with zero call-site changes. Tests asserting invalidation create their own client +
-// spy and render with rtlRender directly.
-function render(ui: ReactElement) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return rtlRender(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
-}
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const mockPeople = [
   { id: 'res-person-1', name: 'Alice', resourceTypeKey: 'person', isActive: true, resourceTypeId: 'rt-1', allocationMode: 'percent', baseAvailabilityPercent: 100, createdAt: '', updatedAt: '' },
@@ -123,12 +115,12 @@ describe('RequestPeopleSection', () => {
   });
 
   it('renders the section heading', () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     expect(screen.getByText('People')).toBeInTheDocument();
   });
 
   it('shows 0 assigned badge initially', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => {
       expect(screen.getByText('0 assigned')).toBeInTheDocument();
     });
@@ -136,7 +128,7 @@ describe('RequestPeopleSection', () => {
 
   it('renders existing assignments from the API', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => {
       expect(screen.getByText('Alice')).toBeInTheDocument();
     });
@@ -148,27 +140,27 @@ describe('RequestPeopleSection', () => {
     const conflictsByResourceId = new Map<string, Conflict[]>([
       ['res-person-1', [{ id: 'x', kind: 'starts_in_off_time', severity: 'warning', message: 'Off-time' }]],
     ]);
-    render(<RequestPeopleSection {...defaultProps} conflictsByResourceId={conflictsByResourceId} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} conflictsByResourceId={conflictsByResourceId} />);
     await waitFor(() => screen.getByText('Alice'));
     expect(screen.getByTestId('conflict-indicator')).toBeInTheDocument();
   });
 
   it('does not flag an assigned person without a conflict', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
-    render(<RequestPeopleSection {...defaultProps} conflictsByResourceId={new Map()} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} conflictsByResourceId={new Map()} />);
     await waitFor(() => screen.getByText('Alice'));
     expect(screen.queryByTestId('conflict-indicator')).not.toBeInTheDocument();
   });
 
   it('adds a pending row when Add Person is clicked', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     expect(screen.getByTestId('pending-row')).toBeInTheDocument();
   });
 
   it('removes a pending row when Cancel is clicked', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     expect(screen.getByTestId('pending-row')).toBeInTheDocument();
@@ -178,7 +170,7 @@ describe('RequestPeopleSection', () => {
 
   it('calls onBlockersChange(false) when validation result has no blockers', async () => {
     (validateAssignment as Mock).mockResolvedValue({ severity: 'ok', blockers: [], warnings: [] });
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     expect(defaultProps.onBlockersChange).toHaveBeenCalledWith(false);
   });
@@ -190,7 +182,7 @@ describe('RequestPeopleSection', () => {
       warnings: [],
     });
 
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
 
@@ -210,7 +202,7 @@ describe('RequestPeopleSection', () => {
       warnings: [{ code: 'assignment.overbooked', message: 'Resource may be overbooked', resourceId: 'res-person-1' }],
     });
 
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
 
@@ -229,7 +221,7 @@ describe('RequestPeopleSection', () => {
       warnings: [],
     });
 
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -246,7 +238,7 @@ describe('RequestPeopleSection', () => {
       warnings: [],
     });
 
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -265,7 +257,7 @@ describe('RequestPeopleSection', () => {
       warnings: [],
     });
 
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -282,7 +274,7 @@ describe('RequestPeopleSection', () => {
 
   it('removes an existing assignment when remove is clicked', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByText('Alice'));
 
     fireEvent.click(screen.getByLabelText('Remove assignment'));
@@ -297,7 +289,7 @@ describe('RequestPeopleSection', () => {
 
   it('shows resolved assignment names (not raw UUIDs) and hides mutation controls in readOnly mode', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
-    render(<RequestPeopleSection {...defaultProps} readOnly />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} readOnly />);
     await waitFor(() => expect(screen.getByText('Alice')).toBeInTheDocument());
     // The raw resourceId must not leak.
     expect(screen.queryByText('res-person-1')).not.toBeInTheDocument();
@@ -308,7 +300,7 @@ describe('RequestPeopleSection', () => {
 
   it('shows an empty hint when there are no assignments in readOnly mode', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([]);
-    render(<RequestPeopleSection {...defaultProps} readOnly />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} readOnly />);
     await waitFor(() => expect(screen.getByText('No people assigned.')).toBeInTheDocument());
   });
 
@@ -335,7 +327,7 @@ describe('RequestPeopleSection', () => {
 
   it('hides the Alloc % input when the selected person is Exclusive', async () => {
     (getResources as Mock).mockResolvedValue(pagedResult(mockPeopleWithExclusive, { pageSize: 50 }));
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
 
@@ -346,7 +338,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('shows the Alloc % input for a Fractional resource', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
 
@@ -358,7 +350,7 @@ describe('RequestPeopleSection', () => {
 
   it('calls createAssignment without allocationPercent for an Exclusive resource', async () => {
     (getResources as Mock).mockResolvedValue(pagedResult(mockPeopleWithExclusive, { pageSize: 50 }));
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
 
@@ -379,7 +371,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('calls createAssignment with allocationPercent for a Fractional resource', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
 
@@ -399,13 +391,13 @@ describe('RequestPeopleSection', () => {
   // ── Branch coverage: create-mode, validation-skip, save guards ──────────────
 
   it('does not fetch assignments when creating a new request (no requestId)', async () => {
-    render(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     expect(getAssignmentsByRequest).not.toHaveBeenCalled();
   });
 
   it('skips validation when the request has no start/end times', async () => {
-    render(
+    renderWithQuery(
       <RequestPeopleSection
         {...defaultProps}
         requestStartTs={undefined}
@@ -422,7 +414,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('shows "No issues found" when validation returns a clean result', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -430,7 +422,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('blocks saving a row before the request itself has a schedule', async () => {
-    render(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} requestId={undefined} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -444,7 +436,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('does nothing when saving a row with no person selected', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     // Save without selecting a person.
@@ -454,7 +446,7 @@ describe('RequestPeopleSection', () => {
 
   it('surfaces a row error when createAssignment fails', async () => {
     (createAssignment as Mock).mockRejectedValue(new Error('Conflict on save'));
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -465,7 +457,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('clamps and sanitizes the allocation percent input', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -478,7 +470,7 @@ describe('RequestPeopleSection', () => {
   });
 
   it('updates free-text role/notes fields on a pending row', async () => {
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.change(screen.getByTestId('role-input'), { target: { value: 'Lead' } });
@@ -489,20 +481,14 @@ describe('RequestPeopleSection', () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([
       { ...mockAssignment, resourceId: 'ghost-person' },
     ]);
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => expect(screen.getByText('ghost-person')).toBeInTheDocument());
   });
 
   // ── Cache invalidation (assignments change occupancy + conflicts + insights) ──
 
   it('invalidates request-derived queries after a successful assignment create', async () => {
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-    rtlRender(
-      <QueryClientProvider client={qc}>
-        <RequestPeopleSection {...defaultProps} />
-      </QueryClientProvider>,
-    );
+    const { invalidateSpy } = renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
@@ -515,13 +501,7 @@ describe('RequestPeopleSection', () => {
 
   it('invalidates request-derived queries after removing an assignment', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
-    rtlRender(
-      <QueryClientProvider client={qc}>
-        <RequestPeopleSection {...defaultProps} />
-      </QueryClientProvider>,
-    );
+    const { invalidateSpy } = renderWithQuery(<RequestPeopleSection {...defaultProps} />);
     await waitFor(() => screen.getByText('Alice'));
     fireEvent.click(screen.getByLabelText('Remove assignment'));
     await waitFor(() => expect(cancelAssignment).toHaveBeenCalledWith('assign-1'));
@@ -535,7 +515,7 @@ describe('RequestPeopleSection', () => {
     // component: closing the dialog inside that window still fires the request and then writes
     // the result into an unmounted tree. In the suite the same leak let a timer from one test
     // land inside another and fail an unrelated assertion.
-    const { unmount } = render(<RequestPeopleSection {...defaultProps} />);
+    const { unmount } = renderWithQuery(<RequestPeopleSection {...defaultProps} />);
 
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
@@ -556,7 +536,7 @@ describe('RequestPeopleSection', () => {
       { id: 'rt-1', key: 'operator', displayName: 'Operator', displayNamePlural: 'Operators', hasGeometry: false, hasDirectoryProfile: true, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
       { id: 'rt-2', key: 'tool', displayName: 'Tool', displayNamePlural: 'Tools', hasGeometry: false, hasDirectoryProfile: false, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
     ]);
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
 
     await waitFor(() =>
       expect(getResources).toHaveBeenCalledWith({ resourceTypeKey: 'operator', isActive: true }),
@@ -567,7 +547,7 @@ describe('RequestPeopleSection', () => {
 
   it('points at the type catalog when no directory-profile type is active', async () => {
     (getResourceTypes as Mock).mockResolvedValue([]);
-    render(<RequestPeopleSection {...defaultProps} />);
+    renderWithQuery(<RequestPeopleSection {...defaultProps} />);
 
     await waitFor(() =>
       expect(screen.getByText(/No people-like resource type is active/)).toBeInTheDocument(),

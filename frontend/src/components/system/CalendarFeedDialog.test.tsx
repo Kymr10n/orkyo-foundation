@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
 import { CalendarFeedDialog } from './CalendarFeedDialog';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import {
@@ -10,6 +8,7 @@ import {
   getCalendarSubscriptions,
   revokeCalendarSubscription,
 } from '@foundation/src/lib/api/calendar-feed-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
   getCalendarSubscriptions: vi.fn(),
@@ -31,22 +30,16 @@ vi.mock('@foundation/src/store/site-store', () => ({
 }));
 
 function renderDialog(upgradeHref?: string) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
-    // MemoryRouter: the upsell's CTA is a react-router <Link>.
-    <MemoryRouter>
-      <QueryClientProvider client={queryClient}>
-        <CalendarFeedDialog
-          open
-          onOpenChange={vi.fn()}
-          label="Utilization schedule"
-          description="Add this schedule to Outlook, Google Calendar or Apple Calendar."
-          upgradeHref={upgradeHref}
-        />
-      </QueryClientProvider>
-    </MemoryRouter>,
+  // Router: the upsell's CTA is a react-router <Link>.
+  return renderWithQuery(
+    <CalendarFeedDialog
+      open
+      onOpenChange={vi.fn()}
+      label="Utilization schedule"
+      description="Add this schedule to Outlook, Google Calendar or Apple Calendar."
+      upgradeHref={upgradeHref}
+    />,
+    { router: true },
   );
 }
 

@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { screen, waitFor } from '@testing-library/react';
+import { useLocation } from 'react-router';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceList } from './ResourceList';
 import { deleteResource, getResource, getResources } from '@foundation/src/lib/api/resources-api';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   getResources: vi.fn(),
@@ -97,14 +97,12 @@ function Location() {
 }
 
 function renderList(url = '/') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <MemoryRouter initialEntries={[url]}>
-      <QueryClientProvider client={client}>
-        <ResourceList resourceType={carType} />
-        <Location />
-      </QueryClientProvider>
-    </MemoryRouter>,
+  return renderWithQuery(
+    <>
+      <ResourceList resourceType={carType} />
+      <Location />
+    </>,
+    { router: url },
   );
 }
 
@@ -136,14 +134,7 @@ const people = [
 ];
 
 function renderPeople() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <MemoryRouter>
-      <QueryClientProvider client={client}>
-        <ResourceList resourceType={personType} />
-      </QueryClientProvider>
-    </MemoryRouter>,
-  );
+  return renderWithQuery(<ResourceList resourceType={personType} />, { router: true });
 }
 
 beforeEach(() => {
@@ -310,14 +301,7 @@ describe('ResourceList — move to another site', () => {
   });
 
   it('offers no move for a placeable type, whose site is its floorplan', async () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <MemoryRouter>
-        <QueryClientProvider client={client}>
-          <ResourceList resourceType={{ ...carType, hasGeometry: true }} />
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
+    renderWithQuery(<ResourceList resourceType={{ ...carType, hasGeometry: true }} />, { router: true });
     await userEvent.click(await screen.findByRole('button', { name: 'Actions for Van 1' }));
 
     expect(screen.queryByRole('menuitem', { name: /Move to another site/ })).not.toBeInTheDocument();

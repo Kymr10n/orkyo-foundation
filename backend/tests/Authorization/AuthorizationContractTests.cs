@@ -1,7 +1,6 @@
 using Api.Middleware;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Authorization;
 

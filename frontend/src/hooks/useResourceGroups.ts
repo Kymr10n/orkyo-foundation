@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import {
   deleteResourceGroup,
   getResourceGroups,
@@ -11,6 +11,7 @@ import { getResources, type ResourceInfo } from "@foundation/src/lib/api/resourc
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { STALE } from "@foundation/src/lib/core/query-client";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 /** Groups of one resource type (person teams, space groups, …). */
 export const useResourceGroups = (resourceTypeKey: string) =>
@@ -64,12 +65,8 @@ export const useDeleteResourceGroup = (resourceTypeKey: string, entityLabel: str
   });
 
 /** Refresh one type's group list after a dialog saved through its own API call. */
-export const useInvalidateResourceGroups = (resourceTypeKey: string) => {
-  const queryClient = useQueryClient();
-  return useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: qk.resourceGroups.byType(resourceTypeKey) });
-  }, [queryClient, resourceTypeKey]);
-};
+export const useInvalidateResourceGroups = (resourceTypeKey: string): (() => void) =>
+  useInvalidateKeys(qk.resourceGroups.byType(resourceTypeKey));
 
 export const useSetResourceGroupMembers = (groupId: string, resourceTypeKey: string) =>
   useMutation({

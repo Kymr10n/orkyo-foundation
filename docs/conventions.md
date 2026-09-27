@@ -21,8 +21,9 @@ public class ThingRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
     await using var conn = connectionFactory.CreateOrgConnection(orgContext);
 ```
 
-Both `db` and `conn` are in use (~200 sites, roughly evenly split), as are explicit
-`_`-prefixed fields alongside primary constructors. `conn` and the primary constructor win.
+Both `db` and `conn` are in use, as are explicit `_`-prefixed fields alongside primary
+constructors. `conn` and the primary constructor win. `KnownDbLocalFiles` in
+`ConventionContractTests.Ratchets.cs` lists the files that still use `db`.
 
 **Upserts** use `EXCLUDED`, not the parameter:
 
@@ -91,9 +92,8 @@ Reach for the helper before writing the shape by hand — all in `EndpointHelper
 
 **Bare `Results.NotFound()`** (empty body) is only for deliberately hiding whether
 something exists — the anonymous calendar-feed routes. Everywhere else uses
-`ErrorResponses.NotFound` so the body carries a `code`. Four sites in the AI conversation,
-AI allowance and account-lifecycle endpoints still use the bare form; the baseline in
-`ConventionContractTests` holds them at four until each is touched.
+`ErrorResponses.NotFound` so the body carries a `code`. `KnownBareNotFoundFiles` in
+`ConventionContractTests.Ratchets.cs` lists the files that still use the bare form.
 
 ## Naming
 
@@ -107,9 +107,9 @@ static class with the prefix; it was renamed in 2026-09.
 
 ## Validation
 
-**Length limits come from `DomainLimits`.** Roughly fifty validator sites still use bare
-numbers, some of them the same value as a constant that already exists. Adopt on touch;
-add the constant if it is missing.
+**Length limits come from `DomainLimits`.** Some validators still use bare numbers.
+`KnownBareLengthLimitFiles` in `ConventionContractTests.Ratchets.cs` lists them. Adopt on
+touch; add the constant if it is missing.
 
 **Shared patterns live in `ValidationPatterns` / `ResourceTypeKeyRules`.** Anchor with
 `\A` and `\z`, never `^` and `$`: in .NET `$` also matches before a trailing newline, so
@@ -120,9 +120,10 @@ patterns.
 `SiteRequestValidator`. Criterion and several others still restate the rules in both.
 
 **Status values come from constants**, not SQL literals: `MembershipStatusConstants`,
-`UserStatusConstants`, `RoleConstants`, `AssignmentStatuses`. About twenty SQL strings
-still hardcode `'active'` and `'admin'`, nine hardcode `'keycloak'`, and conflict severity
-is written as bare `"error"`/`"warning"` beside a `Kind` that correctly uses constants.
+`UserStatusConstants`, `RoleConstants`, `AssignmentStatuses`. `KnownSqlLiteralFiles` in
+`ConventionContractTests.cs` lists the files whose SQL still has `'active'`, `'admin'` or
+`'keycloak'`. Conflict severity is still bare `"error"`/`"warning"` beside a `Kind` that
+uses constants.
 
 ## Configuration
 
@@ -133,7 +134,7 @@ at startup; optional config through `GetOptionalString`/`IsSet`. There is delibe
 only for *null*, and the deploy pipeline writes `KEY=` for every unset key, so an empty
 string sails past `??` and silently replaces the intended value — the BFF cookie-name
 bug. Defaults live in env templates, never in compiled code.
-`ConventionContractTests.NoSourceFile_FallsBackOnARawConfigRead` enforces this.
+The `RawConfigFallback` row of `ConventionContractTests.NoNewFile_BreaksTheRatchet` enforces this.
 
 ## Frontend dialogs
 
@@ -159,10 +160,9 @@ both consuming products.
 
 ## Layering
 
-**Services do not write SQL.** Sixteen files under `core/Services` do, some with a dozen raw
-`NpgsqlCommand`s; those are repositories wearing service names. The baseline in
-`ConventionContractTests` lists them and only shrinks. Move the query into a repository when
-you next touch it.
+**Services do not write SQL.** Some files under `core/Services` do; those are repositories
+wearing service names. `KnownSqlWritingServiceFiles` in `ConventionContractTests.Ratchets.cs`
+lists them, and the list only shrinks. Move the query into a repository when you next touch it.
 
 ## Foundation is a package
 

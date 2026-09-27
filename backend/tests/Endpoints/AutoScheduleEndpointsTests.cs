@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Models;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 

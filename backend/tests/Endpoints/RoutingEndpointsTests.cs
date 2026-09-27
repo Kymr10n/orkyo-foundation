@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using Api.Constants;
 using Api.Models;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -24,7 +23,7 @@ public class RoutingEndpointsTests
     {
         _fixture = fixture;
         _client = fixture.CreateAuthorizedClient();
-        _tenantCs = $"Host=localhost;Port={fixture.DatabasePort};Database={TestConstants.TenantDatabase};Username=postgres;Password=postgres";
+        _tenantCs = fixture.TenantConnectionString;
     }
 
     private static string Unique(string prefix) => $"{prefix} {Guid.NewGuid():N}"[..30];
@@ -63,7 +62,7 @@ public class RoutingEndpointsTests
 
     private async Task<RoutingInfo> CreateRoutingAsync(params RoutingStepRequest[] steps)
     {
-        var response = await _client.PostAsJsonAsync("/api/routings", new CreateRoutingRequest
+        var response = await _client.PostAsJsonAsync("/api/routings", new SaveRoutingRequest
         {
             Name = Unique("Bracket"),
             Steps = steps,
@@ -156,7 +155,7 @@ public class RoutingEndpointsTests
         var mill = await CreateOperationAsync("Mill");
         var routing = await CreateRoutingAsync(Step(1, saw.Id, run: 5), Step(2, mill.Id, run: 60));
 
-        var response = await _client.PutAsJsonAsync($"/api/routings/{routing.Id}", new UpdateRoutingRequest
+        var response = await _client.PutAsJsonAsync($"/api/routings/{routing.Id}", new SaveRoutingRequest
         {
             Name = "Bracket v2",
             Steps = [Step(1, mill.Id, run: 45)],
@@ -172,7 +171,7 @@ public class RoutingEndpointsTests
     public async Task Create_WithGapInStepNumbers_Returns400()
     {
         var saw = await CreateOperationAsync("Saw");
-        var response = await _client.PostAsJsonAsync("/api/routings", new CreateRoutingRequest
+        var response = await _client.PostAsJsonAsync("/api/routings", new SaveRoutingRequest
         {
             Name = Unique("Gappy"),
             Steps = [Step(1, saw.Id, run: 5), Step(3, saw.Id, run: 5)],
@@ -184,7 +183,7 @@ public class RoutingEndpointsTests
     public async Task Create_WithSpaceTemplateAsOperation_Returns409()
     {
         var room = await CreateOperationAsync("Room", targets: null, entityType: "space");
-        var response = await _client.PostAsJsonAsync("/api/routings", new CreateRoutingRequest
+        var response = await _client.PostAsJsonAsync("/api/routings", new SaveRoutingRequest
         {
             Name = Unique("Wrong"),
             Steps = [Step(1, room.Id, run: 5)],
@@ -195,7 +194,7 @@ public class RoutingEndpointsTests
     [Fact]
     public async Task Create_WithUnknownTemplate_Returns404()
     {
-        var response = await _client.PostAsJsonAsync("/api/routings", new CreateRoutingRequest
+        var response = await _client.PostAsJsonAsync("/api/routings", new SaveRoutingRequest
         {
             Name = Unique("Ghost"),
             Steps = [Step(1, Guid.NewGuid(), run: 5)],
@@ -232,7 +231,7 @@ public class RoutingEndpointsTests
         var saw = await CreateOperationAsync("Saw");
         var viewer = _fixture.CreateClientWithRole("viewer");
 
-        var response = await viewer.PostAsJsonAsync("/api/routings", new CreateRoutingRequest
+        var response = await viewer.PostAsJsonAsync("/api/routings", new SaveRoutingRequest
         {
             Name = Unique("Viewer"),
             Steps = [Step(1, saw.Id, run: 5)],

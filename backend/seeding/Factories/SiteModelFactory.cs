@@ -4,20 +4,19 @@ namespace Orkyo.Foundation.Seed.Factories;
 
 /// <summary>
 /// Populates the Home-Site model on already-seeded rows (migrations 1550 + 1560).
-/// Runs as a post-commit pass so it sees all data regardless of which path (floorplan or generic)
-/// inserted it, and so the binary-COPY writers don't each need the new columns threaded through.
+/// Runs as a post-commit pass so it sees all committed data, and so the binary-COPY writers don't
+/// each need the new columns threaded through.
 ///
 /// Result on a multi-site demo tenant:
 /// - spaces are immovable (cross_site_allowed = false);
 /// - people get a home site: the narrative path pins them to their facility cohort's site up front
 ///   via <see cref="ApplyCohortSitesAsync"/> (so cohort work stays same-site); the round-robin below
-///   only fills people still un-sited (the generic path). On top, ~1 in 4 are not cross-site capable;
+///   only fills people still un-sited. On top, ~1 in 4 are not cross-site capable;
 /// - scheduled requests adopt the site of the space they were placed in (parity with the runtime
 ///   implicit-site-on-schedule rule); unscheduled requests stay site-neutral.
 /// Where a person actually is at a point in time is no longer stored — it is derived from the
 /// assignment covering that time, anchored to the home site when idle — so cross-site cases arise
-/// naturally wherever a person's home site differs from a request's site (e.g. generic-path people
-/// round-robined across sites). Single-site tenants degrade naturally: every "another site" lookup
+/// naturally wherever a person's home site differs from a request's site. Single-site tenants degrade naturally: every "another site" lookup
 /// is empty, so the model stays invisible.
 /// </summary>
 public static class SiteModelFactory
@@ -33,7 +32,7 @@ public static class SiteModelFactory
 
         // Distribute home site round-robin across the tenant's sites — but only for people still
         // un-sited. Narrative cohorts are pinned to their facility site by ApplyCohortSitesAsync
-        // before commit; this fills the generic path (and any tenant without cohorts).
+        // before commit; this fills anyone outside a cohort.
         await ExecAsync(conn, tx, """
             WITH ppl AS (
                 SELECT id, (ROW_NUMBER() OVER (ORDER BY created_at, id) - 1) AS rn

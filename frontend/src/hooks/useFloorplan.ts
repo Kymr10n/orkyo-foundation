@@ -1,7 +1,7 @@
-import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { getFloorplanViewData } from "@foundation/src/lib/api/floorplan-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
 export function useFloorplanViewData(siteId: string | null, enabled = true) {
   return useQuery({
@@ -17,9 +17,5 @@ export function useFloorplanViewData(siteId: string | null, enabled = true) {
 
 /** Refresh one site's floorplan view data — after an upload replaces the image. */
 export function useInvalidateFloorplanViewData(siteId: string): () => Promise<void> {
-  const queryClient = useQueryClient();
-  return useCallback(
-    () => queryClient.invalidateQueries({ queryKey: qk.floorplan.viewData(siteId) }),
-    [queryClient, siteId],
-  );
+  return useInvalidateKeys(qk.floorplan.viewData(siteId));
 }

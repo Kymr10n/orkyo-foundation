@@ -362,4 +362,29 @@ public class PlatformUserRepository : IPlatformUserRepository
             },
             ct);
     }
+
+    public async Task<List<AdminUserIdentity>> GetIdentitiesAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.QueryListAsync(
+            "SELECT id, provider, provider_subject, provider_email, created_at FROM user_identities WHERE user_id = @userId",
+            p => p.AddWithValue("userId", userId),
+            reader => new AdminUserIdentity
+            {
+                Id = reader.GetGuid("id"),
+                Provider = reader.GetString("provider"),
+                ProviderSubject = reader.GetString("provider_subject"),
+                ProviderEmail = reader.GetNullableString("provider_email"),
+                CreatedAt = reader.GetDateTime("created_at"),
+            },
+            ct);
+    }
+
+    public async Task<string?> GetKeycloakSubjectAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.ExecuteScalarAsync<string?>(
+            "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1",
+            p => p.AddWithValue("userId", userId), ct);
+    }
 }

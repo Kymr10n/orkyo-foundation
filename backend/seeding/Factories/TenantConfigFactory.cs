@@ -169,13 +169,7 @@ public static class TenantConfigFactory
         IReadOnlyList<Guid> consumablesRowIds, Faker faker)
     {
         var now = DateTime.UtcNow;
-        var typeIds = new Dictionary<string, Guid>();
-        await using (var cmd = new NpgsqlCommand(
-            "SELECT key, id FROM public.resource_types WHERE key IN ('person','room','tool')", conn))
-        await using (var reader = await cmd.ExecuteReaderAsync())
-        {
-            while (await reader.ReadAsync()) typeIds[reader.GetString(0)] = reader.GetGuid(1);
-        }
+        var typeIds = await ResourceTypeSeedHelpers.GetTypeIdsAsync(conn, "person", "room", "tool");
 
         var fields = 0;
         async Task Field(string typeKey, string key, string label, string dataType,

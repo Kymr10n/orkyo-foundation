@@ -1,6 +1,5 @@
 using Npgsql;
 using Orkyo.Migrations.Abstractions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests;
 
@@ -11,8 +10,11 @@ namespace Orkyo.Foundation.Tests;
 /// </summary>
 public class DatabaseFixture : IAsyncLifetime
 {
-    /// <summary>Gets the port on which the test database is listening.</summary>
-    public int DatabasePort { get; private set; }
+    /// <summary>Connection string for the control-plane database.</summary>
+    public string ControlPlaneConnectionString { get; private set; } = null!;
+
+    /// <summary>Connection string for the shared test tenant database.</summary>
+    public string TenantConnectionString { get; private set; } = null!;
 
     /// <summary>Gets the shared web application factory for all tests.</summary>
     public FoundationWebApplicationFactory Factory { get; private set; } = null!;
@@ -23,7 +25,7 @@ public class DatabaseFixture : IAsyncLifetime
     /// instead of repeating the header wiring in every constructor.
     /// </summary>
     public HttpClient CreateAuthorizedClient(string tenantSlug = TestConstants.TenantSlug)
-        => CreateClient(TestConstants.TestBearerToken, tenantSlug);
+        => CreateClientWithToken(TestConstants.TestBearerToken, tenantSlug);
 
     /// <summary>
     /// Creates an <see cref="HttpClient"/> authorized as the shared test user with a
@@ -31,9 +33,13 @@ public class DatabaseFixture : IAsyncLifetime
     /// exercising role-gated authorization on endpoints.
     /// </summary>
     public HttpClient CreateClientWithRole(string role, string tenantSlug = TestConstants.TenantSlug)
-        => CreateClient(TestConstants.BearerTokenForRole(role), tenantSlug);
+        => CreateClientWithToken(TestConstants.BearerTokenForRole(role), tenantSlug);
 
-    private HttpClient CreateClient(string bearerToken, string tenantSlug)
+    /// <summary>
+    /// Creates an <see cref="HttpClient"/> with the tenant slug header and an arbitrary
+    /// <paramref name="bearerToken"/> preset.
+    /// </summary>
+    public HttpClient CreateClientWithToken(string bearerToken, string tenantSlug = TestConstants.TenantSlug)
     {
         var client = Factory.CreateClient();
         client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, tenantSlug);
@@ -44,16 +50,16 @@ public class DatabaseFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var server = await TestPostgresBootstrap.GetAsync();
-        DatabasePort = server.Port;
+        ControlPlaneConnectionString = server.ConnectionStringFor("control_plane");
+        TenantConnectionString = server.ConnectionStringFor(TestConstants.TenantDatabase);
 
         // Store the port for helpers that need direct DB connections
-        DatabaseTestUtils.SetDatabasePort(DatabasePort);
+        DatabaseTestUtils.SetDatabasePort(server.Port);
 
         await CreateAndMigrateDatabasesAsync(server);
 
         Factory = await FoundationWebApplicationFactory.CreateAsync(
-            server.ConnectionStringFor(TestConstants.TenantDatabase),
-            server.ConnectionStringFor("control_plane"));
+            TenantConnectionString, ControlPlaneConnectionString);
         Console.WriteLine("✅ Test database ready — all tests will share this clean state");
     }
 

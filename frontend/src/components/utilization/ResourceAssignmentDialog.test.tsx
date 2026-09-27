@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 import {
   ResourceAssignmentDialog,
   assignmentWindow,
@@ -45,6 +43,7 @@ import {
   validateAssignment,
   validateAssignmentsBatch,
 } from "@foundation/src/lib/api/resource-assignments-api";
+import { renderWithQuery } from "@foundation/src/test-utils";
 
 const START = "2026-01-06T08:00:00Z";
 const END = "2026-01-06T10:00:00Z";
@@ -124,15 +123,10 @@ const CREATED_ASSIGNMENT: ResourceAssignmentInfo = {
   updatedAt: START,
 };
 
-function wrapper({ children }: { children: ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
-}
-
 function renderDialog(
   overrides: Partial<React.ComponentProps<typeof ResourceAssignmentDialog>> = {},
 ) {
-  return render(
+  return renderWithQuery(
     <ResourceAssignmentDialog
       open
       onOpenChange={vi.fn()}
@@ -143,7 +137,6 @@ function renderDialog(
       end={END}
       {...overrides}
     />,
-    { wrapper },
   );
 }
 
@@ -272,21 +265,7 @@ describe("ResourceAssignmentDialog", () => {
   it("remove: unchecking an assigned row calls cancelAssignment and invalidates cache", async () => {
     vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(cancelAssignment).mockResolvedValue(undefined);
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    render(
-      <QueryClientProvider client={qc}>
-        <ResourceAssignmentDialog
-          open
-          onOpenChange={vi.fn()}
-          resourceId="person-1"
-          resourceName="Alice"
-          allocationMode="Exclusive"
-          start={START}
-          end={END}
-        />
-      </QueryClientProvider>,
-    );
+    const { invalidateSpy } = renderDialog({ resourceName: "Alice" });
     await waitFor(() => expect(screen.getByText("Request Alpha")).toBeInTheDocument());
     const checkbox = screen.getByTestId("assignment-checkbox");
     await userEvent.click(checkbox);
@@ -458,21 +437,7 @@ describe("ResourceAssignmentDialog", () => {
     vi.mocked(getResourceAssignmentOptions).mockResolvedValue([CLEAN_CANDIDATE]);
     vi.mocked(validateAssignment).mockResolvedValue(OK_RESULT);
     vi.mocked(createAssignment).mockResolvedValue(CREATED_ASSIGNMENT);
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const invalidateSpy = vi.spyOn(qc, "invalidateQueries");
-    render(
-      <QueryClientProvider client={qc}>
-        <ResourceAssignmentDialog
-          open
-          onOpenChange={vi.fn()}
-          resourceId="person-1"
-          resourceName="Alice"
-          allocationMode="Exclusive"
-          start={START}
-          end={END}
-        />
-      </QueryClientProvider>,
-    );
+    const { invalidateSpy } = renderDialog({ resourceName: "Alice" });
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());

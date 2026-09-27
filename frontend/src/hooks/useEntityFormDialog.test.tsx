@@ -1,9 +1,9 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
+import type { QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useEntityFormDialog } from './useEntityFormDialog';
+import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -18,9 +18,7 @@ interface WidgetForm {
 }
 
 let queryClient: QueryClient;
-function wrapper({ children }: { children: React.ReactNode }) {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
-}
+let wrapper: ReturnType<typeof createTestQueryClient>['wrapper'];
 
 function renderDialogHook(overrides: {
   entity?: Widget | null;
@@ -48,10 +46,7 @@ function renderDialogHook(overrides: {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
-  });
+  ({ queryClient, wrapper } = createTestQueryClient({ feedback: true }));
 });
 
 describe('useEntityFormDialog', () => {

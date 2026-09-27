@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { generateWeekendRanges } from '@foundation/src/domain/scheduling/weekend-ranges';
 import { EMPTY_RESOURCE_GRID_FILTER, type ResourceGridFilter } from './resource-grid-filter';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ResourceUtilizationGrid } from './ResourceUtilizationGrid';
 import { useLayoutStore } from '@foundation/src/store/layout-store';
 import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
@@ -47,6 +46,7 @@ import { getAssignmentsByResourceType, validateAssignmentsBatch } from '@foundat
 import type { ResourceAssignmentInfo } from '@foundation/src/lib/api/resource-assignments-api';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const ANCHOR = new Date('2026-05-01T00:00:00Z');
 
@@ -132,20 +132,15 @@ const PERSON_TYPE = {
 };
 
 function renderGrid(props?: Partial<React.ComponentProps<typeof ResourceUtilizationGrid>>) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return { queryClient, ...render(
-    <QueryClientProvider client={queryClient}>
-      <ResourceUtilizationGrid
-        resourceType={PERSON_TYPE}
-        anchorTs={ANCHOR}
-        scale="month"
-        filter={EMPTY_RESOURCE_GRID_FILTER}
-        {...props}
-      />
-    </QueryClientProvider>,
-  ) };
+  return renderWithQuery(
+    <ResourceUtilizationGrid
+      resourceType={PERSON_TYPE}
+      anchorTs={ANCHOR}
+      scale="month"
+      filter={EMPTY_RESOURCE_GRID_FILTER}
+      {...props}
+    />,
+  );
 }
 
 describe('ResourceUtilizationGrid', () => {
@@ -289,21 +284,19 @@ describe('ResourceUtilizationGrid', () => {
   });
 
   it('filters people by the query it is handed', async () => {
-    const { rerender, queryClient } = renderGrid();
+    const { rerender } = renderGrid();
     await waitFor(() => {
       expect(screen.getByText('Alice Smith')).toBeInTheDocument();
       expect(screen.getByText('Bob Jones')).toBeInTheDocument();
     });
 
     rerender(
-      <QueryClientProvider client={queryClient}>
-        <ResourceUtilizationGrid
-          resourceType={PERSON_TYPE}
-          anchorTs={ANCHOR}
-          scale="month"
-          filter={{ ...EMPTY_RESOURCE_GRID_FILTER, query: 'Alice' }}
-        />
-      </QueryClientProvider>,
+      <ResourceUtilizationGrid
+        resourceType={PERSON_TYPE}
+        anchorTs={ANCHOR}
+        scale="month"
+        filter={{ ...EMPTY_RESOURCE_GRID_FILTER, query: 'Alice' }}
+      />,
     );
 
     await waitFor(() => expect(screen.queryByText('Bob Jones')).not.toBeInTheDocument());
@@ -397,13 +390,8 @@ describe('ResourceUtilizationGrid', () => {
     const { rerender } = renderGrid({ scale: 'week', anchorTs: new Date('2026-05-11T00:00:00Z') });
     await waitFor(() => screen.getByText('11 Mon'));
 
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
     rerender(
-      <QueryClientProvider client={queryClient}>
-        <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" filter={EMPTY_RESOURCE_GRID_FILTER} />
-      </QueryClientProvider>,
+      <ResourceUtilizationGrid resourceType={PERSON_TYPE} anchorTs={new Date('2026-05-18T00:00:00Z')} scale="week" filter={EMPTY_RESOURCE_GRID_FILTER} />,
     );
 
     await waitFor(() => expect(screen.getByText('18 Mon')).toBeInTheDocument());

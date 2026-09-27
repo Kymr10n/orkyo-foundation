@@ -4,7 +4,6 @@ using Api.Security;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Integration;
@@ -148,9 +147,11 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
 
         result.Success.Should().BeTrue();
         result.IsNewUser.Should().BeTrue();
+        result.Email.Should().Be(email);
         result.UserId.Should().NotBeEmpty();
         (await UserExistsWithEmailAsync(email)).Should().BeTrue();
         (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
+        emailServiceMock.Verify(e => e.SendNewUserAlertAsync(email, It.IsAny<string>()), Times.Once);
     }
 
     /// <summary>
@@ -266,6 +267,51 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         result.ErrorCode.Should().Be("invalid_token");
     }
 
+    // ── GetUserMembershipsAsync / GetUserTenantRoleAsync ─────────────────────
+
+    [Fact]
+    public async Task GetUserMemberships_ReturnsActiveMemberships()
+    {
+        var service = BuildService();
+        var userId = await CreateUserAsync(UniqueEmail(), displayName: null, status: "active");
+        var tenantId = await CreateActiveMembershipAsync(userId, "editor");
+
+        var memberships = await service.GetUserMembershipsAsync(userId);
+
+        memberships.Should().ContainSingle();
+        memberships[0].TenantId.Should().Be(tenantId);
+        memberships[0].TenantSlug.Should().NotBeNullOrEmpty();
+        memberships[0].Role.Should().Be(TenantRole.Editor);
+    }
+
+    [Fact]
+    public async Task GetUserMemberships_ReturnsEmpty_WhenUserHasNoMemberships()
+    {
+        var memberships = await BuildService().GetUserMembershipsAsync(Guid.NewGuid());
+
+        memberships.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetUserTenantRole_ReturnsNone_WhenUserNotMember()
+    {
+        var role = await BuildService().GetUserTenantRoleAsync(Guid.NewGuid(), Guid.NewGuid());
+
+        role.Should().Be(TenantRole.None);
+    }
+
+    [Fact]
+    public async Task GetUserTenantRole_ReturnsRole_WhenUserIsMember()
+    {
+        var service = BuildService();
+        var userId = await CreateUserAsync(UniqueEmail(), displayName: null, status: "active");
+        var tenantId = await CreateActiveMembershipAsync(userId, "admin");
+
+        var role = await service.GetUserTenantRoleAsync(userId, tenantId);
+
+        role.Should().Be(TenantRole.Admin);
+    }
+
     // ── composition ──────────────────────────────────────────────────────────
 
     private KeycloakIdentityLinkService BuildService(
@@ -278,7 +324,6 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
             Options.Create(new IdentityProvisioningOptions { AllowSelfRegistration = allowSelfRegistration }),
             NullLogger<KeycloakIdentityLinkService>.Instance);
     }
-
 
     private static ExternalIdentityToken BuildToken(string subject, string email, string? displayName) =>
         new()
@@ -320,6 +365,23 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         cmd.Parameters.AddWithValue("sub", subject);
         cmd.Parameters.AddWithValue("email", email);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    private async Task<Guid> CreateActiveMembershipAsync(Guid userId, string role)
+    {
+        var tenantId = Guid.NewGuid();
+        await using var conn = await _fixture.OpenControlPlaneConnectionAsync();
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO tenants (id, slug, display_name, status, db_identifier) " +
+            "VALUES (@t, @slug, 'KIL Tenant', 'active', @db); " +
+            "INSERT INTO tenant_memberships (user_id, tenant_id, role, status) VALUES (@u, @t, @role, 'active')", conn);
+        cmd.Parameters.AddWithValue("t", tenantId);
+        cmd.Parameters.AddWithValue("slug", $"kil-{tenantId:N}"[..20]);
+        cmd.Parameters.AddWithValue("db", $"tenant_kil_{tenantId:N}");
+        cmd.Parameters.AddWithValue("u", userId);
+        cmd.Parameters.AddWithValue("role", role);
+        await cmd.ExecuteNonQueryAsync();
+        return tenantId;
     }
 
     private async Task<DateTime?> ReadLastLoginAsync(Guid userId)

@@ -2,13 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Services;
-using AwesomeAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Moq;
 using Npgsql;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -23,7 +20,7 @@ public class ContactEndpointsTests : IAsyncLifetime
     private readonly DatabaseFixture _databaseFixture;
 
     private string ControlPlaneConnectionString =>
-        $"Host=localhost;Port={_databaseFixture.DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
+        _databaseFixture.ControlPlaneConnectionString;
 
     public ContactEndpointsTests(DatabaseFixture databaseFixture)
     {

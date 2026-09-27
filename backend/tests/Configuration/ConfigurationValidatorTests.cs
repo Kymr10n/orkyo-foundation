@@ -1,6 +1,5 @@
 using Api.Configuration;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Configuration;
@@ -135,30 +134,6 @@ public class ConfigurationValidatorTests
         var ex = act.Should().Throw<InvalidOperationException>().Which;
         ex.Message.Should().Contain(ConfigKeys.SmtpHost);
         ex.Message.Should().Contain(ConfigKeys.KeycloakUrl);
-    }
-
-    // ── LogConfigurationStatus ─────────────────────────────────────────────
-
-    [Fact]
-    public void LogConfigurationStatus_DoesNotThrow_WithValidConfig()
-    {
-        var config = BuildValidConfig();
-        var logger = Mock.Of<ILogger>();
-
-        var act = () => ConfigurationValidator.LogConfigurationStatus(config, logger);
-
-        act.Should().NotThrow();
-    }
-
-    [Fact]
-    public void LogConfigurationStatus_DoesNotThrow_WithMissingKeys()
-    {
-        var config = BuildConfig(new Dictionary<string, string?>());
-        var logger = Mock.Of<ILogger>();
-
-        var act = () => ConfigurationValidator.LogConfigurationStatus(config, logger);
-
-        act.Should().NotThrow();
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────

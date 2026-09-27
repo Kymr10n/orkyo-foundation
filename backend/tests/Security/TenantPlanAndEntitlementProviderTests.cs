@@ -1,6 +1,4 @@
 using Api.Security.Features;
-using AwesomeAssertions;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Security;
 

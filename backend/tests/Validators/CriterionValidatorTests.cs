@@ -2,7 +2,6 @@ using Api.Constants;
 using Api.Models;
 using Api.Validators;
 using FluentValidation;
-using Xunit;
 
 namespace Api.Tests.Validators;
 
@@ -89,6 +88,7 @@ public class CriterionValidatorTests
     [InlineData("Name_with_underscores")]
     [InlineData("Name-with-hyphens")]
     [InlineData("A123")]
+    [InlineData("mixed_CASE-123")]
     public void Create_ValidNameFormats_Pass(string name)
     {
         var request = new CreateCriterionRequest
@@ -107,6 +107,8 @@ public class CriterionValidatorTests
     [InlineData("-StartWithHyphen")]
     [InlineData("has spaces")]
     [InlineData("has.dots")]
+    [InlineData("special@char")]
+    [InlineData("special!")]
     public void Create_InvalidNameFormats_Fail(string name)
     {
         var request = new CreateCriterionRequest

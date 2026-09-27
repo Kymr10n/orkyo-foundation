@@ -1,15 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createFeedbackMutationCache } from '@foundation/src/lib/core/query-client';
-import { BrowserRouter, MemoryRouter } from 'react-router';
+import { BrowserRouter } from 'react-router';
 import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestsPage } from '@foundation/src/pages/RequestsPage';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { getDescendantIds, getAncestorIds } from '@foundation/src/domain/request-tree';
 import { importRequests, exportRequests } from '@foundation/src/lib/utils/export-handlers';
 import { toast } from 'sonner';
+import { renderWithQuery, createTestQueryWrapper } from '@foundation/src/test-utils';
 
 // Capture the export/import callbacks the page registers so the tests can drive
 // them directly (the real hooks wire them to a global toolbar event).
@@ -251,20 +250,13 @@ vi.mock('@foundation/src/lib/utils/utils', async (importOriginal) => {
 const createWrapper = () => {
   // The page's mutations declare their toasts in `meta`, so the wrapper carries the same
   // MutationCache production uses (with the mocked sonner toast) — otherwise no toast fires.
-  const queryClient: QueryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
-    mutationCache: createFeedbackMutationCache(() => queryClient, toast),
-  });
-
+  const QueryWrapper = createTestQueryWrapper({ feedback: true });
   return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
+    <QueryWrapper>
       <BrowserRouter>
         <TooltipProvider>{children}</TooltipProvider>
       </BrowserRouter>
-    </QueryClientProvider>
+    </QueryWrapper>
   );
 };
 
@@ -699,15 +691,11 @@ describe('RequestsPage', () => {
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
     ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/requests?edit=r1']}>
-          <TooltipProvider><RequestsPage /></TooltipProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
+    renderWithQuery(
+      <TooltipProvider>
+        <RequestsPage />
+      </TooltipProvider>,
+      { router: '/requests?edit=r1' },
     );
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
   });

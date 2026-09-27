@@ -7,9 +7,6 @@ import {
   MS_PER_WEEK,
   DURATION_TO_MINUTES,
   DURATION_UNIT_MS,
-  isWeekendDay,
-  SUNDAY,
-  SATURDAY,
   RRULE_DAY_MAP,
 } from './constants';
 
@@ -47,14 +44,6 @@ describe('domain/constants', () => {
     it('minutes = MS_PER_MINUTE', () => expect(DURATION_UNIT_MS.minutes).toBe(MS_PER_MINUTE));
     it('hours = MS_PER_HOUR', () => expect(DURATION_UNIT_MS.hours).toBe(MS_PER_HOUR));
     it('days = MS_PER_DAY', () => expect(DURATION_UNIT_MS.days).toBe(MS_PER_DAY));
-  });
-
-  describe('isWeekendDay', () => {
-    it('returns true for Sunday (0)', () => expect(isWeekendDay(SUNDAY)).toBe(true));
-    it('returns true for Saturday (6)', () => expect(isWeekendDay(SATURDAY)).toBe(true));
-    it('returns false for Monday (1)', () => expect(isWeekendDay(1)).toBe(false));
-    it('returns false for Wednesday (3)', () => expect(isWeekendDay(3)).toBe(false));
-    it('returns false for Friday (5)', () => expect(isWeekendDay(5)).toBe(false));
   });
 
   describe('RRULE_DAY_MAP', () => {

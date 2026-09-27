@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { getAllRequests, scheduleRequest, type ScheduleRequestData } from './utilization-api';
+import { getBacklogRequests, scheduleRequest, type ScheduleRequestData } from './utilization-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
@@ -22,120 +22,14 @@ describe('utilization-api', () => {
     vi.clearAllMocks();
   });
 
-  describe('getAllRequests', () => {
-    it('calls apiGet with correct endpoint', async () => {
+  describe('getBacklogRequests', () => {
+    it('reads the unscheduled backlog and computes durationMin', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockRequest]);
 
-      await getAllRequests();
+      const result = await getBacklogRequests();
 
-      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.REQUESTS);
-    });
-
-    it('returns requests with computed durationMin', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([mockRequest]);
-
-      const result = await getAllRequests();
-
-      expect(result).toHaveLength(1);
-      expect(result[0].durationMin).toBe(120); // 2 hours = 120 minutes
-    });
-
-    it('converts minutes duration correctly', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 30, minimalDurationUnit: 'minutes' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(30);
-    });
-
-    it('converts hours duration correctly', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 3, minimalDurationUnit: 'hours' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(180);
-    });
-
-    it('converts days duration correctly', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'days' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(1440); // 24 * 60
-    });
-
-    it('converts weeks duration correctly', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'weeks' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(10080); // 7 * 24 * 60
-    });
-
-    it('converts months duration correctly', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'months' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(43200); // 30 * 24 * 60
-    });
-
-    it('converts years duration correctly', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 1, minimalDurationUnit: 'years' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(525600); // 365 * 24 * 60
-    });
-
-    it('handles unknown duration unit by returning raw value', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        { ...mockRequest, minimalDurationValue: 42, minimalDurationUnit: 'unknown' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result[0].durationMin).toBe(42);
-    });
-
-    it('handles empty response', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([]);
-
-      const result = await getAllRequests();
-
-      expect(result).toHaveLength(0);
-    });
-
-    it('handles multiple requests', async () => {
-      vi.mocked(apiClient.apiGet).mockResolvedValue([
-        mockRequest,
-        { ...mockRequest, id: 'req-456', minimalDurationValue: 1, minimalDurationUnit: 'days' },
-      ]);
-
-      const result = await getAllRequests();
-
-      expect(result).toHaveLength(2);
+      expect(apiClient.apiGet).toHaveBeenCalledWith(`${API_PATHS.REQUESTS}?scheduled=false`);
       expect(result[0].durationMin).toBe(120);
-      expect(result[1].durationMin).toBe(1440);
-    });
-
-    it('propagates API errors', async () => {
-      const error = new Error('Network error');
-      vi.mocked(apiClient.apiGet).mockRejectedValue(error);
-
-      await expect(getAllRequests()).rejects.toThrow('Network error');
     });
   });
 

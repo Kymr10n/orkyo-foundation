@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 using Api.Models;
 using Api.Repositories;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Repositories;
 

@@ -1,10 +1,10 @@
 /** @jsxImportSource react */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ListRowPicker } from './ListRowPicker';
 import type { ListColumn, ListDefinition, ListRow } from '@foundation/src/lib/api/lists-api';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 const getListRows = vi.fn();
 const getListDefinition = vi.fn();
@@ -62,14 +62,7 @@ const rows: ListRow[] = [
 ];
 
 function renderPicker(value: string[], onChange = vi.fn()) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  render(
-    <QueryClientProvider client={client}>
-      <ListRowPicker instanceId="i1" definitionId="d1" value={value} onChange={onChange} />
-    </QueryClientProvider>,
-  );
+  renderWithQuery(<ListRowPicker instanceId="i1" definitionId="d1" value={value} onChange={onChange} />);
   return onChange;
 }
 

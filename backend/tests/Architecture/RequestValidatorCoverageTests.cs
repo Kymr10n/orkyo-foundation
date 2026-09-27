@@ -1,5 +1,3 @@
-using Xunit;
-
 namespace Orkyo.Foundation.Tests.Architecture;
 
 /// <summary>
@@ -28,8 +26,6 @@ public class RequestValidatorCoverageTests
         "Api.Models.Reporting.ReportingPageRequest",           // page/pageSize only
         "Api.Endpoints.TosAcceptRequest",                      // single accept flag
         "Api.Endpoints.UpdateNotificationPreferencesRequest",  // single bool opt-out flag
-        "Api.Models.UpdateRequestRequirementRequest",          // single JsonElement; shape is the
-                                                               // criterion datatype's business
 
         // --- invariants owned elsewhere: a static validator would duplicate the real policy ---
         // Server-constructed from the multipart form in FloorplanEndpoints (never model-bound),

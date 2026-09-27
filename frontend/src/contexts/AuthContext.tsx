@@ -27,12 +27,6 @@ import type { AuthStage } from '@foundation/src/constants/auth';
 import { logger } from '@foundation/src/lib/core/logger';
 import type { PlanCode } from '@foundation/contracts/plans';
 
-// ── Re-exported types (consumed by pages, components, api-utils) ──────────────
-
-// PlanCode (the full wire vocabulary, Community included) lives in contracts/plans.
-// Re-exported for the auth/membership consumers that import from this module.
-export type { PlanCode };
-
 export interface TenantMembership {
   tenantId: string;
   slug: string;

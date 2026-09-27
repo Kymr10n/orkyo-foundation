@@ -2,8 +2,6 @@ using Api.Models;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
-using Xunit;
 
 namespace Api.Tests.Services;
 

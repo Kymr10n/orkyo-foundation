@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Api.Integrations.Keycloak;
 using Api.Security;
-using AwesomeAssertions;
 
 namespace Orkyo.Foundation.Tests.Integrations.Keycloak;
 
@@ -229,10 +228,10 @@ public class KeycloakTokenProfileTests
         token.Audience.Should().Be("saas-client");
     }
 
-    // --- HasRealmRole ---
+    // --- RealmRoles ---
 
     [Fact]
-    public void HasRealmRole_ShouldReturnTrue_WhenRolePresent()
+    public void RealmRoles_ShouldContainRole_WhenRolePresent()
     {
         var profile = KeycloakTokenProfile.FromPrincipal(BuildPrincipal(new()
         {
@@ -240,11 +239,11 @@ public class KeycloakTokenProfileTests
             ["realm_access"] = RealmAccessJson("site-admin", "editor")
         }));
 
-        profile.HasRealmRole("editor").Should().BeTrue();
+        profile.RealmRoles.Should().Contain("editor");
     }
 
     [Fact]
-    public void HasRealmRole_ShouldReturnFalse_WhenRoleAbsent()
+    public void RealmRoles_ShouldNotContainRole_WhenRoleAbsent()
     {
         var profile = KeycloakTokenProfile.FromPrincipal(BuildPrincipal(new()
         {
@@ -252,6 +251,6 @@ public class KeycloakTokenProfileTests
             ["realm_access"] = RealmAccessJson("site-admin")
         }));
 
-        profile.HasRealmRole("editor").Should().BeFalse();
+        profile.RealmRoles.Should().NotContain("editor");
     }
 }

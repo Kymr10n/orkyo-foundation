@@ -7,7 +7,6 @@ using Orkyo.Foundation.Seed.Factories;
 using Orkyo.Foundation.Seed.Floorplans;
 using Orkyo.Foundation.Seed.Narrative;
 using Orkyo.Foundation.Seed.Scales;
-using Xunit;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 
@@ -458,7 +457,7 @@ public class NarrativeYearSeederTests
         var reference = new DateTime(2026, 9, 12, 0, 0, 0, DateTimeKind.Utc);
         // The production roster, because utilization is a ratio: the machine catalog is fixed, so a
         // roster half the real size would flatter the numbers and prove nothing about the demo.
-        var narrative = await SeedNarrativeAsync(conn, tx, reference, peopleCount: new Orkyo.Foundation.Seed.Scales.Medium().People);
+        var narrative = await SeedNarrativeAsync(conn, tx, reference, peopleCount: ScaleCatalog.Resolve("medium").People);
         var cal = narrative.Calendar;
 
         // ── Structural: the seed only books time the product actually counts ──────

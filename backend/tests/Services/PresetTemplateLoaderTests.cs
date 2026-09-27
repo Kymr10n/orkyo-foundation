@@ -1,8 +1,6 @@
 using System.Reflection;
 using Api.Models.Preset;
 using Api.Services;
-using AwesomeAssertions;
-using Xunit;
 
 namespace Api.Tests.Services;
 

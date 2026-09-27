@@ -10,13 +10,13 @@ import {
   formatDate,
   getPresetExpiry,
   fromDateOnly,
-  toDateOnly,
   type ExpiryMode,
   type TokenSummaryLike,
 } from './token-ui';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
+import { formatDateForInput } from '@foundation/src/lib/utils';
 
 const baseToken: TokenSummaryLike = {
   id: 't1',
@@ -72,10 +72,10 @@ describe('resolveExpiry', () => {
 
 describe('date helpers', () => {
   it('round-trips a local date without shifting across a timezone boundary', () => {
-    // toDateOnly uses local parts on purpose: an ISO conversion can land on the previous day
+    // formatDateForInput uses local parts on purpose: an ISO conversion can land on the previous day
     // for anyone west of UTC, silently offering an expiry a day early.
     const date = new Date(2026, 11, 24);
-    expect(fromDateOnly(toDateOnly(date))?.getDate()).toBe(24);
+    expect(fromDateOnly(formatDateForInput(date))?.getDate()).toBe(24);
   });
 
   it('rejects a malformed date string', () => {

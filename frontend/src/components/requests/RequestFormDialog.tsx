@@ -40,7 +40,7 @@ type RequestFormDialogProps = UseRequestFormDialogOptions & {
   onNavigate?: (requestId: string) => void;
 };
 
-// RequestFormData moved to the types layer (W2.5) so lib-level payload builders
+// RequestFormData moved to the types layer so lib-level payload builders
 // don't import from the components layer; re-exported to keep existing paths working.
 export type { RequestFormData };
 
