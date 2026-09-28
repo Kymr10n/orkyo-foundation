@@ -21,6 +21,26 @@ describe('TurnstileWidget', () => {
     expect(document.querySelector('script[src*="turnstile"]')).toBeNull();
   });
 
+  it('loads Cloudflare\'s script when it is not on the page yet', async () => {
+    config.turnstileSiteKey = 'site-key';
+    const render_ = vi.fn(() => 'widget-2');
+    // Captured rather than appended: jsdom refuses to fetch a remote script.
+    const appended: Node[] = [];
+    const append = vi.spyOn(document.head, 'appendChild').mockImplementation((node) => {
+      appended.push(node);
+      return node;
+    });
+
+    render(<TurnstileWidget onToken={vi.fn()} />);
+
+    expect((appended[0] as HTMLScriptElement).src).toContain('challenges.cloudflare.com/turnstile/v0/api.js');
+    window.turnstile = { render: render_, reset: vi.fn(), remove: vi.fn() };
+    window.__orkyoTurnstileOnload?.();
+
+    await waitFor(() => expect(render_).toHaveBeenCalled());
+    append.mockRestore();
+  });
+
   it('renders the challenge with the site key and forwards its token', async () => {
     config.turnstileSiteKey = 'site-key';
     let options: Record<string, unknown> = {};
