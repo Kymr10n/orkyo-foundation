@@ -5,9 +5,9 @@ name: Base Image Scan
 # Also enforces the .trivyignore review-date policy. See the reusable workflow
 # for the reasoning.
 #
-# Severity is CRITICAL only, matching security-refresh.yml: HIGH findings in the
-# upstream Keycloak image are bundled by Keycloak and resolved only by a digest
-# bump, so they are surfaced there but do not gate.
+# Severity is CRITICAL only: HIGH findings in the upstream Keycloak image are
+# bundled by Keycloak and resolved only by a digest bump, so release-ci.yml
+# surfaces them in its job summary but does not gate on them.
 
 on:
   pull_request:

@@ -60,7 +60,7 @@ per agent, sequential within a stack, stacks in parallel.
 | C4 | B1a | todo | |
 | S1 | B4 | todo | |
 | S2 | F1 | todo | |
-| S3 | F1 | todo | |
+| S3 | F1 | in-progress | |
 | S4 | F2 | todo | |
 | S5 | F1 | todo | |
 | S6 | B4 | todo | |
@@ -111,7 +111,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S51 | R1 | done | dotnet-format hook no longer runs `git add`; frontend/backend pre-push test hooks deleted and `pre-push` dropped from install types; CLAUDE.md, CONTRIBUTING, setup.sh wording aligned |
 | S52 | R1 | done | Both non-root checks now `docker pull` + `docker image inspect` `.Config.User` and fail on empty/`0`/`root` or on any pull/inspect error; no fallback UID (the old `id -u` ran through Keycloak's `kc.sh` entrypoint and always fell back to 1000) |
 | S53 | R1 | todo | |
-| S54 | R1 | in-progress | |
+| S54 | R1 | done | Deleted `security-refresh.yml` (comments pointing at it fixed); kept `reusable-security-refresh.yml` — saas and community both call it. The three packable lists are now one `dotnet pack Orkyo.Foundation.slnx` each (only the test project is non-package and already has `IsPackable=false`; a local solution pack yields exactly the 9 packages) |
 | S55 | F5 | todo | |
 | S56 | R1 | todo | |
 | M1 | — | skipped | major-version decision; see do-not-touch |
