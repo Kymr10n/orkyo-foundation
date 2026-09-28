@@ -1,6 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { QueryClient } from '@tanstack/react-query';
 import { useExportHandler, useImportHandler } from './useImportExport';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { toast } from 'sonner';
@@ -28,20 +27,20 @@ function resetStore() {
   });
 }
 
-// useImportHandler reads the query client (for options.invalidates), so hooks
-// render under a provider — mirroring every real consumer.
-let queryClient: QueryClient;
+// Both hooks run a mutation, so they render under a provider — mirroring every real consumer.
+let invalidateSpy: ReturnType<typeof createTestQueryClient>['spy'];
 let wrapper: ReturnType<typeof createTestQueryClient>['wrapper'];
 
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(useCanEdit).mockReturnValue(true);
   resetStore();
-  ({ queryClient, wrapper } = createTestQueryClient());
+  // The import and export runs are mutations with `meta`: wire the production feedback cache.
+  ({ spy: invalidateSpy, wrapper } = createTestQueryClient({ feedback: true }));
 });
 
 describe('useExportHandler', () => {
-  it('calls handler when context matches', () => {
+  it('calls handler when context matches', async () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
@@ -51,7 +50,7 @@ describe('useExportHandler', () => {
       useUiActionsStore.getState().triggerExport({ context: 'spaces', format: 'csv' as ExportFormat });
     });
 
-    expect(handler).toHaveBeenCalledWith('csv');
+    await waitFor(() => expect(handler).toHaveBeenCalledWith('csv'));
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
@@ -68,7 +67,7 @@ describe('useExportHandler', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('handles different export formats', () => {
+  it('handles different export formats', async () => {
     const handler = vi.fn();
     const context: ExportContext = 'requests';
 
@@ -81,9 +80,23 @@ describe('useExportHandler', () => {
       useUiActionsStore.getState().triggerExport({ context: 'requests', format: 'xlsx' as ExportFormat });
     });
 
+    await waitFor(() => expect(handler).toHaveBeenCalledTimes(2));
     expect(handler).toHaveBeenCalledWith('csv');
     expect(handler).toHaveBeenCalledWith('xlsx');
-    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports a failed export through the central error toast', async () => {
+    const handler = vi.fn().mockRejectedValue(new Error('Disk full'));
+
+    renderHook(() => useExportHandler('spaces', handler, OFFER), { wrapper });
+    act(() => {
+      useUiActionsStore.getState().triggerExport({ context: 'spaces', format: 'csv' as ExportFormat });
+    });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Export failed', { description: 'Disk full' }),
+    );
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it('does not re-fire after unmount', () => {
@@ -104,7 +117,7 @@ describe('useExportHandler', () => {
 describe('useImportHandler', () => {
   const mockFile = new File(['test'], 'test.csv', { type: 'text/csv' });
 
-  it('calls handler when context matches', () => {
+  it('calls handler when context matches', async () => {
     const handler = vi.fn();
     const context: ExportContext = 'spaces';
 
@@ -114,7 +127,7 @@ describe('useImportHandler', () => {
       useUiActionsStore.getState().triggerImport({ context: 'spaces', format: 'csv' as ImportFormat, file: mockFile });
     });
 
-    expect(handler).toHaveBeenCalledWith(mockFile, 'csv');
+    await waitFor(() => expect(handler).toHaveBeenCalledWith(mockFile, 'csv'));
     expect(handler).toHaveBeenCalledTimes(1);
   });
 
@@ -131,7 +144,7 @@ describe('useImportHandler', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('handles different import formats', () => {
+  it('handles different import formats', async () => {
     const handler = vi.fn();
     const context: ExportContext = 'requests';
     const csvFile = new File(['test'], 'test.csv', { type: 'text/csv' });
@@ -146,9 +159,9 @@ describe('useImportHandler', () => {
       useUiActionsStore.getState().triggerImport({ context: 'requests', format: 'xlsx' as ImportFormat, file: xlsxFile });
     });
 
+    await waitFor(() => expect(handler).toHaveBeenCalledTimes(2));
     expect(handler).toHaveBeenCalledWith(csvFile, 'csv');
     expect(handler).toHaveBeenCalledWith(xlsxFile, 'xlsx');
-    expect(handler).toHaveBeenCalledTimes(2);
   });
 
   it('does not re-fire after unmount', () => {
@@ -169,7 +182,6 @@ describe('useImportHandler', () => {
 
   it('fires success toast (function form) + invalidates keys when options are set', async () => {
     const handler = vi.fn().mockResolvedValue(3);
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
     renderHook(
       () =>

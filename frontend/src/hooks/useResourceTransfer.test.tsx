@@ -64,7 +64,8 @@ beforeEach(() => {
     exportRegistry: new Map(),
     importRegistry: new Map(),
   });
-  wrapper = createTestQueryWrapper();
+  // Import feedback runs through the central MutationCache, as in production.
+  wrapper = createTestQueryWrapper({ feedback: true });
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(createResource).mockResolvedValue({ id: 'created' } as ResourceInfo);
   vi.mocked(importResources).mockResolvedValue([importRow('Lathe')]);

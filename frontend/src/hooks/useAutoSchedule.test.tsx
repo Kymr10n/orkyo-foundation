@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import { toast } from 'sonner';
 import { usePreviewAutoSchedule, useApplyAutoSchedule, useAutoScheduleAvailable } from '@foundation/src/hooks/useAutoSchedule';
-import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
+import { applyAutoSchedule } from '@foundation/src/lib/api/auto-schedule-api';
+import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock('@foundation/src/lib/api/auto-schedule-api', () => ({
   previewAutoSchedule: vi.fn(() => Promise.resolve({ assignments: [] })),
@@ -27,10 +32,43 @@ describe('usePreviewAutoSchedule', () => {
 });
 
 describe('useApplyAutoSchedule', () => {
-  it('returns a mutation', () => {
-    const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper: createTestQueryWrapper() });
-    expect(result.current.mutateAsync).toBeDefined();
-    expect(result.current.isPending).toBe(false);
+  const request = { siteId: 's1', horizonStart: '2026-01-01', horizonEnd: '2026-04-01' };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('sends only the request and toasts the previewed count', async () => {
+    const { spy, wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper });
+
+    await act(() => result.current.mutateAsync({ request, scheduledCount: 2 }));
+
+    expect(vi.mocked(applyAutoSchedule).mock.calls[0][0]).toEqual(request);
+    expect(toast.success).toHaveBeenCalledWith('Scheduled 2 requests');
+    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+      expect(spy).toHaveBeenCalledWith({ queryKey, exact: false });
+    }
+  });
+
+  it('says "1 request" and falls back when nothing was placed', async () => {
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper });
+
+    await act(() => result.current.mutateAsync({ request, scheduledCount: 1 }));
+    expect(toast.success).toHaveBeenLastCalledWith('Scheduled 1 request');
+    await act(() => result.current.mutateAsync({ request, scheduledCount: 0 }));
+    expect(toast.success).toHaveBeenLastCalledWith('Auto-schedule applied');
+  });
+
+  it('leaves a failure to the dialog: no error toast', async () => {
+    vi.mocked(applyAutoSchedule).mockRejectedValueOnce(new Error('stale'));
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper });
+
+    await act(() =>
+      result.current.mutateAsync({ request, scheduledCount: 1 }).catch(() => undefined),
+    );
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
 

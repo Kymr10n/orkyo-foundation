@@ -49,7 +49,7 @@ import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-s
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { logger } from "@foundation/src/lib/core/logger";
 import { ApiError } from "@foundation/src/lib/core/api-utils";
-import { useInvalidateRequestData, useSaveRequest } from "@foundation/src/hooks/useRequests";
+import { useSaveRequest } from "@foundation/src/hooks/useRequests";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
@@ -74,7 +74,6 @@ import {
   requestBarToneClass,
 } from "@foundation/src/components/utilization/RequestBarVisual";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { toast } from "sonner";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -287,8 +286,6 @@ export function UtilizationPage() {
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   // On phone the drag-based scheduler grid is replaced by a drag-free agenda.
   const { isPhone } = useBreakpoint();
-  // Non-drag "Schedule to…" dialog target (keyboard-accessible scheduling path).
-  const invalidateRequests = useInvalidateRequestData();
 
   // Auto-schedule
   const autoScheduleAvailable = useAutoScheduleAvailable();
@@ -522,8 +519,7 @@ export function UtilizationPage() {
     })();
   }, [proposedRequestIds, clearAutoSchedule, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKeys, previewMutation]);
 
-  // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
-  // the success toast interpolates the preview's dynamic count, and the catch
+  // The toast and the request-data invalidation come from the mutation's `meta`; the catch
   // classifies the preview-fingerprint 409 into an in-dialog error.
   const handleAutoScheduleApply = useCallback(async () => {
     if (!selectedSiteId) return;
@@ -532,22 +528,18 @@ export function UtilizationPage() {
       // resourceTypeKeys must be the set the preview solved for — the fingerprint alone
       // doesn't pin it, so a changed filter would re-solve for a different set.
       await applyMutation.mutateAsync({
-        siteId: selectedSiteId,
-        horizonStart,
-        horizonEnd,
-        requestIds: autoScheduleRequestIds ?? undefined,
-        resourceTypeKeys: autoScheduleTypeKeys,
-        previewFingerprint: autoSchedulePreview?.fingerprint,
+        request: {
+          siteId: selectedSiteId,
+          horizonStart,
+          horizonEnd,
+          requestIds: autoScheduleRequestIds ?? undefined,
+          resourceTypeKeys: autoScheduleTypeKeys,
+          previewFingerprint: autoSchedulePreview?.fingerprint,
+        },
+        scheduledCount: autoSchedulePreview?.assignments.length ?? 0,
       });
       setIsPreviewDialogOpen(false);
-      const scheduledCount = autoSchedulePreview?.assignments.length ?? 0;
       setAutoSchedulePreview(null);
-      invalidateRequests();
-      toast.success(
-        scheduledCount > 0
-          ? `Scheduled ${scheduledCount} request${scheduledCount === 1 ? "" : "s"}`
-          : "Auto-schedule applied",
-      );
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         setAutoScheduleError(
@@ -557,7 +549,7 @@ export function UtilizationPage() {
         setAutoScheduleError(errorMessage(err));
       }
     }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview, invalidateRequests]);
+  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview]);
 
   // One click = one whole period, on every tab. The grids used to pan by a sub-period, which
   // read as a broken control: on a week scale the arrow moved a day, so reaching next week took

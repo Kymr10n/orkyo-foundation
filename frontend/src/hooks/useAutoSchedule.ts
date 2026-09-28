@@ -10,6 +10,7 @@ import type {
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { PlanCodes, planIncludesPremiumFeatures } from "@foundation/contracts/plans";
 import { useTenantSettings } from "@foundation/src/hooks/useTenantSettings";
+import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 
 export function usePreviewAutoSchedule() {
   return useMutation({
@@ -18,10 +19,32 @@ export function usePreviewAutoSchedule() {
   });
 }
 
+/**
+ * What an apply sends: the request itself, plus how many requests the preview placed so the
+ * success toast can say so (the response counts assignments, not requests).
+ */
+export interface ApplyAutoScheduleVariables {
+  request: AutoScheduleApplyRequest;
+  scheduledCount: number;
+}
+
+/**
+ * Applies a previewed run. The preview dialog stays open on failure and shows the error
+ * itself (a 409 means the preview is stale), so the error toast is suppressed.
+ */
 export function useApplyAutoSchedule() {
   return useMutation({
-    mutationFn: (request: AutoScheduleApplyRequest) =>
-      applyAutoSchedule(request),
+    mutationFn: ({ request }: ApplyAutoScheduleVariables) => applyAutoSchedule(request),
+    meta: {
+      successMessage: (_data, variables) => {
+        const { scheduledCount } = variables as ApplyAutoScheduleVariables;
+        return scheduledCount > 0
+          ? `Scheduled ${scheduledCount} request${scheduledCount === 1 ? "" : "s"}`
+          : "Auto-schedule applied";
+      },
+      suppressErrorToast: true,
+      invalidates: REQUEST_DERIVED_QUERY_KEYS,
+    },
   });
 }
 

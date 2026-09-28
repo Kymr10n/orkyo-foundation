@@ -672,7 +672,7 @@ describe("UtilizationPage", () => {
     fireEvent.click(screen.getByTestId("apply-schedule"));
     await waitFor(() => {
       expect(mockApplyMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ resourceTypeKeys: ["tool"] }),
+        expect.objectContaining({ request: expect.objectContaining({ resourceTypeKeys: ["tool"] }) }),
       );
     });
   });
