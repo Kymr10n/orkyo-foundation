@@ -42,9 +42,7 @@ public abstract class ProductDatabaseFixtureBase<TProgram, TFactory>
     public TFactory Factory { get; private set; } = null!;
 
     /// <summary>True when the CI service container on port 5432 is used instead of a local server.</summary>
-    protected static bool UseCiDatabase =>
-        Environment.GetEnvironmentVariable("CI") == "true"
-        && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ConfigKeys.ConnectionStringPostgresEnvVar));
+    protected static bool UseCiDatabase => TestDatabase.UseCiDatabase;
 
     /// <summary>Starts the product's local PostgreSQL server (not called in CI).</summary>
     protected abstract Task<(int Port, string AdminConnectionString)> StartLocalServerAsync();
@@ -119,16 +117,7 @@ public abstract class ProductDatabaseFixtureBase<TProgram, TFactory>
         new NpgsqlConnectionStringBuilder(AdminConnectionString) { Database = database }.ConnectionString;
 
     /// <summary>Creates <paramref name="dbName"/> unless it already exists.</summary>
-    protected async Task CreateDatabaseAsync(string dbName)
-    {
-        await using var conn = new NpgsqlConnection(AdminConnectionString);
-        await conn.OpenAsync();
-        await using var check = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @n", conn);
-        check.Parameters.AddWithValue("n", dbName);
-        if (await check.ExecuteScalarAsync() is not null) return;
-        await using var create = new NpgsqlCommand($"CREATE DATABASE \"{dbName}\"", conn);
-        await create.ExecuteNonQueryAsync();
-    }
+    protected Task CreateDatabaseAsync(string dbName) => TestDatabase.CreateIfMissingAsync(AdminConnectionString, dbName);
 
     /// <summary>
     /// A <see cref="MigrationRunner"/> over the modules <paramref name="registerModules"/> adds
@@ -136,12 +125,5 @@ public abstract class ProductDatabaseFixtureBase<TProgram, TFactory>
     /// and above to the console.
     /// </summary>
     protected static MigrationRunner BuildMigrationRunner(Action<IServiceCollection> registerModules)
-    {
-        ArgumentNullException.ThrowIfNull(registerModules);
-        var services = new ServiceCollection()
-            .AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning))
-            .AddOrkyoMigrationPlatform();
-        registerModules(services);
-        return services.BuildServiceProvider().GetRequiredService<MigrationRunner>();
-    }
+        => TestDatabase.BuildMigrationRunner(registerModules);
 }

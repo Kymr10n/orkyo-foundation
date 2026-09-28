@@ -78,6 +78,16 @@ public class AuthorizationMatrixTests
     public async Task AdminAreaWrite_AsAdmin_IsAllowed() =>
         AssertNotForbidden(await _admin.DeleteAsync($"/api/users/{Guid.NewGuid()}"));
 
+    // AuthorizationContractTests reads the metadata; this pins that the pipeline enforces it.
+    [Fact]
+    public async Task ADeclaredRoute_AnswersAnAnonymousCaller401()
+    {
+        using var anonymous = _fixture.Factory.CreateClient();
+        anonymous.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/sites")).StatusCode);
+    }
+
     // The test host maps an unknown role claim to no membership, never to a default role, so a
     // mistyped role in a test token cannot pass an Admin gate for the wrong reason.
     [Fact]

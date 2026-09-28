@@ -1,11 +1,16 @@
 using Api.Services.BffSession;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Orkyo.Foundation.Tests.Services;
 
 public class InMemoryBffSessionStoreTests
 {
-    private readonly InMemoryBffSessionStore _store =
-        new(new Mock<Microsoft.Extensions.Logging.ILogger<InMemoryBffSessionStore>>().Object, TimeProvider.System);
+    // Starts at the wall clock, because the fixtures below stamp expiries from DateTimeOffset.UtcNow.
+    private readonly FakeTimeProvider _time = new(DateTimeOffset.UtcNow);
+    private readonly InMemoryBffSessionStore _store;
+
+    public InMemoryBffSessionStoreTests() =>
+        _store = new(new Mock<Microsoft.Extensions.Logging.ILogger<InMemoryBffSessionStore>>().Object, _time);
 
     private static BffSessionRecord CreateSession(string? sessionId = null, DateTimeOffset? expiresAt = null) =>
         new()
@@ -125,7 +130,7 @@ public class InMemoryBffSessionStoreTests
     public async Task TryAcquireRefreshLock_ReacquirableAfterTtlExpires()
     {
         (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromMilliseconds(20))).Should().BeTrue();
-        await Task.Delay(40);
+        _time.Advance(TimeSpan.FromMilliseconds(40));
         (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromSeconds(30))).Should().BeTrue();
     }
 

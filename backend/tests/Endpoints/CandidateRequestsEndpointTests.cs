@@ -92,7 +92,7 @@ public class CandidateRequestsEndpointTests
     public async Task Returns404_WhenResourceDoesNotExist()
     {
         var unknownId = Guid.NewGuid();
-        var start = new DateTime(2026, 9, 1, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 1, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(8);
         var resp = await _client.GetAsync(CandidateUrl(unknownId, start, end));
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
@@ -102,7 +102,7 @@ public class CandidateRequestsEndpointTests
     public async Task Returns200_WithOverlappingPlannedRequest()
     {
         var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 10, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 10, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         var reqId = await CreateScheduledRequestAsync(start, start.AddHours(8));
 
@@ -120,7 +120,7 @@ public class CandidateRequestsEndpointTests
     public async Task Excludes_RequestEndingBeforePeriodStart()
     {
         var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 11, 12, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 11, 12, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         // Request ends exactly at period start (exclusive overlap: end_ts > @start)
         var excludedId = await CreateScheduledRequestAsync(start.AddHours(-4), start);
@@ -136,7 +136,7 @@ public class CandidateRequestsEndpointTests
     public async Task Excludes_RequestStartingAtOrAfterPeriodEnd()
     {
         var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 12, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 12, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         // Request starts exactly at period end (exclusive: start_ts < @end)
         var excludedId = await CreateScheduledRequestAsync(end, end.AddHours(4));
@@ -152,7 +152,7 @@ public class CandidateRequestsEndpointTests
     public async Task AlreadyAssignedRequest_AppearsWithAssignmentId()
     {
         var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 13, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 13, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(8);
         var reqId = await CreateScheduledRequestAsync(start, end);
 
@@ -183,7 +183,7 @@ public class CandidateRequestsEndpointTests
     public async Task Excludes_DoneAndCancelledRequests()
     {
         var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 14, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 14, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         var doneId = await CreateScheduledRequestAsync(start, end, "done");
         var cancelledId = await CreateScheduledRequestAsync(start, end, "cancelled");
@@ -205,7 +205,7 @@ public class CandidateRequestsEndpointTests
         var spaceCriterion = await CreateBooleanCriterionAsync("space", $"Crane-{Guid.NewGuid():N}"[..20]);
         var personCriterionName = $"Forklift-{Guid.NewGuid():N}"[..20];
         var personCriterion = await CreateBooleanCriterionAsync("person", personCriterionName);
-        var start = new DateTime(2026, 9, 16, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 16, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
         var reqId = await CreateScheduledRequestAsync(start, end, requiredCriterionIds: [spaceCriterion, personCriterion]);
 
@@ -223,7 +223,7 @@ public class CandidateRequestsEndpointTests
     public async Task Returns200_EmptyList_WhenNoOverlappingRequests()
     {
         var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 15, 9, 0, 0, DateTimeKind.Utc);
+        var start = new DateTime(2037, 9, 15, 9, 0, 0, DateTimeKind.Utc);
         var end = start.AddHours(4);
 
         var resp = await _client.GetAsync(CandidateUrl(personId, start, end));

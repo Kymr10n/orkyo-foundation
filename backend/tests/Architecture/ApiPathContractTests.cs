@@ -25,12 +25,8 @@ namespace Orkyo.Foundation.Tests.Architecture;
 /// <see cref="SaasOwnedPaths"/> entry that Foundation starts serving (or that leaves api-paths.ts)
 /// also fails, so the escape hatch cannot quietly outlive its reason.</para>
 /// </summary>
-[Collection("Database collection")]
 public partial class ApiPathContractTests
 {
-    private readonly DatabaseFixture _fixture;
-
-    public ApiPathContractTests(DatabaseFixture fixture) => _fixture = fixture;
 
     /// <summary>
     /// Normalized paths that api-paths.ts owns but Foundation's backend does not register, because
@@ -187,7 +183,7 @@ public partial class ApiPathContractTests
 
     private HashSet<string> BackendRoutePaths()
     {
-        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+        var dataSource = FoundationWebApplicationFactory.RouteTable;
         var paths = dataSource.Endpoints
             .OfType<RouteEndpoint>()
             .Select(e => "/" + (e.RoutePattern.RawText ?? string.Empty).TrimStart('/'))

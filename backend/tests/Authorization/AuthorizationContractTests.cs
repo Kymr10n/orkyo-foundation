@@ -24,17 +24,25 @@ namespace Orkyo.Foundation.Tests.Authorization;
 /// so a per-endpoint "no token → 401" test is not needed: a route either requires an authenticated
 /// caller or is on <see cref="AuthorizationContract.FoundationAnonymousRoutes"/>.
 /// </summary>
-[Collection("Database collection")]
 public class AuthorizationContractTests
 {
-    private readonly DatabaseFixture _fixture;
 
-    public AuthorizationContractTests(DatabaseFixture fixture) => _fixture = fixture;
+    [Fact]
+    public void RouteTable_HoldsTheFoundationRoutes()
+    {
+        // Vacuity guard for every contract that walks FoundationWebApplicationFactory.RouteTable:
+        // an empty table would pass them all.
+        var paths = FoundationWebApplicationFactory.RouteTable.Endpoints.OfType<RouteEndpoint>()
+            .Select(e => "/" + (e.RoutePattern.RawText ?? string.Empty).TrimStart('/'))
+            .ToList();
+
+        paths.Should().Contain("/api/admin/audit").And.Contain(p => p.StartsWith("/api/sites", StringComparison.Ordinal));
+    }
 
     [Fact]
     public void EveryMutatingApiRoute_IsGovernedByAnAuthorizationConvention()
     {
-        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+        var dataSource = FoundationWebApplicationFactory.RouteTable;
 
         var ungoverned = AuthorizationContract.FindUngovernedMutatingRoutes<AuthorizationGoverned>(
             dataSource, AuthorizationContract.FoundationSelfServicePrefixes);
@@ -45,7 +53,7 @@ public class AuthorizationContractTests
     [Fact]
     public void EveryAdminRoute_ReadsIncluded_IsGoverned()
     {
-        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+        var dataSource = FoundationWebApplicationFactory.RouteTable;
 
         var ungoverned = AuthorizationContract.FindUngovernedAdminRoutes<AuthorizationGoverned>(dataSource);
 
@@ -57,7 +65,7 @@ public class AuthorizationContractTests
     [Fact]
     public void EveryApiRoute_DeclaresItsAuthentication()
     {
-        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+        var dataSource = FoundationWebApplicationFactory.RouteTable;
 
         var undeclared = AuthorizationContract.FindUnauthenticatedRoutes(
             dataSource, AuthorizationContract.FoundationAnonymousRoutes);
@@ -66,18 +74,6 @@ public class AuthorizationContractTests
             "These /api routes answer anonymous callers. Give the group RequireAuthorization (or a "
             + "Require* convention), or allow-list a route that is anonymous on purpose:\n  "
             + string.Join("\n  ", undeclared));
-    }
-
-    [Fact]
-    public async Task ADeclaredRoute_AnswersAnAnonymousCaller401()
-    {
-        // The contract reads metadata; this pins that the metadata is what the pipeline enforces.
-        using var anonymous = _fixture.Factory.CreateClient();
-        anonymous.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
-
-        var response = await anonymous.GetAsync("/api/sites");
-
-        Assert.Equal(System.Net.HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

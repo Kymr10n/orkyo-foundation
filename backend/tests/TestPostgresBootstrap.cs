@@ -33,13 +33,7 @@ public static class TestPostgresBootstrap
         await DatabaseCreation.WaitAsync();
         try
         {
-            await using var conn = new NpgsqlConnection(server.AdminConnectionString);
-            await conn.OpenAsync();
-            await using var check = new NpgsqlCommand("SELECT 1 FROM pg_database WHERE datname = @n", conn);
-            check.Parameters.AddWithValue("n", database);
-            if (await check.ExecuteScalarAsync() is not null) return;
-            await using var create = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", conn);
-            await create.ExecuteNonQueryAsync();
+            await TestDatabase.CreateIfMissingAsync(server.AdminConnectionString, database);
         }
         finally
         {
@@ -51,22 +45,12 @@ public static class TestPostgresBootstrap
     /// A runner over the foundation migration set alone — the test-placement rule keeps
     /// product migrations out of this project.
     /// </summary>
-    public static MigrationRunner BuildFoundationRunner()
-    {
-        var services = new ServiceCollection()
-            .AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning))
-            .AddOrkyoMigrationPlatform()
-            .AddFoundationMigrations()
-            .BuildServiceProvider();
-        return services.GetRequiredService<MigrationRunner>();
-    }
+    public static MigrationRunner BuildFoundationRunner() =>
+        TestDatabase.BuildMigrationRunner(services => services.AddFoundationMigrations());
 
     private static async Task<TestPostgresServer> StartAsync()
     {
-        var useCiDatabase = Environment.GetEnvironmentVariable("CI") == "true"
-            && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ConnectionStrings__Postgres"));
-
-        if (useCiDatabase)
+        if (TestDatabase.UseCiDatabase)
         {
             Console.WriteLine("⚡ CI detected — using service container on port 5432 (skipping Testcontainers)");
             return new TestPostgresServer(5432);

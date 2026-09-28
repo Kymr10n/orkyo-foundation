@@ -20,12 +20,8 @@ namespace Orkyo.Foundation.Tests.Architecture;
 /// the list. The two guards share their reflection through
 /// <see cref="RequestValidationReflection"/>.</para>
 /// </summary>
-[Collection("Database collection")]
 public class EndpointValidatorWiringTests
 {
-    private readonly DatabaseFixture _fixture;
-
-    public EndpointValidatorWiringTests(DatabaseFixture fixture) => _fixture = fixture;
 
     [Fact]
     public void EveryMutatingRoute_WithAValidatedRequestType_InjectsThatValidator()
@@ -33,7 +29,7 @@ public class EndpointValidatorWiringTests
         var validatedTypes = RequestValidationReflection.ValidatedRequestTypes();
         Assert.NotEmpty(validatedTypes); // vacuity guard: no validators found means the scan broke
 
-        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+        var dataSource = FoundationWebApplicationFactory.RouteTable;
 
         var unwired = new List<string>();
         foreach (var endpoint in dataSource.Endpoints.OfType<RouteEndpoint>())
