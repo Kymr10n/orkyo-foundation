@@ -57,8 +57,6 @@ beforeEach(() => {
   useUiActionsStore.setState({
     exportTick: 0,
     importTick: 0,
-    commandPaletteTick: 0,
-    tourTick: 0,
     lastExport: null,
     lastImport: null,
     exportRegistry: new Map(),

@@ -3,9 +3,13 @@
  * the TopBar previously used to fire export/import/command-palette/tour
  * triggers across the tree.
  *
- * The store holds a per-action `tick` counter plus the most recent payload.
- * Consumers `useEffect` on the tick: every tick increment means a new fire,
- * regardless of whether the payload is identical to the previous one.
+ * The overlays AppLayout mounts once (command palette, tour, assistant,
+ * scanner) are plain open/closed booleans: whoever opens one sets it, and the
+ * overlay's own `onOpenChange` closes it.
+ *
+ * Export and import keep a per-action `tick` counter plus the most recent
+ * payload. The page that registered the handler `useEffect`s on the tick:
+ * every increment is a new fire, even when the payload equals the last one.
  *
  * This gives us:
  *   - Type-safe payloads (no `event as CustomEvent<T>` casts)
@@ -71,11 +75,11 @@ interface UiActionsState {
   // Counters bumped on each trigger
   exportTick: number;
   importTick: number;
-  commandPaletteTick: number;
-  tourTick: number;
-  assistantTick: number;
-  autoScheduleTick: number;
-  scanTick: number;
+  // Overlays mounted once in AppLayout
+  commandPaletteOpen: boolean;
+  tourOpen: boolean;
+  assistantOpen: boolean;
+  scannerOpen: boolean;
   // Last payload for actions that carry data
   lastExport: ExportPayload | null;
   lastImport: ImportPayload | null;
@@ -109,9 +113,14 @@ interface UiActionsState {
   triggerExport: (payload: ExportPayload) => void;
   triggerImport: (payload: ImportPayload) => void;
   openCommandPalette: () => void;
+  /** Ctrl+K / Cmd+K. */
+  toggleCommandPalette: () => void;
+  setCommandPaletteOpen: (open: boolean) => void;
   openTour: () => void;
+  setTourOpen: (open: boolean) => void;
   /** Opens the assistant panel, optionally about a specific conflict. */
   openAssistant: (context?: AssistantOpenContext) => void;
+  setAssistantOpen: (open: boolean) => void;
   /**
    * Asks the scheduling page to preview auto-scheduling for these requests. It does not
    * schedule anything: the page opens its ordinary preview dialog, and the person applies
@@ -127,6 +136,7 @@ interface UiActionsState {
   clearAutoSchedule: () => void;
   /** Opens the global QR scanner (docs/qr-resource-linking-spec.md §5.3). */
   openScanner: () => void;
+  setScannerOpen: (open: boolean) => void;
   openResourceStatus: (resourceId: string) => void;
   closeResourceStatus: () => void;
 
@@ -150,11 +160,10 @@ function withoutKey<V>(map: Map<ExportContext, V>, context: ExportContext): Map<
 export const useUiActionsStore = create<UiActionsState>((set) => ({
   exportTick: 0,
   importTick: 0,
-  commandPaletteTick: 0,
-  tourTick: 0,
-  assistantTick: 0,
-  autoScheduleTick: 0,
-  scanTick: 0,
+  commandPaletteOpen: false,
+  tourOpen: false,
+  assistantOpen: false,
+  scannerOpen: false,
   lastExport: null,
   lastImport: null,
   assistantContext: null,
@@ -168,15 +177,17 @@ export const useUiActionsStore = create<UiActionsState>((set) => ({
     set((s) => ({ exportTick: s.exportTick + 1, lastExport: payload })),
   triggerImport: (payload) =>
     set((s) => ({ importTick: s.importTick + 1, lastImport: payload })),
-  openCommandPalette: () =>
-    set((s) => ({ commandPaletteTick: s.commandPaletteTick + 1 })),
-  openTour: () => set((s) => ({ tourTick: s.tourTick + 1 })),
-  openAssistant: (context) =>
-    set((s) => ({ assistantTick: s.assistantTick + 1, assistantContext: context ?? null })),
-  requestAutoSchedule: (requestIds) =>
-    set((s) => ({ autoScheduleTick: s.autoScheduleTick + 1, autoScheduleRequestIds: requestIds })),
+  openCommandPalette: () => set({ commandPaletteOpen: true }),
+  toggleCommandPalette: () => set((s) => ({ commandPaletteOpen: !s.commandPaletteOpen })),
+  setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
+  openTour: () => set({ tourOpen: true }),
+  setTourOpen: (open) => set({ tourOpen: open }),
+  openAssistant: (context) => set({ assistantOpen: true, assistantContext: context ?? null }),
+  setAssistantOpen: (open) => set({ assistantOpen: open }),
+  requestAutoSchedule: (requestIds) => set({ autoScheduleRequestIds: requestIds }),
   clearAutoSchedule: () => set({ autoScheduleRequestIds: null }),
-  openScanner: () => set((s) => ({ scanTick: s.scanTick + 1 })),
+  openScanner: () => set({ scannerOpen: true }),
+  setScannerOpen: (open) => set({ scannerOpen: open }),
   openResourceStatus: (resourceId) => set({ statusResourceId: resourceId }),
   closeResourceStatus: () => set({ statusResourceId: null }),
 

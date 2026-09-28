@@ -429,11 +429,11 @@ describe('TopBar — Scan QR code', () => {
 
   it('is offered on a phone and asks the layout to open the scanner', () => {
     setViewport(375);
-    const before = useUiActionsStore.getState().scanTick;
+    useUiActionsStore.setState({ scannerOpen: false });
     renderTopBar();
 
     fireEvent.click(screen.getByRole('button', { name: 'Scan QR code' }));
 
-    expect(useUiActionsStore.getState().scanTick).toBe(before + 1);
+    expect(useUiActionsStore.getState().scannerOpen).toBe(true);
   });
 });

@@ -15,7 +15,6 @@ import {
   SheetTitle,
 } from "@foundation/src/components/ui/sheet";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
-import { useCommandPalette } from "@foundation/src/hooks/useCommandPalette";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TourDialog } from "@foundation/src/components/tour/TourDialog";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -35,10 +34,17 @@ interface AppLayoutProps {
 export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
   const selectedSiteId = useSiteStore((state) => state.selectedSiteId);
   const setSelectedSiteId = useSiteStore((state) => state.setSelectedSiteId);
-  const { isOpen: isCommandPaletteOpen, setIsOpen: setCommandPaletteOpen, open: openCommandPalette } = useCommandPalette();
+  const isCommandPaletteOpen = useUiActionsStore((s) => s.commandPaletteOpen);
+  const setCommandPaletteOpen = useUiActionsStore((s) => s.setCommandPaletteOpen);
+  const toggleCommandPalette = useUiActionsStore((s) => s.toggleCommandPalette);
+  const tourOpen = useUiActionsStore((s) => s.tourOpen);
+  const setTourOpen = useUiActionsStore((s) => s.setTourOpen);
+  const assistantOpen = useUiActionsStore((s) => s.assistantOpen);
+  const setAssistantOpen = useUiActionsStore((s) => s.setAssistantOpen);
+  const scannerOpen = useUiActionsStore((s) => s.scannerOpen);
+  const setScannerOpen = useUiActionsStore((s) => s.setScannerOpen);
 
   const { appUser } = useAuth();
-  const [tourOpen, setTourOpen] = useState(false);
   const applyAssistantProposal = useApplyAssistantProposal();
   const hasAutoShownTour = useRef(false);
 
@@ -61,13 +67,20 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
       hasAutoShownTour.current = true;
       setTourOpen(true);
     }
-  }, [appUser]);
+  }, [appUser, setTourOpen]);
 
-  // Subscribe to ui-actions triggers from TopBar. Each tick increment means
-  // a fresh trigger to consume.
-  const commandPaletteTick = useUiActionsStore((s) => s.commandPaletteTick);
-  const tourTick = useUiActionsStore((s) => s.tourTick);
-  const assistantTick = useUiActionsStore((s) => s.assistantTick);
+  // Global keyboard shortcut: Ctrl+K (Windows/Linux) or Cmd+K (Mac).
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        toggleCommandPalette();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [toggleCommandPalette]);
+
   const assistantContext = useUiActionsStore((s) => s.assistantContext);
   const requestAutoSchedule = useUiActionsStore((s) => s.requestAutoSchedule);
   const navigate = useNavigate();
@@ -86,41 +99,6 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
     },
     [navigate, selectedSiteId, setSelectedSiteId],
   );
-  const lastCommandPaletteTick = useRef(commandPaletteTick);
-  const lastTourTick = useRef(tourTick);
-  const lastAssistantTick = useRef(assistantTick);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const scanTick = useUiActionsStore((s) => s.scanTick);
-  const lastScanTick = useRef(scanTick);
-  const [scannerOpen, setScannerOpen] = useState(false);
-
-  useEffect(() => {
-    if (commandPaletteTick !== lastCommandPaletteTick.current) {
-      lastCommandPaletteTick.current = commandPaletteTick;
-      openCommandPalette();
-    }
-  }, [commandPaletteTick, openCommandPalette]);
-
-  useEffect(() => {
-    if (tourTick !== lastTourTick.current) {
-      lastTourTick.current = tourTick;
-      setTourOpen(true);
-    }
-  }, [tourTick]);
-
-  useEffect(() => {
-    if (assistantTick !== lastAssistantTick.current) {
-      lastAssistantTick.current = assistantTick;
-      setAssistantOpen(true);
-    }
-  }, [assistantTick]);
-
-  useEffect(() => {
-    if (scanTick !== lastScanTick.current) {
-      lastScanTick.current = scanTick;
-      setScannerOpen(true);
-    }
-  }, [scanTick]);
 
   // Load sites (shared React Query cache) and validate/set default selection.
   const { data: sites, isSuccess: sitesLoaded, isError: sitesError, error: sitesLoadError } = useSites();

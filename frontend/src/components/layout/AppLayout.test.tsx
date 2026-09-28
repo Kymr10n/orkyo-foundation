@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
 import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 
 vi.mock('@foundation/src/store/site-store', () => ({
   useSiteStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -22,21 +23,8 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({ appUser: mockAppUser }),
 }));
 
-const mockOpenCommandPalette = vi.fn();
-vi.mock('@foundation/src/hooks/useCommandPalette', () => ({
-  useCommandPalette: () => ({ isOpen: false, setIsOpen: vi.fn(), open: mockOpenCommandPalette }),
-}));
-
-// ui-actions-store: default to tick = 0; individual tests override via mockReturnValue
-const mockUiActionsStore = vi.fn((sel: (s: Record<string, unknown>) => unknown) =>
-  sel({ commandPaletteTick: 0, tourTick: 0 }),
-);
-vi.mock('@foundation/src/store/ui-actions-store', () => ({
-  useUiActionsStore: (sel: (s: Record<string, unknown>) => unknown) => mockUiActionsStore(sel),
-}));
-
 vi.mock('./CommandPalette', () => ({
-  CommandPalette: () => null,
+  CommandPalette: ({ open }: { open: boolean }) => <div data-testid="command-palette" data-open={String(open)} />,
 }));
 
 vi.mock('./FeedbackButton', () => ({
@@ -83,7 +71,12 @@ function renderLayout() {
 describe('AppLayout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0 }));
+    useUiActionsStore.setState({
+      commandPaletteOpen: false,
+      tourOpen: false,
+      assistantOpen: false,
+      scannerOpen: false,
+    });
   });
 
   it('shows loading initially then renders layout', async () => {
@@ -103,13 +96,37 @@ describe('AppLayout', () => {
   });
 
   it('opens the scanner when Scan is pressed', async () => {
-    const { rerenderLayout } = renderLayout();
+    renderLayout();
     expect(await screen.findByTestId('scan-flow')).toHaveAttribute('data-open', 'false');
 
-    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0, scanTick: 1 }));
-    rerenderLayout();
+    act(() => useUiActionsStore.getState().openScanner());
 
-    await waitFor(() => expect(screen.getByTestId('scan-flow')).toHaveAttribute('data-open', 'true'));
+    expect(screen.getByTestId('scan-flow')).toHaveAttribute('data-open', 'true');
+  });
+
+  it('toggles the command palette on Ctrl+K and Cmd+K, not on a bare K', async () => {
+    renderLayout();
+    const palette = await screen.findByTestId('command-palette');
+    expect(palette).toHaveAttribute('data-open', 'false');
+
+    fireEvent.keyDown(document, { key: 'k' });
+    expect(palette).toHaveAttribute('data-open', 'false');
+
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    expect(palette).toHaveAttribute('data-open', 'true');
+
+    fireEvent.keyDown(document, { key: 'k', metaKey: true });
+    expect(palette).toHaveAttribute('data-open', 'false');
+  });
+
+  it('opens the tour when the TopBar asks for it', async () => {
+    renderLayout();
+    await screen.findByTestId('topbar');
+    expect(screen.queryByTestId('tour-dialog')).not.toBeInTheDocument();
+
+    act(() => useUiActionsStore.getState().openTour());
+
+    expect(screen.getByTestId('tour-dialog')).toBeInTheDocument();
   });
 
   it('still validates when getSites returns an empty array', async () => {

@@ -6,8 +6,11 @@ function resetStore() {
   useUiActionsStore.setState({
     exportTick: 0,
     importTick: 0,
-    commandPaletteTick: 0,
-    tourTick: 0,
+    commandPaletteOpen: false,
+    tourOpen: false,
+    assistantOpen: false,
+    scannerOpen: false,
+    assistantContext: null,
     lastExport: null,
     lastImport: null,
   });
@@ -35,8 +38,8 @@ describe('useUiActionsStore', () => {
       useUiActionsStore.getState().triggerExport({ context: 'spaces', format: 'csv' });
       const s = useUiActionsStore.getState();
       expect(s.importTick).toBe(0);
-      expect(s.commandPaletteTick).toBe(0);
-      expect(s.tourTick).toBe(0);
+      expect(s.commandPaletteOpen).toBe(false);
+      expect(s.tourOpen).toBe(false);
     });
   });
 
@@ -54,50 +57,82 @@ describe('useUiActionsStore', () => {
       useUiActionsStore.getState().triggerImport({ context: 'spaces', format: 'csv', file: new File([''], 'f.csv') });
       const s = useUiActionsStore.getState();
       expect(s.exportTick).toBe(0);
-      expect(s.commandPaletteTick).toBe(0);
-      expect(s.tourTick).toBe(0);
+      expect(s.commandPaletteOpen).toBe(false);
+      expect(s.tourOpen).toBe(false);
     });
   });
 
-  describe('openCommandPalette', () => {
-    it('increments commandPaletteTick', () => {
+  describe('command palette', () => {
+    it('opens, and stays open when opened again', () => {
       useUiActionsStore.getState().openCommandPalette();
-      expect(useUiActionsStore.getState().commandPaletteTick).toBe(1);
+      useUiActionsStore.getState().openCommandPalette();
+      expect(useUiActionsStore.getState().commandPaletteOpen).toBe(true);
     });
 
-    it('increments on each call', () => {
-      useUiActionsStore.getState().openCommandPalette();
-      useUiActionsStore.getState().openCommandPalette();
-      expect(useUiActionsStore.getState().commandPaletteTick).toBe(2);
+    it('toggles', () => {
+      useUiActionsStore.getState().toggleCommandPalette();
+      expect(useUiActionsStore.getState().commandPaletteOpen).toBe(true);
+      useUiActionsStore.getState().toggleCommandPalette();
+      expect(useUiActionsStore.getState().commandPaletteOpen).toBe(false);
     });
 
-    it('does not affect other ticks', () => {
+    it('closes through setCommandPaletteOpen', () => {
+      useUiActionsStore.getState().openCommandPalette();
+      useUiActionsStore.getState().setCommandPaletteOpen(false);
+      expect(useUiActionsStore.getState().commandPaletteOpen).toBe(false);
+    });
+
+    it('does not open the other overlays', () => {
       useUiActionsStore.getState().openCommandPalette();
       const s = useUiActionsStore.getState();
-      expect(s.exportTick).toBe(0);
-      expect(s.importTick).toBe(0);
-      expect(s.tourTick).toBe(0);
+      expect(s.tourOpen).toBe(false);
+      expect(s.assistantOpen).toBe(false);
+      expect(s.scannerOpen).toBe(false);
     });
   });
 
-  describe('openTour', () => {
-    it('increments tourTick', () => {
+  describe('tour', () => {
+    it('opens and closes', () => {
       useUiActionsStore.getState().openTour();
-      expect(useUiActionsStore.getState().tourTick).toBe(1);
+      expect(useUiActionsStore.getState().tourOpen).toBe(true);
+      useUiActionsStore.getState().setTourOpen(false);
+      expect(useUiActionsStore.getState().tourOpen).toBe(false);
     });
+  });
 
-    it('increments on each call', () => {
-      useUiActionsStore.getState().openTour();
-      useUiActionsStore.getState().openTour();
-      expect(useUiActionsStore.getState().tourTick).toBe(2);
-    });
-
-    it('does not affect other ticks', () => {
-      useUiActionsStore.getState().openTour();
+  describe('assistant', () => {
+    it('opens with the conflict it was asked about', () => {
+      useUiActionsStore.getState().openAssistant({ type: 'conflict', requestId: 'r1' });
       const s = useUiActionsStore.getState();
-      expect(s.exportTick).toBe(0);
-      expect(s.importTick).toBe(0);
-      expect(s.commandPaletteTick).toBe(0);
+      expect(s.assistantOpen).toBe(true);
+      expect(s.assistantContext).toEqual({ type: 'conflict', requestId: 'r1' });
+    });
+
+    it('drops an earlier context when opened from the toolbar', () => {
+      useUiActionsStore.getState().openAssistant({ type: 'conflict', requestId: 'r1' });
+      useUiActionsStore.getState().setAssistantOpen(false);
+      useUiActionsStore.getState().openAssistant();
+      const s = useUiActionsStore.getState();
+      expect(s.assistantOpen).toBe(true);
+      expect(s.assistantContext).toBeNull();
+    });
+  });
+
+  describe('scanner', () => {
+    it('opens and closes', () => {
+      useUiActionsStore.getState().openScanner();
+      expect(useUiActionsStore.getState().scannerOpen).toBe(true);
+      useUiActionsStore.getState().setScannerOpen(false);
+      expect(useUiActionsStore.getState().scannerOpen).toBe(false);
+    });
+  });
+
+  describe('auto-schedule', () => {
+    it('holds the proposed ids until cleared', () => {
+      useUiActionsStore.getState().requestAutoSchedule(['a', 'b']);
+      expect(useUiActionsStore.getState().autoScheduleRequestIds).toEqual(['a', 'b']);
+      useUiActionsStore.getState().clearAutoSchedule();
+      expect(useUiActionsStore.getState().autoScheduleRequestIds).toBeNull();
     });
   });
 });
