@@ -134,8 +134,9 @@ export function UtilizationPage() {
   // path resolves its target purely from element ids, so it is keyboard-correct.
   // Request cards / scheduled bars intercept Enter/Space for their own "open"
   // affordance, so they never start a keyboard drag onto the time grid (whose
-  // drop time is resolved from pointer coordinates); those users schedule via
-  // the "Schedule to…" dialog instead.
+  // drop time is resolved from pointer coordinates); those users schedule from
+  // the slot dialog (`ScheduleSlotDialog`, opened on an empty grid cell) or the
+  // request's own dates instead.
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
@@ -519,7 +520,7 @@ export function UtilizationPage() {
 
     // Only a scheduled bar is draggable onto a track, so it always carries its own
     // bounds — the drag is a move of an existing placement, never a first placement
-    // (backlog reaches the grid through the "Schedule to…" dialog instead).
+    // (backlog reaches the grid through the slot dialog, `ScheduleSlotDialog`, instead).
     if (
       dropData?.type === "space-track" && dropData.resourceId && selectedSiteId &&
       dropData.viewStartMs !== undefined && dropData.viewEndMs !== undefined &&

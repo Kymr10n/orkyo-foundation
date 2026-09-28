@@ -91,22 +91,6 @@ export class ApiError extends Error {
 }
 
 /**
- * Handle API errors consistently.
- *
- * The backend returns one canonical body for every error — RFC 7807 ProblemDetails plus a
- * machine-readable `code` (and `returnTo` where relevant) — so the frontend can react
- * differently per case rather than treating any 401/403 as "session expired":
- *
- *   - `session_expired` (401)               → clear state, redirect to apex /login
- *   - `break_glass_expired` (403/404)       → clear tenant state, navigate to apex /site-admin
- *   - `break_glass_hard_cap_reached` (410)  → same as above + show toast
- *   - `forbidden` (403) or no code          → throw, let the caller surface a toast
- *
- * Returning to /site-admin instead of /login matters: a site-admin whose break-glass
- * just timed out should land back on the admin console, not be sent through the
- * login flow as if their identity itself was invalid.
- */
-/**
  * Join RFC 7807 `errors` into one readable sentence, or null when the body carries none.
  * Without this a validation failure surfaces only the generic problem `detail`, which tells
  * the user nothing about which field they got wrong.
@@ -116,6 +100,25 @@ function flattenFieldErrors(body: ApiErrorBody): string | null {
   return messages.length > 0 ? messages.join(" ") : null;
 }
 
+/**
+ * Handle API errors consistently.
+ *
+ * The backend returns one canonical body for every error — RFC 7807 ProblemDetails plus a
+ * machine-readable `code` (and `returnTo` where relevant) — so the frontend can react
+ * differently per case rather than treating any 401/403 as "session expired":
+ *
+ *   - `break_glass_expired`, `break_glass_hard_cap_reached` → clear the tenant slug, go to the
+ *     server's `returnTo` (same-origin only) or apex /site-admin
+ *   - any other 401 (`session_expired`)     → clear the tenant slug, go to apex /login (or,
+ *     for an ephemeral demo session, to where it ends)
+ *   - anything else                         → throw `ApiError`; the caller surfaces it
+ *
+ * Every branch throws `ApiError { status, code }` with the problem's message.
+ *
+ * Returning to /site-admin instead of /login matters: a site-admin whose break-glass
+ * just timed out should land back on the admin console, not be sent through the
+ * login flow as if their identity itself was invalid.
+ */
 export async function handleApiError(response: Response): Promise<never> {
   let errorMessage = response.statusText;
   let body: ApiErrorBody | null = null;

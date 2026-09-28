@@ -182,9 +182,6 @@ export function getDescendantIds(
 }
 
 /**
- * Check if moving `requestId` under `newParentId` would create a cycle.
- */
-/**
  * Get direct children of a request from a flat list.
  */
 export function getDirectChildren(
@@ -217,9 +214,6 @@ export function canHaveChildren(planningMode: PlanningMode): boolean {
   return planningMode === PLANNING_MODE.SUMMARY || planningMode === PLANNING_MODE.CONTAINER;
 }
 
-/**
- * Determine if a request can be scheduled (placed on the calendar).
- */
 /**
  * Compute the next sort_order for adding a child to a parent request.
  */

@@ -48,8 +48,8 @@ export const useRequestEmailChange = () =>
 export const useInvalidateUserProfile = () => useInvalidateKeys(qk.userProfile.all());
 
 /**
- * The caller's tenant memberships. Loaded manually by design on this operator
- * surface — see docs/dialog-feedback.md. A 401 never reaches here as an error to
+ * The caller's tenant memberships, loaded on mount and re-read by `reload` rather than
+ * held in react-query. A 401 never reaches here as an error to
  * show: `handleApiError` has already sent the browser to login. `reload` re-reads the
  * list after leave/delete.
  */

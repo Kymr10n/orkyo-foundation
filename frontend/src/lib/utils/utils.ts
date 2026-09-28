@@ -35,9 +35,6 @@ export function combineDateTimeToISO(date: string, time: string): string {
 }
 
 /**
- * Get Tailwind color classes for criterion data types
- */
-/**
  * Returns true if value contains only alphanumeric characters, underscores, and hyphens.
  * Used to validate codes and identifiers (site codes, criterion names, etc.)
  */
@@ -45,6 +42,9 @@ export function isValidSlug(value: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(value);
 }
 
+/**
+ * Get Tailwind color classes for criterion data types
+ */
 export function getDataTypeColor(dataType: string): string {
   switch (dataType) {
     case "Boolean":

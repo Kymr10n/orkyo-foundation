@@ -33,8 +33,7 @@ export interface OnboardingData {
 /**
  * The three reads the onboarding page opens with, loaded once on mount.
  *
- * Deliberately not react-query: each answer is a one-shot fact about this session. Manual load
- * by design on this operator surface — see docs/dialog-feedback.md.
+ * Deliberately not react-query: each answer is a one-shot fact about this session.
  */
 export function useOnboardingData(): OnboardingData {
   const [canCreate, setCanCreate] = useState<boolean | null>(null);

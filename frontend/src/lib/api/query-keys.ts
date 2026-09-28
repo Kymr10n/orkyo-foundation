@@ -15,9 +15,6 @@
  *  - Date params are serialized here (`toISOString`) so call sites stay terse and
  *    serialization can never drift between a query and its invalidation.
  *  - Keys are `as const` for literal-tuple types.
- *
- * Migration is incremental: the domains below are migrated; other keys still use
- * inline arrays and should be folded in here when next touched.
  */
 const iso = (d: Date) => d.toISOString();
 
