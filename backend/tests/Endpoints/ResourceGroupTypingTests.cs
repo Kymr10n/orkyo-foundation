@@ -69,6 +69,49 @@ public class ResourceGroupTypingTests
     }
 
     [Fact]
+    public async Task SetMembers_MissingGroup_Returns404()
+    {
+        // An empty list once fell through the type check to a no-op and answered 200; a
+        // non-empty one reached the foreign key and answered 500.
+        var empty = await _client.PutAsJsonAsync(
+            $"/api/resource-groups/{Guid.NewGuid()}/members", new { resourceIds = Array.Empty<Guid>() });
+        var person = await CreateResourceAsync("person", $"Person-{Guid.NewGuid():N}"[..20]);
+        var nonEmpty = await _client.PutAsJsonAsync(
+            $"/api/resource-groups/{Guid.NewGuid()}/members", new { resourceIds = new[] { person.Id } });
+
+        Assert.Equal(HttpStatusCode.NotFound, empty.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, nonEmpty.StatusCode);
+    }
+
+    [Fact]
+    public async Task SetMembers_EmptyList_ClearsAnExistingGroup()
+    {
+        var group = await CreateGroupAsync("person", $"TypingTest-{Guid.NewGuid():N}"[..20]);
+        var person = await CreateResourceAsync("person", $"Person-{Guid.NewGuid():N}"[..20]);
+        (await _client.PutAsJsonAsync($"/api/resource-groups/{group.Id}/members",
+            new { resourceIds = new[] { person.Id } })).EnsureSuccessStatusCode();
+
+        var response = await _client.PutAsJsonAsync(
+            $"/api/resource-groups/{group.Id}/members", new { resourceIds = Array.Empty<Guid>() });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<ResourceGroupMembersResponse>();
+        Assert.Empty(body!.Members);
+    }
+
+    [Fact]
+    public async Task CreateGroup_UnknownResourceType_Returns404()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-groups", new CreateResourceGroupRequest
+        {
+            ResourceTypeKey = $"nope-{Guid.NewGuid():N}"[..12],
+            Name = $"TypingTest-{Guid.NewGuid():N}"[..20],
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task SetMembers_CrossType_Returns400()
     {
         // Create a "space" group but try to add a "person" resource to it.

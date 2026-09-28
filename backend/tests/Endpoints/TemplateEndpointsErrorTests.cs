@@ -188,10 +188,8 @@ public class TemplateEndpointsErrorTests
         // Act
         var response = await _client.PostAsJsonAsync($"/api/templates/{Guid.NewGuid()}/items", itemRequest);
 
-        // Assert
-        // Should return an error for foreign key violation
-        Assert.True(response.StatusCode == HttpStatusCode.BadRequest ||
-                   response.StatusCode == HttpStatusCode.InternalServerError);
+        // Assert: a missing template is a 404, like every other "no such resource"
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
         // Cleanup
         await CleanupTestDataAsync();

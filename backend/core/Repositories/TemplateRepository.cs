@@ -257,7 +257,7 @@ public class TemplateRepository : ITemplateRepository
     {
         var template = await GetByIdAsync(item.TemplateId, ct);
         if (template is null)
-            throw new ArgumentException($"Template not found: {item.TemplateId}");
+            throw new NotFoundException("Template", item.TemplateId);
         if (string.IsNullOrEmpty(item.Value))
             throw new ArgumentException("Value is required");
         try { using var _ = JsonDocument.Parse(item.Value); }

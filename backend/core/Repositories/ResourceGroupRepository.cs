@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Services;
 using Npgsql;
@@ -80,7 +81,7 @@ public class ResourceGroupRepository(OrgContext orgContext, IOrgDbConnectionFact
                 p.AddWithValue("displayOrder", displayOrder ?? 0);
             }, MapGroup, ct);
 
-        return created ?? throw new InvalidOperationException("Failed to create resource group: resource type not found");
+        return created ?? throw new NotFoundException($"Resource type '{resourceTypeKey}' not found");
     }
 
     public async Task<ResourceGroupInfo?> UpdateAsync(Guid id, string? name, string? description, int? defaultAvailabilityPercent, string? color, int? displayOrder, CancellationToken ct = default)
