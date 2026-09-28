@@ -42,7 +42,6 @@ public static class DiagnosticsAdminEndpoints
         var group = app.MapSiteAdminGroup();
 
         group.MapGet("/diagnostics", GetDiagnostics)
-            .RequireSiteAdmin()
             .WithName("AdminGetDiagnostics")
             .WithSummary("Returns full platform diagnostics: DB, SMTP, auth, migration, worker, and module status");
     }

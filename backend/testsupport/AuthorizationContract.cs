@@ -75,6 +75,27 @@ public static class AuthorizationContract
         return ungoverned.OrderBy(x => x, StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>
+    /// Every <c>/api/admin</c> route in <paramref name="dataSource"/>, of any verb, that carries no
+    /// <typeparamref name="TGoverned"/> metadata, as "<c>METHODS /path</c>" strings, sorted.
+    /// <see cref="FindUngovernedMutatingRoutes{TGoverned}"/> checks writes only; under
+    /// <c>/api/admin</c> a read is as sensitive as a write, so an admin GET that forgets its gate
+    /// must fail too.
+    /// </summary>
+    public static IReadOnlyList<string> FindUngovernedAdminRoutes<TGoverned>(EndpointDataSource dataSource)
+        where TGoverned : class
+    {
+        ArgumentNullException.ThrowIfNull(dataSource);
+
+        return dataSource.Endpoints.OfType<RouteEndpoint>()
+            .Select(endpoint => (endpoint, path: "/" + (endpoint.RoutePattern.RawText ?? string.Empty).TrimStart('/')))
+            .Where(e => e.path == "/api/admin" || e.path.StartsWith("/api/admin/", StringComparison.Ordinal))
+            .Where(e => e.endpoint.Metadata.GetMetadata<TGoverned>() is null)
+            .Select(e => $"{string.Join(",", e.endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods ?? [])} {e.path}")
+            .OrderBy(x => x, StringComparer.Ordinal)
+            .ToList();
+    }
+
     /// <summary>The assertion message every host uses, so the guidance reads the same everywhere.</summary>
     public static string Explain(IReadOnlyList<string> ungoverned) =>
         "These mutating /api routes have no authorization convention. Declare one of the group "

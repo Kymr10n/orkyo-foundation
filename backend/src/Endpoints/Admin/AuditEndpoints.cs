@@ -31,7 +31,6 @@ public static class AuditEndpoints
         var group = app.MapSiteAdminGroup();
 
         group.MapGet("/audit", GetAuditEvents)
-            .RequireSiteAdmin()
             .WithName("AdminGetAuditEvents")
             .WithSummary("Query audit events with filtering and pagination");
     }

@@ -19,42 +19,34 @@ public static class UserAdminEndpoints
         var group = app.MapSiteAdminGroup();
 
         group.MapGet("/users", GetUsers)
-            .RequireSiteAdmin()
             .WithName("AdminGetUsers")
             .WithSummary("List all users");
 
         group.MapGet("/users/{userId:guid}", GetUser)
-            .RequireSiteAdmin()
             .WithName("AdminGetUser")
             .WithSummary("Get user by ID");
 
         group.MapGet("/users/{userId:guid}/memberships", GetUserMemberships)
-            .RequireSiteAdmin()
             .WithName("AdminGetUserMemberships")
             .WithSummary("List all tenant memberships for a user");
 
         group.MapPost("/users/{userId:guid}/deactivate", DeactivateUser)
-            .RequireSiteAdmin()
             .WithName("AdminDeactivateUser")
             .WithSummary("Disable a user account globally");
 
         group.MapPost("/users/{userId:guid}/reactivate", ReactivateUser)
-            .RequireSiteAdmin()
             .WithName("AdminReactivateUser")
             .WithSummary("Re-enable a previously disabled user account");
 
         group.MapDelete("/users/{userId:guid}", DeleteUser)
-            .RequireSiteAdmin()
             .WithName("AdminDeleteUser")
             .WithSummary("Permanently delete a user and all associated data");
 
         group.MapPost("/users/{userId:guid}/promote-site-admin", PromoteSiteAdmin)
-            .RequireSiteAdmin()
             .WithName("AdminPromoteSiteAdmin")
             .WithSummary("Grant site-admin role to a user");
 
         group.MapPost("/users/{userId:guid}/revoke-site-admin", RevokeSiteAdmin)
-            .RequireSiteAdmin()
             .WithName("AdminRevokeSiteAdmin")
             .WithSummary("Revoke site-admin role from a user");
     }

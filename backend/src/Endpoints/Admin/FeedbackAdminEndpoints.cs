@@ -16,24 +16,17 @@ public static class FeedbackAdminEndpoints
 {
     public static void MapFeedbackAdminEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/admin/feedback")
-            .RequireAuthorization()
-            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
-            .WithTags("Feedback")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup("/feedback", "Feedback");
 
         group.MapGet("/", List)
-            .RequireSiteAdmin()
             .WithName("AdminListFeedback")
             .WithSummary("List user feedback");
 
         group.MapGet("/{id:guid}", GetById)
-            .RequireSiteAdmin()
             .WithName("AdminGetFeedback")
             .WithSummary("Get a feedback item");
 
         group.MapPatch("/{id:guid}", Update)
-            .RequireSiteAdmin()
             .WithName("AdminUpdateFeedback")
             .WithSummary("Update a feedback item's status / notes / GitHub link");
     }

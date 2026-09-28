@@ -46,30 +46,43 @@ public static class AuthorizationExtensions
     public static RouteHandlerBuilder RequireSiteAdmin(this RouteHandlerBuilder builder)
     {
         builder.WithMetadata(new AuthorizationGoverned());
-        return builder.AddEndpointFilter(async (context, next) =>
+        return builder.AddEndpointFilter(SiteAdminFilter);
+    }
+
+    /// <summary>
+    /// The group form of <see cref="RequireSiteAdmin(RouteHandlerBuilder)"/>: every route in the
+    /// group, reads included, requires a site administrator. <c>MapSiteAdminGroup</c> applies it,
+    /// so an admin GET cannot be added without the gate.
+    /// </summary>
+    public static RouteGroupBuilder RequireSiteAdmin(this RouteGroupBuilder group)
+    {
+        group.WithMetadata(new AuthorizationGoverned());
+        return group.AddEndpointFilter(SiteAdminFilter);
+    }
+
+    private static async ValueTask<object?> SiteAdminFilter(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var httpContext = context.HttpContext;
+        var logger = httpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(AuthorizationExtensions));
+        var currentPrincipal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
+
+        if (currentPrincipal == null || !currentPrincipal.IsAuthenticated)
         {
-            var httpContext = context.HttpContext;
-            var logger = httpContext.RequestServices
-                .GetRequiredService<ILoggerFactory>()
-                .CreateLogger(typeof(AuthorizationExtensions));
-            var currentPrincipal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
+            logger.LogWarning("Site admin check failed: user not authenticated");
+            return ErrorResponses.Unauthorized();
+        }
 
-            if (currentPrincipal == null || !currentPrincipal.IsAuthenticated)
-            {
-                logger.LogWarning("Site admin check failed: user not authenticated");
-                return ErrorResponses.Unauthorized();
-            }
+        if (!currentPrincipal.IsSiteAdmin)
+        {
+            logger.LogWarning("Site admin check failed: user {UserId} is not a site admin",
+                currentPrincipal.UserId);
+            return ErrorResponses.Forbidden();
+        }
 
-            if (!currentPrincipal.IsSiteAdmin)
-            {
-                logger.LogWarning("Site admin check failed: user {UserId} is not a site admin",
-                    currentPrincipal.UserId);
-                return ErrorResponses.Forbidden();
-            }
-
-            logger.LogDebug("Site admin authorization passed for user {UserId}", currentPrincipal.UserId);
-            return await next(context);
-        });
+        logger.LogDebug("Site admin authorization passed for user {UserId}", currentPrincipal.UserId);
+        return await next(context);
     }
 
     /// <summary>

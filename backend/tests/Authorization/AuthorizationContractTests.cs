@@ -1,4 +1,6 @@
+using Api.Endpoints.Admin;
 using Api.Middleware;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -34,5 +36,30 @@ public class AuthorizationContractTests
             dataSource, AuthorizationContract.FoundationSelfServicePrefixes);
 
         Assert.True(ungoverned.Count == 0, AuthorizationContract.Explain(ungoverned));
+    }
+
+    [Fact]
+    public void EveryAdminRoute_ReadsIncluded_IsGoverned()
+    {
+        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+
+        var ungoverned = AuthorizationContract.FindUngovernedAdminRoutes<AuthorizationGoverned>(dataSource);
+
+        Assert.True(ungoverned.Count == 0,
+            "These /api/admin routes have no gate. Map them with MapSiteAdminGroup():\n  "
+            + string.Join("\n  ", ungoverned));
+    }
+
+    [Fact]
+    public void AnUngatedAdminRead_IsReported()
+    {
+        // The check itself: a GET under /api/admin with no convention is caught, a gated one is not.
+        var app = WebApplication.CreateBuilder().Build();
+        app.MapGet("/api/admin/open", () => "x");
+        app.MapSiteAdminGroup().MapGet("/closed", () => "x");
+        var dataSource = new CompositeEndpointDataSource(((IEndpointRouteBuilder)app).DataSources);
+
+        AuthorizationContract.FindUngovernedAdminRoutes<AuthorizationGoverned>(dataSource)
+            .Should().Equal("GET /api/admin/open");
     }
 }

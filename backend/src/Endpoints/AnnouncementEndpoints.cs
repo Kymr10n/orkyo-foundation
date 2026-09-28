@@ -1,4 +1,5 @@
 using Api.Configuration;
+using Api.Endpoints.Admin;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -15,34 +16,25 @@ public static class AnnouncementEndpoints
 {
     public static void MapAnnouncementEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/announcements")
-            .RequireAuthorization()
-            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
-            .WithTags("Announcements")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup("/announcements", "Announcements");
 
         group.MapGet("/", GetAll)
-            .RequireSiteAdmin()
             .WithName("GetAnnouncements")
             .WithSummary("List all announcements");
 
         group.MapGet("/{id:guid}", GetById)
-            .RequireSiteAdmin()
             .WithName("GetAnnouncement")
             .WithSummary("Get announcement by ID");
 
         group.MapPost("/", Create)
-            .RequireSiteAdmin()
             .WithName("CreateAnnouncement")
             .WithSummary("Create a new announcement");
 
         group.MapPut("/{id:guid}", Update)
-            .RequireSiteAdmin()
             .WithName("UpdateAnnouncement")
             .WithSummary("Update an existing announcement");
 
         group.MapDelete("/{id:guid}", Delete)
-            .RequireSiteAdmin()
             .WithName("DeleteAnnouncement")
             .WithSummary("Delete an announcement");
     }

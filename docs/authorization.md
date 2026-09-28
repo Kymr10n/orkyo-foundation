@@ -51,7 +51,9 @@ var users = app.MapGroup("/api/users").RequireAuthorization().RequireAdminArea()
 4. Genuinely self-service / pre-login routes (`/api/auth`, `/api/session`, `/api/account`,
    `/api/preferences`, `/api/contact`, `/api/feedback`, `/api/announcements`, `/api/invitations`)
    are the only writes allowed without a convention — they are allow-listed in the conformance test.
-5. Platform/site-admin routes use `RequireSiteAdmin()` (also stamps the governance marker).
+5. Platform/site-admin routes map their group with `MapSiteAdminGroup()`. It applies
+   `RequireSiteAdmin()` to every route in the group, reads included, and stamps the governance
+   marker. `AuthorizationContractTests` fails when a route under `/api/admin` has no gate.
 
 ### The one documented exception: the MCP server
 
