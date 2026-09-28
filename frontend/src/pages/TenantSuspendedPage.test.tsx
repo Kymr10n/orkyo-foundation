@@ -117,9 +117,9 @@ describe('TenantSuspendedPage', () => {
       canReactivate: true,
     };
     render(<TenantSuspendedPage />);
-    expect(screen.getByText('Workspace scheduled for deletion')).toBeInTheDocument();
+    expect(screen.getByText('Organization scheduled for deletion')).toBeInTheDocument();
     expect(screen.getByText(/scheduled for permanent deletion/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Restore workspace/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Restore organization/ })).toBeInTheDocument();
   });
 
   it('shows restore-oriented helper text for a deleting membership without canReactivate', () => {
@@ -130,7 +130,7 @@ describe('TenantSuspendedPage', () => {
     };
     render(<TenantSuspendedPage />);
     expect(screen.getByText(/restore this organization/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Restore workspace/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Restore organization/ })).not.toBeInTheDocument();
   });
 
   it('always shows sign out button', () => {

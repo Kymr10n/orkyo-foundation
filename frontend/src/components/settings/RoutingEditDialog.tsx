@@ -159,7 +159,7 @@ export function RoutingEditDialog({ routing, open, onOpenChange }: RoutingEditDi
       onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel={routing ? "Save Changes" : "Create Routing"}
-      submittingLabel={routing ? undefined : "Creating..."}
+      submittingLabel={routing ? undefined : "Creating…"}
       error={error}
       dirty={isDirty}
       size="lg"

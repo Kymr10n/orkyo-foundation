@@ -90,7 +90,7 @@ export function UserSettings() {
       return importedUsers.length;
     },
     {
-      successMessage: (n) => `Successfully imported ${n} users`,
+      successMessage: (n) => `Imported ${n} users`,
       errorMessage: 'Failed to import users',
       formats: ['csv', 'json'],
       invalidates: [qk.users.all(), qk.invitations.all()],

@@ -152,7 +152,7 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
           data-testid="break-glass-exit"
         >
           <X className="h-3.5 w-3.5 mr-1" />
-          Exit tenant
+          Exit organization
         </Button>
       </div>
     </div>

@@ -67,7 +67,7 @@ beforeEach(() => {
 });
 
 const perPerson = () => screen.getByLabelText(/interactions per person each day/i);
-const perWorkspace = () => screen.getByLabelText(/whole workspace each day/i);
+const perWorkspace = () => screen.getByLabelText(/whole organization each day/i);
 
 describe('AiAssistantSettings daily limits', () => {
   it('shows the limits the workspace already has', () => {

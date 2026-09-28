@@ -202,7 +202,7 @@ export function TemplateDialogBase({
                   id="description"
                   value={state.description}
                   onChange={(e) => setField('description', e.target.value)}
-                  placeholder="Optional description..."
+                  placeholder="Optional description…"
                   rows={3}
                   disabled={isSubmitting}
                 />
@@ -291,7 +291,7 @@ export function TemplateDialogBase({
             onCancel={() => handleOpenChange(false)}
             isSubmitting={isSubmitting}
             submitLabel={isEditMode ? "Save Changes" : "Create Template"}
-            submittingLabel={isEditMode ? undefined : "Creating..."}
+            submittingLabel={isEditMode ? undefined : "Creating…"}
             className="px-6 py-4"
           />
         </form>

@@ -183,7 +183,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
             {!canCreate
               ? "You don't have access to any organizations yet."
               : step === "template" && showCreateForm
-                ? "Choose how to set up your workspace."
+                ? "Choose how to set up your organization."
                 : "Get started by creating your organization."}
           </CardDescription>
 
@@ -296,7 +296,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                         prefix here read "orkyo.app/<slug>" — the wrong domain AND the wrong
                         shape, since workspaces are subdomains, not paths. */}
                     {workspaceHostname && (
-                      <> Your workspace: <span className="font-medium">{workspaceHostname}</span></>
+                      <> Your organization: <span className="font-medium">{workspaceHostname}</span></>
                     )}
                   </p>
                 )}
@@ -334,7 +334,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
 
               {templatesError ? (
                 <p className="text-sm text-muted-foreground text-center">
-                  Could not load templates — you can still continue with an empty workspace.
+                  Could not load templates — you can still continue with an empty organization.
                 </p>
               ) : templates.length > 0 ? (
                 <StarterTemplatePicker
@@ -358,7 +358,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   Back
                 </Button>
                 <Button onClick={handleCreateTenant} loading={submitting} disabled={submitting} className="flex-1">
-                  {submitting ? "Creating workspace…" : "Create"}
+                  {submitting ? "Creating organization…" : "Create"}
                 </Button>
               </div>
             </div>

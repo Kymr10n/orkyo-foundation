@@ -73,7 +73,7 @@ const emailChangeStatusMessages: Record<
 > = {
   confirmed: {
     kind: "success",
-    title: "Your email address has been updated successfully.",
+    title: "Your email address has been updated.",
   },
   expired: {
     kind: "error",

@@ -139,7 +139,7 @@ export function NewFromRoutingDialog({
       onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel="Create work order"
-      submittingLabel="Creating..."
+      submittingLabel="Creating…"
       error={error}
       dirty={isDirty}
     >

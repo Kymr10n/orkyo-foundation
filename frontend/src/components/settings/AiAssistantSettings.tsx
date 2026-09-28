@@ -73,7 +73,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
     return (
       <Alert>
         <AlertDescription>
-          The AI assistant is not available for this workspace.
+          The AI assistant is not available for this organization.
         </AlertDescription>
       </Alert>
     );
@@ -175,7 +175,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
           <Alert>
             <AlertDescription>
               No key is configured, so the assistant is switched off for everyone in this
-              workspace.
+              organization.
             </AlertDescription>
           </Alert>
         )}
@@ -198,7 +198,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Chat messages and the workspace data the assistant reads are sent to Anthropic
+            Chat messages and the organization data the assistant reads are sent to Anthropic
             under your own agreement with them. Usage is billed to this key.
           </p>
         </div>
@@ -232,7 +232,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
         <p className="text-sm text-muted-foreground">
           A ceiling on interactions rather than tokens, useful when many people share one
           login. Both counts reset at the start of each day, in UTC. Leave a field empty
-          for no limit — most workspaces need neither.
+          for no limit — most organizations need neither.
         </p>
 
         {limitsLoading ? (
@@ -257,7 +257,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
         open={removeOpen}
         onOpenChange={setRemoveOpen}
         title="Remove the AI key?"
-        description="The assistant stops working for everyone in this workspace until a new key is saved."
+        description="The assistant stops working for everyone in this organization until a new key is saved."
         confirmLabel="Remove key"
         destructive
         onConfirm={handleRemove}
@@ -335,7 +335,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="ai-per-workspace">Interactions for the whole workspace each day</Label>
+          <Label htmlFor="ai-per-workspace">Interactions for the whole organization each day</Label>
           <Input
             id="ai-per-workspace"
             type="number"

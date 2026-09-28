@@ -134,7 +134,7 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
               {passwordSuccess && (
                 <Alert>
                   <AlertDescription className="text-green-600">
-                    Password changed successfully!
+                    Password changed
                   </AlertDescription>
                 </Alert>
               )}

@@ -285,7 +285,7 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     expect(screen.getByText('Requests')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search requests...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search requests…')).toBeInTheDocument();
     await act(async () => {});
   });
 
@@ -404,7 +404,7 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Alpha')).toBeInTheDocument();
     });
-    fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'Alpha' } });
+    fireEvent.change(screen.getByPlaceholderText('Search requests…'), { target: { value: 'Alpha' } });
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
@@ -420,7 +420,7 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Alpha')).toBeInTheDocument();
     });
-    fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'zzz' } });
+    fireEvent.change(screen.getByPlaceholderText('Search requests…'), { target: { value: 'zzz' } });
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText(/try adjusting your search/i)).toBeInTheDocument();
   });
@@ -701,7 +701,7 @@ describe('RequestsPage', () => {
 
     expect(screen.getByTestId('list-item-r1')).toBeInTheDocument();
     expect(screen.getByTestId('list-item-r2')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Search requests...')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search requests…')).not.toBeInTheDocument();
   });
 
   // ── loadRequests non-Error fallback ─────────────────────────────────────────

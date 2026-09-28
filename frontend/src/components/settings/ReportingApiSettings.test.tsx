@@ -120,7 +120,7 @@ describe('ReportingApiSettings', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Reporting API access is not available for this workspace.'),
+        screen.getByText('Reporting API access is not available for this organization.'),
       ).toBeInTheDocument();
     });
     expect(listReportingTokens).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe('ReportingApiSettings', () => {
       expect(screen.getByText(/Available on Professional and Enterprise plans/i)).toBeInTheDocument();
     });
     expect(
-      screen.queryByText('Reporting API access is not available for this workspace.'),
+      screen.queryByText('Reporting API access is not available for this organization.'),
     ).not.toBeInTheDocument();
 
     // CTA is a link to the provided href; navigation happens only on click.

@@ -274,7 +274,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <Input
             ref={inputRef}
-            placeholder="Search resources, requests, groups, sites..."
+            placeholder="Search resources, requests, groups, sites…"
             aria-label="Search resources, requests, groups, sites"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -344,7 +344,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             </div>
           ) : !query.trim() ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
-              Start typing to search...
+              Start typing to search…
             </div>
           ) : null}
         </ScrollArea>

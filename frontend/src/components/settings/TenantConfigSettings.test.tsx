@@ -183,7 +183,7 @@ describe("TenantConfigSettings", () => {
     renderComponent();
 
     expect(
-      screen.getByText(/only tenant administrators/i),
+      screen.getByText(/only organization administrators/i),
     ).toBeInTheDocument();
   });
 
@@ -192,7 +192,7 @@ describe("TenantConfigSettings", () => {
     renderComponent();
 
     expect(
-      screen.queryByText(/only tenant administrators/i),
+      screen.queryByText(/only organization administrators/i),
     ).not.toBeInTheDocument();
   });
 
@@ -211,7 +211,7 @@ describe("TenantConfigSettings", () => {
     renderComponent();
 
     expect(
-      screen.queryByText(/only tenant administrators/i),
+      screen.queryByText(/only organization administrators/i),
     ).not.toBeInTheDocument();
   });
 
@@ -230,7 +230,7 @@ describe("TenantConfigSettings", () => {
     renderComponent();
 
     expect(
-      screen.queryByText(/only tenant administrators/i),
+      screen.queryByText(/only organization administrators/i),
     ).not.toBeInTheDocument();
   });
 

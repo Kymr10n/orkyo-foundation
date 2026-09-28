@@ -134,7 +134,7 @@ export function SignupPage() {
             Account Created!
           </h1>
           <p className="text-muted-foreground">
-            Your account has been created successfully. You can now sign in with
+            Your account has been created. You can now sign in with
             your credentials.
           </p>
           <Button onClick={() => handleBackToLogin(true)} className="mt-4">
@@ -226,7 +226,7 @@ export function SignupPage() {
 
           <Button type="submit" className="w-full" loading={isLoading} disabled={isLoading}>
             {isLoading ? (
-              "Creating Account..."
+              "Creating Account…"
             ) : (
               <>
                 <UserPlus className="mr-2 h-4 w-4" />

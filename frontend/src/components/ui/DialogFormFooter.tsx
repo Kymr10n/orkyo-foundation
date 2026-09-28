@@ -38,7 +38,7 @@ export function DialogFormFooter({
         loading={isSubmitting}
         disabled={isSubmitting || !canEdit || !!submitDisabled}
       >
-        {isSubmitting ? (submittingLabel ?? "Saving...") : submitLabel}
+        {isSubmitting ? (submittingLabel ?? "Saving…") : submitLabel}
       </Button>
     </DialogFooter>
   );

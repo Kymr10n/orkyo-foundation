@@ -96,7 +96,7 @@ function McpQuickStart() {
         Connect an AI assistant
       </div>
       <p className="text-sm text-muted-foreground">
-        This workspace speaks the Model Context Protocol, so any MCP-compatible client can read and
+        This organization speaks the Model Context Protocol, so any MCP-compatible client can read and
         manage its schedule. Point the client at this server URL and authenticate with a token above.
       </p>
       <div className="bg-muted rounded-md p-2 font-mono text-xs break-all flex items-center justify-between gap-2">
@@ -153,20 +153,20 @@ export function PlatformApiSettings({ upgradeHref }: PlatformApiSettingsProps = 
       apiAccessAllowed={apiAccessAllowed}
       tokens={tokens}
       title="API & AI access"
-      description="Manage tokens that let an AI assistant or automated service read and manage this workspace's schedule."
+      description="Manage tokens that let an AI assistant or automated service read and manage this organization's schedule."
       upsell={{
         title: "API & AI access",
         description:
           "Available on Professional and Enterprise plans. Let an AI assistant or automated service read and manage your schedule.",
         points: (
           <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
-            <li>Connect any MCP-compatible AI assistant to your workspace</li>
+            <li>Connect any MCP-compatible AI assistant to your organization</li>
             <li>Read-only or read-and-write tokens you can revoke anytime</li>
             <li>Every change goes through the same rules and conflict checks your team does</li>
           </ul>
         ),
       }}
-      unavailableMessage="API access is not available for this workspace."
+      unavailableMessage="API access is not available for this organization."
       loadErrorMessage="Failed to load API tokens."
       emptyMessage="No API tokens yet. Create one to connect an AI assistant."
       tableKey="api-tokens"
@@ -177,7 +177,7 @@ export function PlatformApiSettings({ upgradeHref }: PlatformApiSettingsProps = 
         <CreateTokenDialog<{ level: AccessLevel }, CreateApiAccessTokenRequest>
           {...props}
           title="Create API token"
-          description="Connects an AI assistant or automated service to this workspace's schedule. It will be shown once — copy it before closing."
+          description="Connects an AI assistant or automated service to this organization's schedule. It will be shown once — copy it before closing."
           namePlaceholder="e.g. Planning assistant"
           defaultExpiry="90"
           mutation={createMutation}
@@ -190,7 +190,7 @@ export function PlatformApiSettings({ upgradeHref }: PlatformApiSettingsProps = 
           })}
         />
       )}
-      rawTokenWarning="Store this token securely. Anyone with it can act on this workspace's schedule — with a read-and-write token, that includes creating, rescheduling and reassigning work."
+      rawTokenWarning="Store this token securely. Anyone with it can act on this organization's schedule — with a read-and-write token, that includes creating, rescheduling and reassigning work."
       revokeMutation={revokeMutation}
     />
   );

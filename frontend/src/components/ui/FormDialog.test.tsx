@@ -89,7 +89,7 @@ describe('FormDialog', () => {
 
   it('falls back to a default submitting label', () => {
     renderDialog({ isSubmitting: true });
-    expect(screen.getByRole('button', { name: 'Saving...' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeInTheDocument();
   });
 
   it('disables submit when submitDisabled is set', () => {

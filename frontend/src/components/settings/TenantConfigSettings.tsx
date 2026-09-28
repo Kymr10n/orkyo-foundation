@@ -157,7 +157,7 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Only tenant administrators can manage configuration settings.
+          Only organization administrators can manage configuration settings.
         </AlertDescription>
       </Alert>
     );

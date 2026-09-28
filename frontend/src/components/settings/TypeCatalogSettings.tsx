@@ -135,7 +135,7 @@ export function TypeCatalogSettings() {
         <div className="space-y-2">
           <p className="text-sm text-destructive">{errorMsg}</p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
-            Retry
+            Try again
           </Button>
         </div>
       )}

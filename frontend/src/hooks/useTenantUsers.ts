@@ -51,7 +51,7 @@ export const useResendInvitation = () =>
   useMutation({
     mutationFn: resendInvitation,
     meta: {
-      successMessage: "Invitation email resent successfully",
+      successMessage: "Invitation email resent",
       errorMessage: "Failed to resend invitation",
     },
   });

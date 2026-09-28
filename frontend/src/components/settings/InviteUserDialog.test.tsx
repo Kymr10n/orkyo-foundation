@@ -381,7 +381,7 @@ describe('InviteUserDialog', () => {
     await user.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Sending...')).toBeInTheDocument();
+      expect(screen.getByText('Sending…')).toBeInTheDocument();
       expect(emailInput).toBeDisabled();
       expect(submitButton).toBeDisabled();
     });

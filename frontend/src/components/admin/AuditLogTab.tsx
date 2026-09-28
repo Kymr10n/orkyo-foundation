@@ -140,7 +140,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
     return (
       <FeatureUpsell
         title="Audit Log"
-        description="Available on Professional and Enterprise plans. Review who did what across your workspace — sign-ins, admin changes, and break-glass access."
+        description="Available on Professional and Enterprise plans. Review who did what across your organization — sign-ins, admin changes, and break-glass access."
         upgradeHref={upgradeHref}
       />
     );

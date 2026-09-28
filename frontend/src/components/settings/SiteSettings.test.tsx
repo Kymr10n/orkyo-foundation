@@ -430,6 +430,6 @@ describe('SiteSettings', () => {
       }),
     );
     const [, , options] = vi.mocked(useImportHandler).mock.calls[0];
-    expect((options!.successMessage as (n: number) => string)(3)).toBe('Successfully imported 3 sites');
+    expect((options!.successMessage as (n: number) => string)(3)).toBe('Imported 3 sites');
   });
 });

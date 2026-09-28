@@ -228,6 +228,6 @@ describe('TypeCatalogSettings', () => {
     renderCatalog();
 
     expect(await screen.findByText('boom')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

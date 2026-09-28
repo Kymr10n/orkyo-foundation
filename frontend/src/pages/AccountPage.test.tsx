@@ -617,11 +617,11 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith("Your email address has been updated successfully.", {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Your email address has been updated.", {
         id: "email-change-confirmed",
       });
     });
-    expect(screen.queryByText("Your email address has been updated successfully.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your email address has been updated.")).not.toBeInTheDocument();
     // refresh() must NOT be called on confirmed — it causes the auth machine to
     // cycle back through `initializing`, unmounting TenantApp's Toaster before
     // the toast can render (regression guard for the confirmed-toast bug fix).

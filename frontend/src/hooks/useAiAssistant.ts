@@ -50,7 +50,7 @@ export function useDeleteAiCredential() {
   return useMutation({
     mutationFn: deleteAiCredential,
     meta: {
-      successMessage: "AI key removed. The assistant is switched off for this workspace.",
+      successMessage: "AI key removed. The assistant is switched off for this organization.",
       errorMessage: "Could not remove the AI key",
       invalidates: [qk.ai.all()],
     },

@@ -85,7 +85,7 @@ describe('useAiAssistant mutation feedback', () => {
     await result.current.mutateAsync();
 
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith('AI key removed. The assistant is switched off for this workspace.'),
+      expect(toast.success).toHaveBeenCalledWith('AI key removed. The assistant is switched off for this organization.'),
     );
   });
 

@@ -37,14 +37,14 @@ describe('TenantNoAccessPage', () => {
   it('explains the lack of access rather than showing a redirect spinner', () => {
     render(<TenantNoAccessPage />);
 
-    expect(screen.getByRole('heading', { name: /no access to this workspace/i })).toBeInTheDocument();
-    expect(screen.getByText(/isn't a member of this workspace/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /no access to this organization/i })).toBeInTheDocument();
+    expect(screen.getByText(/isn't a member of this organization/i)).toBeInTheDocument();
   });
 
   it('offers the apex workspace selector when the user has other workspaces', () => {
     render(<TenantNoAccessPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /go to my workspaces/i }));
+    fireEvent.click(screen.getByRole('button', { name: /go to my organizations/i }));
 
     // Apex "/" is the marketing page — the SPA entry point must be used.
     expect(mockGoToApex).toHaveBeenCalledWith('/login?auto=1');
@@ -55,8 +55,8 @@ describe('TenantNoAccessPage', () => {
 
     render(<TenantNoAccessPage />);
 
-    expect(screen.queryByRole('button', { name: /go to my workspaces/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/ask this workspace's administrator/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /go to my organizations/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/ask this organization's administrator/i)).toBeInTheDocument();
   });
 
   it('shows the site-admin shortcut only for site admins', () => {

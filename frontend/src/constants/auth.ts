@@ -108,9 +108,9 @@ export const AUTH_EVENTS = {
 /** Spinner and status messages shown to the user. */
 export const AUTH_MESSAGES = {
   LOADING: 'Loading…',
-  REDIRECTING: 'Redirecting...',
-  REDIRECTING_LOGIN: 'Redirecting to sign in...',
-  SIGNING_OUT: 'Signing out...',
+  REDIRECTING: 'Redirecting…',
+  REDIRECTING_LOGIN: 'Redirecting to sign in…',
+  SIGNING_OUT: 'Signing out…',
   BACKEND_ERROR_TITLE: 'Something went wrong',
   BACKEND_ERROR_DETAIL: 'Our servers are having trouble — please try again in a moment.',
   NETWORK_ERROR_TITLE: 'Unable to connect',

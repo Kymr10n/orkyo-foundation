@@ -260,7 +260,7 @@ export function CriterionAssignmentEditor({
             Cancel
           </Button>
           <Button onClick={() => onSave(assignments)} disabled={isSaving || !canEdit}>
-            {isSaving ? 'Saving...' : 'Save Changes'}
+            {isSaving ? 'Saving…' : 'Save Changes'}
           </Button>
         </DialogFooter>
       </DialogContent>

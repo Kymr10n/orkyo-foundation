@@ -283,7 +283,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
                 ))}
                 <span className="ml-2">
                   {exporting
-                    ? "Exporting..."
+                    ? "Exporting…"
                     : exportDone
                       ? "Downloaded"
                       : "Export JSON"}
@@ -321,7 +321,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
                   onValueChange={setSelectedNewOwner}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select an admin..." />
+                    <SelectValue placeholder="Select an admin…" />
                   </SelectTrigger>
                   <SelectContent>
                     {admins.map((admin) => (

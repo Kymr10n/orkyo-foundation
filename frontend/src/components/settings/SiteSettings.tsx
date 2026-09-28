@@ -57,7 +57,7 @@ export function SiteSettings() {
       return importedSites.length;
     },
     {
-      successMessage: (count) => `Successfully imported ${count} sites`,
+      successMessage: (count) => `Imported ${count} sites`,
       errorMessage: 'Failed to import sites',
       formats: ['csv', 'json'],
       invalidates: [qk.sites.list()],

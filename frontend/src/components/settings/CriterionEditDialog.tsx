@@ -88,7 +88,7 @@ export function CriterionEditDialog({
       onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel={criterion ? 'Save Changes' : 'Create'}
-      submittingLabel={criterion ? undefined : 'Creating...'}
+      submittingLabel={criterion ? undefined : 'Creating…'}
       error={error}
     >
       {/* Name */}

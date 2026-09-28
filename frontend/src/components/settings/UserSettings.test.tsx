@@ -216,7 +216,7 @@ describe('UserSettings', () => {
       expect(userApi.resendInvitation).toHaveBeenCalled();
       const [[invitationId]] = vi.mocked(userApi.resendInvitation).mock.calls;
       expect(invitationId).toBe('inv-1');
-      expect(toast.success).toHaveBeenCalledWith('Invitation email resent successfully');
+      expect(toast.success).toHaveBeenCalledWith('Invitation email resent');
     });
   });
 
@@ -428,7 +428,7 @@ describe('UserSettings', () => {
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'new@example.com', role: 'editor' });
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'demoted@example.com', role: 'viewer' });
       expect(userApi.createInvitation).not.toHaveBeenCalledWith(expect.objectContaining({ email: '' }));
-      expect(toast.success).toHaveBeenCalledWith('Successfully imported 3 users');
+      expect(toast.success).toHaveBeenCalledWith('Imported 3 users');
     });
 
     it('shows an error toast when the imported file has no valid users', async () => {

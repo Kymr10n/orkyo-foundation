@@ -391,7 +391,7 @@ describe('AssistantPanel daily interaction limit', () => {
     expect(screen.queryByText(/interactions remaining/i)).not.toBeInTheDocument();
   });
 
-  it('says when the countdown belongs to the whole workspace', () => {
+  it('says when the countdown belongs to the whole organization', () => {
     // The same number means something different then: everyone shares it, and it can fall
     // while this person is not using the assistant at all.
     aiStatus.value = {
@@ -403,7 +403,7 @@ describe('AssistantPanel daily interaction limit', () => {
 
     renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText(/AI interactions remaining: 20 \(whole workspace\)/)).toBeInTheDocument();
+    expect(screen.getByText(/AI interactions remaining: 20 \(whole organization\)/)).toBeInTheDocument();
   });
 
   it('does not label a personal countdown', () => {

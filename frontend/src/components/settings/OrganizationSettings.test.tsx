@@ -182,7 +182,7 @@ describe('OrganizationSettings', () => {
       await user.click(saveButton);
 
       await waitFor(() => {
-        expect(toast.success).toHaveBeenCalledWith('Organization name updated successfully.');
+        expect(toast.success).toHaveBeenCalledWith('Organization name updated');
       });
       // The saved name is the new baseline, so Save disables again.
       expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();

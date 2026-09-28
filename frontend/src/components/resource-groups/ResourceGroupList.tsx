@@ -150,7 +150,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
             Add {entityLabel}
           </Button>
         }
-        filterPlaceholder={`Search ${entityLabel.toLowerCase()}s...`}
+        filterPlaceholder={`Search ${entityLabel.toLowerCase()}s…`}
         pageSize={25}
         onRowClick={canEdit ? handleEdit : undefined}
         renderCard={renderCard}

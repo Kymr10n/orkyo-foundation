@@ -210,7 +210,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
             disabled={isLoadingSites || sites.length === 0}
           >
             <SelectTrigger className="w-[140px] lg:w-[180px]">
-              <SelectValue placeholder="Select site..." />
+              <SelectValue placeholder="Select site…" />
             </SelectTrigger>
             <SelectContent>
               {sites.map((site) => (

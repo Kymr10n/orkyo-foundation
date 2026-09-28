@@ -10,7 +10,7 @@ import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 export function TenantSuspendedPage() {
   const { membership, send } = useAuth();
   const isDeleting = membership?.state === TENANT_STATUS.DELETING;
-  usePageTitle(isDeleting ? 'Workspace scheduled for deletion' : 'Organization suspended');
+  usePageTitle(isDeleting ? 'Organization scheduled for deletion' : 'Organization suspended');
   const [reactivating, setReactivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +51,7 @@ export function TenantSuspendedPage() {
 
         <div className="space-y-2">
           <h1 className="text-xl font-semibold">
-            {isDeleting ? 'Workspace scheduled for deletion' : 'Organization suspended'}
+            {isDeleting ? 'Organization scheduled for deletion' : 'Organization suspended'}
           </h1>
           <p className="text-muted-foreground text-sm">
             {isDeleting
@@ -67,8 +67,8 @@ export function TenantSuspendedPage() {
             <Button onClick={handleReactivate} disabled={reactivating}>
               <RefreshCw className={`mr-2 h-4 w-4 ${reactivating ? 'animate-spin' : ''}`} />
               {reactivating
-                ? isDeleting ? 'Restoring...' : 'Reactivating...'
-                : isDeleting ? 'Restore workspace' : 'Reactivate organization'}
+                ? isDeleting ? 'Restoring…' : 'Reactivating…'
+                : isDeleting ? 'Restore organization' : 'Reactivate organization'}
             </Button>
             {error && <p className="text-destructive text-sm">{error}</p>}
           </>

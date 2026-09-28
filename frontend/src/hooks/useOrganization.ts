@@ -15,7 +15,7 @@ export const useRenameTenant = () =>
       await updateTenant(tenantId, { displayName });
     },
     meta: {
-      successMessage: "Organization name updated successfully.",
+      successMessage: "Organization name updated",
       errorMessage: "Could not update the organization name",
     },
   });

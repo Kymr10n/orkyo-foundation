@@ -203,7 +203,7 @@ export function AssistantPanel({
                 // something different then: everyone shares it, and it can fall while you
                 // are not using the assistant at all.
                 `AI interactions remaining: ${Math.max(0, status.dailyTurnLimit - status.usedTurnsToday)}${
-                  status.dailyLimitIsWorkspaceWide ? " (whole workspace)" : ""
+                  status.dailyLimitIsWorkspaceWide ? " (whole organization)" : ""
                 }`
               : status?.monthlyTokenLimit != null
               ? `${status.usedTotalTokens.toLocaleString()} of ${status.monthlyTokenLimit.toLocaleString()} tokens used this month.`

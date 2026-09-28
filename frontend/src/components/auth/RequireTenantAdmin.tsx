@@ -21,7 +21,7 @@ export function RequireTenantAdmin({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!isTenantAdmin) {
-      toast.error("Administration is available to tenant administrators only.");
+      toast.error("Administration is available to organization administrators only.");
     }
   }, [isTenantAdmin]);
 

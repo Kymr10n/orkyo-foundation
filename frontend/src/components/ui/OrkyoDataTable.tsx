@@ -108,7 +108,7 @@ export function OrkyoDataTable<TData extends RowData>({
   emptyIcon,
   emptyAction,
   filterColumn,
-  filterPlaceholder = 'Search...',
+  filterPlaceholder = 'Search…',
   filterValue: controlledFilterValue,
   onFilterChange,
   filterOnSubmit,

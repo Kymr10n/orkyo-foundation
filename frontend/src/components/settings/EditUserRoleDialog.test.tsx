@@ -328,7 +328,7 @@ describe('EditUserRoleDialog', () => {
     await user.click(saveButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Saving...')).toBeInTheDocument();
+      expect(screen.getByText('Saving…')).toBeInTheDocument();
       expect(saveButton).toBeDisabled();
     });
   });

@@ -37,7 +37,7 @@ export function TenantAdminPage() {
     <PageLayout>
       <PageHeader
         title="Administration"
-        description="Manage tenant governance: sites, users, organization, and integrations"
+        description="Manage organization governance: sites, users, organization, and integrations"
       />
       <PageTabs
         tabs={tabs}

@@ -53,20 +53,20 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
       apiAccessAllowed={apiAccessAllowed}
       tokens={tokens}
       title="Reporting API"
-      description="Manage API tokens for connecting BI tools (Power BI, Excel, Metabase) to your workspace data."
+      description="Manage API tokens for connecting BI tools (Power BI, Excel, Metabase) to your organization data."
       upsell={{
         title: "Reporting API",
         description:
-          "Available on Professional and Enterprise plans. Connect BI tools to your workspace data with read-only API tokens.",
+          "Available on Professional and Enterprise plans. Connect BI tools to your organization data with read-only API tokens.",
         points: (
           <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
-            <li>Connect Power BI, Excel, or Metabase to your workspace data</li>
+            <li>Connect Power BI, Excel, or Metabase to your organization data</li>
             <li>Read-only, scoped API tokens you can revoke anytime</li>
             <li>Incremental refresh via <code className="text-xs bg-muted px-1 rounded">updatedSince</code></li>
           </ul>
         ),
       }}
-      unavailableMessage="Reporting API access is not available for this workspace."
+      unavailableMessage="Reporting API access is not available for this organization."
       loadErrorMessage="Failed to load reporting tokens."
       emptyMessage="No reporting tokens yet. Create one to connect a BI tool."
       tableKey="tokens"
@@ -75,7 +75,7 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
         <CreateTokenDialog<object, CreateReportingTokenRequest>
           {...props}
           title="Create Reporting Token"
-          description="This token grants read-only access to reporting data for this workspace. It will be shown once — copy it before closing."
+          description="This token grants read-only access to reporting data for this organization. It will be shown once — copy it before closing."
           namePlaceholder="e.g. Power BI Dashboard"
           defaultExpiry="7"
           mutation={createMutation}
@@ -83,7 +83,7 @@ export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps 
           toRequest={(base) => base}
         />
       )}
-      rawTokenWarning="Store this token securely. Anyone with it can read your workspace's reporting data."
+      rawTokenWarning="Store this token securely. Anyone with it can read your organization's reporting data."
       revokeMutation={revokeMutation}
     />
   );

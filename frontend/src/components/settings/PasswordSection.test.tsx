@@ -111,7 +111,7 @@ describe('PasswordSection', () => {
     fireEvent.submit(screen.getByLabelText('Current Password').closest('form')!);
 
     await waitFor(() => {
-      expect(screen.getByText('Password changed successfully!')).toBeInTheDocument();
+      expect(screen.getByText('Password changed')).toBeInTheDocument();
     });
   });
 

@@ -74,7 +74,7 @@ export function SiteEditDialog({ site, open, onOpenChange, onSaved }: SiteEditDi
       onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel={site ? "Save Changes" : "Create Site"}
-      submittingLabel={site ? undefined : "Creating..."}
+      submittingLabel={site ? undefined : "Creating…"}
       error={error}
       dirty={isDirty}
     >

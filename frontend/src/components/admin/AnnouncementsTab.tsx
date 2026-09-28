@@ -386,7 +386,7 @@ function AnnouncementFormDialog({
           id="ann-body"
           value={body}
           onChange={(e) => set({ body: e.target.value })}
-          placeholder="Details about the announcement..."
+          placeholder="Details about the announcement…"
           rows={5}
           maxLength={5000}
         />
