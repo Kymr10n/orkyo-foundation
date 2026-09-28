@@ -124,7 +124,7 @@ export function SitePlanCanvas({
   anchorTs,
   nowMs,
   offTimeRanges = [],
-  weekendsEnabled = false,
+  weekendsAreOff = false,
   workingHoursEnabled = false,
   workingDayStart,
   workingDayEnd,
@@ -140,7 +140,7 @@ export function SitePlanCanvas({
   anchorTs: Date;
   nowMs: number;
   offTimeRanges?: readonly OffTimeRange[];
-  weekendsEnabled?: boolean;
+  weekendsAreOff?: boolean;
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
   workingDayEnd?: string;
@@ -180,7 +180,7 @@ export function SitePlanCanvas({
 
   // The date grid, following the page's selector — the same columns the utilization grids use.
   const columns = useTimeColumns({
-    scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
+    scale, anchorTs, weekendsAreOff, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
   });
   const viewStartMs = columns[0].start.getTime();
   const viewEndMs = columns[columns.length - 1].end.getTime();

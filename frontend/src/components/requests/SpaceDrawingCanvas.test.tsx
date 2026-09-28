@@ -43,7 +43,7 @@ describe('SpaceDrawingCanvas — press, hold, release', () => {
   it('selects on press, so the resize handles are there to grab', () => {
     renderCanvas({ selectedResourceId: undefined });
 
-    fireEvent.mouseDown(shape(), { clientX: 100, clientY: 100 });
+    fireEvent.pointerDown(shape(), { clientX: 100, clientY: 100 });
 
     expect(onSpaceClick).toHaveBeenCalledWith('space-1');
   });
@@ -54,9 +54,9 @@ describe('SpaceDrawingCanvas — press, hold, release', () => {
     const { container } = renderCanvas();
     const canvas = container.querySelector('[data-testid="drawing-canvas-surface"]') ?? shape();
 
-    fireEvent.mouseDown(shape(), { clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(canvas, { clientX: 102, clientY: 101 });
-    fireEvent.mouseUp(canvas, { clientX: 102, clientY: 101 });
+    fireEvent.pointerDown(shape(), { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { clientX: 102, clientY: 101 });
+    fireEvent.pointerUp(canvas, { clientX: 102, clientY: 101 });
 
     expect(onSpaceMove).not.toHaveBeenCalled();
   });
@@ -65,9 +65,9 @@ describe('SpaceDrawingCanvas — press, hold, release', () => {
     const { container } = renderCanvas();
     const canvas = container.querySelector('[data-testid="drawing-canvas-surface"]') ?? shape();
 
-    fireEvent.mouseDown(shape(), { clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(canvas, { clientX: 140, clientY: 130 });
-    fireEvent.mouseUp(canvas, { clientX: 140, clientY: 130 });
+    fireEvent.pointerDown(shape(), { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { clientX: 140, clientY: 130 });
+    fireEvent.pointerUp(canvas, { clientX: 140, clientY: 130 });
 
     expect(onSpaceMove).toHaveBeenCalledTimes(1);
     const [id, moved] = onSpaceMove.mock.calls[0];
@@ -77,13 +77,31 @@ describe('SpaceDrawingCanvas — press, hold, release', () => {
     expect(moved.coordinates[1]).toEqual({ x: 90, y: 80 });
   });
 
+  it('follows a pen or finger during the drag, not only a mouse', () => {
+    const { container } = renderCanvas();
+    const canvas = container.querySelector('[data-testid="drawing-canvas-surface"]') ?? shape();
+
+    fireEvent.pointerDown(shape(), { clientX: 100, clientY: 100, pointerType: 'touch' });
+    fireEvent.pointerMove(canvas, { clientX: 140, clientY: 130, pointerType: 'touch' });
+
+    // Mid-drag the shape is drawn at its moved position before anything is released.
+    const rect = container.querySelector('g[data-space-id="space-1"] rect')!;
+    expect(rect.getAttribute('x')).toBe('50');
+    expect(rect.getAttribute('y')).toBe('40');
+
+    fireEvent.pointerUp(canvas, { clientX: 140, clientY: 130, pointerType: 'touch' });
+    expect(onSpaceMove).toHaveBeenCalledWith('space-1', expect.objectContaining({
+      coordinates: [{ x: 50, y: 40 }, { x: 90, y: 80 }],
+    }));
+  });
+
   it('does not move anything while editing is off', () => {
     const { container } = renderCanvas({ editEnabled: false });
     const canvas = container.firstElementChild!;
 
-    fireEvent.mouseDown(shape(), { clientX: 100, clientY: 100 });
-    fireEvent.mouseMove(canvas, { clientX: 140, clientY: 130 });
-    fireEvent.mouseUp(canvas, { clientX: 140, clientY: 130 });
+    fireEvent.pointerDown(shape(), { clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(canvas, { clientX: 140, clientY: 130 });
+    fireEvent.pointerUp(canvas, { clientX: 140, clientY: 130 });
 
     expect(onSpaceMove).not.toHaveBeenCalled();
   });

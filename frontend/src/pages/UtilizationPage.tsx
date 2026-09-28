@@ -335,6 +335,8 @@ export function UtilizationPage() {
 
   // Scheduling settings (working hours, weekends) and the off-time overlay for the grids
   const { data: schedulingSettings } = useSchedulingSettings(selectedSiteId ?? undefined);
+  // The site setting says whether weekends are working days; the grids ask whether they are off.
+  const weekendsAreOff = schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined;
   const offTimeRanges = useOffTimeRanges(selectedSiteId, anchorTs);
 
   // Initialize space order from preferences
@@ -814,7 +816,7 @@ export function UtilizationPage() {
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
-                    weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+                    weekendsAreOff={weekendsAreOff}
                     workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
                     workingDayStart={schedulingSettings?.workingDayStart}
                     workingDayEnd={schedulingSettings?.workingDayEnd}
@@ -879,7 +881,7 @@ export function UtilizationPage() {
                     anchorTs={anchorTs}
                     scale={scale}
                     offTimeRanges={offTimeRanges}
-                    weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+                    weekendsAreOff={weekendsAreOff}
                     siteId={selectedSiteId}
                     filter={assetFilter}
                   />
@@ -924,7 +926,7 @@ export function UtilizationPage() {
               anchorTs={anchorTs}
               nowMs={nowMs}
               offTimeRanges={offTimeRanges}
-              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+              weekendsAreOff={weekendsAreOff}
               workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
               workingDayStart={schedulingSettings?.workingDayStart}
               workingDayEnd={schedulingSettings?.workingDayEnd}

@@ -43,7 +43,7 @@ interface SchedulerGridProps {
   onTimeCursorClick: (ts: Date) => void;
   onAnchorChange?: (ts: Date) => void;
   offTimeRanges?: readonly OffTimeRange[];
-  weekendsEnabled?: boolean;
+  weekendsAreOff?: boolean;
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
   workingDayEnd?: string;
@@ -66,14 +66,14 @@ export function SchedulerGrid({
   onTimeCursorClick,
   onAnchorChange,
   offTimeRanges = [],
-  weekendsEnabled = false,
+  weekendsAreOff = false,
   workingHoursEnabled = false,
   workingDayStart = "08:00",
   workingDayEnd = "17:00",
   editable = true,
 }: SchedulerGridProps) {
   const columns = useTimeColumns({
-    scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
+    scale, anchorTs, weekendsAreOff, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
   });
   const spaceOrder = useSchedulerViewStore((s) => s.spaceOrder);
 

@@ -448,7 +448,7 @@ describe("SitePlanCanvas — grid furniture matches the other tabs", () => {
   });
 
   it("tints the date header but never hatches it — hatching is a body-cell cue", async () => {
-    renderCanvas({ view: "timeline", weekendsEnabled: true });
+    renderCanvas({ view: "timeline", weekendsAreOff: true });
     await screen.findByText("Contract One");
     // The Saturday/Sunday header cells carry the destructive tint...
     const header = screen.getByTitle(/Saturday/);
@@ -458,7 +458,7 @@ describe("SitePlanCanvas — grid furniture matches the other tabs", () => {
   });
 
   it("draws the column underlay only inside an expanded band", async () => {
-    const { container } = renderCanvas({ view: "timeline", weekendsEnabled: true });
+    const { container } = renderCanvas({ view: "timeline", weekendsAreOff: true });
     await screen.findByText("Contract One");
     const hatched = () => container.querySelectorAll('[class*="repeating-linear-gradient"]');
     expect(hatched().length).toBe(0);
