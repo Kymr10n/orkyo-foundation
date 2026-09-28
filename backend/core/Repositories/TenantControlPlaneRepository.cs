@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Services;
 using Api.Services.Caching;
 using Npgsql;
+using Orkyo.Shared;
 
 namespace Api.Repositories;
 
@@ -201,8 +202,11 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     public async Task MarkActiveAsync(Guid tenantId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.ExecuteAsync(
-            "UPDATE tenants SET status = 'active', updated_at = NOW() WHERE id = @tenantId",
+        // Only a pending deletion is cancelled. Without the status guard "cancel deletion" also
+        // reactivated a suspended tenant, bypassing whatever suspended it.
+        await conn.ExecuteAsync($@"
+            UPDATE tenants SET status = '{TenantStatusConstants.Active}', updated_at = NOW()
+            WHERE id = @tenantId AND status = '{TenantStatusConstants.Deleting}'",
             p => p.AddWithValue("tenantId", tenantId), ct);
     }
 

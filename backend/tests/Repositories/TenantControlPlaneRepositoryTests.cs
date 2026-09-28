@@ -344,6 +344,17 @@ public class TenantControlPlaneRepositoryTests
     }
 
     [Fact]
+    public async Task MarkActive_LeavesASuspendedTenantSuspended()
+    {
+        var tenantId = await SeedTenantAsync(status: "suspended");
+
+        await _repo.MarkActiveAsync(tenantId);
+
+        (await QueryScalarAsync<string>("SELECT status FROM tenants WHERE id = @id", tenantId))
+            .Should().Be("suspended", "cancelling a deletion must not lift a suspension");
+    }
+
+    [Fact]
     public async Task TransferOwnership_SetsNewOwner()
     {
         var oldOwner = await CreateUserAsync();

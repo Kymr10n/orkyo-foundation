@@ -80,7 +80,7 @@ public interface ITenantControlPlaneRepository
     /// <summary>Soft-deletes the tenant: status → <c>deleting</c>, bumping <c>updated_at</c> (the purge grace clock).</summary>
     Task MarkDeletingAsync(Guid tenantId, CancellationToken ct = default);
 
-    /// <summary>Cancels a pending deletion: status → <c>active</c>.</summary>
+    /// <summary>Cancels a pending deletion: status <c>deleting</c> → <c>active</c>. Any other status is left as it is.</summary>
     Task MarkActiveAsync(Guid tenantId, CancellationToken ct = default);
 
     /// <summary>Sets the tenant's owner to <paramref name="newOwnerId"/> (eligibility is the caller's policy check).</summary>
