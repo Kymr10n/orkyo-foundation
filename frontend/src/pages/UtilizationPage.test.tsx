@@ -16,11 +16,8 @@ import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
 import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
-import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
-import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { renderWithQuery, createTestQueryWrapper } from "@foundation/src/test-utils";
 import { toast } from "sonner";
-import { ApiError } from "@foundation/src/lib/core/api-utils";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -1050,132 +1047,8 @@ describe("UtilizationPage", () => {
     expect(vi.mocked(exportUtilization)).not.toHaveBeenCalled();
   });
 
-  // --- Availability events / scheduling settings ---
-
-  it("expands availability event recurrences when event data is present", () => {
-    mockUseAvailabilityEvents.mockReturnValue({
-      data: [{
-        id: "event-1",
-        siteId: "site-1",
-        title: "Shutdown",
-        eventType: "shutdown",
-        defaultEffect: "closed",
-        startTs: "2026-12-24T00:00:00.000Z",
-        endTs: "2026-12-26T00:00:00.000Z",
-        isRecurring: false,
-        enabled: true,
-      }],
-    });
-    mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: "America/New_York", weekendsEnabled: true } });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(vi.mocked(expandRecurrence)).toHaveBeenCalled();
-  });
-
-  it("generates weekend ranges when weekends are disabled", () => {
-    mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: "UTC", weekendsEnabled: false } });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(vi.mocked(generateWeekendRanges)).toHaveBeenCalled();
-  });
-
-  it("skips weekend ranges when weekends are enabled", () => {
-    mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: "UTC", weekendsEnabled: true } });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    expect(vi.mocked(generateWeekendRanges)).not.toHaveBeenCalled();
-  });
-
-  it("filters out disabled availability events", () => {
-    mockUseAvailabilityEvents.mockReturnValue({
-      data: [
-        {
-          id: "event-1",
-          siteId: "site-1",
-          title: "Disabled shutdown",
-          eventType: "shutdown",
-          defaultEffect: "closed",
-          startTs: "2026-12-24T00:00:00.000Z",
-          endTs: "2026-12-26T00:00:00.000Z",
-          isRecurring: false,
-          enabled: false,
-        },
-        {
-          id: "event-2",
-          siteId: "site-1",
-          title: "Active shutdown",
-          eventType: "shutdown",
-          defaultEffect: "closed",
-          startTs: "2026-12-24T00:00:00.000Z",
-          endTs: "2026-12-26T00:00:00.000Z",
-          isRecurring: false,
-          enabled: true,
-        },
-      ],
-    });
-    mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: "UTC", weekendsEnabled: true } });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    // Only the enabled event should be expanded
-    expect(vi.mocked(expandRecurrence)).toHaveBeenCalledTimes(1);
-  });
-
-  // --- Auto-schedule error paths ---
-
-  it("shows 409 conflict error on auto-schedule apply", async () => {
-    mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockApplyMutateAsync.mockRejectedValueOnce(new ApiError("Conflict", 409));
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
-    await waitFor(() => {
-      expect(screen.getByTestId("preview-dialog")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("apply-schedule"));
-    await waitFor(() => {
-      expect(screen.getByTestId("apply-error")).toHaveTextContent(/scheduling data has changed/i);
-    });
-  });
-
-  it("shows generic error on auto-schedule apply failure", async () => {
-    mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockApplyMutateAsync.mockRejectedValueOnce(new Error("Server error"));
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
-    await waitFor(() => {
-      expect(screen.getByTestId("preview-dialog")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("apply-schedule"));
-    await waitFor(() => {
-      expect(screen.getByTestId("apply-error")).toHaveTextContent("Server error");
-    });
-  });
-
-  it("stringifies a non-Error rejection via the shared errorMessage normalizer", async () => {
-    mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockApplyMutateAsync.mockRejectedValueOnce("something");
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("auto-schedule-btn"));
-    await waitFor(() => {
-      expect(screen.getByTestId("preview-dialog")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("apply-schedule"));
-    await waitFor(() => {
-      expect(screen.getByTestId("apply-error")).toHaveTextContent("something");
-    });
-  });
+  // Off-time expansion is covered in hooks/useOffTimeRanges.test.ts and the apply error
+  // paths in hooks/useAutoScheduleFlow.test.tsx.
 
   // --- Double-click on non-existent request ---
 
