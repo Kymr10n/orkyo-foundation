@@ -37,8 +37,9 @@ public class UserManagementService : IUserManagementService
     private readonly SingleFlightCache? _identityCache;
 
     /// <param name="identityCache">
-    /// The shared cache the request pipeline keeps each user's tenant role in. Optional so a
-    /// caller that composes this service by hand keeps compiling; DI always supplies it.
+    /// The shared cache the request pipeline keeps each user's tenant role in. Optional only
+    /// because orkyo-saas's <c>UserManagementServiceIntegrationTests</c> composes this service by
+    /// hand; DI always supplies it.
     /// </param>
     public UserManagementService(
         IDbConnectionFactory connectionFactory,

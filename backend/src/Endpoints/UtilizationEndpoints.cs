@@ -32,7 +32,7 @@ public static class UtilizationEndpoints
                 var window = new TimeWindowQuery(from, to, granularity);
                 return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
                     EndpointHelpers.OkOrNotFound(
-                        await service.GetResourceUtilizationAsync(id, window.FromUtc, window.ToUtc, granularity, ct),
+                        await service.GetResourceUtilizationAsync(id, window.FromValue, window.ToValue, granularity, ct),
                         "Resource", id));
             })
             .WithName("GetResourceUtilization")
@@ -55,7 +55,7 @@ public static class UtilizationEndpoints
                 var window = new TimeWindowQuery(from, to, granularity);
                 return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
                     EndpointHelpers.OkOrNotFound(
-                        await service.GetGroupUtilizationAsync(id, window.FromUtc, window.ToUtc, granularity, ct),
+                        await service.GetGroupUtilizationAsync(id, window.FromValue, window.ToValue, granularity, ct),
                         "Group", id));
             })
             .WithName("GetGroupUtilization")
@@ -78,7 +78,7 @@ public static class UtilizationEndpoints
                 var window = new TimeWindowQuery(from, to, granularity);
                 return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
                     Results.Ok(await service.GetTenantUtilizationAsync(
-                        resourceTypeKey, window.FromUtc, window.ToUtc, granularity, ct)));
+                        resourceTypeKey, window.FromValue, window.ToValue, granularity, ct)));
             })
             .WithName("GetTenantUtilization")
             .WithSummary("Get aggregate utilization across all resources");
@@ -96,7 +96,7 @@ public static class UtilizationEndpoints
                 var window = new TimeWindowQuery(from, to, granularity);
                 return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
                     Results.Ok(await service.GetUtilizationByResourceAsync(
-                        resourceTypeKey, window.FromUtc, window.ToUtc, granularity, siteId, ct)));
+                        resourceTypeKey, window.FromValue, window.ToValue, granularity, siteId, ct)));
             })
             .WithName("GetUtilizationByResource")
             .WithSummary("Get per-resource utilization in one response (bulk)");

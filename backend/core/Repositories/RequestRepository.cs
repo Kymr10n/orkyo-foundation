@@ -42,7 +42,7 @@ public class RequestRepository : IRequestRepository
     }
 
     public async Task<List<RequestInfo>> GetAllAsync(
-        bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default)
+        Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
@@ -351,7 +351,7 @@ public class RequestRepository : IRequestRepository
 
         if (request.Requirements is { Count: > 0 })
         {
-            await InsertRequirementsAsync(db, requestId, request.Requirements, upsert: false, ct);
+            await InsertRequirementsAsync(db, requestId, request.Requirements, ct);
             await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(db, transaction, requestId, ct);
         }
 
@@ -503,7 +503,7 @@ public class RequestRepository : IRequestRepository
             deleteCmd.Parameters.AddWithValue("request_id", id);
             await deleteCmd.ExecuteNonQueryAsync(ct);
             if (request.Requirements.Count > 0)
-                await InsertRequirementsAsync(db, id, request.Requirements, upsert: false, ct);
+                await InsertRequirementsAsync(db, id, request.Requirements, ct);
         }
 
         // Either side can invalidate the pairing: a new requirement, or targets narrowed away
@@ -948,26 +948,39 @@ public class RequestRepository : IRequestRepository
     }
 
     /// <summary>
-    /// The one requirement INSERT, run inside the caller's open transaction. Create and update
-    /// write a fresh set (the request has no rows yet, or its rows were just deleted), so a
-    /// criterion listed twice stays the unique violation it always was. <paramref name="upsert"/>
-    /// is the single-add contract: a criterion the request already has gets the new value.
+    /// Writes a fresh requirement set, inside the caller's open transaction. Create and update
+    /// call this once the request has no rows (none yet, or just deleted), so a criterion listed
+    /// twice stays the unique violation it always was.
     /// </summary>
     private static Task<List<RequestRequirementInfo>> InsertRequirementsAsync(
         NpgsqlConnection conn,
         Guid requestId,
         IReadOnlyList<CreateRequestRequirementRequest> requirements,
-        bool upsert,
+        CancellationToken ct)
+        => WriteRequirementsAsync(conn, requestId, requirements, onConflict: "", ct);
+
+    /// <summary>
+    /// The single-add contract: a criterion the request already has gets the new value.
+    /// </summary>
+    private static Task<List<RequestRequirementInfo>> UpsertRequirementsAsync(
+        NpgsqlConnection conn,
+        Guid requestId,
+        IReadOnlyList<CreateRequestRequirementRequest> requirements,
+        CancellationToken ct)
+        => WriteRequirementsAsync(conn, requestId, requirements, @"ON CONFLICT (request_id, criterion_id) DO UPDATE SET
+                value = EXCLUDED.value,
+                operator = EXCLUDED.operator,
+                allowed_values = EXCLUDED.allowed_values", ct);
+
+    private static Task<List<RequestRequirementInfo>> WriteRequirementsAsync(
+        NpgsqlConnection conn,
+        Guid requestId,
+        IReadOnlyList<CreateRequestRequirementRequest> requirements,
+        string onConflict,
         CancellationToken ct)
     {
         var valueClauses = requirements.Select((_, i) =>
             $"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, @operator_{i}, @allowed_values_{i}::jsonb)");
-        var onConflict = upsert
-            ? @"ON CONFLICT (request_id, criterion_id) DO UPDATE SET
-                value = EXCLUDED.value,
-                operator = EXCLUDED.operator,
-                allowed_values = EXCLUDED.allowed_values"
-            : "";
 
         return conn.QueryListAsync($@"
             INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
@@ -1048,7 +1061,7 @@ public class RequestRepository : IRequestRepository
         if (conn.State != ConnectionState.Open) await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
-        var created = (await InsertRequirementsAsync(conn, requestId, [requirement], upsert: true, ct)).Single();
+        var created = (await UpsertRequirementsAsync(conn, requestId, [requirement], ct)).Single();
 
         await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(conn, tx, requestId, ct);
         await tx.CommitAsync(ct);

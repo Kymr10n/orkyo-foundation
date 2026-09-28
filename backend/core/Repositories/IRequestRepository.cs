@@ -23,7 +23,7 @@ public interface IRequestRepository
     /// Returns every request, uncapped — for callers that aggregate the whole set (export, the
     /// site plan). Pass <c>includeRequirements: true</c> to populate the requirements list.
     /// </summary>
-    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default);
+    Task<List<RequestInfo>> GetAllAsync(Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default);
 
     /// <summary>
     /// The requests with a live (not cancelled) assignment to one of <paramref name="resourceIds"/>,

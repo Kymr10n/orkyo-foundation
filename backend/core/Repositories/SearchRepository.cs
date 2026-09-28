@@ -46,7 +46,6 @@ public class SearchRepository : ISearchRepository
             p.AddWithValue("@query_prefix", NpgsqlQueryExtensions.EscapeLike(normalizedQuery) + "%");
             p.AddWithValue("@limit", limit);
             p.AddWithValue("@primaryThreshold", settings.Search_PrimarySimilarityThreshold);
-            p.AddWithValue("@secondaryThreshold", settings.Search_SecondarySimilarityThreshold);
             if (siteId.HasValue) p.AddWithValue("@site_id", siteId.Value);
             if (types != null && types.Length > 0) p.AddWithValue("@types", types);
         }, MapResult, ct);

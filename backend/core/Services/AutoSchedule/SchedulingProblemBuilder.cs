@@ -60,39 +60,35 @@ public class SchedulingProblemBuilder
         var triage = await TriageDependenciesAsync(requestNodes, eligibleRequests, scheduled, axis, cancellationToken);
         PropagateBlocking(triage.Blocked, triage.JoinNeeds);
 
-        var blockedBySet = triage.Blocked;
-        var earliestFromPredecessor = triage.EarliestFromPredecessor;
-        var solverEdges = triage.SolverEdges;
-
         // Withheld requests leave the solve set, so no solver can report them. Carry them out
         // separately, with their names, or the caller sees a run that quietly returned fewer
         // requests than it was given and no reason for any of them.
-        var withheld = blockedBySet.Count == 0
+        var withheld = triage.Blocked.Count == 0
             ? []
             : requestNodes
-                .Where(n => blockedBySet.Contains(n.RequestId))
+                .Where(n => triage.Blocked.Contains(n.RequestId))
                 .Select(n => new WithheldRequestNode(n.RequestId, n.DisplayName))
                 .ToList();
 
-        if (earliestFromPredecessor.Count > 0 || blockedBySet.Count > 0)
+        if (triage.EarliestFromPredecessor.Count > 0 || triage.Blocked.Count > 0)
         {
             requestNodes = requestNodes
-                .Where(n => !blockedBySet.Contains(n.RequestId))
-                .Select(n => earliestFromPredecessor.TryGetValue(n.RequestId, out var bound)
+                .Where(n => !triage.Blocked.Contains(n.RequestId))
+                .Select(n => triage.EarliestFromPredecessor.TryGetValue(n.RequestId, out var bound)
                     && (n.EarliestStart is null || bound > n.EarliestStart.Value)
                         ? n with { EarliestStart = bound }
                         : n)
                 .ToList();
 
             // Edges with an endpoint outside the solve set have nothing left to constrain.
-            solverEdges.RemoveAll(e => blockedBySet.Contains(e.SuccessorRequestId)
-                                    || blockedBySet.Contains(e.PredecessorRequestId));
+            triage.SolverEdges.RemoveAll(e => triage.Blocked.Contains(e.SuccessorRequestId)
+                                    || triage.Blocked.Contains(e.PredecessorRequestId));
         }
 
         return new SchedulingProblem(
             request.SiteId, request.HorizonStart, request.HorizonEnd, axis,
             requestNodes, resourceNodes, fixedAssignments,
-            solverEdges, withheld, triage.JoinConditions, criterionTypeScopes);
+            triage.SolverEdges, withheld, triage.JoinConditions, criterionTypeScopes);
     }
 
     /// <summary>

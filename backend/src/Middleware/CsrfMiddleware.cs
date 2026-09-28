@@ -2,7 +2,6 @@ using Api.Configuration;
 using Api.Constants;
 using Api.Helpers;
 using Api.Security;
-using Microsoft.Extensions.Options;
 
 namespace Api.Middleware;
 

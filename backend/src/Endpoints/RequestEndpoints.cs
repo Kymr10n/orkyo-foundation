@@ -221,7 +221,7 @@ public static class RequestEndpoints
         {
             var window = new TimeWindowQuery(from, to);
             return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
-                Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, window.FromUtc, window.ToUtc, ct)));
+                Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, window.FromValue, window.ToValue, ct)));
         })
             .WithName("GetSiteScheduledRequests")
             .WithSummary("Scheduled requests for a site whose bar overlaps [from,to]");

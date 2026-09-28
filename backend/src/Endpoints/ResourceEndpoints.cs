@@ -142,7 +142,7 @@ public static class ResourceEndpoints
             var window = new TimeWindowQuery(start, end);
             return await EndpointHelpers.ExecuteAsync(window, windowValidator, async () =>
                 EndpointHelpers.OkOrNotFound(
-                    await candidates.GetForResourceAsync(id, window.FromUtc, window.ToUtc, ct), "Resource", id));
+                    await candidates.GetForResourceAsync(id, window.FromValue, window.ToValue, ct), "Resource", id));
         })
             .WithName("GetResourceCandidateRequests")
             .WithSummary("Get active requests overlapping a period that are not yet assigned to this resource");

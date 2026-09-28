@@ -55,9 +55,8 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
     {
         // Only the fields the request carries are written: a read-merge-write of the whole row
         // would overwrite a concurrent update of another field with the value read before it.
-        var update = RecurringWindowUpdate.Build(request, request.Enabled)
+        var update = RecurringWindowUpdate.Build(request)
             .SetIfNotNull("absence_type", request.AbsenceType is { } type ? EnumMapper.ToDbValue(type) : null)
-            .SetIfNotNull("title", request.Title)
             .SetIfNotNull("notes", request.Notes);
 
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
@@ -72,7 +71,6 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
                 {
                     p.AddWithValue("id", id);
                     p.AddWithValue("resourceId", resourceId);
-                    RecurringWindowUpdate.Bind(p, request);
                     update.Apply(p);
                 }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }

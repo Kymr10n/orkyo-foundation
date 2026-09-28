@@ -19,8 +19,13 @@ public sealed class InvitationService : IInvitationService
     private readonly IQuotaEnforcer _quotaEnforcer;
     private readonly ILogger<InvitationService> _logger;
     private readonly TimeProvider _time;
-    private readonly IBackgroundDispatcher? _background;
+    private readonly IBackgroundDispatcher _background;
 
+    /// <param name="background">
+    /// Runs the welcome mail after the response. Optional only because orkyo-saas's
+    /// <c>InvitationServiceIntegrationTests</c> composes this service by hand: such an instance
+    /// sends the mail inline through its own <paramref name="emailService"/>. DI always supplies it.
+    /// </param>
     public InvitationService(
         IDbConnectionFactory connectionFactory,
         IEmailService emailService,
@@ -40,7 +45,7 @@ public sealed class InvitationService : IInvitationService
         _quotaEnforcer = quotaEnforcer;
         _logger = logger;
         _time = time;
-        _background = background;
+        _background = background ?? new InlineMailDispatcher(emailService);
     }
 
     public async Task<(Models.Invitation invitation, string token)?> InviteUserAsync(
@@ -243,13 +248,9 @@ public sealed class InvitationService : IInvitationService
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvitationAccepted, userId, "user", userId.ToString(), ct: ct);
 
             _logger.LogInformation("User {Email} accepted invitation and joined tenant {TenantId}", email, tenantId);
-            // Welcome the new member (best-effort): after the response when DI composed this
-            // service, inline for a hand-composed instance.
-            if (_background is null)
-                await _emailService.SendWelcomeEmailAsync(email, displayName, CancellationToken.None);
-            else
-                _background.Dispatch<IEmailService>("welcome mail",
-                    (mail, mailCt) => mail.SendWelcomeEmailAsync(email, displayName, mailCt));
+            // Welcome the new member (best-effort), after the response.
+            _background.Dispatch<IEmailService>("welcome mail",
+                (mail, mailCt) => mail.SendWelcomeEmailAsync(email, displayName, mailCt));
             return (user, null);
         }
         catch (Exception ex)
@@ -355,4 +356,14 @@ public sealed class InvitationService : IInvitationService
     /// earlier releases (<see cref="SecureTokens"/> says why the encodings differ).
     /// </summary>
     private static string HashToken(string token) => SecureTokens.Sha256Base64(token);
+
+    /// <summary>
+    /// The dispatcher of a hand-composed instance: no scope factory to resolve a service from,
+    /// so the work runs against the instance's own mail service before the caller returns.
+    /// </summary>
+    private sealed class InlineMailDispatcher(IEmailService mail) : IBackgroundDispatcher
+    {
+        public void Dispatch<TService>(string what, Func<TService, CancellationToken, Task> work) where TService : notnull
+            => work((TService)(object)mail, CancellationToken.None).GetAwaiter().GetResult();
+    }
 }

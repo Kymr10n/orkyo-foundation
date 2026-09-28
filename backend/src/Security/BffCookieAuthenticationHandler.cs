@@ -1,13 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
-using Orkyo.Shared.Keycloak;
 
 namespace Api.Security;
 

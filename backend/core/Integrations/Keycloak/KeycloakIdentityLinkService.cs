@@ -15,20 +15,17 @@ namespace Api.Integrations.Keycloak;
 public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 {
     private readonly IDbConnectionFactory _connectionFactory;
-    private readonly IEmailService _emailService;
     private readonly IdentityProvisioningOptions _identityProvisioning;
     private readonly ILogger<KeycloakIdentityLinkService> _logger;
-    private readonly IBackgroundDispatcher? _background;
+    private readonly IBackgroundDispatcher _background;
 
     public KeycloakIdentityLinkService(
         IDbConnectionFactory connectionFactory,
-        IEmailService emailService,
         IOptions<IdentityProvisioningOptions> identityProvisioning,
         ILogger<KeycloakIdentityLinkService> logger,
-        IBackgroundDispatcher? background = null)
+        IBackgroundDispatcher background)
     {
         _connectionFactory = connectionFactory;
-        _emailService = emailService;
         _identityProvisioning = identityProvisioning.Value;
         _logger = logger;
         _background = background;
@@ -187,14 +184,10 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             return IdentityLinkResult.Failed("Failed to create user account", ApiErrorCodes.Auth.IdentityNotLinked);
         }
 
-        // Best-effort: after the response when DI composed this service, inline for a
-        // hand-composed instance.
+        // Best-effort, after the response.
         var (alertEmail, alertName) = (newUser.Email, newUser.DisplayName ?? newUser.Email);
-        if (_background is null)
-            await _emailService.SendNewUserAlertAsync(alertEmail, alertName, CancellationToken.None);
-        else
-            _background.Dispatch<IEmailService>("new-user alert",
-                (mail, mailCt) => mail.SendNewUserAlertAsync(alertEmail, alertName, mailCt));
+        _background.Dispatch<IEmailService>("new-user alert",
+            (mail, mailCt) => mail.SendNewUserAlertAsync(alertEmail, alertName, mailCt));
 
         return IdentityLinkResult.Linked(newUser.UserId, newUser.Email, newUser.DisplayName, isNew: true);
     }

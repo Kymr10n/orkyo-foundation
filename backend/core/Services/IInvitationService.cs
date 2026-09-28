@@ -19,7 +19,9 @@ public interface IInvitationService
 
     /// <summary>
     /// <see cref="InviteAsync"/> flattened to the pre-2026-09 shape: <c>null</c> for both
-    /// "added directly" and "already a member". Kept for orkyo-saas's integration tests.
+    /// "added directly" and "already a member". Kept only for orkyo-saas's
+    /// <c>InvitationServiceIntegrationTests</c> (<c>InviteUserAsync_*</c>); it goes with the next
+    /// TestSupport/major bump, once that test moves to <see cref="InviteAsync"/>.
     /// </summary>
     Task<(Invitation invitation, string token)?> InviteUserAsync(
         TenantContext tenant, Guid invitedBy, string email, UserRole role, CancellationToken ct = default);

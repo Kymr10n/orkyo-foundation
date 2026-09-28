@@ -417,9 +417,9 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         var factory = _fixture.CreateConnectionFactory();
         return new KeycloakIdentityLinkService(
             factory,
-            emailService ?? Mock.Of<IEmailService>(),
             Options.Create(new IdentityProvisioningOptions { AllowSelfRegistration = allowSelfRegistration }),
-            NullLogger<KeycloakIdentityLinkService>.Instance);
+            NullLogger<KeycloakIdentityLinkService>.Instance,
+            new InlineBackgroundDispatcher(emailService ?? Mock.Of<IEmailService>()));
     }
 
     private static ExternalIdentityToken BuildToken(string subject, string email, string? displayName) =>

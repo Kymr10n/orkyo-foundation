@@ -103,16 +103,3 @@ public interface IIdentityLinkService
     /// <returns>The user's role, or None if not a member</returns>
     Task<TenantRole> GetUserTenantRoleAsync(Guid userId, Guid tenantId, CancellationToken ct = default);
 }
-
-/// <summary>
-/// Tenant membership information. No longer returned by any foundation API; kept only because
-/// orkyo-community's <c>CommunityJitProvisioningMiddlewareTests</c> spy still names it.
-/// </summary>
-public sealed class TenantMembership
-{
-    public required Guid TenantId { get; init; }
-    public required string TenantSlug { get; init; }
-    public required string TenantName { get; init; }
-    public required TenantRole Role { get; init; }
-    public required string Status { get; init; }
-}

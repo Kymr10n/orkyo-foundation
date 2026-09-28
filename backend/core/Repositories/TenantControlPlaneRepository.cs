@@ -16,7 +16,8 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
 
     /// <param name="identityCache">
     /// The shared cache the request pipeline keeps each user's tenant role in, evicted when a
-    /// membership is deleted. Optional so a caller that composes this by hand keeps compiling.
+    /// membership is deleted. Optional only because orkyo-saas's <c>TenantServiceIntegrationTests</c>
+    /// and <c>TenantServiceCreationIntegrationTests</c> compose this by hand; DI always supplies it.
     /// </param>
     public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory, SingleFlightCache? identityCache = null)
     {

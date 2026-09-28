@@ -35,7 +35,7 @@ public static class ResourceAssignmentEndpoints
             {
                 var window = new TimeWindowQuery(from, to);
                 return await EndpointHelpers.ExecuteAsync(window, windowValidator, async () =>
-                    Results.Ok(await repo.GetByResourceTypeAsync(resourceTypeKey, window.FromUtc, window.ToUtc, ct)));
+                    Results.Ok(await repo.GetByResourceTypeAsync(resourceTypeKey, window.FromValue, window.ToValue, ct)));
             }
             if (requestId is null)
                 return ErrorResponses.BadRequest("requestId query parameter is required");

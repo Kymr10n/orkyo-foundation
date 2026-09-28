@@ -157,6 +157,7 @@ public interface IRecurringWindowUpdate
     DateTime? EndTs { get; }
     bool? IsRecurring { get; }
     string? RecurrenceRule { get; }
+    bool? Enabled { get; }
 }
 
 public record UpdateAvailabilityEventRequest : IRecurringWindowUpdate

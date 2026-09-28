@@ -166,6 +166,21 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
     editor-PUT settings row again. `MockKeycloakAdminService.GetRealmRoleMemberIdsError`
     is its own flag; `MockEmailService` last-call writes sit under the lock; five dead
     usings removed. Backend 3921/3921.
+  - **G6 backend KISS / orphans (done):** `KeycloakIdentityLinkService` requires its
+    `IBackgroundDispatcher` (inline branch and the email dependency it carried are gone);
+    `InvitationService`, `UserManagementService` and `TenantControlPlaneRepository` keep
+    an optional parameter because saas integration tests hand-compose them (named in the
+    doc comments), but the second code path is gone: a missing dispatcher becomes a
+    nested inline dispatcher. `RecurringWindowUpdate.Build(request)` owns title, enabled
+    and the CASE parameters through a new `UpdateBuilder.SetExpression` overload; `Bind`
+    is deleted. `InsertRequirementsAsync`/`UpsertRequirementsAsync` wrap one private core
+    (no bool flag). Triage aliases, four files' dead usings, the unread
+    `@secondaryThreshold` binding and the test-only preset factories are removed.
+    `TenantMembership` on the identity-link surface is deleted; `InviteUserAsync` stays
+    for saas with an exact consumer note. `WorkingTime` lives in `core/Models`;
+    `TimeWindowQuery.FromValue/ToValue` say what they do; `BffAuthEndpoints.TokenResponse`
+    stays because saas `DemoAuthEndpoints` uses it. `GetAllAsync` overloads share one
+    parameter order. Backend 3921/3921, patch coverage 93.6 %.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.

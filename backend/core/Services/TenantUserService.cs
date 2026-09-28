@@ -1,7 +1,5 @@
-using System.Text.Json;
 using Api.Repositories;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace Api.Services;
 

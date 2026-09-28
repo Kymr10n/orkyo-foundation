@@ -105,8 +105,7 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
     {
         // Only the fields the request carries are written: a read-merge-write of the whole row
         // would overwrite a concurrent update of another field with the value read before it.
-        var update = RecurringWindowUpdate.Build(request, request.Enabled)
-            .SetIfNotNull("title", request.Title)
+        var update = RecurringWindowUpdate.Build(request)
             .SetIfNotNull("description", request.Description)
             .SetIfNotNull("event_type", request.EventType is { } eventType ? EnumMapper.ToDbValue(eventType) : null)
             .SetIfNotNull("default_effect", request.DefaultEffect is { } effect ? EnumMapper.ToDbValue(effect) : null);
@@ -122,7 +121,6 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
                 {
                     p.AddWithValue("id", id);
                     p.AddWithValue("siteId", siteId);
-                    RecurringWindowUpdate.Bind(p, request);
                     update.Apply(p);
                 }, SchedulingMapper.MapAvailabilityEventFromReader, ct);
         if (updated is null) return null;
