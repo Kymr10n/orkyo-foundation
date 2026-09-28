@@ -79,7 +79,7 @@ public class ScopedGridEndpointsTests
     [Fact]
     public async Task SiteWindow_ReturnsOnlyRequestsWhoseBarOverlapsTheWindow()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var spaceId = await TestHelpers.CreateUniqueTestSpace(_client); // in the test site
 
         var inWindow = await CreateRequestAsync();
@@ -96,7 +96,7 @@ public class ScopedGridEndpointsTests
     [Fact]
     public async Task SiteWindow_ExcludesBarTouchingTheWindowStart_AndExcludesOtherSites()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var spaceId = await TestHelpers.CreateUniqueTestSpace(_client);
 
         // Windows are half-open [from, to): a bar ending exactly at `from` belongs to the

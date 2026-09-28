@@ -15,10 +15,10 @@ public static class TestConstants
     public static string MasterEncryptionKey { get; } = Convert.ToBase64String(new byte[32]);
 
     /// <summary>
-    /// Pre-encoded Bearer token for the shared test user carrying the default "user" role
-    /// (which the factory treats as tenant Admin). Decoded by <see cref="TestAuthHandler"/>.
+    /// Pre-encoded Bearer token for the shared test user as tenant "admin", the role the
+    /// fixtures seed for that user. Decoded by <see cref="TestAuthHandler"/>.
     /// </summary>
-    public static string TestBearerToken { get; } = BearerTokenForRole("user");
+    public static string TestBearerToken { get; } = BearerTokenForRole("admin");
 
     /// <summary>
     /// Builds a Bearer token for the shared test user carrying a specific tenant

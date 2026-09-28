@@ -86,7 +86,7 @@ public class RequestRepositoryTests
     [Fact]
     public async Task GetById_ScheduledRequest_ReturnsSpaceAssignment()
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
         var requestId = await CreateUnscheduledRequestAsync();
 
         var scheduleResp = await _client.PatchAsJsonAsync(
@@ -113,7 +113,7 @@ public class RequestRepositoryTests
         // Schedule a request to a space, then add a person assignment.
         // Verifies that the view surfaces both (Phase 4 person assignments
         // were previously invisible in API responses).
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
         var personId = await CreatePersonResourceAsync();
         var requestId = await CreateUnscheduledRequestAsync();
 
@@ -146,7 +146,7 @@ public class RequestRepositoryTests
     [Fact]
     public async Task GetById_ExcludesCancelledAssignments()
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
         var requestId = await CreateUnscheduledRequestAsync();
 
         // Schedule request (creates a space assignment).
@@ -175,7 +175,7 @@ public class RequestRepositoryTests
     [Fact]
     public async Task GetAll_ReturnsAssignmentsForAllRequests()
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
 
         // Create a scheduled and an unscheduled request.
         var unscheduledId = await CreateUnscheduledRequestAsync();
@@ -211,7 +211,7 @@ public class RequestRepositoryTests
     {
         // The orphan fix: a request scoped to a site with a time but NO space must still show on
         // that site's calendar feed (previously it was excluded for lacking a space assignment).
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var start = DateTime.UtcNow.Date.AddDays(3).AddHours(9);
         var end = start.AddHours(2);
 
@@ -244,7 +244,7 @@ public class RequestRepositoryTests
         // belongs to the previous window, not this one. These three request queries used
         // closed intervals while every other window query was half-open, so boundary bars
         // appeared in two windows at once.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var start = DateTime.UtcNow.Date.AddDays(5).AddHours(8);
         var end = start.AddHours(2);
 
@@ -281,8 +281,8 @@ public class RequestRepositoryTests
     public async Task Schedule_SiteNeutralRequestIntoSpace_AdoptsSpaceSite()
     {
         // Implicit site-on-schedule: a site-neutral (NULL) request adopts the space's site when placed.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var siteId = DatabaseFixture.SiteId;
+        var spaceId = DatabaseFixture.SpaceId;
         var neutralId = await CreateUnscheduledRequestAsync();
 
         // Sanity: starts site-neutral.
@@ -308,7 +308,7 @@ public class RequestRepositoryTests
         // Re-scoping a site-scoped request back to "any site" (NULL): the FE sends siteId=null with
         // changeSiteId=true so the backend can distinguish "clear" from "absent". Without the flag a
         // null siteId is preserved (the omit-on-unchanged contract — see buildUpdatePayload).
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var createResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
         {
             Name = $"ClearSite-{Guid.NewGuid():N}"[..20],
@@ -346,7 +346,7 @@ public class RequestRepositoryTests
     [Fact]
     public async Task GetUnscheduled_WithSite_IncludesSiteScopedAndNeutral()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var neutralId = await CreateUnscheduledRequestAsync(); // site-neutral leaf, no start
 
         var scopedResp = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
@@ -593,7 +593,7 @@ public class RequestRepositoryTests
     private async Task<(Guid RequestId, Guid SpaceId, Guid PersonId)> CreateMultiResourceRequestAsync(
         DateTime start, DateTime end)
     {
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
         var personId = await CreatePersonResourceAsync();
         var requestId = await CreateUnscheduledRequestAsync();
 

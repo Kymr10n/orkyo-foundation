@@ -39,7 +39,7 @@ public class SpaceEndpointsTests
     public async Task CreateSpace_WithValidRectangleGeometry_ReturnsCreatedSpace()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"A-{Guid.NewGuid():N}".Substring(0, 10);
         var request = new CreateResourceRequest
         {
@@ -86,7 +86,7 @@ public class SpaceEndpointsTests
     public async Task CreateSpace_WithValidPolygonGeometry_ReturnsCreatedSpace()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"P-{Guid.NewGuid():N}".Substring(0, 10);
         var request = new CreateResourceRequest
         {
@@ -125,7 +125,7 @@ public class SpaceEndpointsTests
     [Fact]
     public async Task CreateSpace_WithValidCircleGeometry_ReturnsCreatedSpace()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"C-{Guid.NewGuid():N}".Substring(0, 10);
         var request = new CreateResourceRequest
         {
@@ -165,7 +165,7 @@ public class SpaceEndpointsTests
     [InlineData("hexagon", 2)]   // a type the allow-list has never heard of
     public async Task CreateSpace_InvalidGeometry_ReturnsBadRequest(string type, int pointCount)
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var request = new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
@@ -190,7 +190,7 @@ public class SpaceEndpointsTests
     public async Task CreateSpace_VirtualSpace_NoGeometryRequired()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"V-{Guid.NewGuid():N}".Substring(0, 10);
         var request = new CreateResourceRequest
         {
@@ -220,7 +220,7 @@ public class SpaceEndpointsTests
     public async Task CreateSpace_PhysicalSpaceWithoutGeometry_ReturnsBadRequest()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var request = new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
@@ -243,7 +243,7 @@ public class SpaceEndpointsTests
     public async Task CreateSpace_WithoutName_ReturnsBadRequest()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var request = new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
@@ -265,7 +265,7 @@ public class SpaceEndpointsTests
     public async Task CreateSpace_DuplicateCode_ReturnsBadRequest()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"DUP-{Guid.NewGuid():N}".Substring(0, 10);
         var request1 = new CreateResourceRequest
         {
@@ -308,7 +308,7 @@ public class SpaceEndpointsTests
     public async Task GetSpaces_ReturnsAllSpacesForSite()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
 
         // Create multiple spaces
         await CreateTestSpace(siteId, "Space 1", $"S1-{Guid.NewGuid():N}".Substring(0, 10));
@@ -351,7 +351,7 @@ public class SpaceEndpointsTests
     public async Task GetSpace_ExistingSpace_ReturnsSpace()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var createdSpace = await CreateTestSpace(siteId, "Test Space", $"T-{Guid.NewGuid():N}".Substring(0, 10));
 
         // Act
@@ -369,7 +369,7 @@ public class SpaceEndpointsTests
     public async Task GetSpace_NonExistentSpace_ReturnsNotFound()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var nonExistentResourceId = Guid.NewGuid();
 
         // Act
@@ -387,7 +387,7 @@ public class SpaceEndpointsTests
     public async Task UpdateSpace_ValidUpdate_ReturnsUpdatedSpace()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var originalCode = $"O-{Guid.NewGuid():N}".Substring(0, 10);
         var createdSpace = await CreateTestSpace(siteId, "Original Name", originalCode);
 
@@ -423,7 +423,7 @@ public class SpaceEndpointsTests
     public async Task UpdateSpace_NonExistentSpace_ReturnsNotFound()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var nonExistentResourceId = Guid.NewGuid();
         var updateRequest = new UpdateResourceRequest
         {
@@ -445,7 +445,7 @@ public class SpaceEndpointsTests
     public async Task DeleteSpace_ExistingSpace_ReturnsNoContent()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var createdSpace = await CreateTestSpace(siteId, "To Delete", $"D-{Guid.NewGuid():N}".Substring(0, 10));
 
         // Act
@@ -472,7 +472,7 @@ public class SpaceEndpointsTests
     public async Task DeleteSpace_NonExistentSpace_ReturnsNotFound()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var nonExistentResourceId = Guid.NewGuid();
 
         // Act
@@ -489,7 +489,7 @@ public class SpaceEndpointsTests
     [Fact]
     public async Task Description_IsReturnedByCreateGetAndList_AndNullWhenOmitted()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var withCode = $"DESC-{Guid.NewGuid():N}".Substring(0, 10);
         var withoutCode = $"NODESC-{Guid.NewGuid():N}".Substring(0, 10);
 
@@ -534,7 +534,7 @@ public class SpaceEndpointsTests
     [Fact]
     public async Task UpdateSpace_Description_CanBeAddedChangedAndCleared()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateTestSpace(siteId, "Auditorium", $"AUD-{Guid.NewGuid():N}".Substring(0, 10));
 
         async Task<string?> UpdateAsync(string description)
@@ -586,7 +586,7 @@ public class SpaceEndpointsTests
         // foundation#110: a space is an ordinary resource, so it holds the custom fields its type
         // defines. Before this the space endpoints had nowhere to put them, and the values a
         // tenant entered anywhere else were dropped on the way through.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
 
         var types = await _client.GetFromJsonAsync<List<ResourceTypeInfo>>("/api/resource-types");
         var spaceType = types!.Single(t => t.Key == ResourceTypeKeys.Space);

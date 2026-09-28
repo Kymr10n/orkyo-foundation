@@ -156,7 +156,7 @@ public class TemplateEndpointsTests
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
 
         return TestConstants.BearerToken(userId.ToString(), email, "Template Test User", tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user");
+            isTenantAdmin: false, role: "admin");
     }
 
     private async Task CleanupTestDataAsync()

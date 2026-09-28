@@ -43,7 +43,7 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
     {
         using var scope = fixture.Factory.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IAvailabilityEventRepository>();
-        var siteId = await TestHelpers.GetOrCreateTestSite(fixture.CreateAuthorizedClient());
+        var siteId = DatabaseFixture.SiteId;
         var created = await repo.CreateAsync(siteId, new CreateAvailabilityEventRequest
         {
             Title = "Before",
@@ -65,7 +65,7 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
     {
         using var scope = fixture.Factory.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IResourceAbsenceRepository>();
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(fixture.CreateAuthorizedClient());
+        var resourceId = DatabaseFixture.SpaceId;
         var created = await repo.CreateAsync(resourceId, new CreateResourceAbsenceRequest
         {
             AbsenceType = AbsenceType.Maintenance,
@@ -88,7 +88,7 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
     {
         using var scope = fixture.Factory.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IResourceAbsenceRepository>();
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(fixture.CreateAuthorizedClient());
+        var resourceId = DatabaseFixture.SpaceId;
         var created = await repo.CreateAsync(resourceId, new CreateResourceAbsenceRequest
         {
             AbsenceType = AbsenceType.Maintenance,
@@ -141,7 +141,7 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
     {
         using var scope = fixture.Factory.Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<IAvailabilityEventRepository>();
-        var siteId = await TestHelpers.GetOrCreateTestSite(fixture.CreateAuthorizedClient());
+        var siteId = DatabaseFixture.SiteId;
         var created = await repo.CreateAsync(siteId, new CreateAvailabilityEventRequest
         {
             Title = "Scoped",

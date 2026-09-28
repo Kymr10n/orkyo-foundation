@@ -47,7 +47,7 @@ public class AutoScheduleEndpointsTests
     [Fact]
     public async Task Preview_WithValidSite_ReachesEndpoint()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new AutoSchedulePreviewRequest(
             SiteId: siteId,
@@ -94,7 +94,7 @@ public class AutoScheduleEndpointsTests
     [Fact]
     public async Task Apply_WithValidSite_ReachesEndpoint()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new AutoScheduleApplyRequest(
             SiteId: siteId,

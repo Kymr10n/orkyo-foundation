@@ -19,9 +19,11 @@ public class AuthorizationMatrixTests
     private readonly HttpClient _viewer;
     private readonly HttpClient _editor;
     private readonly HttpClient _admin;
+    private readonly DatabaseFixture _fixture;
 
     public AuthorizationMatrixTests(DatabaseFixture fixture)
     {
+        _fixture = fixture;
         _viewer = fixture.CreateClientWithRole(RoleConstants.Viewer);
         _editor = fixture.CreateClientWithRole(RoleConstants.Editor);
         _admin = fixture.CreateClientWithRole(RoleConstants.Admin);
@@ -75,6 +77,12 @@ public class AuthorizationMatrixTests
     [Fact]
     public async Task AdminAreaWrite_AsAdmin_IsAllowed() =>
         AssertNotForbidden(await _admin.DeleteAsync($"/api/users/{Guid.NewGuid()}"));
+
+    // The test host maps an unknown role claim to no membership, never to a default role, so a
+    // mistyped role in a test token cannot pass an Admin gate for the wrong reason.
+    [Fact]
+    public async Task AdminAreaRead_WithAMistypedRole_IsForbidden() =>
+        AssertForbidden(await _fixture.CreateClientWithRole("admn").GetAsync("/api/users"));
 
     // ── Sites: read = member, write = Admin ───────────────────────────────────
 

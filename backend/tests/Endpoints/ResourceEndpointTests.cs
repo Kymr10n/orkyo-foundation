@@ -261,7 +261,7 @@ public class ResourceEndpointTests
     [Fact]
     public async Task GetResources_HasGeometry_ReturnsPlaceableAndExcludesPeople()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var placeable = await CreatePlaceableAsync(siteId, $"Placeable-{Guid.NewGuid():N}"[..20]);
         var person = await CreatePersonAsync($"NotPlaceable-{Guid.NewGuid():N}"[..20]);
 
@@ -274,7 +274,7 @@ public class ResourceEndpointTests
     [Fact]
     public async Task GetResources_HasGeometryFalse_ExcludesPlaceable()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var placeable = await CreatePlaceableAsync(siteId, $"OnlyPlaceable-{Guid.NewGuid():N}"[..20]);
 
         var list = await ReadListAsync(await _client.GetAsync("/api/resources?hasGeometry=false"));
@@ -291,7 +291,7 @@ public class ResourceEndpointTests
         // resource is created cross_site_allowed = false and so never has a different current
         // site. If that ever stops holding, this fails rather than the floorplan quietly gaining
         // another site's rows.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var mine = await CreatePlaceableAsync(siteId, $"Mine-{Guid.NewGuid():N}"[..20]);
 
         var otherSiteResp = await _client.PostAsJsonAsync(
@@ -328,7 +328,7 @@ public class ResourceEndpointTests
         // The bug this fixes: "Unset" in the person dialog sent homeSiteId: null, the request
         // could not tell that from "not editing", and the column was silently left alone. The
         // save reported success while changing nothing.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var person = await CreatePersonAsync($"HomeSite-{Guid.NewGuid():N}"[..20]);
 
         await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
@@ -349,7 +349,7 @@ public class ResourceEndpointTests
     public async Task UpdateResource_AbsentHomeSite_LeavesItAlone()
     {
         // The other half of the distinction: a rename must not wipe the site it never mentioned.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var person = await CreatePersonAsync($"Untouched-{Guid.NewGuid():N}"[..20]);
         await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
             new UpdateResourceRequest { HomeSiteId = Optional<Guid?>.Of(siteId) });

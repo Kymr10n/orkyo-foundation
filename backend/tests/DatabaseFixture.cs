@@ -16,6 +16,12 @@ public class DatabaseFixture : IAsyncLifetime
     /// <summary>Connection string for the shared test tenant database.</summary>
     public string TenantConnectionString { get; private set; } = null!;
 
+    /// <summary>The one site the fixture seeds into the test tenant.</summary>
+    public static readonly Guid SiteId = new("5e5e0000-0000-0000-0000-000000000001");
+
+    /// <summary>The one space the fixture seeds, homed at <see cref="SiteId"/>.</summary>
+    public static readonly Guid SpaceId = new("5e5e0000-0000-0000-0000-000000000002");
+
     /// <summary>Gets the shared web application factory for all tests.</summary>
     public FoundationWebApplicationFactory Factory { get; private set; } = null!;
 
@@ -146,6 +152,21 @@ public class DatabaseFixture : IAsyncLifetime
             ON CONFLICT DO NOTHING", tenantSeedConn);
         await applicabilityCmd.ExecuteNonQueryAsync();
         Console.WriteLine("    ✓ Seed criteria applicability assigned for all resource types");
+
+        // One site and one space, so a test that needs "a site" or "a space" names a fixed id
+        // instead of depending on what an earlier test happened to create.
+        await using var placeCmd = new NpgsqlCommand(@"
+            INSERT INTO sites (id, name, code) VALUES (@site, 'Test Site', 'fixture-site')
+            ON CONFLICT (id) DO NOTHING;
+            INSERT INTO resources (id, resource_type_id, name, code, allocation_mode,
+                                   home_site_id, cross_site_allowed, is_physical)
+            SELECT @space, rt.id, 'Test Space', 'FIXTURE-SPACE', 'Exclusive', @site, false, false
+            FROM resource_types rt WHERE rt.key = 'space'
+            ON CONFLICT (id) DO NOTHING", tenantSeedConn);
+        placeCmd.Parameters.AddWithValue("site", SiteId);
+        placeCmd.Parameters.AddWithValue("space", SpaceId);
+        await placeCmd.ExecuteNonQueryAsync();
+        Console.WriteLine("    ✓ Fixture site and space seeded");
 
         // Mirror the shared test user into the tenant users table so FK constraints
         // on user_preferences, preset_applications, etc. are satisfied.

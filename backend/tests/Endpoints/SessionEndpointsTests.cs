@@ -48,7 +48,7 @@ public class SessionEndpointsTests
             active: true);
 
         return TestConstants.BearerToken(userId.ToString(), email, "Session Me Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user");
+            isTenantAdmin: false, role: "admin");
     }
 
     private async Task<JsonElement> GetMeAsync(string token)
@@ -289,7 +289,7 @@ public class SessionEndpointsTests
         var email = $"tos_ip_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName: "ToS IP", tenantSlug: null, active: true);
         var token = TestConstants.BearerToken(userId.ToString(), email, "ToS IP", "00000000-0000-0000-0000-000000000001",
-            TestConstants.TenantSlug, isTenantAdmin: false, role: "user");
+            TestConstants.TenantSlug, isTenantAdmin: false, role: "admin");
         var server = (TestServer)_factory.Services.GetRequiredService<IServer>();
         var body = System.Text.Encoding.UTF8.GetBytes("{\"tosVersion\":\"2026-02\"}");
 
@@ -332,7 +332,7 @@ public class SessionEndpointsTests
         Guid userId, string email, string? sub, string[]? realmRoles = null)
     {
         return TestConstants.BearerToken(userId.ToString(), email, "Bootstrap Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user", sub: sub, realmRoles: realmRoles);
+            isTenantAdmin: false, role: "admin", sub: sub, realmRoles: realmRoles);
     }
 
     private async Task<HttpResponseMessage> BootstrapAsync(string token)

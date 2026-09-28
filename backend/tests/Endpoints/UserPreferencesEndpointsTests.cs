@@ -28,7 +28,7 @@ public class UserPreferencesEndpointsTests
         var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
 
         return TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user");
+            isTenantAdmin: false, role: "admin");
     }
 
     [Fact]

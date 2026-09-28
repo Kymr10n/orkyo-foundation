@@ -389,17 +389,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 context.Items["OrgContext"] = context.RequestServices.GetRequiredService<OrgContext>();
 
                 // Honour the role claim from the test token so tests can exercise
-                // role-based authorisation (admin vs editor vs viewer). Defaults to
-                // Admin when no role is supplied — matches the legacy hard-coded behaviour.
-                // An explicit "none" is a signed-in user who is not a member of the tenant.
-                var roleClaim = context.User.FindFirst("role")?.Value;
-                var role = roleClaim == Api.Constants.RoleConstants.None
-                    ? TenantRole.None
-                    : string.IsNullOrEmpty(roleClaim)
-                    ? TenantRole.Admin
-                    : Api.Constants.RoleConstants.ParseRoleString(roleClaim) is var parsed && parsed != TenantRole.None
-                        ? parsed
-                        : TenantRole.Admin;
+                // role-based authorisation (admin vs editor vs viewer). Anything else,
+                // a mistyped role included, is a signed-in user who is not a member.
+                var role = Api.Constants.RoleConstants.ParseRoleString(context.User.FindFirst("role")?.Value);
 
                 var authCtx = context.RequestServices.GetRequiredService<CurrentAuthorizationContext>();
                 authCtx.SetContext(new AuthorizationContext

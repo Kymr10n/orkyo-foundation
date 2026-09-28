@@ -14,29 +14,12 @@ public class SchedulingEndpointsTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    private async Task<Guid> GetOrCreateSiteId()
-    {
-        var response = await _client.GetAsync("/api/sites");
-        var sites = await response.Content.ReadFromJsonAsync<List<SiteInfo>>();
-        if (sites != null && sites.Count > 0)
-            return sites[0].Id;
-
-        // Create a site if none exists
-        var createResponse = await _client.PostAsJsonAsync("/api/sites", new
-        {
-            Code = $"sched-{Guid.NewGuid():N}"[..20],
-            Name = "Scheduling Test Site"
-        });
-        var created = await createResponse.Content.ReadFromJsonAsync<SiteInfo>();
-        return created!.Id;
-    }
-
     #region Scheduling Settings
 
     [Fact]
     public async Task GetSchedulingSettings_NoSettings_ReturnsDefaults()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         // Delete in case a previous test created settings
         await _client.DeleteAsync($"/api/sites/{siteId}/scheduling");
@@ -57,7 +40,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task UpsertSchedulingSettings_Creates_Returns200()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new UpsertSchedulingSettingsRequest
         {
@@ -85,7 +68,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task UpsertSchedulingSettings_Updates_Returns200()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         // Create initial settings
         await _client.PutAsJsonAsync($"/api/sites/{siteId}/scheduling",
@@ -119,7 +102,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task UpsertSchedulingSettings_InvalidTimezone_Returns400()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new UpsertSchedulingSettingsRequest { TimeZone = "Invalid/Zone" };
 
@@ -131,7 +114,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task GetSchedulingSettings_AfterCreate_ReturnsSettings()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         await _client.PutAsJsonAsync($"/api/sites/{siteId}/scheduling",
             new UpsertSchedulingSettingsRequest
@@ -153,7 +136,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task DeleteSchedulingSettings_AfterCreate_Returns204()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         await _client.PutAsJsonAsync($"/api/sites/{siteId}/scheduling",
             new UpsertSchedulingSettingsRequest { TimeZone = "UTC" });
@@ -178,7 +161,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task GetAvailabilityEvents_Empty_ReturnsEmptyList()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var response = await _client.GetAsync($"/api/sites/{siteId}/availability-events");
 
@@ -190,7 +173,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task CreateAvailabilityEvent_Valid_Returns201()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new CreateAvailabilityEventRequest
         {
@@ -217,7 +200,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task CreateAvailabilityEvent_EmptyTitle_Returns400()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new CreateAvailabilityEventRequest
         {
@@ -234,7 +217,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task CreateAvailabilityEvent_EndBeforeStart_Returns400()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new CreateAvailabilityEventRequest
         {
@@ -251,7 +234,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task DeleteAvailabilityEventScope_ForAScopeTheEventDoesNotHave_Returns404()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var created = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
             new CreateAvailabilityEventRequest
@@ -275,7 +258,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task GetAvailabilityEventById_AfterCreate_ReturnsEvent()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
             new CreateAvailabilityEventRequest
@@ -298,7 +281,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task GetAvailabilityEventById_NonExistent_Returns404()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var response = await _client.GetAsync($"/api/sites/{siteId}/availability-events/{Guid.NewGuid()}");
 
@@ -308,7 +291,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task UpdateAvailabilityEvent_PartialUpdate_Returns200()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
             new CreateAvailabilityEventRequest
@@ -334,7 +317,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task DeleteAvailabilityEvent_AfterCreate_Returns204()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var createResponse = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events",
             new CreateAvailabilityEventRequest
@@ -357,7 +340,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task DeleteAvailabilityEvent_NonExistent_Returns404()
     {
-        var siteId = await GetOrCreateSiteId();
+        var siteId = DatabaseFixture.SiteId;
 
         var response = await _client.DeleteAsync($"/api/sites/{siteId}/availability-events/{Guid.NewGuid()}");
 
@@ -371,8 +354,8 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task CreateRequest_WithSchedulingAndOffTime_PreservesTheExplicitWindow()
     {
-        var siteId = await GetOrCreateSiteId();
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var siteId = DatabaseFixture.SiteId;
+        var resourceId = DatabaseFixture.SpaceId;
 
         // 1. Set up scheduling: 08:00-17:00 UTC, no weekends
         await _client.PutAsJsonAsync($"/api/sites/{siteId}/scheduling",
@@ -425,7 +408,7 @@ public class SchedulingEndpointsTests
     [Fact]
     public async Task CreateRequest_WithSchedulingDisabled_UsesPlainEndTs()
     {
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
 
         var requestPayload = new CreateRequestRequest
         {
