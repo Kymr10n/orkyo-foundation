@@ -15,6 +15,20 @@ namespace Api.Repositories;
 internal static class CriterionScopeSql
 {
     /// <summary>
+    /// The one applicability rule, as a SQL predicate: the criterion <paramref name="criterionIdExpr"/>
+    /// applies to a resource type matching <paramref name="typeMatch"/>, written over
+    /// <c>crt.resource_type_id</c>. A criterion with no scope recorded applies to every type — the
+    /// same rule as <see cref="Models.RequestRequirementInfo.AppliesTo"/>, which the solver and the
+    /// assignment validator use, so the per-type criteria list, both capability writes and the
+    /// requirement scoping cannot disagree. Both arguments are hardcoded SQL chosen by the callers,
+    /// never user input.
+    /// </summary>
+    internal static string AppliesTo(string criterionIdExpr, string typeMatch) => $@"
+        (NOT EXISTS (SELECT 1 FROM criterion_resource_types crt WHERE crt.criterion_id = {criterionIdExpr})
+         OR EXISTS (SELECT 1 FROM criterion_resource_types crt
+                     WHERE crt.criterion_id = {criterionIdExpr} AND ({typeMatch})))";
+
+    /// <summary>
     /// The criteria on <paramref name="valueTable"/> for @owner_id that the owner cannot hold,
     /// with the scope each one applies to. Table and column names are hardcoded literals chosen
     /// by the two callers, never user input.
@@ -30,14 +44,8 @@ internal static class CriterionScopeSql
           JOIN criteria c ON c.id = v.criterion_id
          WHERE v.{ownerColumn} = @owner_id
            AND (NOT c.applicable_to_requests
-                OR (EXISTS (SELECT 1 FROM criterion_resource_types crt WHERE crt.criterion_id = c.id)
-                    AND NOT EXISTS (
-                        SELECT 1
-                          FROM criterion_resource_types crt
-                          JOIN resource_types rt ON rt.id = crt.resource_type_id
-                         WHERE crt.criterion_id = c.id
-                           AND ((rt.has_directory_profile AND rt.is_active)
-                                OR rt.id IN (SELECT resource_type_id FROM {targetTable} WHERE {ownerColumn} = @owner_id)))))
+                OR NOT {AppliesTo("c.id", $@"crt.resource_type_id IN (SELECT id FROM resource_types WHERE has_directory_profile AND is_active)
+                                              OR crt.resource_type_id IN (SELECT resource_type_id FROM {targetTable} WHERE {ownerColumn} = @owner_id)")})
          ORDER BY c.name";
 
     internal static Task EnsureRequestRequirementsApplyAsync(

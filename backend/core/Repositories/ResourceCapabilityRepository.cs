@@ -51,28 +51,19 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
         await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
 
-        // Validate criterion exists and is applicable to this resource's type.
-        // If no criterion_resource_types entries exist for the resource type, all criteria
-        // are considered applicable (open-world assumption for new resource types).
-        await using var checkCmd = new NpgsqlCommand(@"
-            SELECT 1
+        // Existence and applicability in one read: no row means no such resource, false means
+        // the criterion is scoped to other types (CriterionScopeSql.AppliesTo is the rule).
+        await using var checkCmd = new NpgsqlCommand($@"
+            SELECT {CriterionScopeSql.AppliesTo("@criterionId", "crt.resource_type_id = r.resource_type_id")}
             FROM resources r
-            WHERE r.id = @resourceId
-              AND (
-                EXISTS (
-                    SELECT 1 FROM criterion_resource_types
-                    WHERE criterion_id = @criterionId AND resource_type_id = r.resource_type_id
-                )
-                OR NOT EXISTS (
-                    SELECT 1 FROM criterion_resource_types
-                    WHERE resource_type_id = r.resource_type_id
-                )
-              )", db, tx);
+            WHERE r.id = @resourceId", db, tx);
         checkCmd.Parameters.AddWithValue("resourceId", resourceId);
         checkCmd.Parameters.AddWithValue("criterionId", criterionId);
 
-        var isApplicable = await checkCmd.ExecuteScalarAsync(ct) != null;
-        if (!isApplicable)
+        var applies = await checkCmd.ExecuteScalarAsync(ct);
+        if (applies is null)
+            throw new NotFoundException("Resource", resourceId);
+        if (applies is false)
             throw new CapabilityNotApplicableException(
                 resourceId, criterionId,
                 "Criterion is not applicable to this resource type");

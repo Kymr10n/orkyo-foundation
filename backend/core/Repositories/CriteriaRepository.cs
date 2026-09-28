@@ -62,18 +62,13 @@ public class CriteriaRepository : ICriteriaRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // Strict rule (post-applicability-backfill): a criterion is included
-        // only when explicitly tagged for this resource type. The previous
-        // open-world fallback (criteria with no applicability rows treated as
-        // universal) was removed in the same release that backfilled all
-        // untagged criteria as 'space'.
+        // The shared applicability rule: a criterion tagged for this type, or one with no scope
+        // at all (an applicability PUT may clear it). The list used to be strict while requests
+        // and capabilities treated an unscoped criterion as universal, so it was valid everywhere
+        // yet listed nowhere.
         return await db.QueryListAsync(
             $@"SELECT {SelectColumns} FROM criteria c
-               WHERE EXISTS (
-                   SELECT 1 FROM criterion_resource_types crt
-                   JOIN resource_types rt ON rt.id = crt.resource_type_id
-                   WHERE crt.criterion_id = c.id AND rt.key = @key
-               )
+               WHERE {CriterionScopeSql.AppliesTo("c.id", "crt.resource_type_id IN (SELECT id FROM resource_types WHERE key = @key)")}
                ORDER BY c.name",
             p => p.AddWithValue("key", resourceTypeKey),
             CriteriaMapper.MapFromReader, ct);

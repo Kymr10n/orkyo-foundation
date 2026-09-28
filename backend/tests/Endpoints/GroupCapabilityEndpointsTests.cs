@@ -162,6 +162,44 @@ public class GroupCapabilityEndpointsTests
     }
 
     [Fact]
+    public async Task AddCapability_ValueOfTheWrongType_Returns400()
+    {
+        // Resources checked the value against the criterion's type; groups stored anything, so a
+        // Number criterion accepted "banana" and the mismatch only surfaced in the solver.
+        var groupId = await CreateTestGroupAsync();
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Number);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{groupId}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement("banana")));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var list = await _client.GetFromJsonAsync<List<GroupCapabilityInfo>>(
+            $"/api/resource-groups/{groupId}/capabilities");
+        Assert.DoesNotContain(list!, c => c.CriterionId == criterion.Id);
+    }
+
+    [Fact]
+    public async Task AnUnscopedCriterion_IsListedForTheType_AndAssignable()
+    {
+        // One applicability rule everywhere: a criterion whose scope was cleared applies to every
+        // type, as it already did on requests. It used to be valid on a request yet missing from
+        // the per-type criteria list.
+        var groupId = await CreateTestGroupAsync();
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Boolean);
+        (await _client.PutAsJsonAsync($"/api/criteria/{criterion.Id}/applicability",
+            new UpdateCriterionApplicabilityRequest { ResourceTypeKeys = [] })).EnsureSuccessStatusCode();
+
+        var forPeople = await _client.GetFromJsonAsync<List<CriterionInfo>>("/api/criteria?resourceType=person");
+        Assert.Contains(forPeople!, c => c.Id == criterion.Id);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{groupId}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
     public async Task AddCapability_SameCriterionTwice_ReplacesTheValue()
     {
         // Same contract as the resource capability POST: an upsert, not insert-then-409.

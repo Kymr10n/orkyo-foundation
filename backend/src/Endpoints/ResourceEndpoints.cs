@@ -184,31 +184,11 @@ public static class ResourceEndpoints
             Guid id,
             AddResourceCapabilityRequest request,
             IValidator<AddResourceCapabilityRequest> validator,
-            IResourceService service,
-            IResourceCapabilityRepository repository,
-            ICriteriaRepository criteriaRepository,
-            ICriterionValueValidator valueValidator,
+            ICapabilityAssignmentService capabilities,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
-            var resource = await service.GetByIdAsync(id, ct);
-            if (resource is null)
-                return ErrorResponses.NotFound("Resource", id);
-
-            var criterion = await criteriaRepository.GetByIdAsync(request.CriterionId, ct);
-            if (criterion is null)
-                return ErrorResponses.NotFound("Criterion", request.CriterionId);
-
-            if (!criterion.ResourceTypeKeys.Contains(resource.ResourceTypeKey, StringComparer.Ordinal))
-                return ErrorResponses.BadRequest(
-                    $"Criterion '{criterion.Name}' is not applicable to resource type '{resource.ResourceTypeKey}'.");
-
-            // Values used to be stored as raw JSONB with no type check: a Number criterion would
-            // accept "banana" and only misbehave later, as a silent non-match in the solver.
-            if (valueValidator.Validate(criterion, request.Value) is { } invalid)
-                return ErrorResponses.BadRequest(invalid);
-
-            var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value, ct);
+            var capability = await capabilities.SetResourceCapabilityAsync(id, request.CriterionId, request.Value, ct);
             return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);
         }))
             .WithName("AddResourceCapability")
