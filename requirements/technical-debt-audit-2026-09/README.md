@@ -138,7 +138,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M10 | B3 | todo | |
 | M11 | B3 | todo | |
 | M12 | B3 | todo | |
-| M13 | F1 | todo | |
+| M13 | F1 | in-progress | type edits invalidate `resources.all()`; email change `suppressErrorToast`; template LOAD falls back to the RESET unit ("days"); left: break-glass rethrow (lands with S2's `ApiError`) |
 | M14 | B4 | todo | |
 | M15 | B3 | todo | |
 | M16 | B2 / B3 | todo | services in B2, repository items in B3 |

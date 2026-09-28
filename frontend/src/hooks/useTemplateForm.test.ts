@@ -144,7 +144,9 @@ describe('templateFormReducer', () => {
       expect(result.name).toBe('Minimal');
       expect(result.description).toBe('');
       expect(result.durationValue).toBe('1');
-      expect(result.durationUnit).toBe('hours');
+      // Same default as a fresh (RESET) form: one default unit, not two.
+      expect(result.durationUnit).toBe(templateFormReducer(state, { type: 'RESET' }).durationUnit);
+      expect(result.durationUnit).toBe('days');
       expect(result.requirements.size).toBe(0);
       expect(result.targetResourceTypeKeys).toEqual([]);
     });

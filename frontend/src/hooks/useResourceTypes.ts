@@ -12,6 +12,9 @@ import { qk } from "@foundation/src/lib/api/query-keys";
  */
 export const RESOURCE_TYPE_INVALIDATES = [
   qk.resourceTypes.all(),
+  // Both roots, as in CUSTOM_FIELD_INVALIDATES: `all()` covers the per-type lists and the
+  // floorplan, `allFlat()` is its own namespace and is not reached by the first.
+  qk.resources.all(),
   qk.resources.allFlat(),
 ] as const;
 

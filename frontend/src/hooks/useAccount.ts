@@ -33,6 +33,8 @@ export const useRequestEmailChange = () =>
       successMessage: (_data: unknown, email: unknown) =>
         `Confirmation email sent to ${email as string}. Check your inbox.`,
       errorMessage: "Failed to request email change",
+      // The email editor stays open on failure and shows the message inline; one surface.
+      suppressErrorToast: true,
     },
   });
 
