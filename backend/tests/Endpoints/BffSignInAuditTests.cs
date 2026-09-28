@@ -110,6 +110,8 @@ public class BffSignInAuditTests
         _tenantUsers.Verify(t => t.RecordAuditEventAsync(
             It.IsAny<OrgContext>(), SecurityAuditActions.SessionSignedOut, _userId,
             "tenant", tenantId.ToString(), It.IsAny<object?>(), It.IsAny<CancellationToken>()), Times.Once);
+        // One bootstrap serves both the email and the tenant count.
+        _session.Verify(s => s.BuildSessionResponseAsync(_userId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

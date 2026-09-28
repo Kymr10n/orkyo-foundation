@@ -110,11 +110,15 @@ public class RequestService : IRequestService
         return await _repository.CreateAsync(request, ct);
     }
 
-    public async Task EnsureCanParentAsync(Guid parentId, CancellationToken ct = default)
+    public Task EnsureCanParentAsync(Guid parentId, CancellationToken ct = default)
+        => EnsureCanParentAsync(parentId, "Cannot add children to a leaf request", ct);
+
+    /// <summary>The parent must exist (404) and be a group, not a leaf (409 with <paramref name="leafMessage"/>).</summary>
+    private async Task EnsureCanParentAsync(Guid parentId, string leafMessage, CancellationToken ct)
     {
         var parentMode = await _repository.GetPlanningModeAsync(parentId, ct);
         if (parentMode == null) throw new NotFoundException("Parent request", parentId);
-        if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot add children to a leaf request");
+        if (parentMode == PlanningMode.Leaf) throw new ConflictException(leafMessage);
     }
 
     public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
@@ -125,9 +129,7 @@ public class RequestService : IRequestService
                 throw new ArgumentException("A request cannot be its own parent");
             var wouldCycle = await _tree.WouldCreateCycleAsync(id, request.ParentRequestId.Value, ct);
             if (wouldCycle) throw new ConflictException("This change would create a circular reference");
-            var parentMode = await _repository.GetPlanningModeAsync(request.ParentRequestId.Value, ct);
-            if (parentMode == null) throw new NotFoundException("Parent request", request.ParentRequestId.Value);
-            if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot add children to a leaf request");
+            await EnsureCanParentAsync(request.ParentRequestId.Value, ct);
         }
 
         if (request.PlanningMode == PlanningMode.Leaf)
@@ -237,9 +239,7 @@ public class RequestService : IRequestService
                 throw new ArgumentException("A request cannot be its own parent");
             if (await _tree.WouldCreateCycleAsync(id, newParentId.Value, ct))
                 throw new ConflictException("Moving this request would create a circular reference");
-            var parentMode = await _repository.GetPlanningModeAsync(newParentId.Value, ct);
-            if (parentMode == null) throw new NotFoundException("Parent request", newParentId.Value);
-            if (parentMode == PlanningMode.Leaf) throw new ConflictException("Cannot move a request under a leaf request");
+            await EnsureCanParentAsync(newParentId.Value, "Cannot move a request under a leaf request", ct);
         }
         return await _tree.MoveAsync(id, newParentId, sortOrder, ct);
     }

@@ -178,7 +178,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M13 | F1 | done | type edits invalidate `resources.all()`; email change `suppressErrorToast`; template LOAD falls back to the RESET unit ("days"); `getBreakGlassSessionStatus` returns null only on 404 and rethrows the rest (the banner logs it and keeps the session) |
 | M14 | B4 | todo | |
 | M15 | B3 | todo | |
-| M16 | B2 / B3 | in-progress | services in B2, repository items in B3 |
+| M16 | B2 / B3 | partial | **B2 done:** `RequestService` parent check is one `EnsureCanParentAsync` (Create/Update/Move; Move keeps its own 409 text via a private overload); `SchedulingEngine.CalculateSchedule` lost its always-`true` `schedulingSettingsApply` parameter and branch (no downstream caller; the now-duplicate null-settings test deleted); `UtilizationService` group/tenant averaging is one `Averaged` helper, which also builds the zero-member response (both 30-line copies, the unreachable `count == 0` and the two empty-shell builders gone); `SignInAuditRecorder` sign-out builds the bootstrap once (`email ??= bootstrap.User.Email`). Test: sign-out bootstraps once. **Left in B2:** the three `ScheduleResult` → request `with` mappings stay — the targets are distinct record types and `with` cannot be shared without a model interface; the 15 forwarding `IRequestService` members were not in the brief. **B3:** repository items |
 | M17 | B4 | todo | |
 | M18 | F4 | todo | |
 | M19 | B6 | todo | |

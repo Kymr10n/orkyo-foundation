@@ -103,7 +103,7 @@ public class SchedulingService : ISchedulingService
                 var durationMinutes = SchedulingEngine.DurationToMinutes(
                     request.MinimalDurationValue, request.MinimalDurationUnit);
                 var result = SchedulingEngine.CalculateSchedule(
-                    request.StartTs!.Value, durationMinutes, true, settings, blockedPeriods);
+                    request.StartTs!.Value, durationMinutes, settings, blockedPeriods);
 
                 updates.Add((request.Id, new ScheduleRequestRequest
                 {
@@ -237,6 +237,6 @@ public class SchedulingService : ISchedulingService
         var blockedByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(allResourceIds, ct);
         var blockedPeriods = blockedByResource.Values.SelectMany(p => p).ToList();
         var durationMinutes = SchedulingEngine.DurationToMinutes(durationValue, durationUnit);
-        return SchedulingEngine.CalculateSchedule(startTs, durationMinutes, true, settings, blockedPeriods);
+        return SchedulingEngine.CalculateSchedule(startTs, durationMinutes, settings, blockedPeriods);
     }
 }

@@ -46,19 +46,10 @@ public sealed class SignInAuditRecorder : ISignInAuditRecorder
     public Task RecordAsync(Guid userId, string? email, CancellationToken ct = default) =>
         RecordCoreAsync(userId, email, Api.Constants.SecurityAuditActions.SessionSignedIn, ct);
 
-    public async Task RecordSignOutAsync(Guid userId, CancellationToken ct = default)
-    {
-        // The logout handler holds only the user id; the email the stub needs comes from
-        // the same bootstrap lookup the core makes anyway.
-        var bootstrap = await SafeBuildAsync(userId, ct);
-        await RecordCoreAsync(userId, bootstrap?.User.Email, Api.Constants.SecurityAuditActions.SessionSignedOut, ct);
-    }
-
-    private async Task<SessionBootstrapResponse?> SafeBuildAsync(Guid userId, CancellationToken ct)
-    {
-        try { return await _sessionService.BuildSessionResponseAsync(userId, ct); }
-        catch { return null; }
-    }
+    // The logout handler holds only the user id; the email the stub needs comes from the
+    // bootstrap lookup the core makes anyway.
+    public Task RecordSignOutAsync(Guid userId, CancellationToken ct = default) =>
+        RecordCoreAsync(userId, email: null, Api.Constants.SecurityAuditActions.SessionSignedOut, ct);
 
     private async Task RecordCoreAsync(Guid userId, string? email, string action, CancellationToken ct)
     {
@@ -68,6 +59,7 @@ public sealed class SignInAuditRecorder : ISignInAuditRecorder
             if (bootstrap is null || bootstrap.Tenants.Count != 1)
                 return;
 
+            email ??= bootstrap.User.Email;
             var membership = bootstrap.Tenants[0];
             var tenant = await _tenantResolver.ResolveTenantAsync(subdomain: null, tenantHeader: membership.Slug, ct);
             if (tenant is null)

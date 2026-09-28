@@ -90,56 +90,13 @@ public class UtilizationService(
         var activeMembers = membersResponse.Members.Where(m => m.IsActive).ToList();
 
         if (activeMembers.Count == 0)
-            return new UtilizationResponse
-            {
-                From = from,
-                To = to,
-                Granularity = granularity,
-                Buckets = BuildBucketShells(from, to, granularity)
-                    .Select(b => new UtilizationBucket
-                    {
-                        Start = b.Start,
-                        End = b.End,
-                        AllocatedPercent = 0,
-                        EffectiveAvailabilityPercent = 0,
-                        IsExclusiveOccupied = false,
-                    }).ToList(),
-            };
+            return Averaged([], from, to, granularity);
 
         // Compute per-member then average. Bulk-load the member resources + their assignments/blocked
         // periods (was N+1: a full per-resource compute — two DB round-trips — per member).
         var memberResources = await resourceRepository.GetByIdsAsync(activeMembers.Select(m => m.Id).ToList(), ct);
         var memberBucketsById = await ComputeBucketsForResourcesAsync(memberResources, from, to, granularity, ct);
-        var memberBuckets = memberResources.Select(r => memberBucketsById[r.Id]).ToList();
-
-        var shells = BuildBucketShells(from, to, granularity);
-        var averaged = shells.Select((shell, i) =>
-        {
-            var count = memberBuckets.Count;
-            if (count == 0)
-                return new UtilizationBucket
-                {
-                    Start = shell.Start,
-                    End = shell.End,
-                    AllocatedPercent = 0,
-                    EffectiveAvailabilityPercent = 0,
-                    IsExclusiveOccupied = false,
-                };
-
-            var allocPct = memberBuckets.Average(mb => i < mb.Count ? (double)mb[i].AllocatedPercent : 0);
-            var availPct = memberBuckets.Average(mb => i < mb.Count ? (double)mb[i].EffectiveAvailabilityPercent : 0);
-            var occupied = memberBuckets.Any(mb => i < mb.Count && mb[i].IsExclusiveOccupied);
-            return new UtilizationBucket
-            {
-                Start = shell.Start,
-                End = shell.End,
-                AllocatedPercent = (decimal)allocPct,
-                EffectiveAvailabilityPercent = (decimal)availPct,
-                IsExclusiveOccupied = occupied,
-            };
-        }).ToList();
-
-        return new UtilizationResponse { From = from, To = to, Granularity = granularity, Buckets = averaged };
+        return Averaged(memberResources.Select(r => memberBucketsById[r.Id]).ToList(), from, to, granularity);
     }
 
     public async Task<UtilizationResponse> GetTenantUtilizationAsync(
@@ -150,50 +107,34 @@ public class UtilizationService(
         // not a short list, and the response carries nothing that would say it was cut.
         var resources = await resourceRepository.GetEveryAsync(filter, ct);
 
-        if (resources.Count == 0)
-            return new UtilizationResponse
-            {
-                From = from,
-                To = to,
-                Granularity = granularity,
-                Buckets = BuildBucketShells(from, to, granularity)
-                    .Select(b => new UtilizationBucket
-                    {
-                        Start = b.Start,
-                        End = b.End,
-                        AllocatedPercent = 0,
-                        EffectiveAvailabilityPercent = 0,
-                        IsExclusiveOccupied = false,
-                    }).ToList(),
-            };
-
         var bucketsById = await ComputeBucketsForResourcesAsync(resources, from, to, granularity, ct);
-        var allBuckets = resources.Select(r => bucketsById[r.Id]).ToList();
+        return Averaged(resources.Select(r => bucketsById[r.Id]).ToList(), from, to, granularity);
+    }
 
-        var shells = BuildBucketShells(from, to, granularity);
-        var averaged = shells.Select((shell, i) =>
+    /// <summary>
+    /// Averages per-resource buckets slot by slot (a resource with fewer buckets counts 0 for the
+    /// missing slots); a slot is exclusively occupied if any resource's is. No resources: every slot 0.
+    /// </summary>
+    private static UtilizationResponse Averaged(
+        IReadOnlyList<List<UtilizationBucket>> perResource, DateTime from, DateTime to, string granularity)
+    {
+        decimal Average(Func<List<UtilizationBucket>, double> slotValue) =>
+            perResource.Count == 0 ? 0 : (decimal)perResource.Average(slotValue);
+
+        return new UtilizationResponse
         {
-            var count = allBuckets.Count;
-            if (count == 0)
-                return new UtilizationBucket
-                {
-                    Start = shell.Start,
-                    End = shell.End,
-                    AllocatedPercent = 0,
-                    EffectiveAvailabilityPercent = 0,
-                    IsExclusiveOccupied = false,
-                };
-            return new UtilizationBucket
+            From = from,
+            To = to,
+            Granularity = granularity,
+            Buckets = BuildBucketShells(from, to, granularity).Select((shell, i) => new UtilizationBucket
             {
                 Start = shell.Start,
                 End = shell.End,
-                AllocatedPercent = (decimal)allBuckets.Average(b => i < b.Count ? (double)b[i].AllocatedPercent : 0),
-                EffectiveAvailabilityPercent = (decimal)allBuckets.Average(b => i < b.Count ? (double)b[i].EffectiveAvailabilityPercent : 0),
-                IsExclusiveOccupied = allBuckets.Any(b => i < b.Count && b[i].IsExclusiveOccupied),
-            };
-        }).ToList();
-
-        return new UtilizationResponse { From = from, To = to, Granularity = granularity, Buckets = averaged };
+                AllocatedPercent = Average(b => i < b.Count ? (double)b[i].AllocatedPercent : 0),
+                EffectiveAvailabilityPercent = Average(b => i < b.Count ? (double)b[i].EffectiveAvailabilityPercent : 0),
+                IsExclusiveOccupied = perResource.Any(b => i < b.Count && b[i].IsExclusiveOccupied),
+            }).ToList(),
+        };
     }
 
     public async Task<List<ResourceUtilizationResponse>> GetUtilizationByResourceAsync(

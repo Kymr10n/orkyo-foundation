@@ -24,19 +24,18 @@ public static class SchedulingEngine
     /// and requested working-time duration, respecting the site's scheduling
     /// settings (working hours, weekends, off-times).
     ///
-    /// If <paramref name="schedulingSettingsApply"/> is false, the result is
+    /// Without settings, or with working hours off and no off-times, the result is
     /// a simple elapsed-time calculation (start + duration).
     /// </summary>
     public static ScheduleResult CalculateSchedule(
         DateTime desiredStart,
         int requestedDurationMinutes,
-        bool schedulingSettingsApply,
         SchedulingSettingsInfo? settings,
         List<BlockedPeriod>? offTimes)
     {
         var hasActiveOffTimes = offTimes != null && offTimes.Count > 0;
 
-        if (!schedulingSettingsApply || settings == null ||
+        if (settings == null ||
             (!settings.WorkingHoursEnabled && !hasActiveOffTimes))
         {
             var plainEnd = desiredStart.AddMinutes(requestedDurationMinutes);
