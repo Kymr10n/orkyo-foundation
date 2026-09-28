@@ -207,52 +207,6 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Fact]
-    public async Task CreateRequest_WithEndBeforeStart_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = DatabaseFixture.SpaceId;
-        var request = new CreateRequestRequest
-        {
-            Name = "Invalid Time Range",
-            Description = "End before start",
-            ResourceIds = [resourceId],
-            StartTs = DateTime.UtcNow.AddDays(5),
-            EndTs = DateTime.UtcNow.AddDays(1), // Before start
-            MinimalDurationValue = 1,
-            MinimalDurationUnit = DurationUnit.Days
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/requests", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateRequest_WithNegativeDuration_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = DatabaseFixture.SpaceId;
-        var request = new CreateRequestRequest
-        {
-            Name = "Invalid Duration",
-            Description = "Negative duration",
-            ResourceIds = [resourceId],
-            StartTs = DateTime.UtcNow.AddDays(1),
-            EndTs = DateTime.UtcNow.AddDays(2),
-            MinimalDurationValue = -5, // Negative
-            MinimalDurationUnit = DurationUnit.Days
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/requests", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     #endregion
 
     #region GET /requests - List Requests
@@ -1356,66 +1310,6 @@ public class RequestEndpointsTests
         var after = await _client.GetFromJsonAsync<RequestInfo>($"/api/requests/{created.Id}");
         Assert.Null(after!.StartTs);
         Assert.Null(after.EndTs);
-    }
-
-    [Fact]
-    public async Task ScheduleRequest_WithInvalidTimeRange_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = DatabaseFixture.SpaceId;
-        var createRequest = new CreateRequestRequest
-        {
-            Name = $"Test {Guid.NewGuid():N}".Substring(0, 30),
-            StartTs = null,
-            EndTs = null,
-            MinimalDurationValue = 4,
-            MinimalDurationUnit = DurationUnit.Hours
-        };
-        var createResponse = await _client.PostAsJsonAsync("/api/requests", createRequest);
-        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
-        Assert.NotNull(created);
-
-        // Act - Try to schedule with end before start
-        var scheduleData = new ScheduleRequestRequest
-        {
-            ResourceId = resourceId,
-            StartTs = DateTime.UtcNow.AddDays(1),
-            EndTs = DateTime.UtcNow // End before start
-        };
-        var response = await _client.PatchAsJsonAsync($"/api/requests/{created.Id}/schedule", scheduleData);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task ScheduleRequest_WithPartialData_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = DatabaseFixture.SpaceId;
-        var createRequest = new CreateRequestRequest
-        {
-            Name = $"Test {Guid.NewGuid():N}".Substring(0, 30),
-            StartTs = null,
-            EndTs = null,
-            MinimalDurationValue = 4,
-            MinimalDurationUnit = DurationUnit.Hours
-        };
-        var createResponse = await _client.PostAsJsonAsync("/api/requests", createRequest);
-        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
-        Assert.NotNull(created);
-
-        // Act - Try to schedule with only resourceId (missing times)
-        var scheduleData = new ScheduleRequestRequest
-        {
-            ResourceId = resourceId,
-            StartTs = null,
-            EndTs = null
-        };
-        var response = await _client.PatchAsJsonAsync($"/api/requests/{created.Id}/schedule", scheduleData);
-
-        // Assert - Should fail because all must be provided or all null
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

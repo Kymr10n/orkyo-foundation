@@ -25,8 +25,6 @@ public class ListDefinitionEndpointsTests
     }
 
     private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
     private async Task<ListDefinitionInfo> CreateDefinitionAsync(string? name = null)
     {
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
@@ -43,7 +41,7 @@ public class ListDefinitionEndpointsTests
             $"/api/list-definitions/{definitionId}/columns",
             new CreateListColumnRequest
             {
-                Key = key ?? UniqueKey("col"),
+                Key = key ?? TestHelpers.UniqueKey("col"),
                 Label = "Column",
                 DataType = dataType,
                 Options = options,
@@ -440,7 +438,7 @@ public class ListDefinitionEndpointsTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("machine"),
+            Key = TestHelpers.UniqueKey("machine"),
             DisplayName = "Machine",
             DisplayNamePlural = "Machines",
         });

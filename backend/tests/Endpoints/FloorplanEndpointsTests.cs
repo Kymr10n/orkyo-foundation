@@ -13,7 +13,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class FloorplanEndpointsTests
 {
-    private static readonly Guid TenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid TenantId = TestConstants.TenantId;
 
     private readonly HttpClient _client;
     private readonly string _connectionString;

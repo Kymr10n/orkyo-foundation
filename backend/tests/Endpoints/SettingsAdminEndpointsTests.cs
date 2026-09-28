@@ -26,18 +26,12 @@ public class SettingsAdminEndpointsTests
         _connectionString = _fixture.ControlPlaneConnectionString;
     }
 
-    private static Task<LinkedTestUser> CreateSiteAdminAsync()
-        => DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
-
-    private static async Task<string> CreateRegularUserTokenAsync()
-        => (await DatabaseTestUtils.CreateLinkedUserAsync("settings-regular")).Token;
-
     // ── GET /api/admin/settings ─────────────────────────────────
 
     [Fact]
     public async Task GetSettings_NonSiteAdmin_Returns403()
     {
-        var token = await CreateRegularUserTokenAsync();
+        var token = await DatabaseFixture.CreateLinkedTokenAsync("settings-regular");
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/settings");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var response = await _client.SendAsync(request);
@@ -47,7 +41,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task GetSettings_SiteAdmin_ReturnsAllSections()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/settings");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -86,7 +80,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_NonSiteAdmin_Returns403()
     {
-        var token = await CreateRegularUserTokenAsync();
+        var token = await DatabaseFixture.CreateLinkedTokenAsync("settings-regular");
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
         {
             Content = JsonContent.Create(new { settings = new Dictionary<string, string> { ["DefaultTimezone"] = "Europe/Zurich" } })
@@ -99,7 +93,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_ValidChange_ReturnsUpdatedRuntime()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
         {
@@ -129,7 +123,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_UnknownKey_Returns400()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
         {
@@ -150,7 +144,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_EmptySettings_Returns400()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
         {
@@ -165,7 +159,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_InvalidBoolValue_Returns400()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
         {
@@ -186,7 +180,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_RecordsAuditEvent()
     {
-        var (userId, token) = await CreateSiteAdminAsync();
+        var (userId, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
         {
@@ -217,7 +211,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_AcceptsDbKeyFormat()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         // Use the DB key format (general.default_timezone) instead of property name
         var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
@@ -242,7 +236,7 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task GetSettings_ReflectsUpdatedValues()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
         var uniqueName = $"GetReflect-{Guid.NewGuid():N}";
 
         // Update

@@ -215,23 +215,6 @@ public class SchedulingEndpointsTests
     }
 
     [Fact]
-    public async Task CreateAvailabilityEvent_EndBeforeStart_Returns400()
-    {
-        var siteId = DatabaseFixture.SiteId;
-
-        var request = new CreateAvailabilityEventRequest
-        {
-            Title = "Invalid",
-            StartTs = DateTime.UtcNow.AddHours(1),
-            EndTs = DateTime.UtcNow
-        };
-
-        var response = await _client.PostAsJsonAsync($"/api/sites/{siteId}/availability-events", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task DeleteAvailabilityEventScope_ForAScopeTheEventDoesNotHave_Returns404()
     {
         var siteId = DatabaseFixture.SiteId;

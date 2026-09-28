@@ -35,7 +35,7 @@ public class SecurityEndpointsTests
 
     private string GetAuthToken(string? keycloakSub = null, string? sessionId = null, Guid? userId = null)
     {
-        return TestConstants.BearerToken((userId ?? Guid.NewGuid()).ToString(), $"securitytest_{Guid.NewGuid()}@example.com", "Security Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        return TestConstants.BearerToken((userId ?? Guid.NewGuid()).ToString(), $"securitytest_{Guid.NewGuid()}@example.com", "Security Test User", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "admin", sub: keycloakSub ?? _testKeycloakSub, sid: sessionId ?? _testSessionId);
     }
 

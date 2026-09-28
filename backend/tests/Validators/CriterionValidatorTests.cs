@@ -122,6 +122,27 @@ public class CriterionValidatorTests
         Assert.Contains(result.Errors, e => e.ErrorMessage.Contains("must start with a letter"));
     }
 
+    public static TheoryData<List<string>?, string> InvalidApplicability => new()
+    {
+        { null, "At least one applicability value is required." },
+        { new List<string>(), "At least one applicability value is required." },
+        { new List<string> { "space", "space" }, "Duplicate applicability values are not allowed." },
+        { new List<string> { "" }, "Applicability values cannot be empty." },
+    };
+
+    [Theory]
+    [MemberData(nameof(InvalidApplicability))]
+    public void Create_InvalidApplicability_Fails(List<string>? keys, string message)
+    {
+        var result = _createValidator.Validate(new CreateCriterionRequest
+        {
+            Name = "Flavor",
+            DataType = CriterionDataType.Boolean,
+            ResourceTypeKeys = keys!,
+        });
+        Assert.Contains(result.Errors, e => e.ErrorMessage == message);
+    }
+
     [Fact]
     public void Create_EnumTypeWithoutValues_Fails()
     {

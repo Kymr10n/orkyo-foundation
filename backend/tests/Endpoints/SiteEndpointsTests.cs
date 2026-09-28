@@ -52,14 +52,6 @@ public class SiteEndpointsTests
     }
 
     [Fact]
-    public async Task CreateSite_EmptyCode_Returns400()
-    {
-        var request = new { code = "", name = "No Code Site" };
-        var response = await _client.PostAsJsonAsync("/api/sites", request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
     public async Task CreateSite_EmptyName_Returns400()
     {
         var request = new { code = UniqueCode(), name = "" };

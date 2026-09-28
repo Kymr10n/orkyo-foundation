@@ -326,7 +326,7 @@ public class UserManagementEndpointsTests
         // Setup: seed a second admin, purge all OTHER admin memberships in the tenant so the
         // seeded second admin is the sole active admin, then try to delete them → 400.
         var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
-        var testUserId = new Guid("11111111-1111-1111-1111-111111111111");
+        var testUserId = TestConstants.UserId;
 
         await using var conn = new NpgsqlConnection(_connString);
         await conn.OpenAsync();
@@ -440,7 +440,7 @@ public class UserManagementEndpointsTests
         // Regression: demoting the sole active admin surfaced as 500.
         // Same isolated setup: make the seeded admin the ONLY admin, attempt demotion → 400.
         var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
-        var testUserId = new Guid("11111111-1111-1111-1111-111111111111");
+        var testUserId = TestConstants.UserId;
 
         await using var conn = new NpgsqlConnection(_connString);
         await conn.OpenAsync();
@@ -492,7 +492,7 @@ public class UserManagementEndpointsTests
         // commits. A check-then-write sees the uncommitted demotion as still an admin and
         // proceeds; the guarded single statement waits for the lock and then refuses.
         var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
-        var testUserId = new Guid("11111111-1111-1111-1111-111111111111");
+        var testUserId = TestConstants.UserId;
         var org = new OrgContext { OrgId = TestTenantId, OrgSlug = TestConstants.TenantSlug, DbConnectionString = _tenantConnString };
 
         await using var conn = new NpgsqlConnection(_connString);

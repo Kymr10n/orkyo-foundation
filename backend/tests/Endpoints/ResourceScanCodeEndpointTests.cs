@@ -18,19 +18,6 @@ public class ResourceScanCodeEndpointTests
 
     private static string UniqueCode() => $"https://vendor.example/asset?id={Guid.NewGuid():N}#tag";
 
-    private async Task<ResourceTypeInfo> CreateTypeAsync(bool scanCodesEnabled = true)
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = $"tagged_{Guid.NewGuid():N}",
-            DisplayName = "Tagged",
-            DisplayNamePlural = "Tagged",
-            ScanCodesEnabled = scanCodesEnabled,
-        });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
-    }
-
     private async Task<ResourceInfo> CreateResourceAsync(ResourceTypeInfo type, string? name = null)
     {
         var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
@@ -69,7 +56,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Link_ThenLookup_FindsTheResource()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var drill = await CreateResourceAsync(type);
         var code = UniqueCode();
 
@@ -87,7 +74,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Link_SameCodeTwice_ReturnsTheExistingLink()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync());
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client));
         var code = UniqueCode();
         var first = await LinkAndReadAsync(drill.Id, code);
 
@@ -98,7 +85,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Link_CodeOfAnotherResource_Returns409UnlessMoved()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var first = await CreateResourceAsync(type, "First drill");
         var second = await CreateResourceAsync(type);
         var code = UniqueCode();
@@ -118,7 +105,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Link_TypeWithScanningOff_Returns400()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync(scanCodesEnabled: false));
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client, scanCodesEnabled: false));
 
         var response = await LinkAsync(drill.Id, UniqueCode());
 
@@ -128,7 +115,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Lookup_TypeSwitchedOffAfterLinking_DoesNotNameTheResource()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var drill = await CreateResourceAsync(type);
         var code = UniqueCode();
         await LinkAsync(drill.Id, code);
@@ -143,7 +130,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Lookup_DeactivatedResource_StillFindsIt()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync());
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client));
         var code = UniqueCode();
         await LinkAndReadAsync(drill.Id, code);
         Assert.Equal(HttpStatusCode.NoContent, (await _client.DeleteAsync($"/api/resources/{drill.Id}")).StatusCode);
@@ -174,7 +161,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Link_EmptyOrOverlongCode_Returns400()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync());
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client));
 
         Assert.Equal(HttpStatusCode.BadRequest, (await LinkAsync(drill.Id, "   ")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await LinkAsync(drill.Id, new string('x', 513))).StatusCode);
@@ -194,7 +181,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Unlink_RemovesTheCode_AndOnlyFromItsOwnResource()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var drill = await CreateResourceAsync(type);
         var other = await CreateResourceAsync(type);
         var code = UniqueCode();
@@ -213,7 +200,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Viewer_CanLookUpListAndReadStatus_ButNotLinkOrUnlink()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync());
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client));
         var code = UniqueCode();
         var info = await LinkAndReadAsync(drill.Id, code);
         var viewer = _fixture.CreateClientWithRole("viewer");
@@ -229,7 +216,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Editor_CanLink()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync());
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client));
 
         var response = await LinkAsync(drill.Id, UniqueCode(), client: _fixture.CreateClientWithRole("editor"));
 
@@ -241,7 +228,7 @@ public class ResourceScanCodeEndpointTests
     [Fact]
     public async Task Status_ReturnsTheResourceSummary()
     {
-        var drill = await CreateResourceAsync(await CreateTypeAsync(), "Status drill");
+        var drill = await CreateResourceAsync(await TestHelpers.CreateResourceTypeAsync(_client), "Status drill");
 
         var status = await _client.GetFromJsonAsync<ResourceStatusInfo>($"/api/resources/{drill.Id}/status");
 

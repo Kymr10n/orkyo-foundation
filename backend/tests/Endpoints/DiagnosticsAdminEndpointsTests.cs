@@ -24,12 +24,6 @@ public class DiagnosticsAdminEndpointsTests
         _controlPlane = fixture.ControlPlaneConnectionString;
     }
 
-    private static Task<LinkedTestUser> CreateSiteAdminAsync()
-        => DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-
-    private static async Task<string> CreateRegularUserTokenAsync()
-        => (await DatabaseTestUtils.CreateLinkedUserAsync("diag-regular")).Token;
-
     // ── GET /api/version ────────────────────────────────────────
 
     [Fact]
@@ -62,7 +56,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_NonSiteAdmin_Returns403()
     {
-        var token = await CreateRegularUserTokenAsync();
+        var token = await DatabaseFixture.CreateLinkedTokenAsync("diag-regular");
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         var response = await _client.SendAsync(request);
@@ -72,7 +66,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_Returns200WithAllSections()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -116,7 +110,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_DatabaseShowsHealthy()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -130,7 +124,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_DeploymentModeIsUnknown_WhenTheProductDoesNotSetIt()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -143,7 +137,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_SmtpHostIsMaskedOrShort()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -168,7 +162,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_AuthProviderIsKeycloak()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -195,7 +189,7 @@ public class DiagnosticsAdminEndpointsTests
 
         try
         {
-            var (_, token) = await CreateSiteAdminAsync();
+            var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
             var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -219,7 +213,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_WorkerStatusIsValid()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -233,7 +227,7 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_ModulesAreBooleans()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

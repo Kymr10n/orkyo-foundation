@@ -47,7 +47,7 @@ public class SessionEndpointsTests
             tenantSlug: null,
             active: true);
 
-        return TestConstants.BearerToken(userId.ToString(), email, "Session Me Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        return TestConstants.BearerToken(userId.ToString(), email, "Session Me Test", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "admin");
     }
 
@@ -142,7 +142,7 @@ public class SessionEndpointsTests
             tenantSlug: TestConstants.TenantSlug,
             active: true);
 
-        var token = TestConstants.BearerToken(userId.ToString(), email, "Tier Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Tier Test User", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "viewer");
 
         var me = await GetMeAsync(token);
@@ -176,7 +176,7 @@ public class SessionEndpointsTests
             tenantSlug: TestConstants.TenantSlug,
             active: true);
 
-        var token = TestConstants.BearerToken(userId.ToString(), email, "Entitlements Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Entitlements Test User", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "viewer");
 
         var me = await GetMeAsync(token);
@@ -262,7 +262,7 @@ public class SessionEndpointsTests
     {
         var email = $"tos_ip_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName: "ToS IP", tenantSlug: null, active: true);
-        var token = TestConstants.BearerToken(userId.ToString(), email, "ToS IP", "00000000-0000-0000-0000-000000000001",
+        var token = TestConstants.BearerToken(userId.ToString(), email, "ToS IP", TestConstants.TenantId.ToString(),
             TestConstants.TenantSlug, isTenantAdmin: false, role: "admin");
         var server = (TestServer)_factory.Services.GetRequiredService<IServer>();
         var body = System.Text.Encoding.UTF8.GetBytes("{\"tosVersion\":\"2026-02\"}");
@@ -305,7 +305,7 @@ public class SessionEndpointsTests
     private static string MakeKeycloakToken(
         Guid userId, string email, string? sub, string[]? realmRoles = null)
     {
-        return TestConstants.BearerToken(userId.ToString(), email, "Bootstrap Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        return TestConstants.BearerToken(userId.ToString(), email, "Bootstrap Test", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "admin", sub: sub, realmRoles: realmRoles);
     }
 
@@ -485,51 +485,6 @@ public class SessionEndpointsTests
 
         var body = await response.Content.ReadAsStringAsync();
         body.Should().Contain("Email is required");
-    }
-
-    [Fact]
-    public async Task CreateAccount_MissingPassword_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "test@example.com", password = "" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Password is required");
-    }
-
-    [Fact]
-    public async Task CreateAccount_ShortPassword_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "test@example.com", password = "short" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Password must be at least");
-    }
-
-    [Fact]
-    public async Task CreateAccount_InvalidEmail_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "not-an-email", password = "SecurePass123!" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Invalid email format");
     }
 
     [Fact]

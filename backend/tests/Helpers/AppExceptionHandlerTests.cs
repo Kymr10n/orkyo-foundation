@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
+using static Orkyo.Foundation.Tests.Helpers.HttpContextTestHelpers;
+
 namespace Orkyo.Foundation.Tests.Helpers;
 
 public class AppExceptionHandlerTests
@@ -232,25 +234,5 @@ public class AppExceptionHandlerTests
 
         handled.Should().BeFalse();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status200OK); // nothing written
-    }
-
-    private static DefaultHttpContext CreateHttpContext()
-    {
-        var services = new ServiceCollection()
-            .AddLogging()
-            .BuildServiceProvider();
-
-        return new DefaultHttpContext
-        {
-            RequestServices = services,
-            Response = { Body = new MemoryStream() }
-        };
-    }
-
-    private static async Task<JsonElement> ReadJsonAsync(HttpContext context)
-    {
-        context.Response.Body.Position = 0;
-        using var json = await JsonDocument.ParseAsync(context.Response.Body);
-        return json.RootElement.Clone();
     }
 }

@@ -153,43 +153,6 @@ public class CriteriaEndpointsTests
     }
 
     [Fact]
-    public async Task CreateCriterion_WithEmptyName_ReturnsBadRequest()
-    {
-        // Arrange
-        var request = new CreateCriterionRequest
-        {
-            Name = "",
-            DataType = CriterionDataType.Boolean,
-            ResourceTypeKeys = new List<string> { "space" }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/criteria", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateCriterion_EnumWithoutValues_ReturnsBadRequest()
-    {
-        // Arrange
-        var request = new CreateCriterionRequest
-        {
-            Name = $"test_enum_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Enum,
-            EnumValues = null,
-            ResourceTypeKeys = new List<string> { "space" }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/criteria", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task CreateCriterion_DuplicateName_ReturnsConflict()
     {
         // Arrange - Create first criterion
@@ -568,17 +531,6 @@ public class CriteriaEndpointsTests
     }
 
     [Fact]
-    public async Task UpdateCriterion_NameEmpty_Returns400()
-    {
-        var created = await CreateWithApplicabilityAsync($"empty_name_{Guid.NewGuid():N}", new[] { "space" });
-
-        var response = await _client.PutAsJsonAsync($"/api/criteria/{created.Id}",
-            new UpdateCriterionRequest { Name = "" });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task UpdateCriterion_DataType_WhenNotInUse_ChangesType()
     {
         var created = await CreateWithApplicabilityAsync($"dt_change_{Guid.NewGuid():N}", new[] { "space" });
@@ -596,7 +548,7 @@ public class CriteriaEndpointsTests
     public async Task UpdateCriterion_DataType_WhenInUse_Returns400()
     {
         var criterion = await CreateWithApplicabilityAsync($"dt_inuse_{Guid.NewGuid():N}", new[] { "person" });
-        var person = await CreatePersonAsync($"DtInUse-{Guid.NewGuid().ToString("N")[..12]}");
+        var person = await TestHelpers.CreatePersonAsync(_client, $"DtInUse-{Guid.NewGuid().ToString("N")[..12]}");
         var capResponse = await _client.PostAsJsonAsync(
             $"/api/resources/{person.Id}/capabilities",
             new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
@@ -644,7 +596,7 @@ public class CriteriaEndpointsTests
     public async Task UpdateCriterion_InUse_TrueAfterCapabilityAdded()
     {
         var criterion = await CreateWithApplicabilityAsync($"inuse_true_{Guid.NewGuid():N}", new[] { "person" });
-        var person = await CreatePersonAsync($"InUseTrue-{Guid.NewGuid().ToString("N")[..12]}");
+        var person = await TestHelpers.CreatePersonAsync(_client, $"InUseTrue-{Guid.NewGuid().ToString("N")[..12]}");
         var capResponse = await _client.PostAsJsonAsync(
             $"/api/resources/{person.Id}/capabilities",
             new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
@@ -704,7 +656,7 @@ public class CriteriaEndpointsTests
         // guard the delete would silently destroy the assignments.
         var criterion = await CreateWithApplicabilityAsync(
             $"del_inuse_{Guid.NewGuid():N}", new[] { "person" });
-        var person = await CreatePersonAsync($"DelInUse-{Guid.NewGuid().ToString("N")[..12]}");
+        var person = await TestHelpers.CreatePersonAsync(_client, $"DelInUse-{Guid.NewGuid().ToString("N")[..12]}");
         var capRequest = new AddResourceCapabilityRequest(
             criterion.Id, JsonSerializer.SerializeToElement(true));
         var capResponse = await _client.PostAsJsonAsync(
@@ -717,20 +669,6 @@ public class CriteriaEndpointsTests
         // Criterion still exists after the failed delete
         var getResponse = await _client.GetAsync($"/api/criteria/{criterion.Id}");
         Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-    }
-
-    private async Task<ResourceInfo> CreatePersonAsync(string name)
-    {
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = name,
-            AllocationMode = "Fractional",
-            BaseAvailabilityPercent = 100,
-        };
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<ResourceInfo>(_jsonOptions))!;
     }
 
     #endregion
@@ -787,32 +725,6 @@ public class CriteriaEndpointsTests
     }
 
     [Fact]
-    public async Task CreateCriterion_WithoutApplicability_Returns400()
-    {
-        var request = new CreateCriterionRequest
-        {
-            Name = $"appl_missing_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean,
-            // ResourceTypeKeys deliberately omitted
-        };
-        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
-        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateCriterion_WithEmptyApplicability_Returns400()
-    {
-        var request = new CreateCriterionRequest
-        {
-            Name = $"appl_empty_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean,
-            ResourceTypeKeys = new List<string>(),
-        };
-        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
-        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
-    }
-
-    [Fact]
     public async Task CreateCriterion_WithUnknownApplicability_Returns400()
     {
         var request = new CreateCriterionRequest
@@ -820,19 +732,6 @@ public class CriteriaEndpointsTests
             Name = $"appl_unknown_{Guid.NewGuid():N}",
             DataType = CriterionDataType.Boolean,
             ResourceTypeKeys = new List<string> { "flavor" },
-        };
-        var resp = await _client.PostAsJsonAsync("/api/criteria", request);
-        Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateCriterion_WithDuplicateApplicability_Returns400()
-    {
-        var request = new CreateCriterionRequest
-        {
-            Name = $"appl_dup_{Guid.NewGuid():N}",
-            DataType = CriterionDataType.Boolean,
-            ResourceTypeKeys = new List<string> { "space", "space" },
         };
         var resp = await _client.PostAsJsonAsync("/api/criteria", request);
         Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);

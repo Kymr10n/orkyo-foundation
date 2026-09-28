@@ -153,7 +153,7 @@ public class TemplateEndpointsTests
         var email = $"templatetest_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Template Test User", TestConstants.TenantSlug, "viewer", active: true);
 
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
+        var tenantId = TestConstants.TenantId; // Test tenant
 
         return TestConstants.BearerToken(userId.ToString(), email, "Template Test User", tenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "admin");

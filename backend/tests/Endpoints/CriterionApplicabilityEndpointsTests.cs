@@ -151,7 +151,7 @@ public class CriterionApplicabilityEndpointsTests
         createResponse.EnsureSuccessStatusCode();
         var criterion = (await createResponse.Content.ReadFromJsonAsync<CriterionInfo>())!;
 
-        var person = await CreatePersonAsync($"AppInUse-{Guid.NewGuid().ToString("N")[..12]}");
+        var person = await TestHelpers.CreatePersonAsync(_client, $"AppInUse-{Guid.NewGuid().ToString("N")[..12]}");
         var capRequest = new AddResourceCapabilityRequest(
             criterion.Id, JsonSerializer.SerializeToElement(true));
         var capResponse = await _client.PostAsJsonAsync(
@@ -202,20 +202,6 @@ public class CriterionApplicabilityEndpointsTests
         Assert.NotNull(updated);
         Assert.DoesNotContain("person", updated.ResourceTypeKeys);
         Assert.Contains("space", updated.ResourceTypeKeys);
-    }
-
-    private async Task<ResourceInfo> CreatePersonAsync(string name)
-    {
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = name,
-            AllocationMode = "Fractional",
-            BaseAvailabilityPercent = 100,
-        };
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<ResourceInfo>())!;
     }
 
     #endregion

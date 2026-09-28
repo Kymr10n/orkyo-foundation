@@ -14,7 +14,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class NotificationPreferencesEndpointsTests
 {
-    private static readonly Guid TestUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid TestUserId = TestConstants.UserId;
 
     private readonly HttpClient _client;
     private readonly string _conn;

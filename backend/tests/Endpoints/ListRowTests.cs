@@ -26,8 +26,6 @@ public class ListRowTests
     }
 
     private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
     private static Dictionary<string, JsonElement> Values(params (string Key, string Raw)[] cells) =>
@@ -104,7 +102,7 @@ public class ListRowTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("machine"),
+            Key = TestHelpers.UniqueKey("machine"),
             DisplayName = "Machine",
             DisplayNamePlural = "Machines",
         });
@@ -450,7 +448,7 @@ public class ListRowTests
         var created = await _client.PostAsJsonAsync($"/api/resource-types/{personType.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
             {
-                Key = UniqueKey("certs"),
+                Key = TestHelpers.UniqueKey("certs"),
                 Label = "Certifications",
                 DataType = CustomFieldDataTypes.List,
                 ListDefinitionId = definition.Id,

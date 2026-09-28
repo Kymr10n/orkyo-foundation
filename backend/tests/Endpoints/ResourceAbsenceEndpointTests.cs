@@ -14,23 +14,10 @@ public class ResourceAbsenceEndpointTests
         _client = fixture.CreateAuthorizedClient();
     }
 
-    private async Task<ResourceInfo> CreatePersonAsync(string name)
-    {
-        var resp = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = name,
-            AllocationMode = "Fractional",
-            BaseAvailabilityPercent = 100,
-        });
-        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
-        return (await resp.Content.ReadFromJsonAsync<ResourceInfo>())!;
-    }
-
     [Fact]
     public async Task CreateAbsence_Returns201WithResourceAbsence()
     {
-        var person = await CreatePersonAsync($"AbsPerson-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"AbsPerson-{Guid.NewGuid():N}"[..20]);
 
         var start = DateTime.UtcNow.Date.AddDays(1);
         var resp = await _client.PostAsJsonAsync($"/api/resources/{person.Id}/absences",
@@ -53,7 +40,7 @@ public class ResourceAbsenceEndpointTests
     [Fact]
     public async Task GetAbsences_ReturnsCreatedAbsence()
     {
-        var person = await CreatePersonAsync($"AbsGet-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"AbsGet-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.Date.AddDays(2);
 
         await _client.PostAsJsonAsync($"/api/resources/{person.Id}/absences",
@@ -75,7 +62,7 @@ public class ResourceAbsenceEndpointTests
     [Fact]
     public async Task UpdateAbsence_ChangesTitle()
     {
-        var person = await CreatePersonAsync($"AbsUpd-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"AbsUpd-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.Date.AddDays(10);
 
         var created = await (await _client.PostAsJsonAsync($"/api/resources/{person.Id}/absences",
@@ -99,7 +86,7 @@ public class ResourceAbsenceEndpointTests
     [Fact]
     public async Task DeleteAbsence_Returns204()
     {
-        var person = await CreatePersonAsync($"AbsDel-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"AbsDel-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.Date.AddDays(20);
 
         var created = await (await _client.PostAsJsonAsync($"/api/resources/{person.Id}/absences",
@@ -123,7 +110,7 @@ public class ResourceAbsenceEndpointTests
     [Fact]
     public async Task UpdateAbsence_WrongResource_Returns404()
     {
-        var person = await CreatePersonAsync($"AbsWrong-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"AbsWrong-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.Date.AddDays(30);
 
         var created = await (await _client.PostAsJsonAsync($"/api/resources/{person.Id}/absences",

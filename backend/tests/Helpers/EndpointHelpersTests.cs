@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using static Orkyo.Foundation.Tests.Helpers.HttpContextTestHelpers;
+
 namespace Orkyo.Foundation.Tests.Helpers;
 
 public class EndpointHelpersTests
@@ -98,26 +100,6 @@ public class EndpointHelpersTests
         await result.ExecuteAsync(context);
 
         context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
-    }
-
-    private static DefaultHttpContext CreateHttpContext()
-    {
-        var services = new ServiceCollection()
-            .AddLogging()
-            .BuildServiceProvider();
-
-        return new DefaultHttpContext
-        {
-            RequestServices = services,
-            Response = { Body = new MemoryStream() }
-        };
-    }
-
-    private static async Task<JsonElement> ReadJsonAsync(HttpContext context)
-    {
-        context.Response.Body.Position = 0;
-        using var json = await JsonDocument.ParseAsync(context.Response.Body);
-        return json.RootElement.Clone();
     }
 
     private sealed class DummyRequest

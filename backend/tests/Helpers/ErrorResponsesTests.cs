@@ -4,6 +4,8 @@ using Api.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
+using static Orkyo.Foundation.Tests.Helpers.HttpContextTestHelpers;
+
 namespace Orkyo.Foundation.Tests.Helpers;
 
 public class ErrorResponsesTests
@@ -42,7 +44,7 @@ public class ErrorResponsesTests
     public async Task NotFound_ShouldReturn404_WithResourceTypeAndMessage()
     {
         var context = CreateHttpContext();
-        var id = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var id = TestConstants.UserId;
 
         await ErrorResponses.NotFound("Tenant", id).ExecuteAsync(context);
         var payload = await ReadJsonAsync(context);
@@ -77,25 +79,5 @@ public class ErrorResponsesTests
         context.Response.StatusCode.Should().Be(StatusCodes.Status409Conflict);
         payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
         payload.GetProperty("detail").GetString().Should().Be("Already exists");
-    }
-
-    private static DefaultHttpContext CreateHttpContext()
-    {
-        var services = new ServiceCollection()
-            .AddLogging()
-            .BuildServiceProvider();
-
-        return new DefaultHttpContext
-        {
-            RequestServices = services,
-            Response = { Body = new MemoryStream() }
-        };
-    }
-
-    private static async Task<JsonElement> ReadJsonAsync(HttpContext context)
-    {
-        context.Response.Body.Position = 0;
-        using var json = await JsonDocument.ParseAsync(context.Response.Body);
-        return json.RootElement.Clone();
     }
 }

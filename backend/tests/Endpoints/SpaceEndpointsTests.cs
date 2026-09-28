@@ -158,34 +158,6 @@ public class SpaceEndpointsTests
         Assert.Equal(250, space.Geometry?.Coordinates[1].X);
     }
 
-    [Theory]
-    [InlineData("circle", 1)]    // a centre without a rim point
-    [InlineData("rectangle", 1)] // a rectangle is two corners
-    [InlineData("polygon", 2)]   // a polygon needs at least three points
-    [InlineData("hexagon", 2)]   // a type the allow-list has never heard of
-    public async Task CreateSpace_InvalidGeometry_ReturnsBadRequest(string type, int pointCount)
-    {
-        var siteId = DatabaseFixture.SiteId;
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Invalid Geometry",
-            IsPhysical = true,
-            Geometry = new ResourceGeometry
-            {
-                Type = type,
-                Coordinates = Enumerable.Range(0, pointCount).Select(i => new Coordinate { X = i * 10, Y = i * 10 }).ToList()
-            }
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     [Fact]
     public async Task CreateSpace_VirtualSpace_NoGeometryRequired()
     {
@@ -214,51 +186,6 @@ public class SpaceEndpointsTests
         Assert.NotNull(space);
         Assert.False(space.IsPhysical);
         Assert.Null(space.Geometry);
-    }
-
-    [Fact]
-    public async Task CreateSpace_PhysicalSpaceWithoutGeometry_ReturnsBadRequest()
-    {
-        // Arrange
-        var siteId = DatabaseFixture.SiteId;
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "Invalid Physical Space",
-            IsPhysical = true,
-            Geometry = null // Physical space must have geometry
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateSpace_WithoutName_ReturnsBadRequest()
-    {
-        // Arrange
-        var siteId = DatabaseFixture.SiteId;
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = ResourceTypeKeys.Space,
-            AllocationMode = AllocationModes.Exclusive,
-            HomeSiteId = siteId,
-            CrossSiteAllowed = false,
-            Name = "", // Name is required
-            IsPhysical = false
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

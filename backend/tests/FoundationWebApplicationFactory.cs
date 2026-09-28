@@ -172,8 +172,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestConstants.AuthScheme, _ => { });
 
         // ── Edition-owned registrations (what a product's Program.cs supplies) ─
-        var orgId = new Guid("00000000-0000-0000-0000-000000000001");
-        var tenantId = new Guid("00000000-0000-0000-0000-000000000001");
+        var orgId = TestConstants.TenantId;
+        var tenantId = TestConstants.TenantId;
 
         builder.Services.AddSingleton(new DeploymentConfig
         {
@@ -327,7 +327,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
             if (context.User.Identity?.IsAuthenticated == true)
             {
-                var userId = new Guid("11111111-1111-1111-1111-111111111111");
+                var userId = TestConstants.UserId;
 
                 // Derive IsSiteAdmin from the token's realm_access claim so tests that
                 // create site-admin tokens (with RealmRoles=["site-admin"]) are authorized
@@ -396,7 +396,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 var authCtx = context.RequestServices.GetRequiredService<CurrentAuthorizationContext>();
                 authCtx.SetContext(new AuthorizationContext
                 {
-                    TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                    TenantId = TestConstants.TenantId,
                     TenantSlug = TestConstants.TenantSlug,
                     Role = role,
                 });

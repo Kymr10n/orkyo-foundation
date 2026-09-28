@@ -7,7 +7,7 @@ public class CalendarWriterTests
 {
     private static CalendarFeedEvent Event(string summary = "Pack customer orders", string? location = null) => new()
     {
-        Id = Guid.Parse("11111111-1111-1111-1111-111111111111"),
+        Id = TestConstants.UserId,
         Summary = summary,
         StartUtc = new DateTime(2026, 8, 15, 9, 0, 0, DateTimeKind.Utc),
         EndUtc = new DateTime(2026, 8, 15, 10, 30, 0, DateTimeKind.Utc),

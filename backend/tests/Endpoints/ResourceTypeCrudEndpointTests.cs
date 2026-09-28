@@ -22,39 +22,23 @@ public class ResourceTypeCrudEndpointTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    // Guid "N" is lowercase hex, so the result satisfies the key format constraint.
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
-    private async Task<ResourceTypeInfo> CreateTypeAsync(string? key = null)
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = key ?? UniqueKey("car"),
-            DisplayName = "Car",
-            DisplayNamePlural = "Cars",
-            Description = "Fleet vehicle",
-        });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
-    }
-
     // ── type lifecycle ────────────────────────────────────────────────────────
 
     [Fact]
     public async Task CreateResourceType_CreatesNonSystemActiveType()
     {
-        var created = await CreateTypeAsync();
+        var created = await TestHelpers.CreateResourceTypeAsync(_client);
 
         Assert.False(created.IsSystem);
         Assert.True(created.IsActive);
-        Assert.Equal("Car", created.DisplayName);
+        Assert.Equal("Machine", created.DisplayName);
     }
 
     [Fact]
     public async Task CreateResourceType_RejectsDuplicateKey()
     {
-        var key = UniqueKey("dup");
-        await CreateTypeAsync(key);
+        var key = TestHelpers.UniqueKey("dup");
+        await TestHelpers.CreateResourceTypeAsync(_client, key);
 
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
@@ -85,7 +69,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task UpdateResourceType_ChangesDisplayName()
     {
-        var created = await CreateTypeAsync();
+        var created = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PutAsJsonAsync($"/api/resource-types/{created.Id}",
             new UpdateResourceTypeRequest { DisplayName = "Company car" });
@@ -100,7 +84,7 @@ public class ResourceTypeCrudEndpointTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("van"),
+            Key = TestHelpers.UniqueKey("van"),
             DisplayName = "Van",
             DisplayNamePlural = "Vans",
             Icon = "Truck",
@@ -114,7 +98,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task CreateResourceType_LeavesIconNull_WhenOmitted()
     {
-        var created = await CreateTypeAsync();
+        var created = await TestHelpers.CreateResourceTypeAsync(_client);
 
         Assert.Null(created.Icon);
     }
@@ -122,7 +106,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task UpdateResourceType_ChangesIcon()
     {
-        var created = await CreateTypeAsync();
+        var created = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PutAsJsonAsync($"/api/resource-types/{created.Id}",
             new UpdateResourceTypeRequest { Icon = "Car" });
@@ -143,7 +127,7 @@ public class ResourceTypeCrudEndpointTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("bus"),
+            Key = TestHelpers.UniqueKey("bus"),
             DisplayName = "Bus",
             DisplayNamePlural = "Buss",
             Icon = new string('x', 51),
@@ -165,7 +149,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task DeleteResourceType_RemovesUnusedType()
     {
-        var created = await CreateTypeAsync();
+        var created = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.DeleteAsync($"/api/resource-types/{created.Id}");
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
@@ -177,7 +161,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task DeleteResourceType_DeactivatesTypeThatStillHasResources()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var create = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
             ResourceTypeKey = type.Key,
@@ -228,7 +212,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task GetResourceTypes_FiltersByActiveState()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}",
             new UpdateResourceTypeRequest { IsActive = false });
 
@@ -246,7 +230,7 @@ public class ResourceTypeCrudEndpointTests
 
         var response = await viewer.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("viewer"),
+            Key = TestHelpers.UniqueKey("viewer"),
             DisplayName = "Nope",
             DisplayNamePlural = "Nopes",
         });
@@ -260,11 +244,11 @@ public class ResourceTypeCrudEndpointTests
         // Defining the catalogue is governance, not content editing — an editor who can
         // create resources all day still cannot invent a new kind of them.
         var editor = _fixture.CreateClientWithRole("editor");
-        var existing = await CreateTypeAsync();
+        var existing = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var created = await editor.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("editor"),
+            Key = TestHelpers.UniqueKey("editor"),
             DisplayName = "Nope",
             DisplayNamePlural = "Nopes",
         });
@@ -282,7 +266,7 @@ public class ResourceTypeCrudEndpointTests
     public async Task EditorCanReadResourceTypes()
     {
         // Reads stay member-open: every resource page and form needs the type list.
-        await CreateTypeAsync();
+        await TestHelpers.CreateResourceTypeAsync(_client);
         var editor = _fixture.CreateClientWithRole("editor");
 
         var response = await editor.GetAsync("/api/resource-types");
@@ -303,7 +287,7 @@ public class ResourceTypeCrudEndpointTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("bay"),
+            Key = TestHelpers.UniqueKey("bay"),
             DisplayName = "Bay",
             DisplayNamePlural = "Bays",
             HasGeometry = true,
@@ -320,7 +304,7 @@ public class ResourceTypeCrudEndpointTests
     [Fact]
     public async Task UpdateType_CanChangeBehaviour_OnATenantType()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PutAsJsonAsync($"/api/resource-types/{type.Id}",
             new UpdateResourceTypeRequest { HasDirectoryProfile = true });
@@ -365,7 +349,7 @@ public class ResourceTypeCrudEndpointTests
     {
         // request_target_resource_types holds the type via ON DELETE RESTRICT. Without the
         // service-side check the user meets a raw 23503 instead of the retire-instead path.
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var request = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
         {
             Name = $"NeedsType-{Guid.NewGuid():N}"[..25],
@@ -391,7 +375,7 @@ public class ResourceTypeCrudEndpointTests
         // work happens, and would skip a placeable one that claimed it could.
         var type = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("bay"),
+            Key = TestHelpers.UniqueKey("bay"),
             DisplayName = "Bay",
             DisplayNamePlural = "Bays",
             HasGeometry = true,
@@ -416,7 +400,7 @@ public class ResourceTypeCrudEndpointTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("tagged"),
+            Key = TestHelpers.UniqueKey("tagged"),
             DisplayName = "Tagged",
             DisplayNamePlural = "Tagged",
             ScanCodesEnabled = false,

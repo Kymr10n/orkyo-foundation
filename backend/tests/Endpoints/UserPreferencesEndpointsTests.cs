@@ -25,7 +25,7 @@ public class UserPreferencesEndpointsTests
         var displayName = "Preferences Test User";
 
         var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName, TestConstants.TenantSlug, "viewer", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
+        var tenantId = TestConstants.TenantId; // Test tenant
 
         return TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "admin");

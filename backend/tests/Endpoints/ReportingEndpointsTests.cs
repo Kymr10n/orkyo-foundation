@@ -321,7 +321,7 @@ public class ReportingEndpointsTests
     [Fact]
     public async Task ReportingEndpoint_WithExpiredToken_Returns401()
     {
-        var testTenantId = new Guid("00000000-0000-0000-0000-000000000001");
+        var testTenantId = TestConstants.TenantId;
         var rawToken = await InsertRawTokenForTenantAsync(
             testTenantId, "expired-token", expiresAt: DateTime.UtcNow.AddHours(-1));
         using var client = _fixture.CreateClientWithToken(rawToken);

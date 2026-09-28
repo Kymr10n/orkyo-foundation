@@ -105,34 +105,6 @@ public class FeedbackEndpointsTests
     }
 
     [Fact]
-    public async Task SubmitFeedback_EmptyTitle_Returns400()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = ""
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SubmitFeedback_TitleTooLong_Returns400()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = new string('A', 201) // DomainLimits.FeedbackTitleMaxLength is 200
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task SubmitFeedback_WhenNotificationEmailConfigured_SendsNotification()
     {
         // FEEDBACK_NOTIFICATION_EMAIL is set in the test config, so a submit triggers one best-effort

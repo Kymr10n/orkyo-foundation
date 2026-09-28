@@ -31,7 +31,6 @@ public class ListLookupTests
     }
 
     private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
     private async Task<ListDefinitionInfo> CreateComponentsDefinitionAsync()
@@ -76,7 +75,7 @@ public class ListLookupTests
     {
         var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("machine"),
+            Key = TestHelpers.UniqueKey("machine"),
             DisplayName = "Machine",
             DisplayNamePlural = "Machines",
         });

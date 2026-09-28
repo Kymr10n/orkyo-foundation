@@ -625,7 +625,7 @@ public class NarrativeYearSeederTests
     {
         var faker = new Faker { Random = new Randomizer(1337) };
         var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
-        var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
+        var personTypeId = await TestHelpers.ScalarGuidAsync(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
         var fp = await FloorplanFactory.SeedAsync(conn, _tenantId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
 
@@ -689,12 +689,6 @@ public class NarrativeYearSeederTests
 
         return new SeededNarrative(
             cal, spaceTypeId, personTypeId, people, tools, machines, criteria, cohorts, avail, year);
-    }
-
-    private static async Task<Guid> ScalarGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
-    {
-        await using var cmd = new NpgsqlCommand(sql, conn, tx);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
 
     /// <summary>Parameterised, and null when the row is absent — so a missing seed reads as a

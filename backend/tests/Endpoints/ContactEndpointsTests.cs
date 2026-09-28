@@ -120,25 +120,6 @@ public class ContactEndpointsTests : IAsyncLifetime
 
     // ── Validation: missing / empty fields ──────────────────────────────────
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task MissingOrEmptyName_Returns400(string? name)
-    {
-        var payload = new
-        {
-            name,
-            email = "valid@test.local",
-            subject = "demo",
-            message = "Hello"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
     [Fact]
     public async Task NameTooLong_Returns400()
     {
@@ -156,23 +137,6 @@ public class ContactEndpointsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ChallengeTokenTooLong_Returns400()
-    {
-        var payload = new
-        {
-            name = "Test User",
-            email = "valid@test.local",
-            subject = "demo",
-            message = "Hello",
-            challengeToken = new string('t', 2049)
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
     public async Task SubmissionWithoutChallengeToken_NoTurnstileKeyConfigured_Succeeds()
     {
         // The test factory has no TURNSTILE_SECRET_KEY, so the NoOp provider is
@@ -180,97 +144,6 @@ public class ContactEndpointsTests : IAsyncLifetime
         var response = await _client.PostAsJsonAsync("/api/contact", ValidPayload());
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("not-an-email")]
-    public async Task MissingOrInvalidEmail_Returns400(string? email)
-    {
-        var payload = new
-        {
-            name = "Test",
-            email,
-            subject = "demo",
-            message = "Hello"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("invalid-subject")]
-    [InlineData("DEMO")]
-    public async Task MissingOrInvalidSubject_Returns400(string? subject)
-    {
-        var payload = new
-        {
-            name = "Test",
-            email = "valid@test.local",
-            subject,
-            message = "Hello"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task MissingOrEmptyMessage_Returns400(string? message)
-    {
-        var payload = new
-        {
-            name = "Test",
-            email = "valid@test.local",
-            subject = "demo",
-            message
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task MessageTooLong_Returns400()
-    {
-        var payload = new
-        {
-            name = "Test",
-            email = "valid@test.local",
-            subject = "demo",
-            message = new string('x', 5001)
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task CompanyTooLong_Returns400()
-    {
-        var payload = new
-        {
-            name = "Test",
-            email = "valid@test.local",
-            company = new string('c', 201),
-            subject = "demo",
-            message = "Hello"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/contact", payload);
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // ── Public access (no auth, no tenant) ────────────────────────────────

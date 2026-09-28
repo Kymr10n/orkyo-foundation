@@ -40,7 +40,7 @@ public class RequestTargetSeedingTests
         var faker = new Faker { Random = new Randomizer(1337) };
 
         var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
-        var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
+        var personTypeId = await TestHelpers.ScalarGuidAsync(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
         var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
 
@@ -146,12 +146,6 @@ public class RequestTargetSeedingTests
             "most requests with a booked window must satisfy the scheduled predicate — this is the assertion an unseeded target table fails");
 
         await tx.RollbackAsync();
-    }
-
-    private static async Task<Guid> ScalarGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
-    {
-        await using var cmd = new NpgsqlCommand(sql, conn, tx);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
 
     private static async Task<(long, long)> TwoLongs(NpgsqlConnection conn, NpgsqlTransaction tx, string sql,

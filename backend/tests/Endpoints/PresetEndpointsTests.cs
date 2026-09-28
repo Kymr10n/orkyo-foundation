@@ -29,35 +29,8 @@ public class PresetEndpointsTests
         };
     }
 
-    private string? _cachedAuthToken;
-
-    private async Task<string> GetAdminAuthTokenAsync()
-    {
-        if (_cachedAuthToken != null)
-            return _cachedAuthToken;
-
-        // Create a test admin user directly in database (Keycloak handles real auth)
-        var email = $"presettest_{Guid.NewGuid()}@example.com";
-        var displayName = "Preset Test Admin";
-
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName, TestConstants.TenantSlug, "admin", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001"); // Test tenant
-
-        _cachedAuthToken = TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: true, role: "admin");
-        return _cachedAuthToken;
-    }
-
-    private async Task<HttpRequestMessage> CreateAuthenticatedRequestAsync(HttpMethod method, string url, object? content = null)
-    {
-        var request = new HttpRequestMessage(method, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetAdminAuthTokenAsync());
-        if (content != null)
-        {
-            request.Content = JsonContent.Create(content, options: _jsonOptions);
-        }
-        return request;
-    }
+    private Task<string>? _token;
+    private Task<string> Token => _token ??= DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Admin);
 
     #region POST /api/admin/presets/validate
 
@@ -66,7 +39,7 @@ public class PresetEndpointsTests
     {
         // Arrange
         var preset = CreateValidPreset($"validate-test-{Guid.NewGuid():N}");
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/validate", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/validate", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -84,7 +57,7 @@ public class PresetEndpointsTests
     {
         // Arrange
         var preset = CreateValidPreset("INVALID_ID_FORMAT");
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/validate", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/validate", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -102,7 +75,7 @@ public class PresetEndpointsTests
     {
         // Arrange
         var preset = CreateValidPreset($"test-{Guid.NewGuid():N}") with { Name = "" };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/validate", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/validate", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -130,7 +103,7 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/validate", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/validate", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -157,7 +130,7 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/validate", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/validate", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -203,7 +176,7 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -242,7 +215,7 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -274,12 +247,12 @@ public class PresetEndpointsTests
         };
 
         // Act - Apply first time
-        var request1 = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var request1 = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
         var response1 = await _client.SendAsync(request1);
         var result1 = await response1.Content.ReadFromJsonAsync<ApplyResult>(_jsonOptions);
 
         // Act - Apply second time
-        var request2 = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var request2 = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
         var response2 = await _client.SendAsync(request2);
         var result2 = await response2.Content.ReadFromJsonAsync<ApplyResult>(_jsonOptions);
 
@@ -339,7 +312,7 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -364,8 +337,8 @@ public class PresetEndpointsTests
         // Arrange
         var presetId = $"export-test-{Guid.NewGuid():N}";
         var name = $"Export Test {Guid.NewGuid():N}";
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get,
-            $"/api/admin/presets/export?presetId={presetId}&name={Uri.EscapeDataString(name)}");
+        var request = TestHelpers.AuthRequest(HttpMethod.Get,
+            $"/api/admin/presets/export?presetId={presetId}&name={Uri.EscapeDataString(name)}", await Token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -387,8 +360,8 @@ public class PresetEndpointsTests
         var presetId = $"export-desc-{Guid.NewGuid():N}";
         var name = "Export With Description";
         var description = "This is a test description";
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get,
-            $"/api/admin/presets/export?presetId={presetId}&name={Uri.EscapeDataString(name)}&description={Uri.EscapeDataString(description)}");
+        var request = TestHelpers.AuthRequest(HttpMethod.Get,
+            $"/api/admin/presets/export?presetId={presetId}&name={Uri.EscapeDataString(name)}&description={Uri.EscapeDataString(description)}", await Token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -404,7 +377,7 @@ public class PresetEndpointsTests
     public async Task ExportPreset_MissingPresetId_ReturnsBadRequest()
     {
         // Arrange
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get, "/api/admin/presets/export?name=Test");
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/presets/export?name=Test", await Token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -417,7 +390,7 @@ public class PresetEndpointsTests
     public async Task ExportPreset_MissingName_ReturnsBadRequest()
     {
         // Arrange
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Get, "/api/admin/presets/export?presetId=test-id");
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/presets/export?presetId=test-id", await Token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -450,11 +423,11 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var applyRequest = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var applyRequest = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
         await _client.SendAsync(applyRequest);
 
         // Act
-        var getRequest = await CreateAuthenticatedRequestAsync(HttpMethod.Get, "/api/admin/presets/applications");
+        var getRequest = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/presets/applications", await Token);
         var response = await _client.SendAsync(getRequest);
 
         // Assert
@@ -485,7 +458,7 @@ public class PresetEndpointsTests
                 }
             }
         };
-        var applyRequest = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var applyRequest = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
         var applyResponse = await _client.SendAsync(applyRequest);
 
         // Verify the apply succeeded first
@@ -494,7 +467,7 @@ public class PresetEndpointsTests
             $"Apply failed with {applyResponse.StatusCode}: {applyBody}");
 
         // Act
-        var getRequest = await CreateAuthenticatedRequestAsync(HttpMethod.Get, "/api/admin/presets/applications");
+        var getRequest = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/presets/applications", await Token);
         var response = await _client.SendAsync(getRequest);
 
         // Assert

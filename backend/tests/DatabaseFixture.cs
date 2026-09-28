@@ -53,6 +53,25 @@ public class DatabaseFixture : IAsyncLifetime
         return client;
     }
 
+    /// <summary>
+    /// Creates a new member of the test tenant with <paramref name="role"/> and returns a bearer
+    /// token for them: a distinct user, for tests whose rows must not land on the shared one.
+    /// </summary>
+    public static async Task<string> CreateMemberTokenAsync(string role)
+    {
+        var email = $"member_{Guid.NewGuid():N}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Test Member", TestConstants.TenantSlug, role, active: true);
+        return TestConstants.BearerToken(userId.ToString(), email, "Test Member", TestConstants.TenantId.ToString(),
+            TestConstants.TenantSlug, isTenantAdmin: role == RoleConstants.Admin, role: role);
+    }
+
+    /// <summary>
+    /// Creates a linked user with no tenant (see <see cref="DatabaseTestUtils.CreateLinkedUserAsync"/>)
+    /// and returns their bearer token; a site admin when <paramref name="siteAdmin"/>.
+    /// </summary>
+    public static async Task<string> CreateLinkedTokenAsync(string prefix, bool siteAdmin = false)
+        => (await DatabaseTestUtils.CreateLinkedUserAsync(prefix, siteAdmin)).Token;
+
     public async Task InitializeAsync()
     {
         var server = await TestPostgresBootstrap.GetAsync();
@@ -95,7 +114,7 @@ public class DatabaseFixture : IAsyncLifetime
             @"INSERT INTO tenants (id, slug, display_name, status, db_identifier, tier, created_at, updated_at)
               VALUES (@id, @slug, 'Test Organization', 'active', @db, 2, NOW(), NOW())
               ON CONFLICT (id) DO UPDATE SET slug = @slug, tier = 2, db_identifier = @db", seedConn);
-        tenantSeedCmd.Parameters.AddWithValue("id", new Guid("00000000-0000-0000-0000-000000000001"));
+        tenantSeedCmd.Parameters.AddWithValue("id", TestConstants.TenantId);
         tenantSeedCmd.Parameters.AddWithValue("slug", TestConstants.TenantSlug);
         tenantSeedCmd.Parameters.AddWithValue("db", TestConstants.TenantDatabase);
         await tenantSeedCmd.ExecuteNonQueryAsync();
@@ -105,7 +124,7 @@ public class DatabaseFixture : IAsyncLifetime
             @"INSERT INTO users (id, email, display_name, status, created_at, updated_at)
               VALUES (@id, @email, @name, 'active', NOW(), NOW())
               ON CONFLICT (id) DO NOTHING", seedConn);
-        userCmd.Parameters.AddWithValue("id", new Guid("11111111-1111-1111-1111-111111111111"));
+        userCmd.Parameters.AddWithValue("id", TestConstants.UserId);
         userCmd.Parameters.AddWithValue("email", "test@orkyo.example");
         userCmd.Parameters.AddWithValue("name", "Test User");
         await userCmd.ExecuteNonQueryAsync();
@@ -116,7 +135,7 @@ public class DatabaseFixture : IAsyncLifetime
               SELECT @userId, t.id, 'admin', 'active', NOW(), NOW()
               FROM tenants t WHERE t.slug = @slug
               ON CONFLICT DO NOTHING", seedConn);
-        memberCmd.Parameters.AddWithValue("userId", new Guid("11111111-1111-1111-1111-111111111111"));
+        memberCmd.Parameters.AddWithValue("userId", TestConstants.UserId);
         memberCmd.Parameters.AddWithValue("slug", TestConstants.TenantSlug);
         await memberCmd.ExecuteNonQueryAsync();
         Console.WriteLine($"    ✓ Test user seeded as admin of tenant '{TestConstants.TenantSlug}'");
@@ -174,7 +193,7 @@ public class DatabaseFixture : IAsyncLifetime
             @"INSERT INTO users (id, email, display_name, created_at, synced_at)
               VALUES (@id, @email, @name, NOW(), NOW())
               ON CONFLICT (id) DO NOTHING", tenantSeedConn);
-        tenantUserCmd.Parameters.AddWithValue("id", new Guid("11111111-1111-1111-1111-111111111111"));
+        tenantUserCmd.Parameters.AddWithValue("id", TestConstants.UserId);
         tenantUserCmd.Parameters.AddWithValue("email", "test@orkyo.example");
         tenantUserCmd.Parameters.AddWithValue("name", "Test User");
         await tenantUserCmd.ExecuteNonQueryAsync();
