@@ -48,13 +48,18 @@ public sealed class ClientIpAccessor : IClientIpAccessor
         if (TryNormalize(cf, out var cfIp))
             return cfIp;
 
-        // Otherwise the left-most X-Forwarded-For hop that is not itself a proxy.
+        // Otherwise walk X-Forwarded-For from the right: each trusted proxy appended the
+        // address it received from, so the first untrusted hop is the real client. Hops to
+        // its left were written by the client itself and are never believed.
         var xff = ctx.Request.Headers[XForwardedForHeader].FirstOrDefault();
         if (!string.IsNullOrEmpty(xff))
         {
-            foreach (var hop in xff.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            var hops = xff.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            for (var i = hops.Length - 1; i >= 0; i--)
             {
-                if (TryNormalize(hop, out var hopIp) && IPAddress.TryParse(hopIp, out var parsed) && !IsTrustedProxy(parsed))
+                if (!TryNormalize(hops[i], out var hopIp) || !IPAddress.TryParse(hopIp, out var parsed))
+                    break; // a malformed hop ends the trusted chain
+                if (!IsTrustedProxy(parsed))
                     return hopIp;
             }
         }
