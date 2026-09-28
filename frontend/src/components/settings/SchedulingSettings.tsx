@@ -121,9 +121,9 @@ function settingsFromApi(s: SchedulingSettingsType): SettingsFormState {
 
 export function SchedulingSettings() {
   const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
-  // Scheduling settings are editor-writable, but availability-event mutations are
-  // RequireAdminAccess on the backend — gate those write affordances on admin so
-  // editors browse them read-only instead of hitting a 403.
+  // Availability-event write affordances are gated on tenant admin. The backend group is
+  // `RequireMemberReadEditorWrite()` (Editor+, `IAuthorizationContext.CanEdit`; see
+  // docs/authorization.md), so this gate is stricter than the API: editors browse read-only.
   const isAdmin = useIsTenantAdmin();
 
   const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
