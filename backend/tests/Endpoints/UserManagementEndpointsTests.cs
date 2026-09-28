@@ -153,6 +153,51 @@ public class UserManagementEndpointsTests
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task InviteUser_AlreadyMember_Returns409()
+    {
+        var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
+        invitations.Setup(i => i.InviteAsync(It.IsAny<TenantContext>(), It.IsAny<Guid>(), "member@test.com",
+                It.IsAny<UserRole>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InviteUserResult.AlreadyMember());
+        try
+        {
+            var response = await _client.PostAsJsonAsync(
+                "/api/users/invite", new InviteUserRequest("member@test.com", UserRole.Editor), _jsonOptions);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+        finally
+        {
+            invitations.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task InviteUser_AddedDirectly_Returns200WithTheMembership()
+    {
+        var userId = Guid.NewGuid();
+        var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
+        invitations.Setup(i => i.InviteAsync(It.IsAny<TenantContext>(), It.IsAny<Guid>(), "existing@test.com",
+                It.IsAny<UserRole>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InviteUserResult.AddedDirectly(userId, "existing@test.com", UserRole.Editor));
+        try
+        {
+            var response = await _client.PostAsJsonAsync(
+                "/api/users/invite", new InviteUserRequest("existing@test.com", UserRole.Editor), _jsonOptions);
+
+            // Adding an existing account is a success, not "already exists".
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var member = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("member");
+            Assert.Equal(userId, member.GetProperty("userId").GetGuid());
+            Assert.Equal("editor", member.GetProperty("role").GetString());
+        }
+        finally
+        {
+            invitations.Reset();
+        }
+    }
+
     #endregion
 
     #region GET /api/users/invitations (Admin only)

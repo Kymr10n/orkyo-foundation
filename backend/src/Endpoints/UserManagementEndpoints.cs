@@ -109,12 +109,19 @@ public static class UserManagementEndpoints
             {
                 var tc = context.GetTenantContext();
                 var userId = currentPrincipal.RequireUserId();
-                var result = await invitationService.InviteUserAsync(tc, userId, request.Email, request.Role, ct);
-                if (result == null) throw new ArgumentException("User with this email already exists");
-                return new
+                return await invitationService.InviteAsync(tc, userId, request.Email, request.Role, ct) switch
                 {
-                    invitation = new { id = result.Value.invitation.Id, email = result.Value.invitation.Email, role = result.Value.invitation.Role.ToString().ToLowerInvariant(), expiresAt = result.Value.invitation.ExpiresAt },
-                    message = "Invitation sent successfully"
+                    InviteUserResult.Invited(var invitation, _) => Results.Ok(new
+                    {
+                        invitation = new { id = invitation.Id, email = invitation.Email, role = invitation.Role.ToString().ToLowerInvariant(), expiresAt = invitation.ExpiresAt },
+                        message = "Invitation sent successfully"
+                    }),
+                    InviteUserResult.AddedDirectly added => Results.Ok(new
+                    {
+                        member = new { userId = added.UserId, email = added.Email, role = added.Role.ToString().ToLowerInvariant() },
+                        message = "User added to the organization"
+                    }),
+                    _ => ErrorResponses.Conflict("This user is already a member of the organization"),
                 };
             });
 

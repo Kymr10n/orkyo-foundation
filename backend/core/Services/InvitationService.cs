@@ -43,6 +43,12 @@ public sealed class InvitationService : IInvitationService
     }
 
     public async Task<(Models.Invitation invitation, string token)?> InviteUserAsync(
+        TenantContext tenant, Guid invitedBy, string email, Models.UserRole role, CancellationToken ct = default) =>
+        await InviteAsync(tenant, invitedBy, email, role, ct) is InviteUserResult.Invited invited
+            ? (invited.Invitation, invited.Token)
+            : null;
+
+    public async Task<InviteUserResult> InviteAsync(
         TenantContext tenant, Guid invitedBy, string email, Models.UserRole role, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
@@ -57,19 +63,6 @@ public sealed class InvitationService : IInvitationService
         var currentCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
         await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.ActiveSeats, currentCount, 1, ct);
 
-        // Check if already a member
-        await using var checkCmd = new NpgsqlCommand(@"
-            SELECT COUNT(*) FROM tenant_memberships tm
-            INNER JOIN users u ON tm.user_id = u.id
-            WHERE u.email = @email AND tm.tenant_id = @tenantId", conn);
-        checkCmd.Parameters.AddWithValue("email", email);
-        checkCmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
-        if (Convert.ToInt32(await checkCmd.ExecuteScalarAsync(ct)) > 0)
-        {
-            _logger.LogWarning("Cannot invite {Email}: already a member", email);
-            return null;
-        }
-
         // If the user already exists globally, grant membership directly (no token needed)
         await using var checkUserCmd = new NpgsqlCommand("SELECT id FROM users WHERE email = @email", conn);
         checkUserCmd.Parameters.AddWithValue("email", email);
@@ -79,19 +72,29 @@ public sealed class InvitationService : IInvitationService
 
         if (existingUserId.HasValue)
         {
+            // ON CONFLICT decides "already a member", so two concurrent invites cannot both insert.
+            // No invited_by: that column is a SaaS-only extension (foundation's table has none);
+            // the audit event below records the inviter in both editions.
+            await using var tx = await conn.BeginTransactionAsync(ct);
             await using var membershipCmd = new NpgsqlCommand(@"
-                INSERT INTO tenant_memberships (user_id, tenant_id, role, status, invited_by, created_at, updated_at)
-                VALUES (@userId, @tenantId, @role, 'active', @invitedBy, NOW(), NOW())", conn);
+                INSERT INTO tenant_memberships (user_id, tenant_id, role, status, created_at, updated_at)
+                VALUES (@userId, @tenantId, @role, 'active', NOW(), NOW())
+                ON CONFLICT (user_id, tenant_id) DO NOTHING", conn, tx);
             membershipCmd.Parameters.AddWithValue("userId", existingUserId.Value);
             membershipCmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
             membershipCmd.Parameters.AddWithValue("role", role.ToString().ToLowerInvariant());
-            membershipCmd.Parameters.AddWithValue("invitedBy", invitedBy);
-            await membershipCmd.ExecuteNonQueryAsync(ct);
+            if (await membershipCmd.ExecuteNonQueryAsync(ct) == 0)
+            {
+                _logger.LogInformation("Did not invite user {UserId}: already a member of tenant {TenantId}", existingUserId.Value, tenant.TenantId);
+                return new InviteUserResult.AlreadyMember();
+            }
 
             await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, existingUserId.Value, email, ct);
+            await tx.CommitAsync(ct);
+
             _logger.LogInformation("Added existing user {Email} to tenant {TenantId} with role {Role}", email, tenant.TenantId, role);
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserAddedToTenant, invitedBy, "user", existingUserId.Value.ToString(), new { email, role = role.ToString() }, ct);
-            return null;
+            return new InviteUserResult.AddedDirectly(existingUserId.Value, email, role);
         }
 
         var token = GenerateSecureToken();
@@ -117,7 +120,7 @@ public sealed class InvitationService : IInvitationService
         await _emailService.SendInvitationEmailAsync(email, token, invitation.ExpiresAt, ct);
         await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvited, invitedBy, "invitation", invitation.Id.ToString(), new { email, role = role.ToString() }, ct);
 
-        return (invitation, token);
+        return new InviteUserResult.Invited(invitation, token);
     }
 
     public async Task<(string? email, DateTime? expiresAt, string? tenantName, string? error)> ValidateInvitationAsync(
