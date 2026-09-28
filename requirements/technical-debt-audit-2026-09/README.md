@@ -18,6 +18,39 @@ is left) · `deferred` (needs a downstream grep or a major bump; say which) · `
 Batches: backend `B1a B1b B2 B3 B4 B5 B6 B7`, frontend `F1 F2 F3 F4 F5`, repo `R1`. One batch
 per agent, sequential within a stack, stacks in parallel.
 
+### Batch rules (the brief every batch agent works from)
+
+- **Environment.** `.NET 10.0.112` from apt; Node 22; no Docker. A local PostgreSQL 16 runs on
+  `localhost:5432` (`postgres`/`postgres`). Run backend tests with
+  `CI=true ConnectionStrings__Postgres="Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres" dotnet test backend/tests/Orkyo.Foundation.Tests.csproj -c Release --no-restore --no-build --filter "FullyQualifiedName~<scope>"`
+  after `dotnet build Orkyo.Foundation.slnx -c Release --no-restore -warnaserror` (CI uses
+  `-warnaserror`; IDE0051/52/60 are errors). Always use `-c Release` so builds reuse each other.
+  The whole backend suite takes a long time; run the classes your change touches plus
+  `Architecture` and `Authorization`, and run the full suite once at the end of the batch. Frontend: `cd frontend && npx vitest run <paths>` and `npm run lint`
+  and `npm run typecheck`. Format C# with `dotnet format Orkyo.Foundation.slnx --no-restore`.
+- **Downstream.** A read-only clone of orkyo-community is at
+  `/tmp/claude-0/-home-user-orkyo-foundation/46a5ff40-5242-5e7d-b784-c25d67af1249/scratchpad/downstream/orkyo-community`.
+  orkyo-saas is not available. A public symbol with no consumer here and none in community is
+  still `deferred` unless the audit row already says it is SaaS-only by design; deleting public
+  API is a breaking change (CLAUDE.md), so record it and move on.
+- **Smallest diff.** One finding at a time. Fix what the row says; do not widen. Prefer deletion.
+  Do not rename or reformat beyond what `dotnet format` does.
+- **Tests.** Every behaviour change ships a test that fails before and passes after (security
+  and error branches first). Deletions and comment fixes need none. Search
+  `Orkyo.Foundation.TestSupport` / `frontend/src/test-utils` before writing a fixture.
+- **Conventions.** Read `CLAUDE.md`, `docs/conventions.md`, `docs/authorization.md`,
+  `docs/validation.md`, `docs/dialog-feedback.md` first. The ratchet tests in
+  `backend/tests/Architecture/` will fail if a fix adds an offender or if a fix removes the last
+  offender in a file without removing the baseline entry; update the baselines accordingly.
+- **Commit per finding or per small group**, message `fix(<area>): <what> (<IDs>)`, with a
+  `Docs-impact:` trailer (`none` unless a UI string or endpoint contract changed) and the two
+  attribution trailers already used on this branch. Stage only your own files. If `git commit`
+  fails on `index.lock`, wait and retry. Never rebase, amend or force-push.
+- **Tracker.** Before starting a row set it to `in-progress`; when finished set `done`,
+  `partial`, `deferred` or `skipped` with a one-line note (what changed, or why not). Commit the
+  tracker with the code. This table is how work resumes after a context reset.
+- **Do not** touch migration SQL files, the `M1` package split, or anything in section 4.
+
 | ID | Batch | Status | Notes |
 |---|---|---|---|
 | C1 | B1a | todo | |
