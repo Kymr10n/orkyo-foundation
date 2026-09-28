@@ -9,7 +9,7 @@ simplified 2026-09-24 (spec section 10 lists what changed).
 - orkyo-community: `b5caa6b` (HTTPS note)
 - orkyo-documentation: `fb6672d` (user guide page)
 
-Specification: [qr-resource-linking-spec.md](qr-resource-linking-spec.md).
+Specification: [qr-resource-linking-spec.md](../../../docs/qr-resource-linking-spec.md).
 
 ## Context
 

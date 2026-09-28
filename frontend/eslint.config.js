@@ -268,7 +268,7 @@ export default defineConfig(
       'src/components/ui/alert.tsx',
       'src/components/ui/badge.tsx',
       'src/components/ui/ErrorAlert.tsx',
-      'src/components/ui/ValidationIssueList.tsx',
+      'src/components/requests/ValidationIssueList.tsx',
       'src/components/utilization/RequestCalendar.tsx',
       // The column tint/header helpers moved here from TimelineGridShell — this file is now
       // the colour source the shell and the Requests timeline both read from.

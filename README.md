@@ -72,7 +72,7 @@ backend/
 frontend/
   src/                    ← Shared domain components, hooks, pages, route tree
   contracts/              ← wire constants (headers, claims, error codes, roles, plans)
-  docs/                   ← UI guidelines, UX audit, coverage policy
+  docs/                   ← UI guidelines
   vitest.config.ts
 ```
 

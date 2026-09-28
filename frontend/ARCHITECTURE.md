@@ -8,8 +8,8 @@ once.
 
 > **See also:**
 > - [`docs/UI-GUIDELINES.md`](docs/UI-GUIDELINES.md) — **canonical UI coding rules** (scroll ownership, `min-h-0`, dialogs/`FormDialog`, virtualization, shared primitives). Read this before building UI.
-> - [`docs/UX-CONSISTENCY.md`](docs/UX-CONSISTENCY.md) — the UX friction audit those rules came from, plus the staged remediation backlog.
-> - [`docs/COVERAGE.md`](docs/COVERAGE.md) — test-coverage policy (≥80% target), current numbers, and documented exceptions.
+> - The UX friction audit behind those rules and the old coverage notes are archived in
+>   [`requirements/archive/superseded-docs/`](../requirements/archive/superseded-docs/). The coverage rule is in the root `CLAUDE.md`.
 > - `orkyo-saas/frontend/INTEGRATION.md` — the product-side view: import model, dual-mode resolution, peer checks.
 
 ## The three rendering modes

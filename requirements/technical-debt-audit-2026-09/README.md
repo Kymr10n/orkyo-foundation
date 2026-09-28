@@ -62,7 +62,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S2 | F1 | todo | |
 | S3 | F1 | done | barrel no longer re-exports export-handlers/tenant-navigation (no importer relied on it); `getTenantSlugSync` deleted from AuthContext, api-utils reads the key itself (no downstream consumer (grepped saas + community)); no `lib/**` file imports `contexts/**` |
 | S4 | F2 | todo | |
-| S5 | F1 | todo | |
+| S5 | F1 | in-progress | |
 | S6 | B4 | todo | |
 | S7 | B4 | todo | |
 | S8 | B6 | todo | |
@@ -113,7 +113,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S53 | R1 | done | New PR-only `pr-gates` job in `release-ci.yml` runs `check-stale-markers.sh --base origin/<base>` and `check-docs-impact.sh` per PR commit (new `DOCS_IMPACT_FILES` override replaces the index read); migration lint takes `MIGRATION_LINT_BASE` = `github.event.before` on push (set in `reusable-audit-secrets.yml`). CLAUDE.md claims now hold, left as is. Synced `lint-migration-headers.sh` needs a product sync |
 | S54 | R1 | done | Deleted `security-refresh.yml` (comments pointing at it fixed); kept `reusable-security-refresh.yml` — saas and community both call it. The three packable lists are now one `dotnet pack Orkyo.Foundation.slnx` each (only the test project is non-package and already has `IsPackable=false`; a local solution pack yields exactly the 9 packages) |
 | S55 | F5 | todo | |
-| S56 | R1 | in-progress | C1 (B1a) covers the open feed-token revocation item recorded in `calendar-feed-redesign-2026-08.md:234` before that doc is archived |
+| S56 | R1 | done | 11 docs + `frontend/docs/COVERAGE.md`/`UX-CONSISTENCY.md` moved to `requirements/archive/superseded-docs/` and indexed in `COMPLETIONS_INDEX.md` (C1 covers the calendar-feed doc's open revocation item). `qr-resource-linking-spec.md` stays in `docs/` (7 source comments cite it; plan not trivially mergeable, so only the plan moved). Deleted `dependency-updates.md` and the `docs/UI-GUIDELINES.md` pointer (no live link). Dialog exemption list now mirrors eslint; eslint path → `requests/ValidationIssueList.tsx`; §16 `sm:` claim fixed; ARCHITECTURE/README links fixed. Migration 1570's comment still names the old doc path (SQL is immutable) |
 | M1 | — | skipped | major-version decision; see do-not-touch |
 | M2 | B4 | todo | |
 | M3 | B4 | todo | |
