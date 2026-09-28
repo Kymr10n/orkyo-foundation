@@ -1,4 +1,5 @@
 using Api.Helpers;
+using Api.Models;
 using Api.Models.Admin;
 using Api.Services;
 using Npgsql;
@@ -22,7 +23,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         return await conn.ExistsAsync("users", userId, ct);
     }
 
-    public async Task<List<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default)
+    public async Task<PagedResult<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
@@ -50,18 +51,21 @@ public class PlatformUserRepository : IPlatformUserRepository
                 (SELECT COUNT(*) FROM tenant_memberships tm WHERE tm.user_id = u.id AND tm.status = 'active') as membership_count,
                 (SELECT COUNT(*) FROM user_identities ui WHERE ui.user_id = u.id) as identity_count,
                 (SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'keycloak' LIMIT 1) as keycloak_sub,
-                ot.id as owned_tenant_id
+                ot.id as owned_tenant_id,
+                COUNT(*) OVER () AS total_count
             FROM users u
             LEFT JOIN tenants ot ON ot.owner_user_id = u.id AND ot.status != 'deleting'
             {whereClause}
             ORDER BY u.email
-            LIMIT 500";
+            LIMIT @cap";
 
         await using var cmd = new NpgsqlCommand(sql, conn);
         foreach (var param in parameters)
             cmd.Parameters.Add(param);
+        cmd.Parameters.AddWithValue("cap", PageRequest.MaxUnpagedItems);
 
         var rows = new List<AdminUserListRow>();
+        var total = 0;
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
@@ -82,8 +86,9 @@ public class PlatformUserRepository : IPlatformUserRepository
                 OwnedTenantTier = null, // resolved by the caller via the edition's plan provider
             };
             rows.Add(new AdminUserListRow(summary, keycloakSub));
+            total = (int)reader.GetInt64("total_count");
         }
-        return rows;
+        return PagedResult<AdminUserListRow>.Capped(rows, total, PageRequest.MaxUnpagedItems);
     }
 
     public async Task<AdminUserCoreDto?> GetAdminUserCoreAsync(Guid userId, CancellationToken ct = default)

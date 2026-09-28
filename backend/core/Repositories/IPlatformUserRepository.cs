@@ -1,3 +1,4 @@
+using Api.Models;
 using Api.Models.Admin;
 
 namespace Api.Repositories;
@@ -48,8 +49,12 @@ public interface IPlatformUserRepository
     /// <summary>True when a user with <paramref name="userId"/> exists.</summary>
     Task<bool> ExistsAsync(Guid userId, CancellationToken ct = default);
 
-    /// <summary>Admin user list projection (optionally filtered by email/display-name search or status), capped at 500 rows.</summary>
-    Task<List<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default);
+    /// <summary>
+    /// Admin user list projection (optionally filtered by email/display-name search or status),
+    /// capped at <see cref="PageRequest.MaxUnpagedItems"/> rows; the result carries the real
+    /// total, so <see cref="PagedResult{T}.HasNextPage"/> reports a truncated list.
+    /// </summary>
+    Task<PagedResult<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default);
 
     /// <summary>Core admin user detail fields (identities/memberships are resolved separately).</summary>
     Task<AdminUserCoreDto?> GetAdminUserCoreAsync(Guid userId, CancellationToken ct = default);

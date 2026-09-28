@@ -39,7 +39,7 @@ public class SiteRepository : ISiteRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         var sites = await conn.QueryListAsync(
-            $"SELECT {SelectColumns} FROM sites ORDER BY name LIMIT 200", null,
+            $"SELECT {SelectColumns} FROM sites ORDER BY name", null,
             SiteMapper.MapFromReader, ct);
         return sites.Select(Dec).ToList();
     }

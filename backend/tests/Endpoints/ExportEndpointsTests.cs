@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Api.Models;
 using Api.Models.Export;
 using Api.Models.Preset;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -14,10 +15,12 @@ public class ExportEndpointsTests
 {
     private readonly HttpClient _client;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly DatabaseFixture _fixture;
     private const string TenantSlug = TestConstants.TenantSlug;
 
     public ExportEndpointsTests(DatabaseFixture databaseFixture)
     {
+        _fixture = databaseFixture;
         _client = databaseFixture.Factory.CreateClient();
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         _jsonOptions = new JsonSerializerOptions
@@ -231,6 +234,45 @@ public class ExportEndpointsTests
             Assert.NotNull(payload.Provenance.SiteIds);
             Assert.Single(payload.Provenance.SiteIds);
             Assert.Equal(siteId, payload.Provenance.SiteIds[0]);
+        }
+    }
+
+    [Fact]
+    public async Task Export_SeesSitesPastTheOldReadCap()
+    {
+        // The site read once stopped at 200 rows by name, so the 201st site was never exported.
+        var prefix = $"zzz-s22-{Guid.NewGuid():N}"[..16];
+        await using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
+        await conn.OpenAsync();
+        try
+        {
+            await using (var insert = new NpgsqlCommand(
+                "INSERT INTO sites (name, code) SELECT @prefix || lpad(i::text, 3, '0'), @prefix || i "
+                + "FROM generate_series(1, 201) AS i", conn))
+            {
+                insert.Parameters.AddWithValue("prefix", prefix);
+                await insert.ExecuteNonQueryAsync();
+            }
+            Guid lastSiteId;
+            await using (var last = new NpgsqlCommand("SELECT id FROM sites WHERE name = @name", conn))
+            {
+                last.Parameters.AddWithValue("name", prefix + "201");
+                lastSiteId = (Guid)(await last.ExecuteScalarAsync())!;
+            }
+
+            var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export",
+                new ExportRequest { SiteIds = [lastSiteId], IncludeMasterData = true });
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
+            Assert.Equal([lastSiteId], payload!.Provenance.SiteIds);
+        }
+        finally
+        {
+            await using var cleanup = new NpgsqlCommand("DELETE FROM sites WHERE name LIKE @prefix || '%'", conn);
+            cleanup.Parameters.AddWithValue("prefix", prefix);
+            await cleanup.ExecuteNonQueryAsync();
         }
     }
 

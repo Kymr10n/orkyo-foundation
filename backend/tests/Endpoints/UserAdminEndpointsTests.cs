@@ -78,6 +78,9 @@ public class UserAdminEndpointsTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.TryGetProperty("users", out var users));
         Assert.Equal(JsonValueKind.Array, users.ValueKind);
+        // The list is capped; the real total and the truncation flag travel with it.
+        Assert.True(body.GetProperty("totalItems").GetInt32() >= users.GetArrayLength());
+        Assert.Equal(JsonValueKind.False, body.GetProperty("hasNextPage").ValueKind);
     }
 
     // ── GET /api/admin/users/{id} ─────────────────────────────────────────────

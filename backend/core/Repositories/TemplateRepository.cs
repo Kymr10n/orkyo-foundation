@@ -67,7 +67,7 @@ public class TemplateRepository : ITemplateRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return await conn.QueryListAsync(
-            $"SELECT {TemplateCols} FROM templates WHERE entity_type = @EntityType ORDER BY name LIMIT 500",
+            $"SELECT {TemplateCols} FROM templates WHERE entity_type = @EntityType ORDER BY name",
             p => p.AddWithValue("EntityType", entityType), MapTemplate, ct);
     }
 

@@ -68,12 +68,12 @@ public static class UserAdminEndpoints
         string? status = null,
         CancellationToken ct = default)
     {
-        var rows = await userRepository.GetAdminUserListAsync(search, status, ct);
+        var list = await userRepository.GetAdminUserListAsync(search, status, ct);
 
         var users = new List<AdminUserSummary>();
         var keycloakIds = new List<(int index, string keycloakId)>();
 
-        foreach (var row in rows)
+        foreach (var row in list.Items)
         {
             if (row.KeycloakSub != null)
                 keycloakIds.Add((users.Count, row.KeycloakSub));
@@ -111,7 +111,9 @@ public static class UserAdminEndpoints
             }
         }
 
-        return Results.Ok(new { users });
+        // `users` stays the list the admin UI reads; the capped list's real total and its
+        // truncation flag ride alongside, so a list cut at the cap says so.
+        return Results.Ok(new { users, totalItems = list.TotalItems, hasNextPage = list.HasNextPage });
     }
 
     private static async Task<IResult> GetUser(

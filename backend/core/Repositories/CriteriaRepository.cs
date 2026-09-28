@@ -54,7 +54,7 @@ public class CriteriaRepository : ICriteriaRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         return await db.QueryListAsync(
-            $"SELECT {SelectColumns} FROM criteria c ORDER BY c.name LIMIT 500",
+            $"SELECT {SelectColumns} FROM criteria c ORDER BY c.name",
             null, CriteriaMapper.MapFromReader, ct);
     }
 
@@ -74,7 +74,7 @@ public class CriteriaRepository : ICriteriaRepository
                    JOIN resource_types rt ON rt.id = crt.resource_type_id
                    WHERE crt.criterion_id = c.id AND rt.key = @key
                )
-               ORDER BY c.name LIMIT 500",
+               ORDER BY c.name",
             p => p.AddWithValue("key", resourceTypeKey),
             CriteriaMapper.MapFromReader, ct);
     }
