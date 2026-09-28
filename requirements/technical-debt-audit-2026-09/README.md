@@ -52,6 +52,18 @@ per agent, sequential within a stack, stacks in parallel.
   tracker with the code. This table is how work resumes after a context reset.
 - **Do not** touch migration SQL files, the `M1` package split, or anything in section 4.
 
+### Merge coordination (collect here; goes into the PR description)
+
+- **S50:** the Keycloak image tag prefix moves from `26.6-orkyo-*` to `26.7-orkyo-*` (derived from
+  the Dockerfile by `scripts/ci/kc-version.sh`). orkyo-infra pins the tag and must follow. The first
+  release after merge must include a `keycloak/**` change so an image is built; otherwise the
+  carry-forward steps fail at their existing checks.
+- **M24:** the branch ruleset must drop `audit-nuget` from required checks. `ste-check.py` and
+  `lint-migration-headers.sh` are synced files; copy them to saas and community.
+- **M24:** `frontend/package-lock.json` must be refreshed with `npm install --package-lock-only`
+  after the peer-dependency move (done in batch F5 if not before).
+- **Workflows were validated statically only**; none has run in GitHub Actions on this branch.
+
 | ID | Batch | Status | Notes |
 |---|---|---|---|
 | C1 | B1a | done | Subscriptions group now `RequireTenantMembership()` (allow-list entry kept: no write gate, so no governed marker). Chose serve-time membership check over revoke-on-lifecycle (tokens are per tenant DB, memberships in the control plane, so no join): the `.ics` route calls `GetUserTenantRoleAsync`, which now also excludes `users.status = disabled`; removed/suspended/disabled/purged owners get 404. SaaS `TenantMiddleware` does not 403 non-members (checked). Tests: non-member create/list 403, removed-owner feed 404, disabled-user role None |
