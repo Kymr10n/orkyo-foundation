@@ -166,6 +166,24 @@ public class ResourceEndpointTests
     }
 
     [Fact]
+    public async Task GetResources_SearchWithWildcards_MatchesThemLiterally()
+    {
+        // `%` and `_` in a search once acted as LIKE wildcards: "-100%" matched "-1000" too.
+        var marker = $"Lk-{Guid.NewGuid():N}"[..14];
+        var literal = await CreatePersonAsync($"{marker}-100%");
+        await CreatePersonAsync($"{marker}-1000");
+        await CreatePersonAsync($"{marker}-1X0");
+
+        var (percent, _, _, _) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={Uri.EscapeDataString(marker + "-100%")}"));
+        var (underscore, _, _, _) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={Uri.EscapeDataString(marker + "-1_0")}"));
+
+        Assert.Equal([literal.Id], percent.Select(r => r.Id));
+        Assert.Empty(underscore);
+    }
+
+    [Fact]
     public async Task GetResources_Paged_ReturnsSliceWithRealTotal()
     {
         var marker = $"EnvP-{Guid.NewGuid():N}"[..16];

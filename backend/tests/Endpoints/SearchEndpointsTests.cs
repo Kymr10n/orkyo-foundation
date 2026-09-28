@@ -62,6 +62,19 @@ public class SearchEndpointsTests
         result.Should().NotBeNull();
     }
 
+    [Fact]
+    public async Task Search_ShortQueryOfAWildcard_MatchesItLiterally()
+    {
+        // The short-query prefix arm is a LIKE: an unescaped "%" matched every title.
+        var siteCode = $"srch-{Guid.NewGuid():N}"[..10];
+        (await _client.PostAsJsonAsync("/api/sites", new { code = siteCode, name = "Wildcard Probe" }))
+            .EnsureSuccessStatusCode();
+
+        var result = await _client.GetFromJsonAsync<SearchResponse>("/api/search?q=%25");
+
+        result!.Results.Should().OnlyContain(r => r.Title.StartsWith('%'));
+    }
+
     #endregion
 
     #region Search with Filters

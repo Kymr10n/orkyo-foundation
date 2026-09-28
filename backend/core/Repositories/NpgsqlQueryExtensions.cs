@@ -147,6 +147,14 @@ public static class NpgsqlQueryExtensions
     }
 
     /// <summary>
+    /// Neutralises LIKE wildcards in user text so a search for <c>%</c> or <c>_</c> matches the
+    /// character literally. The backslash is the default LIKE/ILIKE escape character in Postgres.
+    /// Wrap the result in the pattern's own wildcards, e.g. <c>$"%{EscapeLike(term)}%"</c>.
+    /// </summary>
+    public static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+
+    /// <summary>
     /// Add a parameter, substituting <see cref="DBNull"/> for a null value. Replaces the
     /// per-repository <c>NullableParam(object?)</c> helpers.
     /// </summary>

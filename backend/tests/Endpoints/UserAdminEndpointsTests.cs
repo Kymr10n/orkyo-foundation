@@ -83,6 +83,28 @@ public class UserAdminEndpointsTests
         Assert.Equal(JsonValueKind.False, body.GetProperty("hasNextPage").ValueKind);
     }
 
+    [Fact]
+    public async Task GetUsers_SearchWithAnUnderscore_MatchesItLiterally()
+    {
+        // An unescaped `_` matched any one character, so "x_a" also found "xba".
+        var marker = $"m12{Guid.NewGuid():N}"[..14];
+        var literal = await DatabaseTestUtils.CreateTestUserAsync($"{marker}_a@test.local");
+        await DatabaseTestUtils.CreateTestUserAsync($"{marker}ba@test.local");
+        var (_, adminToken) = await CreateSiteAdminAsync();
+
+        var response = await _client.SendAsync(Auth(HttpMethod.Get,
+            $"/api/admin/users?search={Uri.EscapeDataString(marker + "_a")}", adminToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var ids = body.GetProperty("users").EnumerateArray().Select(u => u.GetProperty("id").GetGuid());
+        Assert.Equal([literal], ids);
+
+        // Both filters name columns the joined tenants table also has; unqualified, they failed.
+        var byStatus = await _client.SendAsync(Auth(HttpMethod.Get, "/api/admin/users?status=active", adminToken));
+        Assert.Equal(HttpStatusCode.OK, byStatus.StatusCode);
+    }
+
     // ── GET /api/admin/users/{id} ─────────────────────────────────────────────
 
     [Fact]

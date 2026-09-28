@@ -33,13 +33,13 @@ public class PlatformUserRepository : IPlatformUserRepository
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            whereClauses.Add("(LOWER(email) LIKE @search OR LOWER(display_name) LIKE @search)");
-            parameters.Add(new NpgsqlParameter("search", $"%{search.ToLower()}%"));
+            whereClauses.Add("(LOWER(u.email) LIKE @search OR LOWER(u.display_name) LIKE @search)");
+            parameters.Add(new NpgsqlParameter("search", $"%{NpgsqlQueryExtensions.EscapeLike(search.ToLower())}%"));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            whereClauses.Add("status = @status");
+            whereClauses.Add("u.status = @status");
             parameters.Add(new NpgsqlParameter("status", status));
         }
 

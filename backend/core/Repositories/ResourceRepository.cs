@@ -149,7 +149,7 @@ public class ResourceRepository(
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             where.Add("r.name ILIKE @search");
-            p.AddWithValue("search", $"%{filter.Search}%");
+            p.AddWithValue("search", $"%{NpgsqlQueryExtensions.EscapeLike(filter.Search)}%");
         }
         if (filter.HasGeometry.HasValue)
         {

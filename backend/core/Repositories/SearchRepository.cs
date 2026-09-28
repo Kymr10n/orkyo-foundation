@@ -32,6 +32,9 @@ public class SearchRepository : ISearchRepository
         return await conn.QueryListAsync(sql, p =>
         {
             p.AddWithValue("@query", normalizedQuery);
+            // The prefix match is a LIKE, so the user's own % and _ are escaped; the similarity
+            // and full-text arms take the plain text.
+            p.AddWithValue("@query_prefix", NpgsqlQueryExtensions.EscapeLike(normalizedQuery) + "%");
             p.AddWithValue("@limit", limit);
             p.AddWithValue("@primaryThreshold", settings.Search_PrimarySimilarityThreshold);
             p.AddWithValue("@secondaryThreshold", settings.Search_SecondarySimilarityThreshold);
@@ -94,7 +97,7 @@ public class SearchRepository : ISearchRepository
     {
         var where = new List<string>
         {
-            "(lower(title) LIKE @query || '%' OR similarity(title, @query) > @secondaryThreshold OR similarity(COALESCE(keywords, ''), @query) > @secondaryThreshold)"
+            "(lower(title) LIKE @query_prefix OR similarity(title, @query) > @secondaryThreshold OR similarity(COALESCE(keywords, ''), @query) > @secondaryThreshold)"
         };
         if (siteId.HasValue) where.Add("(site_id IS NULL OR site_id = @site_id)");
         if (types != null && types.Length > 0) where.Add("entity_type = ANY(@types)");
@@ -103,7 +106,7 @@ public class SearchRepository : ISearchRepository
         return $@"
             SELECT entity_type, entity_id, title, subtitle, site_id,
                 GREATEST(
-                    CASE WHEN lower(title) LIKE @query || '%' THEN 1.0 ELSE 0.0 END,
+                    CASE WHEN lower(title) LIKE @query_prefix THEN 1.0 ELSE 0.0 END,
                     similarity(title, @query),
                     similarity(COALESCE(keywords, ''), @query) * 0.8
                 )::float8 AS score, updated_at,{ResourceTypeKeySubquery("search_documents")}

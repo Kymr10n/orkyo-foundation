@@ -127,7 +127,7 @@ public class RequestRepository : IRequestRepository
             {
                 p.AddWithValue("query", string.IsNullOrWhiteSpace(nameContains)
                     ? DBNull.Value
-                    : $"%{EscapeLike(nameContains)}%");
+                    : $"%{NpgsqlQueryExtensions.EscapeLike(nameContains)}%");
                 p.AddWithValue("scheduled", scheduled.HasValue ? scheduled.Value : DBNull.Value);
                 p.AddWithValue("limit", limit);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
@@ -153,13 +153,6 @@ public class RequestRepository : IRequestRepository
         RequestSort.Name => "name ASC",
         _ => "parent_request_id NULLS FIRST, sort_order, created_at DESC",
     };
-
-    /// <summary>
-    /// Neutralises LIKE wildcards in user text so a name containing % or _ matches literally.
-    /// The backslash is the default ILIKE escape character in Postgres.
-    /// </summary>
-    private static string EscapeLike(string value) =>
-        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
     {
