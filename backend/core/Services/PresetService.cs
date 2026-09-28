@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Models;
 using Api.Models.Preset;
 using Api.Repositories;
+using Api.Validators;
 using Npgsql;
 
 using static Api.Helpers.KeyHelpers;
@@ -117,7 +118,7 @@ public class PresetService : IPresetService
             PresetId = presetId,
             Name = name,
             Description = description,
-            Version = "1.0.0",
+            Version = PresetValidator.CurrentVersion,
             CreatedAt = _time.GetUtcNow().UtcDateTime,
             Contents = new PresetContents
             {

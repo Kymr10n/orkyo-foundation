@@ -33,8 +33,8 @@ namespace Orkyo.Migrations.Abstractions;
 /// </para>
 /// </param>
 /// <param name="Scope">
-/// Which deployment shapes this migration runs in; <see cref="MigrationScope.Default"/> unless the
-/// file carries <c>-- @scope: tenant-database-only</c> or its module marks the id. See
+/// Which deployment shapes this migration runs in; <see cref="MigrationScope.Default"/> unless its
+/// module marks the id. See
 /// <see cref="MigrationScope"/>.
 /// </param>
 public sealed record MigrationScript(

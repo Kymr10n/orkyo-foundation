@@ -246,14 +246,6 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Profile updated for user {Sub}", keycloakSub);
     }
 
-    public async Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default)
-    {
-        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
-
-        await UpdateEmailByUserIdAsync(token, userId, newEmail, ct);
-        _logger.LogInformation("Email updated for user {Sub}", keycloakSub);
-    }
-
     public async Task UpdateEmailForAccountAsync(string? keycloakSub, string currentEmail, string newEmail, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync(ct);

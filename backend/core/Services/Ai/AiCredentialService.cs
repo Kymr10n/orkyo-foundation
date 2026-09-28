@@ -24,9 +24,6 @@ public interface IAiCredentialService
     /// </summary>
     Task<string?> GetApiKeyAsync(CancellationToken ct = default);
 
-    /// <summary>The model this workspace should use, falling back to the application default.</summary>
-    Task<string> GetModelAsync(CancellationToken ct = default);
-
     Task MarkVerifiedAsync(CancellationToken ct = default);
 
     /// <summary>Audits a Test-connection attempt — outcome only, never the key.</summary>
@@ -118,12 +115,6 @@ public sealed class AiCredentialService(
             logger.LogError(ex, "Stored AI credential for workspace {OrgId} could not be decrypted", orgContext.OrgId);
             return null;
         }
-    }
-
-    public async Task<string> GetModelAsync(CancellationToken ct = default)
-    {
-        var row = await repository.GetAsync(ct);
-        return string.IsNullOrWhiteSpace(row?.Model) ? AiDefaults.Model : row!.Model!;
     }
 
     public Task MarkVerifiedAsync(CancellationToken ct = default) => repository.MarkVerifiedAsync(ct);

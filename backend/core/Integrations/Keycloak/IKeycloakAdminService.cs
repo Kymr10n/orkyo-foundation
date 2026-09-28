@@ -104,11 +104,6 @@ public interface IKeycloakAdminService
     Task UpdateUserProfileAsync(string keycloakSub, string firstName, string lastName, CancellationToken ct = default);
 
     /// <summary>
-    /// Update the user's email in Keycloak and mark it as verified.
-    /// </summary>
-    Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default);
-
-    /// <summary>
     /// Update a user's email in Keycloak, preferring the subject when available
     /// and falling back to the current email address.
     /// </summary>

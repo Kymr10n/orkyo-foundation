@@ -9,9 +9,6 @@ public class TenantContext
     public required string TenantSlug { get; init; }
     public required string TenantDbConnectionString { get; init; }
     public required string Status { get; init; }
-
-    public bool IsSuspended => TenantStatusPolicy.IsSuspended(Status);
-    public bool IsActive => TenantStatusPolicy.IsActive(Status);
 }
 
 public interface ITenantResolver

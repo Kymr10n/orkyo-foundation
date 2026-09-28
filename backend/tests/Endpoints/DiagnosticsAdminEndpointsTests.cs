@@ -213,27 +213,4 @@ public class DiagnosticsAdminEndpointsTests
         var logKind = modules.GetProperty("logAggregation").ValueKind;
         Assert.True(logKind is JsonValueKind.True or JsonValueKind.False);
     }
-
-    // ── GET /api/v1/info (modified: now uses DeploymentConfig) ──
-
-    [Fact]
-    public async Task GetApiInfo_NoAuth_Returns200()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/info");
-        var response = await _client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetApiInfo_ReturnsNameAndVersion()
-    {
-        var response = await _client.GetFromJsonAsync<JsonElement>("/api/v1/info");
-
-        Assert.Equal("Orkyo API", response.GetProperty("name").GetString());
-
-        var version = response.GetProperty("version").GetString();
-        Assert.NotNull(version);
-        Assert.NotEmpty(version);
-    }
 }

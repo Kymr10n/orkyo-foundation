@@ -230,19 +230,9 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     // ── Update email ──────────────────────────────────────────────
     public bool UpdateEmailSuccess { get; set; } = true;
     public string? UpdateEmailError { get; set; }
-    public int UpdateEmailCallCount { get; private set; }
-    public (string? keycloakSub, string? newEmail) LastUpdateEmailCall { get; private set; }
     public int UpdateEmailForAccountCallCount { get; private set; }
     public (string? keycloakSub, string? currentEmail, string? newEmail) LastUpdateEmailForAccountCall { get; private set; }
 
-    public Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default)
-    {
-        UpdateEmailCallCount++;
-        LastUpdateEmailCall = (keycloakSub, newEmail);
-        if (!UpdateEmailSuccess)
-            throw new KeycloakAdminException(UpdateEmailError ?? "Failed to update email");
-        return Task.CompletedTask;
-    }
 
     public Task UpdateEmailForAccountAsync(string? keycloakSub, string currentEmail, string newEmail, CancellationToken ct = default)
     {
@@ -388,8 +378,6 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
         UpdateEmailSuccess = true;
         UpdateEmailError = null;
-        UpdateEmailCallCount = 0;
-        LastUpdateEmailCall = default;
         UpdateEmailForAccountCallCount = 0;
         LastUpdateEmailForAccountCall = default;
 

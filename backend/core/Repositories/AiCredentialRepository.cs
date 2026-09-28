@@ -11,7 +11,6 @@ public sealed record AiCredentialRow
     public string Provider { get; init; } = AiProviders.Anthropic;
     public string ApiKeyCiphertext { get; init; } = "";
     public string KeyHint { get; init; } = "";
-    public string? Model { get; init; }
     public DateTime UpdatedAt { get; init; }
     public DateTime? LastVerifiedAt { get; init; }
 }
@@ -36,7 +35,7 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         return await conn.QuerySingleOrDefaultAsync(@"
-            SELECT provider, api_key_ciphertext, key_hint, model, updated_at, last_verified_at
+            SELECT provider, api_key_ciphertext, key_hint, updated_at, last_verified_at
             FROM ai_credentials
             WHERE provider = @provider",
             p => p.AddWithValue("provider", AiProviders.Anthropic),
@@ -45,7 +44,6 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
                 Provider = r.GetString("provider"),
                 ApiKeyCiphertext = r.GetString("api_key_ciphertext"),
                 KeyHint = r.GetString("key_hint"),
-                Model = r.GetNullableString("model"),
                 UpdatedAt = r.GetDateTime("updated_at"),
                 LastVerifiedAt = r.GetNullableDateTime("last_verified_at"),
             }, ct);

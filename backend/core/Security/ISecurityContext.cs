@@ -80,10 +80,4 @@ public interface IAuthorizationContext
 
     /// <summary>Whether the user can edit content</summary>
     bool CanEdit { get; }
-
-    /// <summary>Whether the user can view content</summary>
-    bool CanView { get; }
-
-    /// <summary>Require a specific role, throw 403 if not met</summary>
-    void RequireRole(TenantRole minimumRole);
 }

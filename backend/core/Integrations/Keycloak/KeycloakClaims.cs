@@ -38,29 +38,8 @@ public static class KeycloakClaims
     /// <summary>Token audience</summary>
     public const string Audience = "aud";
 
-    /// <summary>Authorized party (client that requested the token)</summary>
-    public const string AuthorizedParty = "azp";
-
     /// <summary>Session ID</summary>
     public const string SessionId = "sid";
-
-    /// <summary>Session state</summary>
-    public const string SessionState = "session_state";
-
-    /// <summary>Token type</summary>
-    public const string TokenType = "typ";
-
-    /// <summary>Scope</summary>
-    public const string Scope = "scope";
-
-    /// <summary>Issued at timestamp</summary>
-    public const string IssuedAt = "iat";
-
-    /// <summary>Expiration timestamp</summary>
-    public const string Expiration = "exp";
-
-    /// <summary>Authentication time</summary>
-    public const string AuthTime = "auth_time";
 
     /// <summary>Realm access (contains realm roles)</summary>
     public const string RealmAccess = "realm_access";

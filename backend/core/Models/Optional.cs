@@ -31,12 +31,6 @@ public readonly struct Optional<T>
 
     public static Optional<T> Of(T? value) => new(value);
 
-    /// <summary>Absent — the caller did not mention this field.</summary>
-    public static Optional<T> Absent => default;
-
-    /// <summary>True when the caller named the field and asked for it to hold nothing.</summary>
-    public bool IsCleared => IsPresent && Value is null;
-
     public static implicit operator Optional<T>(T? value) => Of(value);
 }
 

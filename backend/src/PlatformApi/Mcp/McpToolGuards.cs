@@ -11,7 +11,7 @@ namespace Api.PlatformApi.Mcp;
 /// verb-aware write gate (MCP carries every call over one POST, so the verb says nothing), and
 /// <c>EndpointHelpers.ExecuteAsync</c>, which is where endpoints run their FluentValidation
 /// validator. Neither re-implements anything — the write gate reads the same
-/// <see cref="IAuthorizationContext.CanEdit"/> property <c>RequireEditAccess</c> uses, and the
+/// Role &gt;= Editor threshold as <see cref="IAuthorizationContext.CanEdit"/> and the HTTP write gate, and the
 /// validator bridge runs the very validator object the endpoint would have run.
 /// </summary>
 public static class McpToolGuards

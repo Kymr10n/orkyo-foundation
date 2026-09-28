@@ -65,7 +65,6 @@ public sealed record AiMessage
     public required string Role { get; init; }
     public required IReadOnlyList<AiBlock> Blocks { get; init; }
 
-    public static AiMessage User(params AiBlock[] blocks) => new() { Role = Roles.User, Blocks = blocks };
     public static AiMessage Assistant(IReadOnlyList<AiBlock> blocks) => new() { Role = Roles.Assistant, Blocks = blocks };
 
     public static class Roles

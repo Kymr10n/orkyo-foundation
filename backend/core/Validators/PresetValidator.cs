@@ -16,11 +16,11 @@ namespace Api.Validators;
 /// </summary>
 public partial class PresetValidator : AbstractValidator<Preset>
 {
-    /// <summary>Supported preset schema versions.</summary>
-    public static readonly string[] SupportedVersions = { "1.0.0" };
-
-    /// <summary>Current/latest schema version for exports.</summary>
+    /// <summary>Current/latest preset schema version; what an exported preset declares.</summary>
     public const string CurrentVersion = "1.0.0";
+
+    /// <summary>Supported preset schema versions.</summary>
+    public static readonly string[] SupportedVersions = { CurrentVersion };
 
     public PresetValidator()
     {

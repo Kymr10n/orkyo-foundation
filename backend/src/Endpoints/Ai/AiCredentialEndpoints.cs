@@ -88,7 +88,7 @@ public static class AiCredentialEndpoints
         if (string.IsNullOrEmpty(apiKey))
             return Results.Ok(new AiCredentialTestResult { Ok = false, Reason = "not_configured" });
 
-        var result = await gateway.TestAsync(apiKey, await credentials.GetModelAsync(ct), ct);
+        var result = await gateway.TestAsync(apiKey, AiDefaults.Model, ct);
         if (result.Ok) await credentials.MarkVerifiedAsync(ct);
 
         // Key saves and removals were audited; tests were not, though the constant existed.

@@ -12,18 +12,13 @@ public enum AuthProvider
     /// <summary>Keycloak OIDC authentication</summary>
     Keycloak,
 
-    /// <summary>Azure AD authentication (future)</summary>
-    AzureAD,
-
-    /// <summary>Google OAuth (future)</summary>
-    Google,
-
     /// <summary>
     /// A per-tenant API access token acting on its own behalf (MCP server, automated integrations).
     /// There is no human behind it: the user id is derived from the token, and its tenant role
     /// comes from the token's scopes rather than a membership row.
+    /// Pinned at 4, the value it had before two never-used providers were removed.
     /// </summary>
-    ApiToken
+    ApiToken = 4
 }
 
 /// <summary>
