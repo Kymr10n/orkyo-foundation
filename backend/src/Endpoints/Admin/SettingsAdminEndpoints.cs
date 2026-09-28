@@ -170,8 +170,3 @@ public sealed class SystemInfo
     public required string AuthProvider { get; init; }
     public required string AuthRealm { get; init; }
 }
-
-public sealed class UpdateSettingsRequest
-{
-    public required Dictionary<string, string> Settings { get; init; }
-}

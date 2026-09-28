@@ -49,14 +49,3 @@ public class UpdateSettingsRequestValidator : AbstractValidator<UpdateSettingsRe
             .When(x => x.Settings is not null);
     }
 }
-
-/// <summary>Admin-surface twin of <see cref="UpdateSettingsRequestValidator"/>; same envelope rules.</summary>
-public class AdminUpdateSettingsRequestValidator : AbstractValidator<Api.Endpoints.Admin.UpdateSettingsRequest>
-{
-    public AdminUpdateSettingsRequestValidator()
-    {
-        RuleFor(x => x.Settings).NotEmpty().WithMessage("Settings must contain at least one entry");
-        RuleForEach(x => x.Settings.Keys).NotEmpty().WithMessage("Setting keys must not be blank")
-            .When(x => x.Settings is not null);
-    }
-}
