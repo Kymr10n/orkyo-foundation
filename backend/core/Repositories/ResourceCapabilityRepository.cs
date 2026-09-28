@@ -144,7 +144,7 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
             {
                 Id = r.GetGuid(r.GetOrdinal("criterion_id")),
                 Name = r.GetString(r.GetOrdinal("criterion_name")),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(r.GetString(r.GetOrdinal("criterion_type"))),
+                DataType = EnumMapper.FromDbValue<CriterionDataType>(r.GetString(r.GetOrdinal("criterion_type"))),
                 Unit = r.IsDBNull(r.GetOrdinal("criterion_unit")) ? null : r.GetString(r.GetOrdinal("criterion_unit")),
             },
             CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),

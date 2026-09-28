@@ -240,17 +240,7 @@ public class TemplateRepository : ITemplateRepository
             p => p.AddWithValue("ids", templateIds.ToArray()),
             MapTemplateItem, ct);
 
-        var map = new Dictionary<Guid, List<TemplateItem>>();
-        foreach (var item in items)
-        {
-            if (!map.TryGetValue(item.TemplateId, out var list))
-            {
-                list = [];
-                map[item.TemplateId] = list;
-            }
-            list.Add(item);
-        }
-        return map;
+        return items.GroupBy(x => x.TemplateId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default)

@@ -9,7 +9,7 @@ public static class CriteriaMapper
 {
     public static CriterionInfo MapFromReader(NpgsqlDataReader reader)
     {
-        var dataType = Enum.Parse<CriterionDataType>(reader.GetString("data_type"));
+        var dataType = EnumMapper.FromDbValue<CriterionDataType>(reader.GetString("data_type"));
 
         List<string>? enumValues = null;
         var enumValuesJson = reader.GetNullableString("enum_values");
@@ -17,17 +17,6 @@ public static class CriteriaMapper
         {
             enumValues = JsonSerializer.Deserialize<List<string>>(enumValuesJson);
         }
-
-        var validationJson = reader.GetNullableString("validation_json");
-        JsonElement? validation = validationJson is null
-            ? null
-            : JsonDocument.Parse(validationJson).RootElement.Clone();
-
-        // resource_type_keys is a text[] aggregate (see CriteriaRepository.SelectColumns).
-        var keysOrdinal = reader.GetOrdinal("resource_type_keys");
-        var resourceTypeKeys = reader.IsDBNull(keysOrdinal)
-            ? Array.Empty<string>()
-            : reader.GetFieldValue<string[]>(keysOrdinal);
 
         return new CriterionInfo
         {
@@ -37,11 +26,12 @@ public static class CriteriaMapper
             DataType = dataType,
             EnumValues = enumValues,
             Unit = reader.GetNullableString("unit"),
-            Validation = validation,
+            Validation = reader.GetNullableJsonElement("validation_json"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),
             ApplicableToRequests = reader.GetBoolean("applicable_to_requests"),
-            ResourceTypeKeys = resourceTypeKeys,
+            // A text[] aggregate COALESCEd to '{}' (see CriteriaRepository.SelectColumns).
+            ResourceTypeKeys = reader.GetStringArray("resource_type_keys"),
             InUse = reader.GetBoolean("in_use"),
         };
     }

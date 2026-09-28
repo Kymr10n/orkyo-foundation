@@ -150,7 +150,7 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
             {
                 Id = reader.GetGuid("criterion_id"),
                 Name = reader.GetString("criterion_name"),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString("criterion_type")),
+                DataType = EnumMapper.FromDbValue<CriterionDataType>(reader.GetString("criterion_type")),
                 Unit = reader.GetNullableString("criterion_unit")
             };
         }

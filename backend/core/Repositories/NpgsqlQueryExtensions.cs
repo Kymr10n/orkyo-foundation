@@ -14,9 +14,10 @@ namespace Api.Repositories;
 /// </summary>
 /// <remarks>
 /// Public API since 0.8.0 so product repositories/services can use the same helpers instead
-/// of re-rolling the loops. The helpers never enlist in an explicit transaction — commands
-/// that must run inside a <c>NpgsqlTransaction</c> should be constructed by hand with
-/// <c>new NpgsqlCommand(sql, conn, tx)</c>.
+/// of re-rolling the loops. They work inside an explicit transaction too: Npgsql runs every
+/// command on a connection within that connection's open <c>NpgsqlTransaction</c>, so after
+/// <c>BeginTransactionAsync</c> the helpers' commands commit or roll back with it. There is no
+/// need to hand-build <c>new NpgsqlCommand(sql, conn, tx)</c> to join the transaction.
 /// </remarks>
 public static class NpgsqlQueryExtensions
 {

@@ -174,17 +174,7 @@ public class ListDefinitionRepository(OrgContext orgContext, IOrgDbConnectionFac
             + "ORDER BY list_definition_id, sort_order, label",
             p => p.AddWithValue("ids", definitionIds.ToArray()), MapColumn, ct);
 
-        var map = new Dictionary<Guid, List<ListColumnInfo>>();
-        foreach (var row in rows)
-        {
-            if (!map.TryGetValue(row.ListDefinitionId, out var list))
-            {
-                list = [];
-                map[row.ListDefinitionId] = list;
-            }
-            list.Add(row);
-        }
-        return map;
+        return rows.GroupBy(x => x.ListDefinitionId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<ListColumnInfo?> GetColumnAsync(Guid columnId, CancellationToken ct = default)

@@ -111,17 +111,7 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             + "ORDER BY list_definition_id, name",
             p => p.AddWithValue("ids", definitionIds.ToArray()), MapInstance, ct);
 
-        var map = new Dictionary<Guid, List<ListInstanceInfo>>();
-        foreach (var row in rows)
-        {
-            if (!map.TryGetValue(row.ListDefinitionId, out var list))
-            {
-                list = [];
-                map[row.ListDefinitionId] = list;
-            }
-            list.Add(row);
-        }
-        return map;
+        return rows.GroupBy(x => x.ListDefinitionId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<ListInstanceInfo> CreateSharedAsync(
@@ -238,17 +228,7 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             + "ORDER BY list_instance_id, created_at, id",
             p => p.AddWithValue("ids", instanceIds.ToArray()), MapRow, ct);
 
-        var map = new Dictionary<Guid, List<ListRowInfo>>();
-        foreach (var row in rows)
-        {
-            if (!map.TryGetValue(row.ListInstanceId, out var list))
-            {
-                list = [];
-                map[row.ListInstanceId] = list;
-            }
-            list.Add(row);
-        }
-        return map;
+        return rows.GroupBy(x => x.ListInstanceId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<ListRowInfo?> GetRowAsync(Guid rowId, CancellationToken ct = default)

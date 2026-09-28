@@ -449,17 +449,7 @@ public class ResourceRepository(
             "AND r.home_site_id = ANY(@siteIds) ORDER BY r.home_site_id, r.code, r.name",
             p => p.AddWithValue("siteIds", siteIds.ToArray()), Map, ct);
 
-        var map = new Dictionary<Guid, List<ResourceInfo>>();
-        foreach (var row in rows)
-        {
-            if (!map.TryGetValue(row.HomeSiteId!.Value, out var list))
-            {
-                list = [];
-                map[row.HomeSiteId.Value] = list;
-            }
-            list.Add(row);
-        }
-        return map;
+        return rows.GroupBy(x => x.HomeSiteId!.Value).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<int> GetPlaceableCountAsync(CancellationToken ct = default)

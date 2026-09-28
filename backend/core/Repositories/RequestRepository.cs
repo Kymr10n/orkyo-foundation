@@ -125,10 +125,10 @@ public class RequestRepository : IRequestRepository
             LIMIT @limit",
             p =>
             {
-                p.AddWithValue("query", string.IsNullOrWhiteSpace(nameContains)
-                    ? DBNull.Value
+                p.AddNullable("query", string.IsNullOrWhiteSpace(nameContains)
+                    ? null
                     : $"%{NpgsqlQueryExtensions.EscapeLike(nameContains)}%");
-                p.AddWithValue("scheduled", scheduled.HasValue ? scheduled.Value : DBNull.Value);
+                p.AddNullable("scheduled", scheduled);
                 p.AddWithValue("limit", limit);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
             },
@@ -432,11 +432,11 @@ public class RequestRepository : IRequestRepository
             update.Set("predecessor_logic", EnumMapper.ToDbValue(request.PredecessorLogic.Value));
             // k only for k_of_n; anything else writes NULL. A k_of_n with no k is refused by
             // the validator, and by the CHECK constraint if it ever gets past it.
-            object k = request.PredecessorLogic.Value == PredecessorLogic.KOfN
-                && request.PredecessorLogicK is { } value
-                    ? value
-                    : DBNull.Value;
-            update.Set("predecessor_logic_k", k);
+            if (request.PredecessorLogic.Value == PredecessorLogic.KOfN
+                && request.PredecessorLogicK is { } k)
+                update.Set("predecessor_logic_k", k);
+            else
+                update.SetExpression("predecessor_logic_k = NULL");
         }
         if (request.SiteId.HasValue) update.Set("site_id", request.SiteId.Value);
         else if (request.ChangeSiteId) update.Set("site_id", (object)DBNull.Value);

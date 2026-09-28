@@ -40,17 +40,7 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
             SchedulingMapper.MapAvailabilityEventFromReader, ct);
         await HydrateScopesAsync(conn, events, ct);
 
-        var map = new Dictionary<Guid, List<AvailabilityEventInfo>>();
-        foreach (var ev in events)
-        {
-            if (!map.TryGetValue(ev.SiteId, out var list))
-            {
-                list = [];
-                map[ev.SiteId] = list;
-            }
-            list.Add(ev);
-        }
-        return map;
+        return events.GroupBy(x => x.SiteId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<AvailabilityEventInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
@@ -201,17 +191,7 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
             p => p.AddWithValue("ids", eventIds.ToArray()),
             SchedulingMapper.MapScopeFromReader, ct);
 
-        var map = new Dictionary<Guid, List<AvailabilityEventScopeInfo>>();
-        foreach (var scope in scopes)
-        {
-            if (!map.TryGetValue(scope.AvailabilityEventId, out var list))
-            {
-                list = [];
-                map[scope.AvailabilityEventId] = list;
-            }
-            list.Add(scope);
-        }
-        return map;
+        return scopes.GroupBy(x => x.AvailabilityEventId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     private static async Task<AvailabilityEventScopeInfo> InsertScopeAsync(
@@ -242,13 +222,13 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("siteId", siteId);
         cmd.Parameters.AddWithValue("title", title);
-        cmd.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
+        cmd.Parameters.AddNullable("description", description);
         cmd.Parameters.AddWithValue("eventType", EnumMapper.ToDbValue(eventType));
         cmd.Parameters.AddWithValue("defaultEffect", EnumMapper.ToDbValue(defaultEffect));
         cmd.Parameters.AddWithValue("startTs", startTs);
         cmd.Parameters.AddWithValue("endTs", endTs);
         cmd.Parameters.AddWithValue("isRecurring", isRecurring);
-        cmd.Parameters.AddWithValue("recurrenceRule", (object?)recurrenceRule ?? DBNull.Value);
+        cmd.Parameters.AddNullable("recurrenceRule", recurrenceRule);
         cmd.Parameters.AddWithValue("enabled", enabled);
     }
 }

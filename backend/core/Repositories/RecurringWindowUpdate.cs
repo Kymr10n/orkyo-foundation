@@ -1,6 +1,5 @@
 using Api.Models;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace Api.Repositories;
 
@@ -23,8 +22,8 @@ internal static class RecurringWindowUpdate
         // reads the row's values from before this UPDATE, so no prior read is needed.
         if (TouchesRule(request))
             update.SetExpression(
-                "recurrence_rule = CASE WHEN COALESCE(@window_is_recurring, is_recurring) "
-                + "THEN COALESCE(@window_recurrence_rule, recurrence_rule) END");
+                "recurrence_rule = CASE WHEN COALESCE(@window_is_recurring::boolean, is_recurring) "
+                + "THEN COALESCE(@window_recurrence_rule::text, recurrence_rule) END");
         return update;
     }
 
@@ -32,14 +31,8 @@ internal static class RecurringWindowUpdate
     public static void Bind(NpgsqlParameterCollection parameters, IRecurringWindowUpdate request)
     {
         if (!TouchesRule(request)) return;
-        parameters.Add(new NpgsqlParameter("window_is_recurring", NpgsqlDbType.Boolean)
-        {
-            Value = (object?)request.IsRecurring ?? DBNull.Value,
-        });
-        parameters.Add(new NpgsqlParameter("window_recurrence_rule", NpgsqlDbType.Text)
-        {
-            Value = (object?)request.RecurrenceRule ?? DBNull.Value,
-        });
+        parameters.AddNullable("window_is_recurring", request.IsRecurring);
+        parameters.AddNullable("window_recurrence_rule", request.RecurrenceRule);
     }
 
     private static bool TouchesRule(IRecurringWindowUpdate request)

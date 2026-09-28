@@ -127,13 +127,8 @@ public class ResourceGroupMemberRepository(OrgContext orgContext, IOrgDbConnecti
             p => p.AddWithValue("ids", resourceIds.ToArray()),
             r => (r.GetGuid("resource_id"), r.GetGuid("resource_group_id")), ct);
 
-        var map = new Dictionary<Guid, List<Guid>>();
-        foreach (var (rId, gId) in rows)
-        {
-            if (!map.TryGetValue(rId, out var list)) { list = []; map[rId] = list; }
-            list.Add(gId);
-        }
-        return map.ToDictionary(kvp => kvp.Key, kvp => (IReadOnlyList<Guid>)kvp.Value);
+        return rows.GroupBy(r => r.Item1, r => r.Item2)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<Guid>)g.ToList());
     }
 
     /// <summary>

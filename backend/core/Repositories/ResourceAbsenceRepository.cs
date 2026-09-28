@@ -99,16 +99,6 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
             p => p.AddWithValue("ids", resourceIds.ToArray()),
             SchedulingMapper.MapResourceAbsenceFromReader, ct);
 
-        var map = new Dictionary<Guid, List<ResourceAbsenceInfo>>();
-        foreach (var absence in absences)
-        {
-            if (!map.TryGetValue(absence.ResourceId, out var list))
-            {
-                list = [];
-                map[absence.ResourceId] = list;
-            }
-            list.Add(absence);
-        }
-        return map;
+        return absences.GroupBy(x => x.ResourceId).ToDictionary(g => g.Key, g => g.ToList());
     }
 }

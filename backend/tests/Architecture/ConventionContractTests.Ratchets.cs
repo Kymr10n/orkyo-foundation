@@ -194,6 +194,38 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"DateTime(?:Offset)?\.UtcNow")]
     private static partial Regex DirectClockReadRegex();
 
+    // ── (m) hand-rolled nullable parameter bindings ──────────────────────────
+
+    /// <summary>
+    /// A nullable parameter is bound with <c>AddNullable</c> (docs/conventions.md, "Binding a
+    /// nullable parameter"), not <c>x ?? DBNull.Value</c> or <c>x.HasValue ? x.Value : DBNull.Value</c>.
+    /// Files that still hand-roll the substitution; adopt the helper on touch.
+    /// </summary>
+    private static readonly HashSet<string> KnownHandRolledNullBindingFiles = new(StringComparer.Ordinal)
+    {
+        "core:Integrations/Keycloak/KeycloakIdentityLinkService.cs",
+        "core:Repositories/AiAllowanceRepository.cs",
+        "core:Repositories/AiCredentialRepository.cs",
+        "core:Repositories/AssetRepository.cs",
+        "core:Repositories/AuditEventWriter.cs",
+        "core:Services/Insights/InsightsService.cs",
+        "core:Services/Preset/PresetApplier.cs",
+        "core:Services/SessionService.cs",
+        "core:Services/UserLifecycleService.cs",
+        "core:Services/UserSessionService.cs",
+    };
+
+    /// <summary>The helpers themselves: <c>AddNullable</c>, <c>AddJsonb</c> and <c>UpdateBuilder</c> do the substitution.</summary>
+    private static readonly HashSet<string> HandRolledNullBindingExemptFiles = new(StringComparer.Ordinal)
+    {
+        "core:Repositories/NpgsqlQueryExtensions.cs",
+    };
+
+    // `?? DBNull.Value`, `? DBNull.Value :` and `: DBNull.Value` — the three spellings of the
+    // substitution AddNullable owns.
+    [GeneratedRegex(@"[?:]\s*DBNull\.Value")]
+    private static partial Regex HandRolledNullBindingRegex();
+
     private static IEnumerable<Ratchet> ConventionRatchets() =>
     [
         new("SqlWritingService", ServiceSqlAccessRegex(), ["core"],
@@ -257,5 +289,19 @@ public partial class ConventionContractTests
             ],
             ForbidMessage: "the clock comes from an injected TimeProvider, not DateTime.UtcNow. The "
                 + "grandfathered files are in KnownDirectClockFiles and shrink on touch."),
+
+        new("HandRolledNullBinding", HandRolledNullBindingRegex(), ["src", "core"],
+            Baseline: KnownHandRolledNullBindingFiles,
+            Exempt: HandRolledNullBindingExemptFiles,
+            Exemplars:
+            [
+                new("cmd.Parameters.AddWithValue(\"unit\", (object?)unit ?? DBNull.Value);"),
+                new("p.AddWithValue(\"scheduled\", scheduled.HasValue ? scheduled.Value : DBNull.Value);"),
+                new("p.AddNullable(\"unit\", unit);", false, "the helper is the rule, not an offence"),
+                new("update.Set(\"site_id\", (object)DBNull.Value);", false, "an explicit NULL is not a nullable binding"),
+            ],
+            ForbidMessage: "bind a nullable parameter with AddNullable, not `?? DBNull.Value` "
+                + "(docs/conventions.md, Data access). The grandfathered files are in "
+                + "KnownHandRolledNullBindingFiles and shrink on touch."),
     ];
 }

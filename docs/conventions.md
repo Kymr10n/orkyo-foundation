@@ -51,6 +51,8 @@ global search — clamps a plain row limit with `PageRequest.ClampLimit`.
 `PaginationShapeContractTests` holds this shape, and each exemption there states its reason.
 
 **Binding a nullable parameter** uses `AddNullable`, not `x.HasValue ? x.Value : DBNull.Value`.
+`KnownHandRolledNullBindingFiles` in `ConventionContractTests.Ratchets.cs` lists the files
+that still bind a null by hand.
 
 **Transactions** name the variable `tx`. Rely on `await using` disposal for rollback;
 call `RollbackAsync` explicitly only where the catch does something else as well.

@@ -125,13 +125,13 @@ public class CriteriaRepository : ICriteriaRepository
                   RETURNING id",
                 db, tx);
             insertCriterion.Parameters.AddWithValue("name", name);
-            insertCriterion.Parameters.AddWithValue("description", (object?)description ?? DBNull.Value);
+            insertCriterion.Parameters.AddNullable("description", description);
             insertCriterion.Parameters.AddWithValue("data_type", dataType.ToString());
-            insertCriterion.Parameters.AddWithValue("enum_values",
-                enumValues != null ? JsonSerializer.Serialize(enumValues) : DBNull.Value);
-            insertCriterion.Parameters.AddWithValue("unit", (object?)unit ?? DBNull.Value);
-            insertCriterion.Parameters.AddWithValue("validation",
-                validation is { ValueKind: not JsonValueKind.Null } v ? v.GetRawText() : DBNull.Value);
+            insertCriterion.Parameters.AddNullable("enum_values",
+                enumValues != null ? JsonSerializer.Serialize(enumValues) : null);
+            insertCriterion.Parameters.AddNullable("unit", unit);
+            insertCriterion.Parameters.AddNullable("validation",
+                validation is { ValueKind: not JsonValueKind.Null } v ? v.GetRawText() : null);
 
             var idObj = await insertCriterion.ExecuteScalarAsync(ct);
             if (idObj is null)
@@ -264,8 +264,8 @@ public class CriteriaRepository : ICriteriaRepository
         {
             // An explicit JSON null clears the constraints; anything else replaces them wholesale.
             updateFields.Add("validation_json = @validation::jsonb");
-            cmd.Parameters.AddWithValue("validation",
-                val.ValueKind == JsonValueKind.Null ? DBNull.Value : val.GetRawText());
+            cmd.Parameters.AddNullable("validation",
+                val.ValueKind == JsonValueKind.Null ? null : val.GetRawText());
         }
 
         if (updateFields.Count == 0)
