@@ -4,7 +4,7 @@
 
 The shared domain layer consumed by **both** product repos (`orkyo-saas`, `orkyo-community`). Contains NO self-executing wiring — no `Program.cs` composes anything here. Foundation ships DI **extension methods** (`AddFoundationServices` and friends) and middleware **classes** that products opt into from their own `Program.cs`. Published to GitHub Packages as `Orkyo.Foundation` (NuGet) and `@kymr10n/foundation` (npm).
 
-Also owns the Keycloak image (`ghcr.io/kymr10n/keycloak:26.6-orkyo-<version>`) including the Orkyo theme.
+Also owns the Keycloak image (`ghcr.io/kymr10n/keycloak:<kc-major.minor>-orkyo-<version>`, prefix taken from `keycloak/Dockerfile`) including the Orkyo theme.
 
 ## Placement rule
 

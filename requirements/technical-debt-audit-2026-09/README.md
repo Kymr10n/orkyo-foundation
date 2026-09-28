@@ -107,7 +107,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S47 | B7 | todo | |
 | S48 | B7 | todo | |
 | S49 | R1 | todo | |
-| S50 | R1 | todo | |
+| S50 | R1 | done | `KC_VERSION` removed from workflow env; the 4 Keycloak jobs derive it via new `scripts/ci/kc-version.sh` (`26.7` from the Dockerfile pin) into `$GITHUB_ENV`; tag format unchanged. **Coordinate before merge:** infra's deploy pins `26.6-orkyo-*` and must move to `26.7-`; the carry-forward steps need an existing `26.7-orkyo-<major>` tag, so the first release after merge must build a KC image (a `keycloak/**` change) or nightly/stable fail loudly at their existing gates |
 | S51 | R1 | done | dotnet-format hook no longer runs `git add`; frontend/backend pre-push test hooks deleted and `pre-push` dropped from install types; CLAUDE.md, CONTRIBUTING, setup.sh wording aligned |
 | S52 | R1 | done | Both non-root checks now `docker pull` + `docker image inspect` `.Config.User` and fail on empty/`0`/`root` or on any pull/inspect error; no fallback UID (the old `id -u` ran through Keycloak's `kc.sh` entrypoint and always fell back to 1000) |
 | S53 | R1 | todo | |

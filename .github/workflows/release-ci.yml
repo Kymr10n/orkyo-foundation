@@ -42,7 +42,9 @@ permissions: {}
 env:
   REGISTRY: ghcr.io
   KC_IMAGE: ghcr.io/kymr10n/keycloak
-  KC_VERSION: "26.6"
+  # KC_VERSION (the <major>.<minor> tag prefix) is not set here: each Keycloak job
+  # derives it from keycloak/Dockerfile with scripts/ci/kc-version.sh, so the tag
+  # prefix follows the pinned upstream image.
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -313,6 +315,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Derive KC_VERSION from keycloak/Dockerfile
+        run: scripts/ci/kc-version.sh >> "$GITHUB_ENV"
+
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Log in to GHCR
@@ -345,6 +350,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Derive KC_VERSION from keycloak/Dockerfile
+        run: scripts/ci/kc-version.sh >> "$GITHUB_ENV"
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -450,6 +458,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Derive KC_VERSION from keycloak/Dockerfile
+        run: scripts/ci/kc-version.sh >> "$GITHUB_ENV"
 
       - name: Extract version from tag
         id: version
@@ -799,6 +810,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Derive KC_VERSION from keycloak/Dockerfile
+        run: scripts/ci/kc-version.sh >> "$GITHUB_ENV"
 
       - name: Compute nightly version
         id: version
