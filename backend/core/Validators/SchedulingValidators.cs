@@ -1,3 +1,4 @@
+using System.Globalization;
 using Api.Models;
 using FluentValidation;
 
@@ -24,8 +25,9 @@ public class UpsertSchedulingSettingsRequestValidator : AbstractValidator<Upsert
             .Must(BeValidTime).WithMessage("WorkingDayEnd must be a valid time (HH:mm)");
 
         RuleFor(x => x)
-            .Must(x => !BeValidTime(x.WorkingDayStart) || !BeValidTime(x.WorkingDayEnd) ||
-                        TimeSpan.Parse(x.WorkingDayStart) < TimeSpan.Parse(x.WorkingDayEnd))
+            .Must(x => !WorkingTime.TryParse(x.WorkingDayStart, out var start)
+                       || !WorkingTime.TryParse(x.WorkingDayEnd, out var end)
+                       || start < end)
             .WithName("WorkingDayEnd")
             .WithMessage("WorkingDayEnd must be after WorkingDayStart");
 
@@ -38,7 +40,23 @@ public class UpsertSchedulingSettingsRequestValidator : AbstractValidator<Upsert
             .WithMessage("PublicHolidayRegion is required when public holidays are enabled");
     }
 
-    private static bool BeValidTime(string time) => TimeSpan.TryParse(time, out _);
+    private static bool BeValidTime(string time) => WorkingTime.TryParse(time, out _);
+}
+
+/// <summary>
+/// A working-day boundary as the settings carry it: exactly <c>HH:mm</c>. <c>TimeSpan.TryParse</c>
+/// read "5" as five days, which then failed the <c>time</c> column write with a 500.
+/// </summary>
+internal static class WorkingTime
+{
+    public const string Format = "HH:mm";
+
+    public static bool TryParse(string? value, out TimeOnly time) =>
+        TimeOnly.TryParseExact(value, Format, CultureInfo.InvariantCulture, DateTimeStyles.None, out time);
+
+    /// <summary>For a value the validator already accepted.</summary>
+    public static TimeOnly Parse(string value) =>
+        TimeOnly.ParseExact(value, Format, CultureInfo.InvariantCulture);
 }
 
 public class CreateAvailabilityEventRequestValidator : AbstractValidator<CreateAvailabilityEventRequest>

@@ -1,5 +1,8 @@
+using Api.Constants;
 using Api.Endpoints;
+using Api.Endpoints.PlatformApi;
 using Api.Endpoints.Reporting;
+using Api.Security;
 using FluentValidation;
 
 namespace Api.Validators;
@@ -47,5 +50,32 @@ public class UpdateSettingsRequestValidator : AbstractValidator<UpdateSettingsRe
         RuleFor(x => x.Settings).NotEmpty().WithMessage("Settings must contain at least one entry");
         RuleForEach(x => x.Settings.Keys).NotEmpty().WithMessage("Setting keys must not be blank")
             .When(x => x.Settings is not null);
+    }
+}
+
+public sealed class CreateApiAccessTokenRequestValidator : AbstractValidator<CreateApiAccessTokenRequest>
+{
+    private readonly TimeProvider _time;
+
+    public CreateApiAccessTokenRequestValidator(TimeProvider time)
+    {
+        _time = time;
+
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required.")
+            .MaximumLength(DomainLimits.TokenNameMaxLength);
+
+        RuleFor(x => x.Scopes)
+            .NotEmpty().WithMessage("At least one scope is required.");
+
+        // Rejected here as well as in the service: the endpoint gives a field-level validation
+        // error, which the settings form can show against the scope picker.
+        RuleForEach(x => x.Scopes)
+            .Must(PlatformApiScopes.All.Contains)
+            .WithMessage(s => $"Unknown scope. Valid scopes: {string.Join(", ", PlatformApiScopes.All)}");
+
+        RuleFor(x => x.ExpiresAt)
+            .Must(d => d is null || d > _time.GetUtcNow().UtcDateTime)
+            .WithMessage("Expiry must be in the future.");
     }
 }

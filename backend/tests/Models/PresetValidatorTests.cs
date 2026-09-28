@@ -1,11 +1,36 @@
 using System.Text.Json;
 using Api.Models;
 using Api.Models.Preset;
+using Api.Validators;
 
 namespace Api.Tests.Models;
 
 public class PresetValidatorTests
 {
+    private static PresetValidationResult Validate(Preset preset)
+    {
+        var result = new PresetValidator().Validate(preset);
+        return new PresetValidationResult(result.IsValid, result.Errors.Select(e => e.ErrorMessage).ToList());
+    }
+
+    [Fact]
+    public void AKeyWithATrailingNewline_IsRejected()
+    {
+        // `$` also matches before a trailing newline; the pattern is anchored with \z.
+        var preset = CreateValidPreset() with { PresetId = "manufacturing-ch-v1\n" };
+
+        Validate(preset).Errors.Should().ContainSingle(e => e.Contains("PresetId must contain only lowercase"));
+    }
+
+    [Fact]
+    public void AGroupNameOverTheGroupLimit_IsRejected()
+    {
+        var preset = CreateValidPreset();
+        preset.Contents!.SpaceGroups[0] = preset.Contents.SpaceGroups[0] with { Name = new string('g', Api.Constants.DomainLimits.ResourceGroupNameMaxLength + 1) };
+
+        Validate(preset).Errors.Should().ContainSingle(e => e.Contains($"Name cannot exceed {Api.Constants.DomainLimits.ResourceGroupNameMaxLength} characters"));
+    }
+
     private static Preset CreateValidPreset() => new()
     {
         PresetId = "manufacturing-ch-v1",
@@ -59,7 +84,7 @@ public class PresetValidatorTests
     [Fact]
     public void Validate_ShouldReturnSuccess_ForValidPreset()
     {
-        var result = PresetValidator.Validate(CreateValidPreset());
+        var result = Validate(CreateValidPreset());
 
         result.IsValid.Should().BeTrue();
         result.Errors.Should().BeEmpty();
@@ -70,7 +95,7 @@ public class PresetValidatorTests
     {
         var preset = CreateValidPreset() with { Version = "9.9.9" };
 
-        var result = PresetValidator.Validate(preset);
+        var result = Validate(preset);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("Unsupported preset version '9.9.9'"));
@@ -82,7 +107,7 @@ public class PresetValidatorTests
         var preset = CreateValidPreset();
         preset.Contents.Criteria[0] = preset.Contents.Criteria[0] with { EnumValues = [] };
 
-        var result = PresetValidator.Validate(preset);
+        var result = Validate(preset);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("Enum type requires at least one enum value"));
@@ -94,7 +119,7 @@ public class PresetValidatorTests
         var preset = CreateValidPreset();
         preset.Contents.SpaceGroups[0] = preset.Contents.SpaceGroups[0] with { Color = "blue" };
 
-        var result = PresetValidator.Validate(preset);
+        var result = Validate(preset);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("Color must be a valid hex color"));
@@ -107,7 +132,7 @@ public class PresetValidatorTests
         var template = preset.Contents.Templates.Request[0];
         template.Items[0] = template.Items[0] with { CriterionKey = "unknown-key" };
 
-        var result = PresetValidator.Validate(preset);
+        var result = Validate(preset);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("References unknown criterion key 'unknown-key'"));
@@ -120,7 +145,7 @@ public class PresetValidatorTests
         var template = preset.Contents.Templates.Request[0];
         template.Items[0] = template.Items[0] with { Value = "{not-json}" };
 
-        var result = PresetValidator.Validate(preset);
+        var result = Validate(preset);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("Value must be valid JSON"));
@@ -132,7 +157,7 @@ public class PresetValidatorTests
         var preset = CreateValidPreset();
         preset.Contents.Templates.Request[0] = preset.Contents.Templates.Request[0] with { DurationUnit = "months" };
 
-        var result = PresetValidator.Validate(preset);
+        var result = Validate(preset);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().ContainSingle(e => e.Contains("DurationUnit must be one of: hours, days, weeks"));

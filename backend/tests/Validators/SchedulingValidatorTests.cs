@@ -63,6 +63,18 @@ public class SchedulingValidatorTests
         result.ShouldHaveValidationErrorFor(x => x.WorkingDayEnd);
     }
 
+    [Theory]
+    [InlineData("5")]         // TimeSpan read this as five days; the time column write then 500ed
+    [InlineData("08:00:00")]
+    [InlineData("8:00")]
+    [InlineData("24:00")]
+    public void SettingsValidator_OnlyHHmmIsATime(string value)
+    {
+        var request = new UpsertSchedulingSettingsRequest { WorkingDayStart = value };
+        var result = _settingsValidator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.WorkingDayStart);
+    }
+
     [Fact]
     public void SettingsValidator_InvalidTimeFormat_Fails()
     {

@@ -19,6 +19,7 @@ public class PresetService : IPresetService
     private readonly ITemplateRepository _templateRepo;
     private readonly ILogger<PresetService> _logger;
     private readonly TimeProvider _time;
+    private readonly FluentValidation.IValidator<Preset> _validator;
 
     public PresetService(
         OrgContext orgContext,
@@ -28,7 +29,8 @@ public class PresetService : IPresetService
         IResourceTypeRepository resourceTypeRepo,
         ITemplateRepository templateRepo,
         ILogger<PresetService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        FluentValidation.IValidator<Preset> validator)
     {
         _orgContext = orgContext;
         _connectionFactory = connectionFactory;
@@ -38,10 +40,14 @@ public class PresetService : IPresetService
         _templateRepo = templateRepo;
         _logger = logger;
         _time = time;
+        _validator = validator;
     }
 
     public async Task<PresetValidationResult> ValidateAsync(Preset preset, CancellationToken ct = default)
-        => await Task.FromResult(PresetValidator.Validate(preset));
+    {
+        var result = await _validator.ValidateAsync(preset, ct);
+        return new PresetValidationResult(result.IsValid, result.Errors.Select(e => e.ErrorMessage).ToList());
+    }
 
     public async Task<PresetApplicationResult> ApplyAsync(Preset preset, Guid userId, CancellationToken ct = default)
     {

@@ -1,50 +1,46 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Api.Constants;
+using Api.Models;
+using Api.Models.Preset;
+using FluentValidation;
 
-namespace Api.Models.Preset;
+namespace Api.Validators;
 
 /// <summary>
-/// Validates preset files for schema compliance and business rules.
+/// Validates a preset file for schema compliance and business rules: the envelope, the criteria,
+/// the space groups and the templates, with every limit from <see cref="DomainLimits"/> (the same
+/// ones the criterion, group and template validators apply). A preset is checked as a whole — a
+/// template item refers to a criterion key in the same file — so the rules add their failures from
+/// one custom step, each message naming the entity it is about.
 /// </summary>
-public static partial class PresetValidator
+public partial class PresetValidator : AbstractValidator<Preset>
 {
-    /// <summary>
-    /// Supported preset schema versions.
-    /// </summary>
+    /// <summary>Supported preset schema versions.</summary>
     public static readonly string[] SupportedVersions = { "1.0.0" };
 
-    /// <summary>
-    /// Current/latest schema version for exports.
-    /// </summary>
+    /// <summary>Current/latest schema version for exports.</summary>
     public const string CurrentVersion = "1.0.0";
 
-    /// <summary>
-    /// Maximum allowed preset file size (1 MB).
-    /// </summary>
-    public const int MaxFileSizeBytes = 1024 * 1024;
-
-    /// <summary>
-    /// Validates a preset and returns all validation errors.
-    /// </summary>
-    public static PresetValidationResult Validate(Preset preset)
+    public PresetValidator()
     {
-        var errors = new List<string>();
-
-        ValidateEnvelope(preset, errors);
-
-        if (preset.Contents != null)
+        RuleFor(x => x).Custom((preset, ctx) =>
         {
-            ValidateCriteria(preset.Contents.Criteria, errors);
-            ValidateSpaceGroups(preset.Contents.SpaceGroups, errors);
-            ValidateTemplates(preset.Contents.Templates, preset.Contents.Criteria, errors);
-        }
-        else
-        {
-            errors.Add("Preset contents are required");
-        }
-
-        return new PresetValidationResult(errors.Count == 0, errors);
+            var errors = new List<string>();
+            ValidateEnvelope(preset, errors);
+            if (preset.Contents != null)
+            {
+                ValidateCriteria(preset.Contents.Criteria, errors);
+                ValidateSpaceGroups(preset.Contents.SpaceGroups, errors);
+                ValidateTemplates(preset.Contents.Templates, preset.Contents.Criteria, errors);
+            }
+            else
+            {
+                errors.Add("Preset contents are required");
+            }
+            foreach (var error in errors)
+                ctx.AddFailure(error);
+        });
     }
 
     private static void ValidateEnvelope(Preset preset, List<string> errors)
@@ -66,9 +62,9 @@ public static partial class PresetValidator
         {
             errors.Add("Name is required");
         }
-        else if (preset.Name.Length > 255)
+        else if (preset.Name.Length > DomainLimits.PresetNameMaxLength)
         {
-            errors.Add("Name cannot exceed 255 characters");
+            errors.Add($"Name cannot exceed {DomainLimits.PresetNameMaxLength} characters");
         }
 
         if (preset.Description?.Length > DomainLimits.PresetDescriptionMaxLength)
@@ -189,14 +185,14 @@ public static partial class PresetValidator
             {
                 errors.Add($"{prefix}: Name is required");
             }
-            else if (group.Name.Length > 255)
+            else if (group.Name.Length > DomainLimits.ResourceGroupNameMaxLength)
             {
-                errors.Add($"{prefix}: Name cannot exceed 255 characters");
+                errors.Add($"{prefix}: Name cannot exceed {DomainLimits.ResourceGroupNameMaxLength} characters");
             }
 
-            if (group.Description?.Length > 1000)
+            if (group.Description?.Length > DomainLimits.ResourceGroupDescriptionMaxLength)
             {
-                errors.Add($"{prefix}: Description cannot exceed 1000 characters");
+                errors.Add($"{prefix}: Description cannot exceed {DomainLimits.ResourceGroupDescriptionMaxLength} characters");
             }
 
             if (!string.IsNullOrWhiteSpace(group.Color) && !HexColorPattern().IsMatch(group.Color))
@@ -306,21 +302,10 @@ public static partial class PresetValidator
         }
     }
 
-    [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*$")]
+    // \A…\z, not ^…$: in .NET `$` also matches before a trailing newline (docs/conventions.md).
+    [GeneratedRegex(@"\A[a-z0-9]+(-[a-z0-9]+)*\z")]
     private static partial Regex KeyPattern();
 
-    [GeneratedRegex(Api.Validators.ValidationPatterns.HexColor)]
+    [GeneratedRegex(ValidationPatterns.HexColor)]
     private static partial Regex HexColorPattern();
-}
-
-/// <summary>
-/// Result of preset validation.
-/// </summary>
-public record PresetValidationResult(bool IsValid, List<string> Errors)
-{
-    public static PresetValidationResult Success() => new(true, new List<string>());
-
-    public static PresetValidationResult Failure(string error) => new(false, new List<string> { error });
-
-    public static PresetValidationResult Failure(IEnumerable<string> errors) => new(false, errors.ToList());
 }

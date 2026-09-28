@@ -16,6 +16,21 @@ public class ResourceRequestValidatorsTests
     private readonly IValidator<UpdateResourceRequest> _updateValidator = new UpdateResourceRequestValidator();
 
     [Fact]
+    public void Create_ConcurrentCapacity_Fails()
+    {
+        // Accepted at create, then refused on every assignment: not offered until implemented.
+        var request = new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            AllocationMode = AllocationModes.ConcurrentCapacity,
+            Name = "Line 1",
+            IsPhysical = false
+        };
+
+        Assert.False(_createValidator.Validate(request).IsValid);
+    }
+
+    [Fact]
     public void Create_NullName_Fails()
     {
         var request = new CreateResourceRequest

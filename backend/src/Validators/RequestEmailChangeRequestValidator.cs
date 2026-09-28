@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Endpoints;
 using FluentValidation;
 
@@ -9,6 +10,7 @@ public class RequestEmailChangeRequestValidator : AbstractValidator<RequestEmail
     {
         RuleFor(x => x.NewEmail)
             .NotEmpty().WithMessage("Email address is required.")
+            .MaximumLength(DomainLimits.EmailMaxLength)
             .EmailAddress().WithMessage("Enter a valid email address.");
     }
 }

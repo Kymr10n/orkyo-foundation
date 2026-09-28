@@ -46,8 +46,6 @@ public class ResourceService(
 
     public async Task<ResourceInfo> CreateAsync(CreateResourceRequest request, CancellationToken ct = default)
     {
-        Validate(request.AllocationMode, request.BaseAvailabilityPercent, request.Name);
-
         var resourceType = await resourceTypeRepository.GetByKeyAsync(request.ResourceTypeKey, ct)
             ?? throw new ArgumentException($"Resource type '{request.ResourceTypeKey}' not found");
 
@@ -85,13 +83,6 @@ public class ResourceService(
 
     public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
     {
-        if (request.AllocationMode is not null)
-            ValidateAllocationMode(request.AllocationMode);
-        if (request.BaseAvailabilityPercent.HasValue)
-            ValidateAvailabilityPercent(request.BaseAvailabilityPercent.Value);
-        if (request.Name is not null && string.IsNullOrWhiteSpace(request.Name))
-            throw new ArgumentException("Name cannot be blank");
-
         var existing = await resourceRepository.GetByIdAsync(id, ct)
             ?? throw new NotFoundException("Resource", id);
 
@@ -163,25 +154,5 @@ public class ResourceService(
             throw new ArgumentException(
                 $"Resource type '{resourceType.Key}' is placed on a floorplan, so its resources belong to one site and cannot travel");
         }
-    }
-
-    private static void Validate(string allocationMode, int baseAvailabilityPercent, string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            throw new ArgumentException("Name is required");
-        ValidateAllocationMode(allocationMode);
-        ValidateAvailabilityPercent(baseAvailabilityPercent);
-    }
-
-    private static void ValidateAllocationMode(string mode)
-    {
-        if (mode is not (AllocationModes.Exclusive or AllocationModes.Fractional or AllocationModes.ConcurrentCapacity))
-            throw new ArgumentException($"Invalid allocation mode '{mode}'");
-    }
-
-    private static void ValidateAvailabilityPercent(int pct)
-    {
-        if (pct is < 0 or > 100)
-            throw new ArgumentException("BaseAvailabilityPercent must be between 0 and 100");
     }
 }
