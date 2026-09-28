@@ -40,22 +40,29 @@ public class MockEmailService : IEmailService
 
     // ── Lifecycle warning ─────────────────────────────────────────────────────
     public int SendLifecycleWarningCallCount { get; private set; }
+    /// <summary>The confirm token last mailed to each recipient.</summary>
+    public Dictionary<string, string> LifecycleWarningTokens { get; } = new();
+    /// <summary>While set, every lifecycle warning send returns false (an SMTP outage).</summary>
+    public bool FailLifecycleWarnings { get; set; }
 
     public Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName,
         string confirmToken, int warningNumber, CancellationToken ct = default)
     {
         SendLifecycleWarningCallCount++;
-        return Task.FromResult(true);
+        LifecycleWarningTokens[toEmail] = confirmToken;
+        return Task.FromResult(!FailLifecycleWarnings);
     }
 
     // ── Dormancy notice ───────────────────────────────────────────────────────
     public int SendDormancyNoticeCallCount { get; private set; }
+    /// <summary>While set, every dormancy notice send returns false (an SMTP outage).</summary>
+    public bool FailDormancyNotices { get; set; }
 
     public Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName,
         CancellationToken ct = default)
     {
         SendDormancyNoticeCallCount++;
-        return Task.FromResult(true);
+        return Task.FromResult(!FailDormancyNotices);
     }
 
     // ── Email change confirmation ─────────────────────────────────────────────
@@ -169,7 +176,10 @@ public class MockEmailService : IEmailService
         SendWelcomeCallCount = 0;
         SendInvitationCallCount = 0;
         SendLifecycleWarningCallCount = 0;
+        LifecycleWarningTokens.Clear();
+        FailLifecycleWarnings = false;
         SendDormancyNoticeCallCount = 0;
+        FailDormancyNotices = false;
         SendEmailChangeConfirmationCallCount = 0;
         LastSendEmailChangeConfirmationCall = default;
         FailNextEmailChangeConfirmation = false;

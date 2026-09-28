@@ -73,7 +73,9 @@ public sealed class UserLifecycleService
 
         var cmd = currentWarningCount == 0
             ? new Npgsql.NpgsqlCommand($@"
-                SELECT id, email, display_name, keycloak_id
+                SELECT id, email, display_name,
+                       (SELECT ui.provider_subject FROM user_identities ui
+                        WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
                 FROM users
                 WHERE lifecycle_status IS NULL
                   AND status = 'active'
@@ -83,7 +85,9 @@ public sealed class UserLifecycleService
                     (last_login_at IS NULL AND created_at < NOW() - INTERVAL '{LifecyclePolicyConstants.UserInactiveWarningSqlInterval}')
                   )", db)
             : new Npgsql.NpgsqlCommand($@"
-                SELECT id, email, display_name, keycloak_id
+                SELECT id, email, display_name,
+                       (SELECT ui.provider_subject FROM user_identities ui
+                        WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
                 FROM users
                 WHERE lifecycle_status = 'warned'
                   AND lifecycle_warning_count = @count
@@ -102,12 +106,19 @@ public sealed class UserLifecycleService
             {
                 var token = Guid.NewGuid().ToString();
 
+                // The step is committed only once the mail is out: a failed send rolls back and
+                // leaves the user where they were, so an SMTP outage cannot advance them unwarned.
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "warned", warningCount: nextCount,
                     lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: token, ct);
-                await tx.CommitAsync(ct);
 
-                await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct);
+                if (!await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct))
+                {
+                    _logger.LogError("Warning #{NextCount} for user {UserId} not sent; state left unchanged", nextCount, user.Id);
+                    continue;
+                }
+
+                await tx.CommitAsync(ct);
                 _logger.LogInformation("Warning #{NextCount} sent to user {UserId}", nextCount, user.Id);
             }
             catch (Exception ex)
@@ -121,7 +132,9 @@ public sealed class UserLifecycleService
         Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, IEmailService emailService, CancellationToken ct)
     {
         var cmd = new Npgsql.NpgsqlCommand($@"
-            SELECT id, email, display_name, keycloak_id
+            SELECT id, email, display_name,
+                   (SELECT ui.provider_subject FROM user_identities ui
+                    WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
             FROM users
             WHERE lifecycle_status = 'warned'
               AND lifecycle_warning_count = 3
@@ -153,9 +166,15 @@ public sealed class UserLifecycleService
                 await UpdateLifecycleAsync(db, user.Id, status: "dormant", warningCount: 3,
                     lastWarnedAt: null, dormantSince: _time.GetUtcNow().UtcDateTime, confirmToken: null, ct);
                 await SetUserDbStatusAsync(db, user.Id, UserStatusConstants.Disabled, ct);
-                await tx.CommitAsync(ct);
 
-                await emailService.SendDormancyNoticeEmailAsync(user.Email, user.DisplayName, ct);
+                // Not dormant until told so: the purge clock starts only after a successful send.
+                if (!await emailService.SendDormancyNoticeEmailAsync(user.Email, user.DisplayName, ct))
+                {
+                    _logger.LogError("Dormancy notice for user {UserId} not sent; state left unchanged", user.Id);
+                    continue;
+                }
+
+                await tx.CommitAsync(ct);
                 _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
             }
             catch (Exception ex)
@@ -169,7 +188,9 @@ public sealed class UserLifecycleService
         Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, CancellationToken ct)
     {
         var cmd = new Npgsql.NpgsqlCommand($@"
-            SELECT id, email, display_name, keycloak_id
+            SELECT id, email, display_name,
+                   (SELECT ui.provider_subject FROM user_identities ui
+                    WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
             FROM users
             WHERE lifecycle_status = 'dormant'
               AND lifecycle_dormant_since < NOW() - INTERVAL '{LifecyclePolicyConstants.UserPurgeAfterDormantSqlInterval}'

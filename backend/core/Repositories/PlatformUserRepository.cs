@@ -272,7 +272,10 @@ public class PlatformUserRepository : IPlatformUserRepository
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         return await conn.QuerySingleOrDefaultAsync(@"
-            SELECT id, keycloak_id, display_name, lifecycle_status
+            SELECT id,
+                   (SELECT ui.provider_subject FROM user_identities ui
+                    WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id,
+                   display_name, lifecycle_status
             FROM users
             WHERE lifecycle_confirm_token = @token
               AND lifecycle_status IS NOT NULL

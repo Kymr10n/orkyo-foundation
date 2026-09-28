@@ -26,7 +26,7 @@ public class AccountLifecycleEndpointsTests
 
     /// <summary>
     /// Creates a user in control_plane.users with lifecycle columns set and returns
-    /// the user's ID and confirm token. Optionally sets a keycloak_id (needed for
+    /// the user's ID and confirm token. Optionally links a Keycloak identity (needed for
     /// testing the dormant re-enable flow).
     /// </summary>
     private async Task<(Guid userId, string token)> CreateUserWithLifecycleTokenAsync(
@@ -50,7 +50,7 @@ public class AccountLifecycleEndpointsTests
         if (keycloakId != null)
         {
             await using var kcCmd = new NpgsqlCommand(
-                "UPDATE users SET keycloak_id = @kcId WHERE id = @id", conn);
+                "INSERT INTO user_identities (user_id, provider, provider_subject) VALUES (@id, 'keycloak', @kcId)", conn);
             kcCmd.Parameters.AddWithValue("kcId", keycloakId);
             kcCmd.Parameters.AddWithValue("id", userId);
             await kcCmd.ExecuteNonQueryAsync();

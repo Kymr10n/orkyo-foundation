@@ -68,14 +68,15 @@ public class UserLifecycleServiceTests
                 lifecycle_warning_count  = @count,
                 lifecycle_last_warned_at = {warnedSql},
                 lifecycle_dormant_since  = {dormantSql},
-                keycloak_id              = @kcId,
                 last_login_at            = {loginSql}
-            WHERE id = @id", conn);
+            WHERE id = @id;
+            INSERT INTO user_identities (user_id, provider, provider_subject)
+            SELECT @id, 'keycloak', @kcId WHERE @kcId IS NOT NULL", conn);
         cmd.Parameters.AddWithValue("status", (object?)lifecycleStatus ?? DBNull.Value);
         cmd.Parameters.AddWithValue("count", warningCount);
         if (lastWarnedDaysAgo is not null) cmd.Parameters.AddWithValue("warnedDaysAgo", lastWarnedDaysAgo.Value);
         if (dormantDaysAgo is not null) cmd.Parameters.AddWithValue("dormantDaysAgo", dormantDaysAgo.Value);
-        cmd.Parameters.AddWithValue("kcId", (object?)keycloakId ?? DBNull.Value);
+        cmd.Parameters.Add(new NpgsqlParameter("kcId", NpgsqlTypes.NpgsqlDbType.Text) { Value = (object?)keycloakId ?? DBNull.Value });
         if (lastLoginDaysAgo is not null) cmd.Parameters.AddWithValue("loginDaysAgo", lastLoginDaysAgo.Value);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync();
@@ -126,6 +127,29 @@ public class UserLifecycleServiceTests
         }
         finally
         {
+            await DeleteUserAsync(userId);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenWarningSendFails_LeavesUserUnwarned()
+    {
+        var userId = await CreateLifecycleUserAsync(lifecycleStatus: null, lastLoginDaysAgo: 400);
+        _mockEmail.FailLifecycleWarnings = true;
+        try
+        {
+            await ProcessAsync();
+
+            _mockEmail.SendLifecycleWarningCallCount.Should().BeGreaterThanOrEqualTo(1);
+            // An unsent warning must not count: the user stays where they were for the next run.
+            var (exists, status, count, _) = await GetUserStateAsync(userId);
+            exists.Should().BeTrue();
+            status.Should().BeNull();
+            count.Should().Be(0);
+        }
+        finally
+        {
+            _mockEmail.FailLifecycleWarnings = false;
             await DeleteUserAsync(userId);
         }
     }
@@ -182,6 +206,31 @@ public class UserLifecycleServiceTests
         finally
         {
             _mockKeycloak.DisableUserSuccess = true;
+            await DeleteUserAsync(userId);
+        }
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenDormancyNoticeFails_LeavesUserWarned()
+    {
+        var userId = await CreateLifecycleUserAsync(
+            lifecycleStatus: "warned", warningCount: 3, lastWarnedDaysAgo: 15, keycloakId: Guid.NewGuid().ToString());
+        _mockEmail.FailDormancyNotices = true;
+        try
+        {
+            await ProcessAsync();
+
+            _mockEmail.SendDormancyNoticeCallCount.Should().BeGreaterThanOrEqualTo(1);
+            // No notice, no dormancy: the purge clock must not start for a user who was not told.
+            var (exists, status, count, dbStatus) = await GetUserStateAsync(userId);
+            exists.Should().BeTrue();
+            status.Should().Be("warned");
+            count.Should().Be(3);
+            dbStatus.Should().Be("active");
+        }
+        finally
+        {
+            _mockEmail.FailDormancyNotices = false;
             await DeleteUserAsync(userId);
         }
     }
