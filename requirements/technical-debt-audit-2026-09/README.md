@@ -86,7 +86,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S14 | B1b | todo | |
 | S15 | B1b | todo | |
 | S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
-| S17 | B1a | in-progress |  |
+| S17 | B1a | done | `KeycloakOptions.FromConfiguration`: required keys fail on empty as well as absent, empty `KEYCLOAK_INTERNAL_URL` becomes null, `EffectiveInternalBaseUrl` treats "" as unset (local helpers with `GetRequired`/`IsSet` semantics — `Orkyo.Shared` cannot reference core's `ConfigurationExtensions`). Diagnostics probe fixed at the source: `DeploymentConfig.OidcInternalAuthority` is now `IsSet ? value : null`, so line 99's `??` falls back correctly. `shared` added to `TestRepoPaths.BackendRoots` and the `RawConfigFallback` roots; it flags nothing else |
 | S18 | B1b | todo | |
 | S19 | B1b | todo | |
 | S20 | F1 | todo | |

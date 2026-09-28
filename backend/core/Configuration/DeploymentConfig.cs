@@ -119,7 +119,10 @@ public sealed record DeploymentConfig
             SmtpPassword = configuration[ConfigKeys.SmtpPassword],
 
             OidcAuthority = Require(ConfigKeys.OidcAuthority),
-            OidcInternalAuthority = configuration[ConfigKeys.OidcInternalAuthority],
+            // Empty counts as unset, so the diagnostics probe's `?? OidcAuthority` falls back.
+            OidcInternalAuthority = configuration.IsSet(ConfigKeys.OidcInternalAuthority)
+                ? configuration[ConfigKeys.OidcInternalAuthority]
+                : null,
             KeycloakUrl = Require(ConfigKeys.KeycloakUrl),
             KeycloakRealm = Require(ConfigKeys.KeycloakRealm),
             KeycloakBackendClientId = Require(ConfigKeys.KeycloakBackendClientId),

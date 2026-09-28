@@ -121,7 +121,7 @@ public partial class ConventionContractTests
                 + "happens to hold it (docs/conventions.md). The grandfathered files are in "
                 + "KnownParamUpsertFiles and shrink on touch."),
 
-        new("RawConfigFallback", ConfigFallbackRegex(), ["src", "core"],
+        new("RawConfigFallback", ConfigFallbackRegex(), ["src", "core", "shared"],
             Exempt: ConfigFallbackExemptFiles,
             Exemplars: [new("var x = configuration[ConfigKeys.Foo] ?? \"bar\";")],
             ForbidMessage: "`configuration[key] ?? fallback` misses empty values (the .env writes KEY= "

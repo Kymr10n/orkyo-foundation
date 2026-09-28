@@ -79,6 +79,21 @@ public class DeploymentConfigTests
     }
 
     [Fact]
+    public void FromConfiguration_LeavesOidcInternalAuthorityNull_WhenKeyIsEmpty()
+    {
+        // KEY= from the deploy pipeline: the diagnostics probe must fall back to the public
+        // authority, not probe an empty one.
+        var config = BuildConfig(RequiredValues(new Dictionary<string, string?>
+        {
+            [ConfigKeys.OidcInternalAuthority] = "",
+        }));
+
+        var result = DeploymentConfig.FromConfiguration(config);
+
+        result.OidcInternalAuthority.Should().BeNull();
+    }
+
+    [Fact]
     public void OidcInternalAuthority_FallbackPattern_PrefersInternalOverPublic()
     {
         // Guard: the diagnostics probe uses null-coalescing, so this documents
