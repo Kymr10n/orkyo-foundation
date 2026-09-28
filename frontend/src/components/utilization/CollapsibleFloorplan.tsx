@@ -47,7 +47,6 @@ export function CollapsibleFloorplan({
 
   const {
     data: spaces = [],
-    isLoading: _isLoadingSpaces,
     error: spacesError,
   } = usePlaceableResources(selectedSiteId);
 

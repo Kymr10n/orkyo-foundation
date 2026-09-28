@@ -38,9 +38,6 @@ export const runtimeConfig = {
   /** Base URL for API requests. Empty string = same-origin (subdomain mode). */
   apiBaseUrl: optionalEnv('VITE_API_BASE_URL', ''),
 
-  /** Default tenant slug for development */
-  defaultTenant: optionalEnv('VITE_DEFAULT_TENANT', ''),
-
   /** Base domain for multi-tenant subdomain detection */
   baseDomain,
 

@@ -79,12 +79,6 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-// ── Mock tenant navigation (legacy — no longer used by TenantApp) ────────
-
-vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
-  redirectToLogin: vi.fn(),
-}));
-
 import { TenantApp } from "./TenantApp";
 
 // ── Helpers ─────────────────────────────────────────────────────────────

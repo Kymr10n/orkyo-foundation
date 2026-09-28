@@ -10,7 +10,6 @@
 export const API_PATHS = {
   // Session (OIDC authenticated, no tenant context required)
   SESSION: {
-    BOOTSTRAP: '/api/session/bootstrap',
     ME: '/api/session/me',
     TOUR_SEEN: '/api/session/tour/seen',
     TOS_ACCEPT: '/api/session/tos/accept',
@@ -46,13 +45,9 @@ export const API_PATHS = {
   CONFLICTS: '/api/conflicts',
   request: (requestId: string) => `/api/requests/${requestId}`,
   requestSchedule: (requestId: string) => `/api/requests/${requestId}/schedule`,
-  requestRequirements: (requestId: string) => `/api/requests/${requestId}/requirements`,
-  requestRequirement: (requestId: string, requirementId: string) =>
-    `/api/requests/${requestId}/requirements/${requirementId}`,
   requestChildren: (requestId: string) => `/api/requests/${requestId}/children`,
   requestMove: (requestId: string) => `/api/requests/${requestId}/move`,
   requestSubtree: (requestId: string) => `/api/requests/${requestId}/subtree`,
-  requestDescendantsCount: (requestId: string) => `/api/requests/${requestId}/descendants/count`,
   REQUEST_CRITICAL_PATH: '/api/requests/critical-path',
   requestDependencies: (requestId: string) => `/api/requests/${requestId}/dependencies`,
   requestDependency: (requestId: string, dependencyId: string) =>
@@ -92,7 +87,6 @@ export const API_PATHS = {
   // Resources
   RESOURCES: '/api/resources',
   resource: (resourceId: string) => `/api/resources/${resourceId}`,
-  resourceUtilization: (resourceId: string) => `/api/resources/${resourceId}/utilization`,
   UTILIZATION_BY_RESOURCE: '/api/utilization/by-resource',
   resourceCandidateRequests: (resourceId: string) => `/api/resources/${resourceId}/candidate-requests`,
   resourceAssignments: (resourceId: string) => `/api/resources/${resourceId}/assignments`,
@@ -197,7 +191,6 @@ export const API_PATHS = {
     tenantMembers: (tenantId: string) => `/api/admin/tenants/${tenantId}/members`,
     tenantMember: (tenantId: string, userId: string) => `/api/admin/tenants/${tenantId}/members/${userId}`,
     user: (userId: string) => `/api/admin/users/${userId}`,
-    userMemberships: (userId: string) => `/api/admin/users/${userId}/memberships`,
     userDeactivate: (userId: string) => `/api/admin/users/${userId}/deactivate`,
     userReactivate: (userId: string) => `/api/admin/users/${userId}/reactivate`,
     userPromoteSiteAdmin: (userId: string) => `/api/admin/users/${userId}/promote-site-admin`,

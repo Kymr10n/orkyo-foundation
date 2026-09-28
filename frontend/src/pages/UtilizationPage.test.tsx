@@ -160,6 +160,10 @@ vi.mock("@foundation/src/hooks/useUtilization", () => ({
   useBacklogRequests: () => mockUseBacklog(),
   useUpdateRequest: vi.fn(() => ({ mutate: vi.fn() })),
   useScheduleRequest: vi.fn(() => ({ mutate: mockScheduleMutate, mutateAsync: mockScheduleMutateAsync })),
+}));
+
+vi.mock("@foundation/src/hooks/usePlaceableResources", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   usePlaceableResources: (arg?: any) => mockUseSpaces(arg),
 }));
 

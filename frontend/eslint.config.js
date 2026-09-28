@@ -3,7 +3,6 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import uiPrimitives from './eslint-rules/ui-primitives.js';
 
@@ -136,12 +135,8 @@ export default defineConfig(
     plugins: {
       react,
       'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
     },
     rules: {
-      // Foundation is a library — react-refresh rules don't apply but the plugin
-      // must be registered so inline disable comments in source files are valid.
-      'react-refresh/only-export-components': 'off',
       '@typescript-eslint/non-nullable-type-assertion-style': 'off',
       // react-hooks rules are listed one by one rather than spread from
       // `reactHooks.configs.recommended.rules`. The spread inherits whatever the installed

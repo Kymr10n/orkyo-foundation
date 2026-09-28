@@ -3,10 +3,6 @@ import { API_PATHS } from './api-paths';
 
 describe('api-paths', () => {
   describe('SESSION paths', () => {
-    it('has correct bootstrap path', () => {
-      expect(API_PATHS.SESSION.BOOTSTRAP).toBe('/api/session/bootstrap');
-    });
-
     it('has correct me path', () => {
       expect(API_PATHS.SESSION.ME).toBe('/api/session/me');
     });
@@ -66,15 +62,6 @@ describe('api-paths', () => {
 
     it('generates correct request schedule path', () => {
       expect(API_PATHS.requestSchedule('req-123')).toBe('/api/requests/req-123/schedule');
-    });
-
-    it('generates correct request requirements path', () => {
-      expect(API_PATHS.requestRequirements('req-123')).toBe('/api/requests/req-123/requirements');
-    });
-
-    it('generates correct request requirement path', () => {
-      expect(API_PATHS.requestRequirement('req-123', 'rreq-456'))
-        .toBe('/api/requests/req-123/requirements/rreq-456');
     });
   });
 
@@ -220,11 +207,6 @@ describe('api-paths', () => {
 
     it('generates correct requestSubtree path', () => {
       expect(API_PATHS.requestSubtree('req-1')).toBe('/api/requests/req-1/subtree');
-    });
-
-    it('generates correct requestDescendantsCount path', () => {
-      expect(API_PATHS.requestDescendantsCount('req-1'))
-        .toBe('/api/requests/req-1/descendants/count');
     });
   });
 

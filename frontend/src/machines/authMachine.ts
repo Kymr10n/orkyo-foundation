@@ -31,7 +31,6 @@
  *   USER_UPDATED        → profile update (display name, etc.)
  *   REFRESH             → force re-bootstrap
  *   UNAUTHORIZED        → 401 received from any API call
- *   SESSION_EXPIRED     → session timed out (semantic alias for UNAUTHORIZED)
  *   RETRY               → retry after error_backend / error_network
  */
 
@@ -80,7 +79,6 @@ export type AuthMachineEvent =
   | { type: typeof AUTH_EVENTS.USER_UPDATED; user: AppUser }
   | { type: typeof AUTH_EVENTS.REFRESH }
   | { type: typeof AUTH_EVENTS.UNAUTHORIZED }
-  | { type: typeof AUTH_EVENTS.SESSION_EXPIRED }
   | { type: typeof AUTH_EVENTS.REACTIVATE }
   | { type: typeof AUTH_EVENTS.RETRY };
 
@@ -329,10 +327,6 @@ export const authMachine = setup({
       const { logoutUrl } = (event as unknown as { output: { logoutUrl: string | null } }).output;
       window.location.href = logoutUrl ?? '/login';
     },
-
-    redirectToLoginFallback: () => {
-      window.location.href = '/login';
-    },
   },
 
   guards: {
@@ -453,7 +447,7 @@ export const authMachine = setup({
 
 
     // The three "signed in, but no workspace resolved" states below all accept
-    // UNAUTHORIZED / SESSION_EXPIRED. Without them a 401 raised while sitting on
+    // UNAUTHORIZED. Without it a 401 raised while sitting on
     // one of these screens is dropped silently and any guard showing a spinner
     // waits forever (#102). Same shape as `ready` — clear state, re-login.
     no_tenants: {
@@ -461,7 +455,6 @@ export const authMachine = setup({
         [AUTH_EVENTS.TENANT_CREATED]: { target: 'initializing' },
         [AUTH_EVENTS.LOGOUT]:         { target: 'logging_out' },
         [AUTH_EVENTS.UNAUTHORIZED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
-        [AUTH_EVENTS.SESSION_EXPIRED]: { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
       },
     },
 
@@ -474,7 +467,6 @@ export const authMachine = setup({
         [AUTH_EVENTS.REFRESH]: { target: 'initializing' },
         [AUTH_EVENTS.LOGOUT]:  { target: 'logging_out' },
         [AUTH_EVENTS.UNAUTHORIZED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
-        [AUTH_EVENTS.SESSION_EXPIRED]: { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
       },
     },
 
@@ -492,7 +484,6 @@ export const authMachine = setup({
         [AUTH_EVENTS.REFRESH]:    { target: 'initializing' },
         [AUTH_EVENTS.LOGOUT]:     { target: 'logging_out' },
         [AUTH_EVENTS.UNAUTHORIZED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
-        [AUTH_EVENTS.SESSION_EXPIRED]: { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
       },
     },
 
@@ -520,11 +511,9 @@ export const authMachine = setup({
       entry: ['clearSession', 'clearStorage'],
       invoke: {
         src: 'performLogout',
+        // performLogout only builds a URL, so it cannot reject; there is no onError.
         onDone: {
           actions: 'redirectAfterLogout',
-        },
-        onError: {
-          actions: 'redirectToLoginFallback',
         },
       },
     },
@@ -534,7 +523,6 @@ export const authMachine = setup({
       on: {
         [AUTH_EVENTS.LOGOUT]:             { target: 'logging_out' },
         [AUTH_EVENTS.UNAUTHORIZED]:       { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
-        [AUTH_EVENTS.SESSION_EXPIRED]:    { target: 'redirecting_login', actions: ['clearSession', 'clearStorage'] },
         [AUTH_EVENTS.REFRESH]:            { target: 'initializing' },
         // Tenant switch or break-glass enter — caller handles navigation after
         [AUTH_EVENTS.MEMBERSHIP_SET]:     { actions: ['persistMembership', 'assignSelectedMembership'] },

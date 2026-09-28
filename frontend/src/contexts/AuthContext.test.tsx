@@ -23,7 +23,6 @@ import { getCurrentSubdomain, consumeBreakGlassCookie } from "@foundation/src/li
 vi.mock("@foundation/src/config/runtime", () => ({
   runtimeConfig: {
     apiBaseUrl: "http://localhost:5000",
-    defaultTenant: "",
     baseDomain: "",
     isDev: true,
   },

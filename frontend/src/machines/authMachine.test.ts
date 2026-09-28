@@ -55,7 +55,6 @@ vi.mock('@foundation/src/constants/auth', () => ({
     USER_UPDATED: 'USER_UPDATED',
     REFRESH: 'REFRESH',
     UNAUTHORIZED: 'UNAUTHORIZED',
-    SESSION_EXPIRED: 'SESSION_EXPIRED',
     REACTIVATE: 'REACTIVATE',
     RETRY: 'RETRY',
   },
@@ -508,7 +507,7 @@ describe('authMachine', () => {
 // RequireAuth (and api-utils on a 401) send these while the user sits on one of
 // the "signed in but no workspace resolved" screens. Before the fix only `ready`
 // handled them, so the event vanished and any spinner waited forever.
-describe('authMachine — UNAUTHORIZED / SESSION_EXPIRED are never dropped', () => {
+describe('authMachine — UNAUTHORIZED is never dropped', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setLocation({ pathname: '/about' });
@@ -547,7 +546,7 @@ describe('authMachine — UNAUTHORIZED / SESSION_EXPIRED are never dropped', () 
   ];
 
   for (const { state, output } of cases) {
-    for (const event of ['UNAUTHORIZED', 'SESSION_EXPIRED'] as const) {
+    for (const event of ['UNAUTHORIZED'] as const) {
       it(`${state} handles ${event} → redirecting_login`, async () => {
         mockGetCurrentSubdomain.mockReturnValue('demo');
         const actor = createActor(machineWithOutput(output));

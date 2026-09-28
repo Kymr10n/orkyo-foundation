@@ -27,8 +27,8 @@ import { getPlacementResourceId, getTargetResourceTypeKeys } from "@foundation/s
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import { useNow } from "@foundation/src/hooks/useNow";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
-import { useScheduledRequests, useBacklogRequests, useScheduleRequest, usePlaceableResources } from "@foundation/src/hooks/useUtilization";
-import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
+import { useScheduledRequests, useBacklogRequests, useScheduleRequest } from "@foundation/src/hooks/useUtilization";
+import { usePlaceableResources, usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { generateTimeColumns, getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
 import { useCalendarFeedHandler, useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
