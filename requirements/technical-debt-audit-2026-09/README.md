@@ -79,7 +79,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S7 | B4 | todo | |
 | S8 | B6 | todo | |
 | S9 | B6 | todo | |
-| S10 | B1a | in-progress |  |
+| S10 | B1a | done | Email-match branch of `LinkIdentityAsync` refuses unless `token.EmailVerified` (`email_not_verified`, checked before the status check); already-linked and self-registration paths unchanged. All call sites (foundation x3, saas demo, community JIT) build the token via `ToExternalIdentityToken`, which carries the claim. Added the `email_not_verified` login message to `AUTH_ERROR_MESSAGES` so the BFF redirect does not fall to the generic retry text |
 | S11 | B1b | todo | |
 | S12 | B1b | todo | |
 | S13 | B1a | todo | |

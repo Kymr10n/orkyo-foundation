@@ -136,6 +136,10 @@ export const AUTH_ERROR_MESSAGES = {
     'Access to Orkyo is currently by invitation only. If your organisation is taking part in the early-access programme, ask your administrator to invite this address — or apply at orkyo.com/design-partners.',
   account_inactive:
     'This account is not active. Please contact your administrator.',
+  // The identity provider has not verified this address, so it cannot be matched to an
+  // existing (invited) account. Retrying cannot help until the address is verified.
+  email_not_verified:
+    'Your email address is not verified yet. Verify it with your sign-in provider, then sign in again.',
   // Emitted by the SaaS demo-login endpoint when the demo is disabled or Keycloak is
   // unreachable. Without an entry here it fell through to DEFAULT ("Sign-in failed"), which
   // tells a demo visitor — who was never signing in — nothing useful.

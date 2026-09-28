@@ -123,6 +123,30 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
     }
 
     [Fact]
+    public async Task LinkIdentity_MatchByEmail_RefusesAnUnverifiedAddress_AndLinksNothing()
+    {
+        // A Keycloak account that merely claims the victim's address must not take over the
+        // victim's (invited or existing) Orkyo account.
+        var service = BuildService();
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+        await CreateUserAsync(email, displayName: "Victim", status: "active");
+
+        var result = await service.LinkIdentityAsync(new ExternalIdentityToken
+        {
+            Provider = AuthProvider.Keycloak,
+            Subject = subject,
+            Email = email,
+            EmailVerified = false,
+            DisplayName = "Attacker",
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.EmailNotVerified);
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task LinkIdentity_MatchByEmail_RejectsInactiveUser()
     {
         var service = BuildService();

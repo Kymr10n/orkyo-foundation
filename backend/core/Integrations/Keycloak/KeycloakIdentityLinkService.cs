@@ -110,6 +110,19 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
             await emailReader.CloseAsync();
 
+            // Matching by address hands this identity an existing account, so the address must
+            // be proven. An unverified claim would let anyone who can register (or federate)
+            // the victim's address in Keycloak take over the invited or existing account.
+            if (!token.EmailVerified)
+            {
+                _logger.LogWarning(
+                    "Refused to link Keycloak identity {Subject} to user {UserId}: email not verified",
+                    token.Subject, userId);
+                return IdentityLinkResult.Failed(
+                    "Verify your email address before signing in.",
+                    ApiErrorCodes.Auth.EmailNotVerified);
+            }
+
             if (status != UserStatusConstants.Active)
             {
                 return IdentityLinkResult.Failed(
