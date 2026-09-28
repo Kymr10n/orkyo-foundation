@@ -481,8 +481,8 @@ export function SpaceManagementPanel({
               onSpaceClick={setSelectedResourceId}
               onSpaceDoubleClick={canEdit && !isPhone ? handleEditSpaceById : undefined}
           onSpaceContextMenu={canEdit && !isPhone ? handleSpaceContextMenu : undefined}
-              onSpaceMove={canEdit && !isPhone ? handleMoveSpace : undefined}
-              onSpaceResize={canEdit && !isPhone ? handleResizeSpace : undefined}
+              onSpaceMove={canEdit && !isPhone ? (id, geometry) => void handleMoveSpace(id, geometry) : undefined}
+              onSpaceResize={canEdit && !isPhone ? (id, geometry) => void handleResizeSpace(id, geometry) : undefined}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground">
@@ -524,7 +524,7 @@ export function SpaceManagementPanel({
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={handleDuplicateSpace}>
+              <DropdownMenuItem onSelect={() => void handleDuplicateSpace()}>
                 <Copy className="mr-2 h-4 w-4" />
                 Duplicate
               </DropdownMenuItem>

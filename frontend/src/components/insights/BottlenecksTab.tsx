@@ -119,7 +119,7 @@ export function BottlenecksTab() {
             <CriticalPathBody
               nodes={criticalPath.data?.nodes ?? []}
               diagnostics={criticalPath.data?.diagnostics ?? []}
-              onOpenRequest={openRequest}
+              onOpenRequest={(id) => void openRequest(id)}
             />
           )}
         </CardContent>

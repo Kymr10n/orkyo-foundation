@@ -22,7 +22,7 @@ export function MessagesPage() {
         title="Messages"
         description="Stay up to date with platform news"
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="sm" onClick={() => void navigate(-1)}>
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>

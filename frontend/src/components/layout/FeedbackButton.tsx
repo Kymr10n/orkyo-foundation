@@ -184,7 +184,7 @@ export function FeedbackButton() {
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} loading={isSubmitting} disabled={isSubmitting}>
+              <Button onClick={() => void handleSubmit()} loading={isSubmitting} disabled={isSubmitting}>
                 Submit
               </Button>
             </DialogFooter>

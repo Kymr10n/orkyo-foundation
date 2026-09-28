@@ -64,7 +64,7 @@ export function TenantSuspendedPage() {
 
         {canReactivate && (
           <>
-            <Button onClick={handleReactivate} disabled={reactivating}>
+            <Button onClick={() => void handleReactivate()} disabled={reactivating}>
               <RefreshCw className={`mr-2 h-4 w-4 ${reactivating ? 'animate-spin' : ''}`} />
               {reactivating
                 ? isDeleting ? 'Restoring…' : 'Reactivating…'

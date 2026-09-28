@@ -225,7 +225,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         setSelectedSiteId(result.siteId);
       }
 
-      setTimeout(() => navigate(editPathForResult(result, resourceTypes)), 0);
+      setTimeout(() => void navigate(editPathForResult(result, resourceTypes)), 0);
     },
     [navigate, onOpenChange, selectedSiteId, setSelectedSiteId, resourceTypes]
   );

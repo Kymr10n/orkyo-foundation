@@ -44,7 +44,7 @@ export function useGroupCapabilitiesData(groupId: string, open: boolean) {
       }
     };
 
-    loadData();
+    void loadData();
   }, [open, groupId]);
 
   return { criteria, initialAssignments, isLoading, loadError };

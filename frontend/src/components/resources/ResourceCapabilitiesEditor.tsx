@@ -140,7 +140,7 @@ export function ResourceCapabilitiesEditor({
         criterion={null}
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onSaved={handleCriterionCreated}
+        onSaved={(criterion) => void handleCriterionCreated(criterion)}
         defaultResourceType={resourceTypeKey}
       />
     </>

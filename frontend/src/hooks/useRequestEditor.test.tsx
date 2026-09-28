@@ -23,7 +23,7 @@ vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
     open ? (
       <div data-testid="form-dialog">
         {/* The real dialog catches a rejected save and shows it inline. */}
-        <button data-testid="save-btn" onClick={() => Promise.resolve(onSave(mockFormData)).catch(() => {})}>Save</button>
+        <button data-testid="save-btn" onClick={() => { void Promise.resolve(onSave(mockFormData)).catch(() => {}); }}>Save</button>
         <button data-testid="close-edit-btn" onClick={() => onOpenChange(false)}>Cancel</button>
       </div>
     ) : null,

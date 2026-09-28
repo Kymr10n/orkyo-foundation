@@ -174,8 +174,6 @@ export default defineConfig(
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_',
       }],
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
       '@typescript-eslint/prefer-nullish-coalescing': 'off',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
@@ -382,20 +380,12 @@ export default defineConfig(
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unnecessary-condition': 'off',
       // Tests may mirror production date formatting to build expected values.
       'no-restricted-syntax': 'off',
       'no-restricted-properties': 'off',
       // Tests may stub dialogs and mirror native prompts freely.
       'no-restricted-imports': 'off',
       'no-restricted-globals': 'off',
-      'no-console': 'off',
     },
   },
 );

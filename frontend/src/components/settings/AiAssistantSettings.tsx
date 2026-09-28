@@ -101,7 +101,12 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
   };
 
   const handleTest = async () => {
-    const result = await testCredential.mutateAsync();
+    let result;
+    try {
+      result = await testCredential.mutateAsync();
+    } catch {
+      return; /* toasted by the MutationCache */
+    }
     if (result.ok) {
       toast.success("The key works.");
       return;
@@ -155,7 +160,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleTest}
+                  onClick={() => void handleTest()}
                   loading={testCredential.isPending}
                 >
                   {!testCredential.isPending && <Check className="h-4 w-4" />}
@@ -193,7 +198,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
-            <Button onClick={handleSave} disabled={!apiKey.trim()} loading={saveCredential.isPending}>
+            <Button onClick={() => void handleSave()} disabled={!apiKey.trim()} loading={saveCredential.isPending}>
               Save
             </Button>
           </div>
@@ -353,7 +358,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
         </div>
       </div>
 
-      <Button onClick={handleSave} loading={save.isPending}>
+      <Button onClick={() => void handleSave()} loading={save.isPending}>
         Save limits
       </Button>
     </div>
@@ -429,14 +434,14 @@ function AllowanceRow({ row }: { row: AiUserAllowance }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
-        <Button size="sm" variant="outline" onClick={handleGrant} disabled={save.isPending}>
+        <Button size="sm" variant="outline" onClick={() => void handleGrant()} disabled={save.isPending}>
           {row.granted ? "Update" : "Grant"}
         </Button>
         {row.granted && (
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleRevoke}
+            onClick={() => void handleRevoke()}
             disabled={revoke.isPending}
             aria-label={`Remove assistant access for ${row.displayName || row.email || "this member"}`}
           >

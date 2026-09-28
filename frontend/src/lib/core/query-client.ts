@@ -54,7 +54,7 @@ export function createFeedbackMutationCache(
     onSuccess: (data, vars, _ctx, mutation) => {
       const meta = mutation.meta;
       meta?.invalidates?.forEach((queryKey) => {
-        getClient().invalidateQueries({ queryKey, exact: false });
+        void getClient().invalidateQueries({ queryKey, exact: false });
       });
       const successMessage =
         typeof meta?.successMessage === 'function'

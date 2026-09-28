@@ -141,7 +141,7 @@ export function PresetSettings() {
             ref={fileInputRef}
             accept=".json"
             className="hidden"
-            onChange={handleFileSelect}
+            onChange={(e) => void handleFileSelect(e)}
           />
           <Button onClick={() => fileInputRef.current?.click()}>
             <Upload className="mr-2 h-4 w-4" />

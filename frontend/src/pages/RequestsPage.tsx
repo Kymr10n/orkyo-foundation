@@ -302,7 +302,7 @@ export function RequestsPage() {
   // The planner is a route, so the row action navigates rather than opening a dialog. Same
   // destination the editor's Children tab uses — one planner, two ways in.
   const handleOpenPlan = useCallback((request: Request) => {
-    navigate(`/requests/${request.id}/plan`);
+    void navigate(`/requests/${request.id}/plan`);
   }, [navigate]);
 
   const handleSelect = useCallback((id: string) => {
@@ -346,7 +346,7 @@ export function RequestsPage() {
         params.set("conflictId", targetConflictId);
       }
 
-      navigate(`/insights/conflicts?${params.toString()}`);
+      void navigate(`/insights/conflicts?${params.toString()}`);
     },
     [navigate, requests, childrenById, storeConflicts],
   );
@@ -527,7 +527,7 @@ export function RequestsPage() {
               <div className="text-destructive mb-4">⚠️</div>
               <h3 className="text-lg font-medium mb-2">Error loading requests</h3>
               <p className="text-muted-foreground mb-4">{errorMessage}</p>
-              <Button onClick={() => refetchRequests()} variant="outline">Try again</Button>
+              <Button onClick={() => void refetchRequests()} variant="outline">Try again</Button>
             </div>
           ) : isEmpty ? (
             <div className="flex h-full flex-col items-center justify-center p-12">
@@ -607,7 +607,7 @@ export function RequestsPage() {
         defaultPlanningMode={dialog?.kind === "create" ? dialog.defaultMode : undefined}
         allRequests={requests}
         onNavigate={handleDialogNavigate}
-        onOpenPlan={(id) => navigate(`/requests/${id}/plan`)}
+        onOpenPlan={(id) => void navigate(`/requests/${id}/plan`)}
         onSave={handleSaveRequest}
       />
 

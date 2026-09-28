@@ -104,6 +104,17 @@ describe('CopyButton', () => {
     expect(await screen.findByText('Copied')).toBeInTheDocument();
   });
 
+  it('says so when the browser refuses the copy', async () => {
+    setClipboard({ writeText: vi.fn().mockRejectedValue(new Error('NotAllowedError')) });
+
+    render(<CopyButton text="orkyo_api_secret" />);
+    await userEvent.click(screen.getByRole('button', { name: /Copy/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not copy — copy the token manually'));
+    expect(screen.queryByText('Copied')).not.toBeInTheDocument();
+  });
+
   it('says so instead of failing silently when the clipboard is unavailable', async () => {
     // Community self-hosts may be reached over plain HTTP on a LAN, where the clipboard API is
     // not exposed. The token is still on screen, so the user can copy it by hand.

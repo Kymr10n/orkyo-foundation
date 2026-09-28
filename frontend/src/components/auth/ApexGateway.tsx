@@ -175,7 +175,7 @@ function ApexGatewayInner({
               send({ type: AUTH_EVENTS.TENANT_SELECTED, membership }),
             onCancel: () => send({ type: AUTH_EVENTS.LOGOUT }),
             onAdminPage: canAccessAdminPage && renderAdminPage
-              ? () => navigate(ROUTE_SITE_ADMIN)
+              ? () => void navigate(ROUTE_SITE_ADMIN)
               : undefined,
           })}</>
         : <LoadingSpinner message={AUTH_MESSAGES.LOADING} />;

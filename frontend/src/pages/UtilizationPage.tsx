@@ -490,13 +490,18 @@ export function UtilizationPage() {
     }
     const endTs = new Date(startTs.getTime() + durationMs);
 
-    await scheduleMutation.mutateAsync({
-      requestId: draggedData.id,
-      data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
-      // Client-side only: the optimistic bar must be tagged with the row's real type, or it
-      // would vanish on refetch for any placeable type other than space.
-      resourceTypeKey: spaces.find((r) => r.id === resourceId)?.resourceTypeKey,
-    });
+    try {
+      await scheduleMutation.mutateAsync({
+        requestId: draggedData.id,
+        data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
+        // Client-side only: the optimistic bar must be tagged with the row's real type, or it
+        // would vanish on refetch for any placeable type other than space.
+        resourceTypeKey: spaces.find((r) => r.id === resourceId)?.resourceTypeKey,
+      });
+    } catch {
+      // The mutation's onError has rolled the bar back and toasted the failure.
+      return;
+    }
 
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to resource "${resourceId}"`);
   }, [scheduleMutation, spaces]);
@@ -676,7 +681,7 @@ export function UtilizationPage() {
     <>
       {autoSchedule.available && canEdit && !isRequestCentricTab && (
         <AutoScheduleButton
-          onClick={autoSchedule.start}
+          onClick={() => void autoSchedule.start()}
           loading={autoSchedule.isPreviewing}
           disabled={!selectedSiteId}
         />
@@ -750,7 +755,7 @@ export function UtilizationPage() {
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            onDragEnd={(event) => void handleDragEnd(event)}
             onDragCancel={() => setActiveDragRequest(null)}
             collisionDetection={collisionDetection}
           >
@@ -933,8 +938,8 @@ export function UtilizationPage() {
               workingDayEnd={schedulingSettings?.workingDayEnd}
               // The deep link, not the page's in-memory lookup: the canvas shows tasks from any
               // point in time, and the page's feeds only hold the visible window plus backlog.
-              onOpenRequest={(id) => navigate(`/requests?edit=${id}`)}
-              onOpenGroupPlanner={(groupId) => navigate(`/requests/${groupId}/plan`)}
+              onOpenRequest={(id) => void navigate(`/requests?edit=${id}`)}
+              onOpenGroupPlanner={(groupId) => void navigate(`/requests/${groupId}/plan`)}
             />
           </div>
         </TabsContent>

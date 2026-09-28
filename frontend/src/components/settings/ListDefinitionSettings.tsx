@@ -101,7 +101,7 @@ export function ListDefinitionSettings() {
         data={definitions}
         isLoading={isLoading}
         error={errorMsg}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage="No list definitions yet."
         renderCard={(definition) => (
           <div className="flex items-start justify-between gap-2">

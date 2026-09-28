@@ -104,7 +104,7 @@ export function RequestChildrenSection({
             type="button"
             size="sm"
             disabled={!newChildName.trim() || isAddingChild}
-            onClick={handleAddChild}
+            onClick={() => void handleAddChild()}
             data-testid="add-child-btn"
           >
             <Plus className="h-4 w-4 mr-1" />
@@ -195,7 +195,7 @@ export function RequestChildrenSection({
                   type="button"
                   size="sm"
                   disabled={addExistingSelected.size === 0 || isAddingExisting}
-                  onClick={handleAddExisting}
+                  onClick={() => void handleAddExisting()}
                   data-testid="add-existing-confirm"
                 >
                   Add {addExistingSelected.size > 0 ? addExistingSelected.size : ''}
@@ -294,7 +294,7 @@ export function RequestChildrenSection({
                     variant="ghost"
                     size="sm"
                     aria-label={`Remove ${child.name} from group`}
-                    onClick={() => handleRemoveChild(child)}
+                    onClick={() => void handleRemoveChild(child)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

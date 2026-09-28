@@ -250,7 +250,7 @@ export function SpreadsheetImportWizard({
       <DialogFooter className="px-6 pb-6">
         {step.kind === 'pick' && available && (
           <Button
-            onClick={analyze}
+            onClick={() => void analyze()}
             disabled={!file || !effectiveSiteId || !workstationTypeKey}
             loading={busy}
           >
@@ -263,7 +263,7 @@ export function SpreadsheetImportWizard({
               Back
             </Button>
             <Button
-              onClick={() => commit(step.parsed, step.existingCodes)}
+              onClick={() => void commit(step.parsed, step.existingCodes)}
               disabled={step.parsed.workstations.length === 0 && step.parsed.jobs.length === 0}
             >
               Import

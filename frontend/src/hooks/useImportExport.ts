@@ -152,6 +152,6 @@ export function useImportHandler<T = void>(
  * there is no `meta` to carry the invalidation. It runs after a partial failure too — whatever
  * was written before the error is real, and the screen has to show it.
  */
-export function useInvalidateImportedData(): () => void {
+export function useInvalidateImportedData(): () => Promise<void> {
   return useInvalidateKeys(qk.resources.all(), ...REQUEST_DERIVED_QUERY_KEYS);
 }

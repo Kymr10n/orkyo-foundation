@@ -125,7 +125,7 @@ export function RequestPeopleSection({
 
     if (!updatedRow.resourceId || !requestStartTs || !requestEndTs) return;
 
-    const t = setTimeout(async () => {
+    const validate = async () => {
       updatePendingRow(row.key, { validating: true, validationResult: null });
       try {
         // requestId omitted when creating a new request — the backend validator
@@ -142,7 +142,8 @@ export function RequestPeopleSection({
       } catch {
         updatePendingRow(row.key, { validating: false, validationResult: null });
       }
-    }, 400);
+    };
+    const t = setTimeout(() => void validate(), 400);
 
     debounceTimers.current.set(row.key, t);
   };
@@ -233,7 +234,7 @@ export function RequestPeopleSection({
                     variant="ghost"
                     size="sm"
                     aria-label="Remove assignment"
-                    onClick={() => handleRemoveAssignment(a.id)}
+                    onClick={() => void handleRemoveAssignment(a.id)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -349,7 +350,7 @@ export function RequestPeopleSection({
                     !!(row.validationResult && hardBlockers(row.validationResult).length > 0)
                   }
                   data-testid="save-row-btn"
-                  onClick={() => handleSaveRow(row.key)}
+                  onClick={() => void handleSaveRow(row.key)}
                 >
                   {row.saving ? 'Saving…' : 'Add'}
                 </Button>

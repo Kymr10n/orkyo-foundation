@@ -100,6 +100,21 @@ describe('ListRowsEditor', () => {
     expect(createListRow).toHaveBeenCalledWith('created-1', { values: { note: 'first' } });
   });
 
+  it('does not open the dialog when the instance cannot be created', async () => {
+    // The mutation's meta toasts the failure; the rejection must not escape the click handler.
+    const ensureInstanceId = vi.fn().mockRejectedValue(new Error('boom'));
+    getListRows.mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    renderEditor({ instanceId: null, ensureInstanceId });
+
+    await user.click(screen.getByRole('button', { name: /add row/i }));
+
+    await waitFor(() => expect(ensureInstanceId).toHaveBeenCalledTimes(1));
+    expect(screen.queryByLabelText('Note')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add row/i })).toBeEnabled();
+  });
+
   it('does not create an instance when one already exists', async () => {
     const ensureInstanceId = vi.fn();
     const user = userEvent.setup();

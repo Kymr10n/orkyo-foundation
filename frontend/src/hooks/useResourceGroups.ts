@@ -167,7 +167,7 @@ export function useResourceGroupMembershipRoster(
         if (!cancelled) setIsLoading(false);
       }
     };
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [open, groupId, resourceTypeKey, singleGroup]);
 

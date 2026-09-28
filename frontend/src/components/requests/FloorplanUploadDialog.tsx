@@ -221,7 +221,7 @@ export function FloorplanUploadDialog({
             <Button variant="outline" onClick={handleCancel} disabled={uploading}>
               Cancel
             </Button>
-            <Button onClick={handleUpload} disabled={!selectedFile || uploading || !canEdit}>
+            <Button onClick={() => void handleUpload()} disabled={!selectedFile || uploading || !canEdit}>
               <Upload className="h-4 w-4 mr-2" />
               {uploading ? 'Uploading…' : 'Upload'}
             </Button>

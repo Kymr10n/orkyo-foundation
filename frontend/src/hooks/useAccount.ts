@@ -72,7 +72,7 @@ export const useTenantMemberships = () => {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    reload();
+    void reload();
   }, [reload]);
 
   return { memberships, loading, error, setError, reload };

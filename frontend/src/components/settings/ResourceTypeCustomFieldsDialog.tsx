@@ -144,7 +144,7 @@ export function ResourceTypeCustomFieldsDialog({
             data={fields}
             isLoading={isLoading}
             error={errorMsg}
-            onRetry={() => refetch()}
+            onRetry={() => void refetch()}
             emptyMessage="No custom fields yet."
             renderCard={renderCard}
           />

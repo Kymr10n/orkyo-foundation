@@ -44,7 +44,7 @@ export function InsightsPage() {
       <div className="mb-4">
         <InsightsFilters range={range} onRangeChange={setRange} bucket={bucket} onBucketChange={setBucket} />
       </div>
-      <PageTabs tabs={TABS} value={active} onChange={(v) => navigate(`/insights/${v}`)}>
+      <PageTabs tabs={TABS} value={active} onChange={(v) => void navigate(`/insights/${v}`)}>
         <Outlet context={ctx} />
       </PageTabs>
     </PageLayout>

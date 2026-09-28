@@ -111,7 +111,7 @@ export function ImportExportDialog({
     }
   };
 
-  const handleImport = async () => {
+  const handleImport = () => {
     if (onImport && selectedFile && importFormat) {
       onImport(selectedFile, importFormat);
       setSelectedFile(null);

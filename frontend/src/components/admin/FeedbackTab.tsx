@@ -142,7 +142,7 @@ export function FeedbackTab() {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={(e) => { e.stopPropagation(); openDetail(row.original.id); }}
+            onClick={(e) => { e.stopPropagation(); void openDetail(row.original.id); }}
             aria-label={`Review ${row.original.title}`}
           >
             <Eye className="h-4 w-4" />
@@ -172,7 +172,7 @@ export function FeedbackTab() {
         variant="ghost"
         size="icon"
         className="h-8 w-8 shrink-0"
-        onClick={(e) => { e.stopPropagation(); openDetail(item.id); }}
+        onClick={(e) => { e.stopPropagation(); void openDetail(item.id); }}
         aria-label={`Review ${item.title}`}
       >
         <Eye className="h-4 w-4" />
@@ -219,7 +219,7 @@ export function FeedbackTab() {
             columns={columns}
             data={items}
             error={error}
-            onRetry={() => feedbackList.refetch()}
+            onRetry={() => void feedbackList.refetch()}
             emptyMessage="No feedback yet."
             renderCard={renderCard}
           />

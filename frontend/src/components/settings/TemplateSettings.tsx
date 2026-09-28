@@ -205,7 +205,7 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         columns={columns}
         data={templates}
         error={error ? error.message || "Failed to load templates" : null}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage={templates.length === 0 ? "No request templates defined yet" : undefined}
         emptyAction={
           templates.length === 0 && (

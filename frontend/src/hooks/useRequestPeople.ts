@@ -59,7 +59,7 @@ export function useRequestPeople(requestId: string | undefined): UseRequestPeopl
         if (!cancelled) setIsLoading(false);
       }
     };
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [requestId]);
 

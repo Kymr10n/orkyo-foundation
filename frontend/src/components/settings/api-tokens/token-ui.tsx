@@ -139,10 +139,14 @@ export function CopyButton({ text }: { text: string }) {
       toast.error("Clipboard unavailable — copy the token manually");
       return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      // The browser can refuse (permission denied, document not focused).
+      () => toast.error("Could not copy — copy the token manually"),
+    );
   }
 
   return (

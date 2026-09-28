@@ -60,7 +60,7 @@ export function useDeleteAiCredential() {
 export function useTestAiCredential() {
   return useMutation({
     mutationFn: testAiCredential,
-    meta: { invalidates: [qk.ai.credential()] },
+    meta: { errorMessage: "Could not test the key", invalidates: [qk.ai.credential()] },
   });
 }
 

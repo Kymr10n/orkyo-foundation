@@ -62,7 +62,7 @@ export function ResourceStatusSheet() {
   const edit = () => {
     if (!status || !type) return;
     close();
-    navigate(`${typeRoute(type)}?edit=${status.resourceId}`);
+    void navigate(`${typeRoute(type)}?edit=${status.resourceId}`);
   };
 
   return (

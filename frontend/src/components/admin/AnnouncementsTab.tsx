@@ -225,7 +225,7 @@ export function AnnouncementsTab() {
             columns={columns}
             data={announcements}
             error={loadError ? loadError.message || 'Failed to load announcements' : null}
-            onRetry={() => refetch()}
+            onRetry={() => void refetch()}
             emptyMessage="No announcements yet. Create one to get started."
             renderCard={renderCard}
           />

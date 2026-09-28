@@ -203,7 +203,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
     }
     if (current?.path && navigatedForStep.current !== step) {
       navigatedForStep.current = step;
-      navigate(current.path);
+      void navigate(current.path);
     }
   }, [open, step, current?.path, navigate]);
 
@@ -232,7 +232,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={handleClose}
+          onClick={() => void handleClose()}
           aria-label="Close tour"
         >
           <X className="h-4 w-4" />
@@ -276,7 +276,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
           Back
         </Button>
         {isLast ? (
-          <Button size="sm" onClick={handleClose}>
+          <Button size="sm" onClick={() => void handleClose()}>
             <X className="h-4 w-4 mr-1" />
             Done
           </Button>

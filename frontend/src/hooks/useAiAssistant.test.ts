@@ -11,6 +11,7 @@ import {
   useSaveAiAllowance,
   useSaveAiCredential,
   useSaveAiDailyLimits,
+  useTestAiCredential,
 } from './useAiAssistant';
 import * as aiApi from '@foundation/src/lib/api/ai-api';
 
@@ -61,6 +62,16 @@ describe('useAiAssistant mutation feedback', () => {
       expect(toast.error).toHaveBeenCalledWith('Could not save the daily limits', expect.anything()),
     );
     expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it('toasts a failed key test from meta', async () => {
+    vi.mocked(aiApi.testAiCredential).mockRejectedValue(new Error('offline'));
+    const { result } = renderHook(() => useTestAiCredential(), { wrapper: createTestQueryWrapper({ feedback: true }) });
+
+    await expect(result.current.mutateAsync()).rejects.toThrow('offline');
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not test the key', { description: 'offline' }));
   });
 
   it('save credential toasts its success message from meta', async () => {

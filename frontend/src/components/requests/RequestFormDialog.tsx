@@ -128,7 +128,7 @@ export function RequestFormDialog(props: RequestFormDialogProps) {
         <ConflictBanner conflicts={conflicts} />
 
         <form
-          onSubmit={handleSubmit}
+          onSubmit={(e) => void handleSubmit(e)}
           onInput={() => setIsDirty(true)}
           onChange={() => setIsDirty(true)}
           className="flex flex-col flex-1 min-h-0"

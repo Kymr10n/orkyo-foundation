@@ -129,7 +129,7 @@ export function RequestAccessPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name (optional)</Label>
             <Input

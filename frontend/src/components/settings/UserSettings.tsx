@@ -403,8 +403,8 @@ export function UserSettings() {
           data={users}
           error={error ? error.message || "Failed to load users" : null}
           onRetry={() => {
-            refetchUsers();
-            refetchInvitations();
+            void refetchUsers();
+            void refetchInvitations();
           }}
           emptyMessage={users.length === 0 ? "No users yet" : undefined}
           emptyAction={

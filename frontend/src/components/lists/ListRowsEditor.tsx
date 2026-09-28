@@ -79,6 +79,9 @@ export function ListRowsEditor({
       setIsPreparing(true);
       try {
         setCreatedInstanceId(await ensureInstanceId());
+      } catch {
+        // The mutation's meta has toasted the failure; there is no list to add a row to.
+        return;
       } finally {
         setIsPreparing(false);
       }
@@ -139,7 +142,7 @@ export function ListRowsEditor({
         <div className="flex items-center justify-end gap-2">
           {toolbar}
           {!readOnly && (
-            <Button type="button" onClick={openAddDialog} disabled={isPreparing}>
+            <Button type="button" onClick={() => void openAddDialog()} disabled={isPreparing}>
               <Plus className="mr-2 h-4 w-4" />
               Add {entityLabel}
             </Button>

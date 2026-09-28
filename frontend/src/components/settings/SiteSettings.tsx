@@ -185,7 +185,7 @@ export function SiteSettings() {
         columns={columns}
         data={sites}
         error={error ? error.message || "Failed to load sites" : null}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage={sites.length === 0 ? "No sites defined yet" : undefined}
         emptyAction={
           sites.length === 0 && (

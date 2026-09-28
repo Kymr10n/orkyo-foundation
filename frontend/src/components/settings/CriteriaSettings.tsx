@@ -246,7 +246,7 @@ export function CriteriaSettings() {
         columns={columns}
         data={criteria}
         error={error ? error.message || 'Failed to load criteria' : null}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage={criteria.length === 0 ? 'No criteria defined yet' : 'No criteria match your search.'}
         emptyAction={
           criteria.length === 0 && (

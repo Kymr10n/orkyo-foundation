@@ -138,7 +138,7 @@ export function TosPage({ onAccept, onCancel, tosVersion, tosText }: TosPageProp
             Cancel
           </Button>
           <Button
-            onClick={handleAccept}
+            onClick={() => void handleAccept()}
             loading={submitting}
             disabled={!accepted || submitting}
           >

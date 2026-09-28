@@ -217,7 +217,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleCancelDeletion(t.tenantId)}
+                    onClick={() => void handleCancelDeletion(t.tenantId)}
                     loading={restoringId === t.tenantId}
                     disabled={restoringId === t.tenantId}
                   >
@@ -357,7 +357,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button onClick={handleCreateTenant} loading={submitting} disabled={submitting} className="flex-1">
+                <Button onClick={() => void handleCreateTenant()} loading={submitting} disabled={submitting} className="flex-1">
                   {submitting ? "Creating organization…" : "Create"}
                 </Button>
               </div>

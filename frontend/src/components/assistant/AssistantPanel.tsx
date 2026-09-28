@@ -270,8 +270,8 @@ export function AssistantPanel({
               proposal={proposal}
               canApply={canEdit && proposalCanApply}
               isApplying={applying}
-              onApply={conversation.applyProposal}
-              onDecline={conversation.declineProposal}
+              onApply={() => void conversation.applyProposal()}
+              onDecline={() => void conversation.declineProposal()}
             />
           )}
 

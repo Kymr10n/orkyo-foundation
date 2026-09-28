@@ -191,7 +191,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     if (message.kind === "success") {
       toast.success(message.title, { id: `email-change-${status}` });
       // Refetch profile so the email field on this page reflects the new address.
-      invalidateUserProfile();
+      void invalidateUserProfile();
     } else {
       toast.error(message.title, {
         id: `email-change-${status}`,
@@ -247,7 +247,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       isTenantAdmin: membership.role === TENANT_ROLE.Admin,
       isOwner: membership.isOwner,
     });
-    navigate("/", { replace: true });
+    void navigate("/", { replace: true });
   };
 
   const runTenantAction = async (action: (tenantId: string) => Promise<void>, label: string) => {
@@ -290,7 +290,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         title="Account"
         description="Manage your profile, organizations, and security."
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="sm" onClick={() => void navigate(-1)}>
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>

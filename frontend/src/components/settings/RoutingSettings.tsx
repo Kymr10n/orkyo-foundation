@@ -127,7 +127,7 @@ export function RoutingSettings() {
         columns={columns}
         data={routings}
         error={error ? error.message || "Failed to load routings" : null}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage={routings.length === 0 ? "No routings defined yet" : undefined}
         emptyAction={
           routings.length === 0 && (

@@ -35,7 +35,7 @@ export function useRequests(siteId: string | null) {
  * Invalidate every request-derived namespace. Exposed as a callback so components never
  * hold the query client themselves.
  */
-export function useInvalidateRequestData(): () => void {
+export function useInvalidateRequestData(): () => Promise<void> {
   return useInvalidateKeys(...REQUEST_DERIVED_QUERY_KEYS);
 }
 

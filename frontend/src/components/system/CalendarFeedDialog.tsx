@@ -80,7 +80,13 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
 
   const copyUrl = async () => {
     if (!newUrl) return;
-    await navigator.clipboard.writeText(newUrl);
+    try {
+      await navigator.clipboard.writeText(newUrl);
+    } catch {
+      // The browser can refuse (permission denied, document not focused); the URL stays visible.
+      toast.error('Could not copy — copy the feed URL manually');
+      return;
+    }
     setCopied(true);
     toast.success('Feed URL copied');
     if (copiedTimer.current) clearTimeout(copiedTimer.current);
@@ -125,7 +131,7 @@ export function CalendarFeedDialog({ open, onOpenChange, label, description, upg
                 </p>
                 <div className="flex gap-2">
                   <Input readOnly value={newUrl} aria-label="Calendar feed address" className="font-mono text-xs" />
-                  <Button type="button" variant="secondary" onClick={copyUrl}>
+                  <Button type="button" variant="secondary" onClick={() => void copyUrl()}>
                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     {copied ? 'Copied' : 'Copy'}
                   </Button>

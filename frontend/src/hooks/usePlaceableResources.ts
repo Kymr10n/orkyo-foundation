@@ -101,7 +101,7 @@ export function useDeletePlaceableResource(siteId: string) {
   const key = qk.resources.placeable(siteId);
   const invalidate = () => {
     for (const queryKey of placeableInvalidates(siteId)) {
-      queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey });
     }
   };
   return useMutation({

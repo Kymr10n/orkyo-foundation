@@ -142,7 +142,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         data={groups}
         isLoading={isLoading}
         error={error ? error.message || `Failed to load ${entityLabel.toLowerCase()}s` : null}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage={`No ${entityLabel.toLowerCase()}s yet. Click "Add ${entityLabel}" to create one.`}
         emptyAction={
           <Button onClick={handleAdd} disabled={!canEdit}>

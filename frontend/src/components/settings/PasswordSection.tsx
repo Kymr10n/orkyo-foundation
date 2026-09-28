@@ -40,7 +40,7 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
 
   const changePasswordMutation = useChangePassword();
 
-  const handleChangePassword = async (e: React.SyntheticEvent<HTMLFormElement>) => {
+  const handleChangePassword = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPasswordError(null);
 

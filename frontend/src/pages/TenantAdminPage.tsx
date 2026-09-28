@@ -42,7 +42,7 @@ export function TenantAdminPage() {
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`${ROUTE_TENANT_ADMIN}/${v}`, { replace: true })}
+        onChange={(v) => void navigate(`${ROUTE_TENANT_ADMIN}/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>

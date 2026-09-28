@@ -21,7 +21,7 @@ export function RequestPlanPage() {
           requestId={requestId}
           // Opening a task from the planner reuses the request list's deep link, so the editor
           // that opens is the same one every other surface opens.
-          onOpenRequest={(id) => navigate(`/requests?edit=${id}`)}
+          onOpenRequest={(id) => void navigate(`/requests?edit=${id}`)}
         />
       </div>
     </PageLayout>

@@ -77,9 +77,9 @@ export function useOnboardingData(): OnboardingData {
       }
     };
 
-    checkCanCreate();
-    loadTemplates();
-    loadDeletingTenants();
+    void checkCanCreate();
+    void loadTemplates();
+    void loadDeletingTenants();
   }, []);
 
   return { canCreate, cannotCreateReason, loading, templates, templatesError, deletingTenants };

@@ -127,7 +127,7 @@ export function ResourceClassPage({ resourceClass, surface }: ResourceClassPageP
               // Lists is not carried across: the target type need not have any, and landing on a
               // tab it does not offer is worse than landing on its instances.
               onValueChange={(key) =>
-                navigate(`/${segment}/${key}/${active === 'lists' ? 'instances' : active}`)
+                void navigate(`/${segment}/${key}/${active === 'lists' ? 'instances' : active}`)
               }
             >
               <SelectTrigger aria-label="Type">
@@ -149,7 +149,7 @@ export function ResourceClassPage({ resourceClass, surface }: ResourceClassPageP
         tabs={tabs}
         value={active}
         onChange={(v) =>
-          navigate(v === 'floorplan' ? `/${segment}/floorplan` : `/${segment}/${resourceType.key}/${v}`)
+          void navigate(v === 'floorplan' ? `/${segment}/floorplan` : `/${segment}/${resourceType.key}/${v}`)
         }
       >
         <Outlet context={{ resourceType }} />

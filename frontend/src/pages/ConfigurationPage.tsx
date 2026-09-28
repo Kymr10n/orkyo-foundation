@@ -41,7 +41,7 @@ export function ConfigurationPage() {
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`${ROUTE_CONFIGURATION}/${v}`, { replace: true })}
+        onChange={(v) => void navigate(`${ROUTE_CONFIGURATION}/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>

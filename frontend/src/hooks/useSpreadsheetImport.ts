@@ -68,7 +68,7 @@ export function useSpreadsheetImport() {
       } catch (err) {
         return { createdWorkstations, reusedWorkstations, createdJobs, failure: errorMessage(err) };
       } finally {
-        invalidateImportedData();
+        void invalidateImportedData();
       }
     },
     [invalidateImportedData],

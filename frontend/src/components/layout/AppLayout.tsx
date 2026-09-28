@@ -94,7 +94,7 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
       const target = resolveView(view, entityId);
       if (!target) return null;
       if (siteId && siteId !== selectedSiteId) setSelectedSiteId(siteId);
-      navigate(target.path);
+      void navigate(target.path);
       return target.label;
     },
     [navigate, selectedSiteId, setSelectedSiteId],
@@ -188,7 +188,7 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
         // the order CommandPalette uses, or the record opens under the wrong site.
         onOpenView={openView}
         onApplyAutoSchedule={async (requestIds) => {
-          navigate(ROUTE_HOME);
+          void navigate(ROUTE_HOME);
           requestAutoSchedule(requestIds);
         }}
         onApplyProposal={applyAssistantProposal}
