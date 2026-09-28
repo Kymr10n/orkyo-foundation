@@ -39,10 +39,6 @@ public sealed class ApiAccessTokenAuthHandler(
     protected override string ScopesClaim => ApiAccessTokenContextKeys.ScopesClaim;
     protected override string TokenPrefixClaim => ApiAccessTokenContextKeys.TokenPrefixClaim;
 
-    // Identity.Name resolves to the token id: the rate limiter partitions on UserOrIpKey, which
-    // would otherwise collapse every token behind one NAT'd egress IP into a single bucket.
-    protected override string? NameClaimType => ApiAccessTokenContextKeys.TokenIdClaim;
-
     // Unlike the reporting surface — a versioned contract whose {error, message} bodies external
     // BI tools already depend on — this is a new surface with no frozen shape, so it emits the
     // canonical problem body every other endpoint does.

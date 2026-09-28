@@ -38,11 +38,6 @@ public abstract class BearerTokenAuthHandler<TRecord, TService>(
     protected abstract string ScopesClaim { get; }
     protected abstract string TokenPrefixClaim { get; }
 
-    /// <summary>
-    /// The claim type <c>Identity.Name</c> resolves to; <c>null</c> keeps the framework default.
-    /// </summary>
-    protected virtual string? NameClaimType => null;
-
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var authorization = Request.Headers.Authorization.FirstOrDefault();
@@ -79,7 +74,10 @@ public abstract class BearerTokenAuthHandler<TRecord, TService>(
             new Claim(TokenPrefixClaim, record.TokenPrefix),
         };
 
-        var identity = new ClaimsIdentity(claims, Scheme.Name, NameClaimType, ClaimTypes.Role);
+        // Identity.Name resolves to the token id for every token kind: the rate limiter partitions
+        // on UserOrIpKey, which would otherwise put every token behind one NAT'd egress IP into a
+        // single bucket (reporting tokens did, until this moved here from the API-token handler).
+        var identity = new ClaimsIdentity(claims, Scheme.Name, TokenIdClaim, ClaimTypes.Role);
         var principal = new ClaimsPrincipal(identity);
         return AuthenticateResult.Success(new AuthenticationTicket(principal, Scheme.Name));
     }

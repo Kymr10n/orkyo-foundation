@@ -52,7 +52,7 @@ public static class RateLimitingServiceExtensions
                     UserOrIpKey(ctx),
                     _ => Window(permitLimit: 5, TimeSpan.FromMinutes(15))));
 
-            // Reporting API — per reporting-token id (embedded in the identity name after auth).
+            // Reporting API — per reporting-token id (BearerTokenAuthHandler puts it on the identity name).
             options.AddPolicy(FoundationRateLimitPolicies.ReportingApi, ctx =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     UserOrIpKey(ctx),
