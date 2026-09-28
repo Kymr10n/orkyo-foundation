@@ -9,6 +9,104 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
 "Verify downstream" means the symbol has no consumer in this repo, but `orkyo-saas` or
 `orkyo-community` might use it; grep both before deleting.
 
+## 0. Fix status (single PR on `claude/technical-debt-audit-fys1ta`)
+
+This table is the source of truth for progress. Update the row when a finding changes state and
+commit the file with the code. Statuses: `todo` · `in-progress` · `done` · `partial` (say what
+is left) · `deferred` (needs a downstream grep or a major bump; say which) · `skipped` (reason).
+
+Batches: backend `B1a B1b B2 B3 B4 B5 B6 B7`, frontend `F1 F2 F3 F4 F5`, repo `R1`. One batch
+per agent, sequential within a stack, stacks in parallel.
+
+| ID | Batch | Status | Notes |
+|---|---|---|---|
+| C1 | B1a | todo | |
+| C2 | B2 | todo | |
+| C3 | B2 | todo | |
+| C4 | B1a | todo | |
+| S1 | B4 | todo | |
+| S2 | F1 | todo | |
+| S3 | F1 | todo | |
+| S4 | F2 | todo | |
+| S5 | F1 | todo | |
+| S6 | B4 | todo | |
+| S7 | B4 | todo | |
+| S8 | B6 | todo | |
+| S9 | B6 | todo | |
+| S10 | B1a | todo | |
+| S11 | B1b | todo | |
+| S12 | B1b | todo | |
+| S13 | B1a | todo | |
+| S14 | B1b | todo | |
+| S15 | B1b | todo | |
+| S16 | F1 | todo | |
+| S17 | B1a | todo | |
+| S18 | B1b | todo | |
+| S19 | B1b | todo | |
+| S20 | F1 | todo | |
+| S21 | F1 | todo | |
+| S22 | B3 | todo | |
+| S23 | B3 | todo | |
+| S24 | F1 | todo | |
+| S25 | B3 | todo | |
+| S26 | B5 | todo | |
+| S27 | B2 | todo | |
+| S28 | B2 | todo | |
+| S29 | B2 | todo | |
+| S30 | B3 | todo | |
+| S31 | F1 | todo | |
+| S32 | B2 | todo | |
+| S33 | B4 | todo | |
+| S34 | B4 | todo | |
+| S35 | B2 | todo | |
+| S36 | B2 | todo | |
+| S37 | B4 | todo | |
+| S38 | B2 | todo | |
+| S39 | B3 | todo | |
+| S40 | F2 | todo | |
+| S41 | F3 | todo | |
+| S42 | B5 / F3 | todo | backend part in B5, frontend part in F3 |
+| S43 | B4 | todo | |
+| S44 | B7 | todo | |
+| S45 | B7 | todo | |
+| S46 | F5 | todo | |
+| S47 | B7 | todo | |
+| S48 | B7 | todo | |
+| S49 | R1 | todo | |
+| S50 | R1 | todo | |
+| S51 | R1 | todo | |
+| S52 | R1 | todo | |
+| S53 | R1 | todo | |
+| S54 | R1 | todo | |
+| S55 | F5 | todo | |
+| S56 | R1 | todo | |
+| M1 | — | skipped | major-version decision; see do-not-touch |
+| M2 | B4 | todo | |
+| M3 | B4 | todo | |
+| M4 | F4 | todo | |
+| M5 | F1 | todo | |
+| M6 | B2 / F1 | todo | backend items in B2, frontend items in F1 |
+| M7 | B4 | todo | |
+| M8 | B4 | todo | |
+| M9 | B3 | todo | |
+| M10 | B3 | todo | |
+| M11 | B3 | todo | |
+| M12 | B3 | todo | |
+| M13 | F1 | todo | |
+| M14 | B4 | todo | |
+| M15 | B3 | todo | |
+| M16 | B2 / B3 | todo | services in B2, repository items in B3 |
+| M17 | B4 | todo | |
+| M18 | F4 | todo | |
+| M19 | B6 | todo | |
+| M20 | B6 / B7 / F4 | todo | backend in B6, test-project items in B7, frontend in F4 |
+| M21 | B7 | todo | |
+| M22 | B7 | todo | |
+| M23 | F5 | todo | |
+| M24 | R1 | todo | |
+| M25 | F4 | todo | |
+| M26 | B6 / F4 | todo | backend comments in B6, frontend comments in F4 |
+
 ## 1. Executive summary
 
 The codebase is in better shape than its size suggests. Conventions are written down, most of
