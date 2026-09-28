@@ -13,9 +13,18 @@ vi.mock('@foundation/src/store/layout-store', () => ({
   ),
 }));
 
-const authState: { membership: { isTenantAdmin?: boolean } | null } = { membership: null };
+// Real permission hooks, not the global test-mock from src/test/setup.ts: the nav's gating is
+// what these tests are about.
+vi.unmock('@foundation/src/hooks/usePermissions');
+
+type Membership = { role?: string; isTenantAdmin?: boolean } | null;
+const editor: Membership = { role: 'editor', isTenantAdmin: false };
+const authState: { membership: Membership; isSiteAdmin: boolean } = {
+  membership: editor,
+  isSiteAdmin: false,
+};
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership }),
+  useAuth: () => ({ membership: authState.membership, isSiteAdmin: authState.isSiteAdmin }),
 }));
 
 // User-defined resource types become nav entries; mocked so the nav stays renderable
@@ -45,7 +54,8 @@ function renderSidebar(
 describe('SidebarNav', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    authState.membership = null;
+    authState.membership = editor;
+    authState.isSiteAdmin = false;
     resourceTypesState.data = [];
   });
 
@@ -123,6 +133,26 @@ describe('SidebarNav', () => {
     expect(screen.getAllByRole('link').map((l) => l.getAttribute('href'))).toContain(
       '/configuration',
     );
+  });
+
+  it('shows a Viewer neither Settings nor the admin surfaces', () => {
+    authState.membership = { role: 'viewer', isTenantAdmin: false };
+    renderSidebar();
+
+    expect(screen.getByText('Requests')).toBeInTheDocument();
+    expect(screen.queryByText('Settings')).not.toBeInTheDocument();
+    expect(screen.queryByText('Administration')).not.toBeInTheDocument();
+    expect(screen.queryByText('Configuration')).not.toBeInTheDocument();
+  });
+
+  it('shows the Administration item to a site admin without a tenant-admin membership', () => {
+    // Same gate as the /tenant-admin route guard: a break-glass site admin passes both.
+    authState.membership = { role: 'viewer', isTenantAdmin: false };
+    authState.isSiteAdmin = true;
+    renderSidebar();
+
+    expect(screen.getByText('Administration')).toBeInTheDocument();
+    expect(screen.getByText('Settings')).toBeInTheDocument();
   });
 
   it('hides Resources from a member who is not a tenant admin', () => {

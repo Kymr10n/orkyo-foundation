@@ -1,6 +1,5 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
   RequestFormDialog,
   type RequestFormData,
@@ -26,7 +25,7 @@ interface UseRequestEditorResult {
  * Centralises the open / edit / view-request dialog flow shared by
  * UtilizationPage and ConflictsPage.
  *
- * Owns: dialog state, role gate (admin|editor → edit, otherwise → read-only
+ * Owns: dialog state, the `useCanEdit()` gate (edit, otherwise read-only
  * view), save handler, and React Query invalidation. Always opens
  * `RequestFormDialog` — `canEdit` decides edit vs. view mode. These callers
  * open a single request by id (no tree), so `allRequests`/`onNavigate` are
@@ -36,11 +35,7 @@ interface UseRequestEditorResult {
  */
 export function useRequestEditor(): UseRequestEditorResult {
   const invalidateRequestData = useInvalidateRequestData();
-  const { membership } = useAuth();
-  // Deliberately NOT useCanEdit(): that hook also grants site admins (break-glass)
-  // and tenant admins whose membership role differs — this gate is role-only.
-  const userCanEdit =
-    membership?.role === TENANT_ROLE.Admin || membership?.role === TENANT_ROLE.Editor;
+  const userCanEdit = useCanEdit();
 
   const [request, setRequest] = useState<Request | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);

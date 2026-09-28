@@ -3,10 +3,16 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { RequireTenantAdmin } from './RequireTenantAdmin';
 
-const authState: { membership: { isTenantAdmin?: boolean } | null } = { membership: null };
+// Real permission hook, not the global test-mock from src/test/setup.ts.
+vi.unmock('@foundation/src/hooks/usePermissions');
+
+const authState: { membership: { isTenantAdmin?: boolean } | null; isSiteAdmin: boolean } = {
+  membership: null,
+  isSiteAdmin: false,
+};
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership }),
+  useAuth: () => ({ membership: authState.membership, isSiteAdmin: authState.isSiteAdmin }),
 }));
 
 const toastError = vi.fn();
@@ -34,6 +40,16 @@ describe('RequireTenantAdmin', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.membership = null;
+    authState.isSiteAdmin = false;
+  });
+
+  it('renders children for a site admin without a tenant-admin membership', () => {
+    // The nav offers Administration to a site admin (useIsTenantAdmin); the guard must agree.
+    authState.membership = { isTenantAdmin: false };
+    authState.isSiteAdmin = true;
+    renderGuard();
+    expect(screen.getByTestId('admin-content')).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
   });
 
   it('renders children for tenant admins', () => {

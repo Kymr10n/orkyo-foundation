@@ -10,11 +10,16 @@ import { renderWithQuery } from '@foundation/src/test-utils';
 // Mocks
 // ---------------------------------------------------------------------------
 
+// Real permission hook, not the global test-mock from src/test/setup.ts.
+vi.unmock('@foundation/src/hooks/usePermissions');
+
 let mockRole: string | undefined = 'admin';
+let mockIsSiteAdmin = false;
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
   useAuth: () => ({
     membership: mockRole ? { role: mockRole } : null,
+    isSiteAdmin: mockIsSiteAdmin,
   }),
 }));
 
@@ -81,6 +86,7 @@ const renderEditor = () => renderWithQuery(<TestHookComponent />);
 describe('useRequestEditor', () => {
   beforeEach(() => {
     mockRole = 'admin';
+    mockIsSiteAdmin = false;
     mockUpdateRequest.mockResolvedValue(undefined);
   });
 
@@ -104,6 +110,14 @@ describe('useRequestEditor', () => {
       renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
+    });
+
+    it('opens the form dialog in edit mode for a site admin (same gate as useCanEdit)', () => {
+      mockRole = 'viewer';
+      mockIsSiteAdmin = true;
+      renderEditor();
+      fireEvent.click(screen.getByTestId('open-btn'));
+      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
     });
 
     it('opens the form dialog in view mode when membership is null', () => {

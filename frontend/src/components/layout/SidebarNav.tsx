@@ -1,7 +1,6 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { useLayoutStore } from "@foundation/src/store/layout-store";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import {
   ROUTE_ASSETS,
   ROUTE_CONFIGURATION,
@@ -68,9 +67,8 @@ interface SidebarNavProps {
 
 export function SidebarNav({ forceCollapsed, onNavigate }: SidebarNavProps = {}) {
   const location = useLocation();
-  const { membership } = useAuth();
   const canEdit = useCanEdit();
-  const isTenantAdmin = membership?.isTenantAdmin === true;
+  const isTenantAdmin = useIsTenantAdmin();
   // No per-type entries any more. A type is reached through its class page's selector, which is
   // what keeps the sidebar the same size for a tenant with three types and one with three hundred.
   const navItems = [

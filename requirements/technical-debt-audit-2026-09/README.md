@@ -62,7 +62,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S2 | F1 | todo | |
 | S3 | F1 | done | barrel no longer re-exports export-handlers/tenant-navigation (no importer relied on it); `getTenantSlugSync` deleted from AuthContext, api-utils reads the key itself (no downstream consumer (grepped saas + community)); no `lib/**` file imports `contexts/**` |
 | S4 | F2 | todo | |
-| S5 | F1 | in-progress | |
+| S5 | F1 | done | `RequireTenantAdmin` and `SidebarNav` use `useIsTenantAdmin()`; `useRequestEditor` uses `useCanEdit()`; the three tests unmock the permission hooks and cover the site-admin case; SidebarNav has a Viewer test |
 | S6 | B4 | todo | |
 | S7 | B4 | todo | |
 | S8 | B6 | todo | |
@@ -137,7 +137,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M21 | B7 | todo | |
 | M22 | B7 | todo | |
 | M23 | F5 | todo | |
-| M24 | R1 | todo | |
+| M24 | R1 | in-progress | |
 | M25 | F4 | todo | |
 | M26 | B6 / F4 | todo | backend comments in B6, frontend comments in F4 |
 
