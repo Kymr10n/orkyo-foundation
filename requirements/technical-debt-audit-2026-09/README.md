@@ -97,6 +97,35 @@ per agent, sequential within a stack, stacks in parallel.
 - **M11 (deploy):** new tenant migration `2000.foundation.drop_duplicate_sites_code_index.sql`
   drops `idx_sites_code` (duplicate of `sites_code_key`). It is classed `contract`, like the
   control-plane 1140 index drop, so the deploy workflow asks for `approve_unsafe_migration=true`.
+- **S6 / S43 (frontend, API clients):** Insights, the four utilization routes, `/api/sites/{id}/requests`,
+  `/api/resource-assignments?resourceTypeKey=` and `candidate-requests` now answer a missing,
+  inverted or over-cap window with the `ValidationError` problem body (texts in `errors`), and an
+  unknown `granularity` is a 400. The caps clear the frontend's own windows. MCP `analyze_capacity`
+  defaults its bucket to `week` and refuses a window over two years.
+- **S7 (behaviour):** one applicability rule, open-world by criterion: a criterion with no type
+  scope is now listed for every type and assignable to any resource or group; a resource type
+  with no tagged criteria no longer accepts every criterion on its groups.
+- **S33 (MCP clients):** not-found, conflict, argument, feature and quota errors now reach the agent
+  with their own message instead of "failed unexpectedly".
+- **S34 (saas):** `InvitationService` and `KeycloakIdentityLinkService` take an optional
+  `IBackgroundDispatcher`; saas's hand-composed test instances keep compiling and send inline.
+  `AddOrgContextFromHttpContext` now also registers `CurrentTenant` (TryAdd).
+- **S37 (both products):** `UseFoundationMiddleware` logs requests outside the exception handler, so
+  a domain 4xx is one Warning line with its final status and no Error; dashboards counting Error
+  lines per 404/409 drop.
+- **M2 (saas):** saas's own `/api/admin` files can use `MapSiteAdminGroup(subPath, tag)`; its
+  `AuthorizationContractTests` can add `FindUngovernedAdminRoutes`. Moving `/api/admin/presets` and
+  `/api/admin/export` out of `/api/admin` waits for the next major.
+- **M3 (saas):** `BffAuthEndpoints.TokenResponse` and `ParseTokenResponseAsync` stay for
+  `DemoAuthEndpoints` (moving them is deferred); the named client is `KeycloakTokenClient.HttpClientName`.
+  Data Protection keys now go through the registered `IConnectionMultiplexer` (`AddOrkyoValkey`, which
+  both products call) instead of a second connection opened at registration.
+- **M7 (API clients):** `ConcurrentCapacity` is refused on resource create/update; working-day times
+  must be exactly `HH:mm`; profile first/last names cap at 127, the email-change address at 320.
+- **M14 (frontend):** new error code `email_delivery_failed` (502 on an undeliverable email-change
+  confirmation); `frontend/src/constants/api-error-codes.ts` does not list it yet. A Keycloak outage
+  during an email-change request is now the mapper's 502 `KEYCLOAK_ERROR` (was a code-less 500).
+- **M17 (API clients):** the reporting-token name cap rises from 200 to 255, like API-access tokens.
 
 | ID | Batch | Status | Notes |
 |---|---|---|---|
