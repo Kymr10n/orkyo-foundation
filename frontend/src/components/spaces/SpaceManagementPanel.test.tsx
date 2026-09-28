@@ -20,7 +20,6 @@ const mockMoveMutateAsync = vi.fn();
 vi.mock('@foundation/src/hooks/usePlaceableResources', () => ({
   usePlaceableResources: (siteId: any) => mockUseSpaces(siteId),
   useCreatePlaceableResource: () => ({ mutateAsync: mockCreateMutateAsync }),
-  useUpdatePlaceableResource: () => ({ mutateAsync: vi.fn() }),
   useMovePlaceableResource: () => ({ mutateAsync: mockMoveMutateAsync }),
   useDeletePlaceableResource: () => ({ mutateAsync: mockDeleteMutateAsync, isPending: false }),
 }));
@@ -68,9 +67,18 @@ vi.mock('react-router', () => ({
 
 // ── Child component mocks ─────────────────────────────────────────────────────
 
-vi.mock('./EditSpaceDialog', () => ({
-  EditSpaceDialog: ({ open, onSuccess }: any) =>
-    open ? <button data-testid="edit-dialog-save" onClick={() => onSuccess({})}>Save Edit</button> : null,
+// A space is edited in the same dialog as any resource; the stub stands in for its save.
+vi.mock('@foundation/src/components/resources/ResourceEditDialog', () => ({
+  ResourceEditDialog: ({ open, onOpenChange, resourceType }: any) =>
+    open ? (
+      <button
+        data-testid="edit-dialog-save"
+        data-resource-type-key={resourceType.key}
+        onClick={() => onOpenChange(false)}
+      >
+        Save Edit
+      </button>
+    ) : null,
 }));
 
 vi.mock('@foundation/src/components/requests/CreateSpaceDialog', () => ({
@@ -120,7 +128,7 @@ vi.mock('@foundation/src/components/requests/SpaceDrawingCanvas', () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const mockSpace = { id: 'space-1', name: 'Office A', siteId: 'site-1', geometry: null };
+const mockSpace = { id: 'space-1', name: 'Office A', siteId: 'site-1', geometry: null, resourceTypeId: 'type-space' };
 const mockFloorplan = { id: 'fp-1', siteId: 'site-1', filename: 'floor.png', createdAt: '' };
 
 const ONE_PLACEABLE_TYPE = {
@@ -272,11 +280,11 @@ describe('SpaceManagementPanel', () => {
     await user.click(screen.getByTestId('dblclick-space-1'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('edit-dialog-save')).toBeInTheDocument();
+      expect(screen.getByTestId('edit-dialog-save')).toHaveAttribute('data-resource-type-key', 'space');
     });
   });
 
-  it('handleUpdateSpace closes edit dialog on save', async () => {
+  it('closes the edit dialog on save', async () => {
     mockGetFloorplanMetadata.mockResolvedValue(mockFloorplan);
     mockFetchFloorplanImageUrl.mockResolvedValue('blob:test-url');
     mockUseSpaces.mockReturnValue({ data: [mockSpace], isLoading: false });

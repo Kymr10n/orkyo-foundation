@@ -7,7 +7,6 @@ import {
   updateResource,
   type CreateResourceRequest,
   type ResourceInfo,
-  type UpdateResourceRequest,
 } from "@foundation/src/lib/api/resources-api";
 import type { ResourceGeometry } from "@foundation/src/types/geometry";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -92,18 +91,6 @@ export function useCreatePlaceableResource(
           errorMessage: "Failed to create resource",
           invalidates: placeableInvalidates(siteId),
         },
-  });
-}
-
-export function useUpdatePlaceableResource(siteId: string) {
-  return useMutation({
-    mutationFn: ({ resourceId, data }: { resourceId: string; data: UpdateResourceRequest }) =>
-      updateResource(resourceId, data),
-    meta: {
-      successMessage: "Resource updated",
-      suppressErrorToast: true,
-      invalidates: placeableInvalidates(siteId),
-    },
   });
 }
 

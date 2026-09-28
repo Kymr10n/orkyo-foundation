@@ -136,12 +136,12 @@ per agent, sequential within a stack, stacks in parallel.
 | S32 | B2 | done | `SendVerificationEmailAsync` goes through `SendAdminAsync` → `CreateAdminRequest` (proxy headers); still best-effort (logs the error, account creation succeeds). Chose the singleton holder over fetch-per-call: new `KeycloakAdminTokenCache` (lock + token + expiry) registered as a singleton and a required ctor param of `KeycloakAdminService` — no product constructs the service (grepped saas + community; they register a mock), so the ctor change is foundation-only. Tests: verification mail carries X-Forwarded-Host/Proto; two service instances sharing the cache fetch one token |
 | S33 | B4 | todo | |
 | S34 | B4 | todo | |
-| S35 | B2 | todo | |
+| S35 | B2 | in-progress | |
 | S36 | B2 | todo | |
 | S37 | B4 | todo | |
 | S38 | B2 | todo | |
 | S39 | B3 | todo | |
-| S40 | F2 | todo | |
+| S40 | F2 | partial | (a) `SiteEditDialog` on `useEntityFormDialog` (new `validate` option for its inline code/name rules; `useSaveSite` replaces `useUpdateSite`). (b) `EditSpaceDialog` deleted: `ResourceEditDialog` already edited its name, description and custom fields, and now edits `capacity` for a placeable type; `SpaceManagementPanel` opens it, and `useSaveResource` invalidates the floorplan and requests for placeable types; `useUpdatePlaceableResource` deleted (no downstream consumer (grepped saas + community)). Left: (a) for the other six dialogs, (c), (d), (e) |
 | S41 | F3 | todo | |
 | S42 | B5 / F3 | todo | backend part in B5, frontend part in F3 |
 | S43 | B4 | todo | |

@@ -40,7 +40,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
-import { EditSpaceDialog } from "./EditSpaceDialog";
+import { ResourceEditDialog } from "@foundation/src/components/resources/ResourceEditDialog";
 import {
   usePlaceableResources,
   useCreatePlaceableResource,
@@ -116,6 +116,10 @@ export function SpaceManagementPanel({
   const [deleteFloorplanOpen, setDeleteFloorplanOpen] = useState(false);
   const [isDeletingFloorplan, setIsDeletingFloorplan] = useState(false);
   const [editingSpace, setEditingSpace] = useState<ResourceInfo | null>(null);
+  // The same edit dialog the resource lists use; a placeable type adds the capacity field.
+  const editingSpaceType = editingSpace
+    ? placeableTypes.find((t) => t.id === editingSpace.resourceTypeId) ?? null
+    : null;
   const [selectedResourceId, setSelectedResourceId] = useState<string | null>(null);
   // Master edit switch — view mode (pan/zoom only) by default; protects against
   // accidental, un-undoable move/resize. Double-click-to-inspect ignores this.
@@ -221,10 +225,6 @@ export function SpaceManagementPanel({
       logger.error("Failed to create space:", error);
       throw error;
     }
-  };
-
-  const handleUpdateSpace = () => {
-    setEditingSpace(null);
   };
 
   const handleSetDrawingMode = (mode: DrawingMode) => {
@@ -582,13 +582,12 @@ export function SpaceManagementPanel({
             siteId={siteId}
           />
         )}
-        {editingSpace && (
-          <EditSpaceDialog
-            space={editingSpace}
-            siteId={siteId}
+        {editingSpace && editingSpaceType && (
+          <ResourceEditDialog
+            resourceType={editingSpaceType}
+            resource={editingSpace}
             open={!!editingSpace}
             onOpenChange={(open) => !open && setEditingSpace(null)}
-            onSuccess={handleUpdateSpace}
           />
         )}
 

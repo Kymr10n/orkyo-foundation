@@ -66,7 +66,11 @@ export const useSaveResource = (resourceType: ResourceTypeInfo) =>
         `${resourceType.displayName} updated`,
       ),
       suppressErrorToast: true,
-      invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
+      // A placeable resource is also on the floorplan (`all()` reaches the per-site placeable
+      // key), and requests show where they are placed.
+      invalidates: resourceType.hasGeometry
+        ? [qk.resources.all(), qk.resources.allFlat(), qk.requests.all()]
+        : [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
     },
   });
 

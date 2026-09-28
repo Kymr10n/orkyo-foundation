@@ -12,14 +12,14 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: vi.fn(),
   useDeleteSite: vi.fn(),
   useCreateSite: vi.fn(),
-  useUpdateSite: vi.fn(),
+  useSaveSite: vi.fn(),
 }));
 vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(() => ({ handleExport: vi.fn() })),
   useImportHandler: vi.fn(() => ({ handleImport: vi.fn(), isImporting: false })),
 }));
 
-import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@foundation/src/hooks/useSites';
+import { useSites, useDeleteSite, useCreateSite, useSaveSite } from '@foundation/src/hooks/useSites';
 import { useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 
@@ -57,7 +57,7 @@ describe('SiteSettings', () => {
     isPending: false,
   };
 
-  const mockUpdateMutation = {
+  const mockSaveMutation = {
     mutateAsync: vi.fn().mockResolvedValue({ id: 1, name: 'Updated Site', code: 'UPD', tenantId: '1' }),
     isPending: false,
   };
@@ -79,7 +79,7 @@ describe('SiteSettings', () => {
 
     vi.mocked(useDeleteSite).mockReturnValue(mockDeleteMutation as any);
     vi.mocked(useCreateSite).mockReturnValue(mockCreateMutation as any);
-    vi.mocked(useUpdateSite).mockReturnValue(mockUpdateMutation as any);
+    vi.mocked(useSaveSite).mockReturnValue(mockSaveMutation as any);
 
     global.confirm = vi.fn(() => true);
   });

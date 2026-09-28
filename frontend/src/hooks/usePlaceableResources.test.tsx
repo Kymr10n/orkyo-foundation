@@ -4,7 +4,6 @@ import { renderHook, waitFor } from '@testing-library/react';
 import {
   usePlaceableResources,
   useCreatePlaceableResource,
-  useUpdatePlaceableResource,
   useDeletePlaceableResource,
   useMovePlaceableResource,
 } from './usePlaceableResources';
@@ -120,18 +119,6 @@ describe('usePlaceableResources', () => {
       expect.objectContaining({ resourceTypeKey: 'space', homeSiteId: 'site-1' }),
     );
     expect(toast.success).toHaveBeenCalledWith('Resource created');
-  });
-
-  it('updates by resource id, with no site in the path', async () => {
-    vi.mocked(resourcesApi.updateResource).mockResolvedValue(placeable());
-    const { result } = renderHook(() => useUpdatePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(),
-    });
-
-    result.current.mutate({ resourceId: 'space-1', data: { name: 'Renamed' } });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(resourcesApi.updateResource).toHaveBeenCalledWith('space-1', { name: 'Renamed' });
   });
 
   it('sends geometry alone when moving', async () => {

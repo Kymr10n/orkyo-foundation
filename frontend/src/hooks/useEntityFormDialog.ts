@@ -29,6 +29,11 @@ export interface UseEntityFormDialogOptions<TEntity, TForm, TSaved, TVariables> 
   mutation: UseMutationResult<TSaved, Error, TVariables, unknown>;
   /** Builds the mutation's variables; receives the entity for update-vs-create branching. */
   toVariables: (form: TForm, entity: TEntity | null) => TVariables;
+  /**
+   * Client-side check run on submit, for a rule a disabled Save button cannot explain. A
+   * returned message shows in the inline error and nothing is sent.
+   */
+  validate?: (form: TForm) => string | null;
   /** Invoked with the saved entity on success (inline-create flows). */
   onSaved?: (saved: TSaved) => void;
 }
@@ -53,6 +58,7 @@ export function useEntityFormDialog<TEntity, TForm, TSaved, TVariables>({
   toForm,
   mutation,
   toVariables,
+  validate,
   onSaved,
 }: UseEntityFormDialogOptions<TEntity, TForm, TSaved, TVariables>): UseEntityFormDialogResult<TForm> {
   const [form, setForm] = useState<TForm>(() => (open && entity ? toForm(entity) : emptyForm()));
@@ -85,7 +91,12 @@ export function useEntityFormDialog<TEntity, TForm, TSaved, TVariables>({
 
   // Per-call callbacks, not the domain hook's: they close over this dialog's state. The
   // toast and the invalidation come from the mutation's `meta` (see ARCHITECTURE.md).
-  const submit = () =>
+  const submit = () => {
+    const invalid = validate?.(form);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     mutation.mutate(toVariables(form, entity), {
       onSuccess: (saved) => {
         setError(null);
@@ -94,6 +105,7 @@ export function useEntityFormDialog<TEntity, TForm, TSaved, TVariables>({
       },
       onError: (err) => setError(errorMessage(err)),
     });
+  };
 
   return {
     form,

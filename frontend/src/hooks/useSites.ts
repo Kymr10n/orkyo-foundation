@@ -3,6 +3,7 @@ import { createSite, deleteSite, getSites, updateSite } from "@foundation/src/li
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import type { CreateSiteRequest, UpdateSiteRequest } from "@foundation/src/types/site";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 // Deleting a site cascades to spaces and requests; over-invalidating on
 // create/update is harmless and keeps the feedback declaration uniform.
@@ -25,11 +26,13 @@ export const useCreateSite = () =>
     },
   });
 
-export const useUpdateSite = () =>
+/** Create (`id: null`) or update a site — the edit dialog's save; it shows a failure inline. */
+export const useSaveSite = () =>
   useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateSiteRequest }) => updateSite(id, data),
+    mutationFn: (v: SaveVariables<CreateSiteRequest, UpdateSiteRequest>) =>
+      v.id === null ? createSite(v.data) : updateSite(v.id, v.data),
     meta: {
-      successMessage: "Site updated",
+      successMessage: savedMessage("Site created", "Site updated"),
       suppressErrorToast: true,
       invalidates: SITE_INVALIDATES,
     },

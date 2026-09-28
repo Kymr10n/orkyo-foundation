@@ -140,6 +140,32 @@ describe('useEntityFormDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
+  it('validate: a returned message shows inline and nothing is sent', async () => {
+    const save = vi.fn().mockResolvedValue({ id: 'w1', name: 'ok' });
+    const { result } = renderHook(
+      () =>
+        useEntityFormDialog({
+          open: true,
+          onOpenChange: vi.fn(),
+          entity: null as Widget | null,
+          emptyForm: () => ({ name: '' }),
+          toForm: (w: Widget) => ({ name: w.name }),
+          mutation: useSaveWidget(save),
+          toVariables: (form: WidgetForm): SaveVariables<WidgetForm> => ({ id: null, data: form }),
+          validate: (form: WidgetForm) => (form.name ? null : 'Name is required'),
+        }),
+      { wrapper },
+    );
+
+    act(() => result.current.submit());
+    expect(result.current.error).toBe('Name is required');
+    expect(save).not.toHaveBeenCalled();
+
+    act(() => result.current.set({ name: 'Named' }));
+    act(() => result.current.submit());
+    await waitFor(() => expect(save).toHaveBeenCalled());
+  });
+
   it('re-open resets form, baseline, and error', async () => {
     const save = vi.fn().mockRejectedValue(new Error('boom'));
     const { result, rerender } = renderDialogHook({ entity: null, save });
