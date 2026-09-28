@@ -377,6 +377,7 @@ describe("AccountPage", () => {
     // Verify the page renders with both tenants
     expect(screen.getByText("ACME Corporation")).toBeInTheDocument();
     expect(screen.getByText("Editor")).toBeInTheDocument(); // role badge
+    expect(screen.getByRole("button", { name: "Leave Test Organization" })).toBeInTheDocument();
   });
 
   it("has delete button for owned tenant", async () => {
@@ -394,6 +395,7 @@ describe("AccountPage", () => {
 
     // Verify owner badge is shown
     expect(screen.getByText("Admin")).toBeInTheDocument(); // role badge for owned tenant
+    expect(screen.getByRole("button", { name: "Delete ACME Corporation" })).toBeInTheDocument();
   });
 
   it("shows error when API fails", async () => {

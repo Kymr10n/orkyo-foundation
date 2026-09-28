@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useCallback, useMemo, type KeyboardEvent, type ReactNode } from 'react';
 import { useTable, flexRender } from '@tanstack/react-table';
 import type {
   ColumnFiltersState,
@@ -224,6 +224,25 @@ export function OrkyoDataTable<TData extends RowData>({
     else table.nextPage();
   };
 
+  // A clickable row or card is reachable and operable from the keyboard, once, here: it takes
+  // focus and Enter/Space act as the click. Keys pressed on a control inside the row (its
+  // actions menu) stay that control's. No role="button": a row holds its own buttons, and a
+  // button may not contain another (axe nested-interactive), so the row keeps its row role.
+  const rowInteraction = (item: TData) =>
+    onRowClick
+      ? {
+          tabIndex: 0,
+          onClick: () => onRowClick(item),
+          onKeyDown: (e: KeyboardEvent) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onRowClick(item);
+            }
+          },
+        }
+      : {};
+
   const canPrev = currentPage > 0;
   const canNext = currentPage < pageCount - 1;
 
@@ -307,10 +326,10 @@ export function OrkyoDataTable<TData extends RowData>({
           {table.getRowModel().rows.map((row) => (
             <div
               key={row.id}
-              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              {...rowInteraction(row.original)}
               className={cn(
                 'rounded-lg border bg-card p-3 shadow-xs',
-                onRowClick && 'cursor-pointer hover:bg-accent/40',
+                onRowClick && 'cursor-pointer hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
               )}
             >
               {renderCard!(row.original)}
@@ -356,10 +375,10 @@ export function OrkyoDataTable<TData extends RowData>({
             {table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                {...rowInteraction(row.original)}
                 className={
                   'bg-card shadow-xs hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
-                  (onRowClick ? ' cursor-pointer' : '')
+                  (onRowClick ? ' cursor-pointer focus-visible:outline-2 focus-visible:outline-ring' : '')
                 }
               >
                 {row.getVisibleCells().map((cell) => (

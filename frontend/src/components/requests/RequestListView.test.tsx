@@ -6,6 +6,7 @@ import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestListView } from './RequestListView';
 import type { Request } from '@foundation/src/types/requests';
 import { makeRequest } from '@foundation/src/test-utils/request-fixtures';
+import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 
 // Mock virtualizer so all items render in jsdom (no DOM measurements)
 vi.mock('@tanstack/react-virtual', () => ({
@@ -254,4 +255,20 @@ describe('RequestListView', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
   });
 
+  it('opens a phone card once from its name, and from the keyboard', async () => {
+    setViewport(375);
+    try {
+      renderListView({ requests: [standaloneReq] });
+
+      fireEvent.click(screen.getByText('Standalone Task'));
+      expect(defaultHandlers.onEdit).toHaveBeenCalledTimes(1);
+
+      const card = screen.getByText('Standalone Task').closest('[tabindex="0"]') as HTMLElement;
+      card.focus();
+      await userEvent.keyboard('{Enter}');
+      expect(defaultHandlers.onEdit).toHaveBeenCalledTimes(2);
+    } finally {
+      restoreViewport();
+    }
+  });
 });

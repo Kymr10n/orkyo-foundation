@@ -41,6 +41,13 @@ describe('GroupHeader', () => {
     expect(colorDiv).toBeNull();
   });
 
+  it('is a button that reports whether the group is open', () => {
+    const { rerender } = renderHeader();
+    expect(screen.getByRole('button', { name: /Production Hall/ })).toHaveAttribute('aria-expanded', 'true');
+    rerender(<GroupHeader {...defaultProps} isCollapsed />);
+    expect(screen.getByRole('button', { name: /Production Hall/ })).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('calls onToggle when clicked', () => {
     renderHeader();
     fireEvent.click(screen.getByText('Production Hall'));

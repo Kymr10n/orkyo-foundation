@@ -385,6 +385,40 @@ describe('OrkyoDataTable', () => {
     expect(clickableRow?.className).toContain('cursor-pointer');
   });
 
+  it('lets the keyboard reach a clickable row and open it with Enter or Space', async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(<OrkyoDataTable columns={columns} data={makeRows(2)} onRowClick={onRowClick} />);
+
+    const first = screen.getByText('Item 1').closest('tr')!;
+    expect(first).toHaveAttribute('tabindex', '0');
+    first.focus();
+    await user.keyboard('{Enter}');
+    expect(onRowClick).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Item 1' }));
+
+    await user.tab();
+    expect(screen.getByText('Item 2').closest('tr')).toHaveFocus();
+    await user.keyboard(' ');
+    expect(onRowClick).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Item 2' }));
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves rows out of the tab order when they are not clickable', () => {
+    render(<OrkyoDataTable columns={columns} data={makeRows(1)} />);
+    expect(screen.getByText('Item 1').closest('tr')).not.toHaveAttribute('tabindex');
+  });
+
+  it('does not open the row when Enter is pressed on a control inside it', () => {
+    const onRowClick = vi.fn();
+    const cols: ColumnDef<Row>[] = [
+      { accessorKey: 'name', header: 'Name' },
+      { id: 'actions', header: 'Actions', cell: () => <button>Act</button> },
+    ];
+    render(<OrkyoDataTable columns={cols} data={makeRows(1)} onRowClick={onRowClick} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Act' }), { key: 'Enter' });
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it('does not fire onRowClick when an action cell stops propagation', async () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();
@@ -454,6 +488,19 @@ describe('OrkyoDataTable — card mode', () => {
     );
     fireEvent.click(screen.getByText('Item 2'));
     expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1', name: 'Item 2' }));
+  });
+
+  it('opens a card from the keyboard', async () => {
+    setViewport(500);
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(
+      <OrkyoDataTable columns={columns} data={makeRows(1)} renderCard={renderCard} onRowClick={onRowClick} />,
+    );
+    await user.tab();
+    expect(screen.getByTestId('card').parentElement).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'Item 1' }));
   });
 
   it('an action inside a card can stop propagation to suppress onRowClick', async () => {

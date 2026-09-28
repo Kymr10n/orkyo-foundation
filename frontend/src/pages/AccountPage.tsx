@@ -622,6 +622,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                                 setDeleteDialogOpen(true);
                               }}
                               disabled={actionLoading !== null}
+                              aria-label={`Delete ${membership.tenantDisplayName}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -634,6 +635,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                                 setLeaveDialogOpen(true);
                               }}
                               disabled={actionLoading !== null}
+                              aria-label={`Leave ${membership.tenantDisplayName}`}
                             >
                               <LogOut className="h-4 w-4" />
                             </Button>

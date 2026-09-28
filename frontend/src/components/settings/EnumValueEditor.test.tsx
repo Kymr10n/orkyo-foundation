@@ -12,7 +12,13 @@ describe('EnumValueEditor', () => {
   it('renders input and add button', () => {
     render(<EnumValueEditor values={[]} onChange={onChange} />);
     expect(screen.getByPlaceholderText('Add value')).toBeInTheDocument();
-    expect(screen.getByRole('button')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add value' })).toBeInTheDocument();
+  });
+
+  it('names each remove button after its value', () => {
+    render(<EnumValueEditor values={['Large']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Large' }));
+    expect(onChange).toHaveBeenCalledWith([]);
   });
 
   it('adds a value on Enter', () => {

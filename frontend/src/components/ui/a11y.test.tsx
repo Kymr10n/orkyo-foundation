@@ -87,6 +87,17 @@ describe('a11y smoke', () => {
       expect(await axe(container)).toHaveNoViolations();
     });
 
+    it('with clickable rows and a row action has no detectable a11y violations', async () => {
+      const withAction: ColumnDef<Row>[] = [
+        ...columns,
+        { id: 'actions', header: 'Actions', cell: ({ row }) => <Button aria-label={`Actions for ${row.original.name}`}>…</Button> },
+      ];
+      const { container } = render(
+        <MemoryRouter><OrkyoDataTable columns={withAction} data={data} onRowClick={vi.fn()} /></MemoryRouter>,
+      );
+      expect(await axe(container)).toHaveNoViolations();
+    });
+
     it('with a filterable sorted header and its menu open has no violations', async () => {
       const filterable: ColumnDef<Row>[] = [
         { accessorKey: 'name', header: 'Name', meta: { filter: { type: 'text' } } },
