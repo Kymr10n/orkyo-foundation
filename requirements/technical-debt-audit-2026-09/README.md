@@ -84,12 +84,12 @@ per agent, sequential within a stack, stacks in parallel.
 | S12 | B1b | todo | |
 | S13 | B1a | partial | **Done:** role-cache eviction — new `IdentityCacheKeys.Role` (middleware reads through it); `UpdateUserRoleAsync`, `DeleteUserAsync` and `TenantControlPlaneRepository.DeleteMembershipAsync` evict it (optional `SingleFlightCache` ctor param, so saas's hand-composed test instances still compile). In-process only: other API instances keep a stale entry up to the 5-min TTL. **Deferred (needs coordinated saas + community PRs):** deleting `ResolveLegacyPrincipal` / always-`sub` in `TestAuthHandler`. Both products' `ApiWebApplicationFactory` run the real `ContextEnrichmentMiddleware`, and their sub-less test tokens (saas `CrossTenantIsolationTests` says so explicitly, plus `TenantEndpointsTests`, `InvitationOnlyAccessTests` and every `TestConstants.TestBearerToken` user) resolve only through that fallback; an always-`sub` token resolves to `Guid.Empty` without a seeded `user_identities` row. Downstream must seed identity links (or pass `Sub`) first |
 | S14 | B1b | done | `DeleteTemplateItemAsync(templateId, id)` deletes `WHERE id AND template_id`; the endpoint passes `{templateId}`. No downstream caller or implementer (grepped saas + community). Test: deleting B's item via A's route is 404 and B keeps it |
-| S15 | B1b | todo | |
+| S15 | B1b | in-progress | |
 | S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
 | S17 | B1a | done | `KeycloakOptions.FromConfiguration`: required keys fail on empty as well as absent, empty `KEYCLOAK_INTERNAL_URL` becomes null, `EffectiveInternalBaseUrl` treats "" as unset (local helpers with `GetRequired`/`IsSet` semantics — `Orkyo.Shared` cannot reference core's `ConfigurationExtensions`). Diagnostics probe fixed at the source: `DeploymentConfig.OidcInternalAuthority` is now `IsSet ? value : null`, so line 99's `??` falls back correctly. `shared` added to `TestRepoPaths.BackendRoots` and the `RawConfigFallback` roots; it flags nothing else |
 | S18 | B1b | todo | |
 | S19 | B1b | todo | |
-| S20 | F1 | in-progress | |
+| S20 | F1 | done | `csvToArray` uses a character-level parser (quoted line breaks, CRLF); `arrayToCSV` prefixes text cells starting `= + - @ \t \r` with `'` and import strips it, so exports round-trip; sites CSV import maps `code,name,description,address` through a typed callback; round-trip test |
 | S21 | F1 | done | names-only fetch moved to its own key `qk.requests.names()`; hook test proves both fetches run |
 | S22 | B3 | todo | |
 | S23 | B3 | todo | |

@@ -374,16 +374,31 @@ describe('Export Handlers', () => {
 
   describe('importSites', () => {
     it('should import sites from CSV', async () => {
-      const csvContent = 'id,name,location\n1,Main Campus,123 Main St';
+      const csvContent = 'id,code,name,description,address\n1,HQ,Main Campus,,123 Main St';
       const file = createMockFile(csvContent, 'sites.csv', 'text/csv');
 
       const result = await importSites(file, 'csv');
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toMatchObject({
-        name: 'Main Campus',
-        location: '123 Main St',
-      });
+      expect(result).toEqual([
+        { code: 'HQ', name: 'Main Campus', description: undefined, address: '123 Main St' },
+      ]);
+    });
+
+    it('re-imports what exportSites wrote, including the required code', async () => {
+      await exportSites(
+        [{
+          id: 's1', code: 'HQ', name: 'Main, Campus', description: 'Two\nlines', address: 'Street 1',
+          createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z',
+        }],
+        'csv',
+      );
+      const [written] = mockDownloadFile.mock.calls[0];
+
+      const result = await importSites(createMockFile(written, 'sites.csv', 'text/csv'), 'csv');
+
+      expect(result).toEqual([
+        { code: 'HQ', name: 'Main, Campus', description: 'Two\nlines', address: 'Street 1' },
+      ]);
     });
 
     it('should import sites from JSON', async () => {

@@ -430,16 +430,24 @@ export async function exportSites(sites: Site[], format: ExportFormat) {
   }
 }
 
+/** The columns `exportSites` writes that a new site is created from. */
+interface SiteCsvRow {
+  code: string;
+  name: string;
+  description: string;
+  address: string;
+}
+
 export async function importSites(file: File, format: ImportFormat): Promise<Partial<Site>[]> {
   const content = await file.text();
 
   if (format === 'csv') {
-    const rows = csvToArray(content);
-    return rows.map(row => ({
-      id: row.id,
+    const rows = csvToArray<SiteCsvRow>(content);
+    return rows.map((row: SiteCsvRow): Partial<Site> => ({
+      code: row.code,
       name: row.name,
-      location: row.location || null,
-      timezone: row.timezone || null,
+      description: row.description || undefined,
+      address: row.address || undefined,
     }));
   } else if (format === 'json') {
     const parsed = JSON.parse(content);

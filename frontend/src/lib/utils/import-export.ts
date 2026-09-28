@@ -31,6 +31,14 @@ export interface ExportMetadata {
 }
 
 /**
+ * A spreadsheet reads a cell that starts with one of these as a formula. Exported text cells
+ * that start with one get a leading `'`, which Excel and LibreOffice treat as "text, not a
+ * formula"; `csvToArray` strips it again, so an export re-imports unchanged.
+ */
+const FORMULA_TRIGGERS = /^[=+\-@\t\r]/;
+const NEUTRALISED = /^'[=+\-@\t\r]/;
+
+/**
  * Convert array of objects to CSV string
  */
 export function arrayToCSV(
@@ -55,11 +63,12 @@ export function arrayToCSV(
         return `"${JSON.stringify(value).replace(/"/g, '""')}"`;
       }
 
-      // Handle strings with commas, quotes, or newlines
-      const stringValue = typeof value === 'string' ? value
+      // Handle strings with commas, quotes, or line breaks
+      const stringValue = typeof value === 'string'
+        ? (FORMULA_TRIGGERS.test(value) ? `'${value}` : value)
         : typeof value === 'number' || typeof value === 'boolean' ? String(value)
         : JSON.stringify(value);
-      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+      if (/[,"\n\r]/.test(stringValue)) {
         return `"${stringValue.replace(/"/g, '""')}"`;
       }
 
@@ -77,19 +86,19 @@ export function csvToArray<T = Record<string, string>>(
   csv: string,
   headers?: string[]
 ): T[] {
-  const lines = csv.split('\n').filter(line => line.trim());
-  if (lines.length === 0) return [];
+  const records = parseCSV(csv);
+  if (records.length === 0) return [];
 
-  // Parse headers from first line or use provided
-  const csvHeaders = headers || parseCSVLine(lines[0]);
-  const dataLines = headers ? lines : lines.slice(1);
+  // Parse headers from first record or use provided
+  const csvHeaders = headers || records[0];
+  const dataRecords = headers ? records : records.slice(1);
 
-  return dataLines.map(line => {
-    const values = parseCSVLine(line);
+  return dataRecords.map(values => {
     const obj: Record<string, string> = {};
 
     csvHeaders.forEach((header, index) => {
-      obj[header] = values[index] || '';
+      const value = values[index] || '';
+      obj[header] = NEUTRALISED.test(value) ? value.slice(1) : value;
     });
 
     return obj as T;
@@ -97,39 +106,50 @@ export function csvToArray<T = Record<string, string>>(
 }
 
 /**
- * Parse a single CSV line handling quoted values
+ * Split CSV text into records of fields, one character at a time: a quoted field may hold
+ * commas, doubled quotes and line breaks, and records end at LF or CRLF. Blank records are
+ * dropped.
  */
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
+function parseCSV(csv: string): string[][] {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let field = '';
   let inQuotes = false;
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    const nextChar = line[i + 1];
+  const endRecord = () => {
+    record.push(field);
+    if (record.some(value => value.trim())) records.push(record);
+    record = [];
+    field = '';
+  };
 
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        // Escaped quote
-        current += '"';
-        i++; // Skip next quote
+  for (let i = 0; i < csv.length; i++) {
+    const char = csv[i];
+
+    if (inQuotes) {
+      if (char === '"' && csv[i + 1] === '"') {
+        field += '"'; // Escaped quote
+        i++;
+      } else if (char === '"') {
+        inQuotes = false;
       } else {
-        // Toggle quote state
-        inQuotes = !inQuotes;
+        field += char;
       }
-    } else if (char === ',' && !inQuotes) {
-      // End of field
-      result.push(current);
-      current = '';
+    } else if (char === '"') {
+      inQuotes = true;
+    } else if (char === ',') {
+      record.push(field);
+      field = '';
+    } else if (char === '\n' || char === '\r') {
+      if (char === '\r' && csv[i + 1] === '\n') i++;
+      endRecord();
     } else {
-      current += char;
+      field += char;
     }
   }
+  endRecord();
 
-  // Add final field
-  result.push(current);
-
-  return result;
+  return records;
 }
 
 /**
