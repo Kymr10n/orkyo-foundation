@@ -2,15 +2,13 @@
 import { Badge } from "@foundation/src/components/ui/badge";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Button } from "@foundation/src/components/ui/button";
-import { Card } from "@foundation/src/components/ui/card";
 import { createTemplate } from "@foundation/src/lib/api/template-api";
 import type { Template, CreateTemplateRequest } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
 import { DURATION_TO_MINUTES } from "@foundation/src/domain/constants";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { useDeleteTemplate, useTemplates } from "@foundation/src/hooks/useTemplates";
-import { AlertCircle, Clock, Edit, Plus, Trash2 } from "lucide-react";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { useState } from "react";
 import { TemplateDialogBase } from "./TemplateDialogBase";
@@ -21,6 +19,7 @@ import { exportTemplates, importTemplates } from '@foundation/src/lib/utils/expo
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
@@ -97,29 +96,13 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
 
   // Shared row actions — desktop table cell and phone card.
   const renderActions = (template: Template) => (
-    <div className="flex justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); setEditingTemplate(template); }}
-        aria-label={`Edit ${template.name}`}
-        title="Edit template"
-      >
-        <Edit className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); handleDelete(template); }}
-        className="text-destructive hover:text-destructive"
-        aria-label={`Delete ${template.name}`}
-        title="Delete template"
-      >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${template.name}`}
+      actions={[
+        { label: "Edit", icon: Pencil, onSelect: () => setEditingTemplate(template), disabled: !canEdit },
+        { label: "Delete", icon: Trash2, onSelect: () => handleDelete(template), disabled: !canEdit, destructive: true },
+      ]}
+    />
   );
 
   const columns: ColumnDef<Template>[] = [
@@ -217,39 +200,24 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         </Button>
       </SettingsPageHeader>
 
-      {/* Error State */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error instanceof Error ? error.message : "Failed to load templates"}</span>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Templates List */}
-      {templates.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">
-            No request templates defined yet
-          </p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first template
-          </Button>
-        </Card>
-      ) : (
-        <OrkyoDataTable
+      <OrkyoDataTable
         {...tableUrlState}
-          columns={columns}
-          data={templates}
-          renderCard={renderCard}
-          onRowClick={(template) => setEditingTemplate(template)}
-        />
-      )}
+        columns={columns}
+        data={templates}
+        error={error ? error.message || "Failed to load templates" : null}
+        onRetry={() => refetch()}
+        emptyMessage={templates.length === 0 ? "No request templates defined yet" : undefined}
+        emptyAction={
+          templates.length === 0 && (
+            <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create your first template
+            </Button>
+          )
+        }
+        renderCard={renderCard}
+        onRowClick={(template) => setEditingTemplate(template)}
+      />
 
       {/* Dialogs */}
       <TemplateDialogBase

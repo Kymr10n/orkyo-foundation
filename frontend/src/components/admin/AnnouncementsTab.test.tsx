@@ -202,6 +202,17 @@ describe('AnnouncementsTab', () => {
     });
   });
 
+  it('retries a failed load from the table', async () => {
+    mockGetAnnouncements.mockRejectedValueOnce(new Error('Network error'));
+    mockGetAnnouncements.mockResolvedValue({ announcements: [sampleAnnouncement] });
+    const user = userEvent.setup();
+
+    renderTab();
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Scheduled Maintenance')).toBeInTheDocument();
+  });
+
   // ========================================================================
   // Create dialog
   // ========================================================================
@@ -329,12 +340,8 @@ describe('AnnouncementsTab', () => {
     renderTab();
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
-    // Click edit button (pencil icon)
-    const editButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.querySelector('svg.lucide-pencil')
-    );
-    expect(editButtons.length).toBeGreaterThan(0);
-    await user.click(editButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Scheduled Maintenance' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit/ }));
 
     // Check dialog opened with pre-filled values
     expect(screen.getByText('Edit Announcement')).toBeInTheDocument();
@@ -355,13 +362,8 @@ describe('AnnouncementsTab', () => {
     renderTab();
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
-    // Each row has 2 action buttons: edit (pencil) and delete (trash).
-    // The delete button has the destructive class.
-    const actionButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.classList.contains('text-destructive')
-    );
-    expect(actionButtons.length).toBeGreaterThan(0);
-    await user.click(actionButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Scheduled Maintenance' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
 
     // Check confirmation dialog
     expect(screen.getByText('Delete "Scheduled Maintenance"?')).toBeInTheDocument();
@@ -378,11 +380,8 @@ describe('AnnouncementsTab', () => {
     renderTab();
     await waitFor(() => screen.getByText('Scheduled Maintenance'));
 
-    // Click delete
-    const actionButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.classList.contains('text-destructive')
-    );
-    await user.click(actionButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Scheduled Maintenance' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
 
     // Confirm deletion — AlertDialogAction renders as a button
     const confirmDeleteBtn = screen.getAllByRole('button').find(

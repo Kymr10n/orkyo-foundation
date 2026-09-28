@@ -123,9 +123,8 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    // Click first delete button (Trash2 icon buttons)
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Weekly Meeting' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await waitFor(() => {
       expect(screen.getByText('Delete "Weekly Meeting"?')).toBeInTheDocument();
     });
@@ -142,8 +141,8 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Weekly Meeting' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockDeleteTemplate).not.toHaveBeenCalled();
   });
@@ -156,8 +155,8 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Weekly Meeting' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
       expect(toastError).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));

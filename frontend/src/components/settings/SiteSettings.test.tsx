@@ -162,7 +162,8 @@ describe('SiteSettings', () => {
     });
 
     // Delete now opens the shared ConfirmDialog instead of a native confirm().
-    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Building A');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
@@ -185,7 +186,8 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
@@ -243,10 +245,8 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building B')).toBeInTheDocument();
     });
 
-    // Both sites rendered, each should have edit and delete buttons (2 per site = 4 icon buttons total)
-    const allButtons = screen.getAllByRole('button');
-    const iconButtons = allButtons.filter(btn => !btn.textContent?.includes('Add Site') && !btn.textContent?.includes('Import') && !btn.textContent?.includes('Export'));
-    expect(iconButtons.length).toBeGreaterThanOrEqual(4); // 2 sites × 2 buttons each
+    expect(screen.getByRole('button', { name: 'Actions for Building A' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Building B' })).toBeInTheDocument();
   });
 
   it('displays site codes', async () => {
@@ -276,7 +276,8 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
@@ -382,9 +383,8 @@ describe('SiteSettings', () => {
 
     await waitFor(() => screen.getByText('Building A'));
 
-    // Icon-only buttons (no text): first per site is Edit, second is Delete
-    const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
-    await user.click(iconButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit/ }));
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-site-dialog')).toBeInTheDocument();

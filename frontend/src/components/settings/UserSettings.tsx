@@ -2,18 +2,15 @@ import { useState } from "react";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import {
   Plus,
-  Edit,
+  Pencil,
   Trash2,
-  AlertCircle,
   Mail,
   Shield,
   X,
   RefreshCw,
 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Badge } from "@foundation/src/components/ui/badge";
-import { EmptyState } from "@foundation/src/components/ui/EmptyState";
 import {
   createInvitation,
   type UserWithRole,
@@ -36,6 +33,7 @@ import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handl
 import { logger } from '@foundation/src/lib/core/logger';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
@@ -251,28 +249,19 @@ export function UserSettings() {
   const invitesUrlState = useTableUrlState('invites', invitationColumns);
 
   const renderUserActions = (user: UserWithRole) => (
-    <div className="flex justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => { e.stopPropagation(); setEditingUser(user); }}
-        title="Edit user role"
-        aria-label={`Edit ${user.displayName}`}
-      >
-        <Edit className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => { e.stopPropagation(); handleDeleteUser(user); }}
-        disabled={deleteMutation.isPending}
-        className="text-destructive hover:text-destructive"
-        title="Remove user"
-        aria-label={`Remove ${user.displayName}`}
-      >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${user.displayName}`}
+      actions={[
+        { label: "Edit role", icon: Pencil, onSelect: () => setEditingUser(user) },
+        {
+          label: "Remove",
+          icon: Trash2,
+          onSelect: () => handleDeleteUser(user),
+          disabled: deleteMutation.isPending,
+          destructive: true,
+        },
+      ]}
+    />
   );
 
   const renderUserCard = (user: UserWithRole) => (
@@ -389,26 +378,6 @@ export function UserSettings() {
         </Button>
       </SettingsPageHeader>
 
-      {/* Error State */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error instanceof Error ? error.message : "Failed to load users"}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                refetchUsers();
-                refetchInvitations();
-              }}
-            >
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Pending Invitations Section */}
       {invitations.length > 0 && (
         <div className="space-y-3">
@@ -428,25 +397,27 @@ export function UserSettings() {
 
       {/* Active Users Section */}
       <div className="space-y-3">
-        {users.length === 0 ? (
-          <EmptyState
-            message="No users yet"
-            action={
+        <OrkyoDataTable
+          {...usersUrlState}
+          columns={userColumns}
+          data={users}
+          error={error ? error.message || "Failed to load users" : null}
+          onRetry={() => {
+            refetchUsers();
+            refetchInvitations();
+          }}
+          emptyMessage={users.length === 0 ? "No users yet" : undefined}
+          emptyAction={
+            users.length === 0 && (
               <Button onClick={() => setInviteDialogOpen(true)} variant="outline">
                 <Plus className="h-4 w-4 mr-2" />
                 Invite your first user
               </Button>
-            }
-          />
-        ) : (
-          <OrkyoDataTable
-            {...usersUrlState}
-            columns={userColumns}
-            data={users}
-            onRowClick={(user) => setEditingUser(user)}
-            renderCard={renderUserCard}
-          />
-        )}
+            )
+          }
+          onRowClick={(user) => setEditingUser(user)}
+          renderCard={renderUserCard}
+        />
       </div>
 
       {/* Dialogs */}

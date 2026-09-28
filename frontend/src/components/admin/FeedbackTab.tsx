@@ -8,7 +8,6 @@
 import { useState } from 'react';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
-import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
@@ -215,13 +214,12 @@ export function FeedbackTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 empty:mb-0">
-            <ErrorAlert message={error ?? null} />
-          </div>
           <OrkyoDataTable
-        {...tableUrlState}
+            {...tableUrlState}
             columns={columns}
             data={items}
+            error={error}
+            onRetry={() => feedbackList.refetch()}
             emptyMessage="No feedback yet."
             renderCard={renderCard}
           />

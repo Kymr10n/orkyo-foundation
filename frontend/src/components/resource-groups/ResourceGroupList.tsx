@@ -33,7 +33,7 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
   const [managingCapabilitiesFor, setManagingCapabilitiesFor] = useState<ResourceGroupInfo | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<ResourceGroupInfo | null>(null);
 
-  const { data: groups = [], isLoading } = useResourceGroups(resourceTypeKey);
+  const { data: groups = [], isLoading, error, refetch } = useResourceGroups(resourceTypeKey);
 
   const deleteMutation = useDeleteResourceGroup(resourceTypeKey, entityLabel);
 
@@ -141,6 +141,8 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         columns={columns}
         data={groups}
         isLoading={isLoading}
+        error={error ? error.message || `Failed to load ${entityLabel.toLowerCase()}s` : null}
+        onRetry={() => refetch()}
         emptyMessage={`No ${entityLabel.toLowerCase()}s yet. Click "Add ${entityLabel}" to create one.`}
         emptyAction={
           <Button onClick={handleAdd} disabled={!canEdit}>

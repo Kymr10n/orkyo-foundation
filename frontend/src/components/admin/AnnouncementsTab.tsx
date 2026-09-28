@@ -12,6 +12,7 @@ import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -48,7 +49,7 @@ function announcementStatus(a: Announcement): 'Expired' | 'Important' | 'Active'
 // ============================================================================
 
 export function AnnouncementsTab() {
-  const { data, isLoading, error: loadError } = useAdminAnnouncements();
+  const { data, isLoading, error: loadError, refetch } = useAdminAnnouncements();
   const announcements = data?.announcements ?? [];
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +70,17 @@ export function AnnouncementsTab() {
     if (!deletingAnnouncement) return;
     deleteMutation.mutate(deletingAnnouncement.id);
   };
+
+  // Shared row actions — desktop table cell and phone card.
+  const renderActions = (a: Announcement) => (
+    <RowActions
+      triggerLabel={`Actions for ${a.title}`}
+      actions={[
+        { label: 'Edit', icon: Pencil, onSelect: () => setEditingAnnouncement(a) },
+        { label: 'Delete', icon: Trash2, onSelect: () => setDeletingAnnouncement(a), destructive: true },
+      ]}
+    />
+  );
 
   const columns: ColumnDef<Announcement>[] = [
     {
@@ -142,31 +154,7 @@ export function AnnouncementsTab() {
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const a = row.original;
-        return (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={(e) => { e.stopPropagation(); setEditingAnnouncement(a); }}
-              aria-label={`Edit ${a.title}`}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); setDeletingAnnouncement(a); }}
-              aria-label={`Delete ${a.title}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
 
@@ -194,26 +182,7 @@ export function AnnouncementsTab() {
           {formatDateDisplay(a.createdAt)} · expires {formatDateDisplay(a.expiresAt)}
         </p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={(e) => { e.stopPropagation(); setEditingAnnouncement(a); }}
-          aria-label={`Edit ${a.title}`}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); setDeletingAnnouncement(a); }}
-          aria-label={`Delete ${a.title}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      <div className="shrink-0">{renderActions(a)}</div>
     </div>
   );
 
@@ -247,7 +216,7 @@ export function AnnouncementsTab() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 empty:mb-0">
-            <ErrorAlert message={error ?? (loadError instanceof Error ? loadError.message : null)} />
+            <ErrorAlert message={error} />
           </div>
 
           <OrkyoDataTable
@@ -255,6 +224,8 @@ export function AnnouncementsTab() {
             onRowClick={(a) => setEditingAnnouncement(a)}
             columns={columns}
             data={announcements}
+            error={loadError ? loadError.message || 'Failed to load announcements' : null}
+            onRetry={() => refetch()}
             emptyMessage="No announcements yet. Create one to get started."
             renderCard={renderCard}
           />

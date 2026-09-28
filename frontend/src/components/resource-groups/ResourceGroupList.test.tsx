@@ -87,6 +87,17 @@ describe('ResourceGroupList', () => {
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
+  it('shows a failed load with a retry that refetches', async () => {
+    vi.mocked(getResourceGroups).mockRejectedValueOnce(new Error('Groups unavailable'));
+    const user = userEvent.setup();
+    renderList();
+
+    expect(await screen.findByText('Groups unavailable')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Engineering')).toBeInTheDocument();
+  });
+
   it('disables all edit affordances for a viewer who cannot edit', async () => {
     const user = userEvent.setup();
     vi.mocked(useCanEdit).mockReturnValue(false);

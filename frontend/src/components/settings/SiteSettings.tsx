@@ -1,10 +1,8 @@
 import { Button } from "@foundation/src/components/ui/button";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { Card } from "@foundation/src/components/ui/card";
 import { type Site } from "@foundation/src/lib/api/site-api";
 import type { CreateSiteRequest } from "@foundation/src/types/site";
-import { AlertCircle, Edit, MapPin, Plus, Trash2 } from "lucide-react";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { SiteEditDialog } from "./SiteEditDialog";
@@ -16,6 +14,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { formatDateDisplay } from "@foundation/src/lib/formatters";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { RowActions } from "@foundation/src/components/ui/RowActions";
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
@@ -76,30 +75,15 @@ export function SiteSettings() {
     }
   };
 
-  // Shared row actions — desktop table cell and phone card. Stop propagation so
-  // a tap doesn't also trigger the row/card edit-onClick.
+  // Shared row actions — desktop table cell and phone card.
   const renderActions = (site: Site) => (
-    <div className="flex justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => { e.stopPropagation(); setEditingSite(site); }}
-        aria-label={`Edit ${site.name}`}
-        title="Edit site"
-      >
-        <Edit className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={(e) => { e.stopPropagation(); setDeletingSite(site); }}
-        className="text-destructive hover:text-destructive"
-        aria-label={`Delete ${site.name}`}
-        title="Delete site"
-      >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${site.name}`}
+      actions={[
+        { label: "Edit", icon: Pencil, onSelect: () => setEditingSite(site) },
+        { label: "Delete", icon: Trash2, onSelect: () => setDeletingSite(site), destructive: true },
+      ]}
+    />
   );
 
   const columns: ColumnDef<Site>[] = [
@@ -196,37 +180,24 @@ export function SiteSettings() {
         </Button>
       </SettingsPageHeader>
 
-      {/* Error State */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error instanceof Error ? error.message : "Failed to load sites"}</span>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Sites List */}
-      {sites.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">No sites defined yet</p>
-          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
-            <Plus className="h-4 w-4 mr-2" />
-            Create your first site
-          </Button>
-        </Card>
-      ) : (
-        <OrkyoDataTable
+      <OrkyoDataTable
         {...tableUrlState}
-          columns={columns}
-          data={sites}
-          onRowClick={(site) => setEditingSite(site)}
-          renderCard={renderCard}
-        />
-      )}
+        columns={columns}
+        data={sites}
+        error={error ? error.message || "Failed to load sites" : null}
+        onRetry={() => refetch()}
+        emptyMessage={sites.length === 0 ? "No sites defined yet" : undefined}
+        emptyAction={
+          sites.length === 0 && (
+            <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              Create your first site
+            </Button>
+          )
+        }
+        onRowClick={(site) => setEditingSite(site)}
+        renderCard={renderCard}
+      />
 
       {/* Dialogs */}
       <SiteEditDialog

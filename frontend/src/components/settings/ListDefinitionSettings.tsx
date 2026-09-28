@@ -23,7 +23,7 @@ import type { ListDefinition } from '@foundation/src/lib/api/lists-api';
  * behind it is admin-write, so everyone who can see it can use all of it.
  */
 export function ListDefinitionSettings() {
-  const { data: definitions = [], isLoading, error } = useListDefinitions(true);
+  const { data: definitions = [], isLoading, error, refetch } = useListDefinitions(true);
   const deleteDefinition = useDeleteListDefinition();
 
   const [editing, setEditing] = useState<ListDefinition | null>(null);
@@ -101,6 +101,7 @@ export function ListDefinitionSettings() {
         data={definitions}
         isLoading={isLoading}
         error={errorMsg}
+        onRetry={() => refetch()}
         emptyMessage="No list definitions yet."
         renderCard={(definition) => (
           <div className="flex items-start justify-between gap-2">
