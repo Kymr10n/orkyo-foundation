@@ -58,7 +58,7 @@ public class KeycloakAdminServiceTests
         var handler = new StubHttpMessageHandler(Dispatch(routes));
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         return new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
-            TimeProvider.System);
+            TimeProvider.System, new KeycloakAdminTokenCache());
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public class KeycloakAdminServiceTests
         var handler = new StubHttpMessageHandler(responder);
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         return (new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
-            TimeProvider.System), handler);
+            TimeProvider.System, new KeycloakAdminTokenCache()), handler);
     }
 
     // Token + user lookup preamble that every method needs.
@@ -795,16 +795,17 @@ public class KeycloakAdminServiceTests
         });
 
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
-        var svc = new KeycloakAdminService(client, DefaultConfiguration,
-            NullLogger<KeycloakAdminService>.Instance, DefaultOptions, TimeProvider.System);
+        var cache = new KeycloakAdminTokenCache();
+        KeycloakAdminService NewService() => new(client, DefaultConfiguration,
+            NullLogger<KeycloakAdminService>.Instance, DefaultOptions, TimeProvider.System, cache);
 
-        // Two calls — token should only be fetched once
-        await svc.UserExistsAsync("a@a.com");
+        // Two instances, as two requests get from the transient typed client — token fetched once.
+        await NewService().UserExistsAsync("a@a.com");
         var requestsAfterFirstCall = handler.Requests.Count; // token + users-search
 
         // If the token is cached the only HTTP request sent for this call
         // is the actual user-search request (not another token request).
-        await svc.UserExistsAsync("b@b.com");
+        await NewService().UserExistsAsync("b@b.com");
 
         (handler.Requests.Count - requestsAfterFirstCall).Should().Be(1);
     }

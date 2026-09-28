@@ -2,7 +2,6 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 using Api.Configuration;
 using Orkyo.Shared;
 using Orkyo.Shared.Keycloak;
@@ -19,22 +18,22 @@ public class KeycloakAdminService : IKeycloakAdminService
     private readonly ILogger<KeycloakAdminService> _logger;
     private readonly KeycloakOptions _kc;
     private readonly TimeProvider _time;
-
-    private string? _accessToken;
-    private DateTime _tokenExpiry = DateTime.MinValue;
+    private readonly KeycloakAdminTokenCache _tokenCache;
 
     public KeycloakAdminService(
         HttpClient httpClient,
         IConfiguration configuration,
         ILogger<KeycloakAdminService> logger,
         KeycloakOptions keycloakOptions,
-        TimeProvider time)
+        TimeProvider time,
+        KeycloakAdminTokenCache tokenCache)
     {
         _httpClient = httpClient;
         _configuration = configuration;
         _logger = logger;
         _kc = keycloakOptions;
         _time = time;
+        _tokenCache = tokenCache;
     }
 
     public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
@@ -378,20 +377,10 @@ public class KeycloakAdminService : IKeycloakAdminService
             var frontendUrl = _configuration.GetRequired(ConfigKeys.AppBaseUrl);
             var redirectUri = Uri.EscapeDataString(frontendUrl);
 
-            using var request = new HttpRequestMessage(HttpMethod.Put,
-                AdminUrl($"users/{userId}/send-verify-email?client_id={clientId}&redirect_uri={redirectUri}"));
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-            using var response = await _httpClient.SendAsync(request, ct);
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogWarning("Failed to send verification email: {Error}", error);
-            }
-            else
-            {
-                _logger.LogInformation("Verification email sent to user {UserId}", userId);
-            }
+            await SendAdminAsync(HttpMethod.Put,
+                $"users/{userId}/send-verify-email?client_id={clientId}&redirect_uri={redirectUri}",
+                token, "Failed to send verification email", ct);
+            _logger.LogInformation("Verification email sent to user {UserId}", userId);
         }
         catch (Exception ex)
         {
@@ -538,23 +527,23 @@ public class KeycloakAdminService : IKeycloakAdminService
         }
     }
 
-    private static readonly SemaphoreSlim _tokenLock = new(1, 1);
-
     private async Task<string> GetAdminTokenAsync(CancellationToken ct)
     {
+        var cache = _tokenCache;
+
         // Fast path: return cached token if still valid (read is safe without lock)
-        if (_accessToken != null && _time.GetUtcNow().UtcDateTime < _tokenExpiry.AddMinutes(-1))
+        if (cache.AccessToken != null && _time.GetUtcNow().UtcDateTime < cache.Expiry.AddMinutes(-1))
         {
-            return _accessToken;
+            return cache.AccessToken;
         }
 
-        await _tokenLock.WaitAsync(ct);
+        await cache.Lock.WaitAsync(ct);
         try
         {
             // Double-check after acquiring lock (another thread may have refreshed)
-            if (_accessToken != null && _time.GetUtcNow().UtcDateTime < _tokenExpiry.AddMinutes(-1))
+            if (cache.AccessToken != null && _time.GetUtcNow().UtcDateTime < cache.Expiry.AddMinutes(-1))
             {
-                return _accessToken;
+                return cache.AccessToken;
             }
 
             // Use client_credentials grant with the orkyo-backend service account.
@@ -589,14 +578,14 @@ public class KeycloakAdminService : IKeycloakAdminService
             }
 
             // Write expiry BEFORE token so concurrent readers never see a new token with stale expiry
-            _tokenExpiry = _time.GetUtcNow().UtcDateTime.AddSeconds(tokenResponse.ExpiresIn - 30);
-            _accessToken = tokenResponse.AccessToken;
+            cache.Expiry = _time.GetUtcNow().UtcDateTime.AddSeconds(tokenResponse.ExpiresIn - 30);
+            cache.AccessToken = tokenResponse.AccessToken;
 
-            return _accessToken;
+            return cache.AccessToken;
         }
         finally
         {
-            _tokenLock.Release();
+            cache.Lock.Release();
         }
     }
 

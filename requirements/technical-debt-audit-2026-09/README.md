@@ -133,7 +133,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S29 | B2 | done | `GetAsync` no longer rewrites the session; `BffSessionRecord.LastActivityAt` deleted with every writer (both stores, establisher, tests) — no reader in foundation, saas, community or the frontend (grepped); old Valkey JSON with the field still deserializes. `SetAsync`/`RefreshTokensAsync` log and rethrow like the PKCE store (the refresh caller already catches and keeps the old tokens). Tests: Get sends no write (failed before), Set/Refresh surface a store failure |
 | S30 | B3 | todo | |
 | S31 | F1 | done | `buildDerivedMap` uses one `buildChildrenIdMap` and rolls dates up from all descendants like `computeDerivedValues`; `computeDerivedValuesFromChildren` deleted; nested-group test added |
-| S32 | B2 | todo | |
+| S32 | B2 | done | `SendVerificationEmailAsync` goes through `SendAdminAsync` → `CreateAdminRequest` (proxy headers); still best-effort (logs the error, account creation succeeds). Chose the singleton holder over fetch-per-call: new `KeycloakAdminTokenCache` (lock + token + expiry) registered as a singleton and a required ctor param of `KeycloakAdminService` — no product constructs the service (grepped saas + community; they register a mock), so the ctor change is foundation-only. Tests: verification mail carries X-Forwarded-Host/Proto; two service instances sharing the cache fetch one token |
 | S33 | B4 | todo | |
 | S34 | B4 | todo | |
 | S35 | B2 | todo | |

@@ -61,6 +61,7 @@ public static class FoundationServiceExtensions
 
         // ── Keycloak ──────────────────────────────────────────────────────────
         services.AddSingleton(KeycloakOptions.FromConfiguration(configuration));
+        services.AddSingleton<KeycloakAdminTokenCache>();
         services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>();
 
         // ── Auth ──────────────────────────────────────────────────────────────

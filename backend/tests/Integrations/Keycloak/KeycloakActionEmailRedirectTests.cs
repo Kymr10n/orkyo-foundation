@@ -54,7 +54,7 @@ public class KeycloakActionEmailRedirectTests
 
         return new KeycloakAdminService(
             new HttpClient(handler), configuration, NullLogger<KeycloakAdminService>.Instance, options,
-            TimeProvider.System);
+            TimeProvider.System, new KeycloakAdminTokenCache());
     }
 
     private static Uri ActionEmailRequest(StubHttpMessageHandler handler) =>
@@ -82,5 +82,34 @@ public class KeycloakActionEmailRedirectTests
         // An unescaped "https://app..." would end the redirect_uri value at the first "/"
         // and Keycloak would reject the redirect rather than honour it.
         Assert.DoesNotContain("redirect_uri=https://", ActionEmailRequest(handler).Query, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task VerificationEmail_CarriesTheInternalProxyHeaders()
+    {
+        // Sent over the internal URL without X-Forwarded-*, Keycloak rejects the admin call
+        // (the token issuer does not match), and the mail silently never went out.
+        var handler = new StubHttpMessageHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/token", StringComparison.Ordinal))
+                return new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""{"access_token":"test-token","expires_in":300}"""),
+                };
+            if (request.Method == HttpMethod.Post && path.EndsWith("/users", StringComparison.Ordinal))
+            {
+                var created = new HttpResponseMessage(HttpStatusCode.Created);
+                created.Headers.Location = new Uri("http://keycloak:8080/admin/realms/orkyo/users/new-user");
+                return created;
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") };
+        });
+
+        await CreateSut(handler).CreateUserAsync("new@example.com", "pw", emailVerified: false);
+
+        var verify = handler.Requests.Single(r => r.RequestUri!.AbsolutePath.EndsWith("/send-verify-email", StringComparison.Ordinal));
+        Assert.True(verify.Headers.Contains(KeycloakInternalProxyPolicy.ForwardedHostHeader));
+        Assert.True(verify.Headers.Contains(KeycloakInternalProxyPolicy.ForwardedProtoHeader));
     }
 }
