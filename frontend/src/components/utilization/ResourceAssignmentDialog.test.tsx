@@ -138,6 +138,8 @@ function renderDialog(
       end={END}
       {...overrides}
     />,
+    // A create or cancel invalidates through its mutation's meta, run by the feedback cache.
+    { feedback: true },
   );
 }
 
@@ -288,8 +290,8 @@ describe("ResourceAssignmentDialog", () => {
     const checkbox = screen.getByTestId("assignment-checkbox");
     await userEvent.click(checkbox);
     expect(cancelAssignment).toHaveBeenCalledWith("asgn-1");
-    // Cancelling an assignment routes through invalidateRequestData — refreshes the full
-    // request-derived set (occupancy grids, request lists, conflicts, insights).
+    // Cancelling an assignment refreshes the full request-derived set (occupancy grids,
+    // request lists, conflicts, insights).
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ["utilization-by-resource"] }),
@@ -459,11 +461,13 @@ describe("ResourceAssignmentDialog", () => {
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());
-    // Routed through invalidateRequestData, so an assignment change now refreshes the request lists,
-    // conflict badges, and insights charts too — not just the occupancy grids it used to.
-    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
-      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
-    }
+    // An assignment change refreshes the request lists, conflict badges, and insights charts
+    // too — not just the occupancy grids it used to.
+    await waitFor(() => {
+      for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+      }
+    });
   });
 
   it("filters the list by search input", async () => {

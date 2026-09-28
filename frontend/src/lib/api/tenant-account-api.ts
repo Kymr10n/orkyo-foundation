@@ -27,13 +27,13 @@ interface CanCreateTenantResponse {
   maxAllowed?: number;
 }
 
-interface CreateTenantRequest {
+export interface CreateTenantRequest {
   slug: string;
   displayName: string;
   starterTemplate?: string;
 }
 
-interface CreateTenantResponse {
+export interface CreateTenantResponse {
   id: string;
   slug: string;
   displayName: string;

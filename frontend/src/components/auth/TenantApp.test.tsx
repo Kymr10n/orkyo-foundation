@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { renderWithQuery } from "@foundation/src/test-utils";
 import { MemoryRouter } from "react-router";
 import type * as ReactRouterDom from "react-router";
 import { AUTH_STAGES, AUTH_EVENTS, TENANT_STATUS } from "@foundation/src/constants/auth";
@@ -96,8 +97,10 @@ function authState(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// The app shell renders inside the product's QueryClientProvider; the break-glass banner reads
+// through it.
 function renderAt(path: string) {
-  return render(
+  return renderWithQuery(
     <MemoryRouter initialEntries={[path]}>
       <TenantApp />
     </MemoryRouter>,

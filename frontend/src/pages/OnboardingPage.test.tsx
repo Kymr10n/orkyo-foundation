@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 
 // Mock tenants-api
 const mockCanCreateTenant = vi.fn();
@@ -46,7 +47,7 @@ describe('OnboardingPage', () => {
   });
 
   it('renders welcome heading', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByText('Welcome to Orkyo')).toBeInTheDocument();
@@ -54,7 +55,7 @@ describe('OnboardingPage', () => {
   });
 
   it('renders injected extra content before the wizard starts', async () => {
-    render(
+    renderWithQuery(
       <OnboardingPage
         {...defaultProps}
         renderExtraContent={() => <div>Product-specific onboarding content</div>}
@@ -67,7 +68,7 @@ describe('OnboardingPage', () => {
   });
 
   it('shows create button when user can create', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /create new organization/i })).toBeInTheDocument();
@@ -75,7 +76,7 @@ describe('OnboardingPage', () => {
   });
 
   it('shows form after clicking create button', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /create new organization/i })).toBeInTheDocument();
@@ -90,7 +91,7 @@ describe('OnboardingPage', () => {
   });
 
   it('auto-generates slug from display name', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       fireEvent.click(screen.getByRole('button', { name: /create new organization/i }));
@@ -108,7 +109,7 @@ describe('OnboardingPage', () => {
   });
 
   it('submits form and calls onComplete after creation', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       fireEvent.click(screen.getByRole('button', { name: /create new organization/i }));
@@ -148,7 +149,7 @@ describe('OnboardingPage', () => {
   });
 
   it('allows selecting a different starter template', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       fireEvent.click(screen.getByRole('button', { name: /create new organization/i }));
@@ -182,7 +183,7 @@ describe('OnboardingPage', () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockCreateTenant.mockRejectedValue(new Error('Slug already taken'));
 
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       fireEvent.click(screen.getByRole('button', { name: /create new organization/i }));
@@ -213,7 +214,7 @@ describe('OnboardingPage', () => {
   });
 
   it('shows sign out button', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
@@ -221,7 +222,7 @@ describe('OnboardingPage', () => {
   });
 
   it('handles sign out via onCancel', async () => {
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
@@ -235,7 +236,7 @@ describe('OnboardingPage', () => {
   it('shows message when user cannot create', async () => {
     mockCanCreateTenant.mockResolvedValue({ canCreate: false });
 
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByText(/don't have access/i)).toBeInTheDocument();
@@ -256,7 +257,7 @@ describe('OnboardingPage', () => {
       },
     ]);
 
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByText('CHIEFs')).toBeInTheDocument();
@@ -279,7 +280,7 @@ describe('OnboardingPage', () => {
       },
     ]);
 
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /restore/i })).toBeInTheDocument();
@@ -310,7 +311,7 @@ describe('OnboardingPage', () => {
       },
     ]);
 
-    render(<OnboardingPage {...defaultProps} />);
+    renderWithQuery(<OnboardingPage {...defaultProps} />);
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /create new organization/i })).toBeInTheDocument();

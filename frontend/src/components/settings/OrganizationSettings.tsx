@@ -7,7 +7,7 @@
  * - Delete the organization
  */
 
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { SettingsPageHeader } from "./SettingsPageHeader";
@@ -42,14 +42,14 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { updateTenant, transferTenantOwnership } from "@foundation/src/lib/api/tenant-management-api";
-import { deleteTenant } from "@foundation/src/lib/api/tenant-account-api";
-import { getUsers, type UserWithRole } from "@foundation/src/lib/api/user-api";
-import { exportTenantData } from "@foundation/src/lib/api/export-api";
-import { downloadFile } from "@foundation/src/lib/utils/import-export";
-import { formatDateForInput } from "@foundation/src/lib/utils";
-import { logger } from "@foundation/src/lib/core/logger";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { useDeleteTenant } from "@foundation/src/hooks/useAccount";
+import {
+  useExportTenantData,
+  useRenameTenant,
+  useTransferTenantOwnership,
+} from "@foundation/src/hooks/useOrganization";
+import { useUsers } from "@foundation/src/hooks/useTenantUsers";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
@@ -67,11 +67,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
 
   const [displayName, setDisplayName] = useState("");
   const [originalName, setOriginalName] = useState("");
-  const [admins, setAdmins] = useState<UserWithRole[]>([]);
   const [selectedNewOwner, setSelectedNewOwner] = useState("");
-  // Tracks only the admin-list fetch; `loading` below folds in the fact that the fetch never
-  // runs without manage rights, so the effect has no non-loading branch to set.
-  const [adminsLoading, setAdminsLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -90,8 +86,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   const tenantSlug = membership?.slug ?? "";
   const currentUserId = appUser?.id ?? "";
 
-  // Seeding the name fields from the membership is a render-phase update; loading the admin
-  // list is a real fetch and stays in the effect below.
+  // Seeding the name fields from the membership is a render-phase update.
   // Wrapped so "not yet synced" is distinguishable from "synced to null": RequireAuth resolves
   // membership before this mounts, so it is normally present on the first render and must seed.
   const [syncedMembership, setSyncedMembership] = useState<{ v: typeof membership } | null>(null);
@@ -103,32 +98,21 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
     }
   }
 
-  useEffect(() => {
-    if (!membership) return;
+  // The admins an owner can hand the organization to. Read only with manage rights.
+  const usersQuery = useUsers(canManageOrg && !!membership);
+  const admins = useMemo(
+    () =>
+      (usersQuery.data ?? []).filter(
+        (u) => u.role === TENANT_ROLE.Admin && u.status === "active" && u.id !== currentUserId,
+      ),
+    [usersQuery.data, currentUserId],
+  );
+  const loading = canManageOrg && usersQuery.isLoading;
 
-    // Load admin users for ownership transfer
-    async function loadAdmins() {
-      try {
-        const users = await getUsers();
-        // Filter to active admins, excluding current user if they're the owner
-        const adminUsers = users.filter(
-          (u) =>
-            u.role === TENANT_ROLE.Admin &&
-            u.status === "active" &&
-            u.id !== currentUserId,
-        );
-        setAdmins(adminUsers);
-      } catch (err) {
-        logger.error("Failed to load admins:", err);
-      } finally {
-        setAdminsLoading(false);
-      }
-    }
-
-    if (canManageOrg) loadAdmins();
-  }, [membership, canManageOrg, currentUserId]);
-
-  const loading = canManageOrg && adminsLoading;
+  const { mutateAsync: updateTenant } = useRenameTenant();
+  const { mutateAsync: transferTenantOwnership } = useTransferTenantOwnership();
+  const { mutateAsync: exportTenantData } = useExportTenantData(tenantSlug);
+  const { mutateAsync: deleteTenant } = useDeleteTenant();
 
   const handleSaveName = async () => {
     if (!tenantId || displayName === originalName) return;
@@ -138,7 +122,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
     setSuccess(null);
 
     try {
-      await updateTenant(tenantId, { displayName: displayName.trim() });
+      await updateTenant({ tenantId, displayName: displayName.trim() });
       setOriginalName(displayName.trim());
       setSuccess("Organization name updated successfully.");
     } catch (err) {
@@ -156,7 +140,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
     setError(null);
 
     try {
-      await transferTenantOwnership(tenantId, selectedNewOwner);
+      await transferTenantOwnership({ tenantId, newOwnerId: selectedNewOwner });
       setSuccess(
         "Ownership transferred successfully. You are no longer the owner.",
       );
@@ -175,13 +159,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
     setExportDone(false);
 
     try {
-      const payload = await exportTenantData({
-        includeMasterData: true,
-        includePlanningData,
-      });
-      const json = JSON.stringify(payload, null, 2);
-      const timestamp = formatDateForInput(new Date());
-      downloadFile(json, `${tenantSlug}-export-${timestamp}.json`, "application/json");
+      await exportTenantData(includePlanningData);
       setExportDone(true);
       setTimeout(() => setExportDone(false), 3000);
     } catch (err) {

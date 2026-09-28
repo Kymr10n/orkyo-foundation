@@ -5,9 +5,6 @@ import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@foundation/src/components/ui/select";
 import {
-  createAssignment,
-  cancelAssignment,
-  validateAssignment,
   hardBlockers,
   softBlockers,
   type ValidationResult,
@@ -18,7 +15,11 @@ import type { Conflict } from "@foundation/src/types/requests";
 import { randomId } from "@foundation/src/lib/core/ids";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
+import {
+  useCancelAssignment,
+  useCreateAssignment,
+  useValidateAssignment,
+} from "@foundation/src/hooks/useResourceAssignments";
 import { useRequestPeople } from "@foundation/src/hooks/useRequestPeople";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
@@ -62,7 +63,9 @@ export function RequestPeopleSection({
     useRequestPeople(requestId);
   const [pendingRows, setPendingRows] = useState<PendingRow[]>([]);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const invalidateRequestData = useInvalidateRequestData();
+  const { mutateAsync: validateAssignment } = useValidateAssignment();
+  const { mutateAsync: createAssignment } = useCreateAssignment();
+  const { mutateAsync: cancelAssignment } = useCancelAssignment();
 
   // Cancel every pending validation when the section goes away. Each row schedules a 400ms
   // debounce, and without this they outlive the component: closing the dialog within that window
@@ -180,11 +183,10 @@ export function RequestPeopleSection({
         endUtc: requestEndTs,
         allocationPercent: row.allocationPercent ?? undefined,
       });
+      // The create's meta refreshes the request-derived views (grids, conflict badges, insights).
+      // The host form is reducer-driven and doesn't read these keys, so this can't clobber the
+      // open dialog. Mirrors ResourceAssignmentDialog.
       setAssignments((prev) => [...prev, created]);
-      // An assignment changes occupancy + conflicts — refresh the request-derived views (grids,
-      // conflict badges, insights). The host form is reducer-driven and doesn't read these keys, so
-      // this can't clobber the open dialog. Mirrors ResourceAssignmentDialog.
-      invalidateRequestData();
       removePendingRow(key);
     } catch (err) {
       updatePendingRow(key, { saving: false, error: errorMessage(err) });
@@ -195,7 +197,6 @@ export function RequestPeopleSection({
     try {
       await cancelAssignment(id);
       setAssignments((prev) => prev.filter((a) => a.id !== id));
-      invalidateRequestData();
     } catch {
       // Assignment may already be cancelled; refresh on next open
     }

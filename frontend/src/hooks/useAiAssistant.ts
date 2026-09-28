@@ -1,7 +1,9 @@
 import { useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  deleteAiConversation,
   deleteAiCredential,
+  getAiConversation,
   getAiCredential,
   getAiDailyLimits,
   getAiStatus,
@@ -9,11 +11,12 @@ import {
   listAiConversations,
   revokeAiAllowance,
   saveAiAllowance,
+  saveAiConversation,
   saveAiCredential,
   saveAiDailyLimits,
   testAiCredential,
 } from "@foundation/src/lib/api/ai-api";
-import type { AiDailyLimits } from "@foundation/src/lib/api/ai-api";
+import type { AiDailyLimits, AiEntry, AiMessage } from "@foundation/src/lib/api/ai-api";
 import { updateRequest } from "@foundation/src/lib/api/request-api";
 import type { UpdateRequestRequest } from "@foundation/src/types/requests";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -156,6 +159,35 @@ export function useInvalidateAiStatus() {
 /** Re-read the conversation list after a save or a delete. */
 export function useInvalidateAiConversations() {
   return useInvalidateKeys(qk.ai.conversations());
+}
+
+/** Read one saved conversation's body when the person opens it. */
+export function useFetchAiConversation() {
+  return useCallback((id: string) => getAiConversation(id), []);
+}
+
+/** Store a conversation under its id, then re-read the list so its title shows. */
+export function useSaveAiConversation() {
+  const refresh = useInvalidateAiConversations();
+  return useCallback(
+    async (id: string, body: { title: string; entries: AiEntry[]; transcript: AiMessage[] }) => {
+      await saveAiConversation(id, body);
+      await refresh();
+    },
+    [refresh],
+  );
+}
+
+/** Delete a conversation, then re-read the list. */
+export function useDeleteAiConversation() {
+  const refresh = useInvalidateAiConversations();
+  return useCallback(
+    async (id: string) => {
+      await deleteAiConversation(id);
+      await refresh();
+    },
+    [refresh],
+  );
 }
 
 /**

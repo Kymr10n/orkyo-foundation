@@ -4,7 +4,7 @@
  * Opens with Ctrl+K (Cmd+K on Mac)
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { useNavigate } from "react-router";
 import { typeRoute } from "@foundation/src/constants/resource-class";
@@ -26,13 +26,13 @@ import { Input } from "@foundation/src/components/ui/input";
 import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { VisuallyHidden } from "@foundation/src/components/ui/visually-hidden";
 import { cn } from "@foundation/src/lib/utils";
-import { globalSearch, type SearchResult } from "@foundation/src/lib/api/search-api";
+import type { SearchResult } from "@foundation/src/lib/api/search-api";
+import { useGlobalSearch } from "@foundation/src/hooks/useGlobalSearch";
 import { useSiteStore } from "@foundation/src/store/site-store";
 import { useCanEdit, useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { useDebouncedCallback } from "@foundation/src/hooks/useDebouncedCallback";
 import { ROUTE_SETTINGS_CRITERIA, ROUTE_SETTINGS_TEMPLATES, ROUTE_TENANT_ADMIN_SITES } from "@foundation/src/constants/auth";
 import { resourceTypeIcon } from "@foundation/src/components/resources/resource-type-icon";
-import { logger } from "@foundation/src/lib/core/logger";
 
 // Non-resource entity types. Resources are handled separately: their icon comes from the
 // type's own registry and their label from the type key, so a tenant-defined type shows up
@@ -145,9 +145,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const isTenantAdmin = useIsTenantAdmin();
 
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  // The trimmed query once typing pauses; the search runs on this, not on every keystroke.
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const resultRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -167,48 +167,43 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     return () => clearTimeout(t);
   }, [open]);
 
-  const runSearch = useDebouncedCallback(() => {
-    setIsLoading(true);
-    globalSearch({
-      query: query.trim(),
-      siteId: selectedSiteId ?? undefined,
-      limit: 20,
-    }).then((response) => {
-      const visible = response.results.filter((r) => {
-        if (r.type === "site") return isTenantAdmin;
-        if (r.type === "template" || r.type === "criterion") return canEdit;
-        return true; // stations/assets/requests/groups are viewable on core pages
-      });
-      setResults(visible);
-      setSelectedIndex(0);
-    }).catch((error: unknown) => {
-      logger.error("Search failed:", error);
-      setResults([]);
-    }).finally(() => {
-      setIsLoading(false);
-    });
-  }, 200);
-
-  // Clearing the results when the query empties is a render-phase update; running and
-  // cancelling the debounced search is a timer side effect and stays in the effect below.
+  const debounceSearch = useDebouncedCallback((term: string) => setSearchTerm(term), 200);
   const queryEmpty = !query.trim();
-  const [syncedEmpty, setSyncedEmpty] = useState(queryEmpty);
-  if (syncedEmpty !== queryEmpty) {
-    setSyncedEmpty(queryEmpty);
-    if (queryEmpty) {
-      setResults([]);
-      setSelectedIndex(0);
-    }
-  }
 
   // Debounced search
   useEffect(() => {
     if (queryEmpty) {
-      runSearch.cancel();
+      debounceSearch.cancel();
       return;
     }
-    runSearch();
-  }, [queryEmpty, query, selectedSiteId, canEdit, isTenantAdmin, runSearch]);
+    debounceSearch(query.trim());
+  }, [queryEmpty, query, debounceSearch]);
+
+  const search = useGlobalSearch(queryEmpty ? "" : searchTerm, selectedSiteId);
+  const isLoading = search.isFetching;
+  // An emptied query shows nothing at once, even while an older answer is still cached.
+  const results = useMemo(
+    () =>
+      queryEmpty
+        ? []
+        : (search.data?.results ?? []).filter((r) => {
+            if (r.type === "site") return isTenantAdmin;
+            if (r.type === "template" || r.type === "criterion") return canEdit;
+            return true; // stations/assets/requests/groups are viewable on core pages
+          }),
+    [queryEmpty, search.data, isTenantAdmin, canEdit],
+  );
+
+  // A new answer, or an emptied query, puts the selection back on the first row. A
+  // render-phase update, not an effect.
+  const [syncedAnswer, setSyncedAnswer] = useState<{ data: unknown; queryEmpty: boolean }>({
+    data: search.data,
+    queryEmpty,
+  });
+  if (syncedAnswer.data !== search.data || syncedAnswer.queryEmpty !== queryEmpty) {
+    setSyncedAnswer({ data: search.data, queryEmpty });
+    setSelectedIndex(0);
+  }
 
   // Scroll selected item into view
   useEffect(() => {
@@ -293,7 +288,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               aria-label="Clear search"
               onClick={() => {
                 setQuery("");
-                setResults([]);
                 inputRef.current?.focus();
               }}
             >

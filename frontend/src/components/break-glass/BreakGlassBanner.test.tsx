@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BreakGlassBanner } from './BreakGlassBanner';
 
@@ -77,13 +78,13 @@ describe('BreakGlassBanner', () => {
 
   it('renders nothing when membership is not break-glass', () => {
     mockMembership = { slug: 'acme', isBreakGlass: false };
-    const { container } = render(<BreakGlassBanner now={() => BASE_TIME} />);
+    const { container } = renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
     expect(container.innerHTML).toBe('');
   });
 
   it('renders the banner when membership is break-glass', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-banner')).toBeInTheDocument();
@@ -93,7 +94,7 @@ describe('BreakGlassBanner', () => {
 
   it('fetches session status on mount', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(mockGetStatus).toHaveBeenCalledWith('acme');
@@ -104,7 +105,7 @@ describe('BreakGlassBanner', () => {
     mockMembership = breakGlassMembership();
     // 30 minutes remaining
     const now = new Date('2026-04-18T12:30:00Z').getTime();
-    render(<BreakGlassBanner now={() => now} />);
+    renderWithQuery(<BreakGlassBanner now={() => now} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('30:00 remaining');
@@ -113,7 +114,7 @@ describe('BreakGlassBanner', () => {
 
   it('calls renewBreakGlassSession when Extend is clicked', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -126,9 +127,27 @@ describe('BreakGlassBanner', () => {
     });
   });
 
+  it('shows the renewed expiry, and keeps the old one when renewal fails', async () => {
+    mockMembership = breakGlassMembership();
+    mockRenew.mockRejectedValueOnce(new Error('Gone'));
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('1:00:00 remaining'),
+    );
+    fireEvent.click(screen.getByTestId('break-glass-extend'));
+    await waitFor(() => expect(screen.getByTestId('break-glass-extend')).toBeEnabled());
+    expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('1:00:00 remaining');
+
+    fireEvent.click(screen.getByTestId('break-glass-extend'));
+    await waitFor(() =>
+      expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('2:00:00 remaining'),
+    );
+  });
+
   it('calls clearMembership and navigates on Exit click', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -144,7 +163,7 @@ describe('BreakGlassBanner', () => {
     // navigateToApex returns false when baseDomain is not configured (local dev).
     mockNavigateToApex.mockReturnValue(false);
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -157,7 +176,7 @@ describe('BreakGlassBanner', () => {
 
   it('fires audit exit on Exit click', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -177,7 +196,7 @@ describe('BreakGlassBanner', () => {
     mockGetStatus.mockResolvedValue(
       sessionStatus({ expiresAt: '2026-04-18T20:00:00Z' }),
     );
-    render(<BreakGlassBanner now={() => pastCap} />);
+    renderWithQuery(<BreakGlassBanner now={() => pastCap} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-extend')).toBeDisabled();
@@ -189,7 +208,7 @@ describe('BreakGlassBanner', () => {
     mockMembership = breakGlassMembership();
     // 2 minutes before expiry
     const nearExpiry = new Date('2026-04-18T12:58:00Z').getTime();
-    render(<BreakGlassBanner now={() => nearExpiry} />);
+    renderWithQuery(<BreakGlassBanner now={() => nearExpiry} />);
 
     await waitFor(() => {
       const banner = screen.getByTestId('break-glass-banner');
@@ -201,7 +220,7 @@ describe('BreakGlassBanner', () => {
     mockMembership = breakGlassMembership();
     // Already expired
     const expired = new Date('2026-04-18T13:01:00Z').getTime();
-    render(<BreakGlassBanner now={() => expired} />);
+    renderWithQuery(<BreakGlassBanner now={() => expired} />);
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
@@ -212,7 +231,7 @@ describe('BreakGlassBanner', () => {
   it('auto-exits when server returns no active session', async () => {
     mockMembership = breakGlassMembership();
     mockGetStatus.mockResolvedValue(null);
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
@@ -223,7 +242,7 @@ describe('BreakGlassBanner', () => {
   it('stays in the session when the status read fails for another reason', async () => {
     mockMembership = breakGlassMembership();
     mockGetStatus.mockRejectedValue(new Error('Internal Server Error'));
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 0));

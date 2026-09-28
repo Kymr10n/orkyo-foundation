@@ -1,6 +1,7 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router';
 import { CommandPalette } from './CommandPalette';
@@ -66,7 +67,7 @@ const mockSearchResponse: SearchResponse = {
 };
 
 function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: boolean) => void }) {
-  return render(
+  return renderWithQuery(
       <BrowserRouter>
       <CommandPalette open={props.open} onOpenChange={props.onOpenChange ?? vi.fn()} />
     </BrowserRouter>
@@ -147,6 +148,27 @@ describe('CommandPalette', () => {
           limit: 20,
         });
       }, { timeout: 500 });
+    });
+
+    it('shows no results, rather than a stale list, when the search fails', async () => {
+      vi.mocked(searchApi.globalSearch).mockRejectedValue(new Error('Search down'));
+      renderCommandPalette({ open: true });
+
+      await userEvent.type(screen.getByPlaceholderText(/search/i), 'conference');
+
+      expect(await screen.findByText(/No results found for "conference"/)).toBeInTheDocument();
+    });
+
+    it('clears the results at once when the query is emptied', async () => {
+      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
+      renderCommandPalette({ open: true });
+      const input = screen.getByPlaceholderText(/search/i);
+
+      await userEvent.type(input, 'conference');
+      expect(await screen.findByText('Conference Room A')).toBeInTheDocument();
+
+      await userEvent.clear(input);
+      expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
     });
 
     it('displays search results', async () => {
@@ -376,7 +398,7 @@ describe('CommandPalette', () => {
   describe('search persistence', () => {
     it('preserves search query when dialog reopens', async () => {
       const onOpenChange = vi.fn();
-      const { rerender } = render(
+      const { rerender } = renderWithQuery(
         <BrowserRouter>
           <CommandPalette open={true} onOpenChange={onOpenChange} />
         </BrowserRouter>

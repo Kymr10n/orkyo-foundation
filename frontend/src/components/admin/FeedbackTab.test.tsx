@@ -56,6 +56,17 @@ describe('FeedbackTab', () => {
     await waitFor(() => expect(screen.getByText(/No feedback yet/i)).toBeInTheDocument());
   });
 
+  it('shows a failed load inline', async () => {
+    mockGet.mockRejectedValue(new Error('Feedback service down'));
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
+    expect(await screen.findByText('Feedback service down')).toBeInTheDocument();
+  });
+
+  it('asks for every status by default', async () => {
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith(undefined));
+  });
+
   it('renders feedback rows', async () => {
     mockGet.mockResolvedValue(pagedResult([summary]));
     render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
@@ -96,5 +107,7 @@ describe('FeedbackTab', () => {
     ));
     // The success toast now originates from the central MutationCache (meta).
     await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Feedback updated'));
+    // The save's meta invalidates the list, so the table re-reads the new status.
+    await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
   });
 });

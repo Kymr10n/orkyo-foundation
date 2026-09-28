@@ -18,10 +18,6 @@ import {
   ScrollableDialogBody,
 } from "@foundation/src/components/ui/dialog";
 import {
-  createAssignment,
-  cancelAssignment,
-  validateAssignment,
-  validateAssignmentsBatch,
   hardBlockers,
   SOFT_BLOCKER_CODES,
   type ValidationResult,
@@ -31,7 +27,12 @@ import {
   type ResourceAssignmentOption,
 } from "@foundation/src/lib/api/resource-candidate-requests-api";
 import { useResourceAssignmentOptions } from "@foundation/src/hooks/useResourceSchedule";
-import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
+import {
+  useCancelAssignment,
+  useCreateAssignment,
+  useValidateAssignment,
+  useValidateAssignmentsBatch,
+} from "@foundation/src/hooks/useResourceAssignments";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { ValidationIssueList } from "../requests/ValidationIssueList";
 import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
@@ -149,7 +150,11 @@ export function ResourceAssignmentDialog({
   const [eligibilityLoaded, setEligibilityLoaded] = useState(false);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [eligibilityError, setEligibilityError] = useState(false);
-  const invalidateRequests = useInvalidateRequestData();
+  // A create or a cancel refreshes the request-derived views through its mutation's meta.
+  const { mutateAsync: validateAssignment } = useValidateAssignment();
+  const { mutateAsync: validateAssignmentsBatch } = useValidateAssignmentsBatch();
+  const { mutateAsync: createAssignment } = useCreateAssignment();
+  const { mutateAsync: cancelAssignment } = useCancelAssignment();
   // A Viewer sees the assignments read-only: the rows stay listed, the toggles do nothing.
   const canEdit = useCanEdit();
 
@@ -314,7 +319,6 @@ export function ResourceAssignmentDialog({
           ),
         );
         patchConflict(option.requestId, null);
-        invalidateRequests();
       } catch {
         // The remove did not land — tell the planner so they don't assume it's gone.
         toast.error(`Couldn't remove ${resourceName} from “${option.name}”. Please try again.`);
@@ -371,7 +375,6 @@ export function ResourceAssignmentDialog({
             o.requestId === option.requestId ? { ...o, assignmentId: created.id } : o,
           ),
         );
-        invalidateRequests();
         // Persist any conflict (capability / overbook) on the now-assigned row so the
         // badge + reasons survive — one source of truth with the on-load conflicts map.
         patchConflict(option.requestId, conflictIssuesOf(effectiveResult));

@@ -12,10 +12,11 @@ import {
 } from "@foundation/src/lib/api/user-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 
-export const useUsers = () =>
+export const useUsers = (enabled = true) =>
   useQuery({
     queryKey: qk.users.all(),
     queryFn: getUsers,
+    enabled,
   });
 
 export const useInvitations = () =>

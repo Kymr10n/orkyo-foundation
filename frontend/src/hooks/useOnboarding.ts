@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import {
   canCreateTenant,
+  cancelTenantDeletion,
+  createTenant,
   getStarterTemplates,
   getTenantMemberships,
+  type CreateTenantRequest,
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import type { StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
@@ -29,9 +33,8 @@ export interface OnboardingData {
 /**
  * The three reads the onboarding page opens with, loaded once on mount.
  *
- * Deliberately not react-query: this surface renders above the app shell, outside the
- * QueryClientProvider, and each answer is a one-shot fact about this session. Manual load by
- * design on this operator surface — see docs/dialog-feedback.md.
+ * Deliberately not react-query: each answer is a one-shot fact about this session. Manual load
+ * by design on this operator surface — see docs/dialog-feedback.md.
  */
 export function useOnboardingData(): OnboardingData {
   const [canCreate, setCanCreate] = useState<boolean | null>(null);
@@ -82,3 +85,11 @@ export function useOnboardingData(): OnboardingData {
 
   return { canCreate, cannotCreateReason, loading, templates, templatesError, deletingTenants };
 }
+
+/** Create a workspace from the wizard. No `meta`: the page shows a failure inline. */
+export const useCreateTenant = () =>
+  useMutation({ mutationFn: (request: CreateTenantRequest) => createTenant(request) });
+
+/** Restore a workspace scheduled for deletion. No `meta`: the page shows a failure inline. */
+export const useCancelTenantDeletion = () =>
+  useMutation({ mutationFn: (tenantId: string) => cancelTenantDeletion(tenantId) });

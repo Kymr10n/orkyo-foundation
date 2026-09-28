@@ -14,13 +14,14 @@ import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
   useAiConversations,
   useAiStatus,
-  useInvalidateAiConversations,
+  useDeleteAiConversation,
+  useFetchAiConversation,
   useInvalidateAiStatus,
+  useSaveAiConversation,
 } from "@foundation/src/hooks/useAiAssistant";
 import {
-  deleteAiConversation,
-  getAiConversation,
-  saveAiConversation,
+  // The one direct call left: an SSE stream read turn by turn, not a request/response
+  // a query or a mutation can hold.
   streamAiChat,
   type AiEntry,
   type AiMessage,
@@ -189,7 +190,9 @@ export function AssistantPanel({
   const seededFor = useRef<string | null>(null);
 
   const invalidateAiStatus = useInvalidateAiStatus();
-  const invalidateAiConversations = useInvalidateAiConversations();
+  const getAiConversation = useFetchAiConversation();
+  const saveAiConversation = useSaveAiConversation();
+  const deleteAiConversation = useDeleteAiConversation();
 
   // Titles only; a body is fetched when a conversation is actually opened.
   const { data: conversations = [] } = useAiConversations(open);
@@ -242,7 +245,7 @@ export function AssistantPanel({
       logger.error("Could not open the saved conversation", err);
       setNotice("That conversation could not be opened.");
     }
-  }, []);
+  }, [getAiConversation]);
 
   const runTurn = useCallback(
     async (
@@ -366,10 +369,8 @@ export function AssistantPanel({
       title: firstAsked.slice(0, 120),
       entries,
       transcript,
-    })
-      .then(() => invalidateAiConversations())
-      .catch((err: unknown) => logger.error("Could not save the conversation", err));
-  }, [busy, entries, transcript, conversationId, invalidateAiConversations]);
+    }).catch((err: unknown) => logger.error("Could not save the conversation", err));
+  }, [busy, entries, transcript, conversationId, saveAiConversation]);
 
   // Reopening the panel picks up where the person left off. Only once, and only into an
   // empty panel: a conversation already on screen is the one they want.
@@ -408,13 +409,12 @@ export function AssistantPanel({
   const handleDeleteConversation = useCallback(async (id: string) => {
     try {
       await deleteAiConversation(id);
-      await invalidateAiConversations();
       // Deleting the conversation on screen leaves nothing to write back to.
       if (id === conversationId) startNewConversation();
     } catch (err) {
       logger.error("Could not delete the conversation", err);
     }
-  }, [conversationId, invalidateAiConversations, startNewConversation]);
+  }, [conversationId, deleteAiConversation, startNewConversation]);
 
   const handleSend = async () => {
     const text = input.trim();

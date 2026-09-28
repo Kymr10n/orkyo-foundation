@@ -19,9 +19,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Building2, Plus, LogOut, AlertCircle, ArrowLeft, CheckCircle2, RotateCcw } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { createTenant, cancelTenantDeletion } from "@foundation/src/lib/api/tenant-account-api";
 import { StarterTemplatePicker } from "@foundation/src/components/onboarding/StarterTemplatePicker";
-import { useOnboardingData } from "@foundation/src/hooks/useOnboarding";
+import {
+  useCancelTenantDeletion,
+  useCreateTenant,
+  useOnboardingData,
+} from "@foundation/src/hooks/useOnboarding";
 import { logger } from "@foundation/src/lib/core/logger";
 import { runtimeConfig } from "@foundation/src/config/runtime";
 import { getTenantHostname } from "@foundation/src/lib/utils/tenant-navigation";
@@ -92,6 +95,8 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
   const [step, setStep] = useState<WizardStep>("form");
   const [selectedTemplate, setSelectedTemplate] = useState("empty");
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const { mutateAsync: createTenant } = useCreateTenant();
+  const { mutateAsync: cancelTenantDeletion } = useCancelTenantDeletion();
 
   const handleCancelDeletion = async (tenantId: string) => {
     setRestoringId(tenantId);

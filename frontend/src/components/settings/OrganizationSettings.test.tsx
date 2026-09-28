@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BrowserRouter } from 'react-router';
@@ -6,12 +7,16 @@ import { OrganizationSettings } from './OrganizationSettings';
 import * as tenantApi from '@foundation/src/lib/api/tenant-management-api';
 import * as tenantsApi from '@foundation/src/lib/api/tenant-account-api';
 import * as userApi from '@foundation/src/lib/api/user-api';
+import { exportTenantData } from '@foundation/src/lib/api/export-api';
+import { downloadFile } from '@foundation/src/lib/utils/import-export';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 
 // Mock APIs
 vi.mock('@foundation/src/lib/api/tenant-management-api');
 vi.mock('@foundation/src/lib/api/tenant-account-api');
 vi.mock('@foundation/src/lib/api/user-api');
+vi.mock('@foundation/src/lib/api/export-api', () => ({ exportTenantData: vi.fn() }));
+vi.mock('@foundation/src/lib/utils/import-export', () => ({ downloadFile: vi.fn() }));
 
 // Mock navigate
 const mockNavigate = vi.fn();
@@ -66,7 +71,7 @@ const mockAdmins: userApi.UserWithRole[] = [
 ];
 
 const renderOrganizationSettings = (upgradeHref?: string) => {
-  return render(
+  return renderWithQuery(
       <BrowserRouter>
       <OrganizationSettings upgradeHref={upgradeHref} />
     </BrowserRouter>
@@ -205,6 +210,32 @@ describe('OrganizationSettings', () => {
       await waitFor(() => {
         expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
       });
+    });
+
+    it('downloads the export as a JSON file named after the organization', async () => {
+      vi.mocked(exportTenantData).mockResolvedValue({ sites: [] } as never);
+      const user = userEvent.setup();
+      renderOrganizationSettings();
+
+      await user.click(await screen.findByRole('button', { name: /export json/i }));
+
+      await waitFor(() => expect(downloadFile).toHaveBeenCalled());
+      expect(exportTenantData).toHaveBeenCalledWith({ includeMasterData: true, includePlanningData: false });
+      const [json, filename, type] = vi.mocked(downloadFile).mock.calls[0];
+      expect(JSON.parse(json as string)).toEqual({ sites: [] });
+      expect(filename).toMatch(/-export-\d{4}-\d{2}-\d{2}\.json$/);
+      expect(type).toBe('application/json');
+    });
+
+    it('shows the failure inline when the export fails', async () => {
+      vi.mocked(exportTenantData).mockRejectedValue(new Error('Export refused'));
+      const user = userEvent.setup();
+      renderOrganizationSettings();
+
+      await user.click(await screen.findByRole('button', { name: /export json/i }));
+
+      expect(await screen.findByText('Export refused')).toBeInTheDocument();
+      expect(downloadFile).not.toHaveBeenCalled();
     });
 
     it('shows the upsell instead of the export button when it does not', async () => {

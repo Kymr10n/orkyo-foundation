@@ -36,16 +36,14 @@ import { NotificationPreferencesSection } from "@foundation/src/components/setti
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
-import {
-  leaveTenant,
-  deleteTenant,
-  type TenantMembership,
-} from "@foundation/src/lib/api/tenant-account-api";
+import type { TenantMembership } from "@foundation/src/lib/api/tenant-account-api";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import {
   useInvalidateUserProfile,
   useRequestEmailChange,
   useTenantMemberships,
+  useLeaveTenant,
+  useDeleteTenant,
   useUpdateUserProfile,
   useUserProfile,
 } from "@foundation/src/hooks/useAccount";
@@ -145,6 +143,8 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     setError,
     reload: loadMemberships,
   } = useTenantMemberships();
+  const { mutateAsync: leaveTenant } = useLeaveTenant();
+  const { mutateAsync: deleteTenant } = useDeleteTenant();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);

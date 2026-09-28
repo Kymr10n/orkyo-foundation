@@ -14,6 +14,8 @@ import {
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import type { Request, RequestFormData } from "@foundation/src/types/requests";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { useImportHandler } from "@foundation/src/hooks/useImportExport";
+import { importRequests } from "@foundation/src/lib/utils/export-handlers";
 
 /**
  * The request list for a site. Site-neutral requests are kept in by the backend, so the
@@ -111,4 +113,29 @@ export function useSaveRequest(handlers: {
     onSuccess: () => handlers.onSuccess?.(),
     onError: (err) => handlers.onError?.(err),
   });
+}
+
+/**
+ * The Requests page's file import: parse the file, then create each request in turn.
+ * `useImportHandler` owns the toast and the invalidation.
+ */
+export function useRequestsImportHandler(): void {
+  useImportHandler(
+    "requests",
+    async (file, format) => {
+      const importedRequests = await importRequests(file, format);
+      if (!importedRequests.length) {
+        throw new Error("No valid requests found in file");
+      }
+      for (const req of importedRequests) {
+        await createRequest(req);
+      }
+      return importedRequests.length;
+    },
+    {
+      successMessage: (count) => `Imported ${count} requests`,
+      errorMessage: "Failed to import requests",
+      invalidates: REQUEST_DERIVED_QUERY_KEYS,
+    },
+  );
 }

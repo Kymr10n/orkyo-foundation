@@ -21,10 +21,6 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
-import {
-    createRequest,
-    getRequest,
-} from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useNow } from "@foundation/src/hooks/useNow";
@@ -64,13 +60,14 @@ import {
     useDeleteRequest,
     useMoveRequestToParent,
     useRequests,
+    useRequestsImportHandler,
     useSaveRequest,
 } from "@foundation/src/hooks/useRequests";
-import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
-import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
+import { useFetchRequest } from "@foundation/src/hooks/useInsights";
+import { useExportHandler } from "@foundation/src/hooks/useImportExport";
+import { exportRequests } from "@foundation/src/lib/utils/export-handlers";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { logger } from "@foundation/src/lib/core/logger";
-import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 
 const EMPTY_REQUESTS: Request[] = [];
 
@@ -191,20 +188,8 @@ export function RequestsPage() {
     logger.info(`Exported ${requests.length} requests as ${format.toUpperCase()}`);
   }, { label: 'Requests', description: 'Export or import requests with their requirements and constraints.', formats: ['csv'] });
 
-  useImportHandler('requests', async (file, format) => {
-    const importedRequests = await importRequests(file, format);
-    if (!importedRequests.length) {
-      throw new Error('No valid requests found in file');
-    }
-    for (const req of importedRequests) {
-      await createRequest(req);
-    }
-    return importedRequests.length;
-  }, {
-    successMessage: (count) => `Imported ${count} requests`,
-    errorMessage: 'Failed to import requests',
-    invalidates: REQUEST_DERIVED_QUERY_KEYS,
-  });
+  useRequestsImportHandler();
+  const fetchRequest = useFetchRequest();
 
   // Open the detail dialog when arriving with ?edit=<id> — from global search, and from the
   // sequence editor's "Open task". The list this page loads is scoped to the selected site, and
@@ -212,7 +197,7 @@ export function RequestsPage() {
   // leaving the reader on the list they were trying to leave.
   useEditQueryParam(requests, (request) => setDialog({ kind: "edit", request }), {
     ready: !isLoading,
-    resolveMissing: (id) => getRequest(id).catch(() => null),
+    resolveMissing: (id) => fetchRequest(id).catch(() => null),
     onMissing: () => toast.error("That request could not be opened", {
       description: "It may have been deleted, or it belongs to another site.",
     }),

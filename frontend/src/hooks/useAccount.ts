@@ -6,7 +6,9 @@ import {
   updateUserProfile,
 } from "@foundation/src/lib/api/security-api";
 import {
+  deleteTenant,
   getTenantMemberships,
+  leaveTenant,
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -75,3 +77,11 @@ export const useTenantMemberships = () => {
 
   return { memberships, loading, error, setError, reload };
 };
+
+/** Leave one organization. No `meta`: the account page shows a failure inline. */
+export const useLeaveTenant = () =>
+  useMutation({ mutationFn: (tenantId: string) => leaveTenant(tenantId) });
+
+/** Start deleting one organization. No `meta`: the account page shows a failure inline. */
+export const useDeleteTenant = () =>
+  useMutation({ mutationFn: (tenantId: string) => deleteTenant(tenantId) });

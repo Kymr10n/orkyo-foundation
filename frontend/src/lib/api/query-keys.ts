@@ -335,5 +335,13 @@ export const qk = {
     diagnostics: () => ["admin", "diagnostics"] as const,
     /** The platform runtime settings the admin Settings tab edits. */
     settings: () => ["admin", "settings"] as const,
+    /** The caller's break-glass session in one tenant. */
+    breakGlassSession: (tenantSlug: string) => ["admin", "break-glass-session", tenantSlug] as const,
+    /** Every user-feedback read (invalidation prefix). */
+    feedback: () => ["admin", "feedback"] as const,
+    /** The feedback list for one status filter (null = every status). */
+    feedbackList: (status: string | null) => ["admin", "feedback", "list", status] as const,
+    /** One feedback item with its full text. */
+    feedbackItem: (id: string) => ["admin", "feedback", "item", id] as const,
   },
 } as const;
