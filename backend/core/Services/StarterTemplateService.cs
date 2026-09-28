@@ -17,7 +17,7 @@ public interface IStarterTemplateService
     /// </summary>
     /// <param name="tenantId">Control-plane tenant ID.</param>
     /// <param name="dbIdentifier">Tenant database name (e.g. "tenant_acme").</param>
-    /// <param name="userId">Owning user ID (used for audit trail).</param>
+    /// <param name="userId">Owning user ID. The foundation implementation does not read it.</param>
     /// <param name="templateKey">One of: "demo", "camping-site", "construction-site", "manufacturing".</param>
     Task ApplyStarterTemplateAsync(Guid tenantId, string dbIdentifier, Guid userId, string templateKey, CancellationToken ct = default);
 

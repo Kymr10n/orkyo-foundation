@@ -87,6 +87,19 @@ public class CsrfMiddlewareTests
     }
 
     [Fact]
+    public async Task Post_WithBffAuth_ToACsrfExemptEndpoint_PassesThrough()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
+        var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName);
+        context.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(new CsrfExemptAttribute()), "unsubscribe"));
+
+        await middleware.InvokeAsync(context);
+
+        called.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Post_WithBffAuth_MissingCsrf_Returns403()
     {
         var called = false;

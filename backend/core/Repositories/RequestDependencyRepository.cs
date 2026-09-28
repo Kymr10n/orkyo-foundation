@@ -172,7 +172,7 @@ public class RequestDependencyRepository : IRequestDependencyRepository
 
         // Walk forward from the proposed successor. If the proposed predecessor is already
         // downstream of it, the new edge would close a loop. Same shape as the reparent
-        // ancestor walk in RequestRepository, following edges instead of parents.
+        // ancestor walk in RequestTreeRepository, following edges instead of parents.
         return await db.ExecuteScalarAsync<bool>(
             @"WITH RECURSIVE downstream AS (
                 SELECT successor_request_id AS id

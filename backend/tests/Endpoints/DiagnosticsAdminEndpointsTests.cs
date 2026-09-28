@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -15,10 +16,12 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class DiagnosticsAdminEndpointsTests
 {
     private readonly HttpClient _client;
+    private readonly string _controlPlane;
 
     public DiagnosticsAdminEndpointsTests(DatabaseFixture fixture)
     {
         _client = fixture.Factory.CreateClient();
+        _controlPlane = fixture.ControlPlaneConnectionString;
     }
 
     private static Task<LinkedTestUser> CreateSiteAdminAsync()
@@ -133,7 +136,7 @@ public class DiagnosticsAdminEndpointsTests
     }
 
     [Fact]
-    public async Task GetDiagnostics_SiteAdmin_DeploymentModeIsSelfHosted()
+    public async Task GetDiagnostics_SiteAdmin_DeploymentModeIsUnknown_WhenTheProductDoesNotSetIt()
     {
         var (_, token) = await CreateSiteAdminAsync();
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
@@ -142,7 +145,7 @@ public class DiagnosticsAdminEndpointsTests
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal("self-hosted", body.GetProperty("deploymentMode").GetString());
+        Assert.Equal("unknown", body.GetProperty("deploymentMode").GetString());
     }
 
     [Fact]
@@ -181,6 +184,44 @@ public class DiagnosticsAdminEndpointsTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
 
         Assert.Equal("keycloak", body.GetProperty("auth").GetProperty("provider").GetString());
+    }
+
+    [Fact]
+    public async Task GetDiagnostics_SiteAdmin_WorkerStatusReadsTheWorkerJobJournal()
+    {
+        // A completion later than any other row, so it is the one the endpoint reports.
+        var job = $"diag-test-{Guid.NewGuid():N}";
+        await using (var conn = new NpgsqlConnection(_controlPlane))
+        {
+            await conn.OpenAsync();
+            await using var insert = new NpgsqlCommand(
+                "INSERT INTO worker_job_runs (job_name, started_at, completed_at, result) " +
+                "VALUES (@job, NOW(), NOW() + INTERVAL '1 hour', 'ok')", conn);
+            insert.Parameters.AddWithValue("job", job);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var (_, token) = await CreateSiteAdminAsync();
+            var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            var body = await (await _client.SendAsync(request)).Content.ReadFromJsonAsync<JsonElement>();
+
+            var worker = body.GetProperty("worker");
+            Assert.Equal("running", worker.GetProperty("status").GetString());
+            var lastActivity = worker.GetProperty("lastActivity").GetDateTime();
+            Assert.True(lastActivity > DateTime.UtcNow.AddMinutes(30), "the journal's completion, not an audit event");
+        }
+        finally
+        {
+            await using var conn = new NpgsqlConnection(_controlPlane);
+            await conn.OpenAsync();
+            await using var delete = new NpgsqlCommand("DELETE FROM worker_job_runs WHERE job_name = @job", conn);
+            delete.Parameters.AddWithValue("job", job);
+            await delete.ExecuteNonQueryAsync();
+        }
     }
 
     [Fact]

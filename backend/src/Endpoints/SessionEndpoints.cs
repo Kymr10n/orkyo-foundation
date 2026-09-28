@@ -159,6 +159,7 @@ public static class SessionEndpoints
             TosAcceptRequest request,
             ICurrentPrincipal currentPrincipal,
             ISessionService sessionService,
+            IClientIpAccessor clientIpAccessor,
             CancellationToken ct) =>
         {
             if (!currentPrincipal.IsAuthenticated)
@@ -178,8 +179,9 @@ public static class SessionEndpoints
                 return ErrorResponses.BadRequest($"Invalid ToS version. Required: {requiredVersion}");
             }
 
-            // Get IP and user agent for audit
-            var ipAddress = ctx.Connection.RemoteIpAddress?.ToString();
+            // IP and user agent for the audit record. The client IP, not the direct peer: behind
+            // nginx the peer is always the proxy.
+            var ipAddress = clientIpAccessor.GetClientIp(ctx);
             var userAgent = ctx.Request.Headers.UserAgent.FirstOrDefault();
 
             await sessionService.AcceptTosAsync(

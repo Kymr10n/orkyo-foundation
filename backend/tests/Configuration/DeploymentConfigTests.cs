@@ -68,6 +68,20 @@ public class DeploymentConfigTests
         result.OidcInternalAuthority.Should().Be("http://keycloak:8080/realms/orkyo");
     }
 
+    [Theory]
+    [InlineData("cloud", "cloud")]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void FromConfiguration_ReadsTheDeploymentMode_EmptyCountsAsUnset(string? value, string? expected)
+    {
+        var config = BuildConfig(RequiredValues(new Dictionary<string, string?>
+        {
+            [ConfigKeys.DeploymentMode] = value,
+        }));
+
+        DeploymentConfig.FromConfiguration(config).DeploymentMode.Should().Be(expected);
+    }
+
     [Fact]
     public void FromConfiguration_LeavesOidcInternalAuthorityNull_WhenKeyIsAbsent()
     {

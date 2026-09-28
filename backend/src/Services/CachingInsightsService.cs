@@ -8,8 +8,7 @@ namespace Api.Services.Insights;
 /// <summary>
 /// Short-TTL read-through cache over <see cref="IInsightsService"/>. The dashboard re-fetches the same
 /// bucketed series repeatedly and each call is pure read-aggregation, so a brief per-(org, query) cache
-/// cuts repeated recomputation at the cost of at most <see cref="TimePolicyConstants.ShortCacheTtl"/> staleness — the same posture as
-/// the <c>private, max-age=60</c> response header already applied to dashboard GETs. No explicit
+/// cuts repeated recomputation at the cost of at most <see cref="TimePolicyConstants.ShortCacheTtl"/> staleness. No explicit
 /// invalidation. Keyed by <see cref="OrgContext.OrgId"/> so tenants never share entries.
 ///
 /// The cache is process-wide; in a multi-instance deployment each instance keeps its own copy, so a

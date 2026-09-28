@@ -28,8 +28,8 @@ public class EmailTemplatesTests
         var (_, htmlBody, textBody) = EmailTemplates.GetWelcomeEmail("Alex");
 
         htmlBody.Should().Contain("Getting Started");
-        htmlBody.Should().Contain("Create your first site and spaces");
-        textBody.Should().Contain("Create your first site and spaces");
+        htmlBody.Should().Contain("Create your first site and resources");
+        textBody.Should().Contain("Create your first site and resources");
         textBody.Should().Contain("Invite team members to collaborate");
     }
 

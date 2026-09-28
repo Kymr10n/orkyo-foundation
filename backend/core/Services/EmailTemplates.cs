@@ -37,7 +37,7 @@ public static class EmailTemplates
             [
                 $"Hi {E(displayName)},",
                 $"Your email has been verified successfully! You're now ready to start using {b.ProductName} to manage your resources efficiently.",
-                "<strong>Getting Started</strong><br>• Create your first site and spaces<br>• Set up resource utilization schedules<br>• Invite team members to collaborate<br>• Track and optimize your resource utilization",
+                "<strong>Getting Started</strong><br>• Create your first site and resources<br>• Set up resource utilization schedules<br>• Invite team members to collaborate<br>• Track and optimize your resource utilization",
                 "If you have any questions or need help getting started, feel free to reach out to us.",
             ]);
         return ($"Welcome to {b.ProductName}!", html, text);
@@ -147,8 +147,8 @@ public static class EmailTemplates
     }
 
     // ────────────────────────────────────────────────────────────────────────────
-    // Lifecycle / admin / security notifications (added 2026-06). These share one
-    // branded layout helper to stay consistent and avoid repeating the HTML scaffold.
+    // Lifecycle / admin / security notifications. These share one branded layout
+    // helper to stay consistent and avoid repeating the HTML scaffold.
     // ────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Branded layout: gradient header, body paragraphs, optional CTA button, optional footer note.</summary>

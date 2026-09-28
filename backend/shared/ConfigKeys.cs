@@ -110,6 +110,8 @@ public static class ConfigKeys
     // ── Version / build info ────────────────────────────────────────────────
     public const string OrkyoVersion = "ORKYO_VERSION";
     public const string OrkyoBuildSha = "ORKYO_BUILD_SHA";
+    /// <summary>What the admin diagnostics page reports as the deployment mode (e.g. <c>cloud</c>, <c>self-hosted</c>).</summary>
+    public const string DeploymentMode = "ORKYO_DEPLOYMENT_MODE";
 
     // ── Notifications ───────────────────────────────────────────────────────
     public const string AlertEmailTo = "ALERT_EMAIL_TO";

@@ -56,6 +56,7 @@ public class CriteriaEndpointsTests
         Assert.Null(criterion.EnumValues);
         Assert.Null(criterion.Unit);
         Assert.NotEqual(Guid.Empty, criterion.Id);
+        Assert.Equal($"/api/criteria/{criterion.Id}", response.Headers.Location?.ToString());
     }
 
     [Fact]

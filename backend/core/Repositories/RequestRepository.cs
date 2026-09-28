@@ -39,8 +39,8 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // Same scoping as the backlog above: a site keeps its own rows plus the site-neutral
-        // ones, which are schedulable anywhere. A null siteId keeps the tenant-wide list.
+        // Same scoping as the backlog in RequestScheduleReadRepository.GetUnscheduledAsync: a site
+        // keeps its own rows plus the site-neutral ones, which are schedulable anywhere. A null siteId keeps the tenant-wide list.
         var siteFilter = siteId is null ? "" : "WHERE (site_id = @siteId OR site_id IS NULL) ";
 
         var requests = await db.QueryListAsync(

@@ -38,8 +38,10 @@ public sealed class CsrfMiddleware
             return;
         }
 
-        // Safe methods don't need CSRF protection
-        if (SafeMethods.Contains(context.Request.Method))
+        // Safe methods don't need CSRF protection, and neither does an endpoint that acts on a
+        // secret in its own request rather than on the session (see CsrfExemptAttribute).
+        if (SafeMethods.Contains(context.Request.Method)
+            || context.GetEndpoint()?.Metadata.GetMetadata<CsrfExemptAttribute>() is not null)
         {
             await _next(context);
             return;
@@ -65,3 +67,11 @@ public sealed class CsrfMiddleware
         await _next(context);
     }
 }
+
+/// <summary>
+/// Marks an anonymous endpoint whose POST acts only on a secret carried in the request itself (a
+/// plain HTML form posting an emailed token), never on the caller's session. Such a form cannot send
+/// the double-submit header, and a signed-in recipient's BFF cookie would otherwise make it fail.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public sealed class CsrfExemptAttribute : Attribute;

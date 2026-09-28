@@ -3,9 +3,14 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Configuration;
 using Api.Models;
+using Api.Services;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -276,6 +281,44 @@ public class SessionEndpointsTests
         accepted.GetBoolean().Should().BeTrue();
         doc.RootElement.TryGetProperty("tosVersion", out var version).Should().BeTrue();
         version.GetString().Should().Be(requiredVersion);
+    }
+
+    [Fact]
+    public async Task TosAccept_RecordsTheClientIp_NotTheProxy()
+    {
+        var email = $"tos_ip_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName: "ToS IP", tenantSlug: null, active: true);
+        var token = TestConstants.BearerToken(userId.ToString(), email, "ToS IP", "00000000-0000-0000-0000-000000000001",
+            TestConstants.TenantSlug, isTenantAdmin: false, role: "user");
+        var server = (TestServer)_factory.Services.GetRequiredService<IServer>();
+        var body = System.Text.Encoding.UTF8.GetBytes("{\"tosVersion\":\"2026-02\"}");
+
+        // The direct peer is nginx on the private network; Cloudflare's header names the client.
+        var context = await server.SendAsync(c =>
+        {
+            c.Request.Method = HttpMethods.Post;
+            c.Request.Path = "/api/session/tos/accept";
+            c.Request.Headers.Authorization = $"Bearer {token}";
+            c.Request.Headers["CF-Connecting-IP"] = "203.0.113.9";
+            c.Request.ContentType = "application/json";
+            c.Request.ContentLength = body.Length;
+            c.Request.Body = new MemoryStream(body);
+            c.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>(new HasBody());
+            c.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.5");
+        });
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        await using var conn = _factory.Services.GetRequiredService<IDbConnectionFactory>().CreateControlPlaneConnection();
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("SELECT accepted_ip FROM tos_acceptances WHERE user_id = @id", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        ((string?)await cmd.ExecuteScalarAsync()).Should().Be("203.0.113.9");
+    }
+
+    /// <summary>TestServer marks a context-built request as bodiless; this one carries JSON.</summary>
+    private sealed class HasBody : Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature
+    {
+        public bool CanHaveBody => true;
     }
 
     // ─── GET /api/session/bootstrap ──────────────────────────────────────────────

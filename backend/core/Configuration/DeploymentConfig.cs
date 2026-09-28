@@ -54,6 +54,9 @@ public sealed record DeploymentConfig
     // ── Version ──────────────────────────────────────────────────────────
     public string? Version { get; init; }
 
+    /// <summary>The product's own name for how it is deployed; null when the product does not say.</summary>
+    public string? DeploymentMode { get; init; }
+
     // ── Required keys ────────────────────────────────────────────────────
 
     /// <summary>
@@ -137,6 +140,9 @@ public sealed record DeploymentConfig
             // reports as unset instead of claiming a level nobody chose.
             LogLevel = configuration.GetOptionalString(ConfigKeys.LoggingLevelDefault),
             Version = configuration[ConfigKeys.OrkyoVersion],
+            DeploymentMode = configuration.IsSet(ConfigKeys.DeploymentMode)
+                ? configuration[ConfigKeys.DeploymentMode]
+                : null,
         };
 
         // Fail fast at startup on a malformed master key (invalid base64 / not 32 bytes) — matches the

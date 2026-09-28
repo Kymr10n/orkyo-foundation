@@ -61,9 +61,10 @@ public sealed class ReportingTokenService : IReportingTokenService
         ILogger<ReportingTokenService> logger,
         TimeProvider time)
     {
-        // Fail early, never fall back: the pepper keys token hashes, and the old chain
-        // ended in a literal from this file — a publicly known pepper. An empty value
-        // counts as absent (the deploy pipeline writes KEY= for unset keys).
+        // The pepper keys token hashes. It falls back to the Keycloak backend client secret and
+        // fails at startup when neither is set — never to a literal: the old chain ended in one
+        // from this file, a publicly known pepper. An empty value counts as absent (the deploy
+        // pipeline writes KEY= for unset keys).
         var pepper = TokenCredentialHelper.ResolvePepper(
             configuration.IsSet(ConfigKeys.ReportingTokenPepper)
                 ? configuration[ConfigKeys.ReportingTokenPepper]

@@ -45,9 +45,8 @@ public static class UserHelper
     }
 
     /// <summary>
-    /// Maps a database reader row to a <see cref="User"/> object.
-    /// Expects columns in order: id, email, display_name, status, role,
-    /// created_at, updated_at, last_login_at (optional last column).
+    /// Maps a database reader row to a <see cref="User"/> object. Reads columns by name and
+    /// needs every column of <see cref="UserSelectColumns"/>, <c>last_login_at</c> included.
     /// <see cref="User.IsTenantAdmin"/> is computed from
     /// <c>role == <see cref="UserRole.Admin"/></c>.
     /// </summary>

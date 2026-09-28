@@ -53,6 +53,7 @@ public class SiteEndpointsTests
         site.Should().NotBeNull();
         site!.Name.Should().Be("Test Site");
         site.Code.Should().Be(code);
+        response.Headers.Location!.ToString().Should().Be($"/api/sites/{site.Id}");
     }
 
     [Fact]

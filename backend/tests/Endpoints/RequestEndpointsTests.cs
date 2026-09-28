@@ -46,6 +46,7 @@ public class RequestEndpointsTests
         var created = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(created);
         Assert.NotEqual(Guid.Empty, created.Id);
+        Assert.Equal($"/api/requests/{created.Id}", response.Headers.Location?.ToString());
         Assert.Equal(request.Name, created.Name);
         Assert.Equal(request.Description, created.Description);
         Assert.Equal(
@@ -1039,6 +1040,7 @@ public class RequestEndpointsTests
         var addedReq = await response.Content.ReadFromJsonAsync<RequestRequirementInfo>();
         Assert.NotNull(addedReq);
         Assert.NotEqual(Guid.Empty, addedReq.Id);
+        Assert.Equal($"/api/requests/{created.Id}/requirements/{addedReq.Id}", response.Headers.Location?.ToString());
         Assert.Equal(criterion.Id, addedReq.CriterionId);
         Assert.True(addedReq.Value.GetBoolean());
 

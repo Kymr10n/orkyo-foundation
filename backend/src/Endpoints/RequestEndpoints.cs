@@ -68,7 +68,7 @@ public static class RequestEndpoints
             {
                 var adjusted = await schedulingService.ApplySchedulingToCreateAsync(request, ct);
                 var created = await requestService.CreateAsync(adjusted, ct);
-                return Results.Created($"/requests/{created.Id}", created);
+                return Results.Created($"/api/requests/{created.Id}", created);
             }, logger, "create request", new { name = request.Name });
         })
         .WithName("CreateRequest")
@@ -111,7 +111,7 @@ public static class RequestEndpoints
             await EndpointHelpers.ExecuteAsync(requirement, validator, async () =>
             {
                 var created = await requestService.AddRequirementAsync(id, requirement, ct);
-                return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
+                return Results.Created($"/api/requests/{id}/requirements/{created.Id}", created);
             }))
         .WithName("AddRequestRequirement")
         .WithSummary("Add a requirement to a request");
@@ -171,7 +171,7 @@ public static class RequestEndpoints
                 var created = await dependencyService.CreateAsync(id, request, ct);
                 logger.LogInformation("Added dependency {DependencyId}: {Predecessor} precedes {Successor}",
                     created.Id, created.PredecessorRequestId, created.SuccessorRequestId);
-                return Results.Created($"/requests/{id}/dependencies/{created.Id}", created);
+                return Results.Created($"/api/requests/{id}/dependencies/{created.Id}", created);
             }, logger, "add request dependency", new { id }))
         .WithName("AddRequestDependency")
         .WithSummary("Make a request wait for another to finish");

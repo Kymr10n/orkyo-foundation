@@ -56,6 +56,7 @@ public class FeedbackEndpointsTests
         var body = await response.Content.ReadFromJsonAsync<FeedbackResponse>();
         Assert.NotNull(body);
         Assert.NotEqual(Guid.Empty, body.Id);
+        Assert.Equal($"/api/feedback/{body.Id}", response.Headers.Location?.ToString());
         Assert.Equal("bug", body.FeedbackType);
         Assert.Equal(request.Title, body.Title);
         Assert.Equal("new", body.Status);
