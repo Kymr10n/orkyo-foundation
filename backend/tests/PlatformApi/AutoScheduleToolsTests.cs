@@ -260,10 +260,12 @@ public class AutoScheduleToolsTests
             .ThrowsAsync(new ArgumentException(
                 "Unknown or inactive resource type(s): lathe."));
 
-        var thrown = await Assert.ThrowsAsync<McpException>(
+        var thrown = await Assert.ThrowsAsync<ArgumentException>(
             () => CreateTools().PreviewAsync(SiteId, Start, End, resourceTypeKeys: ["lathe"]));
 
-        thrown.Message.Should().Contain("Unknown or inactive resource type(s)");
-        thrown.Message.Should().Contain("lathe");
+        // The pipeline, not the tool, turns it into the agent's refusal — with the message intact.
+        var reason = McpToolPipeline.DomainRefusal(thrown);
+        reason.Should().Contain("Unknown or inactive resource type(s)");
+        reason.Should().Contain("lathe");
     }
 }

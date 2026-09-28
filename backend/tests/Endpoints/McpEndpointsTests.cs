@@ -439,8 +439,10 @@ public class McpEndpointsTests
     public async Task ARawServerExceptionNeverReachesTheClient()
     {
         // create_request with a fabricated siteId trips a real FK violation in Postgres. The
-        // client is a third-party LLM: it must get the pipeline's generic failure, not
-        // NpgsqlException text carrying SQL state, table or column names.
+        // client is a third-party LLM: it must never see NpgsqlException text carrying SQL
+        // state, table or column names. The repository turns the violation into a domain
+        // refusal, which the pipeline passes on as it would a 400 (McpToolPipelineTests covers
+        // the generic failure for anything else).
         var response = await RpcAsync(
             ClientWithToken(await IssueTokenAsync(PlatformApiScopes.ScheduleRead, PlatformApiScopes.ScheduleWrite)),
             CallTool("create_request", new
@@ -452,8 +454,36 @@ public class McpEndpointsTests
             }));
 
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("failed unexpectedly");
+        body.Should().Contain("site does not exist");
         body.Should().NotContainAny("Npgsql", "23503", "foreign key", "requests_site_id");
+    }
+
+    [Fact]
+    public async Task LinkRequests_ACycle_IsRefusedWithTheConflictMessage()
+    {
+        // The tool promises "Cycles are rejected". The ConflictException used to reach the agent
+        // as the generic "failed unexpectedly", indistinguishable from a crash.
+        var client = ClientWithToken(await IssueTokenAsync(PlatformApiScopes.ScheduleRead, PlatformApiScopes.ScheduleWrite));
+        async Task<Guid> CreateAsync(string name)
+        {
+            var created = await RpcAsync(client, CallTool("create_request",
+                new { name, durationValue = 1, durationUnit = "hours" }));
+            using var doc = JsonDocument.Parse(SsePayload(await created.Content.ReadAsStringAsync()));
+            return doc.RootElement.GetProperty("result").GetProperty("structuredContent").GetProperty("id").GetGuid();
+        }
+        var first = await CreateAsync($"Cycle A {Guid.NewGuid():N}"[..16]);
+        var second = await CreateAsync($"Cycle B {Guid.NewGuid():N}"[..16]);
+
+        var linked = await RpcAsync(client, CallTool("link_requests",
+            new { predecessorRequestId = first, successorRequestId = second }));
+        (await linked.Content.ReadAsStringAsync()).Should().NotContain("\"isError\":true");
+
+        var cycle = await RpcAsync(client, CallTool("link_requests",
+            new { predecessorRequestId = second, successorRequestId = first }));
+
+        var body = await cycle.Content.ReadAsStringAsync();
+        body.Should().Contain("circular reference");
+        body.Should().NotContain("failed unexpectedly");
     }
 
     [Fact]
