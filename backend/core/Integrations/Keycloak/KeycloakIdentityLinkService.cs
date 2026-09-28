@@ -185,6 +185,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         try
         {
             var userId = Guid.NewGuid();
+            var email = UserProvisioningService.Normalize(token.Email ?? string.Empty);
             var displayName = token.DisplayName ?? token.Email?.Split('@')[0] ?? "User";
 
             // Create user in control plane. ON CONFLICT + re-read rather than a bare INSERT:
@@ -198,7 +199,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
                 RETURNING id",
                 conn, transaction);
             createUserCmd.Parameters.AddWithValue("id", userId);
-            createUserCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+            createUserCmd.Parameters.AddWithValue("email", email);
             createUserCmd.Parameters.AddWithValue("displayName", displayName);
 
             if (await createUserCmd.ExecuteScalarAsync(ct) is Guid insertedId)
@@ -210,12 +211,12 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
                 // A concurrent sign-in created the same address between our lookup and our
                 // write. Theirs is as good as ours — link this identity to their row.
                 await using var findCmd = new NpgsqlCommand(
-                    "SELECT id FROM users WHERE LOWER(email) = LOWER(@email)", conn, transaction);
-                findCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+                    "SELECT id FROM users WHERE LOWER(email) = @email", conn, transaction);
+                findCmd.Parameters.AddWithValue("email", email);
                 userId = await findCmd.ExecuteScalarAsync(ct) is Guid winner
                     ? winner
                     : throw new InvalidOperationException(
-                        $"users row for {token.Email} vanished between insert conflict and re-read");
+                        $"users row for {email} vanished between insert conflict and re-read");
             }
 
             await using var linkCmd = new NpgsqlCommand(@"
@@ -238,7 +239,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             return new PrincipalContext
             {
                 UserId = userId,
-                Email = token.Email ?? string.Empty,
+                Email = email,
                 DisplayName = displayName,
                 AuthProvider = AuthProvider.Keycloak,
                 ExternalSubject = token.Subject ?? string.Empty

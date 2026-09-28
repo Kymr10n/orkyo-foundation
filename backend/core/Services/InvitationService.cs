@@ -51,6 +51,8 @@ public sealed class InvitationService : IInvitationService
     public async Task<InviteUserResult> InviteAsync(
         TenantContext tenant, Guid invitedBy, string email, Models.UserRole role, CancellationToken ct = default)
     {
+        email = UserProvisioningService.Normalize(email);
+
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
@@ -64,7 +66,7 @@ public sealed class InvitationService : IInvitationService
         await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.ActiveSeats, currentCount, 1, ct);
 
         // If the user already exists globally, grant membership directly (no token needed)
-        await using var checkUserCmd = new NpgsqlCommand("SELECT id FROM users WHERE email = @email", conn);
+        await using var checkUserCmd = new NpgsqlCommand("SELECT id FROM users WHERE LOWER(email) = @email", conn);
         checkUserCmd.Parameters.AddWithValue("email", email);
         var existingUserId = await checkUserCmd.ExecuteScalarAsync(ct) as Guid?;
 

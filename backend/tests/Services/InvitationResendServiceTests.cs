@@ -153,6 +153,21 @@ public sealed class InvitationResendServiceTests
     }
 
     [Fact]
+    public async Task Invite_MatchesAnExistingAccountRegardlessOfCase()
+    {
+        // "Bob@x.com" and "bob@x.com" are one mailbox, so one user: inviting the other spelling
+        // must add that user, not mail an invitation that would provision a second account.
+        var (userId, email) = await SeedUserAsync();
+        var (service, mail, _) = BuildService();
+
+        var result = await service.InviteAsync(Tenant(), TestUserId, "  " + email.ToUpperInvariant(), UserRole.Viewer);
+
+        result.Should().Be(new InviteUserResult.AddedDirectly(userId, email, UserRole.Viewer));
+        mail.Verify(e => e.SendInvitationEmailAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task Invite_NewEmail_RecordsAndMailsAnInvitation()
     {
         var (service, mail, _) = BuildService();

@@ -178,6 +178,25 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         emailServiceMock.Verify(e => e.SendNewUserAlertAsync(email, It.IsAny<string>()), Times.Once);
     }
 
+    [Fact]
+    public async Task LinkIdentity_AutoProvision_StoresTheAddressLowerCased()
+    {
+        // Stored as the token spells it, "Kil-…@Example.COM" and "kil-…@example.com" were two rows
+        // to the case-sensitive unique index: two racing sign-ins could create two users.
+        var service = BuildService(new Mock<IEmailService>(MockBehavior.Loose).Object);
+        var local = $"Kil-{Guid.NewGuid():N}";
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, $"{local}@Example.COM", "Mixed Case"));
+
+        result.Success.Should().BeTrue();
+        result.Email.Should().Be($"{local.ToLowerInvariant()}@example.com");
+        await using var conn = await _fixture.OpenControlPlaneConnectionAsync();
+        await using var cmd = new NpgsqlCommand("SELECT email FROM users WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", result.UserId!.Value);
+        (await cmd.ExecuteScalarAsync()).Should().Be($"{local.ToLowerInvariant()}@example.com");
+    }
+
     /// <summary>
     /// Two sign-ins for one brand-new address, racing. Both pass the by-email lookup before
     /// either commits, so one INSERT wins and the other hits ON CONFLICT DO NOTHING and
