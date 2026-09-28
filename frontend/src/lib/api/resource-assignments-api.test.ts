@@ -53,6 +53,7 @@ describe('hardBlockers / softBlockers', () => {
       issue('capability.missing'), // soft
       issue('assignment.overbooked'), // soft
       issue('site.cross-not-allowed'), // hard
+      issue('assignment.capacity-exceeded'), // soft: fractional over-capacity
     ];
     const r = result(blockers);
 
@@ -63,6 +64,7 @@ describe('hardBlockers / softBlockers', () => {
     expect(softBlockers(r).map((b) => b.code)).toEqual([
       'capability.missing',
       'assignment.overbooked',
+      'assignment.capacity-exceeded',
     ]);
   });
 

@@ -22,6 +22,7 @@ export const REASON_LABELS: Record<ValidationReasonCode, string> = {
   "site.mismatch-space": "Space is at a different site",
   "site.mismatch-person": "Currently at a different site",
   "site.cross-not-allowed": "Not available for cross-site work",
+  "assignment.capacity-exceeded": "Resource capacity exceeded",
 };
 
 /**

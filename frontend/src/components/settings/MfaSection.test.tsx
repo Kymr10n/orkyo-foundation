@@ -76,10 +76,36 @@ describe('MfaSection', () => {
     await waitFor(() => {
       expect(screen.getByText('Remove Two-Factor Authentication?')).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByRole('button', { name: /Remove MFA/ }));
+    const confirm = screen.getByRole('button', { name: /Remove MFA/ });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'pw-123' } });
+    fireEvent.click(confirm);
     await waitFor(() => {
       expect(removeMfa).toHaveBeenCalled();
     });
+    expect(vi.mocked(removeMfa).mock.calls[0][0]).toEqual({ currentPassword: 'pw-123' });
+    await waitFor(() => {
+      expect(screen.queryByText('Remove Two-Factor Authentication?')).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps the dialog open and shows the error when the password is wrong', async () => {
+    vi.mocked(getMfaStatus).mockResolvedValue({ totpEnabled: true, totpLabel: 'App', recoveryCodesConfigured: false });
+    vi.mocked(removeMfa).mockRejectedValue(new Error('Current password is incorrect'));
+    renderMfa();
+    fireEvent.click(await screen.findByRole('button', { name: /Remove/ }));
+    fireEvent.change(await screen.findByLabelText('Current Password'), { target: { value: 'wrong' } });
+    fireEvent.click(screen.getByRole('button', { name: /Remove MFA/ }));
+    expect(await screen.findByText('Current password is incorrect')).toBeInTheDocument();
+    expect(screen.getByText('Remove Two-Factor Authentication?')).toBeInTheDocument();
+
+    // Cancel forgets the password and the failure.
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => {
+      expect(screen.queryByText('Current password is incorrect')).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Remove/ }));
+    expect(await screen.findByLabelText('Current Password')).toHaveValue('');
   });
 
   it('enables MFA enrollment on button click', async () => {

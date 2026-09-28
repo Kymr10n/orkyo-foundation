@@ -37,6 +37,27 @@ describe('ConfirmDialog', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  it('with fields: stays open on confirm and honours confirmDisabled', async () => {
+    const user = userEvent.setup();
+    const { onConfirm } = renderDialog({
+      children: <input aria-label="Password" />,
+      confirmDisabled: true,
+    });
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).toBeDisabled();
+    await user.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('with fields: confirming calls onConfirm without closing', async () => {
+    const user = userEvent.setup();
+    const { onConfirm, onOpenChange } = renderDialog({ children: <input aria-label="Password" /> });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it('closes (onOpenChange false) when Cancel is clicked', async () => {
     const user = userEvent.setup();
     const { onOpenChange } = renderDialog();

@@ -18,6 +18,8 @@ import {
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
+import { Input } from "@foundation/src/components/ui/input";
+import { Label } from "@foundation/src/components/ui/label";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import {
   useEnableMfa,
@@ -33,10 +35,20 @@ interface MfaSectionProps {
 
 export function MfaSection({ locked = false }: MfaSectionProps = {}) {
   const [removeMfaOpen, setRemoveMfaOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
 
   const { data: mfaStatus, isLoading: mfaLoading } = useMfaStatus();
 
   const removeMfaMutation = useRemoveMfa();
+
+  // Closing the dialog forgets the typed password and the last failure, so a reopen starts clean.
+  const handleRemoveOpenChange = (open: boolean) => {
+    setRemoveMfaOpen(open);
+    if (!open) {
+      setCurrentPassword("");
+      removeMfaMutation.reset();
+    }
+  };
 
   const enableMfaMutation = useEnableMfa();
 
@@ -97,7 +109,7 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
                   variant="ghost"
                   size="sm"
                   className="text-destructive hover:text-destructive"
-                  onClick={() => setRemoveMfaOpen(true)}
+                  onClick={() => handleRemoveOpenChange(true)}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
                   Remove
@@ -108,14 +120,6 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
                   <Shield className="h-4 w-4" />
                   Recovery codes configured
                 </div>
-              )}
-              {removeMfaMutation.isError && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    {removeMfaMutation.error?.message || "Failed to remove MFA"}
-                  </AlertDescription>
-                </Alert>
               )}
             </div>
           ) : (
@@ -169,18 +173,40 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
 
       <ConfirmDialog
         open={removeMfaOpen}
-        onOpenChange={setRemoveMfaOpen}
+        onOpenChange={handleRemoveOpenChange}
         title="Remove Two-Factor Authentication?"
         description="This will remove your TOTP authenticator and recovery codes. You will be prompted to set up MFA again on your next login."
         confirmLabel="Remove MFA"
         destructive
         isPending={removeMfaMutation.isPending}
+        confirmDisabled={!currentPassword}
         onConfirm={() =>
-          removeMfaMutation.mutate(undefined, {
-            onSuccess: () => setRemoveMfaOpen(false),
-          })
+          removeMfaMutation.mutate(
+            { currentPassword },
+            { onSuccess: () => handleRemoveOpenChange(false) },
+          )
         }
-      />
+      >
+        {/* The server re-checks the password: a session alone must not strip the second factor. */}
+        <div className="space-y-2">
+          <Label htmlFor="mfaCurrentPassword">Current Password</Label>
+          <Input
+            id="mfaCurrentPassword"
+            type="password"
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        {removeMfaMutation.isError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              {removeMfaMutation.error?.message || "Failed to remove MFA"}
+            </AlertDescription>
+          </Alert>
+        )}
+      </ConfirmDialog>
     </>
   );
 }

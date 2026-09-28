@@ -136,10 +136,12 @@ describe('security-api', () => {
   });
 
   describe('removeMfa', () => {
-    it('calls apiDelete with MFA endpoint', async () => {
+    it('sends the current password as the DELETE body', async () => {
       vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
-      await removeMfa();
-      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA);
+      await removeMfa({ currentPassword: 'secret' });
+      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA, undefined, {
+        currentPassword: 'secret',
+      });
     });
   });
 

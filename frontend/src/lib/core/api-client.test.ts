@@ -239,6 +239,20 @@ describe('api-client', () => {
       );
     });
 
+    it('sends a JSON body when data is given', async () => {
+      vi.mocked(fetch).mockResolvedValue({ ok: true } as Response);
+
+      await apiDelete('/items/1', undefined, { currentPassword: 'x' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/items/1'),
+        expect.objectContaining({
+          method: 'DELETE',
+          body: JSON.stringify({ currentPassword: 'x' }),
+        })
+      );
+    });
+
     it('handles DELETE errors', async () => {
       vi.mocked(apiUtils.handleApiError).mockRejectedValue(new Error('Delete failed'));
       vi.mocked(fetch).mockResolvedValue({

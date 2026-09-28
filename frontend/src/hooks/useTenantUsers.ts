@@ -8,6 +8,7 @@ import {
   resendInvitation,
   updateUserRole,
   type CreateInvitationRequest,
+  type InviteUserResponse,
   type UpdateUserRoleRequest,
 } from "@foundation/src/lib/api/user-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -29,9 +30,11 @@ export const useCreateInvitation = () =>
   useMutation({
     mutationFn: (data: CreateInvitationRequest) => createInvitation(data),
     meta: {
-      successMessage: "Invitation sent",
+      // An existing account joins at once (no email); anyone else gets an invitation.
+      successMessage: (data) =>
+        "member" in (data as InviteUserResponse) ? "Added to the organization" : "Invitation sent",
       suppressErrorToast: true,
-      invalidates: [qk.invitations.all()],
+      invalidates: [qk.invitations.all(), qk.users.all()],
     },
   });
 
