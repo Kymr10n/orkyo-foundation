@@ -238,6 +238,56 @@ public class BffCookieAuthenticationHandlerTests
     }
 
     [Fact]
+    public async Task RefreshRejectedWithInvalidGrant_EndsTheSession()
+    {
+        // Keycloak "log out everywhere", a revoked session or a disabled user all surface here:
+        // the refresh token is dead, so the stored access token must not keep the session alive.
+        var session = CreateSession(tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var mockHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+        {
+            Content = new StringContent(
+                "{\"error\":\"invalid_grant\",\"error_description\":\"Session not active\"}",
+                System.Text.Encoding.UTF8, "application/json"),
+        });
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeFalse();
+        result.Failure!.Message.Should().Be("Session ended by the identity provider");
+        _sessionStore.Verify(s => s.RemoveAsync(TestSessionId, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(System.Net.HttpStatusCode.BadRequest, "{\"error\":\"invalid_request\"}")]
+    [InlineData(System.Net.HttpStatusCode.BadRequest, "not json")]
+    [InlineData(System.Net.HttpStatusCode.Unauthorized, "{\"error\":\"invalid_grant\"}")]
+    public async Task RefreshFailedForAnotherReason_KeepsTheSession(System.Net.HttpStatusCode status, string body)
+    {
+        // A client-credential error or a malformed answer is not the session's fault: ending
+        // every session on a misconfigured secret would sign out the whole deployment.
+        var session = CreateSession(tokenExpiresAt: DateTimeOffset.UtcNow.AddSeconds(10));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(session);
+
+        var mockHandler = new StubHttpMessageHandler(_ => new HttpResponseMessage(status)
+        {
+            Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+        });
+        _httpClientFactory.Setup(f => f.CreateClient("BffKeycloak"))
+            .Returns(new HttpClient(mockHandler));
+
+        var result = await RunAuthenticateAsync(CreateHttpContext(CookieName, EncryptSessionId(TestSessionId)));
+
+        result.Succeeded.Should().BeTrue();
+        _sessionStore.Verify(s => s.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task SuccessfulRefresh_UsesNewAccessToken()
     {
         var originalJwt = CreateTestJwt(extraClaims: new Dictionary<string, object> { ["tag"] = "original" });

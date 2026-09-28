@@ -56,6 +56,23 @@ public class InMemoryBffSessionStoreTests
     }
 
     [Fact]
+    public async Task RemoveAllForUser_RemovesOnlyThatUsersSessions()
+    {
+        var mine1 = CreateSession();
+        var mine2 = CreateSession() with { UserId = mine1.UserId };
+        var theirs = CreateSession();
+        await _store.SetAsync(mine1);
+        await _store.SetAsync(mine2);
+        await _store.SetAsync(theirs);
+
+        await _store.RemoveAllForUserAsync(mine1.UserId);
+
+        (await _store.GetAsync(mine1.SessionId)).Should().BeNull();
+        (await _store.GetAsync(mine2.SessionId)).Should().BeNull();
+        (await _store.GetAsync(theirs.SessionId)).Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Remove_NoErrorWhenNotFound() =>
         await _store.RemoveAsync("nonexistent");
 

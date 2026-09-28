@@ -57,7 +57,7 @@ per agent, sequential within a stack, stacks in parallel.
 | C1 | B1a | done | Subscriptions group now `RequireTenantMembership()` (allow-list entry kept: no write gate, so no governed marker). Chose serve-time membership check over revoke-on-lifecycle (tokens are per tenant DB, memberships in the control plane, so no join): the `.ics` route calls `GetUserTenantRoleAsync`, which now also excludes `users.status = disabled`; removed/suspended/disabled/purged owners get 404. SaaS `TenantMiddleware` does not 403 non-members (checked). Tests: non-member create/list 403, removed-owner feed 404, disabled-user role None |
 | C2 | B2 | todo | |
 | C3 | B2 | todo | |
-| C4 | B1a | in-progress |  |
+| C4 | B1a | done | Refresh answered `400 invalid_grant` now removes the BFF session and returns `Fail`; network errors, 5xx, 401 (client credentials) and non-JSON bodies keep today's keep-alive. New `IBffSessionStore.RemoveAllForUserAsync` (in-memory: scan; Valkey: per-user `bff:u:{userId}` index set, TTL tracks the longest session, so sessions created before deploy are not indexed and end at their next refresh) called from `/logout-all`. No downstream implementer of the interface (grepped saas + community) |
 | S1 | B4 | todo | |
 | S2 | F1 | todo | |
 | S3 | F1 | done | barrel no longer re-exports export-handlers/tenant-navigation (no importer relied on it); `getTenantSlugSync` deleted from AuthContext, api-utils reads the key itself (no downstream consumer (grepped saas + community)); no `lib/**` file imports `contexts/**` |

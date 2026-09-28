@@ -53,6 +53,14 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         return Task.CompletedTask;
     }
 
+    public Task RemoveAllForUserAsync(string userId, CancellationToken ct = default)
+    {
+        foreach (var key in _sessions.Where(kvp => kvp.Value.UserId == userId).Select(kvp => kvp.Key).ToList())
+            _sessions.TryRemove(key, out _);
+
+        return Task.CompletedTask;
+    }
+
     public Task RefreshTokensAsync(string sessionId, string accessToken, string refreshToken, DateTimeOffset tokenExpiresAt, CancellationToken ct = default)
     {
         if (!_sessions.TryGetValue(sessionId, out var existing))

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services;
+using Api.Services.BffSession;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
@@ -903,6 +904,39 @@ public class SecurityEndpointsTests
             _mockKeycloak.LastRevokedSessionId.Should().Be(currentSid);
         }
         finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    [Fact]
+    public async Task LogoutAll_NormalAccount_EndsEveryBffSessionOfTheCaller()
+    {
+        // The BFF sessions authenticate from their stored access token, so a Keycloak-side
+        // logout alone would leave the caller's other devices signed in.
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var token = GetAuthToken(keycloakSub: sub, userId: userId);
+        var store = _factory.Services.GetRequiredService<IBffSessionStore>();
+        BffSessionRecord Session(Guid owner) => new()
+        {
+            SessionId = Guid.NewGuid().ToString("N"),
+            UserId = owner.ToString(),
+            ExternalSubject = sub,
+            AccessToken = "a",
+            RefreshToken = "r",
+            IdToken = "i",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var otherDevice = Session(userId);
+        var someoneElse = Session(Guid.NewGuid());
+        await store.SetAsync(otherDevice);
+        await store.SetAsync(someoneElse);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
+        request.Headers.Authorization = Bearer(token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await store.GetAsync(otherDevice.SessionId)).Should().BeNull();
+        (await store.GetAsync(someoneElse.SessionId)).Should().NotBeNull();
     }
 
     [Fact]

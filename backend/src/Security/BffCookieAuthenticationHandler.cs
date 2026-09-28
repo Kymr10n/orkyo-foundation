@@ -110,14 +110,24 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         if (session.TokenExpiresAt - _time.GetUtcNow() < RefreshWindow
             && await _sessionStore.TryAcquireRefreshLockAsync(sessionId, RefreshLockTtl, Context.RequestAborted))
         {
-            var refreshed = await TryRefreshTokensAsync(session);
+            var (refreshed, rejected) = await TryRefreshTokensAsync(session);
             if (refreshed is not null)
             {
                 accessToken = refreshed.AccessToken;
             }
+            else if (rejected)
+            {
+                // Keycloak refused the refresh token itself: the SSO session was logged out
+                // (on this device or "everywhere"), revoked, or the user was disabled. The
+                // stored access token must not keep the BFF session alive past that.
+                Logger.LogInformation("BFF refresh token rejected; ending session {SessionIdPrefix}…", sessionId[..8]);
+                await _sessionStore.RemoveAsync(sessionId, Context.RequestAborted);
+                return AuthenticateResult.Fail("Session ended by the identity provider");
+            }
             else
             {
-                // Refresh failed — session is still valid until overall session expiry
+                // Transient failure (network, Keycloak 5xx): keep the session and let a later
+                // request retry once the refresh lock lapses.
                 Logger.LogWarning("BFF token refresh failed for session {SessionIdPrefix}…", sessionId[..8]);
             }
         }
@@ -204,7 +214,12 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             BffSessionCookies.WriteCsrfCookie(Context, _bffOptions, csrfValue, lifetime);
     }
 
-    private async Task<BffSessionRecord?> TryRefreshTokensAsync(BffSessionRecord session)
+    /// <summary>
+    /// Refreshes the session's tokens. <c>Rejected</c> is true only when Keycloak answered
+    /// <c>invalid_grant</c> — the refresh token is dead for good — as opposed to a failure that
+    /// a retry may cure.
+    /// </summary>
+    private async Task<(BffSessionRecord? Refreshed, bool Rejected)> TryRefreshTokensAsync(BffSessionRecord session)
     {
         try
         {
@@ -227,7 +242,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             if (!response.IsSuccessStatusCode)
             {
                 Logger.LogWarning("Keycloak token refresh returned {StatusCode}", response.StatusCode);
-                return null;
+                return (null, await IsInvalidGrantAsync(response));
             }
 
             using var doc = await JsonDocument.ParseAsync(
@@ -243,18 +258,42 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             await _sessionStore.RefreshTokensAsync(
                 session.SessionId, newAccessToken, newRefreshToken, newTokenExpiresAt, Context.RequestAborted);
 
-            return session with
+            return (session with
             {
                 AccessToken = newAccessToken,
                 RefreshToken = newRefreshToken,
                 TokenExpiresAt = newTokenExpiresAt,
-            };
+            }, false);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error refreshing tokens for session {SessionIdPrefix}…",
                 session.SessionId[..Math.Min(8, session.SessionId.Length)]);
-            return null;
+            return (null, false);
+        }
+    }
+
+    /// <summary>
+    /// True for the OAuth 2.0 <c>invalid_grant</c> error (RFC 6749 §5.2), which Keycloak returns
+    /// for an expired, revoked or logged-out refresh token and for a disabled user. Any other
+    /// failure — a client-credential error included — is not the session's fault.
+    /// </summary>
+    private async Task<bool> IsInvalidGrantAsync(HttpResponseMessage response)
+    {
+        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest)
+            return false;
+        try
+        {
+            using var doc = await JsonDocument.ParseAsync(
+                await response.Content.ReadAsStreamAsync(Context.RequestAborted),
+                cancellationToken: Context.RequestAborted);
+            return doc.RootElement.TryGetProperty("error", out var error)
+                && error.ValueKind == JsonValueKind.String
+                && error.GetString() == "invalid_grant";
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 }

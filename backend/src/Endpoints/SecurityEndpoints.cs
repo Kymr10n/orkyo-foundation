@@ -6,6 +6,7 @@ using Api.Models;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
+using Api.Services.BffSession;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -134,6 +135,7 @@ public static class SecurityEndpoints
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IUserSessionService userSessionService,
+            IBffSessionStore bffSessionStore,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var sub = principal.RequireExternalSubject();
@@ -154,6 +156,9 @@ public static class SecurityEndpoints
 
             await keycloakService.LogoutAllSessionsAsync(sub, ct);
             await userSessionService.RemoveAllForUserAsync(principal.RequireUserId(), ct);
+            // The BFF sessions authenticate from their stored access token, not from Keycloak,
+            // so revoking the Keycloak sessions alone leaves every other device signed in.
+            await bffSessionStore.RemoveAllForUserAsync(principal.RequireUserId().ToString(), ct);
             logger.LogInformation("All sessions terminated for user {Sub}", sub);
             return Results.Ok(new { message = "Logged out from all sessions" });
         })

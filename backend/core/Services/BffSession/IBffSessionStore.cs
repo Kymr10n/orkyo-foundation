@@ -61,6 +61,13 @@ public interface IBffSessionStore
     /// <summary>Removes a session by ID.</summary>
     Task RemoveAsync(string sessionId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Removes every session of <paramref name="userId"/> (<see cref="BffSessionRecord.UserId"/>),
+    /// on every device. "Log out everywhere" calls it: revoking the Keycloak sessions alone leaves
+    /// each BFF session authenticating from its stored access token until the next refresh.
+    /// </summary>
+    Task RemoveAllForUserAsync(string userId, CancellationToken ct = default);
+
     /// <summary>Updates the tokens and token expiry for an existing session (after token refresh).</summary>
     Task RefreshTokensAsync(string sessionId, string accessToken, string refreshToken, DateTimeOffset tokenExpiresAt, CancellationToken ct = default);
 
