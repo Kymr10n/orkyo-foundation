@@ -1,6 +1,7 @@
 using Api.Constants;
 using Api.Helpers;
 using Api.Models;
+using Api.Services.Caching;
 using Npgsql;
 using Orkyo.Shared;
 
@@ -32,15 +33,22 @@ public class UserManagementService : IUserManagementService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly ITenantUserService _tenantUserService;
     private readonly ILogger<UserManagementService> _logger;
+    private readonly SingleFlightCache? _identityCache;
 
+    /// <param name="identityCache">
+    /// The shared cache the request pipeline keeps each user's tenant role in. Optional so a
+    /// caller that composes this service by hand keeps compiling; DI always supplies it.
+    /// </param>
     public UserManagementService(
         IDbConnectionFactory connectionFactory,
         ITenantUserService tenantUserService,
-        ILogger<UserManagementService> logger)
+        ILogger<UserManagementService> logger,
+        SingleFlightCache? identityCache = null)
     {
         _connectionFactory = connectionFactory;
         _tenantUserService = tenantUserService;
         _logger = logger;
+        _identityCache = identityCache;
     }
 
     /// <summary>
@@ -95,6 +103,9 @@ public class UserManagementService : IUserManagementService
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
+        // A demoted member must not keep the old role for the rest of the cache TTL.
+        _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
+
         if (rowsAffected > 0)
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRoleUpdated, updatedBy, "user", userId.ToString(), new { newRole = role.ToString() }, ct);
 
@@ -124,6 +135,9 @@ public class UserManagementService : IUserManagementService
         cmd.Parameters.AddWithValue("tenantId", org.OrgId);
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
+
+        // A removed member must lose access now, not when the cached role expires.
+        _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
 
         if (rowsAffected > 0)
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString(), ct: ct);

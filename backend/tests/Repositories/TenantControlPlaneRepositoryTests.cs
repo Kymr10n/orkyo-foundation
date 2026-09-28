@@ -1,5 +1,7 @@
 using Api.Repositories;
+using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -16,12 +18,14 @@ public class TenantControlPlaneRepositoryTests
 {
     private readonly ITenantControlPlaneRepository _repo;
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly SingleFlightCache _cache;
 
     public TenantControlPlaneRepositoryTests(DatabaseFixture fixture)
     {
         var scope = fixture.Factory.Services.CreateScope();
         _repo = scope.ServiceProvider.GetRequiredService<ITenantControlPlaneRepository>();
         _connectionFactory = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>();
+        _cache = scope.ServiceProvider.GetRequiredService<SingleFlightCache>();
     }
 
     // ── Seed helpers ─────────────────────────────────────────────────────────
@@ -349,6 +353,20 @@ public class TenantControlPlaneRepositoryTests
         await _repo.TransferOwnershipAsync(tenantId, newOwner);
 
         (await _repo.GetOwnerStatusAsync(tenantId))!.OwnerUserId.Should().Be(newOwner);
+    }
+
+    [Fact]
+    public async Task DeleteMembership_EvictsTheCachedRole()
+    {
+        var userId = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+        await SeedMembershipAsync(tenantId, userId);
+        var key = IdentityCacheKeys.Role(userId, tenantId);
+        _cache.Set(key, TenantRole.Admin, TimeSpan.FromMinutes(5));
+
+        await _repo.DeleteMembershipAsync(tenantId, userId);
+
+        _cache.TryGet<TenantRole>(key, out _).Should().BeFalse();
     }
 
     [Fact]

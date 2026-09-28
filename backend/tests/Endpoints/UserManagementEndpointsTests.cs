@@ -7,6 +7,7 @@ using Api.Endpoints;
 using Api.Models;
 using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -409,6 +410,37 @@ public class UserManagementEndpointsTests
         read.Parameters.AddWithValue("uid", targetId);
         read.Parameters.AddWithValue("tid", TestTenantId);
         Assert.Equal(RoleConstants.Editor, (string?)await read.ExecuteScalarAsync());
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_EvictsTheCachedRole()
+    {
+        // The request pipeline caches each member's role for minutes; a demotion must not wait
+        // for that entry to expire.
+        var targetId = await SeedSecondTenantMemberAsync(role: RoleConstants.Editor);
+        var cache = _factory.Services.GetRequiredService<SingleFlightCache>();
+        var key = IdentityCacheKeys.Role(targetId, TestTenantId);
+        cache.Set(key, TenantRole.Editor, TimeSpan.FromMinutes(5));
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetId}/role", new UpdateUserRoleRequest(UserRole.Viewer), _jsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(cache.TryGet<TenantRole>(key, out _));
+    }
+
+    [Fact]
+    public async Task DeleteUser_EvictsTheCachedRole()
+    {
+        var targetId = await SeedSecondTenantMemberAsync(role: RoleConstants.Editor);
+        var cache = _factory.Services.GetRequiredService<SingleFlightCache>();
+        var key = IdentityCacheKeys.Role(targetId, TestTenantId);
+        cache.Set(key, TenantRole.Editor, TimeSpan.FromMinutes(5));
+
+        var response = await _client.DeleteAsync($"/api/users/{targetId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(cache.TryGet<TenantRole>(key, out _));
     }
 
     [Fact]

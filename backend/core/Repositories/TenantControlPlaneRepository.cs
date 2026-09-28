@@ -1,5 +1,6 @@
 using Api.Helpers;
 using Api.Services;
+using Api.Services.Caching;
 using Npgsql;
 
 namespace Api.Repositories;
@@ -10,10 +11,16 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     private const string TenantProjection = "id, slug, display_name, status, db_identifier, owner_user_id, created_at";
 
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly SingleFlightCache? _identityCache;
 
-    public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory)
+    /// <param name="identityCache">
+    /// The shared cache the request pipeline keeps each user's tenant role in, evicted when a
+    /// membership is deleted. Optional so a caller that composes this by hand keeps compiling.
+    /// </param>
+    public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory, SingleFlightCache? identityCache = null)
     {
         _connectionFactory = connectionFactory;
+        _identityCache = identityCache;
     }
 
     private static TenantRecord MapTenantRecord(NpgsqlDataReader reader) => new(
@@ -223,5 +230,6 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
                 p.AddWithValue("tenantId", tenantId);
                 p.AddWithValue("userId", userId);
             }, ct);
+        _identityCache?.Remove(IdentityCacheKeys.Role(userId, tenantId));
     }
 }
