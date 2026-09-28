@@ -107,6 +107,24 @@ public class TemplateEndpointsTests
     }
 
     [Fact]
+    public async Task DeleteItem_ThroughAnotherTemplatesRoute_Returns404AndKeepsTheItem()
+    {
+        var templateA = await CreateRequestTemplateAsync(ResourceTypeKeys.Space);
+        var templateB = await CreateRequestTemplateAsync(ResourceTypeKeys.Space);
+        var criterion = await CreateScopedCriterionAsync(ResourceTypeKeys.Space);
+        var added = await Authorized.PostAsJsonAsync($"/api/templates/{templateB.Id}/items",
+            new CreateTemplateItemRequest { CriterionId = criterion, Value = "true" });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        var itemOfB = (await added.Content.ReadFromJsonAsync<TemplateItem>())!;
+
+        var response = await Authorized.DeleteAsync($"/api/templates/{templateA.Id}/items/{itemOfB.Id}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var items = await Authorized.GetFromJsonAsync<List<TemplateItem>>($"/api/templates/{templateB.Id}/items");
+        Assert.Contains(items!, i => i.Id == itemOfB.Id);
+    }
+
+    [Fact]
     public async Task UpdateTemplate_RejectsNarrowingTheTargetsAwayFromAnItem()
     {
         var template = await CreateRequestTemplateAsync(ResourceTypeKeys.Space, ResourceTypeKeys.Tool);

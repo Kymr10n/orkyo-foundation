@@ -20,7 +20,7 @@ public interface ITemplateRepository
     /// Per-template lists carry the same criterion-name ordering as <see cref="GetTemplateItemsAsync"/>.</summary>
     Task<Dictionary<Guid, List<TemplateItem>>> GetTemplateItemsByTemplatesAsync(IReadOnlyList<Guid> templateIds, CancellationToken ct = default);
     Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default);
-    Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default);
+    Task<bool> DeleteTemplateItemAsync(Guid templateId, Guid id, CancellationToken ct = default);
 }
 
 public class TemplateRepository : ITemplateRepository
@@ -319,10 +319,14 @@ public class TemplateRepository : ITemplateRepository
         return created;
     }
 
-    public async Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default)
+    public async Task<bool> DeleteTemplateItemAsync(Guid templateId, Guid id, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        return await conn.ExecuteAsync("DELETE FROM template_items WHERE id = @Id",
-            p => p.AddWithValue("Id", id), ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM template_items WHERE id = @Id AND template_id = @TemplateId",
+            p =>
+            {
+                p.AddWithValue("Id", id);
+                p.AddWithValue("TemplateId", templateId);
+            }, ct) > 0;
     }
 }
