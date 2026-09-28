@@ -181,6 +181,29 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
     `TimeWindowQuery.FromValue/ToValue` say what they do; `BffAuthEndpoints.TokenResponse`
     stays because saas `DemoAuthEndpoints` uses it. `GetAllAsync` overloads share one
     parameter order. Backend 3921/3921, patch coverage 93.6 %.
+- **Handoff status — 2026-09-29 (after the review fix pass).** All seven groups are
+  committed on the branch (commits 2aeb397e … e2ca7cc5, one per group), nothing pushed.
+  Final gates on the branch head: backend `dotnet build -warnaserror` and
+  `dotnet format --verify-no-changes` clean; backend 3921 passed / 0 failed; frontend
+  `lint`, `typecheck` clean, 4230 tests passed, coverage 87.3 / 80.6 / 83.6 / 89.1;
+  `scripts/test-downstream.sh`: foundation 3921, saas 655, community 57 passed (community
+  once showed 5 Redis timeouts: its test host sets `VALKEY_CONNECTION=localhost:6379`
+  with nothing listening, and Data Protection keys now read through that connection, so
+  the first protect call can time out under load; community follow-up: give the test
+  host an ephemeral key repository or an in-memory multiplexer). Of the 72 review items,
+  three stay open by design: the saas `TurnstileWidget` copy (product PR), the Keycloak
+  mock idiom (next TestSupport major), the email-change token hash (schema change); the
+  product test bases (`ProductDatabaseFixtureBase`/`ProductWebApplicationFactoryBase`)
+  still have no consumer. Product working trees hold uncommitted, expected changes:
+  saas (two test expectations, synced scripts), community (spy method removed,
+  `ORKYO_DEPLOYMENT_MODE=self-hosted` in `release/compose.yml`, synced scripts); infra
+  (`26.7-orkyo-` in `deploy.yml`, `resolve_keycloak_digest.sh` and three docs;
+  `SECURITY_TRUSTED_PROXY_NETWORKS=172.18.0.0/16` through `deploy.yml`, compose,
+  templates and catalog; `ORKYO_DEPLOYMENT_MODE=cloud`). **Before merge:** the ruleset
+  must drop `audit / NuGet` and add `pr-gates`; the two infra GitHub environment
+  variables must exist; the three decisions in the 2026-09-28 step 3 stand as decided
+  on 2026-09-28 except the version bumps, still open. **After merge, in this order:**
+  infra commit, then saas and community commits, then the release.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.
