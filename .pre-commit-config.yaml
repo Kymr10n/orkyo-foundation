@@ -8,10 +8,10 @@
 # There are no pre-push hooks: the full test suites run in CI, not on every push.
 default_install_hook_types: [pre-commit, commit-msg]
 #
-# Replaces the bespoke .githooks/pre-push. Pre-commit's selling point is that
-# the same config drives every dev — no "works on my machine" because someone
-# forgot to install Node, etc. The dotnet hook is local because dotnet-format
-# is best invoked through the installed SDK rather than a pre-commit shim.
+# Pre-commit's selling point is that the same config drives every dev — no
+# "works on my machine" because someone forgot to install Node, etc. The dotnet
+# hook is local because dotnet-format is best invoked through the installed SDK
+# rather than a pre-commit shim.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -44,8 +44,8 @@ repos:
         files: '\.csproj$|packages\.lock\.json$|\.slnx$'
 
       - id: dotnet-format
-        name: dotnet format (auto-fix; re-stage the fixed files yourself)
-        entry: dotnet format Orkyo.Foundation.slnx --no-restore
+        name: dotnet format (verify-no-changes)
+        entry: dotnet format Orkyo.Foundation.slnx --verify-no-changes --no-restore
         language: system
         pass_filenames: false
         files: '\.cs$|\.csproj$|\.slnx$'

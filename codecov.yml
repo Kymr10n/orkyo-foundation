@@ -41,10 +41,10 @@ ignore:
   - "backend/testsupport/**"
   - "backend/migrations-foundation/**"
   - "backend/migration-abstractions/**"
-  - "backend/**/*Settings.cs"
   # Pure-data options and constants only, listed by name. A file that holds logic
   # (RoleConstants.ParseRoleString, BffOptions.IsReturnToAllowed, KeycloakOptions,
-  # TenantMiddlewareOptions, MigrationCliOptions) is measured, so a new file is too.
+  # TenantMiddlewareOptions, MigrationCliOptions, TenantSettings.ToEmailBranding) is
+  # measured, so a new file is too.
   - "backend/seeding/SeedOptions.cs"
   - "backend/core/Configuration/IdentityProvisioningOptions.cs"
   - "backend/shared/TenantLifecycleConstants.cs"

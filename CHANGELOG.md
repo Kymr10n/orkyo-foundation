@@ -87,6 +87,12 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   hard-coded two-entry list — which had made it impossible to tag a criterion for `tool`, a seeded
   type since the resource-model migration. Labels now come from each type's display name, so they read
   "Space"/"Person"/"Tool" (and whatever tenants name their own types) instead of "Spaces"/"People".
+- **TestSupport: `TestConstants.TestBearerToken` carries the `admin` role.** It said `user` and was
+  Admin only because the test host turned any unknown role into Admin; an unknown role is now no
+  membership. A test that needs a plain member builds one with `BearerTokenForRole("user")`. The
+  package's `Version` and `Authors` come from `Directory.Build.props` like every other package.
+- **TestSupport: `MockKeycloakAdminService.UpdateEmailAsync`, `UpdateEmailCallCount` and
+  `LastUpdateEmailCall` are removed** (no callers; `UpdateEmailForAccountAsync` and its counters stay).
 
 ### Removed
 - **Declutter, backend (package API).** Deleted with zero callers in either product: `ICriteriaService`

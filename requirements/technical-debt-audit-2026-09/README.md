@@ -56,6 +56,23 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
 - **Still open for a person:** remove `audit / NuGet` from the `main-protection` ruleset before
   merging (it never runs now, so the merge stays blocked); read the `nginx-proxy` subnet on the
   VPS for `SECURITY_TRUSTED_PROXY_NETWORKS`; the three decisions in step 3.
+- **Review fix pass — 2026-09-29.** A three-way read of the branch (backend, frontend,
+  tests + CI) for best practice, DRY and KISS produced 72 items; the fix pass runs in
+  groups, one commit each. Status per group is kept here.
+  - **G7 CI / repo (done):** `release-evidence-bundle` now lists `pr-gates` in `needs:`
+    (the ruleset entry is still added by hand). `lint-migration-headers.sh` no longer skips
+    silently on a push whose `github.event.before` is unreachable: it warns with the SHA and
+    lints `HEAD~1..HEAD`; synced to saas and community. `KC_VERSION` is derived once in
+    `detect-changes` (output `kc_version`) and read by `build-keycloak-image`,
+    `container-scan` and `publish-nightly`; `publish` keeps its own call because
+    `detect-changes` does not run on tags. The non-root image check is
+    `scripts/ci/verify-nonroot.sh`, called from `release-ci.yml`;
+    `reusable-container-scan.yml` keeps its inline copy because the reusable checks out
+    the caller's repo. The `dotnet-format` hook is `--verify-no-changes` again, like saas
+    and community. `codecov.yml` no longer ignores `**/*Settings.cs` (the only match,
+    `TenantSettings.cs`, has logic). `CHANGELOG.md` Unreleased records the TestSupport
+    surface changes. Foundation no longer runs `reusable-audit-nuget.yml` or the npm-audit
+    path itself, so a regression in those reusables surfaces first in a product.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.
