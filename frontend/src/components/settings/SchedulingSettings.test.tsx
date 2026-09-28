@@ -3,12 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SchedulingSettings } from './SchedulingSettings';
-import { useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useSiteStore } from '@foundation/src/store/site-store';
 
-// Availability-event write actions are admin-gated; useIsTenantAdmin is globally mocked
-// to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
-// affordances and the two read-only tests below override it.
+// Availability-event write actions are gated on useCanEdit (Editor+), which is globally
+// mocked to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
+// affordances and the two Viewer tests below override it.
 
 const mockSettings = {
   timeZone: 'Europe/Berlin',
@@ -64,7 +64,7 @@ const mockAvailabilityEvent = {
 
 function setup() {
   vi.clearAllMocks();
-  vi.mocked(useIsTenantAdmin).mockReturnValue(true);
+  vi.mocked(useCanEdit).mockReturnValue(true);
   useSiteStore.setState({ selectedSiteId: 'site-1' });
   mockUseSchedulingSettings.mockReturnValue({ data: mockSettings, isLoading: false });
   mockUseAvailabilityEvents.mockReturnValue({ data: [], isLoading: false });
@@ -104,15 +104,15 @@ describe('SchedulingSettings', () => {
     expect(screen.getByText('Add')).toBeInTheDocument();
   });
 
-  it('hides the Add button for non-admin editors', () => {
-    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
+  it('hides the Add button for Viewers', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
     render(<SchedulingSettings />);
     expect(screen.getByText('Availability Events')).toBeInTheDocument();
     expect(screen.queryByText('Add')).not.toBeInTheDocument();
   });
 
-  it('hides per-event edit/delete actions for non-admin editors', () => {
-    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
+  it('hides per-event edit/delete actions for Viewers', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
     mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
     // The event is still listed (read-only) but carries no action buttons.

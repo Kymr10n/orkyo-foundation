@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Clock, Globe, Calendar, Plus, Trash2, Check, AlertCircle, Pencil, RotateCcw } from "lucide-react";
 import { useSiteStore } from "@foundation/src/store/site-store";
-import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
@@ -121,10 +121,9 @@ function settingsFromApi(s: SchedulingSettingsType): SettingsFormState {
 
 export function SchedulingSettings() {
   const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
-  // Availability-event write affordances are gated on tenant admin. The backend group is
-  // `RequireMemberReadEditorWrite()` (Editor+, `IAuthorizationContext.CanEdit`; see
-  // docs/authorization.md), so this gate is stricter than the API: editors browse read-only.
-  const isAdmin = useIsTenantAdmin();
+  // Availability-event writes follow the backend group, `RequireMemberReadEditorWrite()`
+  // (Editor+; see docs/authorization.md): Viewers browse read-only, Editors and Admins write.
+  const canEdit = useCanEdit();
 
   const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
   const { data: availabilityEvents = [], isLoading: eventsLoading } = useAvailabilityEvents(selectedSiteId ?? undefined);
@@ -439,7 +438,7 @@ export function SchedulingSettings() {
                 Define periods when no work should be scheduled (closures, maintenance, etc.).
               </CardDescription>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <Button size="sm" onClick={handleCreateEvent}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add
@@ -482,7 +481,7 @@ export function SchedulingSettings() {
                       {ev.scopes.length > 0 && ` · ${ev.scopes.length} override(s)`}
                     </div>
                   </div>
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
