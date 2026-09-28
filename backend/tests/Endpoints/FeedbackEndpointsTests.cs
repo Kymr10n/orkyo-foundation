@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Api.Models;
+using Api.Services;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -109,7 +110,7 @@ public class FeedbackEndpointsTests
     {
         // FEEDBACK_NOTIFICATION_EMAIL is set in the test config, so a submit triggers one best-effort
         // admin notification. The Database collection serializes tests, so the counter delta is stable.
-        var before = _fixture.Factory.MockEmailService.SendEmailCallCount;
+        var before = _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync));
 
         var response = await _client.PostAsJsonAsync("/api/feedback", new CreateFeedbackRequest
         {
@@ -120,7 +121,7 @@ public class FeedbackEndpointsTests
         });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal(before + 1, _fixture.Factory.MockEmailService.SendEmailCallCount);
+        Assert.Equal(before + 1, _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync)));
     }
 
     [Fact]

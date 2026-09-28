@@ -106,7 +106,7 @@ public class AnnouncementBroadcastServiceTests
 
         await _service.ProcessPendingBroadcastsAsync();
 
-        _email.SendAnnouncementCallCount.Should().Be((int)expectedRecipients);
+        _email.CallCount(nameof(IEmailService.SendAnnouncementEmailAsync)).Should().Be((int)expectedRecipients);
         _email.Recipients.Should().Contain(activeEmail);
         _email.Recipients.Should().NotContain(optedOutEmail);
         (await EmailSentAsync(announcement.Id)).Should().BeTrue();
@@ -141,7 +141,7 @@ public class AnnouncementBroadcastServiceTests
         _email.Reset();
         await _service.ProcessPendingBroadcastsAsync(); // second run: nothing pending
 
-        _email.SendAnnouncementCallCount.Should().Be(0);
+        _email.CallCount(nameof(IEmailService.SendAnnouncementEmailAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -154,7 +154,7 @@ public class AnnouncementBroadcastServiceTests
 
         await _service.ProcessPendingBroadcastsAsync();
 
-        _email.SendAnnouncementCallCount.Should().Be(0);
+        _email.CallCount(nameof(IEmailService.SendAnnouncementEmailAsync)).Should().Be(0);
     }
 
     [Fact]

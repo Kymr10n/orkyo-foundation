@@ -6,6 +6,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
+using Orkyo.Foundation.Tests.Mocks;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -162,12 +164,59 @@ public class ContactEndpointsTests : IAsyncLifetime
 
     // ── Notification email ──────────────────────────────────────────────────
 
-    [Fact(Skip = "Requires service override via WithWebHostBuilder - not supported by FoundationWebApplicationFactory")]
-    public Task WhenNotificationEmailConfigured_SendsEmail() => Task.CompletedTask;
+    // The endpoint reads the notification address from the host's configuration per request, so
+    // a test sets it on the shared configuration and clears it again afterwards.
+    private async Task<HttpResponseMessage> SubmitWithNotificationAddressAsync(string? notifyEmail)
+    {
+        var configuration = _databaseFixture.Factory.Services.GetRequiredService<IConfiguration>();
+        configuration[ConfigKeys.ContactNotificationEmail] = notifyEmail;
+        try
+        {
+            return await _client.PostAsJsonAsync("/api/contact", ValidPayload());
+        }
+        finally
+        {
+            configuration[ConfigKeys.ContactNotificationEmail] = null;
+        }
+    }
 
-    [Fact(Skip = "Requires service override via WithWebHostBuilder - not supported by FoundationWebApplicationFactory")]
-    public Task WhenNotificationEmailNotConfigured_DoesNotSendEmail() => Task.CompletedTask;
+    private MockEmailService Email => _databaseFixture.Factory.MockEmailService;
 
-    [Fact(Skip = "Requires service override via WithWebHostBuilder - not supported by FoundationWebApplicationFactory")]
-    public Task WhenEmailSendingFails_SubmissionStillSucceeds() => Task.CompletedTask;
+    [Fact]
+    public async Task WhenNotificationEmailConfigured_SendsEmail()
+    {
+        var notifyEmail = $"ops-{Guid.NewGuid():N}@test.local";
+
+        var response = await SubmitWithNotificationAddressAsync(notifyEmail);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Email.Calls.Should().Contain((nameof(IEmailService.SendEmailAsync), notifyEmail));
+    }
+
+    [Fact]
+    public async Task WhenNotificationEmailNotConfigured_DoesNotSendEmail()
+    {
+        var before = Email.CallCount(nameof(IEmailService.SendEmailAsync));
+
+        var response = await SubmitWithNotificationAddressAsync(null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Email.CallCount(nameof(IEmailService.SendEmailAsync)).Should().Be(before);
+    }
+
+    [Fact]
+    public async Task WhenEmailSendingFails_SubmissionStillSucceeds()
+    {
+        Email.ThrowOnSendEmail = true;
+        try
+        {
+            var response = await SubmitWithNotificationAddressAsync($"ops-{Guid.NewGuid():N}@test.local");
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        finally
+        {
+            Email.ThrowOnSendEmail = false;
+        }
+    }
 }

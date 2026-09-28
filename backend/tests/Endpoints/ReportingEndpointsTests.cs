@@ -273,7 +273,7 @@ public class ReportingEndpointsTests
         // Create a valid token that belongs to a different tenant ID.
         // The endpoint filter verifies record.TenantId == currentTenant.TenantId and
         // returns 403 when they don't match.
-        var foreignTenantId = await SeedForeignTenantAsync();
+        var foreignTenantId = (await DatabaseTestUtils.CreateTestTenantAsync("foreign")).TenantId;
         var rawToken = await InsertRawTokenForTenantAsync(foreignTenantId, "foreign-tenant-token");
         using var client = _fixture.CreateClientWithToken(rawToken);
 
@@ -285,7 +285,7 @@ public class ReportingEndpointsTests
     [Fact]
     public async Task ListTokens_DoesNotListAnotherTenantsToken()
     {
-        var foreignTenantId = await SeedForeignTenantAsync();
+        var foreignTenantId = (await DatabaseTestUtils.CreateTestTenantAsync("foreign")).TenantId;
         var name = $"foreign-list-{Guid.NewGuid():N}";
         await InsertRawTokenForTenantAsync(foreignTenantId, name);
 
@@ -297,7 +297,7 @@ public class ReportingEndpointsTests
     [Fact]
     public async Task RevokeToken_OfAnotherTenant_Returns404AndLeavesItActive()
     {
-        var foreignTenantId = await SeedForeignTenantAsync();
+        var foreignTenantId = (await DatabaseTestUtils.CreateTestTenantAsync("foreign")).TenantId;
         var name = $"foreign-revoke-{Guid.NewGuid():N}";
         await InsertRawTokenForTenantAsync(foreignTenantId, name);
 
@@ -399,26 +399,6 @@ public class ReportingEndpointsTests
             "/api/reporting/v1/tokens", new { name });
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<CreatedReportingToken>())!;
-    }
-
-    /// <summary>
-    /// Seeds a minimal tenant row in the control plane for cross-tenant isolation tests.
-    /// Returns the new tenant's ID.
-    /// </summary>
-    private async Task<Guid> SeedForeignTenantAsync()
-    {
-        var id = Guid.NewGuid();
-        var slug = $"foreign-{id.ToString()[..8]}";
-        await using var conn = new NpgsqlConnection(_cpConnStr);
-        await conn.OpenAsync();
-        await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO tenants (id, slug, display_name, status, db_identifier, tier, created_at, updated_at)
-            VALUES (@id, @slug, 'Foreign Tenant', 'active', @db, 2, NOW(), NOW())", conn);
-        cmd.Parameters.AddWithValue("id", id);
-        cmd.Parameters.AddWithValue("slug", slug);
-        cmd.Parameters.AddWithValue("db", $"tenant_{slug}");
-        await cmd.ExecuteNonQueryAsync();
-        return id;
     }
 
     /// <summary>

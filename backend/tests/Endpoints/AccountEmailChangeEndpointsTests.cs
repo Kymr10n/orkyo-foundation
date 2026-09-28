@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Services;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 
@@ -226,7 +227,7 @@ public class AccountEmailChangeEndpointsTests
         token.Should().NotBeNullOrEmpty();
 
         // Confirmation email must be sent to the new address
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(1);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(1);
         _mockEmail.LastSendEmailChangeConfirmationCall.toEmail.Should().Be("new@example.com");
     }
 
@@ -250,7 +251,7 @@ public class AccountEmailChangeEndpointsTests
         pending.Should().BeNull();
         token.Should().BeNull();
 
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(1);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(1);
     }
 
     [Fact]
@@ -277,7 +278,7 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "same@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -290,7 +291,7 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "taken@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -306,7 +307,7 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "reserved@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -325,7 +326,7 @@ public class AccountEmailChangeEndpointsTests
 
         var (pending, _) = await GetPendingEmailStateAsync();
         pending.Should().Be("second@example.com");
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(2);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(2);
     }
 
     // ─── GET /api/account/confirm-email ──────────────────────────────────────────
@@ -416,7 +417,7 @@ public class AccountEmailChangeEndpointsTests
             response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
 
             // Sent after the response, from its own scope.
-            for (var i = 0; i < 50 && _mockEmail.SendEmailChangedCallCount == 0; i++)
+            for (var i = 0; i < 50 && _mockEmail.CallCount(nameof(IEmailService.SendEmailChangedAsync)) == 0; i++)
                 await Task.Delay(100);
             _mockEmail.LastEmailChangedDisplayName.Should().Be("Dana Scully");
         }

@@ -123,7 +123,7 @@ public class UserLifecycleServiceTests
             exists.Should().BeTrue();
             status.Should().Be("warned");
             count.Should().Be(1);
-            _mockEmail.SendLifecycleWarningCallCount.Should().BeGreaterThanOrEqualTo(1);
+            _mockEmail.CallCount(nameof(IEmailService.SendLifecycleWarningEmailAsync)).Should().BeGreaterThanOrEqualTo(1);
         }
         finally
         {
@@ -173,7 +173,7 @@ public class UserLifecycleServiceTests
         {
             await ProcessAsync();
 
-            _mockEmail.SendLifecycleWarningCallCount.Should().BeGreaterThanOrEqualTo(1);
+            _mockEmail.CallCount(nameof(IEmailService.SendLifecycleWarningEmailAsync)).Should().BeGreaterThanOrEqualTo(1);
             // An unsent warning must not count: the user stays where they were for the next run.
             var (exists, status, count, _) = await GetUserStateAsync(userId);
             exists.Should().BeTrue();
@@ -201,7 +201,7 @@ public class UserLifecycleServiceTests
 
             _mockKeycloak.DisableUserCallCount.Should().Be(1);
             _mockKeycloak.LastDisabledKeycloakId.Should().Be(keycloakId);
-            _mockEmail.SendDormancyNoticeCallCount.Should().Be(1);
+            _mockEmail.CallCount(nameof(IEmailService.SendDormancyNoticeEmailAsync)).Should().Be(1);
 
             var (exists, status, _, dbStatus) = await GetUserStateAsync(userId);
             exists.Should().BeTrue();
@@ -227,7 +227,7 @@ public class UserLifecycleServiceTests
             await ProcessAsync();
 
             _mockKeycloak.DisableUserCallCount.Should().Be(1);
-            _mockEmail.SendDormancyNoticeCallCount.Should().Be(0);
+            _mockEmail.CallCount(nameof(IEmailService.SendDormancyNoticeEmailAsync)).Should().Be(0);
 
             // A Keycloak failure must skip the user — state stays 'warned' for the next run.
             var (exists, status, count, dbStatus) = await GetUserStateAsync(userId);
@@ -253,7 +253,7 @@ public class UserLifecycleServiceTests
         {
             await ProcessAsync();
 
-            _mockEmail.SendDormancyNoticeCallCount.Should().BeGreaterThanOrEqualTo(1);
+            _mockEmail.CallCount(nameof(IEmailService.SendDormancyNoticeEmailAsync)).Should().BeGreaterThanOrEqualTo(1);
             // No notice, no dormancy: the purge clock must not start for a user who was not told.
             var (exists, status, count, dbStatus) = await GetUserStateAsync(userId);
             exists.Should().BeTrue();

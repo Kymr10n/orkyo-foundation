@@ -96,8 +96,7 @@ public class McpEndpointsTests
     /// </summary>
     private async Task<string> MintForeignTenantTokenAsync()
     {
-        var foreignTenantId = Guid.NewGuid();
-        var slug = $"foreign-{foreignTenantId:N}"[..20];
+        var (foreignTenantId, _) = await DatabaseTestUtils.CreateTestTenantAsync("foreign");
 
         const string chars = "abcdefghijklmnopqrstuvwxyz0123456789";
         var prefix = new string(RandomNumberGenerator.GetBytes(8).Select(b => chars[b % chars.Length]).ToArray());
@@ -109,15 +108,6 @@ public class McpEndpointsTests
 
         await using var conn = new NpgsqlConnection(CpConnStr);
         await conn.OpenAsync();
-        await using (var tenant = new NpgsqlCommand(@"
-            INSERT INTO tenants (id, slug, display_name, status, db_identifier, tier, created_at, updated_at)
-            VALUES (@id, @slug, 'Foreign Tenant', 'active', @db, 2, NOW(), NOW())", conn))
-        {
-            tenant.Parameters.AddWithValue("id", foreignTenantId);
-            tenant.Parameters.AddWithValue("slug", slug);
-            tenant.Parameters.AddWithValue("db", $"tenant_{slug}");
-            await tenant.ExecuteNonQueryAsync();
-        }
         await using (var token = new NpgsqlCommand(@"
             INSERT INTO api_access_tokens (tenant_id, name, token_prefix, token_hash, scopes)
             VALUES (@tenantId, 'foreign', @prefix, @hash, 'schedule:read schedule:write')", conn))
