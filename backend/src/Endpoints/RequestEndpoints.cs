@@ -1,3 +1,4 @@
+using System.Globalization;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -12,11 +13,17 @@ namespace Api.Endpoints;
 
 public static class RequestEndpoints
 {
+    /// <summary>The real row count behind the capped unpaged list.</summary>
+    private const string TotalCountHeader = "X-Total-Count";
+
+    /// <summary><c>true</c> when the capped unpaged list was cut at <see cref="PageRequest.MaxUnpagedItems"/>.</summary>
+    private const string HasNextPageHeader = "X-Has-Next-Page";
+
     public static void MapRequestEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/requests").WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
+        group.MapGet("/", async (IRequestService requestService, [FromServices] IConflictService conflictService, HttpResponse response, CancellationToken ct, bool includeRequirements = false, bool conflicted = false, bool? scheduled = null, Guid? siteId = null, int? page = null, int? pageSize = null) =>
         {
             if (conflicted)
             {
@@ -33,10 +40,16 @@ public static class RequestEndpoints
             }
             if (page.HasValue || pageSize.HasValue)
             {
-                var paged = await requestService.GetAllAsync(PageRequest.From(page, pageSize), includeRequirements, ct);
+                var paged = await requestService.GetAllAsync(PageRequest.From(page, pageSize), siteId, includeRequirements, ct);
                 return Results.Ok(paged);
             }
-            return Results.Ok(await requestService.GetAllAsync(includeRequirements, siteId, ct));
+
+            // Unpaged: capped at PageRequest.MaxUnpagedItems. The body stays the bare array the
+            // frontend reads; the real total and the truncation flag travel as headers.
+            var capped = await requestService.GetAllAsync(page: null, siteId, includeRequirements, ct);
+            response.Headers[TotalCountHeader] = capped.TotalItems.ToString(CultureInfo.InvariantCulture);
+            response.Headers[HasNextPageHeader] = capped.HasNextPage ? "true" : "false";
+            return Results.Ok(capped.Items);
         })
         .WithName("GetRequests")
         .WithSummary("Get all requests");

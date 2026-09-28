@@ -1644,6 +1644,67 @@ public class RequestEndpointsTests
 
     #endregion
 
+    #region GET /requests - site scope and cap
+
+    private async Task<Guid> CreateSiteAsync()
+    {
+        var code = $"s23-{Guid.NewGuid():N}"[..10];
+        var response = await _client.PostAsJsonAsync("/api/sites", new { code, name = code });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<SiteInfo>())!.Id;
+    }
+
+    private async Task<RequestInfo> CreateSiteRequestAsync(Guid siteId)
+    {
+        var response = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"S23 {Guid.NewGuid():N}"[..12],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SiteId = siteId,
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<RequestInfo>())!;
+    }
+
+    [Fact]
+    public async Task GetRequests_PagedWithSiteId_ExcludesOtherSites()
+    {
+        var siteA = await CreateSiteAsync();
+        var siteB = await CreateSiteAsync();
+        var inB = await CreateSiteRequestAsync(siteB);
+        var inA = await CreateSiteRequestAsync(siteA);
+
+        var paged = await _client.GetFromJsonAsync<PagedResult<RequestInfo>>(
+            $"/api/requests?siteId={siteB}&page=1&pageSize=100");
+        var unscoped = await _client.GetFromJsonAsync<PagedResult<RequestInfo>>(
+            "/api/requests?page=1&pageSize=100");
+
+        // The paged branch once ignored siteId and answered every site's rows.
+        paged!.Items.Should().OnlyContain(r => r.SiteId == null || r.SiteId == siteB);
+        paged.Items.Should().NotContain(r => r.Id == inA.Id);
+        paged.TotalItems.Should().BeLessThan(unscoped!.TotalItems);
+        inB.SiteId.Should().Be(siteB);
+    }
+
+    [Fact]
+    public async Task GetRequests_Unpaged_KeepsTheBareListAndReportsTheCap()
+    {
+        var site = await CreateSiteAsync();
+        var created = await CreateSiteRequestAsync(site);
+
+        var response = await _client.GetAsync($"/api/requests?siteId={site}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var items = await response.Content.ReadFromJsonAsync<List<RequestInfo>>();
+        items.Should().Contain(r => r.Id == created.Id);
+        items.Should().OnlyContain(r => r.SiteId == null || r.SiteId == site);
+        response.Headers.GetValues("X-Total-Count").Single().Should().Be(items!.Count.ToString());
+        response.Headers.GetValues("X-Has-Next-Page").Single().Should().Be("false");
+    }
+
+    #endregion
+
     #region GET /{id}/children, PATCH /{id}/move, DELETE /{id}/subtree, GET /{id}/descendants/count, PATCH /{id}/schedule
 
     private async Task<RequestInfo> CreateSimpleRequestAsync(string name, Guid? parentId = null)

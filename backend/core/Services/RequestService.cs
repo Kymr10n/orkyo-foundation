@@ -11,10 +11,11 @@ namespace Api.Services;
 /// </summary>
 public interface IRequestService
 {
-    /// <summary>Returns all requests. Pass <c>includeRequirements: true</c> to populate requirement lists.</summary>
-    Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default);
-    /// <summary>Returns a page of requests.</summary>
-    Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
+    /// <summary>
+    /// Returns a page of requests, optionally scoped to a site (plus site-neutral rows). A null
+    /// <paramref name="page"/> answers the whole list capped at <see cref="PageRequest.MaxUnpagedItems"/>.
+    /// </summary>
+    Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest? page, Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default);
 
     /// <summary>Name/scheduled filtering applied in SQL with a row cap.</summary>
     Task<List<RequestInfo>> SearchAsync(string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default, CancellationToken ct = default);
@@ -82,11 +83,8 @@ public class RequestService : IRequestService
         _time = time;
     }
 
-    public Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default)
-        => _repository.GetAllAsync(includeRequirements, siteId, ct);
-
-    public Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
-        => _repository.GetAllAsync(page, includeRequirements, ct);
+    public Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest? page, Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default)
+        => _repository.GetAllAsync(page, siteId, includeRequirements, ct);
 
     public Task<List<RequestInfo>> SearchAsync(string? nameContains, bool? scheduled, int limit, RequestSort sort = RequestSort.Default, CancellationToken ct = default)
         => _repository.SearchAsync(nameContains, scheduled, limit, sort, ct);

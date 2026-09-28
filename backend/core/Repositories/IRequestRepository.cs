@@ -19,11 +19,19 @@ namespace Api.Repositories;
 /// </remarks>
 public interface IRequestRepository
 {
-    /// <summary>Returns all requests. Pass <c>includeRequirements: true</c> to populate the requirements list.</summary>
+    /// <summary>
+    /// Returns every request, uncapped — for callers that aggregate the whole set (export, the
+    /// site plan). Pass <c>includeRequirements: true</c> to populate the requirements list.
+    /// </summary>
     Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default);
 
-    /// <summary>Returns a page of requests.</summary>
-    Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default);
+    /// <summary>
+    /// Returns a page of requests, scoped like the unpaged list when <paramref name="siteId"/> is
+    /// given (the site's rows plus the site-neutral ones). A null <paramref name="page"/> answers
+    /// the whole list up to <see cref="PageRequest.MaxUnpagedItems"/> through
+    /// <see cref="PagedResult{T}.Capped"/>, so <see cref="PagedResult{T}.HasNextPage"/> reports a cut.
+    /// </summary>
+    Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest? page, Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default);
 
     /// <summary>
     /// Name/scheduled filtering applied in SQL with a row cap, for callers that want a few

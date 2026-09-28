@@ -60,17 +60,39 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
-    public async Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
+    public async Task<PagedResult<RequestInfo>> GetAllAsync(
+        PageRequest? page, Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        var result = await db.QueryPagedAsync(
-            page,
-            countSql: "SELECT COUNT(*) FROM v_requests_with_assignments",
-            querySql: $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset",
-            bind: null,
-            map: RequestMapper.MapFromReader,
-            ct: ct);
+        // The unpaged list's site scoping: the site's own rows plus the site-neutral ones.
+        var siteFilter = siteId is null ? "" : "WHERE (site_id = @siteId OR site_id IS NULL) ";
+        Action<NpgsqlParameterCollection> bind = p =>
+        {
+            if (siteId is not null) p.AddWithValue("siteId", siteId.Value);
+        };
+        var countSql = "SELECT COUNT(*) FROM v_requests_with_assignments " + siteFilter;
+        var querySql = $"SELECT {SelectFromView} FROM v_requests_with_assignments " + siteFilter
+            + "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset";
+
+        PagedResult<RequestInfo> result;
+        if (page is not null)
+        {
+            result = await db.QueryPagedAsync(page, countSql, querySql, bind, RequestMapper.MapFromReader, ct);
+        }
+        else
+        {
+            // QueryPagedAsync sanitises the page size down to 100, so the capped branch reads
+            // its own count and first MaxUnpagedItems rows.
+            var total = (int)await db.ExecuteScalarAsync<long>(countSql, bind, ct);
+            var rows = await db.QueryListAsync(querySql, p =>
+            {
+                bind(p);
+                p.AddWithValue("limit", PageRequest.MaxUnpagedItems);
+                p.AddWithValue("offset", 0);
+            }, RequestMapper.MapFromReader, ct);
+            result = PagedResult<RequestInfo>.Capped(rows, total, PageRequest.MaxUnpagedItems);
+        }
 
         if (includeRequirements && result.Items.Count > 0)
         {
