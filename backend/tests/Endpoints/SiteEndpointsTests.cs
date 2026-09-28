@@ -153,6 +153,32 @@ public class SiteEndpointsTests
     }
 
     [Fact]
+    public async Task CreateSite_DuplicateCode_Returns409WithTheSiteMessage()
+    {
+        var code = UniqueCode();
+        (await _client.PostAsJsonAsync("/api/sites", new { code, name = "First" })).EnsureSuccessStatusCode();
+
+        var response = await _client.PostAsJsonAsync("/api/sites", new { code, name = "Second" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Site with this code already exists");
+    }
+
+    [Fact]
+    public async Task UpdateSite_ToAnotherSitesCode_Returns409()
+    {
+        var taken = UniqueCode();
+        (await _client.PostAsJsonAsync("/api/sites", new { code = taken, name = "Holder" })).EnsureSuccessStatusCode();
+        var other = await (await _client.PostAsJsonAsync("/api/sites", new { code = UniqueCode(), name = "Mover" }))
+            .Content.ReadFromJsonAsync<SiteInfo>();
+
+        var response = await _client.PutAsJsonAsync($"/api/sites/{other!.Id}", new { code = taken, name = "Mover" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Another site with this code already exists");
+    }
+
+    [Fact]
     public async Task UpdateSite_NonExistent_Returns404()
     {
         var update = new { code = UniqueCode(), name = "Ghost" };

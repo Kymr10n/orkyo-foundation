@@ -49,7 +49,7 @@ public static class QuotaEndpoints
             activeSeats = Convert.ToInt64(await cmd.ExecuteScalarAsync(ct) ?? 0L);
         }
 
-        var sitesUsed = (long)await siteRepository.GetEstimatedCountAsync(ct);
+        var sitesUsed = (long)await siteRepository.GetCountAsync(ct);
         var spacesUsed = (long)await resourceRepository.GetPlaceableCountAsync(ct);
         var storageUsed = await assetRepository.GetTotalSizeBytesAsync(tenantId, ct);
 
