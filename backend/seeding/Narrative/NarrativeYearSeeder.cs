@@ -603,13 +603,13 @@ public static class NarrativeYearSeeder
 
     /// <summary>
     /// The first of <paramref name="personIds"/> that <c>SiteModelFactory</c> will forbid from
-    /// travelling, using its own rule so the two passes agree.
+    /// travelling, using its <see cref="SiteModelFactory.PinnedToHomeSite"/> rule.
     /// </summary>
     private static Guid? PinnedToTheirSite(NpgsqlConnection conn, IReadOnlyList<Guid> personIds)
     {
         if (personIds.Count == 0) return null;
         using var cmd = new NpgsqlCommand(
-            "SELECT id FROM resources WHERE id = ANY(@ids) AND abs(hashtext(id::text)) % 4 = 0 " +
+            $"SELECT id FROM resources WHERE id = ANY(@ids) AND {SiteModelFactory.PinnedToHomeSite} " +
             "ORDER BY id LIMIT 1", conn);
         cmd.Parameters.AddWithValue("ids", personIds.ToArray());
         return cmd.ExecuteScalar() as Guid?;

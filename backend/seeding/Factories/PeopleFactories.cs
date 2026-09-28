@@ -316,48 +316,13 @@ public static class PeopleFactories
             .ToDictionary(g => g.Key, g => g.ToList());
         var presentTeams = TeamOrder.Where(teamToPeople.ContainsKey).ToList();
 
-        var seeded = new List<SeededPersonGroup>(presentTeams.Count);
-        var teamToGroupId = new Dictionary<string, Guid>(presentTeams.Count);
-        var now = DateTime.UtcNow;
+        var ids = await ResourceGroupSeedHelpers.CopyGroupsAsync(
+            conn, presentTeams.Select(t => (t, personResourceTypeId)).ToList());
+        var seeded = presentTeams.Select((t, i) => new SeededPersonGroup(ids[i], t)).ToList();
 
-        using (var groupWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            for (var i = 0; i < presentTeams.Count; i++)
-            {
-                var id = Guid.NewGuid();
-                teamToGroupId[presentTeams[i]] = id;
-                await groupWriter.StartRowAsync();
-                await groupWriter.WriteAsync(id, NpgsqlDbType.Uuid);
-                await groupWriter.WriteAsync(presentTeams[i], NpgsqlDbType.Varchar);
-                await groupWriter.WriteNullAsync();                          // description
-                await groupWriter.WriteNullAsync();                          // color
-                await groupWriter.WriteAsync(i, NpgsqlDbType.Integer);       // display_order
-                await groupWriter.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
-                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                seeded.Add(new SeededPersonGroup(id, presentTeams[i]));
-            }
-            await groupWriter.CompleteAsync();
-        }
-
-        var memberCount = 0;
-        using (var memberWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            foreach (var team in presentTeams)
-                foreach (var person in teamToPeople[team])
-                {
-                    await memberWriter.StartRowAsync();
-                    await memberWriter.WriteAsync(teamToGroupId[team], NpgsqlDbType.Uuid);
-                    await memberWriter.WriteAsync(person.ResourceId, NpgsqlDbType.Uuid);
-                    await memberWriter.WriteAsync(personResourceTypeId, NpgsqlDbType.Uuid);
-                    memberCount++;
-                }
-            await memberWriter.CompleteAsync();
-        }
+        var memberCount = await ResourceGroupSeedHelpers.CopyMembersAsync(conn,
+            presentTeams.SelectMany((team, i) =>
+                teamToPeople[team].Select(person => (ids[i], person.ResourceId, personResourceTypeId))));
 
         return (seeded, memberCount);
     }

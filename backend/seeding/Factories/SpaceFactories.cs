@@ -113,48 +113,13 @@ public static class SpaceFactories
             .ToDictionary(g => g.Key, g => g.ToList());
         var presentAreas = FunctionalAreaOrder.Where(areaToSpaces.ContainsKey).ToList();
 
-        var seeded = new List<SeededSpaceGroup>(presentAreas.Count);
-        var areaToGroupId = new Dictionary<string, Guid>(presentAreas.Count);
-        var now = DateTime.UtcNow;
+        var ids = await ResourceGroupSeedHelpers.CopyGroupsAsync(
+            conn, presentAreas.Select(a => (a, spaceResourceTypeId)).ToList());
+        var seeded = presentAreas.Select((a, i) => new SeededSpaceGroup(ids[i], a)).ToList();
 
-        using (var groupWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            for (var i = 0; i < presentAreas.Count; i++)
-            {
-                var id = Guid.NewGuid();
-                areaToGroupId[presentAreas[i]] = id;
-                await groupWriter.StartRowAsync();
-                await groupWriter.WriteAsync(id, NpgsqlDbType.Uuid);
-                await groupWriter.WriteAsync(presentAreas[i], NpgsqlDbType.Varchar);
-                await groupWriter.WriteNullAsync();                          // description
-                await groupWriter.WriteNullAsync();                          // color
-                await groupWriter.WriteAsync(i, NpgsqlDbType.Integer);       // display_order
-                await groupWriter.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
-                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await groupWriter.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                seeded.Add(new SeededSpaceGroup(id, presentAreas[i]));
-            }
-            await groupWriter.CompleteAsync();
-        }
-
-        var memberCount = 0;
-        using (var memberWriter = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            foreach (var area in presentAreas)
-                foreach (var space in areaToSpaces[area])
-                {
-                    await memberWriter.StartRowAsync();
-                    await memberWriter.WriteAsync(areaToGroupId[area], NpgsqlDbType.Uuid);
-                    await memberWriter.WriteAsync(space.Id, NpgsqlDbType.Uuid);
-                    await memberWriter.WriteAsync(spaceResourceTypeId, NpgsqlDbType.Uuid);
-                    memberCount++;
-                }
-            await memberWriter.CompleteAsync();
-        }
+        var memberCount = await ResourceGroupSeedHelpers.CopyMembersAsync(conn,
+            presentAreas.SelectMany((area, i) =>
+                areaToSpaces[area].Select(space => (ids[i], space.Id, spaceResourceTypeId))));
 
         return (seeded, memberCount);
     }

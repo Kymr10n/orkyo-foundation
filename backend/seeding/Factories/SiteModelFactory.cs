@@ -4,8 +4,8 @@ namespace Orkyo.Foundation.Seed.Factories;
 
 /// <summary>
 /// Populates the Home-Site model on already-seeded rows (migrations 1550 + 1560).
-/// Runs as a post-commit pass so it sees all committed data, and so the binary-COPY writers don't
-/// each need the new columns threaded through.
+/// Runs as the last pass of the seed transaction so it sees every seeded row, and so the
+/// binary-COPY writers don't each need the new columns threaded through.
 ///
 /// Result on a multi-site demo tenant:
 /// - spaces are immovable (cross_site_allowed = false);
@@ -21,7 +21,13 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// </summary>
 public static class SiteModelFactory
 {
-    /// <param name="tx">Optional transaction (tests pass one to roll back); production runs tx-less.</param>
+    /// <summary>
+    /// Which people may not travel: about one in four, chosen by id so a reseed picks the same
+    /// ones. <c>NarrativeYearSeeder</c> reads the same predicate so its two passes agree.
+    /// </summary>
+    public const string PinnedToHomeSite = "abs(hashtext(id::text)) % 4 = 0";
+
+    /// <param name="tx">The seed transaction; tests pass their own to roll back.</param>
     public static async Task ApplyAsync(
         NpgsqlConnection conn, Guid spaceTypeId, Guid personTypeId, NpgsqlTransaction? tx = null)
     {
@@ -48,7 +54,7 @@ public static class SiteModelFactory
         // ~1 in 4 people are tied to their home site (no cross-site work).
         await ExecAsync(conn, tx,
             "UPDATE resources SET cross_site_allowed = false " +
-            "WHERE resource_type_id = @person AND abs(hashtext(id::text)) % 4 = 0",
+            $"WHERE resource_type_id = @person AND {PinnedToHomeSite}",
             ("person", personTypeId));
 
         // Scheduled requests adopt the site of the space they were placed in (implicit-site parity);

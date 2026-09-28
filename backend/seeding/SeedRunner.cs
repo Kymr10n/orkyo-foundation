@@ -126,10 +126,11 @@ public static class SeedRunner
         await TenantConfigFactory.SeedCriteriaTemplatesAsync(conn, skillCriteria);
         await TenantConfigFactory.SeedGroupCapabilitiesAsync(conn, skillCriteria);
 
-        await tx.CommitAsync();
+        // Populate the Home-Site model on the seeded rows (see SiteModelFactory), inside the
+        // transaction so a failure here leaves no half-sited tenant behind.
+        await SiteModelFactory.ApplyAsync(conn, spaceTypeId, personTypeId, tx);
 
-        // Populate the Home-Site / Current-Site model on the committed rows (see SiteModelFactory).
-        await SiteModelFactory.ApplyAsync(conn, spaceTypeId, personTypeId);
+        await tx.CommitAsync();
 
         sw.Stop();
 

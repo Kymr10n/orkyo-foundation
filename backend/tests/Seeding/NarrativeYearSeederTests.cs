@@ -1,12 +1,11 @@
-using Api.Services;
 using Bogus;
-using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using NpgsqlTypes;
 using Orkyo.Foundation.Seed.Factories;
 using Orkyo.Foundation.Seed.Floorplans;
 using Orkyo.Foundation.Seed.Narrative;
 using Orkyo.Foundation.Seed.Scales;
+using Orkyo.Foundation.Tests.Integration;
 
 namespace Orkyo.Foundation.Tests.Seeding;
 
@@ -19,7 +18,7 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// validator rejects a percent on Exclusive resources), holidays/shutdowns + absences exist, and
 /// conflicts are only the small injected set.
 /// </summary>
-[Collection("Database collection")]
+[Collection(PostgresCollection.Name)]
 public class NarrativeYearSeederTests
 {
     /// <summary>The coherence checks are overlap self-joins over a full seeded year. They run in
@@ -27,27 +26,28 @@ public class NarrativeYearSeederTests
     /// slow check rather than a broken one — Npgsql's 30-second default called it broken.</summary>
     private const int VerifyTimeoutSeconds = 180;
 
-    private readonly IOrgDbConnectionFactory _connFactory;
-    private readonly OrgContext _orgContext;
+    /// <summary>A fixed "today": the checks count what a seeded year holds, and a year seeded
+    /// relative to the clock moved its holidays and weekends under them from one day to the next.</summary>
+    private static readonly DateTime Reference = new(2026, 9, 12, 0, 0, 0, DateTimeKind.Utc);
+
+    private readonly PostgresFixture _fixture;
+    private readonly Guid _tenantId = Guid.NewGuid();
     private readonly Xunit.Abstractions.ITestOutputHelper _output;
 
-    public NarrativeYearSeederTests(DatabaseFixture fixture, Xunit.Abstractions.ITestOutputHelper output)
+    public NarrativeYearSeederTests(PostgresFixture fixture, Xunit.Abstractions.ITestOutputHelper output)
     {
         _output = output;
-        var scope = fixture.Factory.Services.CreateScope();
-        _connFactory = scope.ServiceProvider.GetRequiredService<IOrgDbConnectionFactory>();
-        _orgContext = scope.ServiceProvider.GetRequiredService<OrgContext>();
+        _fixture = fixture;
     }
 
     [Fact]
     public async Task NarrativeSeed_IsCoherent_Matched_AndExercisesEveryAspect()
     {
-        await using var conn = _connFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
         var faker = new Faker { Random = new Randomizer(1337) };
 
-        var narrative = await SeedNarrativeAsync(conn, tx, DateTime.UtcNow, peopleCount: 30);
+        var narrative = await SeedNarrativeAsync(conn, tx, Reference, peopleCount: 30);
         var (spaceTypeId, personTypeId, people, tools, criteria, cohorts, avail, year) =
             (narrative.SpaceTypeId, narrative.PersonTypeId, narrative.People, narrative.Tools,
              narrative.Criteria, narrative.Cohorts, narrative.Availability, narrative.Year);
@@ -450,11 +450,10 @@ public class NarrativeYearSeederTests
     [Fact]
     public async Task NarrativeSeed_FillsTheShop_ToARealisticUtilization()
     {
-        await using var conn = _connFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync();
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
         await using var tx = await conn.BeginTransactionAsync();
 
-        var reference = new DateTime(2026, 9, 12, 0, 0, 0, DateTimeKind.Utc);
+        var reference = Reference;
         // The production roster, because utilization is a ratio: the machine catalog is fixed, so a
         // roster half the real size would flatter the numbers and prove nothing about the demo.
         var narrative = await SeedNarrativeAsync(conn, tx, reference, peopleCount: ScaleCatalog.Resolve("medium").People);
@@ -628,11 +627,11 @@ public class NarrativeYearSeederTests
         var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
         var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
-        var fp = await FloorplanFactory.SeedAsync(conn, _orgContext.OrgId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
+        var fp = await FloorplanFactory.SeedAsync(conn, _tenantId, FloorplanCatalog.ForProfile("manufacturing"), spaceTypeId);
 
         // 30 minimal people (resources of type person) — enough for facility coverage.
-        // Deterministic ids (own Randomizer so the main faker stream is untouched): the cross-site
-        // off-site selection in SiteModelFactory.ApplyAsync is `abs(hashtext(id::text)) % 40 = 0`, so
+        // Deterministic ids (own Randomizer so the main faker stream is untouched): the pinned-person
+        // selection in SiteModelFactory.ApplyAsync hashes the id (SiteModelFactory.PinnedToHomeSite), so
         // random person ids made the cross-site-ratio assertion below non-deterministic run-to-run.
         var idRng = new Randomizer(1337);
         var people = new List<PeopleFactories.SeededPerson>();
