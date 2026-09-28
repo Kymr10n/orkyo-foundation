@@ -25,6 +25,8 @@ export function getConflictKindLabel(kind: string): string {
       return "Capability Mismatch";
     case "resource_unavailable":
       return "Resource Unavailable";
+    case "site_mismatch":
+      return "Site Mismatch";
     case "starts_in_off_time":
       return "Outside Working Time";
     case "load_exceeded":

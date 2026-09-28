@@ -64,6 +64,13 @@ per agent, sequential within a stack, stacks in parallel.
 - **M24:** the branch ruleset must drop `audit-nuget` from required checks. `ste-check.py` and
   `lint-migration-headers.sh` are synced files; copy them to saas and community.
 - **Workflows were validated statically only**; none has run in GitHub Actions on this branch.
+- **B7 (TestSupport package):** the default test token's role is now `admin` instead of `user`;
+  downstream test hosts send it, so check saas and community behave the same. Additive:
+  `TestConstants.TenantId`/`UserId`, `AuthorizationContract.FindUnauthenticatedRoutes` and
+  `FoundationAnonymousRoutes` (products can wire these into their contract tests),
+  `TestConfiguration.Shared`, `TestDatabase`. `CreateTestTenantAsync` is kept (saas uses it).
+- **Frontend gating:** availability-event Add/Edit/Delete now follow the Editor tier
+  (`useCanEdit`), matching the API group; the UI previously required tenant admin.
 - **S18 (saas):** with Turnstile on, saas's invitation-only 403 now answers `CHALLENGE_FAILED` before
   `NOT_INVITED` (the filter runs before the handler). `TurnstileWidget` now lives in foundation
   (`components/security/`, used by `RequestAccessPage`); saas can drop its copy and import it.
