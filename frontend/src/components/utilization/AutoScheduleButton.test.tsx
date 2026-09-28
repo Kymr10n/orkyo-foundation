@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import { AutoScheduleButton } from './AutoScheduleButton';
 
 const defaultProps = {
@@ -7,7 +8,7 @@ const defaultProps = {
 };
 
 function renderButton(props: Partial<React.ComponentProps<typeof AutoScheduleButton>> = {}) {
-  return render(<AutoScheduleButton {...defaultProps} {...props} />);
+  return renderWithQuery(<AutoScheduleButton {...defaultProps} {...props} />);
 }
 
 describe('AutoScheduleButton', () => {

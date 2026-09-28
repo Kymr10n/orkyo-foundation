@@ -7,6 +7,7 @@ import { type ReactElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 import { createFeedbackMutationCache } from "@foundation/src/lib/core/query-client";
+import { TooltipProvider } from "@foundation/src/components/ui/tooltip";
 
 export interface TestQueryClientOptions {
   /**
@@ -34,8 +35,11 @@ export function createTestQueryClient({ feedback = false }: TestQueryClientOptio
     ...(feedback && { mutationCache: createFeedbackMutationCache(() => queryClient) }),
   });
   const spy = vi.spyOn(queryClient, "invalidateQueries");
+  // TooltipProvider stands in for the one TenantApp/ApexGateway mount at the app root.
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{children}</TooltipProvider>
+    </QueryClientProvider>
   );
   return { queryClient, spy, wrapper };
 }

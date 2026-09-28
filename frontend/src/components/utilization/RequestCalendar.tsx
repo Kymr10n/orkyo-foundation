@@ -8,6 +8,7 @@ import type { DateSelectArg, EventClickArg, EventDropArg, DatesSetArg, EventInpu
 import { USER_LOCALE, formatCompactTime, GRID_DAY_HEADER_OPTS } from "@foundation/src/lib/formatters";
 import type { CalendarEvent, CalendarView, ConflictSeverity } from "./request-calendar-events";
 import { calendarEventTooltip, REQUEST_LEGEND } from "./request-calendar-events";
+import { Legend, type LegendItem } from "@foundation/src/components/ui/Legend";
 import type { RequestStatus } from "@foundation/src/types/requests";
 import { ScheduleFilterBar } from "./ScheduleFilterBar";
 import { parseTimeToHour } from "./time-grid-utils";
@@ -58,7 +59,7 @@ interface RequestCalendarProps {
    * Key shown above the grid. Defaults to the request statuses plus conflict/warning, which is
    * what the Utilization page wants; a host charting other kinds passes its own.
    */
-  legend?: readonly { className: string; label: string }[];
+  legend?: readonly LegendItem[];
   /** Hides the query/status/issue bar for hosts whose events carry no request status. */
   showFilterBar?: boolean;
 }
@@ -70,15 +71,6 @@ const HOURS_PER_DAY = 24;
 const SLOTS_PER_HOUR = 2;
 /** The static density request-calendar.css falls back to; also the floor when fitting. */
 const MIN_SLOT_PX = 16;
-
-function LegendItem({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1">
-      <span className={`inline-block h-2.5 w-4 rounded-sm border ${className}`} />
-      {label}
-    </span>
-  );
-}
 
 /**
  * Themed FullCalendar wrapper for the Utilization → Calendar tab. Owns all
@@ -285,11 +277,7 @@ export function RequestCalendar({
           narrow screen is where finding one request by name matters most. */}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2 border-b text-xs text-muted-foreground shrink-0">
         {!isPhone && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            {legend.map((item) => (
-              <LegendItem key={item.label} className={item.className} label={item.label} />
-            ))}
-          </div>
+          <Legend items={legend} />
         )}
         {showFilterBar && (
           <ScheduleFilterBar

@@ -11,6 +11,7 @@
  */
 
 import { useEffect, lazy, Suspense, type ReactNode } from 'react';
+import { TooltipProvider } from "@foundation/src/components/ui/tooltip";
 import { Routes, Route, Navigate, useLocation } from 'react-router';
 import { RequireAuth } from '@foundation/src/components/auth/RequireAuth';
 import { RequireEditor } from '@foundation/src/components/auth/RequireEditor';
@@ -130,7 +131,16 @@ export interface TenantAppProps {
   renderAdminPage?: () => ReactNode;
 }
 
-export function TenantApp({
+/** The one `TooltipProvider` for every tenant page (UI-GUIDELINES §6). */
+export function TenantApp(props: TenantAppProps = {}) {
+  return (
+    <TooltipProvider delayDuration={300}>
+      <TenantAppRoutes {...props} />
+    </TooltipProvider>
+  );
+}
+
+function TenantAppRoutes({
   accountTabs,
   reportingApiUnavailableRedirectTo,
   aiAssistantUnavailableRedirectTo,

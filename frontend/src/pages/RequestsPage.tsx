@@ -18,7 +18,6 @@ import { toast } from "sonner";
 import {
     Tooltip,
     TooltipContent,
-    TooltipProvider,
     TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
@@ -386,7 +385,6 @@ export function RequestsPage() {
     : filteredRequests.length === 0;
 
   return (
-    <TooltipProvider delayDuration={300}>
     <PageLayout>
       <PageHeader
         title="Requests"
@@ -633,6 +631,5 @@ export function RequestsPage() {
         onConfirm={handleConfirmDelete}
       />
     </PageLayout>
-    </TooltipProvider>
   );
 }

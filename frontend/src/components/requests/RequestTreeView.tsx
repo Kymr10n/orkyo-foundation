@@ -5,7 +5,6 @@ import { RequestStatusBadge } from "@foundation/src/components/ui/RequestStatusB
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
@@ -527,7 +526,6 @@ export const RequestTreeView = React.memo(function RequestTreeView({
   if (selectedIndex >= 0) focusedIndexRef.current = selectedIndex;
 
   return (
-    <TooltipProvider delayDuration={300}>
     <DndContext
       sensors={sensors}
       onDragStart={handleDragStart}
@@ -614,6 +612,5 @@ export const RequestTreeView = React.memo(function RequestTreeView({
       )}
     </DragOverlay>
     </DndContext>
-    </TooltipProvider>
   );
 });

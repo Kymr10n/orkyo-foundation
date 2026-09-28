@@ -17,7 +17,7 @@ import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeScale } from "@foundation/src/components/utilization/ScaleSelect";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
 import { useTimeColumns } from "@foundation/src/components/utilization/useTimeColumns";
-import { viewPositionPercent } from "@foundation/src/components/utilization/time-grid-utils";
+import { NowLine } from "@foundation/src/components/utilization/NowLine";
 import {
   columnHeaderTintClass,
   columnHeaderTitle,
@@ -403,8 +403,6 @@ export function SitePlanCanvas({
     );
   }
 
-  const nowPct = viewPositionPercent(nowMs, viewStartMs, viewEndMs);
-
   // Rendered identically by both view paths below; only the surface around it differs.
   const bandsContent = geometry.placedBands.map(
     ({ band, top, bodyHeight, expanded, hasCycle, unscheduled, outsideWindow }) => (
@@ -576,20 +574,9 @@ export function SitePlanCanvas({
                 selectedEdgeId={null}
                 violatingEdgeIds={violatingEdgeIds}
               />
-              {/* Below the header, like NowLine on the grids — the pill can no longer
-                  collide with the date row. */}
-              {nowPct !== null && (
-                <div
-                  data-testid="site-plan-now"
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 bg-rose-500"
-                  style={{ left: `${nowPct}%` }}
-                >
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-sm bg-rose-500 px-1 text-[10px] font-medium leading-tight text-white">
-                    Now
-                  </span>
-                </div>
-              )}
+              {/* Below the header, as on the grids — the pill can no longer collide with
+                  the date row. */}
+              <NowLine nowMs={nowMs} viewStartMs={viewStartMs} viewEndMs={viewEndMs} className="left-0 right-0 z-20" />
             </div>
           </div>
         </div>

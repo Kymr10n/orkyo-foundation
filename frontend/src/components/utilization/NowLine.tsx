@@ -14,17 +14,21 @@ export function NowLine({
   nowMs,
   viewStartMs,
   viewEndMs,
+  className = "left-52 right-0 z-30",
 }: {
   nowMs: number;
   viewStartMs: number;
   viewEndMs: number;
+  /** Horizontal extent and stacking of the track the percentage is measured against. */
+  className?: string;
 }) {
   const pct = viewPositionPercent(nowMs, viewStartMs, viewEndMs);
   if (pct === null) return null;
 
   return (
-    // Same offset as the cursor container so the percentage lines up with the time columns.
-    <div className="absolute top-0 bottom-0 left-52 right-0 pointer-events-none z-30">
+    // By default the same offset as the scheduler's cursor container, so the percentage lines up
+    // with the time columns.
+    <div className={`absolute top-0 bottom-0 pointer-events-none ${className}`} aria-hidden="true">
       <div
         className="absolute top-0 bottom-0 w-0.5 bg-rose-500"
         style={{ left: `${pct}%` }}

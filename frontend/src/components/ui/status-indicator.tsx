@@ -3,7 +3,6 @@ import type { ComponentType, ReactNode } from "react";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/ui/alert";
@@ -112,7 +111,6 @@ export function StatusIndicator({
   if (!severity) return null;
   const { Icon, textClass } = severityVisuals(severity);
   return (
-    <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
           <span
@@ -131,7 +129,6 @@ export function StatusIndicator({
           </ul>
         </TooltipContent>
       </Tooltip>
-    </TooltipProvider>
   );
 }
 

@@ -321,7 +321,7 @@ describe("SitePlanCanvas — timeline view", () => {
   it("shows the date header and marks now inside the window", async () => {
     renderCanvas({ view: "timeline", nowMs: new Date(2026, 5, 10, 12).getTime() });
     await screen.findByText("Contract One");
-    expect(screen.getByTestId("site-plan-now")).toBeInTheDocument();
+    expect(screen.getByTestId("now-line")).toBeInTheDocument();
   });
 
   it("structure view still draws the undated task as a card", async () => {
@@ -469,7 +469,7 @@ describe("SitePlanCanvas — grid furniture matches the other tabs", () => {
   it("keeps the Now marker out of the date header", async () => {
     renderCanvas({ view: "timeline", nowMs: new Date(2026, 5, 10, 12).getTime() });
     await screen.findByText("Contract One");
-    const now = screen.getByTestId("site-plan-now");
+    const now = screen.getByTestId("now-line");
     // The sticky header is a sibling stratum, so "now" can never live inside it.
     expect(now.closest(".sticky")).toBeNull();
   });

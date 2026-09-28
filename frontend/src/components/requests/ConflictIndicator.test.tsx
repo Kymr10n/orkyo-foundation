@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import { ConflictIndicator, ConflictBanner, conflictDotClass } from './ConflictIndicator';
 import type { Conflict } from '@foundation/src/types/requests';
 
@@ -14,17 +15,17 @@ const err: Conflict = {
 
 describe('ConflictIndicator', () => {
   it('renders nothing when there are no conflicts', () => {
-    const { container } = render(<ConflictIndicator conflicts={[]} />);
+    const { container } = renderWithQuery(<ConflictIndicator conflicts={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('renders a warning indicator for warning-only conflicts', () => {
-    render(<ConflictIndicator conflicts={[warn]} />);
+    renderWithQuery(<ConflictIndicator conflicts={[warn]} />);
     expect(screen.getByTestId('conflict-indicator')).toHaveAttribute('aria-label', 'Has a warning');
   });
 
   it('escalates to an error indicator when any conflict is an error', () => {
-    render(<ConflictIndicator conflicts={[warn, err]} />);
+    renderWithQuery(<ConflictIndicator conflicts={[warn, err]} />);
     expect(screen.getByTestId('conflict-indicator')).toHaveAttribute('aria-label', 'Has a conflict');
   });
 });
@@ -45,12 +46,12 @@ describe('conflictDotClass', () => {
 
 describe('ConflictBanner', () => {
   it('renders nothing when there are no conflicts', () => {
-    const { container } = render(<ConflictBanner conflicts={[]} />);
+    const { container } = renderWithQuery(<ConflictBanner conflicts={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('lists every conflict message with a plural count', () => {
-    render(<ConflictBanner conflicts={[warn, err]} />);
+    renderWithQuery(<ConflictBanner conflicts={[warn, err]} />);
     const banner = screen.getByTestId('conflict-banner');
     expect(banner).toHaveTextContent('2 conflicts on this request');
     expect(banner).toHaveTextContent('Resource has off-time during this period');
@@ -58,7 +59,7 @@ describe('ConflictBanner', () => {
   });
 
   it('uses the singular for a single conflict', () => {
-    render(<ConflictBanner conflicts={[warn]} />);
+    renderWithQuery(<ConflictBanner conflicts={[warn]} />);
     expect(screen.getByTestId('conflict-banner')).toHaveTextContent('1 conflict on this request');
   });
 });

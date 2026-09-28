@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import {
   StatusIndicator,
   StatusBanner,
@@ -62,34 +63,34 @@ describe('severityPresentation', () => {
 
 describe('StatusIndicator', () => {
   it('renders nothing when there are no items', () => {
-    const { container } = render(<StatusIndicator items={[]} />);
+    const { container } = renderWithQuery(<StatusIndicator items={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('renders a warning indicator for warning-only items', () => {
-    render(<StatusIndicator items={[warn]} />);
+    renderWithQuery(<StatusIndicator items={[warn]} />);
     expect(screen.getByTestId('status-indicator')).toHaveAttribute('aria-label', 'Has a warning');
   });
 
   it('escalates to an error indicator when any item is an error', () => {
-    render(<StatusIndicator items={[warn, err]} />);
+    renderWithQuery(<StatusIndicator items={[warn, err]} />);
     expect(screen.getByTestId('status-indicator')).toHaveAttribute('aria-label', 'Has a conflict');
   });
 
   it('honours a custom testId', () => {
-    render(<StatusIndicator items={[warn]} testId="my-indicator" />);
+    renderWithQuery(<StatusIndicator items={[warn]} testId="my-indicator" />);
     expect(screen.getByTestId('my-indicator')).toBeInTheDocument();
   });
 });
 
 describe('StatusBanner', () => {
   it('renders nothing when there are no items', () => {
-    const { container } = render(<StatusBanner items={[]} />);
+    const { container } = renderWithQuery(<StatusBanner items={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('defaults to a generic issue count and lists every message', () => {
-    render(<StatusBanner items={[warn, err]} />);
+    renderWithQuery(<StatusBanner items={[warn, err]} />);
     const banner = screen.getByTestId('status-banner');
     expect(banner).toHaveTextContent('2 issues');
     expect(banner).toHaveTextContent('A warning happened');
@@ -97,24 +98,24 @@ describe('StatusBanner', () => {
   });
 
   it('uses the singular for a single item', () => {
-    render(<StatusBanner items={[warn]} />);
+    renderWithQuery(<StatusBanner items={[warn]} />);
     expect(screen.getByTestId('status-banner')).toHaveTextContent('1 issue');
   });
 
   it('renders a custom title', () => {
-    render(<StatusBanner items={[warn]} title="Custom heading" />);
+    renderWithQuery(<StatusBanner items={[warn]} title="Custom heading" />);
     expect(screen.getByTestId('status-banner')).toHaveTextContent('Custom heading');
   });
 });
 
 describe('StatusMessageList', () => {
   it('renders nothing when there are no items', () => {
-    const { container } = render(<StatusMessageList items={[]} />);
+    const { container } = renderWithQuery(<StatusMessageList items={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('renders one row per item with its message', () => {
-    render(<StatusMessageList items={[warn, err]} />);
+    renderWithQuery(<StatusMessageList items={[warn, err]} />);
     expect(screen.getByText('A warning happened')).toBeInTheDocument();
     expect(screen.getByText('An error happened')).toBeInTheDocument();
   });
@@ -122,12 +123,12 @@ describe('StatusMessageList', () => {
 
 describe('TabIndicatorDot', () => {
   it('renders nothing when dotClass is null', () => {
-    const { container } = render(<TabIndicatorDot dotClass={null} label="x" />);
+    const { container } = renderWithQuery(<TabIndicatorDot dotClass={null} label="x" />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it('renders a labelled dot with the given class', () => {
-    render(<TabIndicatorDot dotClass="bg-amber-500" label="timing warning" />);
+    renderWithQuery(<TabIndicatorDot dotClass="bg-amber-500" label="timing warning" />);
     const dot = screen.getByLabelText('timing warning');
     expect(dot).toHaveClass('bg-amber-500', 'rounded-full');
   });
