@@ -4,6 +4,7 @@ using Api.Models.Insights;
 using Api.PlatformApi.Mcp;
 using Api.Services;
 using Api.Services.Insights;
+using Api.Validators;
 using ModelContextProtocol;
 
 namespace Orkyo.Foundation.Tests.PlatformApi;
@@ -26,7 +27,7 @@ public class PlanningToolsTests
     private static readonly DateTime To = new(2026, 6, 30, 0, 0, 0, DateTimeKind.Utc);
 
     private PlanningTools CreateTools() =>
-        new(_criticalPath.Object, _dependencies.Object, _plans.Object, _insights.Object);
+        new(_criticalPath.Object, _dependencies.Object, _plans.Object, _insights.Object, new InsightsQueryValidator());
 
     private static RequestDependencyInfo Edge(string predecessor, string successor) => new()
     {
@@ -182,6 +183,42 @@ public class PlanningToolsTests
 
         result.Bottlenecks.Items.Should().ContainSingle(b => b.Name == "CNC Machining");
         result.Trend.Series.Should().ContainSingle();
+        // An omitted bucket takes the default the description promises, not a null the service
+        // cannot bucket by.
+        _insights.Verify(s => s.GetUtilizationTrendAsync(It.Is<InsightsFilter>(f => f.Bucket == "week"),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AnalyzeCapacity_RefusesARangeOverTheHttpCap()
+    {
+        // The same caps as /api/insights: the per-day ranking allows two years at most, even
+        // when the trend bucket would allow more.
+        SetupInsights();
+
+        var act = () => CreateTools().AnalyzeCapacityAsync(From, From.AddYears(3), bucket: "year");
+
+        (await act.Should().ThrowAsync<McpException>()).WithMessage("*Date range too large*");
+        _insights.VerifyNoOtherCalls();
+    }
+
+    [Theory]
+    [InlineData("day")]
+    [InlineData("fortnight")]
+    public async Task AnalyzeCapacity_RefusesAnUnknownBucket(string bucket)
+    {
+        var act = () => CreateTools().AnalyzeCapacityAsync(From, To, bucket: bucket);
+
+        (await act.Should().ThrowAsync<McpException>()).WithMessage($"*Invalid bucket '{bucket}'*");
+        _insights.VerifyNoOtherCalls();
+    }
+
+    [Fact]
+    public async Task AnalyzeCapacity_RefusesAnInvertedWindow()
+    {
+        var act = () => CreateTools().AnalyzeCapacityAsync(To, From);
+
+        (await act.Should().ThrowAsync<McpException>()).WithMessage("*'from' must be before 'to'*");
     }
 
     private static InsightsMetadata Metadata() =>

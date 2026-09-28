@@ -4,6 +4,7 @@ using Api.Models;
 using Api.Models.Insights;
 using Api.Services;
 using Api.Services.Insights;
+using FluentValidation;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -25,17 +26,20 @@ public sealed class PlanningTools
     private readonly IRequestDependencyService _dependencies;
     private readonly IRequestPlanService _plans;
     private readonly IInsightsService _insights;
+    private readonly IValidator<InsightsQuery> _insightsValidator;
 
     public PlanningTools(
         ICriticalPathService criticalPath,
         IRequestDependencyService dependencies,
         IRequestPlanService plans,
-        IInsightsService insights)
+        IInsightsService insights,
+        IValidator<InsightsQuery> insightsValidator)
     {
         _criticalPath = criticalPath;
         _dependencies = dependencies;
         _plans = plans;
         _insights = insights;
+        _insightsValidator = insightsValidator;
     }
 
     [McpServerTool(Name = "get_critical_path", Title = "Get the critical path",
@@ -111,21 +115,19 @@ public sealed class PlanningTools
         Guid? siteId = null,
         [Description("Restrict to one resource type key, e.g. 'machine' or 'person'.")]
         string? resourceType = null,
-        [Description("Trend bucket size: 'day', 'week' or 'month'. Defaults to the service's own.")]
+        [Description("Trend bucket size: 'week', 'month', 'quarter' or 'year'. Defaults to 'week'. "
+            + "The window may span at most two years.")]
         string? bucket = null,
         CancellationToken ct = default)
     {
         // One filter drives both queries — they answer halves of the same question, which is why
         // this is one tool rather than two. Two would invite fetching the ranking without the
-        // trend that explains it.
-        var filter = new InsightsFilter
-        {
-            SiteId = siteId,
-            From = from,
-            To = to,
-            Bucket = bucket,
-            ResourceType = resourceType,
-        };
+        // trend that explains it. It passes the caps of both halves: the trend's per bucket and
+        // the ranking's (per-day measurement, so the tightest).
+        var trendQuery = new InsightsQuery(InsightsView.Trend, from, to, siteId, bucket ?? "week", resourceType);
+        await McpToolGuards.EnsureValidAsync(_insightsValidator, trendQuery, ct);
+        await McpToolGuards.EnsureValidAsync(_insightsValidator, trendQuery with { View = InsightsView.Bottlenecks }, ct);
+        var filter = trendQuery.ToFilter();
 
         var bottlenecks = await _insights.GetBottlenecksAsync(filter, ct);
         var trend = await _insights.GetUtilizationTrendAsync(filter, ct);

@@ -82,7 +82,7 @@ public class InsightsService(
     /// </summary>
     public async Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default)
     {
-        // Never empty: every caller validates from < to first (InsightsEndpoints.ValidatePeriod),
+        // Never empty: every caller validates from < to first (InsightsQueryValidator),
         // and any such range covers at least one day. The indexing below relies on that.
         var buckets = DaySlices(filter.From, filter.To);
         var period = new InsightsPeriod { From = filter.From, To = filter.To };

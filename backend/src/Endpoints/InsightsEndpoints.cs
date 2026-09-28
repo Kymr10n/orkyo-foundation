@@ -4,6 +4,7 @@ using Api.Models.Insights;
 using Api.Repositories;
 using Api.Services;
 using Api.Services.Insights;
+using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -18,20 +19,6 @@ namespace Api.Endpoints;
 /// </summary>
 public static class InsightsEndpoints
 {
-    // Overview has no bucket; cap its scan to keep it bounded (UI default is last 12 months).
-    private const int OverviewMaxRangeDays = 5 * 366;
-
-    /// <summary>
-    /// Bottlenecks measure per day, so they get a tighter cap than the overview's five years —
-    /// the finest granularity on the widest window is the scan InsightsBuckets.MaxRangeDays
-    /// exists to prevent.
-    ///
-    /// Two years, matching the week bucket (the finest the trends offer). It has to clear the
-    /// dashboard's own default filter, "Last 6 / next 12 months", which is roughly 550 days: a
-    /// cap that rejects the range the page opens on is not a guard, it is a broken tab.
-    /// </summary>
-    private static int BottlenecksMaxRangeDays => InsightsBuckets.MaxRangeDays("week");
-
     public static void MapInsightsEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/insights")
@@ -63,114 +50,79 @@ public static class InsightsEndpoints
     private static async Task<IResult> GetBottlenecks(
         DateTime? from, DateTime? to, Guid? siteId, string? resourceType,
         IInsightsService svc, ISiteRepository sites, IResourceTypeService resourceTypes,
-        CancellationToken ct)
+        IValidator<InsightsQuery> validator, CancellationToken ct)
     {
-        // An all-whitespace value is not a filter. Left as-is it slips past the validator below
-        // and then matches no resource type at all, answering 200 with an empty ranking where the
-        // sibling endpoints answer 400.
+        // An all-whitespace value is not a filter. Left as-is it would match no resource type at
+        // all, answering 200 with an empty ranking where the sibling endpoints answer 400.
         resourceType = string.IsNullOrWhiteSpace(resourceType) ? null : resourceType;
 
-        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
+        var query = new InsightsQuery(InsightsView.Bottlenecks, from, to, siteId, ResourceType: resourceType);
+        return await EndpointHelpers.ExecuteAsync(query, validator, async () =>
+        {
+            // resourceType narrows the ranking here; it does not choose a series as it does for the
+            // utilization trend, so omitting it means "every type" rather than an incomplete request.
+            if (resourceType is not null
+                && await ValidateResourceTypeAsync(resourceType, resourceTypes, ct) is { } rErr) return rErr;
+            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
 
-        // resourceType narrows the ranking here; it does not choose a series as it does for the
-        // utilization trend, so omitting it means "every type" rather than an incomplete request.
-        // ValidateResourceTypeAsync rejects a blank one, so it only runs when there is one to check.
-        if (resourceType is not null
-            && await ValidateResourceTypeAsync(resourceType, resourceTypes, ct) is { } rErr) return rErr;
-
-        if ((t - f).TotalDays > BottlenecksMaxRangeDays)
-            return ErrorResponses.BadRequest("Date range too large.");
-        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
-
-        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, ResourceType = resourceType };
-        return Results.Ok(await svc.GetBottlenecksAsync(filter, ct));
+            return Results.Ok(await svc.GetBottlenecksAsync(query.ToFilter(), ct));
+        });
     }
 
     private static async Task<IResult> GetOverview(
         DateTime? from, DateTime? to, Guid? siteId,
         IInsightsService svc, ISiteRepository sites,
-        CancellationToken ct)
+        IValidator<InsightsQuery> validator, CancellationToken ct)
     {
-        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-        if ((t - f).TotalDays > OverviewMaxRangeDays)
-            return ErrorResponses.BadRequest("Date range too large.");
-        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
-
-        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t };
-        return Results.Ok(await svc.GetOverviewAsync(filter, ct));
+        var query = new InsightsQuery(InsightsView.Overview, from, to, siteId);
+        return await EndpointHelpers.ExecuteAsync(query, validator, async () =>
+        {
+            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+            return Results.Ok(await svc.GetOverviewAsync(query.ToFilter(), ct));
+        });
     }
 
     private static async Task<IResult> GetUtilization(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket, string? resourceType,
         IInsightsService svc, ISiteRepository sites, IResourceTypeService resourceTypes,
-        CancellationToken ct)
+        IValidator<InsightsQuery> validator, CancellationToken ct)
     {
-        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-        if (ValidateBucket(bucket) is { } bErr) return bErr;
-        if (await ValidateResourceTypeAsync(resourceType, resourceTypes, ct) is { } rErr) return rErr;
-        if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
-        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
-
-        var filter = new InsightsFilter
+        var query = new InsightsQuery(InsightsView.Trend, from, to, siteId, bucket, resourceType);
+        return await EndpointHelpers.ExecuteAsync(query, validator, async () =>
         {
-            SiteId = siteId,
-            From = f,
-            To = t,
-            Bucket = bucket,
-            ResourceType = resourceType,
-        };
-        return Results.Ok(await svc.GetUtilizationTrendAsync(filter, ct));
+            if (await ValidateResourceTypeAsync(resourceType, resourceTypes, ct) is { } rErr) return rErr;
+            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+            return Results.Ok(await svc.GetUtilizationTrendAsync(query.ToFilter(), ct));
+        });
     }
 
     private static async Task<IResult> GetConflicts(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket,
         IInsightsService svc, ISiteRepository sites,
-        CancellationToken ct)
+        IValidator<InsightsQuery> validator, CancellationToken ct)
     {
-        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-        if (ValidateBucket(bucket) is { } bErr) return bErr;
-        if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
-        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
-
-        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, Bucket = bucket };
-        return Results.Ok(await svc.GetConflictTrendAsync(filter, ct));
+        var query = new InsightsQuery(InsightsView.Trend, from, to, siteId, bucket);
+        return await EndpointHelpers.ExecuteAsync(query, validator, async () =>
+        {
+            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+            return Results.Ok(await svc.GetConflictTrendAsync(query.ToFilter(), ct));
+        });
     }
 
     private static async Task<IResult> GetRequests(
         DateTime? from, DateTime? to, Guid? siteId, string? bucket,
         IInsightsService svc, ISiteRepository sites,
-        CancellationToken ct)
+        IValidator<InsightsQuery> validator, CancellationToken ct)
     {
-        if (ValidatePeriod(from, to, out var f, out var t) is { } err) return err;
-        if (ValidateBucket(bucket) is { } bErr) return bErr;
-        if (ValidateRange(f, t, bucket!) is { } rangeErr) return rangeErr;
-        if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
-
-        var filter = new InsightsFilter { SiteId = siteId, From = f, To = t, Bucket = bucket };
-        return Results.Ok(await svc.GetRequestTrendAsync(filter, ct));
+        var query = new InsightsQuery(InsightsView.Trend, from, to, siteId, bucket);
+        return await EndpointHelpers.ExecuteAsync(query, validator, async () =>
+        {
+            if (await ValidateSiteAsync(siteId, sites, ct) is { } siteErr) return siteErr;
+            return Results.Ok(await svc.GetRequestTrendAsync(query.ToFilter(), ct));
+        });
     }
 
-    // ── Validation (fail fast, no silent defaults) ────────────────────────────
-
-    private static IResult? ValidatePeriod(DateTime? from, DateTime? to, out DateTime f, out DateTime t)
-    {
-        f = default; t = default;
-        if (from is null || to is null)
-            return ErrorResponses.BadRequest("'from' and 'to' are required.");
-        if (from >= to)
-            return ErrorResponses.BadRequest("'from' must be before 'to'.");
-        f = from.Value; t = to.Value;
-        return null;
-    }
-
-    private static IResult? ValidateBucket(string? bucket)
-    {
-        if (string.IsNullOrWhiteSpace(bucket))
-            return ErrorResponses.BadRequest("'bucket' is required (week|month|quarter|year).");
-        if (!InsightsBuckets.ValidBuckets.Contains(bucket))
-            return ErrorResponses.BadRequest($"Invalid bucket '{bucket}'. Expected week|month|quarter|year.");
-        return null;
-    }
+    // ── Tenant lookups (the shape rules and range caps live in InsightsQueryValidator) ──────────
 
     /// <summary>
     /// Validates against the resource types this tenant actually has, not a fixed space|person|tool
@@ -190,11 +142,6 @@ public static class InsightsEndpoints
             return ErrorResponses.BadRequest($"Invalid resourceType '{resourceType}'. Expected {keys}.");
         return null;
     }
-
-    private static IResult? ValidateRange(DateTime from, DateTime to, string bucket)
-        => (to - from).TotalDays > InsightsBuckets.MaxRangeDays(bucket)
-            ? ErrorResponses.BadRequest($"Date range too large for bucket '{bucket}'.")
-            : null;
 
     private static async Task<IResult?> ValidateSiteAsync(Guid? siteId, ISiteRepository sites, CancellationToken ct)
     {
