@@ -41,42 +41,15 @@ public class TenantSettingsService : ITenantSettingsService
 
     public async Task<TenantSettings> GetSettingsAsync(CancellationToken ct = default)
     {
-        try
-        {
-            if (IsSiteContext)
-            {
-                // Site-admin context: only load site-scoped overrides from control_plane
-                var siteOverrides = await GetSiteOverridesAsync();
-                return TenantSettingsOverrideApplier.Apply(siteOverrides);
-            }
+        // Site-admin context: only load site-scoped overrides from control_plane
+        if (IsSiteContext)
+            return TenantSettingsOverrideApplier.Apply(await GetSiteOverridesAsync());
 
-            var tenantId = TenantId;
-
-            if (_cache.TryGet<TenantSettings>(TenantKeyPrefix + tenantId, out var cached) && cached is not null)
-            {
-                return cached;
-            }
-
-            // Tenant context: only load tenant-scoped overrides from tenant DB
-            var tenantOverrides = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            try
-            {
-                tenantOverrides = await _tenantRepo.GetAllAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to load tenant settings for {TenantId}, using defaults", tenantId);
-            }
-
-            var settings = TenantSettingsOverrideApplier.Apply(tenantOverrides);
-            _cache.Set(TenantKeyPrefix + tenantId, settings, CacheTtl);
-            return settings;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to load settings, using defaults");
-            return TenantSettingsOverrideApplier.Defaults;
-        }
+        // Tenant context: only load tenant-scoped overrides from tenant DB. A failed read
+        // throws and caches nothing: compiled defaults pinned for the TTL used to turn branding
+        // and auto-schedule off for every request after one database blip.
+        return await _cache.GetOrComputeAsync(TenantKeyPrefix + TenantId, CacheTtl,
+            async () => TenantSettingsOverrideApplier.Apply(await _tenantRepo.GetAllAsync(ct)));
     }
 
     public async Task<TenantSettings> UpdateSettingsAsync(Dictionary<string, string> updates, CancellationToken ct = default)
@@ -170,11 +143,7 @@ public class TenantSettingsService : ITenantSettingsService
     {
         // A copy per caller: the cached dictionary is shared, and TenantSettingsOverrideApplier's
         // callers are free to treat what they get back as their own.
-        if (_cache.TryGet<Dictionary<string, string>>(SiteKey, out var cached) && cached is not null)
-            return new Dictionary<string, string>(cached, StringComparer.OrdinalIgnoreCase);
-
-        var overrides = await _siteRepo.GetAllAsync();
-        _cache.Set(SiteKey, overrides, CacheTtl);
-        return overrides;
+        var cached = await _cache.GetOrComputeAsync(SiteKey, CacheTtl, () => _siteRepo.GetAllAsync());
+        return new Dictionary<string, string>(cached, StringComparer.OrdinalIgnoreCase);
     }
 }

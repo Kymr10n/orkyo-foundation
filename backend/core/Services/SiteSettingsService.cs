@@ -50,12 +50,9 @@ public sealed class SiteSettingsService : ISiteSettingsService
         _cache = cache;
     }
 
-    public async Task<RuntimeConfig> GetRuntimeConfigAsync(CancellationToken ct = default)
-    {
-        if (_cache.TryGet<RuntimeConfig>(CacheKey, out var cached) && cached is not null)
-            return cached;
-
-        try
+    public Task<RuntimeConfig> GetRuntimeConfigAsync(CancellationToken ct = default) =>
+        // A failed read throws and caches nothing, rather than answering with compiled defaults.
+        _cache.GetOrComputeAsync(CacheKey, CacheTtl, async () =>
         {
             var overrides = await _repo.GetAllAsync(ct);
 
@@ -68,26 +65,21 @@ public sealed class SiteSettingsService : ISiteSettingsService
                     runtimeOverrides[key] = value;
             }
 
-            var config = RuntimeConfig.ApplyOverrides(runtimeOverrides);
-            _cache.Set(CacheKey, config, CacheTtl);
-            return config;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to load runtime config from DB, using compiled defaults");
-            return RuntimeConfig.Defaults;
-        }
-    }
+            return RuntimeConfig.ApplyOverrides(runtimeOverrides);
+        });
 
     public async Task<RuntimeConfig> UpdateRuntimeConfigAsync(Dictionary<string, string> updates, Guid? actorUserId, CancellationToken ct = default)
     {
-        foreach (var (key, value) in updates)
-        {
-            RuntimeConfig.ValidateValue(key, value);
-
-            var category = RuntimeConfig.CategoryForKey(key);
-            await _repo.UpsertAsync(key, value, category, ct);
-        }
+        // Validate every key before writing any, then upsert in one statement, so an invalid
+        // key late in the list cannot leave the earlier ones applied.
+        var toUpsert = updates
+            .Select(u =>
+            {
+                RuntimeConfig.ValidateValue(u.Key, u.Value);
+                return (u.Key, u.Value, Category: RuntimeConfig.CategoryForKey(u.Key));
+            })
+            .ToList();
+        await _repo.UpsertManyAsync(toUpsert, ct);
 
         _cache.Remove(CacheKey);
 

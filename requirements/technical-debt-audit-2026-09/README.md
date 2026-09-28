@@ -136,7 +136,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S32 | B2 | done | `SendVerificationEmailAsync` goes through `SendAdminAsync` → `CreateAdminRequest` (proxy headers); still best-effort (logs the error, account creation succeeds). Chose the singleton holder over fetch-per-call: new `KeycloakAdminTokenCache` (lock + token + expiry) registered as a singleton and a required ctor param of `KeycloakAdminService` — no product constructs the service (grepped saas + community; they register a mock), so the ctor change is foundation-only. Tests: verification mail carries X-Forwarded-Host/Proto; two service instances sharing the cache fetch one token |
 | S33 | B4 | todo | |
 | S34 | B4 | todo | |
-| S35 | B2 | in-progress | |
+| S35 | B2 | done | `TenantSettingsService.GetSettingsAsync` (tenant and site overrides) and `SiteSettingsService.GetRuntimeConfigAsync` read through `SingleFlightCache.GetOrComputeAsync`; both try/catch-to-defaults deleted, so a failed read throws and caches nothing (the next read retries). `UpdateRuntimeConfigAsync` validates every key, then one `UpsertManyAsync`. `ISiteSettingsRepository.UpsertAsync` is now called only by `SiteSettingsRepositoryIntegrationTests` (left for B3). Tests: failed tenant read throws and is re-read (failed before); one invalid runtime value writes nothing (failed before) |
 | S36 | B2 | todo | |
 | S37 | B4 | todo | |
 | S38 | B2 | todo | |
