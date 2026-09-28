@@ -159,7 +159,7 @@ public partial class ApiPathContractTests
             "api-paths.ts declares well over 100 /api literals — a smaller count means the file "
             + "moved or the extraction regex no longer matches its literal style");
 
-        normalized.Should().Contain("/api/session/me", "plain string literals must be extracted verbatim");
+        normalized.Should().Contain("/api/session/tos/accept", "plain string literals must be extracted verbatim");
         normalized.Should().Contain("/api/sites/{}/requests", "interpolated paths must normalize to the parameterized form");
         normalized.Should().NotContain(s => s.Contains('?') || s.Contains('$'),
             "normalization must strip query strings and TypeScript interpolation");

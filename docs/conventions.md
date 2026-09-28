@@ -22,8 +22,7 @@ public class ThingRepository(OrgContext orgContext, IOrgDbConnectionFactory conn
 ```
 
 Both `db` and `conn` are in use, as are explicit `_`-prefixed fields alongside primary
-constructors. `conn` and the primary constructor win. `KnownDbLocalFiles` in
-`ConventionContractTests.Ratchets.cs` lists the files that still use `db`.
+constructors. `conn` and the primary constructor win.
 
 **Upserts** use `EXCLUDED`, not the parameter:
 
@@ -48,7 +47,8 @@ answers with `PagedResult<T>`. The one branch that serves a whole list up to a c
 `PagedResult<T>.Capped` with `PageRequest.MaxUnpagedItems`, so `hasNextPage` reports the
 truncation and `totalItems` stays the real total. A list that offset paging cannot serve —
 global search — clamps a plain row limit with `PageRequest.ClampLimit`.
-`PaginationShapeContractTests` holds this shape, and each exemption there states its reason.
+The `BareLimitParameter` and `AdHocListEnvelope` ratchets in `ConventionContractTests` hold
+this shape. Each exemption there states its reason.
 
 **Binding a nullable parameter** uses `AddNullable`, not `x.HasValue ? x.Value : DBNull.Value`.
 `KnownHandRolledNullBindingFiles` in `ConventionContractTests.Ratchets.cs` lists the files
@@ -162,9 +162,10 @@ both consuming products.
 
 ## Layering
 
-**Services do not write SQL.** Some files under `core/Services` do; those are repositories
-wearing service names. `KnownSqlWritingServiceFiles` in `ConventionContractTests.Ratchets.cs`
-lists them, and the list only shrinks. Move the query into a repository when you next touch it.
+**Services do not write SQL.** Some files under `core/Services` and `core/Integrations` do;
+those are repositories wearing service names. `KnownSqlWritingServiceFiles` in
+`ConventionContractTests.Ratchets.cs` lists them, and the list only shrinks. Move the query
+into a repository when you next touch it.
 
 ## Foundation is a package
 
