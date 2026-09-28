@@ -278,18 +278,6 @@ export function computeDerivedValues(
 }
 
 /**
- * Compute derived aggregate values from a pre-fetched list of children.
- * Use this when you already have the children array to avoid redundant lookups.
- * When descendants are provided, dates are derived from ALL descendants (spec compliant).
- */
-function computeDerivedValuesFromChildren(
-  children: Request[],
-  descendants?: Request[],
-): DerivedValues {
-  return computeDerivedValuesFromDescendants(children, descendants ?? children);
-}
-
-/**
  * Core computation: derives dates from descendants, effort from direct children.
  */
 function computeDerivedValuesFromDescendants(
@@ -360,19 +348,24 @@ function computeDerivedValuesFromDescendants(
  * per row.
  */
 export function buildDerivedMap(requests: Request[]): Map<string, DerivedValues | null> {
-  const childrenByParent = new Map<string, Request[]>();
-  for (const r of requests) {
-    if (r.parentRequestId) {
-      const siblings = childrenByParent.get(r.parentRequestId);
-      if (siblings) siblings.push(r);
-      else childrenByParent.set(r.parentRequestId, [r]);
-    }
-  }
+  // One children-id map for the whole list: dates roll up from ALL descendants and effort from
+  // direct children, exactly as computeDerivedValues does for the dialog.
+  const childrenById = buildChildrenIdMap(requests);
+  const byId = new Map(requests.map((r) => [r.id, r]));
+  const resolve = (ids: string[]) => ids.map((id) => byId.get(id)!);
   const map = new Map<string, DerivedValues | null>();
   for (const r of requests) {
     if (canHaveChildren(r.planningMode)) {
-      const children = childrenByParent.get(r.id);
-      map.set(r.id, children?.length ? computeDerivedValuesFromChildren(children) : null);
+      const childIds = childrenById.get(r.id);
+      map.set(
+        r.id,
+        childIds?.length
+          ? computeDerivedValuesFromDescendants(
+              resolve(childIds),
+              resolve(getDescendantIds(r.id, requests, childrenById)),
+            )
+          : null,
+      );
     }
   }
   return map;

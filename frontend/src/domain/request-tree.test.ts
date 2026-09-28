@@ -278,6 +278,21 @@ describe("buildDerivedMap", () => {
     expect(map.get("empty-parent")).toBeNull();
   });
 
+  it("rolls dates up from grandchildren, the same window the dialog shows", () => {
+    const nested: Request[] = [
+      makeRequest({ id: "root", planningMode: "summary" }),
+      makeRequest({ id: "mid", parentRequestId: "root", planningMode: "summary", sortOrder: 0 }),
+      makeRequest({
+        id: "deep", parentRequestId: "mid", sortOrder: 0,
+        startTs: "2025-01-01T00:00:00Z", endTs: "2025-12-31T23:59:59Z",
+      }),
+    ];
+    const map = buildDerivedMap(nested);
+    expect(map.get("root")?.startTs).toBe("2025-01-01T00:00:00Z");
+    expect(map.get("root")?.endTs).toBe("2025-12-31T23:59:59Z");
+    expect(map.get("root")).toEqual(computeDerivedValues("root", nested));
+  });
+
   it("matches computeDerivedValues for a parent with children", () => {
     const requests: Request[] = [
       makeRequest({ id: "parent", planningMode: "summary" }),

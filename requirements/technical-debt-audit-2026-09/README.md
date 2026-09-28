@@ -86,7 +86,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S14 | B1b | todo | |
 | S15 | B1b | todo | |
 | S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
-| S17 | B1a | todo | |
+| S17 | B1a | in-progress |  |
 | S18 | B1b | todo | |
 | S19 | B1b | todo | |
 | S20 | F1 | todo | |
@@ -100,7 +100,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S28 | B2 | todo | |
 | S29 | B2 | todo | |
 | S30 | B3 | todo | |
-| S31 | F1 | todo | |
+| S31 | F1 | done | `buildDerivedMap` uses one `buildChildrenIdMap` and rolls dates up from all descendants like `computeDerivedValues`; `computeDerivedValuesFromChildren` deleted; nested-group test added |
 | S32 | B2 | todo | |
 | S33 | B4 | todo | |
 | S34 | B4 | todo | |
