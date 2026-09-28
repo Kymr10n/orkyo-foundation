@@ -36,16 +36,20 @@ interface MfaSectionProps {
 export function MfaSection({ locked = false }: MfaSectionProps = {}) {
   const [removeMfaOpen, setRemoveMfaOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
+  const [currentCode, setCurrentCode] = useState("");
+  const codeValid = /^\d{6}$/.test(currentCode);
 
   const { data: mfaStatus, isLoading: mfaLoading } = useMfaStatus();
 
   const removeMfaMutation = useRemoveMfa();
 
-  // Closing the dialog forgets the typed password and the last failure, so a reopen starts clean.
+  // Closing the dialog forgets the typed password, the code and the last failure, so a reopen
+  // starts clean.
   const handleRemoveOpenChange = (open: boolean) => {
     setRemoveMfaOpen(open);
     if (!open) {
       setCurrentPassword("");
+      setCurrentCode("");
       removeMfaMutation.reset();
     }
   };
@@ -179,15 +183,16 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
         confirmLabel="Remove MFA"
         destructive
         isPending={removeMfaMutation.isPending}
-        confirmDisabled={!currentPassword}
+        confirmDisabled={!currentPassword || !codeValid}
         onConfirm={() =>
           removeMfaMutation.mutate(
-            { currentPassword },
+            { currentPassword, currentCode },
             { onSuccess: () => handleRemoveOpenChange(false) },
           )
         }
       >
-        {/* The server re-checks the password: a session alone must not strip the second factor. */}
+        {/* The server re-checks the password and the current code: a session alone must not
+            strip the second factor. */}
         <div className="space-y-2">
           <Label htmlFor="mfaCurrentPassword">Current Password</Label>
           <Input
@@ -196,6 +201,18 @@ export function MfaSection({ locked = false }: MfaSectionProps = {}) {
             autoComplete="current-password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="mfaCurrentCode">Current Authenticator Code</Label>
+          <Input
+            id="mfaCurrentCode"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            placeholder="6-digit code"
+            value={currentCode}
+            onChange={(e) => setCurrentCode(e.target.value.replace(/\D/g, ""))}
           />
         </div>
         {removeMfaMutation.isError && (

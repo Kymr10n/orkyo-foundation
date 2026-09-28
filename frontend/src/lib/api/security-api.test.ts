@@ -132,11 +132,12 @@ describe('security-api', () => {
   });
 
   describe('removeMfa', () => {
-    it('sends the current password as the DELETE body', async () => {
+    it('sends the current password and TOTP code as the DELETE body', async () => {
       vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
-      await removeMfa({ currentPassword: 'secret' });
+      await removeMfa({ currentPassword: 'secret', currentCode: '123456' });
       expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA, undefined, {
         currentPassword: 'secret',
+        currentCode: '123456',
       });
     });
   });

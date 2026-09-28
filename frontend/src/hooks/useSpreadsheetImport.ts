@@ -25,10 +25,19 @@ export interface SpreadsheetImportResult {
 export function useSpreadsheetImport() {
   const invalidateImportedData = useInvalidateImportedData();
 
-  /** The site's placeable resources by code, so the preview can reuse them. */
+  /**
+   * The site's placeable resources by code, so the preview can reuse them. The unpaged list
+   * stops at the backend's cap; a code past it would be created again, so a cut list stops
+   * the import instead.
+   */
   const loadExistingCodes = useCallback(async (siteId: string) => {
-    const existing = (await getResources({ hasGeometry: true, isActive: true, siteId })).items;
-    return new Map(existing.filter((s) => s.code).map((s) => [s.code as string, s.id]));
+    const result = await getResources({ hasGeometry: true, isActive: true, siteId });
+    if (result.hasNextPage) {
+      throw new Error(
+        `This site has ${result.totalItems} placeable resources; the import can only check the first ${result.items.length} for existing codes, so it was stopped to avoid duplicates.`,
+      );
+    }
+    return new Map(result.items.filter((s) => s.code).map((s) => [s.code as string, s.id]));
   }, []);
 
   const commit = useCallback(

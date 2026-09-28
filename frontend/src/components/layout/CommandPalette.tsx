@@ -169,6 +169,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   const debounceSearch = useDebouncedCallback((term: string) => setSearchTerm(term), 200);
   const queryEmpty = !query.trim();
+  // An emptied query forgets the last term at once (a render-phase update), so the next query
+  // does not start on the previous answer while its own debounce runs.
+  if (queryEmpty && searchTerm) setSearchTerm("");
 
   // Debounced search
   useEffect(() => {
@@ -179,19 +182,20 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     debounceSearch(query.trim());
   }, [queryEmpty, query, debounceSearch]);
 
-  const search = useGlobalSearch(queryEmpty ? "" : searchTerm, selectedSiteId);
+  const search = useGlobalSearch(searchTerm, selectedSiteId);
   const isLoading = search.isFetching;
-  // An emptied query shows nothing at once, even while an older answer is still cached.
+  // No term — the query was emptied, or a new one is still debouncing — shows nothing, even
+  // while the previous answer is still held as placeholder data.
   const results = useMemo(
     () =>
-      queryEmpty
+      !searchTerm
         ? []
         : (search.data?.results ?? []).filter((r) => {
             if (r.type === "site") return isTenantAdmin;
             if (r.type === "template" || r.type === "criterion") return canEdit;
             return true; // stations/assets/requests/groups are viewable on core pages
           }),
-    [queryEmpty, search.data, isTenantAdmin, canEdit],
+    [searchTerm, search.data, isTenantAdmin, canEdit],
   );
 
   // A new answer, or an emptied query, puts the selection back on the first row. A

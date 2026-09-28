@@ -30,7 +30,7 @@ function renderTab(request: Request | null) {
 
 function expectRequestDataInvalidated(spy: ReturnType<typeof renderTab>['invalidateSpy']) {
   for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
-    expect(spy).toHaveBeenCalledWith({ queryKey, exact: false });
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
   }
 }
 
@@ -129,5 +129,48 @@ describe('useRequestChildrenTab — create mode', () => {
     expect(toast.error).toHaveBeenCalledWith('Failed to add "Loose task"', { description: 'Gone' });
     // "B" went through, so the request data is re-read.
     expectRequestDataInvalidated(invalidateSpy);
+  });
+
+  it('re-reads the request data once after the whole queue, not once per child', async () => {
+    const { result, invalidateSpy } = renderTab(null);
+    for (const name of ['A', 'B', 'C']) {
+      act(() => result.current.setNewChildName(name));
+      await act(() => result.current.handleAddChild());
+    }
+
+    await act(() => result.current.commitPending('new-grp'));
+
+    expect(createChildRequest).toHaveBeenCalledTimes(3);
+    expectRequestDataInvalidated(invalidateSpy);
+    expect(invalidateSpy).toHaveBeenCalledTimes(REQUEST_DERIVED_QUERY_KEYS.length);
+  });
+
+  it('commits nothing and re-reads nothing when the queue is empty', async () => {
+    const { result, invalidateSpy } = renderTab(null);
+
+    await act(() => result.current.commitPending('new-grp'));
+
+    expect(createChildRequest).not.toHaveBeenCalled();
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it('starts clean on every open', async () => {
+    const setError = vi.fn();
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result, rerender } = renderHook(
+      ({ open }) => useRequestChildrenTab({ open, request: null, allRequests: TREE, requestsById: BY_ID, setError }),
+      { wrapper, initialProps: { open: true } },
+    );
+    act(() => result.current.setNewChildName('Queued'));
+    await act(() => result.current.handleAddChild());
+    act(() => result.current.setNewChildName('typed'));
+    expect(result.current.hasPending).toBe(true);
+
+    rerender({ open: false });
+    rerender({ open: true });
+
+    expect(result.current.pendingChildren).toEqual([]);
+    expect(result.current.newChildName).toBe('');
+    expect(result.current.hasPending).toBe(false);
   });
 });

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChildRequest, moveRequest } from "@foundation/src/lib/api/request-api";
 import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import { getAncestorIds, getNextSortOrder } from "@foundation/src/domain/request-tree";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
 import { logger } from "@foundation/src/lib/core/logger";
 import type { Request } from "@foundation/src/types/requests";
 
@@ -29,6 +30,8 @@ export interface UseRequestChildrenTabOptions {
  * data. In create mode there is no group id yet, so the tab queues names and ids, and
  * `commitPending` creates and reparents them once the group is saved — the dialog closes on
  * that save, so a failed item is toasted by the central MutationCache, named in the title.
+ * The queue is committed item by item and the request data is re-read once after it, not once
+ * per item.
  */
 export function useRequestChildrenTab({
   open,
@@ -48,7 +51,10 @@ export function useRequestChildrenTab({
   const [addExistingSelected, setAddExistingSelected] = useState<Set<string>>(new Set());
   const [addExistingSearch, setAddExistingSearch] = useState("");
 
-  useEffect(() => {
+  // Opening starts the tab clean: a render-phase update, not an effect (see useEntityFormDialog.ts).
+  const [syncedOpen, setSyncedOpen] = useState(open);
+  if (syncedOpen !== open) {
+    setSyncedOpen(open);
     if (open) {
       setPendingChildren([]);
       setPendingExistingIds([]);
@@ -57,11 +63,16 @@ export function useRequestChildrenTab({
       setAddExistingSelected(new Set());
       setAddExistingSearch("");
     }
-  }, [open]);
+  }
 
+  const invalidateRequestData = useInvalidateRequestData();
+
+  const createChild = ({ parentId, name, sortOrder }: { parentId: string; name: string; sortOrder: number }) =>
+    createChildRequest(parentId, name, sortOrder);
+
+  // Edit mode: the failure is shown inline, so no `meta` toast.
   const addChildMutation = useMutation({
-    mutationFn: ({ parentId, name, sortOrder }: { parentId: string; name: string; sortOrder: number }) =>
-      createChildRequest(parentId, name, sortOrder),
+    mutationFn: createChild,
     meta: { invalidates: REQUEST_DERIVED_QUERY_KEYS },
   });
 
@@ -82,12 +93,12 @@ export function useRequestChildrenTab({
     meta: { invalidates: REQUEST_DERIVED_QUERY_KEYS },
   });
 
+  // Create mode: the dialog has closed, so the failure is toasted by name. No `invalidates`:
+  // `commitPending` re-reads the request data once after the whole queue.
   const commitChildMutation = useMutation({
-    mutationFn: ({ parentId, name, sortOrder }: { parentId: string; name: string; sortOrder: number }) =>
-      createChildRequest(parentId, name, sortOrder),
+    mutationFn: createChild,
     meta: {
       errorMessage: (variables) => `Failed to create child "${(variables as { name: string }).name}"`,
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
     },
     onError: (error) => logger.error("Failed to create queued child request:", error),
   });
@@ -97,7 +108,6 @@ export function useRequestChildrenTab({
       moveRequest(id, { newParentRequestId: parentId, sortOrder }),
     meta: {
       errorMessage: (variables) => `Failed to add "${(variables as { name: string }).name}"`,
-      invalidates: REQUEST_DERIVED_QUERY_KEYS,
     },
     onError: (error) => logger.error("Failed to reparent queued request:", error),
   });
@@ -228,9 +238,11 @@ export function useRequestChildrenTab({
   /**
    * Create mode, after the group is saved: create the queued children and reparent the queued
    * existing requests under it. Each failure is toasted and skipped — the group and whatever
-   * succeeded are kept, and the rest can be re-added from the group's dialog.
+   * succeeded are kept, and the rest can be re-added from the group's dialog. The request data
+   * is re-read once at the end, not once per item.
    */
   const commitPending = async (groupId: string) => {
+    if (!pendingChildren.length && !pendingExistingIds.length) return;
     for (const [index, name] of pendingChildren.entries()) {
       await commitChildMutation
         .mutateAsync({ parentId: groupId, name, sortOrder: index })
@@ -246,6 +258,7 @@ export function useRequestChildrenTab({
         })
         .catch(() => undefined);
     }
+    await invalidateRequestData();
   };
 
   return {

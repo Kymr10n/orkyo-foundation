@@ -163,6 +163,25 @@ describe('CommandPalette', () => {
       expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
     });
 
+    it('does not show the previous answer under a new query while its debounce runs', async () => {
+      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
+      renderCommandPalette({ open: true });
+      const input = screen.getByPlaceholderText(/search/i);
+
+      await userEvent.type(input, 'conference');
+      expect(await screen.findByText('Conference Room A')).toBeInTheDocument();
+      await userEvent.clear(input);
+
+      vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: 'x', results: [] });
+      await userEvent.type(input, 'x');
+      // Before the 200 ms debounce: nothing, not the cached "conference" list.
+      expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(searchApi.globalSearch).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'x' })),
+      );
+      expect(await screen.findByText(/No results found for "x"/)).toBeInTheDocument();
+    });
+
     it('displays search results', async () => {
       vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
       renderCommandPalette({ open: true });

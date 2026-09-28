@@ -13,6 +13,9 @@ export const tenantStorage = {
   },
   clear(): void {
     safeStorage.remove(STORAGE_KEYS.TENANT_SLUG);
+    // Legacy key, remove after one release: it held the whole membership JSON, break-glass
+    // session id included, and a browser that saved it keeps it until something removes it.
+    safeStorage.remove("active_membership");
   },
   slug(): string {
     return safeStorage.get(STORAGE_KEYS.TENANT_SLUG) ?? "";

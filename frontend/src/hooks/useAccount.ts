@@ -62,6 +62,7 @@ export const useTenantMemberships = () => {
     try {
       const data = await getTenantMemberships();
       setMemberships(data);
+      setError(null);
     } catch (err) {
       logger.error("Failed to load memberships:", err);
       setError(errorMessage(err, "Failed to load memberships"));

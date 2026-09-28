@@ -75,11 +75,20 @@ describe('MfaSection', () => {
     const confirm = screen.getByRole('button', { name: /Remove MFA/ });
     expect(confirm).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'fixture-value' } });
+    // The password alone is not enough: the current TOTP code is required too, six digits.
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Current Authenticator Code'), { target: { value: '12345' } });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Current Authenticator Code'), { target: { value: '123456' } });
+    expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
     await waitFor(() => {
       expect(removeMfa).toHaveBeenCalled();
     });
-    expect(vi.mocked(removeMfa).mock.calls[0][0]).toEqual({ currentPassword: 'fixture-value' });
+    expect(vi.mocked(removeMfa).mock.calls[0][0]).toEqual({
+      currentPassword: 'fixture-value',
+      currentCode: '123456',
+    });
     await waitFor(() => {
       expect(screen.queryByText('Remove Two-Factor Authentication?')).not.toBeInTheDocument();
     });
@@ -91,6 +100,7 @@ describe('MfaSection', () => {
     renderMfa();
     fireEvent.click(await screen.findByRole('button', { name: /Remove/ }));
     fireEvent.change(await screen.findByLabelText('Current Password'), { target: { value: 'wrong' } });
+    fireEvent.change(screen.getByLabelText('Current Authenticator Code'), { target: { value: '000000' } });
     fireEvent.click(screen.getByRole('button', { name: /Remove MFA/ }));
     expect(await screen.findByText('Current password is incorrect')).toBeInTheDocument();
     expect(screen.getByText('Remove Two-Factor Authentication?')).toBeInTheDocument();
@@ -102,6 +112,16 @@ describe('MfaSection', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Remove/ }));
     expect(await screen.findByLabelText('Current Password')).toHaveValue('');
+    expect(screen.getByLabelText('Current Authenticator Code')).toHaveValue('');
+  });
+
+  it('keeps only digits in the code field', async () => {
+    vi.mocked(getMfaStatus).mockResolvedValue({ totpEnabled: true, totpLabel: 'App', recoveryCodesConfigured: false });
+    renderMfa();
+    fireEvent.click(await screen.findByRole('button', { name: /Remove/ }));
+    const code = await screen.findByLabelText('Current Authenticator Code');
+    fireEvent.change(code, { target: { value: '12a4-5' } });
+    expect(code).toHaveValue('1245');
   });
 
   it('enables MFA enrollment on button click', async () => {
