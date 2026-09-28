@@ -62,6 +62,9 @@ hand-rolled `onSuccess` toast:
 meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. Check your inbox.` },
 ```
 
+`errorMessage` can also be a function `(variables) => string`. The error toast title then names
+the item that failed, for example one queued child request of a new group.
+
 ## Rules
 
 1. A mutation that wants feedback declares `meta`; it must **not** also call `toast.*` itself

@@ -28,7 +28,6 @@ function makeState(overrides: Partial<RequestFormState> = {}): RequestFormState 
     durationUnit: 'days',
     schedulingSettingsApply: true,
     requirements: new Map(),
-    selectedCriterionId: '',
     ...overrides,
   };
 }
@@ -61,11 +60,10 @@ describe('formReducer', () => {
   });
 
   describe('ADD_REQUIREMENT', () => {
-    it('adds a requirement and clears selectedCriterionId', () => {
-      const state = makeState({ selectedCriterionId: 'crit-1' });
+    it('adds a requirement', () => {
+      const state = makeState();
       const result = formReducer(state, { type: 'ADD_REQUIREMENT', criterionId: 'crit-1', value: true });
       expect(result.requirements.get('crit-1')).toEqual({ value: true });
-      expect(result.selectedCriterionId).toBe('');
     });
 
     it('preserves existing requirements', () => {

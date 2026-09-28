@@ -23,7 +23,6 @@ interface FormDialogBaseProps {
   description?: ReactNode;
   /** Render the description visually hidden (still announced to screen readers). */
   srOnlyDescription?: boolean;
-  children: ReactNode;
   /** Shared width token. Default "md" with the built-in footer, "lg" without it. */
   size?: DialogSize;
   /** Tailwind size override for DialogContent; wins over `size` for one-offs. */
@@ -41,11 +40,17 @@ interface FormDialogBaseProps {
    * must not also pass `dirty` — that would prompt twice.
    */
   dirty?: boolean;
+  /**
+   * With `dirty`: called when the person answers "Keep editing", so a caller can drop
+   * anything it queued behind the close attempt (a navigation, say).
+   */
+  onKeepEditing?: () => void;
 }
 
 /** The standard shape: this dialog owns the form element, the scroller and the footer. */
 export interface FormDialogFormProps extends FormDialogBaseProps {
   footer?: undefined;
+  children: ReactNode;
   /** Optional error message; passes through to <ErrorAlert />. */
   error?: string | null;
   /** Async-aware submit handler. Loading state cleared automatically. */
@@ -65,6 +70,12 @@ export interface FormDialogFormProps extends FormDialogBaseProps {
  */
 export interface FormDialogScaffoldProps extends FormDialogBaseProps {
   footer: null;
+  /**
+   * A function child receives `requestClose`, the guarded close: the caller's own Cancel (and
+   * any control that leaves the dialog) calls it, so it prompts on `dirty` exactly like X,
+   * Escape and the overlay do.
+   */
+  children: ReactNode | ((requestClose: () => void) => ReactNode);
 }
 
 export type FormDialogProps = FormDialogFormProps | FormDialogScaffoldProps;
@@ -93,6 +104,7 @@ export function FormDialog(props: FormDialogProps) {
     contentClassName,
     contentProps,
     dirty,
+    onKeepEditing,
   } = props;
 
   const ownsFooter = props.footer === undefined;
@@ -103,6 +115,7 @@ export function FormDialog(props: FormDialogProps) {
   const { guardedOnOpenChange, confirmOpen, ConfirmDiscardDialog } = useDialogDirtyGuard({
     isDirty: dirty ?? false,
     onOpenChange,
+    onKeepEditing,
   });
 
   // Phone: full screen, edge-to-edge — see useFullScreenOnPhone in dialog.tsx. Above the
@@ -162,7 +175,7 @@ export function FormDialog(props: FormDialogProps) {
           </DialogHeader>
 
           {props.footer === null ? (
-            children
+            typeof children === 'function' ? children(() => guardedOnOpenChange(false)) : children
           ) : (
             <FormBody {...props} onCancel={() => guardedOnOpenChange(false)} />
           )}

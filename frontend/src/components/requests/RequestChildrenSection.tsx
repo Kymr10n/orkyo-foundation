@@ -9,36 +9,17 @@ import { ScrollArea } from "@foundation/src/components/ui/scroll-area";
 import { getPlanningModeIcon, getPlanningModeLabel, getRequestIcon } from "@foundation/src/constants";
 import type { Request } from "@foundation/src/types/requests";
 import { ChevronRight, Link, Plus, Search, Trash2 } from "lucide-react";
-import type { RefObject } from "react";
-import type { useVirtualizer } from "@tanstack/react-virtual";
+import type { RequestChildrenTab } from "@foundation/src/hooks/useRequestChildrenTab";
 
 interface RequestChildrenSectionProps {
   request: Request | null | undefined;
   readOnly: boolean;
-  newChildName: string;
-  setNewChildName: (value: string) => void;
-  isAddingChild: boolean;
-  handleAddChild: () => void | Promise<void>;
-  addExistingOpen: boolean;
-  setAddExistingOpen: (updater: (prev: boolean) => boolean) => void;
-  addExistingSearch: string;
-  setAddExistingSearch: (value: string) => void;
-  addExistingCandidates: Request[];
-  addExistingSelected: Set<string>;
-  toggleAddExistingSelected: (id: string) => void;
-  addExistingViewportRef: RefObject<HTMLDivElement | null>;
-  addExistingVirtualizer: ReturnType<typeof useVirtualizer<HTMLDivElement, Element>>;
-  isAddingExisting: boolean;
-  handleAddExisting: () => void | Promise<void>;
-  pendingChildren: string[];
-  pendingExistingRequests: Request[];
-  setPendingChildren: (updater: (prev: string[]) => string[]) => void;
-  setPendingExistingIds: (updater: (prev: string[]) => string[]) => void;
+  /** The tab's state and actions, from `useRequestChildrenTab`. */
+  tab: RequestChildrenTab;
   directChildren: Request[];
   onNavigate?: (requestId: string) => void;
   /** Opens the dependency planner for this group. Absent hides the entry point. */
   onOpenPlan?: (requestId: string) => void;
-  handleRemoveChild: (child: Request) => void | Promise<void>;
 }
 
 /**
@@ -48,30 +29,33 @@ interface RequestChildrenSectionProps {
 export function RequestChildrenSection({
   request,
   readOnly,
-  newChildName,
-  setNewChildName,
-  isAddingChild,
-  handleAddChild,
-  addExistingOpen,
-  setAddExistingOpen,
-  addExistingSearch,
-  setAddExistingSearch,
-  addExistingCandidates,
-  addExistingSelected,
-  toggleAddExistingSelected,
-  addExistingViewportRef,
-  addExistingVirtualizer,
-  isAddingExisting,
-  handleAddExisting,
-  pendingChildren,
-  pendingExistingRequests,
-  setPendingChildren,
-  setPendingExistingIds,
+  tab,
   directChildren,
   onNavigate,
   onOpenPlan,
-  handleRemoveChild,
 }: RequestChildrenSectionProps) {
+  const {
+    newChildName,
+    setNewChildName,
+    isAddingChild,
+    handleAddChild,
+    addExistingOpen,
+    setAddExistingOpen,
+    addExistingSearch,
+    setAddExistingSearch,
+    addExistingCandidates,
+    addExistingSelected,
+    toggleAddExistingSelected,
+    addExistingViewportRef,
+    addExistingVirtualizer,
+    isAddingExisting,
+    handleAddExisting,
+    pendingChildren,
+    pendingExistingRequests,
+    setPendingChildren,
+    setPendingExistingIds,
+    handleRemoveChild,
+  } = tab;
   return (
     <TabsContent
       value="children"

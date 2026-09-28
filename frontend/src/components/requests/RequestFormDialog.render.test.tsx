@@ -707,6 +707,40 @@ describe("RequestFormDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("asks before leaving for the planner with unsaved changes, and drops the trip on Keep editing", async () => {
+    const onOpenPlan = vi.fn();
+    const { onOpenChange } = renderDialog({ request: GROUP, allRequests: TREE, onOpenPlan });
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
+      target: { value: "Renamed" },
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Children" }));
+    await userEvent.click(screen.getByRole("button", { name: /Sequence these tasks/ }));
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+    expect(onOpenPlan).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    // An ordinary close afterwards is just a close, not a trip to the planner.
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenPlan).not.toHaveBeenCalled();
+  });
+
+  it("opens the planner after the discard is confirmed", async () => {
+    const onOpenPlan = vi.fn();
+    renderDialog({ request: GROUP, allRequests: TREE, onOpenPlan });
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
+      target: { value: "Renamed" },
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Children" }));
+    await userEvent.click(screen.getByRole("button", { name: /Sequence these tasks/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(onOpenPlan).toHaveBeenCalledWith("grp-1");
+  });
+
   it("marks the form dirty when only a Radix-controlled field changes (Type select)", async () => {
     // Radix Selects don't bubble native input/change events, so dirty tracking
     // happens at the setField layer — changing ONLY the Type then closing must

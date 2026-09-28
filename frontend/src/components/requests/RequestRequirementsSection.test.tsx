@@ -58,7 +58,6 @@ const baseState = {
   durationUnit: 'hours' as const,
   schedulingSettingsApply: false,
   requirements: new Map<string, RequirementEntry>(),
-  selectedCriterionId: '',
 };
 
 describe('RequestRequirementsSection', () => {

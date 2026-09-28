@@ -64,22 +64,18 @@ export function RequestFormDialog(props: RequestFormDialogProps) {
     conflictsByResourceId, conflictsByCriterionId, resourceConflictDot, requirementConflictDot,
     selectedCriterionId, setSelectedCriterionId, handleAddRequirement, handleRemoveRequirement,
     handleRequirementChange, handleApplyTemplate, hasPeopleBlockers, setHasPeopleBlockers,
-    breadcrumb, directChildren, derivedValues, dependencyCandidates,
-    newChildName, setNewChildName, isAddingChild, handleAddChild, handleRemoveChild,
-    pendingChildren, setPendingChildren, setPendingExistingIds, pendingExistingRequests,
-    addExistingOpen, setAddExistingOpen, addExistingSearch, setAddExistingSearch,
-    addExistingSelected, toggleAddExistingSelected, addExistingCandidates,
-    addExistingViewportRef, addExistingVirtualizer, isAddingExisting, handleAddExisting,
+    breadcrumb, directChildren, derivedValues, dependencyCandidates, childrenTab,
     hasDurationWarning, windowMinutes, siteScopeWarning,
-    setIsDirty, effectiveDirty, confirmOpen, guardedOnOpenChange,
-    ConfirmDiscardDialog, requestPlanNavigation,
+    setIsDirty, effectiveDirty, handleDialogClose, queuePlanNavigation, dropPlanNavigation,
   } = useRequestFormDialog(props);
 
   return (
-    <>
     <FormDialog
       open={open}
-      onOpenChange={guardedOnOpenChange}
+      onOpenChange={handleDialogClose}
+      // FormDialog owns the discard prompt: X, Escape, the overlay and `requestClose` below.
+      dirty={effectiveDirty}
+      onKeepEditing={dropPlanNavigation}
       size="lg"
       title={
         <span className="text-xl">
@@ -105,18 +101,11 @@ export function RequestFormDialog(props: RequestFormDialogProps) {
           e.preventDefault();
           nameInputRef.current?.focus();
         },
-        // Don't let outside interactions dismiss this dialog while there are
-        // unsaved changes. Guarding on `isDirty` (stable across the whole
-        // interaction) rather than `confirmOpen` (which flips to false the
-        // instant "Keep editing" closes the confirm) avoids a race where a
-        // trailing pointer/focus-outside event re-opens the prompt and traps
-        // the user. When dirty, closing goes through the explicit X / Cancel /
-        // Escape paths, which run the guarded prompt exactly once.
-        onInteractOutside: (e) => { if (effectiveDirty || confirmOpen) e.preventDefault(); },
-        onEscapeKeyDown: (e) => { if (confirmOpen) e.preventDefault(); },
       }}
       footer={null}
     >
+      {(requestClose) => (
+        <>
         {breadcrumb.length > 0 && (
           <div className="px-6 pb-2 flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
             {breadcrumb.map((ancestor, i) => (
@@ -511,29 +500,10 @@ export function RequestFormDialog(props: RequestFormDialogProps) {
                 <RequestChildrenSection
                   request={request}
                   readOnly={readOnly}
-                  newChildName={newChildName}
-                  setNewChildName={setNewChildName}
-                  isAddingChild={isAddingChild}
-                  handleAddChild={handleAddChild}
-                  addExistingOpen={addExistingOpen}
-                  setAddExistingOpen={setAddExistingOpen}
-                  addExistingSearch={addExistingSearch}
-                  setAddExistingSearch={setAddExistingSearch}
-                  addExistingCandidates={addExistingCandidates}
-                  addExistingSelected={addExistingSelected}
-                  toggleAddExistingSelected={toggleAddExistingSelected}
-                  addExistingViewportRef={addExistingViewportRef}
-                  addExistingVirtualizer={addExistingVirtualizer}
-                  isAddingExisting={isAddingExisting}
-                  handleAddExisting={handleAddExisting}
-                  pendingChildren={pendingChildren}
-                  pendingExistingRequests={pendingExistingRequests}
-                  setPendingChildren={setPendingChildren}
-                  setPendingExistingIds={setPendingExistingIds}
+                  tab={childrenTab}
                   directChildren={directChildren}
                   onNavigate={onNavigate}
-                  onOpenPlan={onOpenPlan ? requestPlanNavigation : undefined}
-                  handleRemoveChild={handleRemoveChild}
+                  onOpenPlan={onOpenPlan ? (id) => { queuePlanNavigation(id); requestClose(); } : undefined}
                 />
               )}
 
@@ -570,15 +540,15 @@ export function RequestFormDialog(props: RequestFormDialogProps) {
           ) : (
             <DialogFormFooter
               className="px-6 py-4 shrink-0 bg-background"
-              onCancel={() => guardedOnOpenChange(false)}
+              onCancel={requestClose}
               isSubmitting={isSaving}
               submitLabel={request ? "Update Request" : "Create Request"}
               submitDisabled={hasPeopleBlockers}
             />
           )}
         </form>
+        </>
+      )}
     </FormDialog>
-    {ConfirmDiscardDialog}
-    </>
   );
 }

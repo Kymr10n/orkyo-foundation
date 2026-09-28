@@ -190,6 +190,40 @@ describe('FormDialog', () => {
     expect(screen.getByLabelText('name')).toBeInTheDocument();
   });
 
+  it('reports "Keep editing" but not a discard to onKeepEditing', async () => {
+    const onKeepEditing = vi.fn();
+    const { onOpenChange } = renderDialog({ dirty: true, onKeepEditing });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(onKeepEditing).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(onKeepEditing).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('hands a scaffold child the guarded close', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <FormDialog open onOpenChange={onOpenChange} title="Scaffold" footer={null} dirty>
+        {(requestClose) => (
+          <button type="button" onClick={requestClose}>
+            Leave
+          </button>
+        )}
+      </FormDialog>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it('discards and closes when the person says so', async () => {
     const { onOpenChange } = renderDialog({ dirty: true });
 

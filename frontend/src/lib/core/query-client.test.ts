@@ -77,6 +77,16 @@ describe('createFeedbackMutationCache', () => {
     expect(toastError).toHaveBeenCalledWith('Failed to save', { description: 'Boom' });
   });
 
+  it('resolves a function errorMessage with the mutation variables', async () => {
+    const client = makeClient();
+    const mutation = client.getMutationCache().build(client, {
+      mutationFn: (_name: string) => Promise.reject(new Error('Boom')),
+      meta: { errorMessage: (variables: unknown) => `Failed to create "${variables}"` } as never,
+    });
+    await mutation.execute('Bracket').catch(() => undefined);
+    expect(toastError).toHaveBeenCalledWith('Failed to create "Bracket"', { description: 'Boom' });
+  });
+
   it('uses a default error title when only successMessage is set', async () => {
     const client = makeClient();
     await runMutation(client, () => Promise.reject(new Error('Boom')), {

@@ -24,8 +24,11 @@ declare module '@tanstack/react-query' {
        * mutation's (data, variables) so the message can interpolate them. Omit to stay silent.
        */
       successMessage?: string | ((data: unknown, variables: unknown) => string);
-      /** Title for the error toast. Defaults to "Something went wrong". */
-      errorMessage?: string;
+      /**
+       * Title for the error toast. Defaults to "Something went wrong". A function is called
+       * with the mutation's variables, for a title that names the item that failed.
+       */
+      errorMessage?: string | ((variables: unknown) => string);
       /**
        * Suppress the error toast entirely. For a mutation whose caller already shows
        * the failure inline (a dialog's ErrorAlert): the rule is one surface per error,
@@ -59,7 +62,7 @@ export function createFeedbackMutationCache(
           : meta?.successMessage;
       if (successMessage) toastImpl.success(successMessage);
     },
-    onError: (err, _vars, _ctx, mutation) => {
+    onError: (err, vars, _ctx, mutation) => {
       const meta = mutation.meta;
       // Opt-in guard: only mutations that declared feedback get a global error
       // toast, so un-migrated/legacy mutations are untouched (no double-toast).
@@ -67,7 +70,9 @@ export function createFeedbackMutationCache(
       // renders the failure inline instead.
       if (meta?.suppressErrorToast) return;
       if (meta?.successMessage || meta?.errorMessage) {
-        toastImpl.error(meta.errorMessage ?? 'Something went wrong', {
+        const title =
+          typeof meta.errorMessage === 'function' ? meta.errorMessage(vars) : meta.errorMessage;
+        toastImpl.error(title ?? 'Something went wrong', {
           description: err instanceof Error ? err.message : undefined,
         });
       }
