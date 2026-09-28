@@ -25,16 +25,10 @@ import {
   useUpsertSchedulingSettings,
   useDeleteSchedulingSettings,
   useAvailabilityEvents,
-  useCreateAvailabilityEvent,
-  useUpdateAvailabilityEvent,
   useDeleteAvailabilityEvent,
 } from "@foundation/src/hooks/useScheduling";
 import type { SchedulingSettings as SchedulingSettingsType } from "@foundation/src/domain/scheduling/types";
-import type {
-  AvailabilityEventInfo,
-  CreateAvailabilityEventRequest,
-  UpdateAvailabilityEventRequest,
-} from "@foundation/src/lib/api/availability-events-api";
+import type { AvailabilityEventInfo } from "@foundation/src/lib/api/availability-events-api";
 import { AvailabilityEventDialog } from "./AvailabilityEventDialog";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
@@ -137,8 +131,6 @@ export function SchedulingSettings() {
 
   const upsertMutation = useUpsertSchedulingSettings(selectedSiteId ?? "");
   const deleteMutation = useDeleteSchedulingSettings(selectedSiteId ?? "");
-  const createEventMutation = useCreateAvailabilityEvent(selectedSiteId ?? "");
-  const updateEventMutation = useUpdateAvailabilityEvent(selectedSiteId ?? "");
   const deleteEventMutation = useDeleteAvailabilityEvent(selectedSiteId ?? "");
 
   const [form, setForm] = useState(DEFAULT_SETTINGS);
@@ -239,21 +231,6 @@ export function SchedulingSettings() {
     setDeletingEvent(null);
   };
 
-  const handleSaveEvent = async (
-    data: CreateAvailabilityEventRequest | UpdateAvailabilityEventRequest,
-  ) => {
-    if (editingEvent) {
-      await updateEventMutation.mutateAsync({
-        eventId: editingEvent.id,
-        updates: data,
-      });
-    } else {
-      await createEventMutation.mutateAsync(data as CreateAvailabilityEventRequest);
-    }
-
-    setEventDialogOpen(false);
-    setEditingEvent(null);
-  };
 
   if (!selectedSiteId) {
     return (
@@ -534,10 +511,12 @@ export function SchedulingSettings() {
 
       <AvailabilityEventDialog
         open={eventDialogOpen}
-        onOpenChange={setEventDialogOpen}
+        onOpenChange={(open) => {
+          setEventDialogOpen(open);
+          if (!open) setEditingEvent(null);
+        }}
         siteId={selectedSiteId ?? ""}
         event={editingEvent}
-        onSave={handleSaveEvent}
       />
 
       <ConfirmDialog

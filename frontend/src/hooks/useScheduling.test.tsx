@@ -6,8 +6,7 @@ import {
   useUpsertSchedulingSettings,
   useDeleteSchedulingSettings,
   useAvailabilityEvents,
-  useCreateAvailabilityEvent,
-  useUpdateAvailabilityEvent,
+  useSaveAvailabilityEvent,
   useDeleteAvailabilityEvent,
 } from './useScheduling';
 
@@ -104,26 +103,20 @@ describe('useAvailabilityEvents', () => {
   });
 });
 
-// ── useCreateAvailabilityEvent ────────────────────────────────────────────────
+// ── useSaveAvailabilityEvent ──────────────────────────────────────────────────
 
-describe('useCreateAvailabilityEvent', () => {
+describe('useSaveAvailabilityEvent', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('calls createAvailabilityEvent with siteId', async () => {
-    const { result } = renderHook(() => useCreateAvailabilityEvent('s1'), { wrapper: makeWrapper() });
-    await act(() => result.current.mutateAsync({ title: 'Shutdown' } as any));
+  it('creates when there is no id', async () => {
+    const { result } = renderHook(() => useSaveAvailabilityEvent('s1'), { wrapper: makeWrapper() });
+    await act(() => result.current.mutateAsync({ id: null, data: { title: 'Shutdown' } as any }));
     expect(createAvailabilityEvent).toHaveBeenCalledWith('s1', { title: 'Shutdown' });
   });
-});
 
-// ── useUpdateAvailabilityEvent ────────────────────────────────────────────────
-
-describe('useUpdateAvailabilityEvent', () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it('calls updateAvailabilityEvent with eventId and updates', async () => {
-    const { result } = renderHook(() => useUpdateAvailabilityEvent('s1'), { wrapper: makeWrapper() });
-    await act(() => result.current.mutateAsync({ eventId: 'evt-1', updates: { title: 'Updated' } as any }));
+  it('updates the event the id names', async () => {
+    const { result } = renderHook(() => useSaveAvailabilityEvent('s1'), { wrapper: makeWrapper() });
+    await act(() => result.current.mutateAsync({ id: 'evt-1', data: { title: 'Updated' } as any }));
     expect(updateAvailabilityEvent).toHaveBeenCalledWith('s1', 'evt-1', { title: 'Updated' });
   });
 });
