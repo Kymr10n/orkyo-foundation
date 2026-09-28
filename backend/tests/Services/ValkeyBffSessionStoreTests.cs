@@ -44,6 +44,54 @@ public class ValkeyBffSessionStoreTests
             It.IsAny<CommandFlags>()), Times.Once);
     }
 
+    private static BffSessionRecord Session() => new()
+    {
+        SessionId = "session-bbbbbbbb",
+        UserId = "user-2",
+        ExternalSubject = "sub",
+        AccessToken = "a",
+        RefreshToken = "r",
+        IdToken = "i",
+        ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+        CreatedAt = DateTimeOffset.UtcNow,
+    };
+
+    [Fact]
+    public async Task Get_DoesNotWriteTheSessionBack()
+    {
+        // A read-then-rewrite races a concurrent refresh and can restore a rotated-out token.
+        _db.Setup(d => d.StringGetAsync("bff:s:session-bbbbbbbb", It.IsAny<CommandFlags>()))
+            .ReturnsAsync((RedisValue)System.Text.Json.JsonSerializer.Serialize(Session()));
+
+        var session = await _store.GetAsync("session-bbbbbbbb");
+
+        session.Should().NotBeNull();
+        _db.Invocations.Select(i => i.Method.Name).Should().NotContain(nameof(IDatabase.StringSetAsync));
+    }
+
+    [Fact]
+    public async Task Set_DoesNotSwallowAStoreFailure()
+    {
+        // A login must not hand out a cookie for a session that was never stored.
+        _db.Setup(d => d.SetAddAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<CommandFlags>()))
+            .ThrowsAsync(new RedisException("down"));
+
+        var act = () => _store.SetAsync(Session());
+
+        await act.Should().ThrowAsync<RedisException>();
+    }
+
+    [Fact]
+    public async Task RefreshTokens_DoesNotSwallowAStoreFailure()
+    {
+        _db.Setup(d => d.StringGetAsync(It.IsAny<RedisKey>(), It.IsAny<CommandFlags>()))
+            .ThrowsAsync(new RedisException("down"));
+
+        var act = () => _store.RefreshTokensAsync("session-bbbbbbbb", "a2", "r2", DateTimeOffset.UtcNow.AddMinutes(5));
+
+        await act.Should().ThrowAsync<RedisException>();
+    }
+
     [Fact]
     public async Task RemoveAllForUser_DeletesEveryIndexedSessionAndTheIndex()
     {

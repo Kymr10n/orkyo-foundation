@@ -34,7 +34,6 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
             return Task.FromResult<BffSessionRecord?>(null);
         }
 
-        session.LastActivityAt = _time.GetUtcNow();
         return Task.FromResult<BffSessionRecord?>(session);
     }
 
@@ -71,7 +70,6 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             TokenExpiresAt = tokenExpiresAt,
-            LastActivityAt = _time.GetUtcNow(),
         };
 
         _sessions[sessionId] = updated;
@@ -88,11 +86,7 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         if (expiresAt <= existing.ExpiresAt)
             return Task.CompletedTask;
 
-        _sessions[sessionId] = existing with
-        {
-            ExpiresAt = expiresAt,
-            LastActivityAt = _time.GetUtcNow(),
-        };
+        _sessions[sessionId] = existing with { ExpiresAt = expiresAt };
 
         _logger.LogDebug("BFF session expiry slid: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
             sessionId[..8], expiresAt);

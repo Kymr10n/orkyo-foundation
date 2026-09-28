@@ -101,7 +101,6 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
             SlidingEnabled = slidingEnabled,
             TokenExpiresAt = now.AddSeconds(tokenResponse.ExpiresInSeconds),
             CreatedAt = now,
-            LastActivityAt = now,
             AuthClient = authClient,
         };
 

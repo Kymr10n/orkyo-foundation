@@ -19,7 +19,6 @@ public class InMemoryBffSessionStoreTests
             ExpiresAt = expiresAt ?? DateTimeOffset.UtcNow.AddHours(8),
             TokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5),
             CreatedAt = DateTimeOffset.UtcNow,
-            LastActivityAt = DateTimeOffset.UtcNow,
         };
 
     [Fact]

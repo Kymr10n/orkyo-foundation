@@ -32,7 +32,6 @@ public sealed record BffSessionRecord
     /// <summary>When the current access token expires (based on KC's expires_in, e.g. 5m). Used to trigger proactive token refresh.</summary>
     public DateTimeOffset TokenExpiresAt { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
-    public DateTimeOffset LastActivityAt { get; set; }
     /// <summary>
     /// Name of the OAuth client this session's tokens were issued to, resolved to
     /// credentials by <c>IBffAuthClientRegistry</c> at refresh time. Null (the

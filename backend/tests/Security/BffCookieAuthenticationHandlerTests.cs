@@ -85,7 +85,6 @@ public class BffCookieAuthenticationHandlerTests
             SlidingEnabled = slidingEnabled,
             TokenExpiresAt = tokenExpiresAt ?? DateTimeOffset.UtcNow.AddMinutes(5),
             CreatedAt = DateTimeOffset.UtcNow,
-            LastActivityAt = DateTimeOffset.UtcNow,
             AuthClient = authClient,
         };
 

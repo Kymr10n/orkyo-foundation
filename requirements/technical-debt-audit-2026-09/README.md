@@ -124,7 +124,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S26 | B5 | todo | |
 | S27 | B2 | todo | |
 | S28 | B2 | todo | |
-| S29 | B2 | todo | |
+| S29 | B2 | done | `GetAsync` no longer rewrites the session; `BffSessionRecord.LastActivityAt` deleted with every writer (both stores, establisher, tests) — no reader in foundation, saas, community or the frontend (grepped); old Valkey JSON with the field still deserializes. `SetAsync`/`RefreshTokensAsync` log and rethrow like the PKCE store (the refresh caller already catches and keeps the old tokens). Tests: Get sends no write (failed before), Set/Refresh surface a store failure |
 | S30 | B3 | todo | |
 | S31 | F1 | done | `buildDerivedMap` uses one `buildChildrenIdMap` and rolls dates up from all descendants like `computeDerivedValues`; `computeDerivedValuesFromChildren` deleted; nested-group test added |
 | S32 | B2 | todo | |

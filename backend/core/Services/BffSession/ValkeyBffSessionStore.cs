@@ -44,11 +44,6 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (session is null || session.ExpiresAt <= _time.GetUtcNow())
                 return null;
 
-            // Update last activity (fire-and-forget — not critical)
-            session.LastActivityAt = _time.GetUtcNow();
-            _ = db.StringSetAsync(SessionKey(sessionId), JsonSerializer.Serialize(session),
-                session.ExpiresAt - _time.GetUtcNow(), flags: CommandFlags.FireAndForget);
-
             return session;
         }
         catch (Exception ex)
@@ -76,8 +71,10 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
         }
         catch (Exception ex)
         {
+            // Rethrown: a login must not hand out a cookie for a session that was never stored.
             _logger.LogError(ex, "Valkey error storing BFF session SessionId={SessionIdPrefix}…",
                 session.SessionId[..Math.Min(8, session.SessionId.Length)]);
+            throw;
         }
     }
 
@@ -139,7 +136,6 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 TokenExpiresAt = tokenExpiresAt,
-                LastActivityAt = _time.GetUtcNow(),
             };
 
             // Keep Valkey TTL based on overall session expiry, not token expiry
@@ -154,6 +150,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
         {
             _logger.LogError(ex, "Valkey error refreshing BFF session tokens SessionId={SessionIdPrefix}…",
                 sessionId[..Math.Min(8, sessionId.Length)]);
+            throw;
         }
     }
 
@@ -174,11 +171,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (expiresAt <= session.ExpiresAt)
                 return;
 
-            var updated = session with
-            {
-                ExpiresAt = expiresAt,
-                LastActivityAt = _time.GetUtcNow(),
-            };
+            var updated = session with { ExpiresAt = expiresAt };
 
             var ttl = expiresAt - _time.GetUtcNow();
             if (ttl <= TimeSpan.Zero)
