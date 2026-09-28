@@ -25,6 +25,9 @@ flags:
       - backend/core/**
       - backend/src/**
       - backend/shared/**
+      - backend/hosting/**
+      - backend/seeding/**
+      - backend/migrator-runtime/**
     carryforward: true
   frontend:
     paths:
@@ -35,12 +38,21 @@ flags:
 ignore:
   # Backend — test projects, migrations, DI, plumbing
   - "backend/tests/**"
+  - "backend/testsupport/**"
   - "backend/migrations-foundation/**"
   - "backend/migration-abstractions/**"
-  - "backend/migrator-runtime/**"
-  - "backend/**/*Options.cs"
   - "backend/**/*Settings.cs"
-  - "backend/**/*Constants.cs"
+  # Pure-data options and constants only, listed by name. A file that holds logic
+  # (RoleConstants.ParseRoleString, BffOptions.IsReturnToAllowed, KeycloakOptions,
+  # TenantMiddlewareOptions, MigrationCliOptions) is measured, so a new file is too.
+  - "backend/seeding/SeedOptions.cs"
+  - "backend/core/Configuration/IdentityProvisioningOptions.cs"
+  - "backend/shared/TenantLifecycleConstants.cs"
+  - "backend/shared/TimePolicyConstants.cs"
+  - "backend/core/Constants/HeaderConstants.cs"
+  - "backend/core/Constants/MembershipStatusConstants.cs"
+  - "backend/core/Constants/SearchConstants.cs"
+  - "backend/core/Constants/UserStatusConstants.cs"
   # Frontend — test infrastructure, type-only files, config
   - "frontend/src/**/*.test.*"
   - "frontend/src/**/*.spec.*"

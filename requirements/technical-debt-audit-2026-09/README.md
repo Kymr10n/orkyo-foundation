@@ -67,13 +67,13 @@ per agent, sequential within a stack, stacks in parallel.
 | S7 | B4 | todo | |
 | S8 | B6 | todo | |
 | S9 | B6 | todo | |
-| S10 | B1a | todo | |
+| S10 | B1a | in-progress |  |
 | S11 | B1b | todo | |
 | S12 | B1b | todo | |
 | S13 | B1a | todo | |
 | S14 | B1b | todo | |
 | S15 | B1b | todo | |
-| S16 | F1 | todo | |
+| S16 | F1 | in-progress | |
 | S17 | B1a | todo | |
 | S18 | B1b | todo | |
 | S19 | B1b | todo | |
@@ -137,7 +137,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M21 | B7 | todo | |
 | M22 | B7 | todo | |
 | M23 | F5 | todo | |
-| M24 | R1 | in-progress | |
+| M24 | R1 | done | Foundation's `audit-nuget` job removed and `audit-npm` runs with new `with-npm-audit: false` (keeps the AGPL license scan); both reusables kept for products; **remove `audit-nuget` from the ruleset's required checks**. gitleaks tarball verified against the release checksum (`551f6fc8…`); `license-checker@25.0.1`; sync trigger `scripts/ci/**` + `.claude/**`; codecov: ignores narrowed to named pure-data files, `migrator-runtime` measured, `hosting`/`seeding`/`migrator-runtime` in the flag, `testsupport` ignored (`patch_coverage.py` reads `codecov.yml`, so it follows). `ste-check.py` resolves the repo via `git remote get-url origin` and prints one stderr line when it skips (synced file: copy to the other repos). `sonner`/`tailwindcss` → `peerDependencies` only, like `zustand` (npm installs peers); **lockfile needs `npm install --package-lock-only`** or `npm ci` fails; community should declare `sonner`. `Version`/`Authors`/`PackageTags`/`RepositoryUrl`/`RepositoryType` in `Directory.Build.props`; Release build and a 9-package solution pack pass |
 | M25 | F4 | todo | |
 | M26 | B6 / F4 | todo | backend comments in B6, frontend comments in F4 |
 

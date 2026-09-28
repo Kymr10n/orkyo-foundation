@@ -4,8 +4,6 @@
     <AssemblyName>Orkyo.Foundation.Seed</AssemblyName>
 
     <PackageId>Orkyo.Foundation.Seed</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Orkyo</Authors>
     <Description>Dev-only realistic test-data generator. Produces large, FK-valid workspaces for local development of orkyo-saas and orkyo-community. Never ship to production: this library writes raw SQL and bypasses API validation.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>

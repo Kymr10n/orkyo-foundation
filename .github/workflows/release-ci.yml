@@ -133,10 +133,11 @@ jobs:
             fi
           done
           exit "$status"
+
   # ─────────────────────────────────────────────
-  # SECURITY AUDITS — three parallel jobs, all gate downstream builds
+  # SECURITY AUDITS — secrets + Trivy fs, and the npm license scan
   # ─────────────────────────────────────────────
-  # The three audit jobs call this repo's own reusable workflows — the same files the
+  # The audit jobs call this repo's own reusable workflows — the same files the
   # products call by SHA — so one change to a scan applies everywhere. Job ids are kept.
   # NOTE: a reusable job's check is displayed as "<job> / <inner job name>", so the
   # required-check entries in the main ruleset must be updated when this merges.
@@ -151,16 +152,6 @@ jobs:
       migration-lint-path: backend/migrations-foundation/sql
       run-iac-scan: false
 
-  audit-nuget:
-    if: "!startsWith(github.ref, 'refs/tags/v')"
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/reusable-audit-nuget.yml
-    with:
-      solution-path: Orkyo.Foundation.slnx
-      with-private-registry: false
-
   audit-npm:
     if: "!startsWith(github.ref, 'refs/tags/v')"
     permissions:
@@ -170,6 +161,10 @@ jobs:
       with-private-registry: false
       # The npm package is distributed (AGPL), so its dependency licenses are checked.
       with-license-scan: true
+      # Vulnerabilities: dependency-review (PRs) and the Trivy fs scan in audit-secrets
+      # already cover both lockfiles, so npm audit and `dotnet list --vulnerable` do not
+      # run here. Products still call both reusables with their defaults.
+      with-npm-audit: false
 
   # ─────────────────────────────────────────────
   # BACKEND CI
@@ -941,7 +936,6 @@ jobs:
     needs:
       - detect-changes
       - audit-secrets
-      - audit-nuget
       - audit-npm
       - backend-ci
       - frontend-ci

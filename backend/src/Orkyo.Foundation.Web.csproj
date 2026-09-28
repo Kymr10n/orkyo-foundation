@@ -4,12 +4,7 @@
 
     <!-- NuGet packaging -->
     <PackageId>Orkyo.Foundation.Web</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Orkyo</Authors>
     <Description>Orkyo Foundation Web — ASP.NET Core endpoints, middleware, authentication, and DI wiring shared across Orkyo product variants. Depends on Orkyo.Foundation.Core.</Description>
-    <PackageTags>orkyo;scheduling;booking;foundation</PackageTags>
-    <RepositoryUrl>https://github.com/Kymr10n/orkyo-foundation</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 

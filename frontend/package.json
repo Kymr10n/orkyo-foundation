@@ -61,6 +61,8 @@
     "react-dom": "^19.0.0",
     "react-router": "^8.3.0",
     "recharts": "^3.8.1",
+    "sonner": "^2.0.0",
+    "tailwindcss": "^4.0.0",
     "xstate": "^5.32.1",
     "zustand": "^5.0.0"
   },
@@ -69,7 +71,6 @@
     "@zxing/library": "^0.23.0",
     "clsx": "^2.1.1",
     "jspdf": "^4.2.1",
-    "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
@@ -92,7 +93,6 @@
     "globals": "17.12.0",
     "happy-dom": "20.14.5",
     "jest-axe": "^11.0.0",
-    "tailwindcss": "^4.3.3",
     "tsc-alias": "^1.9.5",
     "typescript": "6.0.3",
     "typescript-eslint": "8.70.0",

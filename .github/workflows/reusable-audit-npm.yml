@@ -13,6 +13,8 @@ name: reusable / audit-npm
 #     such dependency and omits it.
 #   - `with-license-scan` — foundation and community run a license-checker
 #     scan (open-source distribution requirement); saas does not.
+#   - `with-npm-audit` — default true; foundation turns it off because
+#     dependency-review and the Trivy fs scan already cover its lockfile.
 #
 # COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
 # reference a local `./.github/actions/...` composite action — that breaks the
@@ -41,6 +43,11 @@ on:
         required: false
         type: boolean
         default: false
+      with-npm-audit:
+        description: 'Run npm audit (foundation: false; its PRs already get dependency-review and the Trivy fs scan)'
+        required: false
+        type: boolean
+        default: true
     secrets:
       GHCR_TOKEN:
         description: 'Required when with-private-registry is true'
@@ -79,13 +86,14 @@ jobs:
         working-directory: ${{ inputs.frontend-dir }}
 
       - name: npm audit
+        if: inputs.with-npm-audit
         run: npm audit --audit-level=high --omit=dev
         working-directory: ${{ inputs.frontend-dir }}
 
       - name: License scan
         if: inputs.with-license-scan
         run: |
-          npx --yes license-checker@^25.0.1 \
+          npx --yes license-checker@25.0.1 \
             --summary \
             --excludePrivatePackages \
             --failOn "GPL-2.0;GPL-3.0;AGPL-3.0;LGPL-2.0;LGPL-2.1;LGPL-3.0"
