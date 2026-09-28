@@ -26,6 +26,13 @@ public interface IRequestRepository
     Task<List<RequestInfo>> GetAllAsync(bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default);
 
     /// <summary>
+    /// The requests with a live (not cancelled) assignment to one of <paramref name="resourceIds"/>,
+    /// with their requirements — for export, which passes the placeable resources of the sites it
+    /// exports, so the filter runs in SQL rather than over every request in memory.
+    /// </summary>
+    Task<List<RequestInfo>> GetPlacedOnAsync(IReadOnlyCollection<Guid> resourceIds, CancellationToken ct = default);
+
+    /// <summary>
     /// Returns a page of requests, scoped like the unpaged list when <paramref name="siteId"/> is
     /// given (the site's rows plus the site-neutral ones). A null <paramref name="page"/> answers
     /// the whole list up to <see cref="PageRequest.MaxUnpagedItems"/> through

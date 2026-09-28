@@ -224,8 +224,13 @@ public static class RequestEndpoints
         var siteRequests = app.MapGroup("/api/sites/{siteId:guid}/requests")
             .WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        siteRequests.MapGet("/", async (Guid siteId, DateTime from, DateTime to, IRequestService requestService, CancellationToken ct) =>
-            Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, from, to, ct)))
+        siteRequests.MapGet("/", async (Guid siteId, DateTime? from, DateTime? to, IRequestService requestService,
+            IValidator<TimeWindowQuery> validator, CancellationToken ct) =>
+        {
+            var window = new TimeWindowQuery(from, to);
+            return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
+                Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, window.FromUtc, window.ToUtc, ct)));
+        })
             .WithName("GetSiteScheduledRequests")
             .WithSummary("Scheduled requests for a site whose bar overlaps [from,to]");
     }

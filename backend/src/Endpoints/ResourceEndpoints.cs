@@ -133,34 +133,16 @@ public static class ResourceEndpoints
 
         group.MapGet("/{id:guid}/candidate-requests", async (
             Guid id,
-            IRequestRepository requestRepository,
-            IResourceService resourceService,
-            ICapabilityMatcher capabilityMatcher,
-            DateTime start,
-            DateTime end,
+            ICandidateRequestService candidates,
+            IValidator<TimeWindowQuery> windowValidator,
+            DateTime? start,
+            DateTime? end,
             CancellationToken ct) =>
         {
-            var resource = await resourceService.GetByIdAsync(id, ct);
-            if (resource is null)
-                return ErrorResponses.NotFound("Resource", id);
-
-            var candidates = await requestRepository.GetCandidatesOverlappingAsync(id, start, end, ct);
-
-            var result = new List<CandidateRequestInfo>(candidates.Count);
-            foreach (var (req, assignmentId) in candidates)
-            {
-                var requirements = new List<CandidateRequirementInfo>(req.Requirements?.Count ?? 0);
-                foreach (var r in req.Requirements ?? [])
-                {
-                    // A requirement scoped to another resource type is not this resource's to satisfy.
-                    if (!r.AppliesTo(resource.ResourceTypeKey)) continue;
-
-                    var satisfied = await capabilityMatcher.ResourceSatisfiesRequirementAsync(id, r, ct);
-                    requirements.Add(new CandidateRequirementInfo(r.Criterion?.Name ?? r.CriterionId.ToString(), satisfied));
-                }
-                result.Add(new CandidateRequestInfo(req.Id, req.Name, req.StartTs, req.EndTs, requirements, assignmentId));
-            }
-            return Results.Ok(result);
+            var window = new TimeWindowQuery(start, end);
+            return await EndpointHelpers.ExecuteAsync(window, windowValidator, async () =>
+                EndpointHelpers.OkOrNotFound(
+                    await candidates.GetForResourceAsync(id, window.FromUtc, window.ToUtc, ct), "Resource", id));
         })
             .WithName("GetResourceCandidateRequests")
             .WithSummary("Get active requests overlapping a period that are not yet assigned to this resource");

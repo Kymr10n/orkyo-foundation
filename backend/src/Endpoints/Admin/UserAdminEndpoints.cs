@@ -70,31 +70,23 @@ public static class UserAdminEndpoints
     {
         var list = await userRepository.GetAdminUserListAsync(search, status, ct);
 
-        var users = new List<AdminUserSummary>();
-        var keycloakIds = new List<(int index, string keycloakId)>();
-
-        foreach (var row in list.Items)
+        // One read of the site-admin role's members flags the whole page (it was one Keycloak
+        // call per user). Failure is non-fatal — the list still comes back with no one flagged.
+        IReadOnlySet<string> siteAdmins = new HashSet<string>();
+        try
         {
-            if (row.KeycloakSub != null)
-                keycloakIds.Add((users.Count, row.KeycloakSub));
-
-            users.Add(row.Summary);
+            siteAdmins = await keycloak.GetRealmRoleMemberIdsAsync(KeycloakClaims.SiteAdminRole, ct);
+        }
+        catch (KeycloakAdminException ex)
+        {
+            logger.LogWarning(ex, "Failed to list the site-admin role's members");
         }
 
-        // Check site-admin role for each user with a Keycloak identity.
-        // Failures are non-fatal — we want the user list even if Keycloak is degraded.
-        foreach (var (index, keycloakId) in keycloakIds)
-        {
-            try
-            {
-                if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct))
-                    users[index] = users[index] with { IsSiteAdmin = true };
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to check site-admin role for {KeycloakId}", keycloakId);
-            }
-        }
+        var users = list.Items
+            .Select(row => row.KeycloakSub is { } sub && siteAdmins.Contains(sub)
+                ? row.Summary with { IsSiteAdmin = true }
+                : row.Summary)
+            .ToList();
 
         // Owned-tenant plan is a commercial concept resolved by the edition. Send the machine
         // CODE, not the display label — the admin UI feeds this straight into a select whose

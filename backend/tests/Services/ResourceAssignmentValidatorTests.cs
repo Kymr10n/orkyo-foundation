@@ -291,9 +291,9 @@ public class ResourceAssignmentValidatorTests
             .ReturnsAsync(requestInfo);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
-        _capabilityMatcherMock.Setup(c => c.ResourceSatisfiesRequirementAsync(
-            resource.Id, It.IsAny<RequestRequirementInfo>()))
-            .ReturnsAsync(false);
+        _capabilityMatcherMock.Setup(c => c.Satisfies(
+            It.IsAny<IReadOnlyList<ResourceCapabilityInfo>>(), It.IsAny<RequestRequirementInfo>()))
+            .Returns(false);
 
         var result = await _validator.ValidateAsync(request);
 

@@ -138,6 +138,12 @@ public interface IKeycloakAdminService
     /// Count users who have a specific realm role.
     /// </summary>
     Task<int> CountRealmRoleMembersAsync(string roleName, CancellationToken ct = default);
+
+    /// <summary>
+    /// The Keycloak ids of every user holding a realm role, in one paged read — for flagging a
+    /// whole list instead of one <see cref="HasRealmRoleAsync"/> call per user.
+    /// </summary>
+    Task<IReadOnlySet<string>> GetRealmRoleMemberIdsAsync(string roleName, CancellationToken ct = default);
 }
 
 /// <summary>

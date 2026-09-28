@@ -409,17 +409,17 @@ public class ExportService : IExportService
             }
         }
 
-        var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true, ct: ct);
+        // Only the requests placed in an exported site, filtered in SQL. A request holds at most
+        // one placeable resource, so the assignment to an allowed one is its placement.
+        var placed = await _requestRepo.GetPlacedOnAsync(allowedResourceIds, ct);
 
-        var placeableKeySet = (await _resourceTypeRepo.GetPlaceableKeysAsync(ct)).ToHashSet();
-        return allRequests
-            .Select(r => (Request: r, SpaceResourceId: r.GetPlacementResourceId(placeableKeySet)))
-            .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
+        return placed
+            .Select(r => (Request: r, SpaceResourceId: r.Assignments.First(a => allowedResourceIds.Contains(a.ResourceId)).ResourceId))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>
             {
                 var r = x.Request;
-                var spaceId = x.SpaceResourceId!.Value;
+                var spaceId = x.SpaceResourceId;
                 return new ExportRequestData
                 {
                     Name = r.Name,

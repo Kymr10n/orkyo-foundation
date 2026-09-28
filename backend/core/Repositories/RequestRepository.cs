@@ -60,6 +60,28 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
+    public async Task<List<RequestInfo>> GetPlacedOnAsync(IReadOnlyCollection<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        var requests = await db.QueryListAsync(
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
+            "WHERE id IN (SELECT request_id FROM resource_assignments " +
+            "             WHERE resource_id = ANY(@resourceIds) AND assignment_status <> @cancelled) " +
+            "ORDER BY name",
+            p =>
+            {
+                p.AddWithValue("resourceIds", resourceIds.ToArray());
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            RequestMapper.MapFromReader,
+            ct);
+
+        await LoadRequirementsForRequests(requests, db, ct);
+        return requests;
+    }
+
     public async Task<PagedResult<RequestInfo>> GetAllAsync(
         PageRequest? page, Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default)
     {

@@ -226,6 +226,30 @@ public class UserAdminEndpointsTests
     }
 
     [Fact]
+    public async Task GetUsers_FlagsSiteAdmins_FromOneRoleMembersRead()
+    {
+        // One Keycloak call for the whole list, not one per user.
+        ResetKeycloak();
+        var prefix = $"ua-flag-{Guid.NewGuid():N}"[..16];
+        var (adminTarget, _) = await CreateRegularUserAsync(prefix);
+        await CreateRegularUserAsync(prefix);
+        var keycloak = _fixture.Factory.MockKeycloakAdminService;
+        keycloak.RealmRoleMemberIds.Add($"kc-{adminTarget}");
+        var (_, adminToken) = await CreateSiteAdminAsync();
+
+        var response = await _client.SendAsync(Auth(HttpMethod.Get, $"/api/admin/users?search={prefix}", adminToken));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var users = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("users").EnumerateArray().ToList();
+        Assert.Equal(2, users.Count);
+        Assert.True(users.Single(u => u.GetProperty("id").GetGuid() == adminTarget).GetProperty("isSiteAdmin").GetBoolean());
+        Assert.Single(users, u => u.GetProperty("isSiteAdmin").GetBoolean());
+        Assert.Equal(1, keycloak.GetRealmRoleMemberIdsCallCount);
+        Assert.Equal(0, keycloak.HasRealmRoleCallCount);
+        ResetKeycloak();
+    }
+
+    [Fact]
     public async Task PromoteSiteAdmin_AlreadySiteAdmin_Returns409()
     {
         ResetKeycloak();

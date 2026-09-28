@@ -30,6 +30,51 @@ public class UtilizationEndpointsTests
     private static (string from, string to) DateRange() =>
         (DateParam(DateTime.UtcNow.AddDays(-7)), DateParam(DateTime.UtcNow));
 
+    // ── Window caps (TimeWindowQueryValidator) ───────────────────────────────
+
+    /// <summary>
+    /// Every member-readable window is capped like the Insights ones: day buckets over
+    /// 0001–9999 used to be built in memory for every resource.
+    /// </summary>
+    [Theory]
+    [InlineData("/api/utilization/by-resource?granularity=day", 733)]
+    [InlineData("/api/utilization?granularity=day", 733)]
+    [InlineData("/api/utilization?granularity=hour", 93)]
+    [InlineData("/api/utilization?granularity=minute", 32)]
+    [InlineData("/api/resources/00000000-0000-0000-0000-000000000001/utilization?granularity=week", 733)]
+    [InlineData("/api/resource-groups/00000000-0000-0000-0000-000000000001/utilization?granularity=month", 1831)]
+    [InlineData("/api/sites/00000000-0000-0000-0000-000000000001/requests?x=1", 1831)]
+    [InlineData("/api/resource-assignments?resourceTypeKey=person", 1831)]
+    [InlineData("/api/resources/00000000-0000-0000-0000-000000000001/candidate-requests?x=1", 1831)]
+    public async Task AWindowOverTheCap_Returns400(string url, int days)
+    {
+        var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var (fromName, toName) = url.Contains("candidate-requests") ? ("start", "end") : ("from", "to");
+        var response = await _client.GetAsync(
+            $"{url}&{fromName}={DateParam(from)}&{toName}={DateParam(from.AddDays(days))}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AWindowAtTheCap_IsServed()
+    {
+        var from = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var response = await _client.GetAsync(
+            $"/api/utilization/by-resource?granularity=month&from={DateParam(from)}&to={DateParam(from.AddDays(1830))}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AnUnknownGranularity_Returns400()
+    {
+        var (from, to) = DateRange();
+        var response = await _client.GetAsync($"/api/utilization?from={from}&to={to}&granularity=fortnight");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     // ── GET /api/resources/{id}/utilization ──────────────────────────────────
 
     [Fact]

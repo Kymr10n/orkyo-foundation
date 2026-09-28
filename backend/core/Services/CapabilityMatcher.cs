@@ -1,34 +1,20 @@
 using System.Text.Json;
 using Api.Models;
-using Api.Repositories;
 
 namespace Api.Services;
 
 public interface ICapabilityMatcher
 {
-    // Typed operator matching
-    Task<bool> ResourceSatisfiesRequirementAsync(
-        Guid resourceId,
-        RequestRequirementInfo requirement, CancellationToken ct = default);
-
     /// <summary>
-    /// Pure typed-operator match against an already-loaded capability set — no I/O. Lets callers
-    /// that have preloaded capabilities (e.g. batch validation) match in memory.
+    /// Pure typed-operator match against an already-loaded capability set — no I/O. Callers load
+    /// the capabilities once (per resource, or in bulk) and match every requirement in memory.
     /// </summary>
     bool Satisfies(IReadOnlyList<ResourceCapabilityInfo> capabilities, RequestRequirementInfo requirement);
 }
 
-public class CapabilityMatcher(IResourceCapabilityRepository capabilityRepository) : ICapabilityMatcher
+public class CapabilityMatcher : ICapabilityMatcher
 {
     // Typed operator matching (≥/≤/= for Number, Enum membership, String equality, Boolean)
-    public async Task<bool> ResourceSatisfiesRequirementAsync(
-        Guid resourceId,
-        RequestRequirementInfo requirement, CancellationToken ct = default)
-    {
-        var capabilities = await capabilityRepository.GetByResourceAsync(resourceId, ct);
-        return Satisfies(capabilities, requirement);
-    }
-
     public bool Satisfies(IReadOnlyList<ResourceCapabilityInfo> capabilities, RequestRequirementInfo requirement)
     {
         var capability = capabilities.FirstOrDefault(c => c.CriterionId == requirement.CriterionId);

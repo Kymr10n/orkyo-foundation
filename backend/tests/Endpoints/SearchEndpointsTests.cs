@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
@@ -60,6 +61,21 @@ public class SearchEndpointsTests
 
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
         result.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Search_ATrigramMatchAboveTheTenantThreshold_IsFound()
+    {
+        // "calibr" is 0.24 similar to the title: above the tenant's 0.2 default, below the
+        // 0.3 pg_trgm default the index-served `%` operator uses unless the query sets it.
+        var siteCode = $"srch-{Guid.NewGuid():N}"[..10];
+        var created = await _client.PostAsJsonAsync("/api/sites", new { code = siteCode, name = "Calibration Bench North" });
+        created.EnsureSuccessStatusCode();
+        var siteId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        var result = await _client.GetFromJsonAsync<SearchResponse>("/api/search?q=calibr&limit=50");
+
+        result!.Results.Should().Contain(r => r.Id == siteId);
     }
 
     [Fact]

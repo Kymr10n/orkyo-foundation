@@ -328,6 +328,26 @@ public class KeycloakAdminService : IKeycloakAdminService
         return users?.Length ?? 0;
     }
 
+    public async Task<IReadOnlySet<string>> GetRealmRoleMemberIdsAsync(string roleName, CancellationToken ct = default)
+    {
+        const int pageSize = 500;
+        var token = await GetAdminTokenAsync(ct);
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        // Keycloak pages this endpoint (100 by default), so read until a short page.
+        for (var first = 0; ; first += pageSize)
+        {
+            var page = await GetAdminJsonAsync<JsonElement[]>(
+                $"roles/{Uri.EscapeDataString(roleName)}/users?first={first}&max={pageSize}", token,
+                $"Failed to list members of role '{roleName}'", ct) ?? [];
+            foreach (var user in page)
+            {
+                if (user.TryGetProperty("id", out var id) && id.GetString() is { } value)
+                    ids.Add(value);
+            }
+            if (page.Length < pageSize) return ids;
+        }
+    }
+
     private async Task ModifyRealmRoleAsync(string keycloakId, string roleName, bool assign, CancellationToken ct)
     {
         var token = await GetAdminTokenAsync(ct);
