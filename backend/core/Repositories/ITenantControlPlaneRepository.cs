@@ -86,6 +86,9 @@ public interface ITenantControlPlaneRepository
     /// <summary>Sets the tenant's owner to <paramref name="newOwnerId"/> (eligibility is the caller's policy check).</summary>
     Task TransferOwnershipAsync(Guid tenantId, Guid newOwnerId, CancellationToken ct = default);
 
-    /// <summary>Deletes the user's membership row in the tenant.</summary>
+    /// <summary>
+    /// Deletes the user's membership row in the tenant, unless the user is its last active
+    /// admin: then the row stays and a <c>ConflictException</c> says so. No row is a no-op.
+    /// </summary>
     Task DeleteMembershipAsync(Guid tenantId, Guid userId, CancellationToken ct = default);
 }

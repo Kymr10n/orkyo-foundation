@@ -1595,7 +1595,7 @@ public class RequestEndpointsTests
     }
 
     [Fact]
-    public async Task GetRequests_Unpaged_KeepsTheBareListAndReportsTheCap()
+    public async Task GetRequests_Unpaged_KeepsTheBareList()
     {
         var site = await CreateSiteAsync();
         var created = await CreateSiteRequestAsync(site);
@@ -1606,8 +1606,9 @@ public class RequestEndpointsTests
         var items = await response.Content.ReadFromJsonAsync<List<RequestInfo>>();
         items.Should().Contain(r => r.Id == created.Id);
         items.Should().OnlyContain(r => r.SiteId == null || r.SiteId == site);
-        response.Headers.GetValues("X-Total-Count").Single().Should().Be(items!.Count.ToString());
-        response.Headers.GetValues("X-Has-Next-Page").Single().Should().Be("false");
+        // The cap used to travel as X-Total-Count / X-Has-Next-Page headers nothing read; the
+        // PagedResult body of the paged branch is the one truncation signal.
+        response.Headers.Should().NotContainKey("X-Total-Count");
     }
 
     #endregion

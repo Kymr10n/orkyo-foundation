@@ -1,6 +1,7 @@
 using Api.Constants;
 using Api.Helpers;
 using Api.Models;
+using Api.Repositories;
 using Api.Services.Caching;
 using Npgsql;
 using Orkyo.Shared;
@@ -83,32 +84,22 @@ public class UserManagementService : IUserManagementService
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
-        // One statement: the guard and the write cannot be split by a concurrent demotion.
-        await using var cmd = new NpgsqlCommand($@"
-            {LockActiveAdminsCte}
-            UPDATE tenant_memberships
-            SET role = @role, updated_at = NOW()
-            WHERE user_id = @userId AND tenant_id = @tenantId
-              AND ({KeepsAnotherActiveAdminSql})", conn);
-        cmd.Parameters.AddWithValue("role", role.ToString().ToLowerInvariant());
-        AddGuardParameters(cmd, org.OrgId, userId);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
+        var outcome = await ActiveAdminGuard.SetRoleAsync(conn, org.OrgId, userId, role.ToString().ToLowerInvariant(), ct);
 
         // A demoted member must not keep the old role for the rest of the cache TTL. The cache
         // is per process instance: another instance keeps the stale role until its TTL runs out.
         _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
 
-        if (rowsAffected == 0 && await MembershipExistsAsync(conn, org.OrgId, userId, ct))
+        if (outcome == GuardedMembershipWrite.LastActiveAdmin)
         {
             _logger.LogWarning("Cannot demote user {UserId}: they are the last active admin in tenant {TenantId}", userId, org.OrgId);
-            return Result.Fail("Cannot demote the last admin. Promote another user to admin first.");
+            return Result.Fail(ActiveAdminGuard.DemotionRefused);
         }
 
-        if (rowsAffected > 0)
+        if (outcome == GuardedMembershipWrite.Written)
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRoleUpdated, updatedBy, "user", userId.ToString(), new { newRole = role.ToString() }, ct);
 
-        return new Result(rowsAffected > 0, null);
+        return new Result(outcome == GuardedMembershipWrite.Written, null);
     }
 
     /// <summary>
@@ -120,29 +111,22 @@ public class UserManagementService : IUserManagementService
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand($@"
-            {LockActiveAdminsCte}
-            DELETE FROM tenant_memberships
-            WHERE user_id = @userId AND tenant_id = @tenantId
-              AND ({DeleteKeepsAnotherActiveAdminSql})", conn);
-        AddGuardParameters(cmd, org.OrgId, userId);
-
-        var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
+        var outcome = await ActiveAdminGuard.DeleteAsync(conn, org.OrgId, userId, ct);
 
         // A removed member must lose access now, not when the cached role expires. The cache
         // is per process instance: another instance keeps the stale role until its TTL runs out.
         _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
 
-        if (rowsAffected == 0 && await MembershipExistsAsync(conn, org.OrgId, userId, ct))
+        if (outcome == GuardedMembershipWrite.LastActiveAdmin)
         {
             _logger.LogWarning("Cannot remove user {UserId}: they are the last active admin in tenant {TenantId}", userId, org.OrgId);
-            return Result.Fail("Cannot remove the last admin. Promote another user to admin first.");
+            return Result.Fail(ActiveAdminGuard.RemovalRefused);
         }
 
-        if (rowsAffected > 0)
+        if (outcome == GuardedMembershipWrite.Written)
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserRemovedFromTenant, deletedBy, "user", userId.ToString(), ct: ct);
 
-        return new Result(rowsAffected > 0, null);
+        return new Result(outcome == GuardedMembershipWrite.Written, null);
     }
 
     public async Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default)
@@ -170,43 +154,4 @@ public class UserManagementService : IUserManagementService
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    /// <summary>
-    /// Locks the tenant's active-admin rows in a fixed order. Two admins demoting each other
-    /// at once serialize here: the second waits, re-reads the first's committed row, no longer
-    /// counts it as an admin and so refuses. Without the lock each statement sees the other
-    /// admin in its snapshot and both succeed.
-    /// </summary>
-    private const string LockActiveAdminsCte = @"
-            WITH active_admins AS (
-                SELECT user_id FROM tenant_memberships
-                WHERE tenant_id = @tenantId AND role = @adminRole AND status = @activeStatus
-                ORDER BY user_id
-                FOR UPDATE)";
-
-    private const string OtherActiveAdminExistsSql =
-        "EXISTS (SELECT 1 FROM active_admins WHERE user_id <> @userId)";
-
-    /// <summary>A role change keeps an admin when the target is not one, stays one, or another exists.</summary>
-    private const string KeepsAnotherActiveAdminSql =
-        "NOT (role = @adminRole AND status = @activeStatus) OR @role = @adminRole OR " + OtherActiveAdminExistsSql;
-
-    private const string DeleteKeepsAnotherActiveAdminSql =
-        "NOT (role = @adminRole AND status = @activeStatus) OR " + OtherActiveAdminExistsSql;
-
-    private static void AddGuardParameters(NpgsqlCommand cmd, Guid tenantId, Guid userId)
-    {
-        cmd.Parameters.AddWithValue("userId", userId);
-        cmd.Parameters.AddWithValue("tenantId", tenantId);
-        cmd.Parameters.AddWithValue("adminRole", RoleConstants.Admin);
-        cmd.Parameters.AddWithValue("activeStatus", MembershipStatusConstants.Active);
-    }
-
-    private static async Task<bool> MembershipExistsAsync(NpgsqlConnection conn, Guid tenantId, Guid userId, CancellationToken ct)
-    {
-        await using var cmd = new NpgsqlCommand(
-            "SELECT EXISTS (SELECT 1 FROM tenant_memberships WHERE tenant_id = @tenantId AND user_id = @userId)", conn);
-        cmd.Parameters.AddWithValue("tenantId", tenantId);
-        cmd.Parameters.AddWithValue("userId", userId);
-        return (bool)(await cmd.ExecuteScalarAsync(ct))!;
-    }
 }

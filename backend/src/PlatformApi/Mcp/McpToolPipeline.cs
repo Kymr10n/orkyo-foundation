@@ -73,19 +73,13 @@ public static class McpToolPipeline
         };
 
     /// <summary>
-    /// The exceptions whose message is written for the caller — the ones <c>AppExceptionHandler</c>
-    /// turns into a 4xx. Guard-clause failures (<see cref="ArgumentNullException"/>,
+    /// The exceptions whose message is written for the caller — exactly the ones
+    /// <see cref="AppExceptionHandler"/> turns into a 4xx, so the two surfaces cannot drift.
+    /// Guard-clause failures (<see cref="ArgumentNullException"/>,
     /// <see cref="ArgumentOutOfRangeException"/>) are programming errors that name internal
     /// parameters, so they stay a generic failure there and here.
     /// </summary>
-    internal static string? DomainRefusal(Exception ex) => ex switch
-    {
-        NotFoundException or ConflictException or CapabilityNotApplicableException
-            or FeatureNotAvailableException or QuotaExceededException => ex.Message,
-        ArgumentNullException or ArgumentOutOfRangeException => null,
-        ArgumentException => ex.Message,
-        _ => null,
-    };
+    internal static string? DomainRefusal(Exception ex) => AppExceptionHandler.ClientErrorDetail(ex);
 
     /// <summary>Arguments are small tool inputs, but nothing stops a client sending a novel.</summary>
     private static string Truncate(string? arguments)

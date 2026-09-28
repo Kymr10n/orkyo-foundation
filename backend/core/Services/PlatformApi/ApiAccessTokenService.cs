@@ -76,9 +76,7 @@ public sealed class ApiAccessTokenService : IApiAccessTokenService
         // Keeping the keys distinct means a leak of one credential class's pepper does not also
         // make the write-capable class's stored hashes forgeable.
         var pepper = TokenCredentialHelper.ResolvePepper(
-            configuration.IsSet(ConfigKeys.ApiAccessTokenPepper)
-                ? configuration[ConfigKeys.ApiAccessTokenPepper]
-                : null,
+            configuration.GetNonEmptyOrNull(ConfigKeys.ApiAccessTokenPepper),
             configuration[ConfigKeys.KeycloakBackendClientSecret],
             $"ApiAccessTokenService: neither '{ConfigKeys.ApiAccessTokenPepper}' nor "
             + $"'{ConfigKeys.KeycloakBackendClientSecret}' is set");

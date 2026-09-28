@@ -12,6 +12,13 @@ namespace Api.Repositories;
 
 public class RequestRepository : IRequestRepository
 {
+    /// <summary>
+    /// The list's site scoping, the same as the backlog in
+    /// <c>RequestScheduleReadRepository.GetUnscheduledAsync</c>: a site keeps its own rows plus
+    /// the site-neutral ones, which are schedulable anywhere.
+    /// </summary>
+    private const string SiteOrNeutralFilter = "WHERE (site_id = @siteId OR site_id IS NULL) ";
+
     // Single consumer, so it lives here rather than in RequestSql.
     private static async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection conn, CancellationToken ct = default)
     {
@@ -39,9 +46,8 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // Same scoping as the backlog in RequestScheduleReadRepository.GetUnscheduledAsync: a site
-        // keeps its own rows plus the site-neutral ones, which are schedulable anywhere. A null siteId keeps the tenant-wide list.
-        var siteFilter = siteId is null ? "" : "WHERE (site_id = @siteId OR site_id IS NULL) ";
+        // A null siteId keeps the tenant-wide list.
+        var siteFilter = siteId is null ? "" : SiteOrNeutralFilter;
 
         var requests = await db.QueryListAsync(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
@@ -87,8 +93,7 @@ public class RequestRepository : IRequestRepository
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // The unpaged list's site scoping: the site's own rows plus the site-neutral ones.
-        var siteFilter = siteId is null ? "" : "WHERE (site_id = @siteId OR site_id IS NULL) ";
+        var siteFilter = siteId is null ? "" : SiteOrNeutralFilter;
         Action<NpgsqlParameterCollection> bind = p =>
         {
             if (siteId is not null) p.AddWithValue("siteId", siteId.Value);
@@ -97,24 +102,9 @@ public class RequestRepository : IRequestRepository
         var querySql = $"SELECT {SelectFromView} FROM v_requests_with_assignments " + siteFilter
             + "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset";
 
-        PagedResult<RequestInfo> result;
-        if (page is not null)
-        {
-            result = await db.QueryPagedAsync(page, countSql, querySql, bind, RequestMapper.MapFromReader, ct);
-        }
-        else
-        {
-            // QueryPagedAsync sanitises the page size down to 100, so the capped branch reads
-            // its own count and first MaxUnpagedItems rows.
-            var total = (int)await db.ExecuteScalarAsync<long>(countSql, bind, ct);
-            var rows = await db.QueryListAsync(querySql, p =>
-            {
-                bind(p);
-                p.AddWithValue("limit", PageRequest.MaxUnpagedItems);
-                p.AddWithValue("offset", 0);
-            }, RequestMapper.MapFromReader, ct);
-            result = PagedResult<RequestInfo>.Capped(rows, total, PageRequest.MaxUnpagedItems);
-        }
+        var result = page is not null
+            ? await db.QueryPagedAsync(page, countSql, querySql, bind, RequestMapper.MapFromReader, ct)
+            : await db.QueryCappedAsync(PageRequest.MaxUnpagedItems, countSql, querySql, bind, RequestMapper.MapFromReader, ct);
 
         if (includeRequirements && result.Items.Count > 0)
         {

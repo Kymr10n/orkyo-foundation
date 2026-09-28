@@ -76,16 +76,13 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
     public async Task<GroupCapabilityInfo> UpsertAsync(Guid groupId, Guid criterionId, JsonElement value, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
-        // Verify group and criterion exist
-        if (!await conn.ExistsAsync("resource_groups", groupId, ct))
-            throw new NotFoundException("Group", groupId);
-
-        if (!await conn.ExistsAsync("criteria", criterionId, ct))
-            throw new NotFoundException("Criterion", criterionId);
-
-        // The shared applicability rule (CriterionScopeSql.AppliesTo), as for resources.
-        var isApplicable = await conn.ExecuteScalarAsync<bool>($@"
+        // Existence and applicability in one read, the same shape as ResourceCapabilityRepository:
+        // no row means no such group, false means the criterion is scoped to other types
+        // (CriterionScopeSql.AppliesTo is the rule). The criterion itself was read by the caller.
+        var applies = await conn.ExecuteScalarAsync<bool?>($@"
             SELECT {CriterionScopeSql.AppliesTo("@criterionId", "crt.resource_type_id = g.resource_type_id")}
             FROM resource_groups g
             WHERE g.id = @groupId",
@@ -94,13 +91,14 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
                 p.AddWithValue("groupId", groupId);
                 p.AddWithValue("criterionId", criterionId);
             }, ct);
-
-        if (!isApplicable)
+        if (applies is null)
+            throw new NotFoundException("Group", groupId);
+        if (applies is false)
             throw new CapabilityNotApplicableException(
                 groupId, criterionId,
                 "Criterion is not applicable to this group's resource type");
 
-        return (await conn.QuerySingleOrDefaultAsync(@"
+        var capability = (await conn.QuerySingleOrDefaultAsync(@"
             INSERT INTO resource_group_capabilities (resource_group_id, criterion_id, value)
             VALUES (@groupId, @criterionId, @value)
             ON CONFLICT (resource_group_id, criterion_id) DO UPDATE
@@ -113,6 +111,9 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
                 p.AddJsonb("value", value.GetRawText());
             },
             r => MapFromReader(r, includeCriterion: false), ct))!;
+
+        await tx.CommitAsync(ct);
+        return capability;
     }
 
     public async Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default)

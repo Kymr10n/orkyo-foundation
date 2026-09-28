@@ -256,16 +256,7 @@ public class UtilizationService(
 
         while (current < to)
         {
-            var next = granularity.ToLowerInvariant() switch
-            {
-                "minute" => current.AddMinutes(15),
-                "hour" => current.AddHours(1),
-                "week" => current.AddDays(7),
-                "month" => current.AddMonths(1),
-                "quarter" => current.AddMonths(3),
-                "year" => current.AddYears(1),
-                _ => current.AddDays(1), // day
-            };
+            var next = UtilizationGranularity.AddStep(current, granularity);
             if (next > to) next = to;
             buckets.Add((current, next));
             current = next;

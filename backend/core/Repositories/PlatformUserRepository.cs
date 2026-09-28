@@ -1,6 +1,7 @@
 using Api.Helpers;
 using Api.Models;
 using Api.Models.Admin;
+using Api.Security;
 using Api.Services;
 using Npgsql;
 
@@ -9,6 +10,15 @@ namespace Api.Repositories;
 public class PlatformUserRepository : IPlatformUserRepository
 {
     private const string PgUniqueViolation = "23505";
+
+    /// <summary>
+    /// The one rule for a user's Keycloak subject: the <c>keycloak</c> row of
+    /// <c>user_identities</c>. Nothing writes <c>users.keycloak_id</c> any more, so that column
+    /// is never consulted. The subquery is correlated to the <c>users</c> row the caller names
+    /// with <paramref name="usersAlias"/>.
+    /// </summary>
+    internal static string KeycloakSubjectSubquery(string usersAlias = "users") =>
+        $"(SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = {usersAlias}.id AND ui.provider = 'keycloak' LIMIT 1)";
 
     private readonly IDbConnectionFactory _connectionFactory;
 
@@ -50,7 +60,7 @@ public class PlatformUserRepository : IPlatformUserRepository
                 u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at,
                 (SELECT COUNT(*) FROM tenant_memberships tm WHERE tm.user_id = u.id AND tm.status = 'active') as membership_count,
                 (SELECT COUNT(*) FROM user_identities ui WHERE ui.user_id = u.id) as identity_count,
-                (SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'keycloak' LIMIT 1) as keycloak_sub,
+                {KeycloakSubjectSubquery("u")} as keycloak_sub,
                 ot.id as owned_tenant_id,
                 COUNT(*) OVER () AS total_count
             FROM users u
@@ -181,18 +191,9 @@ public class PlatformUserRepository : IPlatformUserRepository
         string currentEmail;
         string? pendingEmail;
         string? displayName;
-        await using (var findCmd = new NpgsqlCommand(@"
+        await using (var findCmd = new NpgsqlCommand($@"
             SELECT u.id,
-                   COALESCE(
-                       u.keycloak_id,
-                       (
-                           SELECT ui.provider_subject
-                           FROM user_identities ui
-                           WHERE ui.user_id = u.id
-                             AND ui.provider = 'keycloak'
-                           LIMIT 1
-                       )
-                   ) AS keycloak_id,
+                   {KeycloakSubjectSubquery("u")} AS keycloak_id,
                    u.email,
                    u.pending_email,
                    u.display_name
@@ -279,16 +280,15 @@ public class PlatformUserRepository : IPlatformUserRepository
     public async Task<AccountLifecycleConfirmRecord?> FindActiveLifecycleConfirmAsync(string token, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        return await conn.QuerySingleOrDefaultAsync(@"
+        return await conn.QuerySingleOrDefaultAsync($@"
             SELECT id,
-                   (SELECT ui.provider_subject FROM user_identities ui
-                    WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id,
+                   {KeycloakSubjectSubquery()} AS keycloak_id,
                    display_name, lifecycle_status
             FROM users
             WHERE lifecycle_confirm_token = @token
               AND lifecycle_status IS NOT NULL
               AND lifecycle_confirm_token_expires_at > NOW()",
-            p => p.AddWithValue("token", UserLifecycleService.HashConfirmToken(token)),
+            p => p.AddWithValue("token", SecureTokens.LifecycleConfirmTokenHash(token)),
             reader =>
             {
                 var userId = reader.GetGuid("id");
@@ -395,7 +395,7 @@ public class PlatformUserRepository : IPlatformUserRepository
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         return await conn.ExecuteScalarAsync<string?>(
-            "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1",
+            $"SELECT {KeycloakSubjectSubquery()} FROM users WHERE id = @userId",
             p => p.AddWithValue("userId", userId), ct);
     }
 }

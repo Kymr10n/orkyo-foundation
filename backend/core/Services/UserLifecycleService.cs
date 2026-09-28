@@ -1,8 +1,7 @@
-using System.Security.Cryptography;
-using System.Text;
 using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
+using Api.Repositories;
 using Api.Security;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
@@ -77,8 +76,7 @@ public sealed class UserLifecycleService
         await using var cmd = currentWarningCount == 0
             ? new Npgsql.NpgsqlCommand($@"
                 SELECT id, email, display_name,
-                       (SELECT ui.provider_subject FROM user_identities ui
-                        WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
+                       {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
                 FROM users
                 WHERE lifecycle_status IS NULL
                   AND status = 'active'
@@ -89,8 +87,7 @@ public sealed class UserLifecycleService
                   )", db)
             : new Npgsql.NpgsqlCommand($@"
                 SELECT id, email, display_name,
-                       (SELECT ui.provider_subject FROM user_identities ui
-                        WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
+                       {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
                 FROM users
                 WHERE lifecycle_status = 'warned'
                   AND lifecycle_warning_count = @count
@@ -113,7 +110,7 @@ public sealed class UserLifecycleService
                 // leaves the user where they were, so an SMTP outage cannot advance them unwarned.
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "warned", warningCount: nextCount,
-                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: HashConfirmToken(token), ct);
+                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: SecureTokens.LifecycleConfirmTokenHash(token), ct);
 
                 if (!await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct))
                 {
@@ -136,8 +133,7 @@ public sealed class UserLifecycleService
     {
         await using var cmd = new Npgsql.NpgsqlCommand($@"
             SELECT id, email, display_name,
-                   (SELECT ui.provider_subject FROM user_identities ui
-                    WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
+                   {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
             FROM users
             WHERE lifecycle_status = 'warned'
               AND lifecycle_warning_count = 3
@@ -197,8 +193,7 @@ public sealed class UserLifecycleService
     {
         await using var cmd = new Npgsql.NpgsqlCommand($@"
             SELECT id, email, display_name,
-                   (SELECT ui.provider_subject FROM user_identities ui
-                    WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
+                   {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
             FROM users
             WHERE lifecycle_status = 'dormant'
               AND lifecycle_dormant_since < NOW() - INTERVAL '{LifecyclePolicyConstants.UserPurgeAfterDormantSqlInterval}'
@@ -240,14 +235,6 @@ public sealed class UserLifecycleService
             }
         }
     }
-
-    /// <summary>
-    /// The stored form of a confirm-activity token: SHA-256 as lowercase hex, cut to 32 characters
-    /// (128 bits) because <c>lifecycle_confirm_token</c> is <c>varchar(36)</c> and applied migrations
-    /// are immutable. The mailed token keeps its full 256 bits; only its digest is stored.
-    /// </summary>
-    internal static string HashConfirmToken(string token) =>
-        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)))[..32];
 
     private static async Task<List<(Guid Id, string Email, string DisplayName, string? KeycloakId)>> ReadUsersAsync(
         Npgsql.NpgsqlCommand cmd, CancellationToken ct)

@@ -16,16 +16,8 @@ public class InsightsQueryValidator : AbstractValidator<InsightsQuery>
     {
         RuleFor(x => x).Custom((q, ctx) =>
         {
-            if (q.From is null || q.To is null)
-            {
-                ctx.AddFailure("from", "'from' and 'to' are required.");
+            if (!WindowRules.HasOrderedBounds(q.From, q.To, ctx, out var from, out var to))
                 return;
-            }
-            if (q.From >= q.To)
-            {
-                ctx.AddFailure("from", "'from' must be before 'to'.");
-                return;
-            }
 
             if (q.View == InsightsView.Trend)
             {
@@ -41,7 +33,7 @@ public class InsightsQueryValidator : AbstractValidator<InsightsQuery>
                 }
             }
 
-            if ((q.To.Value - q.From.Value).TotalDays > MaxRangeDays(q))
+            if (WindowRules.Exceeds(from, to, MaxRangeDays(q)))
                 ctx.AddFailure("to", q.View == InsightsView.Trend
                     ? $"Date range too large for bucket '{q.Bucket}'."
                     : "Date range too large.");

@@ -129,22 +129,57 @@ public static class NpgsqlQueryExtensions
         CancellationToken ct = default,
         Action<NpgsqlParameterCollection>? bindCount = null)
     {
-        await EnsureOpenAsync(conn, ct);
         var p = page.Sanitize();
+        var (items, totalItems) = await CountThenListAsync(conn, countSql, querySql, p.PageSize, p.Offset, bind, bindCount, map, ct);
+        return PagedResult<T>.Create(items, totalItems, p);
+    }
+
+    /// <summary>
+    /// The unpaged branch of a list: the COUNT then the first <paramref name="cap"/> rows of the
+    /// same SELECT (with <c>@limit</c> and <c>@offset</c>, as for <see cref="QueryPagedAsync"/>),
+    /// as a <see cref="PagedResult{T}.Capped"/> result so a list cut at the cap says so.
+    /// <see cref="QueryPagedAsync"/> cannot serve it: <see cref="PageRequest.Sanitize"/> would
+    /// shrink the cap to <see cref="PageRequest.MaxPageSize"/>.
+    /// </summary>
+    public static async Task<PagedResult<T>> QueryCappedAsync<T>(
+        this NpgsqlConnection conn,
+        int cap,
+        string countSql,
+        string querySql,
+        Action<NpgsqlParameterCollection>? bind,
+        Func<NpgsqlDataReader, T> map,
+        CancellationToken ct = default)
+    {
+        var (items, totalItems) = await CountThenListAsync(conn, countSql, querySql, cap, 0, bind, null, map, ct);
+        return PagedResult<T>.Capped(items, totalItems, cap);
+    }
+
+    private static async Task<(List<T> Items, int TotalItems)> CountThenListAsync<T>(
+        NpgsqlConnection conn,
+        string countSql,
+        string querySql,
+        int limit,
+        int offset,
+        Action<NpgsqlParameterCollection>? bind,
+        Action<NpgsqlParameterCollection>? bindCount,
+        Func<NpgsqlDataReader, T> map,
+        CancellationToken ct)
+    {
+        await EnsureOpenAsync(conn, ct);
 
         await using var countCmd = new NpgsqlCommand(countSql, conn);
         (bindCount ?? bind)?.Invoke(countCmd.Parameters);
         var totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
 
         await using var cmd = new NpgsqlCommand(querySql, conn);
-        cmd.Parameters.AddWithValue("limit", p.PageSize);
-        cmd.Parameters.AddWithValue("offset", p.Offset);
+        cmd.Parameters.AddWithValue("limit", limit);
+        cmd.Parameters.AddWithValue("offset", offset);
         bind?.Invoke(cmd.Parameters);
 
         var items = new List<T>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) items.Add(map(reader));
-        return PagedResult<T>.Create(items, totalItems, p);
+        return (items, totalItems);
     }
 
     /// <summary>

@@ -260,6 +260,19 @@ public class UtilizationServiceTests
         Assert.Equal(to, result.Buckets[^1].End);
     }
 
+    [Fact]
+    public async Task ResourceUtilization_UnknownGranularity_IsAProgrammingError()
+    {
+        // The validator refuses it upstream; the service no longer quietly answers day buckets
+        // for a bucket size it does not know, which would have hidden a validator gap.
+        var service = BuildService(MakeResource(AllocationModes.Fractional));
+        var from = new DateTime(2026, 7, 10, 0, 0, 0, DateTimeKind.Utc);
+
+        var act = () => service.GetResourceUtilizationAsync(ResourceId, from, from.AddDays(1), "fortnight");
+
+        await act.Should().ThrowAsync<ArgumentOutOfRangeException>().WithMessage("*fortnight*");
+    }
+
     // ── Off-time tests ────────────────────────────────────────────────────
 
     [Fact]

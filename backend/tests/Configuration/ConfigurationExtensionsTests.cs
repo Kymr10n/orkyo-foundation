@@ -125,6 +125,17 @@ public class ConfigurationExtensionsTests
         config.IsSet("SMTP_HOST").Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData("staging", "staging")]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void GetNonEmptyOrNull_TreatsEmptyAsUnset(string? value, string? expected)
+    {
+        var config = BuildConfig(new Dictionary<string, string?> { ["DEPLOYMENT_MODE"] = value });
+
+        config.GetNonEmptyOrNull("DEPLOYMENT_MODE").Should().Be(expected);
+    }
+
     private static IConfiguration BuildConfig(Dictionary<string, string?>? values = null)
     {
         return new ConfigurationBuilder()

@@ -51,7 +51,7 @@ public partial class ConventionContractTests
     // Both routes from a service to the database: a hand-built command (optionally namespace-
     // qualified) and the NpgsqlQueryExtensions helpers, which take the connection local `conn`
     // or `db` (docs/conventions.md, "Opening a connection").
-    [GeneratedRegex(@"new\s+(?:Npgsql\.)?NpgsqlCommand|(?<![\w.])(?:conn|db)\.(?:QueryListAsync|QuerySingleOrDefaultAsync|ExecuteAsync|ExecuteScalarAsync|ExistsAsync|QueryPagedAsync)\(")]
+    [GeneratedRegex(@"new\s+(?:Npgsql\.)?NpgsqlCommand|(?<![\w.])(?:conn|db)\.(?:QueryListAsync|QuerySingleOrDefaultAsync|ExecuteAsync|ExecuteScalarAsync|ExistsAsync|QueryPagedAsync|QueryCappedAsync)\(")]
     private static partial Regex ServiceSqlAccessRegex();
 
     // ── (h) bare numeric length limits in validators ─────────────────────────

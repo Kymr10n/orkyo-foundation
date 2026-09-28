@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
@@ -371,7 +372,7 @@ public class TenantControlPlaneRepositoryTests
     {
         var userId = await CreateUserAsync();
         var tenantId = await SeedTenantAsync();
-        await SeedMembershipAsync(tenantId, userId);
+        await SeedMembershipAsync(tenantId, userId, role: "editor");
         var key = IdentityCacheKeys.Role(userId, tenantId);
         _cache.Set(key, TenantRole.Admin, TimeSpan.FromMinutes(5));
 
@@ -385,10 +386,50 @@ public class TenantControlPlaneRepositoryTests
     {
         var userId = await CreateUserAsync();
         var tenantId = await SeedTenantAsync();
-        await SeedMembershipAsync(tenantId, userId);
+        await SeedMembershipAsync(tenantId, userId, role: "editor");
 
         await _repo.DeleteMembershipAsync(tenantId, userId);
 
         (await _repo.GetMembershipRoleStatusAsync(tenantId, userId)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteMembership_LastActiveAdmin_IsRefusedAndTheRowStays()
+    {
+        var userId = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+        await SeedMembershipAsync(tenantId, userId, role: "admin");
+
+        var act = () => _repo.DeleteMembershipAsync(tenantId, userId);
+
+        // The same locking statement, and the same error, as an admin removing a member.
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("Cannot remove the last admin. Promote another user to admin first.");
+        (await _repo.GetMembershipRoleStatusAsync(tenantId, userId)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task DeleteMembership_AdminWithAnotherActiveAdmin_Removes()
+    {
+        var leaving = await CreateUserAsync();
+        var staying = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+        await SeedMembershipAsync(tenantId, leaving, role: "admin");
+        await SeedMembershipAsync(tenantId, staying, role: "admin");
+
+        await _repo.DeleteMembershipAsync(tenantId, leaving);
+
+        (await _repo.GetMembershipRoleStatusAsync(tenantId, leaving)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteMembership_NoRow_IsANoOp()
+    {
+        var userId = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+
+        var act = () => _repo.DeleteMembershipAsync(tenantId, userId);
+
+        await act.Should().NotThrowAsync();
     }
 }

@@ -123,9 +123,7 @@ public sealed record DeploymentConfig
 
             OidcAuthority = Require(ConfigKeys.OidcAuthority),
             // Empty counts as unset, so the diagnostics probe's `?? OidcAuthority` falls back.
-            OidcInternalAuthority = configuration.IsSet(ConfigKeys.OidcInternalAuthority)
-                ? configuration[ConfigKeys.OidcInternalAuthority]
-                : null,
+            OidcInternalAuthority = configuration.GetNonEmptyOrNull(ConfigKeys.OidcInternalAuthority),
             KeycloakUrl = Require(ConfigKeys.KeycloakUrl),
             KeycloakRealm = Require(ConfigKeys.KeycloakRealm),
             KeycloakBackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
@@ -140,9 +138,7 @@ public sealed record DeploymentConfig
             // reports as unset instead of claiming a level nobody chose.
             LogLevel = configuration.GetOptionalString(ConfigKeys.LoggingLevelDefault),
             Version = configuration[ConfigKeys.OrkyoVersion],
-            DeploymentMode = configuration.IsSet(ConfigKeys.DeploymentMode)
-                ? configuration[ConfigKeys.DeploymentMode]
-                : null,
+            DeploymentMode = configuration.GetNonEmptyOrNull(ConfigKeys.DeploymentMode),
         };
 
         // Fail fast at startup on a malformed master key (invalid base64 / not 32 bytes) — matches the

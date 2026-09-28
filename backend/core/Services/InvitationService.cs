@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
@@ -354,11 +352,7 @@ public sealed class InvitationService : IInvitationService
 
     /// <summary>
     /// Base64, and it has to stay base64: these hashes are compared against rows written by
-    /// earlier releases. Calendar feeds hash the same way into hex for the same reason.
+    /// earlier releases (<see cref="SecureTokens"/> says why the encodings differ).
     /// </summary>
-    private static string HashToken(string token)
-    {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return Convert.ToBase64String(hash);
-    }
+    private static string HashToken(string token) => SecureTokens.Sha256Base64(token);
 }

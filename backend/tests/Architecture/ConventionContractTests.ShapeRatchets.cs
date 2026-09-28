@@ -25,7 +25,7 @@ public partial class ConventionContractTests
         "src:Endpoints/TenantAuditEndpoints.cs",
     };
 
-    [GeneratedRegex(@"new\s+NpgsqlCommand|NpgsqlDataReader|\.OpenAsync\(|(?<![\w.])(?:conn|db)\.(?:QueryPagedAsync|ExecuteAsync|QueryListAsync|QuerySingleOrDefaultAsync)\(")]
+    [GeneratedRegex(@"new\s+NpgsqlCommand|NpgsqlDataReader|\.OpenAsync\(|(?<![\w.])(?:conn|db)\.(?:QueryPagedAsync|QueryCappedAsync|ExecuteAsync|QueryListAsync|QuerySingleOrDefaultAsync)\(")]
     private static partial Regex EndpointDataAccessRegex();
 
     // ── one cache ────────────────────────────────────────────────────────────

@@ -226,14 +226,10 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     public async Task DeleteMembershipAsync(Guid tenantId, Guid userId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.ExecuteAsync(@"
-            DELETE FROM tenant_memberships
-            WHERE tenant_id = @tenantId AND user_id = @userId",
-            p =>
-            {
-                p.AddWithValue("tenantId", tenantId);
-                p.AddWithValue("userId", userId);
-            }, ct);
+        // The same locking statement as an admin removing a member: a caller that counted the
+        // admins first still cannot race another leave or demotion past the guard.
+        if (await ActiveAdminGuard.DeleteAsync(conn, tenantId, userId, ct) == GuardedMembershipWrite.LastActiveAdmin)
+            throw new ConflictException(ActiveAdminGuard.RemovalRefused);
         // Per process instance: another instance keeps the stale role until its TTL runs out.
         _identityCache?.Remove(IdentityCacheKeys.Role(userId, tenantId));
     }

@@ -66,9 +66,7 @@ public sealed class ReportingTokenService : IReportingTokenService
         // from this file, a publicly known pepper. An empty value counts as absent (the deploy
         // pipeline writes KEY= for unset keys).
         var pepper = TokenCredentialHelper.ResolvePepper(
-            configuration.IsSet(ConfigKeys.ReportingTokenPepper)
-                ? configuration[ConfigKeys.ReportingTokenPepper]
-                : null,
+            configuration.GetNonEmptyOrNull(ConfigKeys.ReportingTokenPepper),
             configuration[ConfigKeys.KeycloakBackendClientSecret],
             $"ReportingTokenService: neither '{ConfigKeys.ReportingTokenPepper}' nor "
             + $"'{ConfigKeys.KeycloakBackendClientSecret}' is set");
