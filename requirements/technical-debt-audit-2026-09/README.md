@@ -93,7 +93,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S21 | F1 | done | names-only fetch moved to its own key `qk.requests.names()`; hook test proves both fetches run |
 | S22 | B3 | todo | |
 | S23 | B3 | todo | |
-| S24 | F1 | todo | |
+| S24 | F1 | partial | `getResources` now logs a warning when an unpaged call returns `hasNextPage` (the envelope keeps the flag for callers); left: no caller pages or shows truncation in the UI yet |
 | S25 | B3 | todo | |
 | S26 | B5 | todo | |
 | S27 | B2 | todo | |

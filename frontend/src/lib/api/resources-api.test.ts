@@ -77,6 +77,29 @@ describe('resources-api', () => {
       );
     });
 
+    it('warns when an unpaged call comes back truncated', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const truncated = pagedResult([mockResource], { pageSize: 1, totalItems: 1500 });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(truncated) });
+
+      const result = await getResources({ isActive: true });
+
+      expect(result.hasNextPage).toBe(true);
+      expect(warn).toHaveBeenCalledWith('[WARN]', expect.stringContaining('1 of 1500'), expect.anything());
+      warn.mockRestore();
+    });
+
+    it('does not warn for an explicit page request with more pages', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const firstPage = pagedResult([mockResource], { pageSize: 1, totalItems: 3 });
+      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(firstPage) });
+
+      await getResources({ page: 1, pageSize: 1 });
+
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
     it('passes siteId filter as query param', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResponse) });
       await getResources({ resourceTypeKey: 'tool', siteId: 'site-1' });
