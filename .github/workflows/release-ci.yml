@@ -100,6 +100,39 @@ jobs:
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
+
+  # ─────────────────────────────────────────────
+  # PR GATES — the local hooks, re-run where --no-verify cannot skip them
+  # ─────────────────────────────────────────────
+  pr-gates:
+    name: pr-gates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Stale markers and docs-impact trailers
+        env:
+          BASE: origin/${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          scripts/ci/check-stale-markers.sh --base "$BASE"
+          status=0
+          msg="$RUNNER_TEMP/commit-msg"
+          for sha in $(git rev-list --no-merges "$BASE..$HEAD_SHA"); do
+            git log -1 --format=%B "$sha" > "$msg"
+            files=$(git diff-tree --no-commit-id --name-only -r --diff-filter=ACMR "$sha")
+            if ! DOCS_IMPACT_FILES="$files" scripts/check-docs-impact.sh "$msg"; then
+              echo "::error::Commit $sha has no Docs-impact trailer"
+              status=1
+            fi
+          done
+          exit "$status"
   # ─────────────────────────────────────────────
   # SECURITY AUDITS — three parallel jobs, all gate downstream builds
   # ─────────────────────────────────────────────

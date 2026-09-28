@@ -18,9 +18,14 @@ ERRORS=0
 BASE_REF="${GITHUB_BASE_REF:-main}"
 
 # ── Determine changed files ───────────────────────────────────────────────────
+# On push: the workflow passes github.event.before as MIGRATION_LINT_BASE, so every
+#   commit of the push is linted (origin/main...HEAD is empty once main has moved).
 # On PR: compare against base branch
-# On push to main: compare last two commits
-if git rev-parse "origin/$BASE_REF" > /dev/null 2>&1; then
+# Otherwise: compare last two commits
+if [ -n "${MIGRATION_LINT_BASE:-}" ] && [ "${MIGRATION_LINT_BASE}" != "0000000000000000000000000000000000000000" ] \
+   && git cat-file -e "${MIGRATION_LINT_BASE}^{commit}" 2>/dev/null; then
+  DIFF_BASE="$MIGRATION_LINT_BASE"
+elif git rev-parse "origin/$BASE_REF" > /dev/null 2>&1; then
   DIFF_BASE="origin/$BASE_REF"
 else
   DIFF_BASE="HEAD~1"

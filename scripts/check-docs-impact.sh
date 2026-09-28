@@ -53,7 +53,9 @@ if printf '%s' "$subject" | grep -qE "$EXEMPT_TYPES"; then
   exit 0
 fi
 
-staged=$(git diff --cached --name-only --diff-filter=ACMR)
+# CI checks commits that already exist, so it passes each commit's file list in
+# DOCS_IMPACT_FILES instead of relying on the index (see release-ci.yml `pr-gates`).
+staged=${DOCS_IMPACT_FILES-$(git diff --cached --name-only --diff-filter=ACMR)}
 [[ -z "$staged" ]] && exit 0
 
 touched=()
