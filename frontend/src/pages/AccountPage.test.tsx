@@ -53,7 +53,6 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
     setAppUser: mockSetAppUser,
   }),
   getAuthTokenSync: () => "test-token",
-  getTenantSlugSync: () => mockMembership?.slug || "demo",
 }));
 
 // Mock tenant navigation

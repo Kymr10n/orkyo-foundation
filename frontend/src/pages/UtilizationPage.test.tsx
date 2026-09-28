@@ -63,7 +63,6 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
     user: { sub: "test-user", email: "test@example.com" },
   }),
   getAuthTokenSync: () => "test-token",
-  getTenantSlugSync: () => "demo",
 }));
 
 // Mock the store — configurable per test

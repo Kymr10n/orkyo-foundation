@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
-import { AuthProvider, useAuth, debugAuth, getTenantSlugSync } from "./AuthContext";
+import { AuthProvider, useAuth, debugAuth } from "./AuthContext";
 import type { AppUser, TenantMembership } from "./AuthContext";
 import { AUTH_STAGES } from "@foundation/src/constants/auth";
 import { getCurrentSubdomain, consumeBreakGlassCookie } from "@foundation/src/lib/utils/tenant-navigation";
@@ -667,21 +667,6 @@ describe("useAuth outside AuthProvider", () => {
     }
     expect(() => render(<Orphan />)).toThrow("useAuth must be used within an AuthProvider");
     consoleSpy.mockRestore();
-  });
-});
-
-// ── getTenantSlugSync ─────────────────────────────────────────────────────
-
-describe("getTenantSlugSync", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("returns null when localStorage has no tenant slug", () => {
-    expect(getTenantSlugSync()).toBeNull();
-  });
-
-  it("returns the stored slug", () => {
-    localStorage.setItem("tenant_slug", "acme");
-    expect(getTenantSlugSync()).toBe("acme");
   });
 });
 

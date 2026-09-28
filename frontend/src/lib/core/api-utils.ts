@@ -10,7 +10,6 @@ import { API_ERROR_CODES, type ApiErrorBody } from "@foundation/src/constants/ap
 import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
-import { getTenantSlugSync } from "@foundation/src/contexts/AuthContext";
 import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
 import { logger } from "@foundation/src/lib/core/logger";
 import { randomId } from "@foundation/src/lib/core/ids";
@@ -58,7 +57,7 @@ export function getTenantSlug(): string {
   }
 
   // For local development or single-tenant deployment, use stored tenant
-  const stored = getTenantSlugSync() || "";
+  const stored = localStorage.getItem(STORAGE_KEYS.TENANT_SLUG) || "";
   if (stored) {
     logger.debug("getTenantSlug() from storage:", stored);
     return stored;

@@ -2,12 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as ApiUtils from "../core/api-utils";
 import { acceptTos, markTourSeen } from "./session-api";
 
-// Mock AuthContext (BFF mode — getAuthTokenSync returns null)
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  getAuthTokenSync: () => null,
-  getTenantSlugSync: () => null,
-}));
-
 // Mock CSRF
 vi.mock("@foundation/src/lib/core/csrf", () => ({
   getCsrfToken: () => 'test-csrf-token',

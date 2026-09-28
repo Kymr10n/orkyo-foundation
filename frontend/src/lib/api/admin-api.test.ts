@@ -22,11 +22,6 @@ import {
   getBreakGlassSessionStatus,
 } from "./admin-api";
 
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  getAuthTokenSync: () => null,
-  getTenantSlugSync: () => null,
-}));
-
 vi.mock("@foundation/src/lib/core/csrf", () => ({
   getCsrfToken: () => "test-csrf-token",
   CSRF_HEADER_NAME: "X-CSRF-Token",

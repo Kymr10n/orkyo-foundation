@@ -2,11 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as ApiUtils from "../core/api-utils";
 import { getConflicts } from "./conflicts-api";
 
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  getAuthTokenSync: () => null,
-  getTenantSlugSync: () => null,
-}));
-
 vi.mock("@foundation/src/lib/core/csrf", () => ({
   getCsrfToken: () => "test-csrf-token",
   CSRF_HEADER_NAME: "X-CSRF-Token",

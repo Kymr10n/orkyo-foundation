@@ -10,11 +10,6 @@ import {
 } from './resources-api';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  getAuthTokenSync: () => null,
-  getTenantSlugSync: () => null,
-}));
-
 vi.mock('@foundation/src/lib/core/csrf', () => ({
   getCsrfToken: () => 'test-csrf-token',
   CSRF_HEADER_NAME: 'X-CSRF-Token',

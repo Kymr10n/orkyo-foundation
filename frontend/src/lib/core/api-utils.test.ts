@@ -7,12 +7,6 @@ import {
     handleApiError,
 } from './api-utils';
 import { runtimeConfig } from '../../config/runtime';
-import * as AuthContext from '../../contexts/AuthContext';
-
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  getAuthTokenSync: vi.fn(),
-  getTenantSlugSync: vi.fn(),
-}));
 
 const { mockRedirectToLogin, mockNavigateToApex } = vi.hoisted(() => ({
   mockRedirectToLogin: vi.fn(),
@@ -50,7 +44,7 @@ describe('api-utils', () => {
 
   describe('getApiHeaders', () => {
     it('includes Content-Type and tenant slug', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
 
       const headers = getApiHeaders();
 
@@ -59,7 +53,7 @@ describe('api-utils', () => {
     });
 
     it('includes tenant slug when available', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('acme');
+      localStorage.setItem('tenant_slug', 'acme');
 
       const headers = getApiHeaders();
 
@@ -67,7 +61,7 @@ describe('api-utils', () => {
     });
 
     it('includes X-Correlation-ID as a valid UUID', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
 
       const headers = getApiHeaders();
 
@@ -79,7 +73,7 @@ describe('api-utils', () => {
     });
 
     it('generates unique correlation IDs per call', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
 
       const id1 = getApiHeaders()['X-Correlation-ID'];
       const id2 = getApiHeaders()['X-Correlation-ID'];
@@ -97,7 +91,7 @@ describe('api-utils', () => {
     });
 
     it('extracts tenant from subdomain when baseDomain is set', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('default');
+      localStorage.setItem('tenant_slug', 'default');
       delete (window as any).location;
       (window as any).location = { hostname: 'acme.orkyo.app' };
       // Set baseDomain via runtimeConfig for testing
@@ -109,7 +103,7 @@ describe('api-utils', () => {
     });
 
     it('uses auth store for localhost', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
       delete (window as any).location;
       (window as any).location = { hostname: 'localhost' };
       (runtimeConfig as any).baseDomain = '';
@@ -120,7 +114,7 @@ describe('api-utils', () => {
     });
 
     it('uses auth store when baseDomain is not set', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
       delete (window as any).location;
       (window as any).location = { hostname: 'orkyo.endpoint.servebeer.com' };
       (runtimeConfig as any).baseDomain = '';
@@ -132,7 +126,7 @@ describe('api-utils', () => {
     });
 
     it('falls back to active_membership slug when tenant_slug is missing', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue(null);
+      localStorage.removeItem('tenant_slug');
       delete (window as any).location;
       (window as any).location = { hostname: 'localhost' };
       (runtimeConfig as any).baseDomain = '';

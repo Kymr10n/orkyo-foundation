@@ -10,12 +10,6 @@ import {
   leaveTenant,
 } from "./tenant-account-api";
 
-// Mock AuthContext (BFF mode)
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  getAuthTokenSync: () => null,
-  getTenantSlugSync: () => null,
-}));
-
 // Mock CSRF
 vi.mock("@foundation/src/lib/core/csrf", () => ({
   getCsrfToken: () => 'test-csrf-token',
