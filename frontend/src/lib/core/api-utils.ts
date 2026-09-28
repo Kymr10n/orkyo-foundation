@@ -8,7 +8,7 @@
 import { runtimeConfig } from "@foundation/src/config/runtime";
 import { API_ERROR_CODES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
 import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@foundation/src/constants/http";
-import { STORAGE_KEYS } from "@foundation/src/constants/storage";
+import { tenantStorage } from "@foundation/src/lib/core/tenant-storage";
 import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
 import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -52,7 +52,7 @@ export function getApiHeaders(method = 'GET'): Record<string, string> {
 }
 
 /**
- * Get tenant slug from URL subdomain or localStorage
+ * Get tenant slug from URL subdomain or, without one, the remembered slug
  */
 export function getTenantSlug(): string {
   const slug = extractSlugFromHostname(window.location.hostname);
@@ -62,28 +62,9 @@ export function getTenantSlug(): string {
   }
 
   // For local development or single-tenant deployment, use stored tenant
-  const stored = localStorage.getItem(STORAGE_KEYS.TENANT_SLUG) || "";
-  if (stored) {
-    logger.debug("getTenantSlug() from storage:", stored);
-    return stored;
-  }
-
-  // Recover from older/local states where only active_membership was persisted.
-  try {
-    const rawMembership = localStorage.getItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP);
-    if (rawMembership) {
-      const parsed = JSON.parse(rawMembership) as { slug?: unknown };
-      if (typeof parsed.slug === "string" && parsed.slug.length > 0) {
-        logger.debug("getTenantSlug() from active membership:", parsed.slug);
-        return parsed.slug;
-      }
-    }
-  } catch {
-    // Ignore malformed storage data and return empty.
-  }
-
-  logger.debug("getTenantSlug() returning empty");
-  return "";
+  const stored = tenantStorage.slug();
+  logger.debug("getTenantSlug() from storage:", stored);
+  return stored;
 }
 
 /**
@@ -91,16 +72,6 @@ export function getTenantSlug(): string {
  */
 export const API_BASE_URL = runtimeConfig.apiBaseUrl;
 
-
-/**
- * Clear locally cached tenant identity. Used when session/break-glass ends.
- * The break-glass session id lives inside ACTIVE_MEMBERSHIP, so removing that
- * single key is enough to wipe the banner state on re-entry.
- */
-function clearTenantState(): void {
-  localStorage.removeItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP);
-  localStorage.removeItem(STORAGE_KEYS.TENANT_SLUG);
-}
 
 /**
  * An error response from the application API. `status` is the HTTP status and `code` the
@@ -168,14 +139,14 @@ export async function handleApiError(response: Response): Promise<never> {
     code === API_ERROR_CODES.BREAK_GLASS_EXPIRED ||
     code === API_ERROR_CODES.BREAK_GLASS_HARD_CAP_REACHED
   ) {
-    clearTenantState();
+    tenantStorage.clear();
     goToApex(returnTo || ROUTE_SITE_ADMIN);
     throw new ApiError(errorMessage || "Break-glass session has ended.", response.status, code);
   }
 
   if (response.status === 401) {
     // Session expired or unauthenticated — clear state and redirect.
-    clearTenantState();
+    tenantStorage.clear();
     // An ephemeral session (the public demo) ends on the marketing site, not at a credentials
     // form its visitor never had. Same shape as the break-glass branch above.
     const sessionEnd = takeSessionEndRedirect();

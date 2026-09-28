@@ -126,16 +126,14 @@ describe('api-utils', () => {
       expect(slug).toBe('demo');
     });
 
-    it('falls back to active_membership slug when tenant_slug is missing', () => {
+    it('no longer reads the legacy active_membership entry', () => {
       localStorage.removeItem('tenant_slug');
       delete (window as any).location;
       (window as any).location = { hostname: 'localhost' };
       (runtimeConfig as any).baseDomain = '';
       localStorage.setItem('active_membership', JSON.stringify({ slug: 'demo' }));
 
-      const slug = getTenantSlug();
-
-      expect(slug).toBe('demo');
+      expect(getTenantSlug()).toBe('');
     });
   });
 
@@ -188,7 +186,6 @@ describe('api-utils', () => {
     });
 
     it('handles 401 token error by clearing app state and redirecting', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
       localStorage.setItem('oidc.user:test', '{"access_token":"token"}');
 
@@ -204,7 +201,6 @@ describe('api-utils', () => {
       );
 
       // App keys cleared
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
       // oidc.* keys left intact — UserManager owns those
       expect(localStorage.getItem('oidc.user:test')).toBe('{"access_token":"token"}');
@@ -241,7 +237,6 @@ describe('api-utils', () => {
     });
 
     it('handles 401 API key error by clearing session', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
       localStorage.setItem('oidc.user:test', '{"access_token":"token"}');
 
@@ -257,7 +252,6 @@ describe('api-utils', () => {
       );
 
       // Session state cleared
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
       // oidc.* keys left intact — UserManager owns those
       expect(localStorage.getItem('oidc.user:test')).toBe('{"access_token":"token"}');
@@ -265,7 +259,6 @@ describe('api-utils', () => {
     });
 
     it('handles 401 invalid API key by clearing session', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
 
       const response = {
         status: 401,
@@ -277,8 +270,6 @@ describe('api-utils', () => {
       await expect(handleApiError(response)).rejects.toThrow(
         'Invalid API key'
       );
-
-      expect(localStorage.getItem('active_membership')).toBeNull();
     });
 
     it('prefers RFC 7807 detail over the generic title', async () => {
@@ -323,7 +314,6 @@ describe('api-utils', () => {
     });
 
     it('handles break_glass_expired by clearing state and navigating to /site-admin', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
 
       const response = {
@@ -339,15 +329,12 @@ describe('api-utils', () => {
       await expect(handleApiError(response)).rejects.toThrow(
         'Break-glass session ended'
       );
-
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
       expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
     it('handles break_glass_hard_cap_reached by navigating to /site-admin', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
 
       const response = {
         status: 410,
@@ -360,8 +347,6 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow('Hard cap reached');
-
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });

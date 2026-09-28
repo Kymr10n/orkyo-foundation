@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { logger } from "@foundation/src/lib/core/logger";
+import { safeStorage } from "@foundation/src/lib/core/safe-storage";
 
 /** Narrower than this and the conversation is unreadable; wider and it swallows the page. */
 export const MIN_PANEL_WIDTH = 320;
@@ -12,7 +12,7 @@ export const DEFAULT_PANEL_WIDTH = 448; // what `sm:max-w-md` gave before this w
  * Width is a property of the screen someone is sitting at, not of their account, so it
  * stays in localStorage rather than travelling with them the way conversations do.
  *
- * @param storageKey namespaced `orkyo.*`, following the convention in `useTypeFilter`.
+ * @param storageKey a `STORAGE_KEYS` entry.
  */
 export function usePanelWidth(storageKey: string) {
   const [width, setWidth] = useState<number>(() => read(storageKey));
@@ -35,14 +35,7 @@ export function usePanelWidth(storageKey: string) {
    * mode each failure would log, turning one drag into hundreds of error lines.
    */
   const remember = useCallback(
-    (value: number) => {
-      try {
-        localStorage.setItem(storageKey, String(value));
-      } catch (err) {
-        // Losing the preference is acceptable; losing the session is not.
-        logger.error("Could not remember the panel width", err);
-      }
-    },
+    (value: number) => safeStorage.set(storageKey, String(value)),
     [storageKey],
   );
 
@@ -122,12 +115,8 @@ function clamp(value: number): number {
 }
 
 function read(storageKey: string): number {
-  try {
-    const stored = localStorage.getItem(storageKey);
-    if (!stored) return DEFAULT_PANEL_WIDTH;
-    const parsed = Number.parseInt(stored, 10);
-    return Number.isFinite(parsed) ? clamp(parsed) : DEFAULT_PANEL_WIDTH;
-  } catch {
-    return DEFAULT_PANEL_WIDTH;
-  }
+  const stored = safeStorage.get(storageKey);
+  if (!stored) return DEFAULT_PANEL_WIDTH;
+  const parsed = Number.parseInt(stored, 10);
+  return Number.isFinite(parsed) ? clamp(parsed) : DEFAULT_PANEL_WIDTH;
 }

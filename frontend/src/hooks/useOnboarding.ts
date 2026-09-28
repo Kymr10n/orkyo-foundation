@@ -7,7 +7,7 @@ import {
   getStarterTemplates,
   getTenantMemberships,
   type CreateTenantRequest,
-  type TenantMembership,
+  type AccountMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import type { StarterTemplate } from "@foundation/src/components/onboarding/StarterTemplatePicker";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -27,7 +27,7 @@ export interface OnboardingData {
   templates: StarterTemplate[];
   templatesError: boolean;
   /** The person's own workspaces that are scheduled for deletion, and can still be restored. */
-  deletingTenants: TenantMembership[];
+  deletingTenants: AccountMembership[];
 }
 
 /**
@@ -42,7 +42,7 @@ export function useOnboardingData(): OnboardingData {
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<StarterTemplate[]>([]);
   const [templatesError, setTemplatesError] = useState(false);
-  const [deletingTenants, setDeletingTenants] = useState<TenantMembership[]>([]);
+  const [deletingTenants, setDeletingTenants] = useState<AccountMembership[]>([]);
 
   useEffect(() => {
     const checkCanCreate = async () => {

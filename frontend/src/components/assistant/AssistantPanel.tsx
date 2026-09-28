@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { Bot, GripVertical, History, Plus, Send, Trash2 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
@@ -89,7 +90,7 @@ export function AssistantPanel({
 
   // On a phone the panel is the whole screen, so there is nothing to drag it against.
   const { isPhone } = useBreakpoint();
-  const { width, isDragging, onPointerDown, onKeyDown } = usePanelWidth("orkyo.assistant.width");
+  const { width, isDragging, onPointerDown, onKeyDown } = usePanelWidth(STORAGE_KEYS.ASSISTANT_WIDTH);
 
   const handleSend = async () => {
     const text = input.trim();

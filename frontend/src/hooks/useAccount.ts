@@ -9,7 +9,7 @@ import {
   deleteTenant,
   getTenantMemberships,
   leaveTenant,
-  type TenantMembership,
+  type AccountMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
@@ -54,7 +54,7 @@ export const useInvalidateUserProfile = () => useInvalidateKeys(qk.userProfile.a
  * list after leave/delete.
  */
 export const useTenantMemberships = () => {
-  const [memberships, setMemberships] = useState<TenantMembership[]>([]);
+  const [memberships, setMemberships] = useState<AccountMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

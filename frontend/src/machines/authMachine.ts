@@ -37,7 +37,7 @@
 
 import { setup, assign, fromPromise } from 'xstate';
 import { runtimeConfig } from '@foundation/src/config/runtime';
-import { STORAGE_KEYS } from '@foundation/src/constants/storage';
+import { tenantStorage } from '@foundation/src/lib/core/tenant-storage';
 import {
   AUTH_EVENTS,
   AUTH_MESSAGES,
@@ -205,10 +205,7 @@ async function fetchSessionFromBff(): Promise<SessionFetchOutput> {
     membership = session.tenants[0];
   }
 
-  if (membership) {
-    localStorage.setItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP, JSON.stringify(membership));
-    localStorage.setItem(STORAGE_KEYS.TENANT_SLUG, membership.slug);
-  }
+  if (membership) tenantStorage.save(membership.slug);
 
   return { kind: 'loaded', session, membership };
 }
@@ -257,10 +254,7 @@ export const authMachine = setup({
       error: null,
     }),
 
-    clearStorage: () => {
-      localStorage.removeItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP);
-      localStorage.removeItem(STORAGE_KEYS.TENANT_SLUG);
-    },
+    clearStorage: () => tenantStorage.clear(),
 
     // Redirect to BFF login endpoint (full-page, browser handles OIDC).
     // Public routes (invitation signup, request-access) must never be
@@ -300,12 +294,10 @@ export const authMachine = setup({
       if (slug) navigateToTenantSubdomain(slug, '/');
     },
 
-    // Persist membership to localStorage (side effect — separate from the assign below)
+    // Remember the chosen organization's slug (side effect — separate from the assign below)
     persistMembership: ({ event }) => {
       if (event.type !== AUTH_EVENTS.TENANT_SELECTED && event.type !== AUTH_EVENTS.MEMBERSHIP_SET) return;
-      const m = (event as { membership: TenantMembership }).membership;
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP, JSON.stringify(m));
-      localStorage.setItem(STORAGE_KEYS.TENANT_SLUG, m.slug);
+      tenantStorage.save((event as { membership: TenantMembership }).membership.slug);
     },
 
     // Assign the selected membership into context (pure)

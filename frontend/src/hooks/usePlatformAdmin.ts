@@ -14,6 +14,7 @@ import {
   updateAnnouncement,
 } from '@foundation/src/lib/api/announcement-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import type { AuditEventPage } from '@foundation/src/lib/api/audit-api';
 import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
 
 /**
@@ -97,12 +98,6 @@ export const useDeleteAnnouncement = (
   });
 
 // ── Audit ────────────────────────────────────────────────────────────────────
-
-/** Wire shape both audit endpoints return (grandfathered `events`/`totalCount`). */
-export interface AuditEventPage<T> {
-  events: T[];
-  totalCount: number;
-}
 
 /**
  * One page of an audit log. The caller owns the key and the fetcher, because the tenant log

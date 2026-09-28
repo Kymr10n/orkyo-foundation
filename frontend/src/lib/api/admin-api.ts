@@ -9,6 +9,7 @@ import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../core/api-client
 import { API_PATHS } from '../core/api-paths';
 import { ApiError } from '../core/api-utils';
 import type { PlanCode } from '@foundation/contracts/plans';
+import type { AuditEventPage } from './audit-api';
 
 // ============================================================================
 // Types
@@ -17,11 +18,8 @@ import type { PlanCode } from '@foundation/contracts/plans';
 /** Mirrors backend TenantStatusConstants and the DB check constraint. */
 export type TenantStatus = 'active' | 'suspended' | 'deleting';
 
-export const TENANT_STATUS = {
-  ACTIVE: 'active',
-  SUSPENDED: 'suspended',
-  DELETING: 'deleting',
-} as const satisfies Record<string, TenantStatus>;
+/** Re-exported from `constants/auth` so saas's admin tabs keep their import path. */
+export { TENANT_STATUS } from '@foundation/src/constants/auth';
 
 export interface AdminTenant {
   id: string;
@@ -466,13 +464,7 @@ export interface PlatformAuditEvent {
   createdAt: string;
 }
 
-export interface PlatformAuditPage {
-  events: PlatformAuditEvent[];
-  page: number;
-  pageSize: number;
-  totalCount: number;
-  totalPages: number;
-}
+export type PlatformAuditPage = AuditEventPage<PlatformAuditEvent>;
 
 export interface PlatformAuditFilters {
   action?: string;

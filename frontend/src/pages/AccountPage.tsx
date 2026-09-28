@@ -38,7 +38,7 @@ import { NotificationPreferencesSection } from "@foundation/src/components/setti
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
-import type { TenantMembership } from "@foundation/src/lib/api/tenant-account-api";
+import type { AccountMembership } from "@foundation/src/lib/api/tenant-account-api";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import {
   useInvalidateUserProfile,
@@ -58,7 +58,7 @@ import { logger } from "@foundation/src/lib/core/logger";
 import { toast } from "sonner";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
-type Membership = TenantMembership;
+type Membership = AccountMembership;
 type EmailChangeStatus = "confirmed" | "expired" | "invalid" | "error" | "conflict";
 
 const roleBadgeVariant: Record<string, "destructive" | "default" | "secondary"> = {

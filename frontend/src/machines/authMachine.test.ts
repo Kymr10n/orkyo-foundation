@@ -39,7 +39,7 @@ vi.mock('@foundation/src/config/runtime', () => ({
 }));
 
 vi.mock('@foundation/src/constants/storage', () => ({
-  STORAGE_KEYS: { ACTIVE_MEMBERSHIP: 'membership', TENANT_SLUG: 'slug' },
+  STORAGE_KEYS: { TENANT_SLUG: 'slug' },
 }));
 
 vi.mock('@foundation/src/constants/auth', () => ({

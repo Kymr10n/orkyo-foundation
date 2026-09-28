@@ -370,7 +370,6 @@ describe("AuthContext BFF session", () => {
 
       act(() => { getAuth().switchTenant(); });
       await waitFor(() => expect(getAuth().authStage).toBe(AUTH_STAGES.SELECTING_TENANT));
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
     });
 
@@ -516,13 +515,12 @@ describe("AuthContext BFF session", () => {
       const getAuth = renderAuthProvider();
       await waitFor(() => expect(getAuth().authStage).toBe(AUTH_STAGES.READY));
       expect(getAuth().appUser).not.toBeNull();
-      expect(localStorage.getItem('active_membership')).not.toBeNull();
+      expect(localStorage.getItem('tenant_slug')).not.toBeNull();
 
       act(() => { getAuth().logout(); });
 
       await waitFor(() => expect(getAuth().appUser).toBeNull());
       expect(getAuth().membership).toBeNull();
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
     });
   });

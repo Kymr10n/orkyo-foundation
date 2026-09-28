@@ -1,28 +1,39 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useRequestTreeStore } from "./request-tree-store";
 
+const KEY = "orkyo.requestTree";
+const persisted = (state: unknown) => localStorage.setItem(KEY, JSON.stringify({ state, version: 0 }));
+const stored = () => JSON.parse(localStorage.getItem(KEY) ?? "{}").state;
+
 describe("request-tree-store hydration", () => {
   beforeEach(() => {
     vi.resetModules();
     localStorage.clear();
   });
 
-  it("restores persisted expanded ids on init", async () => {
-    localStorage.setItem("requestTree.expandedIds", JSON.stringify(["x", "y"]));
+  it("restores persisted expanded ids and view mode on init", async () => {
+    persisted({ expandedIds: ["x", "y"], viewMode: "list" });
     const mod = await import("./request-tree-store");
-    expect(mod.useRequestTreeStore.getState().expandedIds.has("x")).toBe(true);
+    const state = mod.useRequestTreeStore.getState();
+    expect(state.expandedIds.has("x")).toBe(true);
+    expect(state.viewMode).toBe("list");
   });
 
-  it("falls back to an empty set on malformed JSON", async () => {
-    localStorage.setItem("requestTree.expandedIds", "{not json");
+  it("starts empty on malformed JSON", async () => {
+    localStorage.setItem(KEY, "{not json");
     const mod = await import("./request-tree-store");
     expect(mod.useRequestTreeStore.getState().expandedIds.size).toBe(0);
   });
 
-  it("ignores a non-array payload", async () => {
-    localStorage.setItem("requestTree.expandedIds", JSON.stringify({ a: 1 }));
-    const mod = await import("./request-tree-store");
+  it("ignores a non-array payload and non-string ids", async () => {
+    persisted({ expandedIds: { a: 1 } });
+    let mod = await import("./request-tree-store");
     expect(mod.useRequestTreeStore.getState().expandedIds.size).toBe(0);
+
+    vi.resetModules();
+    persisted({ expandedIds: ["a", 7] });
+    mod = await import("./request-tree-store");
+    expect([...mod.useRequestTreeStore.getState().expandedIds]).toEqual(["a"]);
   });
 
   it("defaults viewMode to tree when nothing is persisted", async () => {
@@ -30,14 +41,8 @@ describe("request-tree-store hydration", () => {
     expect(mod.useRequestTreeStore.getState().viewMode).toBe("tree");
   });
 
-  it("restores a persisted list viewMode", async () => {
-    localStorage.setItem("requestTree.viewMode", "list");
-    const mod = await import("./request-tree-store");
-    expect(mod.useRequestTreeStore.getState().viewMode).toBe("list");
-  });
-
   it("falls back to tree for an unrecognized persisted viewMode", async () => {
-    localStorage.setItem("requestTree.viewMode", "grid");
+    persisted({ expandedIds: [], viewMode: "grid" });
     const mod = await import("./request-tree-store");
     expect(mod.useRequestTreeStore.getState().viewMode).toBe("tree");
   });
@@ -80,9 +85,7 @@ describe("useRequestTreeStore", () => {
 
   it("toggle persists the expanded ids to localStorage", () => {
     useRequestTreeStore.getState().toggle("a");
-    expect(
-      JSON.parse(localStorage.getItem("requestTree.expandedIds") ?? "[]"),
-    ).toContain("a");
+    expect(stored().expandedIds).toContain("a");
   });
 
   it("expandAll replaces the set", () => {
@@ -108,6 +111,11 @@ describe("useRequestTreeStore", () => {
     expect(ids.has("c")).toBe(true);
   });
 
+  it("does not persist the selection", () => {
+    useRequestTreeStore.getState().setSelectedId("x");
+    expect(stored().selectedId).toBeUndefined();
+  });
+
   it("setSelectedId updates selection", () => {
     useRequestTreeStore.getState().setSelectedId("x");
     expect(useRequestTreeStore.getState().selectedId).toBe("x");
@@ -118,10 +126,10 @@ describe("useRequestTreeStore", () => {
   it("setViewMode updates state and persists to localStorage", () => {
     useRequestTreeStore.getState().setViewMode("list");
     expect(useRequestTreeStore.getState().viewMode).toBe("list");
-    expect(localStorage.getItem("requestTree.viewMode")).toBe("list");
+    expect(stored().viewMode).toBe("list");
 
     useRequestTreeStore.getState().setViewMode("tree");
     expect(useRequestTreeStore.getState().viewMode).toBe("tree");
-    expect(localStorage.getItem("requestTree.viewMode")).toBe("tree");
+    expect(stored().viewMode).toBe("tree");
   });
 });

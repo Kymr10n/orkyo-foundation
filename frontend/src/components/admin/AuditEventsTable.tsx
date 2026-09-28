@@ -1,6 +1,7 @@
 import { type ReactNode, useState } from 'react';
 
-import { useAuditEventPage, type AuditEventPage } from '@foundation/src/hooks/usePlatformAdmin';
+import { useAuditEventPage } from '@foundation/src/hooks/usePlatformAdmin';
+import type { AuditEventPage } from '@foundation/src/lib/api/audit-api';
 import {
   OrkyoDataTable,
   type ColumnDef,
