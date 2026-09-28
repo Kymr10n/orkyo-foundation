@@ -58,41 +58,27 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
 
     public async Task<ResourceAbsenceInfo?> UpdateAsync(Guid id, UpdateResourceAbsenceRequest request, CancellationToken ct = default)
     {
+        // Only the fields the request carries are written: a read-merge-write of the whole row
+        // would overwrite a concurrent update of another field with the value read before it.
+        var update = RecurringWindowUpdate.Build(request, request.Enabled)
+            .SetIfNotNull("absence_type", request.AbsenceType is { } type ? EnumMapper.ToDbValue(type) : null)
+            .SetIfNotNull("title", request.Title)
+            .SetIfNotNull("notes", request.Notes);
+
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-
-        var existing = await conn.QuerySingleOrDefaultAsync(
-            $"SELECT {Cols} FROM resource_absences WHERE id = @id",
-            p => p.AddWithValue("id", id),
-            SchedulingMapper.MapResourceAbsenceFromReader, ct);
-        if (existing is null) return null;
-
-        var isRecurring = request.IsRecurring ?? existing.IsRecurring;
-        var recurrenceRule = isRecurring ? (request.RecurrenceRule ?? existing.RecurrenceRule) : null;
-
-        return await conn.QuerySingleOrDefaultAsync($@"
-            UPDATE resource_absences SET
-                absence_type    = @absenceType,
-                title           = @title,
-                notes           = @notes,
-                start_ts        = @startTs,
-                end_ts          = @endTs,
-                is_recurring    = @isRecurring,
-                recurrence_rule = @recurrenceRule,
-                enabled         = @enabled
-            WHERE id = @id
-            RETURNING {Cols}",
-            p =>
-            {
-                p.AddWithValue("id", id);
-                p.AddWithValue("absenceType", EnumMapper.ToDbValue(request.AbsenceType ?? existing.AbsenceType));
-                p.AddWithValue("title", request.Title ?? existing.Title);
-                p.AddNullable("notes", request.Notes ?? existing.Notes);
-                p.AddWithValue("startTs", request.StartTs ?? existing.StartTs);
-                p.AddWithValue("endTs", request.EndTs ?? existing.EndTs);
-                p.AddWithValue("isRecurring", isRecurring);
-                p.AddNullable("recurrenceRule", recurrenceRule);
-                p.AddWithValue("enabled", request.Enabled ?? existing.Enabled);
-            }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
+        return update.IsEmpty
+            ? await conn.QuerySingleOrDefaultAsync(
+                $"SELECT {Cols} FROM resource_absences WHERE id = @id",
+                p => p.AddWithValue("id", id),
+                SchedulingMapper.MapResourceAbsenceFromReader, ct)
+            : await conn.QuerySingleOrDefaultAsync(
+                $"UPDATE resource_absences SET {update.SetClause} WHERE id = @id RETURNING {Cols}",
+                p =>
+                {
+                    p.AddWithValue("id", id);
+                    RecurringWindowUpdate.Bind(p, request);
+                    update.Apply(p);
+                }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)

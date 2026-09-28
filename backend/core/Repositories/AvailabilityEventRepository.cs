@@ -113,43 +113,28 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
 
     public async Task<AvailabilityEventInfo?> UpdateAsync(Guid id, UpdateAvailabilityEventRequest request, CancellationToken ct = default)
     {
+        // Only the fields the request carries are written: a read-merge-write of the whole row
+        // would overwrite a concurrent update of another field with the value read before it.
+        var update = RecurringWindowUpdate.Build(request, request.Enabled)
+            .SetIfNotNull("title", request.Title)
+            .SetIfNotNull("description", request.Description)
+            .SetIfNotNull("event_type", request.EventType is { } eventType ? EnumMapper.ToDbValue(eventType) : null)
+            .SetIfNotNull("default_effect", request.DefaultEffect is { } effect ? EnumMapper.ToDbValue(effect) : null);
+
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
 
-        var existing = await FetchEventByIdCoreAsync(conn, id, ct);
-        if (existing == null) return null;
-
-        var isRecurring = request.IsRecurring ?? existing.IsRecurring;
-        var recurrenceRule = isRecurring ? (request.RecurrenceRule ?? existing.RecurrenceRule) : null;
-
-        await using var cmd = new NpgsqlCommand($@"
-            UPDATE availability_events SET
-                title           = @title,
-                description     = @description,
-                event_type      = @eventType,
-                default_effect  = @defaultEffect,
-                start_ts        = @startTs,
-                end_ts          = @endTs,
-                is_recurring    = @isRecurring,
-                recurrence_rule = @recurrenceRule,
-                enabled         = @enabled
-            WHERE id = @id
-            RETURNING {EventCols}", conn);
-
-        BindEventParams(cmd, id, existing.SiteId,
-            request.Title ?? existing.Title,
-            request.Description ?? existing.Description,
-            request.EventType ?? existing.EventType,
-            request.DefaultEffect ?? existing.DefaultEffect,
-            request.StartTs ?? existing.StartTs,
-            request.EndTs ?? existing.EndTs,
-            isRecurring, recurrenceRule,
-            request.Enabled ?? existing.Enabled);
-
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        var updated = SchedulingMapper.MapAvailabilityEventFromReader(reader);
-        reader.Close();
+        var updated = update.IsEmpty
+            ? await FetchEventByIdCoreAsync(conn, id, ct)
+            : await conn.QuerySingleOrDefaultAsync(
+                $"UPDATE availability_events SET {update.SetClause} WHERE id = @id RETURNING {EventCols}",
+                p =>
+                {
+                    p.AddWithValue("id", id);
+                    RecurringWindowUpdate.Bind(p, request);
+                    update.Apply(p);
+                }, SchedulingMapper.MapAvailabilityEventFromReader, ct);
+        if (updated is null) return null;
 
         var scopeMap = await FetchScopesByEventAsync(conn, [id], ct);
         return updated with { Scopes = scopeMap.GetValueOrDefault(id, []) };
