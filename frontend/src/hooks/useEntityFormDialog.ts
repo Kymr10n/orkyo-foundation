@@ -3,6 +3,9 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import { errorMessage } from './mutation-utils';
 import { stableStringify } from '@foundation/src/lib/utils/stable-stringify';
 
+/** A domain save mutation, as a component receives it: the type a dialog prop names. */
+export type SaveMutation<TSaved, TVariables> = UseMutationResult<TSaved, Error, TVariables, unknown>;
+
 /**
  * Shared scaffold for the standard entity edit dialog (see docs/dialog-feedback.md):
  * form + baseline state, reset-on-open, JSON dirty check, and the submit that runs a
@@ -26,7 +29,7 @@ export interface UseEntityFormDialogOptions<TEntity, TForm, TSaved, TVariables> 
    * the invalidation and `suppressErrorToast: true`: this dialog stays open on failure and
    * shows the message inline, so a toast would report the same error twice.
    */
-  mutation: UseMutationResult<TSaved, Error, TVariables, unknown>;
+  mutation: SaveMutation<TSaved, TVariables>;
   /** Builds the mutation's variables; receives the entity for update-vs-create branching. */
   toVariables: (form: TForm, entity: TEntity | null) => TVariables;
   /**

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { FormField } from "@foundation/src/components/ui/FormField";
@@ -14,8 +13,8 @@ import {
   SelectValue,
 } from "@foundation/src/components/ui/select";
 import { useTemplates } from "@foundation/src/hooks/useTemplates";
-import { useCreateRouting, useUpdateRouting } from "@foundation/src/hooks/useRoutings";
-import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { useSaveRouting } from "@foundation/src/hooks/useRoutings";
+import { useEntityFormDialog } from "@foundation/src/hooks/useEntityFormDialog";
 import type { Routing, RoutingStepRequest } from "@foundation/src/types/routings";
 
 interface RoutingEditDialogProps {
@@ -103,29 +102,33 @@ export function toStepRequests(steps: StepForm[]): { steps: RoutingStepRequest[]
  * so one "Mill" template serves every part that is milled.
  */
 export function RoutingEditDialog({ routing, open, onOpenChange }: RoutingEditDialogProps) {
-  const [form, setForm] = useState<FormState>(empty);
-  const [baseline, setBaseline] = useState<FormState>(empty);
-  const [error, setError] = useState<string | null>(null);
-
-  const createMutation = useCreateRouting();
-  const updateMutation = useUpdateRouting();
-  const isSubmitting = routing ? updateMutation.isPending : createMutation.isPending;
+  const mutation = useSaveRouting();
+  const { form, setForm, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
+    open,
+    onOpenChange,
+    entity: routing,
+    emptyForm: () => empty,
+    toForm: fromRouting,
+    mutation,
+    // Checked before anything is sent; the message shows in the dialog's inline error.
+    validate: (f: FormState) => {
+      if (!f.name.trim()) return "Name is required";
+      const converted = toStepRequests(f.steps);
+      return "error" in converted ? converted.error : null;
+    },
+    toVariables: (f: FormState, r: Routing | null) => {
+      // `validate` has passed, so the steps convert.
+      const converted = toStepRequests(f.steps);
+      const data = {
+        name: f.name.trim(),
+        description: f.description.trim() || undefined,
+        steps: "steps" in converted ? converted.steps : [],
+      };
+      return r ? { id: r.id, data } : { id: null, data };
+    },
+  });
 
   const { data: templates = [] } = useTemplates("request", open);
-
-  // Reseed when the dialog opens or swaps routing while open (render-phase, see SiteEditDialog).
-  const [synced, setSynced] = useState<{ open: boolean; routing: Routing | null } | null>(null);
-  if (synced?.open !== open || synced.routing !== routing) {
-    setSynced({ open, routing });
-    if (open) {
-      setError(null);
-      const next = routing ? fromRouting(routing) : empty;
-      setForm(next);
-      setBaseline(next);
-    }
-  }
-
-  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
 
   const setStep = (index: number, patch: Partial<StepForm>) =>
     setForm((f) => ({
@@ -147,38 +150,13 @@ export function RoutingEditDialog({ routing, open, onOpenChange }: RoutingEditDi
       return { ...f, steps };
     });
 
-  const handleSubmit = async () => {
-    setError(null);
-    if (!form.name.trim()) {
-      setError("Name is required");
-      return;
-    }
-    const converted = toStepRequests(form.steps);
-    if ("error" in converted) {
-      setError(converted.error);
-      return;
-    }
-    const request = {
-      name: form.name.trim(),
-      description: form.description.trim() || undefined,
-      steps: converted.steps,
-    };
-    try {
-      if (routing) await updateMutation.mutateAsync({ id: routing.id, request });
-      else await createMutation.mutateAsync(request);
-      onOpenChange(false);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={routing ? "Edit Routing" : "Create Routing"}
       description="The operations a part goes through, in order. Times are per part; quantity is set when a work order is created."
-      onSubmit={handleSubmit}
+      onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel={routing ? "Save Changes" : "Create Routing"}
       submittingLabel={routing ? undefined : "Creating..."}

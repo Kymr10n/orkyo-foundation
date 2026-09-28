@@ -2,12 +2,14 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createApiAccessToken,
   listApiAccessTokens,
+  revokeApiAccessToken,
   type CreateApiAccessTokenRequest,
   type CreatedApiAccessToken,
 } from "@foundation/src/lib/api/api-access-tokens-api";
 import {
   createReportingToken,
   listReportingTokens,
+  revokeReportingToken,
   type CreatedReportingToken,
   type CreateReportingTokenRequest,
 } from "@foundation/src/lib/api/reporting-tokens-api";
@@ -15,7 +17,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 
 /**
  * The two API-credential classes stay separate in storage, auth and audit, so each keeps
- * its own list/create hook here; only revoking is generic enough to share.
+ * its own list, create and revoke hook here.
  */
 
 /** Write-capable API access tokens. Disabled until the API-access entitlement is known. */
@@ -26,15 +28,12 @@ export const useApiAccessTokens = (enabled: boolean) =>
     enabled,
   });
 
-// No successMessage: the raw token dialog that opens on success is the feedback.
-export const useCreateApiAccessToken = (onSuccess: (result: CreatedApiAccessToken) => void) =>
-  useMutation({
-    mutationFn: (request: CreateApiAccessTokenRequest) => createApiAccessToken(request),
-    meta: {
-      errorMessage: "Failed to create token. Please try again.",
-      invalidates: [qk.apiAccessTokens.all()],
-    },
-    onSuccess,
+// No successMessage: the raw token dialog that opens on success is the feedback. The create
+// dialog stays open on failure and shows the message inline.
+export const useCreateApiAccessToken = () =>
+  useMutation<CreatedApiAccessToken, Error, CreateApiAccessTokenRequest>({
+    mutationFn: (request) => createApiAccessToken(request),
+    meta: { suppressErrorToast: true, invalidates: [qk.apiAccessTokens.all()] },
   });
 
 /** Read-only reporting tokens. Disabled until the API-access entitlement is known. */
@@ -45,28 +44,26 @@ export const useReportingTokens = (enabled: boolean) =>
     enabled,
   });
 
-export const useCreateReportingToken = (onSuccess: (result: CreatedReportingToken) => void) =>
-  useMutation({
-    mutationFn: (request: CreateReportingTokenRequest) => createReportingToken(request),
-    meta: {
-      errorMessage: "Failed to create token. Please try again.",
-      invalidates: [qk.reportingTokens.all()],
-    },
-    onSuccess,
+export const useCreateReportingToken = () =>
+  useMutation<CreatedReportingToken, Error, CreateReportingTokenRequest>({
+    mutationFn: (request) => createReportingToken(request),
+    meta: { suppressErrorToast: true, invalidates: [qk.reportingTokens.all()] },
   });
 
-/** Revoking is the same job for both classes; the caller names the endpoint and the list to refresh. */
-export const useRevokeToken = (
-  revokeFn: (id: string) => Promise<void>,
-  invalidates: readonly unknown[],
-  onSuccess: () => void,
-) =>
+const revokeMeta = (invalidates: readonly unknown[]) => ({
+  successMessage: "Token revoked",
+  errorMessage: "Failed to revoke token. Please try again.",
+  invalidates: [invalidates],
+});
+
+export const useRevokeApiAccessToken = () =>
   useMutation({
-    mutationFn: (id: string) => revokeFn(id),
-    meta: {
-      successMessage: "Token revoked",
-      errorMessage: "Failed to revoke token. Please try again.",
-      invalidates: [invalidates],
-    },
-    onSuccess,
+    mutationFn: (id: string) => revokeApiAccessToken(id),
+    meta: revokeMeta(qk.apiAccessTokens.all()),
+  });
+
+export const useRevokeReportingToken = () =>
+  useMutation({
+    mutationFn: (id: string) => revokeReportingToken(id),
+    meta: revokeMeta(qk.reportingTokens.all()),
   });

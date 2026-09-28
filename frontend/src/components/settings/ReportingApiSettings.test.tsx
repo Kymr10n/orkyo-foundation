@@ -3,6 +3,7 @@ import type { ComponentProps } from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReportingApiSettings } from './ReportingApiSettings';
+import { toast } from 'sonner';
 import type { ReportingTokenSummary } from '@foundation/src/lib/api/reporting-tokens-api';
 
 vi.mock('@foundation/src/lib/api/reporting-tokens-api', () => ({
@@ -211,6 +212,31 @@ describe('ReportingApiSettings', () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load reporting tokens/)).toBeInTheDocument();
     });
+  });
+
+  it('offers a retry that reloads the list after a failed load', async () => {
+    vi.mocked(listReportingTokens).mockRejectedValueOnce(new Error('Unauthorized'));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Power BI Dashboard')).toBeInTheDocument();
+    expect(listReportingTokens).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the create dialog open with the failure inline, not a toast', async () => {
+    vi.mocked(createReportingToken).mockRejectedValueOnce(new Error('Token limit reached'));
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.type(screen.getByLabelText('Name'), 'Ops Dashboard');
+    await user.click(screen.getByRole('button', { name: 'Create token' }));
+
+    expect(await screen.findByText('Token limit reached')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Create Reporting Token' })).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('shows Power BI quick-start section', async () => {
