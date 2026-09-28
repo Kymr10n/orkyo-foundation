@@ -47,11 +47,9 @@ import { ScheduleSlotDialog } from "@foundation/src/components/utilization/Sched
 import { requestsToCalendarEvents, scaleToCalendarView } from "@foundation/src/components/utilization/request-calendar-events";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
-import { createRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
 import { ApiError } from "@foundation/src/lib/core/api-utils";
-import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
-import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
+import { useInvalidateRequestData, useSaveRequest } from "@foundation/src/hooks/useRequests";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
@@ -788,20 +786,17 @@ export function UtilizationPage() {
   }, [slotSelection, handleScheduleToGrid]);
 
   // Both chooser paths reuse RequestFormDialog (space picker + validation) and
-  // persist via the existing create/update request APIs. The form pre-selects
+  // persist via useSaveRequest, as the Requests page does. The form pre-selects
   // the calendar's site (scheduleSiteId) so the scheduled request lands on this
   // site's calendar — but the user stays in control and the form warns if they
   // pick a site that won't show here. So persist exactly what they chose.
+  const { mutateAsync: saveRequest } = useSaveRequest({ onSuccess: () => setCalendarForm(null) });
   const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
     if (!calendarForm) return;
     // Returned so the dialog can say when the scheduler moved the dates that were typed.
-    const saved = calendarForm.mode === "edit" && calendarForm.request
-      ? await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode, calendarForm.request.siteId))
-      : await createRequest(buildCreatePayload(data));
-    invalidateRequests();
-    setCalendarForm(null);
-    return saved;
-  }, [calendarForm, invalidateRequests]);
+    const editing = calendarForm.mode === "edit" ? (calendarForm.request ?? null) : null;
+    return saveRequest({ data, editing });
+  }, [calendarForm, saveRequest]);
 
   // The calendar is driven by the page's scale selector + date navigator (shared
   // with the Spaces/People tabs), so scale is page-owned; the calendar only

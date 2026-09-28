@@ -5,6 +5,9 @@ import { useRequestEditor } from '@foundation/src/hooks/useRequestEditor';
 import type { Request } from '@foundation/src/types/requests';
 import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -19,7 +22,8 @@ vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
   RequestFormDialog: ({ open, onSave, onOpenChange }: any) =>
     open ? (
       <div data-testid="form-dialog">
-        <button data-testid="save-btn" onClick={() => onSave(mockFormData)}>Save</button>
+        {/* The real dialog catches a rejected save and shows it inline. */}
+        <button data-testid="save-btn" onClick={() => Promise.resolve(onSave(mockFormData)).catch(() => {})}>Save</button>
         <button data-testid="close-edit-btn" onClick={() => onOpenChange(false)}>Cancel</button>
       </div>
     ) : null,
@@ -64,7 +68,8 @@ function TestHookComponent() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const renderEditor = () => renderWithQuery(<TestHookComponent />);
+// The production feedback cache: the save's toast and invalidation come from its meta.
+const renderEditor = () => renderWithQuery(<TestHookComponent />, { feedback: true });
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -72,6 +77,7 @@ const renderEditor = () => renderWithQuery(<TestHookComponent />);
 
 describe('useRequestEditor', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockUpdateRequest.mockResolvedValue(undefined);
   });
 
@@ -92,9 +98,23 @@ describe('useRequestEditor', () => {
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'] });
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['conflicts'] });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['conflicts'], exact: false });
       });
+    });
+
+    it('toasts the save as the Requests page does, and leaves a failure to the dialog', async () => {
+      renderEditor();
+      fireEvent.click(screen.getByTestId('open-btn'));
+      fireEvent.click(screen.getByTestId('save-btn'));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Request updated'));
+
+      // The dialog shows a rejected save inline, so the cache must not toast it as well.
+      mockUpdateRequest.mockRejectedValueOnce(new Error('Conflict'));
+      fireEvent.click(screen.getByTestId('open-btn'));
+      fireEvent.click(screen.getByTestId('save-btn'));
+      await waitFor(() => expect(mockUpdateRequest).toHaveBeenCalledTimes(2));
+      expect(toast.error).not.toHaveBeenCalled();
     });
 
     it('closes the edit dialog after save', async () => {

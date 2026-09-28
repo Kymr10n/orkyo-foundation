@@ -3,9 +3,7 @@ import {
   RequestFormDialog,
   type RequestFormData,
 } from "@foundation/src/components/requests/RequestFormDialog";
-import { updateRequest } from "@foundation/src/lib/api/request-api";
-import { buildUpdatePayload } from "@foundation/src/lib/utils/utils";
-import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
+import { useSaveRequest } from "@foundation/src/hooks/useRequests";
 import type { Conflict, Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
@@ -24,7 +22,7 @@ interface UseRequestEditorResult {
  * Centralises the open / edit / view-request dialog flow shared by
  * UtilizationPage and ConflictsPage.
  *
- * Owns: dialog state, save handler, and React Query invalidation. Always opens
+ * Owns: dialog state and the save, through `useSaveRequest` like every request save. Always opens
  * `RequestFormDialog`, which decides edit vs. view mode from `useCanEdit()`. These callers
  * open a single request by id (no tree), so `allRequests`/`onNavigate` are
  * omitted and the dialog's breadcrumb, Children tab, Dependencies tab, and derived
@@ -32,8 +30,6 @@ interface UseRequestEditorResult {
  * stays hidden here rather than opening onto an empty picker.
  */
 export function useRequestEditor(): UseRequestEditorResult {
-  const invalidateRequestData = useInvalidateRequestData();
-
   const [request, setRequest] = useState<Request | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -44,17 +40,20 @@ export function useRequestEditor(): UseRequestEditorResult {
     setIsOpen(true);
   }, []);
 
+  const { mutateAsync: saveRequest } = useSaveRequest({
+    onSuccess: () => {
+      setIsOpen(false);
+      setRequest(null);
+    },
+  });
+
   const handleSave = useCallback(
     async (data: RequestFormData) => {
       if (!request) return;
       // Returned so the dialog can say when the scheduler moved the dates that were typed.
-      const saved = await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
-      invalidateRequestData();
-      setIsOpen(false);
-      setRequest(null);
-      return saved;
+      return saveRequest({ data, editing: request });
     },
-    [request, invalidateRequestData],
+    [request, saveRequest],
   );
 
   const dialogs = (

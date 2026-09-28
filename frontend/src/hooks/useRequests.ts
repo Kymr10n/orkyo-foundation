@@ -89,11 +89,14 @@ export function useDeleteRequest(handlers: {
   });
 }
 
-/** Create or update a request from the dialog's form data. */
+/**
+ * Create or update a request from the dialog's form data. Every request save goes through here,
+ * so the same edit toasts the same way on every page. The dialog shows a failure inline.
+ */
 export function useSaveRequest(handlers: {
-  onSuccess: () => void;
-  onError: (error: unknown) => void;
-}) {
+  onSuccess?: () => void;
+  onError?: (error: unknown) => void;
+} = {}) {
   return useMutation({
     mutationFn: ({ data, editing }: { data: RequestFormData; editing: Request | null }) =>
       editing
@@ -105,7 +108,7 @@ export function useSaveRequest(handlers: {
       suppressErrorToast: true,
       invalidates: REQUEST_DERIVED_QUERY_KEYS,
     },
-    onSuccess: () => handlers.onSuccess(),
-    onError: (err) => handlers.onError(err),
+    onSuccess: () => handlers.onSuccess?.(),
+    onError: (err) => handlers.onError?.(err),
   });
 }

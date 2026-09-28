@@ -19,6 +19,7 @@ import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { renderWithQuery, createTestQueryWrapper } from "@foundation/src/test-utils";
+import { toast } from "sonner";
 import { ApiError } from "@foundation/src/lib/core/api-utils";
 
 
@@ -389,8 +390,8 @@ vi.mock("@foundation/src/components/requests/plan/SitePlanCanvas", () => ({
 }));
 
 // The scheduler tab is identified by its surface now, not by the space type key.
-const createWrapper = (initialTab = "stations", types?: string) => {
-  const QueryWrapper = createTestQueryWrapper();
+const createWrapper = (initialTab = "stations", types?: string, feedback = false) => {
+  const QueryWrapper = createTestQueryWrapper({ feedback });
   return ({ children }: { children: React.ReactNode }) => (
     <MemoryRouter initialEntries={[`/?tab=${initialTab}${types ? `&${initialTab === "stations" ? "stationTypes" : "assetTypes"}=${types}` : ""}`]}>
       <QueryWrapper>{children}</QueryWrapper>
@@ -801,6 +802,22 @@ describe("UtilizationPage", () => {
     fireEvent.click(screen.getByTestId("save-request"));
     await waitFor(() => expect(updateRequest).toHaveBeenCalled());
     expect(screen.queryByTestId("request-form-dialog")).not.toBeInTheDocument();
+  });
+
+  it("toasts a calendar save as the Requests page does", async () => {
+    // The calendar used to call the API itself and saved silently.
+    const success = vi.spyOn(toast, "success");
+    const Wrapper = createWrapper("calendar", undefined, true);
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnSlotSelect!(new Date("2026-06-20T09:00:00Z"), new Date("2026-06-20T10:00:00Z"));
+    await waitFor(() => expect(screen.getByTestId("slot-chooser")).toBeInTheDocument());
+    capturedOnScheduleExisting!({ id: "u-1", name: "Existing", planningMode: "leaf", siteId: null });
+    await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByTestId("save-request"));
+    await waitFor(() => expect(success).toHaveBeenCalledWith("Request updated"));
+    success.mockRestore();
   });
 
   // --- Spaces-grid empty-cell scheduling ---
