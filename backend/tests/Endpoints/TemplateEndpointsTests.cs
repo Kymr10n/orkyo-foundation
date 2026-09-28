@@ -532,6 +532,27 @@ public class TemplateEndpointsTests
     }
 
     [Fact]
+    public async Task DeleteTemplate_Twice_SecondReturnsNotFound()
+    {
+        var template = await CreateRequestTemplateAsync();
+
+        var first = await Authorized.DeleteAsync($"/api/templates/{template.Id}");
+        var second = await Authorized.DeleteAsync($"/api/templates/{template.Id}");
+
+        Assert.Equal(HttpStatusCode.NoContent, first.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddTemplateItem_WithNonExistentTemplate_ShouldReturnNotFound()
+    {
+        var response = await Authorized.PostAsJsonAsync($"/api/templates/{Guid.NewGuid()}/items",
+            new CreateTemplateItemRequest { CriterionId = Guid.NewGuid(), Value = "{\"test\": \"value\"}" });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetTemplateItems_WithNonExistentTemplate_ShouldReturnNotFound()
     {
         // Arrange

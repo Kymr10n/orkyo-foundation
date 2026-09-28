@@ -258,17 +258,12 @@ public class UserManagementEndpointsTests
     }
 
     [Fact]
-    public async Task RevokeInvitation_NonExistent_Returns500OrNotFound()
+    public async Task RevokeInvitation_NonExistent_Returns404()
     {
-        // Revoking a non-existent invitation should throw KeyNotFoundException
         var response = await _client.DeleteAsync(
             $"/api/users/invitations/{Guid.NewGuid()}");
 
-        // The endpoint throws KeyNotFoundException which the exception handler maps to 404 or 500
-        Assert.True(
-            response.StatusCode == HttpStatusCode.NotFound ||
-            response.StatusCode == HttpStatusCode.InternalServerError,
-            $"Expected 404 or 500, got {response.StatusCode}");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]

@@ -49,7 +49,7 @@ public class TenantAuditEndpointsTests
     {
         using var client = _fixture.Factory.CreateClient();
         var response = await client.GetAsync("/api/audit/");
-        Assert.True(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

@@ -42,7 +42,7 @@ public class ConflictsEndpointTests
     public async Task GetConflicts_Unauthenticated_Returns401()
     {
         var response = await _anonClient.GetAsync("/api/conflicts");
-        Assert.True(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

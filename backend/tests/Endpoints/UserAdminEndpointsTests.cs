@@ -55,7 +55,7 @@ public class UserAdminEndpointsTests
     public async Task GetUsers_Unauthenticated_Returns401()
     {
         var response = await _client.GetAsync("/api/admin/users");
-        Assert.True(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

@@ -309,9 +309,7 @@ public class ExportEndpointsTests
         var response = await _client.SendAsync(request);
 
         // Assert
-        Assert.True(
-            response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.InternalServerError,
-            $"Expected 403 or 500 (UnauthorizedAccessException), got {response.StatusCode}");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

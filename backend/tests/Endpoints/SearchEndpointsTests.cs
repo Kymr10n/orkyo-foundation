@@ -206,9 +206,6 @@ public class SearchEndpointsTests
         siteResponse.EnsureSuccessStatusCode();
         var site = await siteResponse.Content.ReadFromJsonAsync<SiteInfo>();
 
-        // Wait a moment for the trigger to sync to search_documents
-        await Task.Delay(100);
-
         // Search for the site
         var response = await _client.GetAsync($"/api/search?q=Searchable Structure");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -216,15 +213,13 @@ public class SearchEndpointsTests
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
         result.Should().NotBeNull();
 
-        // Verify we found results with proper structure
-        if (result!.Results.Any())
-        {
-            var firstResult = result.Results.First();
-            firstResult.Id.Should().NotBe(Guid.Empty);
-            firstResult.Type.Should().NotBeNullOrEmpty();
-            firstResult.Title.Should().NotBeNullOrEmpty();
-            firstResult.Permissions.Should().NotBeNull();
-        }
+        // The site's insert trigger writes its search document synchronously.
+        result!.Results.Should().NotBeEmpty();
+        var firstResult = result.Results.First();
+        firstResult.Id.Should().NotBe(Guid.Empty);
+        firstResult.Type.Should().NotBeNullOrEmpty();
+        firstResult.Title.Should().NotBeNullOrEmpty();
+        firstResult.Permissions.Should().NotBeNull();
     }
 
     #endregion
@@ -239,9 +234,6 @@ public class SearchEndpointsTests
         var siteCode = $"uniq-{Guid.NewGuid():N}".Substring(0, 10);
         var createResponse = await _client.PostAsJsonAsync("/api/sites", new { code = siteCode, name = uniqueName });
         createResponse.EnsureSuccessStatusCode();
-
-        // Wait for trigger sync
-        await Task.Delay(100);
 
         // Search for the site
         var response = await _client.GetAsync($"/api/search?q={uniqueName.Substring(0, 20)}&types=site");
@@ -266,9 +258,6 @@ public class SearchEndpointsTests
         });
         createResponse.EnsureSuccessStatusCode();
 
-        // Wait for trigger sync
-        await Task.Delay(100);
-
         // Search for the criterion
         var response = await _client.GetAsync($"/api/search?q={uniqueName.Substring(0, 20)}&types=criterion");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -290,9 +279,6 @@ public class SearchEndpointsTests
             name = uniqueName
         });
         createResponse.EnsureSuccessStatusCode();
-
-        // Wait for trigger sync
-        await Task.Delay(100);
 
         var response = await _client.GetAsync($"/api/search?q={uniqueName.Substring(0, 20)}&types=group");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -320,8 +306,6 @@ public class SearchEndpointsTests
             allocationMode = "Exclusive",
         });
         created.EnsureSuccessStatusCode();
-
-        await Task.Delay(100); // trigger sync
 
         var response = await _client.GetAsync($"/api/search?q={uniqueName[..20]}");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -354,8 +338,6 @@ public class SearchEndpointsTests
         });
         created.EnsureSuccessStatusCode();
 
-        await Task.Delay(100);
-
         var response = await _client.GetAsync($"/api/search?q={uniqueName[..19]}");
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
 
@@ -380,8 +362,6 @@ public class SearchEndpointsTests
         var renamed = $"UniqueSearchRenamed_{Guid.NewGuid():N}";
         var update = await _client.PutAsJsonAsync($"/api/resources/{resource!.Id}", new { name = renamed });
         update.EnsureSuccessStatusCode();
-
-        await Task.Delay(100);
 
         var response = await _client.GetAsync($"/api/search?q={renamed[..22]}");
         var result = await response.Content.ReadFromJsonAsync<SearchResponse>();
@@ -454,9 +434,6 @@ public class SearchEndpointsTests
             name = "Headquarters Building"
         });
         createResponse.EnsureSuccessStatusCode();
-
-        // Wait for trigger sync
-        await Task.Delay(100);
 
         // Search with a partial/fuzzy term
         var response = await _client.GetAsync("/api/search?q=headquarter");

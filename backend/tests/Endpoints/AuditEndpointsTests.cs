@@ -37,7 +37,7 @@ public class AuditEndpointsTests
     public async Task GetAuditEvents_Unauthenticated_Returns401()
     {
         var response = await _client.GetAsync("/api/admin/audit");
-        Assert.True(response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Redirect);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]
