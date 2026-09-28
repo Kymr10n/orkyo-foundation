@@ -74,12 +74,12 @@ describe('MfaSection', () => {
     });
     const confirm = screen.getByRole('button', { name: /Remove MFA/ });
     expect(confirm).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'pw-123' } });
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'fixture-value' } });
     fireEvent.click(confirm);
     await waitFor(() => {
       expect(removeMfa).toHaveBeenCalled();
     });
-    expect(vi.mocked(removeMfa).mock.calls[0][0]).toEqual({ currentPassword: 'pw-123' });
+    expect(vi.mocked(removeMfa).mock.calls[0][0]).toEqual({ currentPassword: 'fixture-value' });
     await waitFor(() => {
       expect(screen.queryByText('Remove Two-Factor Authentication?')).not.toBeInTheDocument();
     });

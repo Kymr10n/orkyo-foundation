@@ -37,6 +37,25 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
      `Orkyo.Migration.Abstractions`, `Orkyo.Foundation` and `@kymr10n/foundation`.
   4. Coordinate infra: Keycloak tag prefix `26.7`, `SECURITY_TRUSTED_PROXY_NETWORKS`, ruleset drops
      `audit-nuget`, migration 2000 needs `approve_unsafe_migration=true`.
+- **Downstream verification — 2026-09-28 (local, sibling checkouts on `main`):**
+  `scripts/test-downstream.sh` ran once. Foundation 3895 passed. Community failed to build:
+  its `SpyIdentityLinkService` kept `GetUserMembershipsAsync` after S38 deleted it from the
+  interface, and IDE0060 is an error there (the S38 note said it still compiles; it does not).
+  With that method removed, community passed 57. Saas passed 653 of 655; the two failures are
+  the expected `CreateAccount_WhenEmailAlreadyExists` (now 200) and
+  `GetUsers_IncludesIsSiteAdminField` (the list now reads `GetRealmRoleMemberIdsAsync`, so the
+  test must fill `MockKeycloak.RealmRoleMemberIds`). Both fixed in the saas working tree, not
+  committed. The product frontends were checked by grep only (no removed symbol imported);
+  a `tsc` run against sibling source is not meaningful (two `node_modules` copies of React and
+  TanStack types).
+- **Prepared, uncommitted:** infra `deploy.yml` image check `26.6-orkyo-` → `26.7-orkyo-` (must
+  land with this merge, not before); `ORKYO_DEPLOYMENT_MODE=cloud` in infra's slot compose and
+  `self-hosted` in community's `release/compose.yml`; `ste-check.py` and
+  `lint-migration-headers.sh` copied to saas and community; the GitGuardian hit
+  (`MfaSection.test.tsx`, a fixture password) renamed to `fixture-value`.
+- **Still open for a person:** remove `audit / NuGet` from the `main-protection` ruleset before
+  merging (it never runs now, so the merge stays blocked); read the `nginx-proxy` subnet on the
+  VPS for `SECURITY_TRUSTED_PROXY_NETWORKS`; the three decisions in step 3.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.
