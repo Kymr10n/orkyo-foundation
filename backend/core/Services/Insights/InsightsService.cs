@@ -540,7 +540,7 @@ public class InsightsService(
             // reported figure by the same factor.
             var span = SchedulingEngine.WorkingMinutesInWindow(bs, be, settings);
 
-            var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be, settings));
+            var blockedMin = SchedulingEngine.BlockedWorkingMinutes(blocked, settings, bs, be);
             var openMin = Math.Max(0, span - blockedMin);
             capacity[i] = resource.BaseAvailabilityPercent / 100.0 * openMin;
 

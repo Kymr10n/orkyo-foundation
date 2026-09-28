@@ -244,14 +244,11 @@ public sealed class ReportingQueryService : IReportingQueryService
 
         await using var conn = _db.CreateTenantConnection(tenant);
 
-        // Single aggregate row (always returned, even with zero requests).
+        // Single aggregate row (always returned, even with zero requests). Created and cancelled
+        // come from stored columns; cancelled is a manual state the calculator never derives.
         var row = await conn.QuerySingleOrDefaultAsync($@"
             SELECT
                 COUNT(*) FILTER (WHERE created_at >= @from AND created_at < @to)          AS created,
-                COUNT(*) FILTER (WHERE status = '{RequestStatuses.InProgress}'
-                                   AND updated_at >= @from AND updated_at < @to)          AS in_progress,
-                COUNT(*) FILTER (WHERE status = '{RequestStatuses.Done}'
-                                   AND updated_at >= @from AND updated_at < @to)          AS done,
                 COUNT(*) FILTER (WHERE status = '{RequestStatuses.Cancelled}'
                                    AND updated_at >= @from AND updated_at < @to)          AS cancelled,
                 AVG(EXTRACT(EPOCH FROM (start_ts - created_at)) / 3600)
@@ -268,13 +265,42 @@ public sealed class ReportingQueryService : IReportingQueryService
                 PeriodStartUtc = from,
                 PeriodEndUtc = to,
                 CreatedCount = reader.GetInt32("created"),
-                InProgressCount = reader.GetInt32("in_progress"),
-                CompletedCount = reader.GetInt32("done"),
                 CancelledCount = reader.GetInt32("cancelled"),
                 AverageLeadTimeHours = reader.GetNullableDouble("avg_lead_hours") is { } leadHours
                     ? Math.Round(leadHours, 1)
                     : null,
             }, ct);
+
+        // In progress and done are derived on read (RequestStatusCalculator): the stored column only
+        // ever holds new/cancelled/deferred, so counting stored values reported 0 in production.
+        // A request counts as in progress when it started in the window and is running now, and as
+        // completed when its window ended inside the period and it is done now.
+        var scheduled = await conn.QueryListAsync($@"
+            SELECT start_ts, end_ts
+            FROM requests
+            WHERE status NOT IN ('{RequestStatuses.Cancelled}', '{RequestStatuses.Deferred}')
+              AND start_ts IS NOT NULL AND end_ts IS NOT NULL
+              AND ((start_ts >= @from AND start_ts < @to) OR (end_ts >= @from AND end_ts < @to))",
+            p =>
+            {
+                p.AddWithValue("from", from);
+                p.AddWithValue("to", to);
+            },
+            reader => (Start: reader.GetDateTime("start_ts"), End: reader.GetDateTime("end_ts")), ct);
+
+        var now = _time.GetUtcNow().UtcDateTime;
+        var inProgress = 0;
+        var done = 0;
+        foreach (var (start, end) in scheduled)
+        {
+            // Every stored value left after the filter (new, legacy planned, in_progress, done) is
+            // an active state, which the calculator derives from the schedule alone.
+            var effective = RequestStatusCalculator.Effective(RequestStatus.New, start, end, now);
+            if (effective == RequestStatus.InProgress && start >= from && start < to) inProgress++;
+            else if (effective == RequestStatus.Done && end >= from && end < to) done++;
+        }
+        if (row is not null)
+            row = row with { InProgressCount = inProgress, CompletedCount = done };
 
         return ReportingResult<RequestThroughputRow>.Create(row is null ? [] : [row], row is null ? 0 : 1, paged, query.ToMetadata());
     }
@@ -286,7 +312,10 @@ public sealed class ReportingQueryService : IReportingQueryService
 
         await using var conn = _db.CreateTenantConnection(tenant);
 
-        // Detect overbooking: same resource, overlapping non-cancelled assignments
+        // Raw overlaps: same resource, overlapping non-cancelled assignments. This is not the
+        // conflict engine's view — a shared resource with spare capacity lists its legal overlaps
+        // here too — so the rows say "RawOverlap", not "Overbooking". The field names stay for
+        // wire compatibility.
         var totalCount = 0;
         var rows = await conn.QueryListAsync($@"
             SELECT
@@ -328,7 +357,7 @@ public sealed class ReportingQueryService : IReportingQueryService
                 totalCount = reader.GetInt32("total_count");
                 return new ConflictRow
                 {
-                    ConflictType = "Overbooking",
+                    ConflictType = ConflictRow.RawOverlap,
                     ResourceType = reader.GetString("resource_type"),
                     ResourceName = reader.GetString("resource_name"),
                     RequestReference = reader.GetNullableString("request_ref"),

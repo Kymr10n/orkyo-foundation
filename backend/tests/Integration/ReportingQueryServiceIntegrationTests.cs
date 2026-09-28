@@ -6,22 +6,107 @@ using Api.Repositories;
 using Api.Security.Encryption;
 using Api.Services;
 using Api.Services.Reporting;
+using Microsoft.Extensions.Time.Testing;
 using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Integration;
 
 /// <summary>
-/// DB-backed regression test for the capacity-vs-demand reporting query. A resource with multiple
-/// assignments must report its availability ONCE per group it belongs to — not once per assignment.
-/// The previous single-statement join Cartesian-inflated available_hours by the assignment count;
-/// this pins the corrected (de-inflated) value.
+/// DB-backed regression tests for the reporting queries. Capacity vs demand: a resource with
+/// multiple assignments must report its availability ONCE per group it belongs to — not once per
+/// assignment. Throughput: in-progress and completed counts come from the effective status, since
+/// the stored column never holds them.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class ReportingCapacityVsDemandIntegrationTests
+public sealed class ReportingQueryServiceIntegrationTests
 {
     private readonly PostgresFixture _fixture;
 
-    public ReportingCapacityVsDemandIntegrationTests(PostgresFixture fixture) => _fixture = fixture;
+    public ReportingQueryServiceIntegrationTests(PostgresFixture fixture) => _fixture = fixture;
+
+    private TenantContext Tenant() => new()
+    {
+        TenantId = Guid.NewGuid(),
+        TenantSlug = "test-tenant",
+        TenantDbConnectionString = _fixture.TestTenantConnectionString,
+        Status = "active",
+    };
+
+    [Fact]
+    public async Task Throughput_CountsEffectivelyCompletedAndRunningRequests()
+    {
+        // A window no other test writes to. "Now" is inside the second request's schedule.
+        var from = new DateTime(2098, 7, 1, 0, 0, 0, DateTimeKind.Utc);
+        var to = new DateTime(2098, 8, 1, 0, 0, 0, DateTimeKind.Utc);
+        var now = new DateTime(2098, 7, 20, 12, 0, 0, DateTimeKind.Utc);
+
+        // Stored "new" (the only active value the app writes); its window has passed → done.
+        var finished = await SeedRequestAsync(from.AddDays(2), from.AddDays(2).AddHours(3), "new");
+        // Started inside the period and still running at "now" → in progress.
+        var running = await SeedRequestAsync(now.AddHours(-1), now.AddDays(1), "new");
+        // Cancelled stays cancelled whatever its schedule says.
+        var cancelled = await SeedRequestAsync(from.AddDays(3), from.AddDays(3).AddHours(1), "cancelled");
+
+        try
+        {
+            var svc = new ReportingQueryService(_fixture.CreateConnectionFactory(), new FakeTimeProvider(now));
+
+            var result = await svc.GetRequestThroughputAsync(Tenant(), new ReportingQuery { From = from, To = to });
+
+            var row = result.Items.Single();
+            row.CompletedCount.Should().Be(1);
+            row.InProgressCount.Should().Be(1);
+            row.CancelledCount.Should().Be(1);
+        }
+        finally
+        {
+            await DeleteRequestsAsync(finished, running, cancelled);
+        }
+    }
+
+    [Fact]
+    public async Task Conflicts_LabelOverlappingAssignmentsAsRawOverlaps()
+    {
+        var factory = _fixture.CreateConnectionFactory();
+        var org = new OrgContext
+        {
+            OrgId = Guid.NewGuid(),
+            OrgSlug = "test-tenant",
+            DbConnectionString = _fixture.TestTenantConnectionString,
+        };
+        var resources = new ResourceRepository(org, factory, TestEncryption());
+        var from = new DateTime(2098, 9, 1, 0, 0, 0, DateTimeKind.Utc);
+        var resource = await resources.CreateAsync(await ResourceTypeIdAsync("tool"), new CreateResourceRequest
+        {
+            ResourceTypeKey = "tool",
+            Name = $"Tool-{Guid.NewGuid():N}",
+            AllocationMode = AllocationModes.Fractional,
+        });
+        var req1 = await SeedRequestAsync(from.AddHours(1), from.AddHours(3));
+        var req2 = await SeedRequestAsync(from.AddHours(2), from.AddHours(4));
+        await SeedAssignmentAsync(req1, resource.Id, from.AddHours(1), from.AddHours(3));
+        await SeedAssignmentAsync(req2, resource.Id, from.AddHours(2), from.AddHours(4));
+
+        try
+        {
+            var svc = new ReportingQueryService(factory, TimeProvider.System);
+
+            var result = await svc.GetConflictsAsync(
+                Tenant(), new ReportingQuery { From = from, To = from.AddDays(1), PageSize = 5000 });
+
+            var row = result.Items.Single(r => r.ResourceName == resource.Name);
+            row.ConflictType.Should().Be(ConflictRow.RawOverlap);
+            row.OverbookedHours.Should().Be(1d);
+        }
+        finally
+        {
+            await DeleteRequestsAsync(req1, req2);
+            await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+            await using var cmd = new NpgsqlCommand("DELETE FROM resources WHERE id = @r", conn);
+            cmd.Parameters.AddWithValue("r", resource.Id);
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
 
     [Fact]
     public async Task CapacityVsDemand_ResourceWithMultipleAssignments_AvailabilityCountedOncePerGroup()
@@ -61,16 +146,9 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
         try
         {
             var svc = new ReportingQueryService(factory, TimeProvider.System);
-            var tenant = new TenantContext
-            {
-                TenantId = Guid.NewGuid(),
-                TenantSlug = "test-tenant",
-                TenantDbConnectionString = _fixture.TestTenantConnectionString,
-                Status = "active",
-            };
 
             var result = await svc.GetCapacityVsDemandAsync(
-                tenant, new ReportingQuery { From = from, To = to, PageSize = 5000 });
+                Tenant(), new ReportingQuery { From = from, To = to, PageSize = 5000 });
 
             var row = result.Items.Single(r => r.ResourceGroupName == group.Name);
 
@@ -95,7 +173,7 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
         return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
 
-    private async Task<Guid> SeedRequestAsync(DateTime startTs, DateTime endTs)
+    private async Task<Guid> SeedRequestAsync(DateTime startTs, DateTime endTs, string status = "planned")
     {
         var id = Guid.NewGuid();
         await using var conn = await _fixture.OpenTestTenantConnectionAsync();
@@ -104,9 +182,10 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
                 (id, name, site_id, status, start_ts, end_ts, minimal_duration_value, minimal_duration_unit,
                  planning_mode, created_at, updated_at)
             VALUES
-                (@id, @name, NULL, 'planned', @startTs, @endTs, 60, 'minutes', 'leaf', @now, @now)", conn);
+                (@id, @name, NULL, @status, @startTs, @endTs, 60, 'minutes', 'leaf', @now, @now)", conn);
         cmd.Parameters.AddWithValue("id", id);
         cmd.Parameters.AddWithValue("name", $"Req {id.ToString()[..8]}");
+        cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("startTs", startTs);
         cmd.Parameters.AddWithValue("endTs", endTs);
         cmd.Parameters.AddWithValue("now", startTs);
@@ -124,6 +203,16 @@ public sealed class ReportingCapacityVsDemandIntegrationTests
         cmd.Parameters.AddWithValue("resourceId", resourceId);
         cmd.Parameters.AddWithValue("start", startUtc);
         cmd.Parameters.AddWithValue("end", endUtc);
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    private async Task DeleteRequestsAsync(params Guid[] ids)
+    {
+        await using var conn = await _fixture.OpenTestTenantConnectionAsync();
+        await using var cmd = new NpgsqlCommand(@"
+            DELETE FROM resource_assignments WHERE request_id = ANY(@ids);
+            DELETE FROM requests WHERE id = ANY(@ids);", conn);
+        cmd.Parameters.AddWithValue("ids", ids);
         await cmd.ExecuteNonQueryAsync();
     }
 

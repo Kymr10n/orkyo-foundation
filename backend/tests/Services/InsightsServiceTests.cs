@@ -320,6 +320,32 @@ public class InsightsServiceTests
     }
 
     [Fact]
+    public async Task UtilizationTrend_OverlappingAbsenceAndClosure_SubtractTheSharedDaysOnce()
+    {
+        // An absence (Jan 1-11) and a site closure (Jan 6-16) share five days. Utilization merges
+        // them before measuring; Insights used to sum them and remove 20 days instead of 15.
+        var room = Guid.NewGuid();
+        _resources.Setup(r => r.GetEveryAsync(It.IsAny<ResourceListFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([SpaceResource(room)]);
+        _availability.Setup(a => a.GetBlockedPeriodsForResourcesAsync(
+                It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Guid> ids, CancellationToken _) => ids.ToDictionary(
+                id => id,
+                id => id == room
+                    ? new List<BlockedPeriod>
+                    {
+                        Block(Jan, new DateTime(2026, 1, 11, 0, 0, 0, DateTimeKind.Utc)),
+                        Block(new DateTime(2026, 1, 6, 0, 0, 0, DateTimeKind.Utc), new DateTime(2026, 1, 16, 0, 0, 0, DateTimeKind.Utc)),
+                    }
+                    : []));
+
+        var result = await _service.GetUtilizationTrendAsync(
+            new InsightsFilter { From = Jan, To = Mar, Bucket = "month", ResourceType = "space" });
+
+        Assert.Equal(JanMinutes - 15 * 24 * 60, result.Series[0].TotalCapacityMinutes);
+    }
+
+    [Fact]
     public async Task UtilizationTrend_NullPercentWhenNoCapacityConfigured()
     {
         // No resources of this type → no capacity → honest null, not a fake 0%.

@@ -125,7 +125,7 @@ public static class ReportingEndpoints
 
         group.MapGet("/conflicts", GetConflicts)
             .WithName("GetReportingConflicts")
-            .WithSummary("Resource overbooking conflicts in the given period")
+            .WithSummary("Raw assignment overlaps per resource in the given period (ignores shared capacity)")
             .Produces<ReportingResult<ConflictRow>>()
             .Produces(401).Produces(403);
 

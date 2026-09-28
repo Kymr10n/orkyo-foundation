@@ -114,9 +114,16 @@ public record RequestThroughputRow
     public double? AverageLeadTimeHours { get; init; }
 }
 
+/// <summary>
+/// One pair of overlapping non-cancelled assignments on a resource. A raw overlap, not a conflict
+/// from the conflict engine: it ignores fractional and shared capacity.
+/// <see cref="OverbookedHours"/> keeps its name for wire compatibility and holds the overlap length.
+/// </summary>
 public record ConflictRow
 {
-    public string ConflictType { get; init; } = "Overbooking";
+    public const string RawOverlap = "RawOverlap";
+
+    public string ConflictType { get; init; } = RawOverlap;
     public string ResourceType { get; init; } = "";
     public string ResourceName { get; init; } = "";
     public string? RequestReference { get; init; }
