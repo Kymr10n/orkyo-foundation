@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Constants;
 using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -260,5 +261,98 @@ public class UserAdminEndpointsTests
         var response = await _client.SendAsync(
             Auth(HttpMethod.Post, $"/api/admin/users/{targetId}/revoke-site-admin", adminToken));
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    // ── Audit, Keycloak failures, self-delete ────────────────────────────────
+
+    private async Task<long> CountAuditAsync(string action, Guid actorId, Guid targetId)
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var cmd = new Npgsql.NpgsqlCommand(
+            "SELECT COUNT(*) FROM audit_events WHERE action = @a AND actor_user_id = @actor AND target_type = 'user' AND target_id = @t", conn);
+        cmd.Parameters.AddWithValue("a", action);
+        cmd.Parameters.AddWithValue("actor", actorId);
+        cmd.Parameters.AddWithValue("t", targetId.ToString());
+        return (long)(await cmd.ExecuteScalarAsync())!;
+    }
+
+    private async Task<string?> GetStatusAsync(Guid userId)
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var cmd = new Npgsql.NpgsqlCommand("SELECT status FROM users WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        return (string?)await cmd.ExecuteScalarAsync();
+    }
+
+    [Theory]
+    [InlineData("deactivate", SecurityAuditActions.UserDeactivated)]
+    [InlineData("reactivate", SecurityAuditActions.UserReactivated)]
+    [InlineData("promote-site-admin", SecurityAuditActions.SiteAdminGranted)]
+    [InlineData("revoke-site-admin", SecurityAuditActions.SiteAdminRevoked)]
+    [InlineData("", SecurityAuditActions.UserDeleted)]
+    public async Task EachAction_WritesAnAuditRow(string route, string action)
+    {
+        ResetKeycloak();
+        if (route == "revoke-site-admin")
+            _fixture.Factory.MockKeycloakAdminService.MockRealmRoles.Add("site-admin");
+        var (targetId, _) = await CreateRegularUserAsync("ua-audit");
+        var (adminId, adminToken) = await CreateSiteAdminAsync("ua-audit-admin");
+
+        var response = route == ""
+            ? await _client.SendAsync(Auth(HttpMethod.Delete, $"/api/admin/users/{targetId}", adminToken))
+            : await _client.SendAsync(Auth(HttpMethod.Post, $"/api/admin/users/{targetId}/{route}", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(1, await CountAuditAsync(action, adminId, targetId));
+    }
+
+    [Fact]
+    public async Task DeactivateUser_WhenKeycloakFails_ReturnsAnErrorAndLeavesTheUserActive()
+    {
+        ResetKeycloak();
+        _fixture.Factory.MockKeycloakAdminService.DisableUserSuccess = false;
+        var (targetId, _) = await CreateRegularUserAsync("ua-kc-fail");
+        var (adminId, adminToken) = await CreateSiteAdminAsync("ua-kc-fail-admin");
+
+        var response = await _client.SendAsync(
+            Auth(HttpMethod.Post, $"/api/admin/users/{targetId}/deactivate", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal(UserStatusConstants.Active, await GetStatusAsync(targetId));
+        Assert.Equal(0, await CountAuditAsync(SecurityAuditActions.UserDeactivated, adminId, targetId));
+    }
+
+    [Fact]
+    public async Task DeleteUser_WhenKeycloakFails_ReturnsAnErrorAndKeepsTheUser()
+    {
+        ResetKeycloak();
+        _fixture.Factory.MockKeycloakAdminService.DeleteUserSuccess = false;
+        var (targetId, _) = await CreateRegularUserAsync("ua-kc-del-fail");
+        var (_, adminToken) = await CreateSiteAdminAsync("ua-kc-del-fail-admin");
+
+        var response = await _client.SendAsync(
+            Auth(HttpMethod.Delete, $"/api/admin/users/{targetId}", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.NotNull(await GetStatusAsync(targetId));
+    }
+
+    [Fact]
+    public async Task DeleteUser_Self_Returns400AndKeepsTheAccount()
+    {
+        ResetKeycloak();
+        var (adminId, adminToken) = await CreateSiteAdminAsync("ua-self-delete");
+
+        var response = await _client.SendAsync(
+            Auth(HttpMethod.Delete, $"/api/admin/users/{adminId}", adminToken));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, _fixture.Factory.MockKeycloakAdminService.DeleteUserCallCount);
+        Assert.NotNull(await GetStatusAsync(adminId));
     }
 }

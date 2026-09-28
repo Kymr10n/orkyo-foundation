@@ -187,25 +187,19 @@ public static class UserAdminEndpoints
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
         IPlatformUserRepository userRepository,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
+        // Keycloak first, and a failure fails the request: the DB must not say "disabled"
+        // while the identity provider still lets the user sign in. An identity Keycloak no
+        // longer has cannot sign in either, so a 404 there is the goal state.
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
-        {
-            try
-            {
-                await keycloak.DisableUserAsync(keycloakId, ct);
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to disable user {UserId} in Keycloak", userId);
-            }
-        }
+            await IgnoreKeycloakNotFoundAsync(() => keycloak.DisableUserAsync(keycloakId, ct));
 
         await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Disabled, ct);
-        logger.LogInformation("Admin {AdminId} deactivated user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.UserDeactivated, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
@@ -214,25 +208,16 @@ public static class UserAdminEndpoints
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
         IPlatformUserRepository userRepository,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
-        {
-            try
-            {
-                await keycloak.EnableUserAsync(keycloakId, ct);
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to enable user {UserId} in Keycloak", userId);
-            }
-        }
+            await keycloak.EnableUserAsync(keycloakId, ct);
 
         await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Active, ct);
-        logger.LogInformation("Admin {AdminId} reactivated user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.UserReactivated, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
@@ -241,32 +226,39 @@ public static class UserAdminEndpoints
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
         IPlatformUserRepository userRepository,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
+        if (userId == principal.UserId)
+            return ErrorResponses.BadRequest("Cannot delete your own account");
+
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
-        {
-            try
-            {
-                await keycloak.DeleteUserAsync(keycloakId, ct);
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to delete user {UserId} from Keycloak", userId);
-            }
-        }
+            await IgnoreKeycloakNotFoundAsync(() => keycloak.DeleteUserAsync(keycloakId, ct));
 
         await userService.PermanentlyDeleteAsync(userId, ct);
-        logger.LogInformation("Admin {AdminId} permanently deleted user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.UserDeleted, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
+    }
+
+    private static async Task IgnoreKeycloakNotFoundAsync(Func<Task> call)
+    {
+        try
+        {
+            await call();
+        }
+        catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status404NotFound)
+        {
+            // Already gone from the identity provider.
+        }
     }
 
     private static async Task<IResult> PromoteSiteAdmin(
         Guid userId,
         IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -291,7 +283,7 @@ public static class UserAdminEndpoints
             return ErrorResponses.UnprocessableEntity("Keycloak identity is stale — user not found in identity provider");
         }
 
-        logger.LogInformation("Admin {AdminId} promoted user {UserId} to site-admin", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.SiteAdminGranted, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
@@ -299,6 +291,7 @@ public static class UserAdminEndpoints
         Guid userId,
         IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -332,7 +325,7 @@ public static class UserAdminEndpoints
             return ErrorResponses.UnprocessableEntity("Keycloak identity is stale — user not found in identity provider");
         }
 
-        logger.LogInformation("Admin {AdminId} revoked site-admin from user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.SiteAdminRevoked, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
