@@ -51,74 +51,66 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
         await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
 
-        try
+        // Validate criterion exists and is applicable to this resource's type.
+        // If no criterion_resource_types entries exist for the resource type, all criteria
+        // are considered applicable (open-world assumption for new resource types).
+        await using var checkCmd = new NpgsqlCommand(@"
+            SELECT 1
+            FROM resources r
+            WHERE r.id = @resourceId
+              AND (
+                EXISTS (
+                    SELECT 1 FROM criterion_resource_types
+                    WHERE criterion_id = @criterionId AND resource_type_id = r.resource_type_id
+                )
+                OR NOT EXISTS (
+                    SELECT 1 FROM criterion_resource_types
+                    WHERE resource_type_id = r.resource_type_id
+                )
+              )", db, tx);
+        checkCmd.Parameters.AddWithValue("resourceId", resourceId);
+        checkCmd.Parameters.AddWithValue("criterionId", criterionId);
+
+        var isApplicable = await checkCmd.ExecuteScalarAsync(ct) != null;
+        if (!isApplicable)
+            throw new CapabilityNotApplicableException(
+                resourceId, criterionId,
+                "Criterion is not applicable to this resource type");
+
+        var valueJson = value.GetRawText();
+
+        await using var cmd = new NpgsqlCommand(
+            $"INSERT INTO {TableName} (resource_id, criterion_id, value) " +
+            "VALUES (@resourceId, @criterionId, @value::jsonb) " +
+            "ON CONFLICT (resource_id, criterion_id) DO UPDATE " +
+            "SET value = EXCLUDED.value, updated_at = NOW() " +
+            "RETURNING id, created_at, updated_at", db, tx);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+        cmd.Parameters.AddWithValue("criterionId", criterionId);
+        cmd.Parameters.AddWithValue("value", valueJson);
+
+        Guid newId;
+        DateTime createdAt, updatedAt;
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            // Validate criterion exists and is applicable to this resource's type.
-            // If no criterion_resource_types entries exist for the resource type, all criteria
-            // are considered applicable (open-world assumption for new resource types).
-            await using var checkCmd = new NpgsqlCommand(@"
-                SELECT 1
-                FROM resources r
-                WHERE r.id = @resourceId
-                  AND (
-                    EXISTS (
-                        SELECT 1 FROM criterion_resource_types
-                        WHERE criterion_id = @criterionId AND resource_type_id = r.resource_type_id
-                    )
-                    OR NOT EXISTS (
-                        SELECT 1 FROM criterion_resource_types
-                        WHERE resource_type_id = r.resource_type_id
-                    )
-                  )", db, tx);
-            checkCmd.Parameters.AddWithValue("resourceId", resourceId);
-            checkCmd.Parameters.AddWithValue("criterionId", criterionId);
-
-            var isApplicable = await checkCmd.ExecuteScalarAsync(ct) != null;
-            if (!isApplicable)
-                throw new CapabilityNotApplicableException(
-                    resourceId, criterionId,
-                    "Criterion is not applicable to this resource type");
-
-            var valueJson = value.GetRawText();
-
-            await using var cmd = new NpgsqlCommand(
-                $"INSERT INTO {TableName} (resource_id, criterion_id, value) " +
-                "VALUES (@resourceId, @criterionId, @value::jsonb) " +
-                "ON CONFLICT (resource_id, criterion_id) DO UPDATE " +
-                "SET value = EXCLUDED.value, updated_at = NOW() " +
-                "RETURNING id, created_at, updated_at", db, tx);
-            cmd.Parameters.AddWithValue("resourceId", resourceId);
-            cmd.Parameters.AddWithValue("criterionId", criterionId);
-            cmd.Parameters.AddWithValue("value", valueJson);
-
-            Guid newId;
-            DateTime createdAt, updatedAt;
-
-            await using (var reader = await cmd.ExecuteReaderAsync(ct))
-            {
-                await reader.ReadAsync(ct);
-                newId = reader.GetGuid(reader.GetOrdinal("id"));
-                createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
-                updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
-            }
-
-            await tx.CommitAsync(ct);
-
-            return new ResourceCapabilityInfo
-            {
-                Id = newId,
-                ResourceId = resourceId,
-                CriterionId = criterionId,
-                Value = value,
-                CreatedAt = createdAt,
-                UpdatedAt = updatedAt,
-            };
+            await reader.ReadAsync(ct);
+            newId = reader.GetGuid(reader.GetOrdinal("id"));
+            createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
+            updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
         }
-        catch
+
+        await tx.CommitAsync(ct);
+
+        return new ResourceCapabilityInfo
         {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+            Id = newId,
+            ResourceId = resourceId,
+            CriterionId = criterionId,
+            Value = value,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+        };
     }
 
     public async Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId, CancellationToken ct = default)

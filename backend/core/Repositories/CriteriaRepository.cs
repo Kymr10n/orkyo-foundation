@@ -115,77 +115,69 @@ public class CriteriaRepository : ICriteriaRepository
         await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
 
-        try
+        // Insert criterion row.
+        var insertCriterion = new NpgsqlCommand(
+            @"INSERT INTO criteria (name, description, data_type, enum_values, unit, validation_json)
+              VALUES (@name, @description, @data_type, @enum_values::jsonb, @unit, @validation::jsonb)
+              ON CONFLICT ((LOWER(name))) DO NOTHING
+              RETURNING id",
+            db, tx);
+        insertCriterion.Parameters.AddWithValue("name", name);
+        insertCriterion.Parameters.AddNullable("description", description);
+        insertCriterion.Parameters.AddWithValue("data_type", dataType.ToString());
+        insertCriterion.Parameters.AddNullable("enum_values",
+            enumValues != null ? JsonSerializer.Serialize(enumValues) : null);
+        insertCriterion.Parameters.AddNullable("unit", unit);
+        insertCriterion.Parameters.AddNullable("validation",
+            validation is { ValueKind: not JsonValueKind.Null } v ? v.GetRawText() : null);
+
+        var idObj = await insertCriterion.ExecuteScalarAsync(ct);
+        if (idObj is null)
+            throw new ConflictException("A criterion with this name already exists");
+        var criterionId = (Guid)idObj;
+
+        // Insert applicability rows. Resolve resource_type_ids by key one
+        // by one — this keeps the SQL simple and gives us per-key error
+        // messages if anything is unknown. Tenants define their own resource
+        // types, so this lookup is the authority on which keys are valid.
+        var keys = resourceTypeKeys.Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var key in keys)
         {
-            // Insert criterion row.
-            var insertCriterion = new NpgsqlCommand(
-                @"INSERT INTO criteria (name, description, data_type, enum_values, unit, validation_json)
-                  VALUES (@name, @description, @data_type, @enum_values::jsonb, @unit, @validation::jsonb)
-                  ON CONFLICT ((LOWER(name))) DO NOTHING
-                  RETURNING id",
+            // Resolve key → id first, then insert. The two-step approach
+            // works around Npgsql VARCHAR/text parameter type inference
+            // edge cases observed with single-statement INSERT … SELECT.
+            var lookup = new NpgsqlCommand(
+                "SELECT id FROM resource_types WHERE key = @key", db, tx);
+            lookup.Parameters.AddWithValue("key", key);
+            var idObj2 = await lookup.ExecuteScalarAsync(ct);
+            if (idObj2 is null)
+                throw new ArgumentException(
+                    $"Applicability key did not match a known resource type: '{key}'");
+            var resourceTypeId = (Guid)idObj2;
+
+            var ins = new NpgsqlCommand(
+                @"INSERT INTO criterion_resource_types (criterion_id, resource_type_id)
+                  VALUES (@criterionId, @resourceTypeId)
+                  ON CONFLICT DO NOTHING",
                 db, tx);
-            insertCriterion.Parameters.AddWithValue("name", name);
-            insertCriterion.Parameters.AddNullable("description", description);
-            insertCriterion.Parameters.AddWithValue("data_type", dataType.ToString());
-            insertCriterion.Parameters.AddNullable("enum_values",
-                enumValues != null ? JsonSerializer.Serialize(enumValues) : null);
-            insertCriterion.Parameters.AddNullable("unit", unit);
-            insertCriterion.Parameters.AddNullable("validation",
-                validation is { ValueKind: not JsonValueKind.Null } v ? v.GetRawText() : null);
-
-            var idObj = await insertCriterion.ExecuteScalarAsync(ct);
-            if (idObj is null)
-                throw new ConflictException("A criterion with this name already exists");
-            var criterionId = (Guid)idObj;
-
-            // Insert applicability rows. Resolve resource_type_ids by key one
-            // by one — this keeps the SQL simple and gives us per-key error
-            // messages if anything is unknown. Tenants define their own resource
-            // types, so this lookup is the authority on which keys are valid.
-            var keys = resourceTypeKeys.Distinct(StringComparer.Ordinal).ToArray();
-            foreach (var key in keys)
-            {
-                // Resolve key → id first, then insert. The two-step approach
-                // works around Npgsql VARCHAR/text parameter type inference
-                // edge cases observed with single-statement INSERT … SELECT.
-                var lookup = new NpgsqlCommand(
-                    "SELECT id FROM resource_types WHERE key = @key", db, tx);
-                lookup.Parameters.AddWithValue("key", key);
-                var idObj2 = await lookup.ExecuteScalarAsync(ct);
-                if (idObj2 is null)
-                    throw new ArgumentException(
-                        $"Applicability key did not match a known resource type: '{key}'");
-                var resourceTypeId = (Guid)idObj2;
-
-                var ins = new NpgsqlCommand(
-                    @"INSERT INTO criterion_resource_types (criterion_id, resource_type_id)
-                      VALUES (@criterionId, @resourceTypeId)
-                      ON CONFLICT DO NOTHING",
-                    db, tx);
-                ins.Parameters.AddWithValue("criterionId", criterionId);
-                ins.Parameters.AddWithValue("resourceTypeId", resourceTypeId);
-                await ins.ExecuteNonQueryAsync(ct);
-            }
-
-            // Re-select with the aggregate column populated so the response
-            // shape matches every other read path.
-            var fetch = new NpgsqlCommand(
-                $"SELECT {SelectColumns} FROM criteria c WHERE c.id = @id", db, tx);
-            fetch.Parameters.AddWithValue("id", criterionId);
-
-            await using var reader = await fetch.ExecuteReaderAsync(ct);
-            await reader.ReadAsync(ct);
-            var created = CriteriaMapper.MapFromReader(reader);
-            await reader.CloseAsync();
-
-            await tx.CommitAsync(ct);
-            return created;
+            ins.Parameters.AddWithValue("criterionId", criterionId);
+            ins.Parameters.AddWithValue("resourceTypeId", resourceTypeId);
+            await ins.ExecuteNonQueryAsync(ct);
         }
-        catch
-        {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+
+        // Re-select with the aggregate column populated so the response
+        // shape matches every other read path.
+        var fetch = new NpgsqlCommand(
+            $"SELECT {SelectColumns} FROM criteria c WHERE c.id = @id", db, tx);
+        fetch.Parameters.AddWithValue("id", criterionId);
+
+        await using var reader = await fetch.ExecuteReaderAsync(ct);
+        await reader.ReadAsync(ct);
+        var created = CriteriaMapper.MapFromReader(reader);
+        await reader.CloseAsync();
+
+        await tx.CommitAsync(ct);
+        return created;
     }
 
     public async Task<CriterionInfo?> UpdateAsync(Guid id, string? name, string? description, List<string>? enumValues, string? unit, JsonElement? validation, CriterionDataType? dataType, CancellationToken ct = default)

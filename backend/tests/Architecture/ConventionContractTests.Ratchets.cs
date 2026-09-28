@@ -221,9 +221,9 @@ public partial class ConventionContractTests
         "core:Repositories/NpgsqlQueryExtensions.cs",
     };
 
-    // `?? DBNull.Value`, `? DBNull.Value :` and `: DBNull.Value` — the three spellings of the
-    // substitution AddNullable owns.
-    [GeneratedRegex(@"[?:]\s*DBNull\.Value")]
+    // `?? DBNull.Value`, `? DBNull.Value :` and `: DBNull.Value`, each optionally cast to
+    // `(object)` — the spellings of the substitution AddNullable owns.
+    [GeneratedRegex(@"[?:]\s*(?:\(object\??\)\s*)?DBNull\.Value")]
     private static partial Regex HandRolledNullBindingRegex();
 
     private static IEnumerable<Ratchet> ConventionRatchets() =>
@@ -297,6 +297,7 @@ public partial class ConventionContractTests
             [
                 new("cmd.Parameters.AddWithValue(\"unit\", (object?)unit ?? DBNull.Value);"),
                 new("p.AddWithValue(\"scheduled\", scheduled.HasValue ? scheduled.Value : DBNull.Value);"),
+                new("p.AddWithValue(\"op\", op is null ? (object)DBNull.Value : op);"),
                 new("p.AddNullable(\"unit\", unit);", false, "the helper is the rule, not an offence"),
                 new("update.Set(\"site_id\", (object)DBNull.Value);", false, "an explicit NULL is not a nullable binding"),
             ],

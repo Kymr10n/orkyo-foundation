@@ -1041,6 +1041,14 @@ public class RequestEndpointsTests
         Assert.NotEqual(Guid.Empty, addedReq.Id);
         Assert.Equal(criterion.Id, addedReq.CriterionId);
         Assert.True(addedReq.Value.GetBoolean());
+
+        // Adding the same criterion again replaces its value on the same row.
+        var again = await _client.PostAsJsonAsync($"/api/requests/{created.Id}/requirements",
+            requirement with { Value = JsonSerializer.SerializeToElement(false) });
+        Assert.Equal(HttpStatusCode.Created, again.StatusCode);
+        var replaced = await again.Content.ReadFromJsonAsync<RequestRequirementInfo>();
+        Assert.Equal(addedReq.Id, replaced!.Id);
+        Assert.False(replaced.Value.GetBoolean());
     }
 
     [Fact]
@@ -1341,8 +1349,11 @@ public class RequestEndpointsTests
         };
         var response = await _client.PatchAsJsonAsync($"/api/requests/{created.Id}/schedule", scheduleData);
 
-        // Assert
+        // Assert: refused, and the window written before the resource check was rolled back
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var after = await _client.GetFromJsonAsync<RequestInfo>($"/api/requests/{created.Id}");
+        Assert.Null(after!.StartTs);
+        Assert.Null(after.EndTs);
     }
 
     [Fact]
