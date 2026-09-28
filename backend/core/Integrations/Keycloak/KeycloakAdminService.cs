@@ -69,7 +69,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     public async Task RevokeSessionAsync(string sessionId, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync(ct);
-        await SendAdminAsync(HttpMethod.Delete, $"sessions/{sessionId}", token, "Failed to revoke session", ct);
+        await SendAdminAsync(HttpMethod.Delete, $"sessions/{Uri.EscapeDataString(sessionId)}", token, "Failed to revoke session", ct);
         _logger.LogInformation("Session {SessionId} revoked", sessionId);
     }
 
@@ -179,7 +179,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     public async Task DeleteUserAsync(string keycloakId, CancellationToken ct = default)
     {
         var token = await GetAdminTokenAsync(ct);
-        await SendAdminAsync(HttpMethod.Delete, $"users/{keycloakId}", token, "Failed to delete user from Keycloak", ct);
+        await SendAdminAsync(HttpMethod.Delete, $"users/{Uri.EscapeDataString(keycloakId)}", token, "Failed to delete user from Keycloak", ct);
         _logger.LogInformation("Deleted user {KeycloakId} from Keycloak", keycloakId);
     }
 
@@ -210,21 +210,16 @@ public class KeycloakAdminService : IKeycloakAdminService
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-        // Verify the credential belongs to this user before deleting
-        using (var credRequest = CreateAdminRequest(HttpMethod.Get, AdminUrl($"users/{userId}/credentials"), token))
-        using (var credResponse = await _httpClient.SendAsync(credRequest, ct))
+        // Verify the credential belongs to this user before deleting. Fails closed: when the
+        // list cannot be read, nothing is deleted.
+        var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
+            $"users/{userId}/credentials", token, "Failed to verify credential ownership", ct) ?? new();
+        if (!credentials.Any(c => c.Id == credentialId))
         {
-            if (credResponse.IsSuccessStatusCode)
-            {
-                var credentials = await ReadJsonAsync<List<KeycloakCredential>>(credResponse, ct) ?? new();
-                if (!credentials.Any(c => c.Id == credentialId))
-                {
-                    throw new KeycloakAdminException("Credential not found for this user", 404);
-                }
-            }
+            throw new KeycloakAdminException("Credential not found for this user", 404);
         }
 
-        await SendAdminAsync(HttpMethod.Delete, $"users/{userId}/credentials/{credentialId}", token, "Failed to remove credential", ct);
+        await SendAdminAsync(HttpMethod.Delete, $"users/{userId}/credentials/{Uri.EscapeDataString(credentialId)}", token, "Failed to remove credential", ct);
 
         _logger.LogInformation("Deleted credential {CredentialId} for user {Sub}", credentialId, keycloakSub);
     }
@@ -316,7 +311,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     {
         var token = await GetAdminTokenAsync(ct);
         var roles = await GetAdminJsonAsync<List<KeycloakRole>>(
-            $"users/{keycloakId}/role-mappings/realm", token, "Failed to check realm roles", ct) ?? new();
+            $"users/{Uri.EscapeDataString(keycloakId)}/role-mappings/realm", token, "Failed to check realm roles", ct) ?? new();
         return roles.Any(r => r.Name == roleName);
     }
 
@@ -358,7 +353,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         }
 
         var method = assign ? HttpMethod.Post : HttpMethod.Delete;
-        await SendAdminAsync(method, $"users/{keycloakId}/role-mappings/realm", token,
+        await SendAdminAsync(method, $"users/{Uri.EscapeDataString(keycloakId)}/role-mappings/realm", token,
             $"Failed to {(assign ? "assign" : "revoke")} role", ct,
             new[] { new { id = role.Id, name = role.Name } });
 
@@ -369,7 +364,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     private async Task SetUserEnabledAsync(string keycloakId, bool enabled, CancellationToken ct)
     {
         var token = await GetAdminTokenAsync(ct);
-        await SendAdminAsync(HttpMethod.Put, $"users/{keycloakId}", token,
+        await SendAdminAsync(HttpMethod.Put, $"users/{Uri.EscapeDataString(keycloakId)}", token,
             $"Failed to {(enabled ? "enable" : "disable")} user in Keycloak", ct, new { enabled });
         _logger.LogInformation("Set enabled={Enabled} for user {KeycloakId}", enabled, keycloakId);
     }
@@ -608,13 +603,15 @@ public class KeycloakAdminService : IKeycloakAdminService
     private async Task<string?> GetKeycloakUserIdAsync(string keycloakSub, string token, CancellationToken ct)
     {
         // The 'sub' claim is typically the Keycloak user ID; verify by looking up the user.
-        var url = AdminUrl($"users/{keycloakSub}");
+        // The returned ID is escaped, so every path built from it is a single segment.
+        var userId = Uri.EscapeDataString(keycloakSub);
+        var url = AdminUrl($"users/{userId}");
         using var request = CreateAdminRequest(HttpMethod.Get, url, token);
         using var response = await _httpClient.SendAsync(request, ct);
 
         if (response.IsSuccessStatusCode)
         {
-            return keycloakSub;
+            return userId;
         }
 
         var body = await response.Content.ReadAsStringAsync(ct);

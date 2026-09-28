@@ -1,4 +1,5 @@
 using System.Net;
+using Api.Services;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 
@@ -65,7 +66,7 @@ public class AccountLifecycleEndpointsTests
                 lifecycle_confirm_token_expires_at = NOW() + make_interval(days => @expiresInDays)
             WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("status", lifecycleStatus);
-        cmd.Parameters.AddWithValue("token", token);
+        cmd.Parameters.AddWithValue("token", UserLifecycleService.HashConfirmToken(token));
         cmd.Parameters.AddWithValue("expiresInDays", tokenExpiresInDays);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync();
@@ -223,7 +224,7 @@ public class AccountLifecycleEndpointsTests
         var (status, count, confirmToken) = await GetUserLifecycleStateAsync(userId);
         status.Should().Be("dormant");
         count.Should().Be(1);
-        confirmToken.Should().Be(token);
+        confirmToken.Should().Be(UserLifecycleService.HashConfirmToken(token));
     }
 
     // ─── idempotency guard ────────────────────────────────────────────────────────

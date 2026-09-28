@@ -18,7 +18,7 @@ public static class AccountLifecycleEndpoints
 {
     public static void MapAccountLifecycleEndpoints(this WebApplication app)
     {
-        // GET /api/account/confirm-activity?token=<uuid>
+        // GET /api/account/confirm-activity?token=<token>
         // Public endpoint — no auth required. User clicks this link from a lifecycle warning email.
         // Clears lifecycle state and redirects to the app. If the account was dormant, re-enables it in Keycloak.
         app.MapGet("/api/account/confirm-activity", [AllowAnonymous] async (

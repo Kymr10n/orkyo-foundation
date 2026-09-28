@@ -77,7 +77,7 @@ public interface IPlatformUserRepository
         Func<string?, string, string, CancellationToken, Task> updateKeycloakEmailAsync,
         CancellationToken ct = default);
 
-    /// <summary>Finds the user matching an unexpired lifecycle confirm-activity token.</summary>
+    /// <summary>Finds the user matching an unexpired lifecycle confirm-activity token (the mailed token; it is hashed before the lookup).</summary>
     Task<AccountLifecycleConfirmRecord?> FindActiveLifecycleConfirmAsync(string token, CancellationToken ct = default);
 
     /// <summary>Clears lifecycle warning/dormancy state (the user confirmed activity).</summary>

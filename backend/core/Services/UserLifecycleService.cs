@@ -1,6 +1,9 @@
+using System.Security.Cryptography;
+using System.Text;
 using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
+using Api.Security;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
 
@@ -71,7 +74,7 @@ public sealed class UserLifecycleService
     {
         var nextCount = currentWarningCount + 1;
 
-        var cmd = currentWarningCount == 0
+        await using var cmd = currentWarningCount == 0
             ? new Npgsql.NpgsqlCommand($@"
                 SELECT id, email, display_name,
                        (SELECT ui.provider_subject FROM user_identities ui
@@ -104,13 +107,13 @@ public sealed class UserLifecycleService
             if (ct.IsCancellationRequested) break;
             try
             {
-                var token = Guid.NewGuid().ToString();
+                var token = SecureTokens.Generate();
 
                 // The step is committed only once the mail is out: a failed send rolls back and
                 // leaves the user where they were, so an SMTP outage cannot advance them unwarned.
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "warned", warningCount: nextCount,
-                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: token, ct);
+                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: HashConfirmToken(token), ct);
 
                 if (!await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct))
                 {
@@ -131,7 +134,7 @@ public sealed class UserLifecycleService
     private async Task DeactivatePersistentlyInactiveUsersAsync(
         Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, IEmailService emailService, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand($@"
+        await using var cmd = new Npgsql.NpgsqlCommand($@"
             SELECT id, email, display_name,
                    (SELECT ui.provider_subject FROM user_identities ui
                     WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
@@ -187,7 +190,7 @@ public sealed class UserLifecycleService
     private async Task PurgeDormantUsersAsync(
         Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand($@"
+        await using var cmd = new Npgsql.NpgsqlCommand($@"
             SELECT id, email, display_name,
                    (SELECT ui.provider_subject FROM user_identities ui
                     WHERE ui.user_id = users.id AND ui.provider = 'keycloak' LIMIT 1) AS keycloak_id
@@ -219,12 +222,12 @@ public sealed class UserLifecycleService
                 }
 
                 await using var tx = await db.BeginTransactionAsync(ct);
-                var deleteCmd = new Npgsql.NpgsqlCommand("DELETE FROM users WHERE id = @id", db);
+                await using var deleteCmd = new Npgsql.NpgsqlCommand("DELETE FROM users WHERE id = @id", db);
                 deleteCmd.Parameters.AddWithValue("id", user.Id);
                 await deleteCmd.ExecuteNonQueryAsync(ct);
                 await tx.CommitAsync(ct);
 
-                _logger.LogWarning("GDPR purge: user {UserId} ({Email}) permanently deleted", user.Id, user.Email);
+                _logger.LogWarning("GDPR purge: user {UserId} permanently deleted", user.Id);
             }
             catch (Exception ex)
             {
@@ -232,6 +235,14 @@ public sealed class UserLifecycleService
             }
         }
     }
+
+    /// <summary>
+    /// The stored form of a confirm-activity token: SHA-256 as lowercase hex, cut to 32 characters
+    /// (128 bits) because <c>lifecycle_confirm_token</c> is <c>varchar(36)</c> and applied migrations
+    /// are immutable. The mailed token keeps its full 256 bits; only its digest is stored.
+    /// </summary>
+    internal static string HashConfirmToken(string token) =>
+        Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)))[..32];
 
     private static async Task<List<(Guid Id, string Email, string DisplayName, string? KeycloakId)>> ReadUsersAsync(
         Npgsql.NpgsqlCommand cmd, CancellationToken ct)
@@ -248,7 +259,7 @@ public sealed class UserLifecycleService
         Npgsql.NpgsqlConnection db, Guid userId, string? status, int warningCount,
         DateTime? lastWarnedAt, DateTime? dormantSince, string? confirmToken, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand($@"
+        await using var cmd = new Npgsql.NpgsqlCommand($@"
             UPDATE users
             SET lifecycle_status = @status,
                 lifecycle_warning_count = @warningCount,
@@ -278,7 +289,7 @@ public sealed class UserLifecycleService
 
     private static async Task SetUserDbStatusAsync(Npgsql.NpgsqlConnection db, Guid userId, string status, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand("UPDATE users SET status = @status, updated_at = NOW() WHERE id = @id", db);
+        await using var cmd = new Npgsql.NpgsqlCommand("UPDATE users SET status = @status, updated_at = NOW() WHERE id = @id", db);
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync(ct);

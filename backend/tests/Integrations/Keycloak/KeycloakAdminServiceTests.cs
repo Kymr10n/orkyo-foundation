@@ -542,6 +542,37 @@ public class KeycloakAdminServiceTests
         ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
     }
 
+    [Fact]
+    public async Task DeleteUserCredentialAsync_FailsClosed_WhenOwnershipCheckFails()
+    {
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(new[]
+        {
+            ("/users/kc-user-id/credentials", HttpStatusCode.InternalServerError, "")
+        })));
+
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc");
+
+        await act.Should().ThrowAsync<KeycloakAdminException>();
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Delete,
+            "an unverifiable credential must not be deleted");
+    }
+
+    [Fact]
+    public async Task CallerSuppliedPathSegments_AreEscaped()
+    {
+        var (svc, handler) = BuildCapturing(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(TokenJson())
+        });
+
+        await svc.DisableUserAsync("a/../b?x=1");
+        await svc.RevokeSessionAsync("s/../../users");
+
+        var paths = handler.Requests.Select(r => r.RequestUri!.AbsoluteUri).ToList();
+        paths.Should().Contain(u => u.EndsWith("/users/a%2F..%2Fb%3Fx%3D1"));
+        paths.Should().Contain(u => u.EndsWith("/sessions/s%2F..%2F..%2Fusers"));
+    }
+
     // ── GetUserProfileAsync ────────────────────────────────────────────────
 
     [Fact]

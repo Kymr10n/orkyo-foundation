@@ -280,7 +280,7 @@ public class PlatformUserRepository : IPlatformUserRepository
             WHERE lifecycle_confirm_token = @token
               AND lifecycle_status IS NOT NULL
               AND lifecycle_confirm_token_expires_at > NOW()",
-            p => p.AddWithValue("token", token),
+            p => p.AddWithValue("token", UserLifecycleService.HashConfirmToken(token)),
             reader =>
             {
                 var userId = reader.GetGuid("id");

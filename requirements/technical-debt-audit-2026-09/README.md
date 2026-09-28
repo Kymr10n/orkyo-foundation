@@ -84,6 +84,11 @@ per agent, sequential within a stack, stacks in parallel.
   the default can drop to loopback-only (a later foundation change).
 - **S19:** the `demo` starter template cannot work in any product: `Presets/demo/demo-seed.sql` ships
   nowhere, so it throws and saas creates an empty tenant. Needs a product decision.
+- **M6 (backend):** confirm-activity links mailed before deploy stop working (the column now holds a
+  hash, and old rows hold the plaintext `Guid`); those users see `lifecycle=expired` and can still
+  reset by logging in, and the next warning mails a working link. The seeder's `SafetyGuard` now
+  refuses private-network hosts (a compose service name or `172.x` container IP): pass
+  `--force-non-local` or `ORKYO_SEED_ALLOW=1` there (no script in saas/community does today).
 
 | ID | Batch | Status | Notes |
 |---|---|---|---|
@@ -152,7 +157,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M3 | B4 | todo | |
 | M4 | F4 | todo | |
 | M5 | F1 | done | About footer sentence and its `VITE_RUM_ENDPOINT` condition deleted; `initRUM` registers observers only in dev; `metrics`/`getMetrics` deleted (no downstream consumer (grepped saas + community); both call only `initRUM`) |
-| M6 | B2 / F1 | partial | F1 done: AccountPage org delete takes `confirmPhrase` (the slug); `isSafeRelativePath` (starts with `/`, not `//` or `/\`) gates the server `returnTo` in `handleApiError` and every `navigateToApex`/`navigateToTenantSubdomain` path. Left: backend items (B2) |
+| M6 | B2 / F1 | done | F1 done: AccountPage org delete takes `confirmPhrase` (the slug); `isSafeRelativePath` (starts with `/`, not `//` or `/\`) gates the server `returnTo` in `handleApiError` and every `navigateToApex`/`navigateToTenantSubdomain` path. B2 done: `await using` on every lifecycle command; purge log has no email; confirm token from `SecureTokens.Generate()`, stored as `UserLifecycleService.HashConfirmToken` (SHA-256 hex cut to 32 chars — the column is `varchar(36)` and migrations are immutable), and `FindActiveLifecycleConfirmAsync` hashes before its lookup. Keycloak: `EscapeDataString` on session id, keycloak id (delete/enable/roles), credential id and the resolved subject; credential-ownership GET failure now throws (502) and deletes nothing. `SafetyGuard`: loopback + `host.docker.internal` only (RFC1918 and `.local` dropped). See Merge coordination |
 | M7 | B4 | todo | |
 | M8 | B4 | todo | |
 | M9 | B3 | todo | |

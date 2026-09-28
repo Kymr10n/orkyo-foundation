@@ -132,6 +132,39 @@ public class UserLifecycleServiceTests
     }
 
     [Fact]
+    public async Task ProcessAsync_Warning_StoresOnlyTheTokenHashAndTheMailedTokenConfirms()
+    {
+        var userId = await CreateLifecycleUserAsync(lifecycleStatus: null, lastLoginDaysAgo: 400);
+        try
+        {
+            await ProcessAsync();
+
+            await using var conn = new NpgsqlConnection(_cpConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand("SELECT email, lifecycle_confirm_token FROM users WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("id", userId);
+            await using var reader = await cmd.ExecuteReaderAsync();
+            (await reader.ReadAsync()).Should().BeTrue();
+            var mailed = _mockEmail.LifecycleWarningTokens[reader.GetString(0)];
+            var stored = reader.GetString(1);
+
+            mailed.Length.Should().BeGreaterThanOrEqualTo(43, "the token carries 256 bits");
+            stored.Should().NotBe(mailed, "only the digest is stored");
+
+            using var scope = _factory.Services.CreateScope();
+            var repo = scope.ServiceProvider.GetRequiredService<Api.Repositories.IPlatformUserRepository>();
+            var record = await repo.FindActiveLifecycleConfirmAsync(mailed);
+            record.Should().NotBeNull();
+            record!.UserId.Should().Be(userId);
+            (await repo.FindActiveLifecycleConfirmAsync(stored)).Should().BeNull("the stored digest is not a token");
+        }
+        finally
+        {
+            await DeleteUserAsync(userId);
+        }
+    }
+
+    [Fact]
     public async Task ProcessAsync_WhenWarningSendFails_LeavesUserUnwarned()
     {
         var userId = await CreateLifecycleUserAsync(lifecycleStatus: null, lastLoginDaysAgo: 400);
