@@ -156,6 +156,8 @@ describe('CommandPalette', () => {
 
       await userEvent.type(screen.getByPlaceholderText(/search/i), 'conference');
 
+      await waitFor(() => expect(searchApi.globalSearch).toHaveBeenCalled());
+      await waitFor(() => expect(screen.queryByLabelText(/loading/i)).not.toBeInTheDocument());
       expect(await screen.findByText(/No results found for "conference"/)).toBeInTheDocument();
     });
 
