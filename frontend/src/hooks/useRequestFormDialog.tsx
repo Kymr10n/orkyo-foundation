@@ -27,6 +27,7 @@ import { toast } from "sonner";
 
 import { useRequestForm, type DefaultResource, type DefaultSchedule } from "@foundation/src/hooks/useRequestForm";
 import { useDialogDirtyGuard } from "@foundation/src/hooks/useDialogDirtyGuard";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { logger } from "@foundation/src/lib/core/logger";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
@@ -52,12 +53,6 @@ export interface UseRequestFormDialogOptions {
   scheduleSiteId?: string | null;
   /** Saved conflicts for this request (from the registry); surfaced as form indicators. */
   conflicts?: Conflict[];
-  /**
-   * When false, the dialog is a read-only VIEW surface: every field is disabled,
-   * the footer is a single Close button, and the mutation controls (Children
-   * add/remove, People add/remove) are hidden. Defaults to true (edit mode).
-   */
-  canEdit?: boolean;
   /**
    * The full request tree. Drives the ancestor breadcrumb, the Children tab, and
    * the group derived-schedule rollups. When undefined those features hide.
@@ -111,7 +106,6 @@ export function useRequestFormDialog({
   defaultResource,
   scheduleSiteId,
   conflicts = [],
-  canEdit = true,
   allRequests,
   onOpenPlan,
   onSave,
@@ -120,7 +114,9 @@ export function useRequestFormDialog({
   const { data: sites = [] } = useSites();
   const isMultiSite = useIsMultiSite();
   const isChildCreation = !request && !!parentRequest;
-  const readOnly = !canEdit;
+  // A Viewer gets a read-only VIEW surface: every field is disabled, the footer is a single
+  // Close button, and the mutation controls (Children add/remove, People add/remove) are hidden.
+  const readOnly = !useCanEdit();
   const invalidateRequestData = useInvalidateRequestData();
 
   // Use the custom hook for form state management

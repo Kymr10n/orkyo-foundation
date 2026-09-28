@@ -6,6 +6,7 @@ import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { toast } from 'sonner';
 import type { ExportFormat, ImportFormat, ExportContext } from '../lib/utils/import-export';
 import { createTestQueryClient } from '@foundation/src/test-utils';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -34,6 +35,7 @@ let wrapper: ReturnType<typeof createTestQueryClient>['wrapper'];
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(useCanEdit).mockReturnValue(true);
   resetStore();
   ({ queryClient, wrapper } = createTestQueryClient());
 });
@@ -236,6 +238,22 @@ describe('capability registration', () => {
   it('registers import formats separately, defaulting to CSV', () => {
     renderHook(() => useImportHandler('spaces', vi.fn(), {}), { wrapper });
     expect(useUiActionsStore.getState().importRegistry.get('spaces')).toEqual({ formats: ['csv'] });
+  });
+
+  it('offers no import to a Viewer and ignores a stray trigger', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    const handler = vi.fn();
+    renderHook(() => useImportHandler('spaces', handler, {}), { wrapper });
+
+    expect(useUiActionsStore.getState().importRegistry.has('spaces')).toBe(false);
+    act(() => {
+      useUiActionsStore.getState().triggerImport({
+        context: 'spaces',
+        format: 'csv',
+        file: new File(['x'], 'x.csv', { type: 'text/csv' }),
+      });
+    });
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it('records the declared import formats when given', () => {

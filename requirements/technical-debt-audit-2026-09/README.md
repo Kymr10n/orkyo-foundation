@@ -82,10 +82,10 @@ per agent, sequential within a stack, stacks in parallel.
 | S10 | B1a | done | Email-match branch of `LinkIdentityAsync` refuses unless `token.EmailVerified` (`email_not_verified`, checked before the status check); already-linked and self-registration paths unchanged. All call sites (foundation x3, saas demo, community JIT) build the token via `ToExternalIdentityToken`, which carries the claim. Added the `email_not_verified` login message to `AUTH_ERROR_MESSAGES` so the BFF redirect does not fall to the generic retry text |
 | S11 | B1b | todo | |
 | S12 | B1b | todo | |
-| S13 | B1a | todo | |
+| S13 | B1a | in-progress |  |
 | S14 | B1b | todo | |
 | S15 | B1b | todo | |
-| S16 | F1 | in-progress | |
+| S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
 | S17 | B1a | todo | |
 | S18 | B1b | todo | |
 | S19 | B1b | todo | |

@@ -168,11 +168,11 @@ vi.mock('@foundation/src/components/requests/RequestListView', () => ({
 
 // RequestFormDialog is the single view+edit surface now — mocked so the page
 // test can drive save/close/navigate without the real dialog internals, and
-// can assert the canEdit/allRequests/onNavigate props the page threads through.
+// can assert the allRequests/onNavigate props the page threads through.
 vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, canEdit, allRequests, onNavigate }: any) =>
+  RequestFormDialog: ({ open, onSave, onOpenChange, allRequests, onNavigate }: any) =>
     open ? (
-      <div data-testid="form-dialog" data-can-edit={String(canEdit)} data-has-all-requests={String(!!allRequests)}>
+      <div data-testid="form-dialog" data-has-all-requests={String(!!allRequests)}>
         Form Dialog
         <button data-testid="form-save" onClick={() => { void Promise.resolve(onSave({ name: 'Test', planningMode: 'leaf' })).catch(() => {}); }}>Save</button>
         <button data-testid="form-close" onClick={() => onOpenChange(false)}>Close</button>
@@ -461,22 +461,9 @@ describe('RequestsPage', () => {
     });
   });
 
-  // --- Row click opens the dialog: edit mode for editors, view mode for viewers ---
+  // --- Row click opens the dialog; the dialog picks edit or view mode itself ---
 
-  it('opens the form dialog in edit mode when the user can edit', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getAllByText('Edit')[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-  });
-
-  it('opens the form dialog in view mode when the user cannot edit', async () => {
+  it('still opens the form dialog for a user who cannot edit (it renders read-only itself)', async () => {
     vi.mocked(useCanEdit).mockReturnValue(false);
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
@@ -485,9 +472,7 @@ describe('RequestsPage', () => {
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
     fireEvent.click(screen.getAllByText('Edit')[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
-    });
+    await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     // A viewer creates nothing, so the routing entry point is not offered at all.
     expect(screen.queryByText('New from routing')).not.toBeInTheDocument();
     vi.mocked(useCanEdit).mockReturnValue(true);

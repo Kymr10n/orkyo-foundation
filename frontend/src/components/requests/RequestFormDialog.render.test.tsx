@@ -6,6 +6,7 @@ import type { Request } from "@foundation/src/types/requests";
 import type { Site } from "@foundation/src/types/site";
 import { pagedResult } from "@foundation/src/test-utils/paged-result";
 import { renderWithQuery } from "@foundation/src/test-utils";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 // --- Mock the data-loading boundary (network) and site hooks -------------------
 const useSitesMock = vi.fn(() => ({ data: [] as Site[] }));
@@ -293,6 +294,7 @@ function renderDialog(props?: Partial<React.ComponentProps<typeof RequestFormDia
 }
 
 beforeEach(() => {
+  vi.mocked(useCanEdit).mockReturnValue(true);
   toastMocks.info.mockClear();
   toastMocks.error.mockClear();
   toastMocks.success.mockClear();
@@ -799,22 +801,25 @@ describe("RequestFormDialog", () => {
     );
   });
 
-  // ── View mode (canEdit=false) ───────────────────────────────────────────────
+  // ── View mode (a Viewer: useCanEdit() is false; no prop overrides it) ────────
 
   it('shows the "Request details" title in view mode', () => {
-    renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: EXISTING });
     expect(screen.getByText("Request details")).toBeInTheDocument();
     expect(screen.getByText("View request details.")).toBeInTheDocument();
   });
 
   it("disables the editable fields in view mode", () => {
-    renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: EXISTING });
     expect(screen.getByDisplayValue("Existing Request")).toBeDisabled();
     expect(screen.getByLabelText("Description")).toBeDisabled();
   });
 
   it("renders a Close-only footer in view mode", () => {
-    renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: EXISTING });
     expect(screen.getByTestId("view-close-btn")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Update Request/ }),
@@ -822,7 +827,8 @@ describe("RequestFormDialog", () => {
   });
 
   it("closes when Close is clicked in view mode", () => {
-    const { onOpenChange } = renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    const { onOpenChange } = renderDialog({ request: EXISTING });
     fireEvent.click(screen.getByTestId("view-close-btn"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -874,7 +880,8 @@ describe("RequestFormDialog", () => {
   });
 
   it("hides the add/remove child controls in view mode", async () => {
-    renderDialog({ request: GROUP, allRequests: TREE, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: GROUP, allRequests: TREE });
     await userEvent.click(screen.getByRole("tab", { name: "Children" }));
     expect(screen.getByText("Child One")).toBeInTheDocument();
     expect(screen.queryByTestId("add-child-btn")).not.toBeInTheDocument();

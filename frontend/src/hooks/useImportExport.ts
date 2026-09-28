@@ -12,6 +12,7 @@ import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
 import { useUiActionsStore, type CalendarFeedCapability, type ExportCapability } from '@foundation/src/store/ui-actions-store';
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 /**
  * What the page tells the TopBar about itself when it registers — the store's
@@ -97,6 +98,9 @@ export function useImportHandler<T = void>(
   options: ImportFeedbackOptions<T>,
 ) {
   const queryClient = useQueryClient();
+  // An import writes records, so a Viewer is never offered one: the page does not register,
+  // and the TopBar has no Import entry to show.
+  const canEdit = useCanEdit();
   const tick = useUiActionsStore((s) => s.importTick);
   const payload = useUiActionsStore((s) => s.lastImport);
   const registerImport = useUiActionsStore((s) => s.registerImport);
@@ -122,17 +126,18 @@ export function useImportHandler<T = void>(
 
   const importFormatsKey = (options.formats ?? ['csv']).join(',');
   useEffect(() => {
+    if (!canEdit) return;
     registerImport(context, { formats: importFormatsKey.split(',') as ImportFormat[] });
     return () => unregisterImport(context);
-  }, [context, importFormatsKey, registerImport, unregisterImport]);
+  }, [canEdit, context, importFormatsKey, registerImport, unregisterImport]);
 
   useEffect(() => {
     if (tick === lastTickRef.current) return;
     lastTickRef.current = tick;
-    if (payload?.context !== context) return;
+    if (!canEdit || payload?.context !== context) return;
 
     void runImport(payload.file, payload.format);
-  }, [tick, payload, context]);
+  }, [canEdit, tick, payload, context]);
 }
 
 /**

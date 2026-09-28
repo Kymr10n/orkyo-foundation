@@ -622,7 +622,6 @@ export function RequestsPage() {
         }
         parentRequest={dialog?.kind === "create" ? dialog.parent : null}
         defaultPlanningMode={dialog?.kind === "create" ? dialog.defaultMode : undefined}
-        canEdit={canEdit}
         allRequests={requests}
         onNavigate={handleDialogNavigate}
         onOpenPlan={(id) => navigate(`/requests/${id}/plan`)}

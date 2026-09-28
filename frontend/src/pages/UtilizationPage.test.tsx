@@ -334,8 +334,8 @@ vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () =
 }));
 
 vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId, canEdit, defaultResource }: any) => open ? (
-    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""} data-can-edit={String(canEdit)} data-default-resource={defaultResource ? `${defaultResource.typeKey}:${defaultResource.resourceId}` : ""}>
+  RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId, defaultResource }: any) => open ? (
+    <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""} data-default-resource={defaultResource ? `${defaultResource.typeKey}:${defaultResource.resourceId}` : ""}>
       <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
       <button data-testid="close-form" onClick={() => onOpenChange(false)}>Close</button>
     </div>
@@ -607,26 +607,14 @@ describe("UtilizationPage", () => {
 
   // --- Request click handlers ---
 
-  it("opens edit dialog on click when user can edit", async () => {
+  it("opens the request dialog on click (the dialog itself decides edit vs. view)", async () => {
     mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     fireEvent.click(screen.getByTestId("dblclick-request"));
     await waitFor(() => {
-      expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-can-edit", "true");
-    });
-  });
-
-  it("opens the form dialog in view mode on click for viewer", async () => {
-    mockRole = "viewer";
-    mockUseRequests.mockReturnValue({ data: [{ id: "r1", name: "Task 1", resourceId: "s1" }], isLoading: false });
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-
-    fireEvent.click(screen.getByTestId("dblclick-request"));
-    await waitFor(() => {
-      expect(screen.getByTestId("request-form-dialog")).toHaveAttribute("data-can-edit", "false");
+      expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument();
     });
   });
 

@@ -10,28 +10,15 @@ import { renderWithQuery } from '@foundation/src/test-utils';
 // Mocks
 // ---------------------------------------------------------------------------
 
-// Real permission hook, not the global test-mock from src/test/setup.ts.
-vi.unmock('@foundation/src/hooks/usePermissions');
-
-let mockRole: string | undefined = 'admin';
-let mockIsSiteAdmin = false;
-
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    membership: mockRole ? { role: mockRole } : null,
-    isSiteAdmin: mockIsSiteAdmin,
-  }),
-}));
-
 const mockUpdateRequest = vi.fn();
 vi.mock('@foundation/src/lib/api/request-api', () => ({
   updateRequest: (...args: unknown[]) => mockUpdateRequest(...args),
 }));
 
 vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, canEdit }: any) =>
+  RequestFormDialog: ({ open, onSave, onOpenChange }: any) =>
     open ? (
-      <div data-testid="form-dialog" data-can-edit={String(canEdit)}>
+      <div data-testid="form-dialog">
         <button data-testid="save-btn" onClick={() => onSave(mockFormData)}>Save</button>
         <button data-testid="close-edit-btn" onClick={() => onOpenChange(false)}>Cancel</button>
       </div>
@@ -85,47 +72,7 @@ const renderEditor = () => renderWithQuery(<TestHookComponent />);
 
 describe('useRequestEditor', () => {
   beforeEach(() => {
-    mockRole = 'admin';
-    mockIsSiteAdmin = false;
     mockUpdateRequest.mockResolvedValue(undefined);
-  });
-
-  describe('role gate', () => {
-    it('opens the form dialog in edit mode for admin role', () => {
-      mockRole = 'admin';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-
-    it('opens the form dialog in edit mode for editor role', () => {
-      mockRole = 'editor';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-
-    it('opens the form dialog in view mode for member role', () => {
-      mockRole = 'member';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
-    });
-
-    it('opens the form dialog in edit mode for a site admin (same gate as useCanEdit)', () => {
-      mockRole = 'viewer';
-      mockIsSiteAdmin = true;
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-
-    it('opens the form dialog in view mode when membership is null', () => {
-      mockRole = undefined;
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
-    });
   });
 
   describe('save handler', () => {
@@ -177,15 +124,6 @@ describe('useRequestEditor', () => {
       renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId('close-edit-btn'));
-      expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
-    });
-
-    it('closes the view-mode form dialog when onOpenChange fires false', () => {
-      mockRole = 'member';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
       fireEvent.click(screen.getByTestId('close-edit-btn'));
       expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
     });

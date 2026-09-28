@@ -1,5 +1,4 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
   RequestFormDialog,
   type RequestFormData,
@@ -10,8 +9,8 @@ import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
 import type { Conflict, Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
-  /** Open the request dialog — edit mode for admin/editor, read-only view mode
-   *  otherwise. Pass the request's conflicts (from the registry) to surface
+  /** Open the request dialog — the dialog itself decides edit or read-only view
+   *  mode (`useCanEdit()`). Pass the request's conflicts (from the registry) to surface
    *  indicators in the edit form. */
   open: (request: Request, conflicts?: Conflict[]) => void;
   /**
@@ -25,9 +24,8 @@ interface UseRequestEditorResult {
  * Centralises the open / edit / view-request dialog flow shared by
  * UtilizationPage and ConflictsPage.
  *
- * Owns: dialog state, the `useCanEdit()` gate (edit, otherwise read-only
- * view), save handler, and React Query invalidation. Always opens
- * `RequestFormDialog` — `canEdit` decides edit vs. view mode. These callers
+ * Owns: dialog state, save handler, and React Query invalidation. Always opens
+ * `RequestFormDialog`, which decides edit vs. view mode from `useCanEdit()`. These callers
  * open a single request by id (no tree), so `allRequests`/`onNavigate` are
  * omitted and the dialog's breadcrumb, Children tab, Dependencies tab, and derived
  * rollups hide. The Dependencies tab needs `allRequests` to offer predecessors, so it
@@ -35,7 +33,6 @@ interface UseRequestEditorResult {
  */
 export function useRequestEditor(): UseRequestEditorResult {
   const invalidateRequestData = useInvalidateRequestData();
-  const userCanEdit = useCanEdit();
 
   const [request, setRequest] = useState<Request | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
@@ -70,7 +67,6 @@ export function useRequestEditor(): UseRequestEditorResult {
       }}
       request={request}
       conflicts={conflicts}
-      canEdit={userCanEdit}
       onSave={handleSave}
     />
   );

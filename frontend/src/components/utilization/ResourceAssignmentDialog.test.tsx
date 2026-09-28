@@ -44,6 +44,7 @@ import {
   validateAssignmentsBatch,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { renderWithQuery } from "@foundation/src/test-utils";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 const START = "2026-01-06T08:00:00Z";
 const END = "2026-01-06T10:00:00Z";
@@ -146,6 +147,7 @@ describe("ResourceAssignmentDialog", () => {
     // Default: assigned rows have no conflicts on load. Tests that assert the conflict
     // indicator override this with a non-empty batch result.
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);
+    vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
   it("shows loading then renders assigned and candidate rows", async () => {
@@ -260,6 +262,22 @@ describe("ResourceAssignmentDialog", () => {
 
     const msg = await screen.findByTestId("no-options-message");
     expect(msg.textContent).toMatch(/already passed/i);
+  });
+
+  it("a Viewer sees the rows read-only: checkboxes disabled and a row click assigns nothing", async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION, CLEAN_CANDIDATE]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+
+    for (const checkbox of screen.getAllByTestId("assignment-checkbox")) {
+      expect(checkbox).toBeDisabled();
+    }
+    await userEvent.click(screen.getByText("Request Gamma"));
+    await userEvent.click(screen.getByText("Request Alpha"));
+    expect(validateAssignment).not.toHaveBeenCalled();
+    expect(createAssignment).not.toHaveBeenCalled();
+    expect(cancelAssignment).not.toHaveBeenCalled();
   });
 
   it("remove: unchecking an assigned row calls cancelAssignment and invalidates cache", async () => {
