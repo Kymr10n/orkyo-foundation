@@ -197,9 +197,9 @@ public class ConflictService(
 
             case ValidationReasonCode.AssignmentOverbooked:
                 // Exclusive overbook carries the conflicting assignment id → it's an overlap with a
-                // peer request. Fractional capacity overbook has no peer → capacity_exceeded.
-                if (issue.ConflictingAssignmentId is { } caId)
+                // peer request.
                 {
+                    var caId = issue.ConflictingAssignmentId ?? Guid.Empty;
                     requestByAssignmentId.TryGetValue(caId, out var peer);
                     return new ConflictInfo
                     {
@@ -211,6 +211,9 @@ public class ConflictService(
                         ResourceId = issue.ResourceId,
                     };
                 }
+
+            case ValidationReasonCode.AssignmentCapacityExceeded:
+                // Fractional capacity overbook has no peer → capacity_exceeded.
                 return new ConflictInfo
                 {
                     Id = $"{requestId}-{issue.ResourceId}-capacity-exceeded",

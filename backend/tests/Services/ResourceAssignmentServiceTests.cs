@@ -113,6 +113,22 @@ public class ResourceAssignmentServiceTests
         var created = MakeCreatedAssignment();
         var service = BuildService(
             BlockerResult(ValidationReasonCode.AssignmentOverbooked,
+                "Resource is already assigned during this time window"),
+            created);
+
+        var (assignment, conflict) = await service.CreateAsync(MakeRequest());
+
+        Assert.NotNull(assignment);
+        Assert.Null(conflict);
+    }
+
+    [Fact]
+    public async Task CreateAsync_FractionalCapacityExceededOnly_AssignmentCreated()
+    {
+        // Fractional over-capacity has its own code and is as soft as an exclusive overbook.
+        var created = MakeCreatedAssignment();
+        var service = BuildService(
+            BlockerResult(ValidationReasonCode.AssignmentCapacityExceeded,
                 "Total allocation (200%) exceeds available capacity (100%)"),
             created);
 

@@ -388,12 +388,12 @@ public class ConflictServiceTests
         var a2 = Assignment(Guid.NewGuid(), reqId, person2, ResourceTypeKeys.Person, Start, Start.AddHours(2));
         _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync([ScheduledRequest(reqId, [a1, a2], Start, Start.AddHours(2))]);
-        // Two Fractional over-capacity issues: no ConflictingAssignmentId → capacity_exceeded path.
+        // Two Fractional over-capacity issues → capacity_exceeded path.
         _validator
             .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync([
-                Batch(reqId, person1, new ValidationIssue { Code = ValidationReasonCode.AssignmentOverbooked, Message = "over", ResourceId = person1 }),
-                Batch(reqId, person2, new ValidationIssue { Code = ValidationReasonCode.AssignmentOverbooked, Message = "over", ResourceId = person2 }),
+                Batch(reqId, person1, new ValidationIssue { Code = ValidationReasonCode.AssignmentCapacityExceeded, Message = "over", ResourceId = person1 }),
+                Batch(reqId, person2, new ValidationIssue { Code = ValidationReasonCode.AssignmentCapacityExceeded, Message = "over", ResourceId = person2 }),
             ]);
 
         var result = await _service.GetAllAsync();

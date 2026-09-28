@@ -300,7 +300,7 @@ public class ResourceAssignmentValidator(
             if (total > resource.BaseAvailabilityPercent)
                 blockers.Add(new ValidationIssue
                 {
-                    Code = ValidationReasonCode.AssignmentOverbooked,
+                    Code = ValidationReasonCode.AssignmentCapacityExceeded,
                     Message = $"Total allocation ({total}%) exceeds available capacity ({resource.BaseAvailabilityPercent}%)",
                     ResourceId = resource.Id,
                 });

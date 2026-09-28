@@ -526,7 +526,7 @@ public class ResourceAssignmentValidatorTests
     }
 
     [Fact]
-    public async Task AssignmentOverbooked_FractionalCapacityExceeded_ReturnsBlocker()
+    public async Task FractionalCapacityExceeded_ReturnsItsOwnBlockerCode()
     {
         var resource = CreateResource(
             allocationMode: AllocationModes.Fractional,
@@ -548,7 +548,7 @@ public class ResourceAssignmentValidatorTests
 
         Assert.Equal(ValidationSeverity.Blocker, result.Severity);
         Assert.Single(result.Blockers);
-        Assert.Equal(ValidationReasonCode.AssignmentOverbooked, result.Blockers[0].Code);
+        Assert.Equal(ValidationReasonCode.AssignmentCapacityExceeded, result.Blockers[0].Code);
     }
 
     [Fact]

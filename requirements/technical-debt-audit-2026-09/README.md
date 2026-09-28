@@ -95,6 +95,11 @@ per agent, sequential within a stack, stacks in parallel.
   invalidate `qk.users` for the direct add. The direct-add insert no longer writes
   `tenant_memberships.invited_by` (a saas-only column — community's schema has none, so the path
   always failed there); saas keeps the inviter in the `user_added_to_tenant` audit event.
+- **S36 (frontend, before merge):** fractional over-capacity now reports the new reason code
+  `assignment.capacity-exceeded` (was `assignment.overbooked`). `resource-assignments-api.ts` must add
+  it to `ValidationReasonCode` and `SOFT_BLOCKER_CODES`, and `ValidationIssueList` needs a label;
+  until then the assignment dialog treats it as a hard blocker, while the create endpoint still
+  accepts it.
 
 | ID | Batch | Status | Notes |
 |---|---|---|---|
@@ -137,7 +142,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S33 | B4 | todo | |
 | S34 | B4 | todo | |
 | S35 | B2 | done | `TenantSettingsService.GetSettingsAsync` (tenant and site overrides) and `SiteSettingsService.GetRuntimeConfigAsync` read through `SingleFlightCache.GetOrComputeAsync`; both try/catch-to-defaults deleted, so a failed read throws and caches nothing (the next read retries). `UpdateRuntimeConfigAsync` validates every key, then one `UpsertManyAsync`. `ISiteSettingsRepository.UpsertAsync` is now called only by `SiteSettingsRepositoryIntegrationTests` (left for B3). Tests: failed tenant read throws and is re-read (failed before); one invalid runtime value writes nothing (failed before) |
-| S36 | B2 | todo | |
+| S36 | B2 | done | `AnthropicGateway.ClassifyFailure` / new `ClassifyProbeFailure` (used by `TestAsync`) switch on `AnthropicApiException.StatusCode` (SDK 12.45 `Anthropic.Exceptions`): 401 → credential_invalid / invalid_key, 429 + 529 → upstream_busy, 404 → model_unavailable (probe), everything else upstream_error / network; no text matching left. New `ValidationReasonCode.AssignmentCapacityExceeded` (`assignment.capacity-exceeded`, appended) for fractional over-capacity; soft like overbooked, mapped to `FractionalCapacityExceeded` in `ResourceAssignmentService` (message refinement and "compile-time guard" comment deleted) and to `capacity_exceeded` in `ConflictService` (overbooked is now always an overlap). Frontend must learn the code — see Merge coordination. Tests: status theories + "401" in text → upstream_error; validator emits the new code; service treats it as soft |
 | S37 | B4 | todo | |
 | S38 | B2 | todo | |
 | S39 | B3 | todo | |
