@@ -11,7 +11,7 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import { SettingsPageHeader } from "./SettingsPageHeader";
-import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
+import { goToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import {
   Card,
   CardContent,
@@ -147,7 +147,7 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
     deleteMutation.mutate(tenantId, {
       onSuccess: () => {
         clearMembership();
-        if (!navigateToApex("/")) window.location.href = "/";
+        goToApex("/");
       },
       onError: () => setDeleteOrgOpen(false),
     });

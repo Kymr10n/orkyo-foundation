@@ -9,9 +9,9 @@ import {
 } from './api-utils';
 import { runtimeConfig } from '../../config/runtime';
 
-const { mockRedirectToLogin, mockNavigateToApex } = vi.hoisted(() => ({
+const { mockRedirectToLogin, mockGoToApex } = vi.hoisted(() => ({
   mockRedirectToLogin: vi.fn(),
-  mockNavigateToApex: vi.fn(() => true),
+  mockGoToApex: vi.fn(),
 }));
 
 vi.mock(import('@foundation/src/lib/utils/tenant-navigation'), async (importOriginal) => {
@@ -19,7 +19,7 @@ vi.mock(import('@foundation/src/lib/utils/tenant-navigation'), async (importOrig
   return {
     ...actual,
     redirectToLogin: () => mockRedirectToLogin(),
-    navigateToApex: mockNavigateToApex,
+    goToApex: mockGoToApex,
   };
 });
 
@@ -342,7 +342,7 @@ describe('api-utils', () => {
 
       expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
@@ -362,7 +362,7 @@ describe('api-utils', () => {
       await expect(handleApiError(response)).rejects.toThrow('Hard cap reached');
 
       expect(localStorage.getItem('active_membership')).toBeNull();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
@@ -376,7 +376,7 @@ describe('api-utils', () => {
         } as unknown as Response;
 
         await expect(handleApiError(response)).rejects.toThrow();
-        expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+        expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       },
     );
 
@@ -391,7 +391,7 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 });

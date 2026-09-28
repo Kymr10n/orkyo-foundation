@@ -4,6 +4,7 @@ import { RequestAccessPage } from './RequestAccessPage';
 
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: vi.fn(),
+  goToApex: vi.fn(),
 }));
 
 vi.mock('@foundation/src/lib/core/api-utils', () => ({

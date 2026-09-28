@@ -177,6 +177,14 @@ export function navigateToApex(path = "/"): boolean {
   return true;
 }
 
+/**
+ * {@link navigateToApex}, or a full-page load of the same path on this origin when there is no
+ * apex to go to (local dev, or already on it). For callers whose fallback is that same path.
+ */
+export function goToApex(path = "/"): void {
+  if (!navigateToApex(path)) window.location.href = isSafeRelativePath(path) ? path : "/";
+}
+
 // ── Break-glass cookie ───────────────────────────────────────────────────────
 // When a site admin enters a tenant via the admin panel, a short-lived cookie
 // is set on the shared base domain (e.g. .orkyo.com) before redirecting to

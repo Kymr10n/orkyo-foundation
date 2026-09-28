@@ -19,6 +19,7 @@ import {
   getApexOrigin,
   navigateToTenantSubdomain,
   navigateToApex,
+  goToApex,
   isSafeRelativePath,
   redirectToLogin,
   setBreakGlassCookie,
@@ -190,6 +191,35 @@ describe('tenant-navigation', () => {
   });
 
   // ── navigateToApex ───────────────────────────────────────────────────
+
+  describe('goToApex', () => {
+    it('goes to the apex when there is one', () => {
+      mockConfig.baseDomain = 'orkyo.com';
+      stubLocation('demo.orkyo.com');
+
+      goToApex('/site-admin');
+
+      expect(window.location.href).toBe('https://orkyo.com/site-admin');
+    });
+
+    it('loads the same path on this origin when there is no apex', () => {
+      mockConfig.baseDomain = '';
+      stubLocation('localhost');
+
+      goToApex('/login?auto=1');
+
+      expect(window.location.href).toBe('/login?auto=1');
+    });
+
+    it('never leaves the origin through the fallback', () => {
+      mockConfig.baseDomain = '';
+      stubLocation('localhost');
+
+      goToApex('//evil.com');
+
+      expect(window.location.href).toBe('/');
+    });
+  });
 
   describe('navigateToApex', () => {
     it('returns false when baseDomain is not configured', () => {

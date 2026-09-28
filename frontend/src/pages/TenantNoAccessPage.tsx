@@ -2,7 +2,7 @@ import { ShieldX, LayoutGrid, LogOut, Mail, Shield } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_EVENTS } from '@foundation/src/constants/auth';
-import { navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
+import { goToApex, navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
 import { runtimeConfig } from '@foundation/src/config/runtime';
 import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 
@@ -26,7 +26,7 @@ export function TenantNoAccessPage() {
   // loads the app and lands on the tenant selector (same reasoning as the
   // machine's performLogin action).
   const goToMyWorkspaces = () => {
-    if (!navigateToApex('/login?auto=1')) window.location.href = '/login?auto=1';
+    goToApex('/login?auto=1');
   };
 
   return (

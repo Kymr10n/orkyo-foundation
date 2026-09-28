@@ -5,12 +5,12 @@ import { BreakGlassBanner } from './BreakGlassBanner';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const { mockClearMembership, mockRenew, mockGetStatus, mockExit, mockNavigateToApex } = vi.hoisted(() => ({
+const { mockClearMembership, mockRenew, mockGetStatus, mockExit, mockGoToApex } = vi.hoisted(() => ({
   mockClearMembership: vi.fn(),
   mockRenew: vi.fn(),
   mockGetStatus: vi.fn(),
   mockExit: vi.fn(),
-  mockNavigateToApex: vi.fn(() => true),
+  mockGoToApex: vi.fn(),
 }));
 
 let mockMembership: Record<string, unknown> | null = null;
@@ -29,7 +29,7 @@ vi.mock('@foundation/src/lib/api/admin-api', () => ({
 }));
 
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
-  navigateToApex: mockNavigateToApex,
+  goToApex: mockGoToApex,
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -156,22 +156,7 @@ describe('BreakGlassBanner', () => {
     fireEvent.click(screen.getByTestId('break-glass-exit'));
 
     expect(mockClearMembership).toHaveBeenCalled();
-    expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
-  });
-
-  it('falls back to a hard navigation to /site-admin in local dev (no apex)', async () => {
-    // navigateToApex returns false when baseDomain is not configured (local dev).
-    mockNavigateToApex.mockReturnValue(false);
-    mockMembership = breakGlassMembership();
-    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('break-glass-exit'));
-
-    expect(window.location.href).toBe('/site-admin');
+    expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
   });
 
   it('fires audit exit on Exit click', async () => {
@@ -224,7 +209,7 @@ describe('BreakGlassBanner', () => {
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 
@@ -235,7 +220,7 @@ describe('BreakGlassBanner', () => {
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 
@@ -247,6 +232,6 @@ describe('BreakGlassBanner', () => {
     await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(mockClearMembership).not.toHaveBeenCalled();
-    expect(mockNavigateToApex).not.toHaveBeenCalled();
+    expect(mockGoToApex).not.toHaveBeenCalled();
   });
 });

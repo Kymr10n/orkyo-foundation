@@ -8,7 +8,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
+import { goToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
@@ -82,7 +82,7 @@ export function RequestAccessPage() {
   };
 
   const handleBackToLogin = () => {
-    if (!navigateToApex("/")) window.location.href = "/";
+    goToApex("/");
   };
 
   if (submitted) {

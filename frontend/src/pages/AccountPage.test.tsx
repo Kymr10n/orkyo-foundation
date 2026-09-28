@@ -58,7 +58,7 @@ vi.mock("@foundation/src/contexts/AuthContext", () => ({
 // Mock tenant navigation
 vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
   navigateToTenantSubdomain: vi.fn(() => false),
-  navigateToApex: vi.fn(() => false),
+  goToApex: vi.fn(),
 }));
 
 // Mock tenants-api
@@ -232,10 +232,10 @@ describe("AccountPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("admin")).toBeInTheDocument();
+      expect(screen.getByText("Admin")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("editor")).toBeInTheDocument();
+    expect(screen.getByText("Editor")).toBeInTheDocument();
   });
 
   it("marks active tenant", async () => {
@@ -376,7 +376,7 @@ describe("AccountPage", () => {
 
     // Verify the page renders with both tenants
     expect(screen.getByText("ACME Corporation")).toBeInTheDocument();
-    expect(screen.getByText("editor")).toBeInTheDocument(); // role badge
+    expect(screen.getByText("Editor")).toBeInTheDocument(); // role badge
   });
 
   it("has delete button for owned tenant", async () => {
@@ -393,7 +393,7 @@ describe("AccountPage", () => {
     });
 
     // Verify owner badge is shown
-    expect(screen.getByText("admin")).toBeInTheDocument(); // role badge for owned tenant
+    expect(screen.getByText("Admin")).toBeInTheDocument(); // role badge for owned tenant
   });
 
   it("shows error when API fails", async () => {

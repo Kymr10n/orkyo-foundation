@@ -16,7 +16,7 @@ import { randomId } from "@foundation/src/lib/core/ids";
 import {
   extractSlugFromHostname,
   isSafeRelativePath,
-  navigateToApex,
+  goToApex,
   redirectToLogin,
 } from "@foundation/src/lib/utils/tenant-navigation";
 import { takeSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
@@ -169,10 +169,7 @@ export async function handleApiError(response: Response): Promise<never> {
     code === API_ERROR_CODES.BREAK_GLASS_HARD_CAP_REACHED
   ) {
     clearTenantState();
-    if (!navigateToApex(returnTo || ROUTE_SITE_ADMIN)) {
-      // Local dev / no apex — fall back to a same-origin nav.
-      window.location.href = returnTo || ROUTE_SITE_ADMIN;
-    }
+    goToApex(returnTo || ROUTE_SITE_ADMIN);
     throw new ApiError(errorMessage || "Break-glass session has ended.", response.status, code);
   }
 

@@ -23,7 +23,7 @@ import {
   useBreakGlassSessionStatus,
   useRenewBreakGlassSession,
 } from '@foundation/src/hooks/useBreakGlassSession';
-import { navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
+import { goToApex } from '@foundation/src/lib/utils/tenant-navigation';
 
 /**
  * Below this threshold we switch the banner to a destructive treatment to
@@ -69,9 +69,7 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
     // auth machine in a transitional state that produces a blank screen. The flash
     // prevention is handled by the inline theme script in index.html, so a
     // full reload is now flash-free.
-    if (!navigateToApex(ROUTE_SITE_ADMIN)) {
-      window.location.href = ROUTE_SITE_ADMIN;
-    }
+    goToApex(ROUTE_SITE_ADMIN);
     if (id) auditExit(id);
   }, [clearMembership, sessionId, auditExit]);
 

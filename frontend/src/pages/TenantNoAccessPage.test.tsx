@@ -14,8 +14,10 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
 }));
 
 const mockNavigateToApex = vi.fn<(path?: string) => boolean>(() => true);
+const mockGoToApex = vi.fn<(path?: string) => void>();
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: (...args: unknown[]) => mockNavigateToApex(...(args as [string])),
+  goToApex: (...args: unknown[]) => mockGoToApex(...(args as [string])),
 }));
 
 const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@example.test' } }));
@@ -45,7 +47,7 @@ describe('TenantNoAccessPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /go to my workspaces/i }));
 
     // Apex "/" is the marketing page — the SPA entry point must be used.
-    expect(mockNavigateToApex).toHaveBeenCalledWith('/login?auto=1');
+    expect(mockGoToApex).toHaveBeenCalledWith('/login?auto=1');
   });
 
   it('hides the workspace switcher when the user belongs to no workspace', () => {
@@ -89,27 +91,5 @@ describe('TenantNoAccessPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
 
     expect(mockSend).toHaveBeenCalledWith({ type: 'LOGOUT' });
-  });
-
-  it('falls back to a same-origin navigation when there is no apex to go to', () => {
-    // Local dev / no baseDomain: navigateToApex returns false.
-    mockNavigateToApex.mockReturnValue(false);
-    const originalLocation = window.location;
-    Object.defineProperty(window, 'location', {
-      value: { href: 'http://localhost:5173/about', origin: 'http://localhost:5173', pathname: '/about' },
-      writable: true,
-      configurable: true,
-    });
-
-    render(<TenantNoAccessPage />);
-    fireEvent.click(screen.getByRole('button', { name: /go to my workspaces/i }));
-
-    expect(window.location.href).toBe('/login?auto=1');
-
-    Object.defineProperty(window, 'location', {
-      value: originalLocation,
-      writable: true,
-      configurable: true,
-    });
   });
 });

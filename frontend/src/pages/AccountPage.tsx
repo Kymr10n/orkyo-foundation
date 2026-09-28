@@ -24,6 +24,8 @@ import {
   CardTitle,
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
+import { StatusBadge } from "@foundation/src/components/ui/status-badge";
+import { ROLE_LABELS, type SelectableRole } from "@foundation/src/components/ui/RoleSelect";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { Input } from "@foundation/src/components/ui/input";
@@ -50,7 +52,7 @@ import {
 import { useSecurityInfo } from "@foundation/src/hooks/useSecuritySettings";
 import {
   navigateToTenantSubdomain,
-  navigateToApex,
+  goToApex,
 } from "@foundation/src/lib/utils/tenant-navigation";
 import { logger } from "@foundation/src/lib/core/logger";
 import { toast } from "sonner";
@@ -259,7 +261,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
       // If we left or deleted the active tenant, send back through the apex pipeline
       if (activeMembership?.tenantId === selectedTenant.tenantId) {
-        if (!navigateToApex("/")) window.location.href = "/";
+        goToApex("/");
         return;
       }
 
@@ -274,10 +276,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       setDeleteDialogOpen(false);
       setSelectedTenant(null);
     }
-  };
-
-  const handleLogout = () => {
-    logout();
   };
 
   if (loading) {
@@ -517,15 +515,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             <NotificationPreferencesSection locked={accountLocked} />
           </div>
 
-          {/* Sign out button at the bottom of profile tab */}
-          <Card className="mt-6">
-            <CardContent className="pt-6 md:pt-6">
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="organizations" className="mt-6">
@@ -548,7 +537,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                     <Button
                       className="mt-4"
                       onClick={() => {
-                        if (!navigateToApex("/")) window.location.href = "/";
+                        goToApex("/");
                       }}
                     >
                       Create Organization
@@ -594,17 +583,14 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                             variant={roleBadgeVariant[membership.role] ?? "secondary"}
                             className="text-xs"
                           >
-                            {membership.role}
+                            {ROLE_LABELS[membership.role as SelectableRole] ?? membership.role}
                           </Badge>
-                          {membership.tenantStatus === "suspended" && (
-                            <Badge variant="destructive" className="text-xs">
-                              Suspended
-                            </Badge>
-                          )}
-                          {membership.tenantStatus === "deleting" && (
-                            <Badge variant="destructive" className="text-xs">
-                              Deleting
-                            </Badge>
+                          {(membership.tenantStatus === "suspended" || membership.tenantStatus === "deleting") && (
+                            <StatusBadge
+                              status={membership.tenantStatus}
+                              label={membership.tenantStatus === "suspended" ? "Suspended" : "Deleting"}
+                              className="text-xs"
+                            />
                           )}
                         </div>
                       </div>
@@ -661,29 +647,10 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             </CardContent>
           </Card>
 
-          {/* Sign out button at the bottom of organizations tab */}
-          <Card className="mt-6">
-            <CardContent className="pt-6 md:pt-6">
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="security" className="mt-6">
           <SecuritySettings />
-
-          {/* Sign out button at the bottom of security tab */}
-          <Card className="mt-6">
-            <CardContent className="pt-6 md:pt-6">
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {visibleAccountTabs.map((tab) => (
@@ -693,6 +660,16 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         ))}
 
       </PageTabs>
+
+      {/* One sign-out for every tab, below whichever one is open. */}
+      <Card className="mt-6">
+        <CardContent className="pt-6 md:pt-6">
+          <Button variant="outline" onClick={logout}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign out
+          </Button>
+        </CardContent>
+      </Card>
 
       <ConfirmDialog
         open={leaveDialogOpen}
