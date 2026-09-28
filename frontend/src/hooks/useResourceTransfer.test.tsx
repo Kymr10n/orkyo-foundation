@@ -51,7 +51,6 @@ async function fireImport() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   useUiActionsStore.setState({
     exportTick: 0,
     importTick: 0,

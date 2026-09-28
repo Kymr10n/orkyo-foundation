@@ -41,7 +41,6 @@ function setLimits(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(useFeatureEnabled).mockReturnValue(true);
   vi.mocked(useAiCredential).mockReturnValue({
     data: { configured: true, keyHint: 'hAAA', lastVerifiedAt: null },

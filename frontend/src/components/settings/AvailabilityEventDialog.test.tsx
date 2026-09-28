@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AvailabilityEventDialog } from './AvailabilityEventDialog';
@@ -103,8 +103,6 @@ const existingEvent: AvailabilityEventInfo = {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AvailabilityEventDialog — create mode', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('renders with "Add Availability Event" heading', () => {
     renderDialog();
     expect(screen.getByRole('heading', { name: /add availability event/i })).toBeInTheDocument();
@@ -203,8 +201,6 @@ describe('AvailabilityEventDialog — create mode', () => {
 });
 
 describe('AvailabilityEventDialog — edit mode', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('renders with "Edit Availability Event" heading', () => {
     renderDialog({ event: existingEvent });
     expect(screen.getByRole('heading', { name: /edit availability event/i })).toBeInTheDocument();

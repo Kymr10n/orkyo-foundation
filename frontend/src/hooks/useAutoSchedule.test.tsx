@@ -38,8 +38,6 @@ describe('usePreviewAutoSchedule', () => {
 describe('useApplyAutoSchedule', () => {
   const request = { siteId: 's1', horizonStart: '2026-01-01', horizonEnd: '2026-04-01' };
 
-  beforeEach(() => vi.clearAllMocks());
-
   it('sends only the request and toasts the previewed count', async () => {
     const { spy, wrapper } = createTestQueryClient({ feedback: true });
     const { result } = renderHook(() => useApplyAutoSchedule(), { wrapper });
@@ -78,7 +76,6 @@ describe('useApplyAutoSchedule', () => {
 
 describe('useAutoScheduleAvailable', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     // Restore defaults for each test
     vi.mocked(useAuth).mockReturnValue(mockAuth({ membership: { tier: 'professional' as PlanCode } }));
     mockUseTenantSettings.mockReturnValue({

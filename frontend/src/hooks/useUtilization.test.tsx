@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useScheduleRequest } from "./useUtilization";
 import type { Request } from "@foundation/src/types/requests";
@@ -66,10 +66,6 @@ const mockRequest2: Request = {
 // ---------------------------------------------------------------------------
 
 describe("useScheduleRequest", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("calls scheduleRequest with the correct requestId and data", async () => {
     const updatedRequest: Request = {
       ...mockRequest,

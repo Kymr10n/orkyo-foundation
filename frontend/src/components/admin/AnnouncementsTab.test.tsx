@@ -74,7 +74,6 @@ const renderTab = () =>
 
 describe('AnnouncementsTab', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetAnnouncements.mockResolvedValue({ announcements: [] });
   });
 

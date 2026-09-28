@@ -84,7 +84,6 @@ function renderTab() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   conflictsByRequest.clear();
   (getInsightsBottlenecks as Mock).mockResolvedValue(emptyBottlenecks);
   (getCriticalPath as Mock).mockResolvedValue(emptyPath);

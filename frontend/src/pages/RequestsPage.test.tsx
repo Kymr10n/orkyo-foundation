@@ -163,8 +163,6 @@ vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   importRequests: vi.fn(() => Promise.resolve([])),
 }));
 
-
-
 const createWrapper = () => {
   // The page's mutations declare their toasts in `meta`, so the wrapper carries the same
   // MutationCache production uses (with the mocked sonner toast) — otherwise no toast fires.
@@ -188,7 +186,6 @@ describe('RequestsPage', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetRequests.mockResolvedValue([]);
     useSiteStore.setState({ selectedSiteId: 'site-1' });
     useRequestTreeStore.setState({ expandedIds: new Set<string>(), selectedId: null, viewMode: 'tree' });

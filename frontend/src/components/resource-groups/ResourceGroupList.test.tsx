@@ -79,7 +79,6 @@ async function openRowMenu(user: ReturnType<typeof userEvent.setup>, name: strin
 
 describe('ResourceGroupList', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getResourceGroups).mockResolvedValue(mockGroups);
     vi.mocked(deleteResourceGroup).mockResolvedValue(undefined);
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.

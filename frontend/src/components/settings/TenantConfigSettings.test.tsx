@@ -140,7 +140,6 @@ function setupHook(overrides?: Partial<ReturnType<typeof useTenantSettings>>) {
 
 describe("TenantConfigSettings", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     // Globally mocked to true in src/test/setup.ts; the non-admin test overrides it.
     vi.mocked(useIsTenantAdmin).mockReturnValue(true);
     authValue = mockAuth({

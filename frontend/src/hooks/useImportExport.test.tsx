@@ -26,7 +26,6 @@ let invalidateSpy: ReturnType<typeof createTestQueryClient>['spy'];
 let wrapper: ReturnType<typeof createTestQueryClient>['wrapper'];
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(useCanEdit).mockReturnValue(true);
   resetStore();
   // The import and export runs are mutations with `meta`: wire the production feedback cache.

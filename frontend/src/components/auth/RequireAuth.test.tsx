@@ -35,7 +35,6 @@ function renderGuard(
 
 describe("RequireAuth", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.useFakeTimers();
   });
 

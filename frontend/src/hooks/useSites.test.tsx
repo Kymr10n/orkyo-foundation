@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useSites, useCreateSite, useSaveSite, useDeleteSite } from './useSites';
 import * as siteApi from '@foundation/src/lib/api/site-api';
@@ -19,10 +19,6 @@ const mockSite: Site = {
 };
 
 describe('useSites', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('useSites query', () => {
     it('fetches all sites', async () => {
       const sites = [mockSite];

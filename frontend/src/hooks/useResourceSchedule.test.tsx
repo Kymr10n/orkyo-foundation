@@ -10,7 +10,6 @@ vi.mock('@foundation/src/lib/api/request-api');
 
 describe('useScheduleRequestNames', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(requestApi.getRequests).mockResolvedValue([]);
   });
 

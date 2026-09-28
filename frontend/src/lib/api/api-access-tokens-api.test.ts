@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../core/api-client', () => ({
   apiGet: vi.fn(),
@@ -14,8 +14,6 @@ import {
   grantsWrite,
   API_SCOPES,
 } from './api-access-tokens-api';
-
-beforeEach(() => vi.clearAllMocks());
 
 describe('api-access-tokens-api', () => {
   it('reads tokens from the platform surface, not the reporting one', async () => {

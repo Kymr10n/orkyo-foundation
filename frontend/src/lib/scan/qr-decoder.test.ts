@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { startQrDecoder } from './qr-decoder';
 
 const zxing = vi.hoisted(() => ({
@@ -14,8 +14,6 @@ vi.mock('@zxing/browser', () => ({
 }));
 
 describe('startQrDecoder', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('asks for the rear camera and reports only frames that hold a code', async () => {
     const video = document.createElement('video');
     const onCode = vi.fn();

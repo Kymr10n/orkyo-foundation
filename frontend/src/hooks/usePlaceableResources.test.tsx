@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import {
   usePlaceableResources,
@@ -52,10 +52,6 @@ function placeable(overrides: Partial<ResourceInfo> = {}): ResourceInfo {
 const listResponse = (items: ResourceInfo[]) => pagedResult(items);
 
 describe('usePlaceableResources', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('asks for every placeable resource at the site, whatever its type', async () => {
     // One floorplan holds them all, so the query is type-agnostic — a tenant-defined placeable
     // type appears without any per-type wiring.

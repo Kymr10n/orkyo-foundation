@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getResourceAbsences,
   createResourceAbsence,
@@ -17,8 +17,6 @@ const mockAbsence = {
 };
 
 describe('resource-absences-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   describe('getResourceAbsences', () => {
     it('calls apiGet on the resource absences endpoint', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockAbsence]);

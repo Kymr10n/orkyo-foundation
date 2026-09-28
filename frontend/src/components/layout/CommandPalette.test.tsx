@@ -76,7 +76,6 @@ function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: bool
 
 describe('CommandPalette', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: '', results: [] });
     // usePermissions hooks are globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);

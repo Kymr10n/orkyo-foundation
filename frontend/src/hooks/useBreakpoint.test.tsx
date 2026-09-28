@@ -1,61 +1,18 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useBreakpoint } from "./useBreakpoint";
+import { restoreViewport, setViewport } from "@foundation/src/test-utils/viewport";
 
-/**
- * Install a width-driven matchMedia mock that evaluates `(min-width: Npx)`
- * queries against a mutable viewport width and supports change listeners, so a
- * test can resize the viewport and assert the hook reacts.
- */
+/** A resizable viewport whose resize re-renders the hook. */
 function mockViewport(initialWidth: number) {
-  let width = initialWidth;
-  // One registration per (query, callback) pair — the real DOM hands back a
-  // distinct MediaQueryList per query, so the hook's two boundary queries each
-  // hold their own listener. Track them as a list, not a Set.
-  const registrations: (() => void)[] = [];
-
-  const matchMedia = vi.fn((query: string) => {
-    const min = /\(min-width:\s*(\d+)px\)/.exec(query);
-    return {
-      get matches() {
-        return min ? width >= Number(min[1]) : false;
-      },
-      media: query,
-      onchange: null,
-      addEventListener: (_: string, cb: () => void) => registrations.push(cb),
-      removeEventListener: (_: string, cb: () => void) => {
-        const i = registrations.indexOf(cb);
-        if (i >= 0) registrations.splice(i, 1);
-      },
-      dispatchEvent: () => false,
-    } as unknown as MediaQueryList;
-  });
-
-  Object.defineProperty(window, "matchMedia", {
-    value: matchMedia,
-    writable: true,
-    configurable: true,
-  });
-
+  const viewport = setViewport(initialWidth);
   return {
-    resize(next: number) {
-      width = next;
-      // De-dupe the (single) React callback so we schedule one update.
-      act(() => new Set(registrations).forEach((cb) => cb()));
-    },
-    listenerCount: () => registrations.length,
+    resize: (next: number) => act(() => viewport.setWidth(next)),
+    listenerCount: viewport.listenerCount,
   };
 }
 
-// Bound on capture: a bare `window.matchMedia` reference is detached from its receiver.
-const originalMatchMedia = window.matchMedia.bind(window);
-afterEach(() => {
-  Object.defineProperty(window, "matchMedia", {
-    value: originalMatchMedia,
-    writable: true,
-    configurable: true,
-  });
-});
+afterEach(restoreViewport);
 
 describe("useBreakpoint", () => {
   it("reports phone below 768px", () => {

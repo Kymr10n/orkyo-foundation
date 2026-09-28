@@ -45,7 +45,6 @@ function renderDialog(resource: ResourceInfo | null = null) {
 
 describe('ResourceEditDialog custom fields', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(createResource).mockResolvedValue({ id: 'res-1' } as ResourceInfo);
     vi.mocked(updateResource).mockResolvedValue({ id: 'res-1' } as ResourceInfo);
   });

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import * as apiClient from '../core/api-client';
 import {
   getResourceScanCodes,
@@ -10,8 +10,6 @@ import {
 vi.mock('../core/api-client');
 
 describe('resource-scan-codes-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('looks a code up through a query parameter, since a code can hold "/" and "?"', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue({ status: 'unknown' });
 

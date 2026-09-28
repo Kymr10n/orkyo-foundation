@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SecuritySettings } from './SecuritySettings';
 import { mockAuth } from '@foundation/src/test-utils/auth';
@@ -31,10 +31,6 @@ vi.mock('./SessionsSection', () => ({
 }));
 
 describe('SecuritySettings', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('shows loading spinner when loading', () => {
     mockQueryResult.current = { data: null, isLoading: true, error: null };
     const { container } = render(<SecuritySettings />);

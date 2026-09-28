@@ -40,7 +40,6 @@ describe('ImportExportDialog', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockAvailable = true;
     registerSpaces();
   });

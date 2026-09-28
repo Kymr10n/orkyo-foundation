@@ -61,7 +61,6 @@ function renderDialogHook(overrides: {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   ({ queryClient, wrapper } = createTestQueryClient({ feedback: true }));
 });
 

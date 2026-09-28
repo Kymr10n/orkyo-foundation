@@ -36,7 +36,6 @@ function renderSignup(search = '') {
 
 describe('SignupPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn());
     // Stub window.location so handleBackToLogin's full-page navigations are
     // assertable instead of triggering a jsdom "navigation not implemented" error.

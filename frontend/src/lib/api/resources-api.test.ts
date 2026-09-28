@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type * as ApiUtils from '../core/api-utils';
+import { describe, expect, it, vi } from 'vitest';
+import * as apiClient from '../core/api-client';
+import { API_PATHS } from '../core/api-paths';
 import {
   getResources,
   getResource,
@@ -10,31 +11,7 @@ import {
 } from './resources-api';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
-vi.mock('@foundation/src/lib/core/csrf', () => ({
-  getCsrfToken: () => 'test-csrf-token',
-  CSRF_HEADER_NAME: 'X-CSRF-Token',
-  isMutatingMethod: (m: string) =>
-    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(m.toUpperCase()),
-}));
-
-vi.mock('@foundation/src/config/runtime', () => ({
-  runtimeConfig: { apiBaseUrl: 'http://localhost:5000', baseDomain: '' },
-}));
-
-vi.mock('../core/api-utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof ApiUtils>();
-  return {
-    ...actual,
-    handleApiError: vi.fn().mockImplementation(async (response: Response) => {
-      const text = (await response.text?.()) || `Error ${(response as Response).status}`;
-      throw new Error(text);
-    }),
-    API_BASE_URL: 'http://localhost:5000',
-  };
-});
-
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
+vi.mock('../core/api-client');
 
 const mockResource: ResourceInfo = {
   id: 'res-1',
@@ -52,35 +29,29 @@ const mockResource: ResourceInfo = {
 
 const mockResponse = pagedResult([mockResource], { pageSize: 50 });
 
-describe('resources-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+/** The params getResources handed to apiGet. */
+const sentParams = () =>
+  (vi.mocked(apiClient.apiGet).mock.calls[0][1] as { params: Record<string, unknown> }).params;
 
+describe('resources-api', () => {
   describe('getResources', () => {
     it('fetches resources with no filter', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResponse) });
+      vi.mocked(apiClient.apiGet).mockResolvedValue(mockResponse);
       const result = await getResources();
       expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/resources'),
-        expect.any(Object),
-      );
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.RESOURCES, expect.any(Object));
     });
 
-    it('passes resourceTypeKey filter as query param', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResponse) });
-      await getResources({ resourceTypeKey: 'person', isActive: true });
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('resourceTypeKey=person'),
-        expect.any(Object),
-      );
+    it('passes the type, active and site filters as params', async () => {
+      vi.mocked(apiClient.apiGet).mockResolvedValue(mockResponse);
+      await getResources({ resourceTypeKey: 'person', isActive: true, siteId: 'site-1' });
+      expect(sentParams()).toMatchObject({ resourceTypeKey: 'person', isActive: true, siteId: 'site-1' });
     });
 
     it('warns when an unpaged call comes back truncated', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       const truncated = pagedResult([mockResource], { pageSize: 1, totalItems: 1500 });
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(truncated) });
+      vi.mocked(apiClient.apiGet).mockResolvedValue(truncated);
 
       const result = await getResources({ isActive: true });
 
@@ -91,75 +62,38 @@ describe('resources-api', () => {
 
     it('does not warn for an explicit page request with more pages', async () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      const firstPage = pagedResult([mockResource], { pageSize: 1, totalItems: 3 });
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(firstPage) });
+      vi.mocked(apiClient.apiGet).mockResolvedValue(pagedResult([mockResource], { pageSize: 1, totalItems: 3 }));
 
       await getResources({ page: 1, pageSize: 1 });
 
       expect(warn).not.toHaveBeenCalled();
       warn.mockRestore();
     });
-
-    it('passes siteId filter as query param', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResponse) });
-      await getResources({ resourceTypeKey: 'tool', siteId: 'site-1' });
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('siteId=site-1'),
-        expect.any(Object),
-      );
-    });
   });
 
-  describe('getResource', () => {
-    it('fetches a single resource by id', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResource) });
-      const result = await getResource('res-1');
-      expect(result).toEqual(mockResource);
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/resources/res-1'),
-        expect.any(Object),
-      );
-    });
+  it('getResource reads one resource by id', async () => {
+    vi.mocked(apiClient.apiGet).mockResolvedValue(mockResource);
+    expect(await getResource('res-1')).toEqual(mockResource);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.resource('res-1'));
   });
 
-  describe('createResource', () => {
-    it('posts a new resource and returns the created resource', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(mockResource) });
-      const request = {
-        resourceTypeKey: 'person',
-        name: 'Alice',
-        allocationMode: 'Exclusive',
-      };
-      const result = await createResource(request);
-      expect(result).toEqual(mockResource);
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/resources'),
-        expect.objectContaining({ method: 'POST' }),
-      );
-    });
+  it('createResource posts the request to the collection', async () => {
+    vi.mocked(apiClient.apiPost).mockResolvedValue(mockResource);
+    const request = { resourceTypeKey: 'person', name: 'Alice', allocationMode: 'Exclusive' };
+    expect(await createResource(request)).toEqual(mockResource);
+    expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.RESOURCES, request);
   });
 
-  describe('updateResource', () => {
-    it('puts resource updates and returns the updated resource', async () => {
-      const updated = { ...mockResource, name: 'Alice Updated' };
-      mockFetch.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve(updated) });
-      const result = await updateResource('res-1', { name: 'Alice Updated' });
-      expect(result).toEqual(updated);
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/resources/res-1'),
-        expect.objectContaining({ method: 'PUT' }),
-      );
-    });
+  it('updateResource puts the update to the item', async () => {
+    const updated = { ...mockResource, name: 'Alice Updated' };
+    vi.mocked(apiClient.apiPut).mockResolvedValue(updated);
+    expect(await updateResource('res-1', { name: 'Alice Updated' })).toEqual(updated);
+    expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.resource('res-1'), { name: 'Alice Updated' });
   });
 
-  describe('deleteResource', () => {
-    it('sends a DELETE request for the resource', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true, status: 204, text: () => Promise.resolve('') });
-      await deleteResource('res-1');
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/resources/res-1'),
-        expect.objectContaining({ method: 'DELETE' }),
-      );
-    });
+  it('deleteResource deletes the item', async () => {
+    vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
+    await deleteResource('res-1');
+    expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.resource('res-1'));
   });
 });

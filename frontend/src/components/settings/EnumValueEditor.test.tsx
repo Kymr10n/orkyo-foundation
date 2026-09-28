@@ -1,13 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { EnumValueEditor } from './EnumValueEditor';
 
 describe('EnumValueEditor', () => {
   const onChange = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   it('renders input and add button', () => {
     render(<EnumValueEditor values={[]} onChange={onChange} />);

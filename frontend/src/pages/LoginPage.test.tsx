@@ -35,7 +35,6 @@ function renderLoginPage(_path = '/login') {
 
 describe('LoginPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockLogin.mockReturnValue(undefined);
     vi.mocked(useAuth).mockReturnValue(authState());
   });

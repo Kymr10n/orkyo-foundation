@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render } from '@testing-library/react';
 import { SpaceDrawingCanvas } from './SpaceDrawingCanvas';
 import type { ResourceGeometry } from '@foundation/src/types/geometry';
@@ -38,8 +38,6 @@ function shape() {
 }
 
 describe('SpaceDrawingCanvas — press, hold, release', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('selects on press, so the resize handles are there to grab', () => {
     renderCanvas({ selectedResourceId: undefined });
 

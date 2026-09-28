@@ -103,7 +103,6 @@ function renderAt(path: string) {
 
 describe("TenantApp", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue(authState());
   });
 

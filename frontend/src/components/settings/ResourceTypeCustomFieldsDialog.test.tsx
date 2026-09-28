@@ -53,7 +53,6 @@ async function openFieldMenu(label: string) {
 
 describe('ResourceTypeCustomFieldsDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(deleteResourceCustomField).mockResolvedValue(undefined);
     vi.mocked(getResourceCustomFields).mockResolvedValue([
       customField({ key: 'serial_number', label: 'Serial number', isRequired: true }),

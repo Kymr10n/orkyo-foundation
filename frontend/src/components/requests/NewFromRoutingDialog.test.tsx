@@ -101,7 +101,6 @@ describe('buildInstantiateRequest', () => {
 
 describe('NewFromRoutingDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getRoutings).mockResolvedValue([bracket]);
     vi.mocked(getSites).mockResolvedValue([]);
     vi.mocked(instantiateRouting).mockResolvedValue({ parent: { id: 'p1', name: 'WO-1' }, childIds: ['c1', 'c2'] });

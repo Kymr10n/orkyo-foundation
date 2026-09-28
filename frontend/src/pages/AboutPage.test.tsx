@@ -28,7 +28,6 @@ const renderAboutPage = () => {
 
 describe('AboutPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     configMock.supportEmail = 'support@example.test';
   });
 

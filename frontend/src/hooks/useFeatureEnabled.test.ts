@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { FeatureKeys, PlanCodes, type PlanCode } from '@foundation/contracts/plans';
@@ -30,10 +30,6 @@ function authState(
 }
 
 describe('useFeatureEnabled', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('returns true when the server reports the feature as entitled', () => {
     vi.mocked(useAuth).mockReturnValue(authState({ entitlements: { [FeatureKeys.CalendarFeed]: true } }));
     const { result } = renderHook(() => useFeatureEnabled(FeatureKeys.CalendarFeed));

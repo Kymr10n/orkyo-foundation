@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import {
   useTenantSettings,
@@ -41,10 +41,6 @@ const mockResponse: settingsApi.TenantSettingsResponse = {
 };
 
 describe("useTenantSettings", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("useTenantSettings query", () => {
     it("fetches tenant settings", async () => {
       vi.mocked(settingsApi.getTenantSettings).mockResolvedValue(mockResponse);

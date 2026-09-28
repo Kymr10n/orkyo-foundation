@@ -40,7 +40,6 @@ function shutdown(id: string, enabled: boolean) {
 
 describe('useOffTimeRanges', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockUseSchedulingSettings.mockReturnValue({ data: null });
     mockUseAvailabilityEvents.mockReturnValue({ data: [] });
   });

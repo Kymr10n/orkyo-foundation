@@ -43,7 +43,6 @@ describe("CollapsibleFloorplan", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSelectedSiteId = null;
     mockFloorplan.data = undefined;
     mockFloorplan.isLoading = false;

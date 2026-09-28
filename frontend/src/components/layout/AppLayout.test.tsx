@@ -71,7 +71,6 @@ function renderLayout() {
 
 describe('AppLayout', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     useUiActionsStore.setState({
       commandPaletteOpen: false,
       tourOpen: false,
@@ -165,10 +164,6 @@ describe('AppLayout', () => {
 });
 
 describe('AppLayout — responsive shell', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   afterEach(restoreViewport);
 
   it('desktop: inline sidebar (store-driven), no hamburger', async () => {

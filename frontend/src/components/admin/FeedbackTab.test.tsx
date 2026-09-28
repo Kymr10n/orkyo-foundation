@@ -44,7 +44,6 @@ const detail = {
 
 describe('FeedbackTab', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGet.mockResolvedValue(pagedResult([]));
   });
 

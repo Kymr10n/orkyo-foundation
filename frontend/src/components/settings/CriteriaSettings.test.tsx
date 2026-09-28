@@ -83,7 +83,6 @@ async function rowAction(user: ReturnType<typeof userEvent.setup>, name: string,
 
 describe('CriteriaSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockCriteriaData = { data: mockCriteria, isLoading: false, error: null };
     mockCriteriaData.refetch = mockRefetch;
     global.alert = vi.fn();

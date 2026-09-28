@@ -111,7 +111,6 @@ describe('PresetSettings', () => {
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
     ({ queryClient } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
 
     vi.mocked(presetApi.getPresetApplications).mockResolvedValue(mockApplications);
     vi.mocked(presetApi.parsePresetFile).mockReturnValue(mockPreset);

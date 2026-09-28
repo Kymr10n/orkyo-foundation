@@ -111,10 +111,6 @@ function openUserMenu() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('TopBar — Switch Organization', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('is hidden when user has only one tenant', () => {
     vi.mocked(useAuth).mockReturnValue(authState({
       sessionData: { tenants: [baseMembership] },
@@ -182,10 +178,6 @@ describe('TopBar — Switch Organization', () => {
 });
 
 describe('TopBar — Admin Panel', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('is shown for site admins in a normal session', () => {
     vi.mocked(useAuth).mockReturnValue(authState({ canAccessAdminPage: true }));
     renderTopBar();
@@ -213,7 +205,6 @@ describe('TopBar — Admin Panel', () => {
 
 describe('TopBar — Site Selector', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSitesData.current = undefined;
   });
 
@@ -245,7 +236,6 @@ describe('TopBar — Site Selector', () => {
 
 describe('TopBar — mobile navigation hamburger', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue(authState());
   });
 
@@ -270,7 +260,6 @@ describe('TopBar — mobile navigation hamburger', () => {
 
 describe('TopBar — phone overflow menu', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSitesData.current = undefined;
     vi.mocked(useAuth).mockReturnValue(authState());
   });
@@ -324,7 +313,6 @@ describe('TopBar — phone overflow menu', () => {
 // The buttons follow the registry — what a mounted page offers — never the URL.
 describe('TopBar — import/export availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     useUiActionsStore.setState({ exportRegistry: new Map(), importRegistry: new Map() });
   });
 
@@ -375,7 +363,6 @@ describe('TopBar — import/export availability', () => {
 
 describe('TopBar — calendar subscription availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     useUiActionsStore.setState({
       exportRegistry: new Map(),
       importRegistry: new Map(),
@@ -422,7 +409,6 @@ describe('TopBar — calendar subscription availability', () => {
 
 describe('TopBar — Scan QR code', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue(authState());
   });
 

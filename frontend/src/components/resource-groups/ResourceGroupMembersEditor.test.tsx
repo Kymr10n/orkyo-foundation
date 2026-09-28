@@ -86,7 +86,6 @@ describe("ResourceGroupMembersEditor", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getResources).mockResolvedValue(makeResourcesResponse(allResources));
     vi.mocked(getResourceGroupMembers).mockResolvedValue(makeMembers(["r-1"]));
     vi.mocked(setResourceGroupMembers).mockResolvedValue(makeMembers(["r-1"]));

@@ -100,7 +100,6 @@ describe('UserSettings', () => {
   ];
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(userApi.getUsers).mockResolvedValue(mockUsers);
     vi.mocked(userApi.getInvitations).mockResolvedValue(mockInvitations);
     vi.mocked(userApi.cancelInvitation).mockResolvedValue(undefined);

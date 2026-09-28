@@ -98,7 +98,6 @@ const switchFor = (plural: string) => screen.findByRole('switch', { name: `Activ
 
 describe('TypeCatalogSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getResourceTypeCatalog).mockResolvedValue(catalog);
     vi.mocked(activateCatalogType).mockResolvedValue({ displayName: 'Drill' } as never);
     vi.mocked(deactivateCatalogType).mockResolvedValue(undefined);

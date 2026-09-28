@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { usePreferences, useUpdatePreferences, type UserPreferences } from "./usePreferences";
 import { createTestQueryClient, createTestQueryWrapper } from "@foundation/src/test-utils";
@@ -18,10 +18,6 @@ const mockPreferences: UserPreferences = {
 };
 
 describe("usePreferences", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("usePreferences query", () => {
     it("fetches preferences on mount with correct path", async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockPreferences);

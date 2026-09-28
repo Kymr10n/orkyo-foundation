@@ -32,7 +32,6 @@ const defaultProps = {
 
 describe('OnboardingPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockCanCreateTenant.mockResolvedValue({ canCreate: true });
     mockGetStarterTemplates.mockResolvedValue(MOCK_TEMPLATES);
     mockGetTenantMemberships.mockResolvedValue([]);

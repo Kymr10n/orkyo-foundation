@@ -54,7 +54,6 @@ const subscription = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
   mockAvailable = true;
   mockSelectedSiteId = 'site-1';
   vi.mocked(getCalendarSubscriptions).mockResolvedValue([]);

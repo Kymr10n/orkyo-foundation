@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getGroupCapabilities, addGroupCapability, deleteGroupCapability } from './group-capability-api';
 import * as apiClient from '../core/api-client';
 
@@ -14,10 +14,6 @@ vi.mock('../core/api-client');
  * constant. See reporting-tokens-api.test.ts for the same convention.
  */
 describe('group-capability-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('getGroupCapabilities GETs the tenant resource-group capabilities route', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([]);
     await getGroupCapabilities('g1');

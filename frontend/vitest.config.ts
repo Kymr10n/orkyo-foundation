@@ -20,6 +20,8 @@ export default defineConfig({
     testTimeout: 15000,
     globals: true,
     setupFiles: "./src/test/setup.ts",
+    // Every mock's calls are cleared before each test, so no file restates vi.clearAllMocks().
+    clearMocks: true,
     include: ["contracts/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"],
     coverage: {
       // "cobertura" is required: release-ci.yml uploads coverage/cobertura-coverage.xml

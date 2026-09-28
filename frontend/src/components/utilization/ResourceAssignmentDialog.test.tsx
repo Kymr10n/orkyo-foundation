@@ -141,7 +141,6 @@ function renderDialog(
 
 describe("ResourceAssignmentDialog", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     // Default: assigned rows have no conflicts on load. Tests that assert the conflict
     // indicator override this with a non-empty batch result.
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);

@@ -50,7 +50,6 @@ let wrapper: ReturnType<typeof createTestQueryWrapper>;
  */
 describe('useLookupFieldLabels', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     wrapper = createTestQueryWrapper();
     getResourceCustomFields.mockResolvedValue([field()]);
     getListInstance.mockResolvedValue({ id: INSTANCE_ID, listDefinitionId: DEFINITION_ID });

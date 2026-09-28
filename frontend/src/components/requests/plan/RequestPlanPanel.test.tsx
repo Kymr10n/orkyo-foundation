@@ -108,7 +108,6 @@ function renderPanel(onOpenRequest?: (id: string) => void) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (useCanEdit as Mock).mockReturnValue(true);
   (useBreakpoint as Mock).mockReturnValue({ isPhone: false });
   (useConflictRegistry as Mock).mockReturnValue({ conflictsByRequest: new Map() });

@@ -60,7 +60,6 @@ async function saveNew(name: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(createResource).mockResolvedValue({ id: 'new' } as ResourceInfo);
   vi.mocked(updateResource).mockResolvedValue({ id: 'r-1' } as ResourceInfo);

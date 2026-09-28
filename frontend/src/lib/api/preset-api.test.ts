@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   validatePreset,
   applyPreset,
@@ -29,10 +29,6 @@ const mockPreset: Preset = {
 };
 
 describe('preset-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('validatePreset posts to the validate endpoint', async () => {
     vi.mocked(apiClient.apiPost).mockResolvedValue({ isValid: true, errors: [] });
     const result = await validatePreset(mockPreset);

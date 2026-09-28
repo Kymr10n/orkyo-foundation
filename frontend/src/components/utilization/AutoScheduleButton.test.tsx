@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { AutoScheduleButton } from './AutoScheduleButton';
@@ -12,10 +12,6 @@ function renderButton(props: Partial<React.ComponentProps<typeof AutoScheduleBut
 }
 
 describe('AutoScheduleButton', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders the button with accessible label', () => {
     renderButton();
     expect(screen.getByRole('button', { name: 'Auto-schedule unscheduled requests' })).toBeInTheDocument();

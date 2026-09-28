@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
@@ -26,8 +26,6 @@ const baseToken: TokenSummaryLike = {
   revokedAtUtc: null,
   isActive: true,
 };
-
-beforeEach(() => vi.clearAllMocks());
 
 describe('tokenStatus', () => {
   it('reports a revoked token as revoked even if it had not expired', () => {

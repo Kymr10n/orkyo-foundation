@@ -75,7 +75,6 @@ const VIEWER_STEPS = 8;
 
 describe("TourDialog", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.appUser = { hasSeenTour: false };
     authState.canEdit = true;
     authState.isAdmin = true;

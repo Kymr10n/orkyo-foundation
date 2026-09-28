@@ -28,7 +28,6 @@ function renderDialog(definition: ListDefinition | null = null) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   saveDefinition.mockImplementation((_vars, callbacks) => callbacks?.onSuccess?.({ id: 'def-new' }));
 });
 

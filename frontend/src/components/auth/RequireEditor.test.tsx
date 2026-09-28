@@ -32,7 +32,6 @@ function renderGuard() {
 
 describe('RequireEditor', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 

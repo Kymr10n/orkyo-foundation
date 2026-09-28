@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TimeNavigator } from './TimeNavigator';
@@ -18,10 +18,6 @@ function renderNavigator(props: Partial<React.ComponentProps<typeof TimeNavigato
 }
 
 describe('TimeNavigator', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders Today button for non-hour scales', () => {
     renderNavigator();
     expect(screen.getByText('Today')).toBeInTheDocument();

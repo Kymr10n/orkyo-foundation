@@ -146,7 +146,6 @@ function renderGrid(props?: Partial<React.ComponentProps<typeof ResourceUtilizat
 describe('ResourceUtilizationGrid', () => {
   beforeEach(() => {
     lookupLabels = {};
-    vi.clearAllMocks();
     useLayoutStore.setState({ collapsedGroupIds: [] });
     vi.mocked(getResources).mockResolvedValue(twoPeople);
     vi.mocked(getUtilizationByResource).mockResolvedValue(bulkUtil(availableBuckets));

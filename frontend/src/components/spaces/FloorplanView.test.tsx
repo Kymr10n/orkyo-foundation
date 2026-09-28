@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { FloorplanView } from './FloorplanView';
@@ -28,8 +28,6 @@ function setSite(siteId: string | null) {
 }
 
 describe('FloorplanView', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('prompts for site when none selected', () => {
     setSite(null);
     render(<MemoryRouter><FloorplanView /></MemoryRouter>);

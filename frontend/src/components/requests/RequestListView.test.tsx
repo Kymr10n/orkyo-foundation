@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import userEvent from '@testing-library/user-event';
@@ -78,10 +78,6 @@ function renderListView(
 // ---------------------------------------------------------------------------
 
 describe('RequestListView', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders table headers', () => {
     renderListView();
     expect(screen.getByText('Name')).toBeInTheDocument();

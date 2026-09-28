@@ -59,7 +59,6 @@ describe('ResourceStatusSheet', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 

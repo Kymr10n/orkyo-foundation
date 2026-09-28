@@ -46,7 +46,6 @@ function overviewData(overrides?: Partial<InsightsOverview>): InsightsOverview {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (useInsightsOverview as Mock).mockReturnValue(idle);
   (useInsightsRequests as Mock).mockReturnValue(idle);
 });

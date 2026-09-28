@@ -3,7 +3,7 @@
  * Tests for PDF Export functionality
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { exportGanttChartToPDF } from './gantt-pdf-export';
 import type { Request } from '@foundation/src/types/requests';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
@@ -140,10 +140,6 @@ describe('gantt-pdf-export', () => {
     request.assignments[0].resourceTypeKey = 'person';
     return request;
   }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   it('should generate PDF without errors', () => {
     expect(() => exportDefault()).not.toThrow();

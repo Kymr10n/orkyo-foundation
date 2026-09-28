@@ -95,7 +95,6 @@ describe('GlobalScanFlow', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
     sitesState.sites = [{ id: 'site-1', name: 'North' }];
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getAvailabilityEvents,
   createAvailabilityEvent,
@@ -32,10 +32,6 @@ const eventResponse = {
 };
 
 describe('availability-events-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('lists availability events for a site', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([eventResponse]);
 
@@ -44,7 +40,6 @@ describe('availability-events-api', () => {
     expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.availabilityEvents(SITE_ID));
     expect(result).toEqual([eventResponse]);
   });
-
 
   it('creates an availability event', async () => {
     vi.mocked(apiClient.apiPost).mockResolvedValue(eventResponse);

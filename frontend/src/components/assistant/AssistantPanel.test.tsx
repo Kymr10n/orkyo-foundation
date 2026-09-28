@@ -215,7 +215,6 @@ describe('AssistantPanel conversation persistence', () => {
   beforeEach(() => {
     // Call history has to be cleared, not just implementations: an assertion that a
     // conversation was never opened would otherwise see the previous test's call.
-    vi.clearAllMocks();
     vi.mocked(listAiConversations).mockResolvedValue([]);
     vi.mocked(saveAiConversation).mockResolvedValue(undefined);
     vi.mocked(deleteAiConversation).mockResolvedValue(undefined);
@@ -353,7 +352,6 @@ describe('AssistantPanel conversation persistence', () => {
 
 describe('AssistantPanel daily interaction limit', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(listAiConversations).mockResolvedValue([]);
     sessionStorage.clear();
     aiStatus.value = {

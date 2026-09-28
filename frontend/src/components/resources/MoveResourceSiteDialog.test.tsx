@@ -46,7 +46,6 @@ async function pick(siteName: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(updateResource).mockResolvedValue({ id: 'r-1' } as ResourceInfo);
 });
 

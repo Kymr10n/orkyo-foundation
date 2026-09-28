@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import {
   useSchedulingSettings,
@@ -44,8 +44,6 @@ function makeWrapper() {
 // ── useSchedulingSettings ─────────────────────────────────────────────────────
 
 describe('useSchedulingSettings', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('fetches settings when siteId is provided', async () => {
     const { result } = renderHook(() => useSchedulingSettings('s1'), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -63,8 +61,6 @@ describe('useSchedulingSettings', () => {
 // ── useUpsertSchedulingSettings ───────────────────────────────────────────────
 
 describe('useUpsertSchedulingSettings', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('calls upsertSchedulingSettings and invalidates cache', async () => {
     const { result } = renderHook(() => useUpsertSchedulingSettings('s1'), { wrapper: makeWrapper() });
     await act(() => result.current.mutateAsync({ timeZone: 'Europe/Berlin' } as any));
@@ -75,8 +71,6 @@ describe('useUpsertSchedulingSettings', () => {
 // ── useDeleteSchedulingSettings ───────────────────────────────────────────────
 
 describe('useDeleteSchedulingSettings', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('calls deleteSchedulingSettings', async () => {
     const { result } = renderHook(() => useDeleteSchedulingSettings('s1'), { wrapper: makeWrapper() });
     await act(() => result.current.mutateAsync());
@@ -87,8 +81,6 @@ describe('useDeleteSchedulingSettings', () => {
 // ── useAvailabilityEvents ─────────────────────────────────────────────────────
 
 describe('useAvailabilityEvents', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('fetches availability events when siteId is provided', async () => {
     const { result } = renderHook(() => useAvailabilityEvents('s1'), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -106,8 +98,6 @@ describe('useAvailabilityEvents', () => {
 // ── useSaveAvailabilityEvent ──────────────────────────────────────────────────
 
 describe('useSaveAvailabilityEvent', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('creates when there is no id', async () => {
     const { result } = renderHook(() => useSaveAvailabilityEvent('s1'), { wrapper: makeWrapper() });
     await act(() => result.current.mutateAsync({ id: null, data: { title: 'Shutdown' } as any }));
@@ -124,8 +114,6 @@ describe('useSaveAvailabilityEvent', () => {
 // ── useDeleteAvailabilityEvent ────────────────────────────────────────────────
 
 describe('useDeleteAvailabilityEvent', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('calls deleteAvailabilityEvent with eventId', async () => {
     const { result } = renderHook(() => useDeleteAvailabilityEvent('s1'), { wrapper: makeWrapper() });
     await act(() => result.current.mutateAsync('evt-1'));

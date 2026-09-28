@@ -35,7 +35,6 @@ function expectRequestDataInvalidated(spy: ReturnType<typeof renderTab>['invalid
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(createChildRequest).mockResolvedValue({} as never);
   vi.mocked(moveRequest).mockResolvedValue({} as never);
 });

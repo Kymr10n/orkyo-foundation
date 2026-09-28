@@ -44,7 +44,6 @@ function renderDialog(props: Partial<Parameters<typeof SiteEditDialog>[0]> = {})
 
 describe('SiteEditDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(createSite).mockResolvedValue({ ...existingSite, id: 'new-id' });
     vi.mocked(updateSite).mockResolvedValue({ ...existingSite, name: 'Updated HQ' });
   });

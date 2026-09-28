@@ -51,7 +51,6 @@ function renderDialog(resourceType: ResourceTypeInfo, resource: ResourceInfo) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(updateResource).mockResolvedValue(hotDesk);
 });

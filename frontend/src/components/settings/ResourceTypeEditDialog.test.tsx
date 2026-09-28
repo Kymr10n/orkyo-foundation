@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createTestQueryClient } from '@foundation/src/test-utils';
@@ -18,8 +18,6 @@ function renderDialog(resourceType = machineResourceType as typeof machineResour
 }
 
 describe('ResourceTypeEditDialog — QR codes flag', () => {
-  afterEach(() => vi.clearAllMocks());
-
   it('saves the flag on an existing type', async () => {
     const user = userEvent.setup();
     api.updateResourceType.mockResolvedValue({ ...machineResourceType, scanCodesEnabled: true });

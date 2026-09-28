@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getBacklogRequests, scheduleRequest, type ScheduleRequestData } from './utilization-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -18,10 +18,6 @@ const mockRequest = {
 };
 
 describe('utilization-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('getBacklogRequests', () => {
     it('reads the unscheduled backlog and computes durationMin', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockRequest]);

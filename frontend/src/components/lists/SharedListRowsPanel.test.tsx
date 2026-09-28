@@ -61,7 +61,6 @@ function renderPanel(entries: SharedListEntry[]) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   definitionIdsAsked.length = 0;
   sharedInstancesAsked.length = 0;
   instanceIdsAsked.length = 0;

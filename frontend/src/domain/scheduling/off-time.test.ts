@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { coversOffTimeRange } from "./off-time";
-import { makeOffTimeRange } from "./test-helpers";
+import { makeOffTimeRange } from "@foundation/src/test-utils/scheduling-fixtures";
 
 describe("off-time predicate", () => {
   it("honours per-resource scoping", () => {

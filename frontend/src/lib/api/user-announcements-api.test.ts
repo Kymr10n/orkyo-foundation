@@ -1,7 +1,7 @@
 /**
  * Tests for user-announcements-api.ts
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import {
@@ -23,10 +23,6 @@ const mockAnnouncement = {
 };
 
 describe('user-announcements-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   // getActiveAnnouncements
   // -----------------------------------------------------------------------
 

@@ -72,7 +72,6 @@ function renderCanvas(props: Partial<React.ComponentProps<typeof SitePlanCanvas>
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   registryMock.conflictsByRequest = new Map();
   (getSitePlan as Mock).mockResolvedValue(sitePlan());
   (useBreakpoint as Mock).mockReturnValue({ isPhone: false });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
 vi.mock('@foundation/src/lib/api/conflicts-api', () => ({
@@ -13,8 +13,6 @@ import { useConflictRegistry } from '@foundation/src/hooks/useConflictRegistry';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 describe('useConflictRegistry', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('queries the all-time registry (no window) by default', async () => {
     renderHook(() => useConflictRegistry(), { wrapper: createTestQueryWrapper() });
     await waitFor(() => expect(getConflicts).toHaveBeenCalled());

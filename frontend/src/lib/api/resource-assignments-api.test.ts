@@ -40,7 +40,6 @@ const result = (blockers: ValidationIssue[]): ValidationResult => ({
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
   apiMocks.apiGet.mockResolvedValue([]);
   apiMocks.apiPost.mockResolvedValue({});
   apiMocks.apiDelete.mockResolvedValue(undefined);
@@ -76,7 +75,6 @@ describe('hardBlockers / softBlockers', () => {
 });
 
 describe('assignment queries', () => {
-
   it('queries all resources of a type in one round-trip', async () => {
     await getAssignmentsByResourceType(
       'person',
@@ -135,7 +133,6 @@ describe('mutations', () => {
     await cancelAssignment('asg-1');
     expect(apiMocks.apiDelete).toHaveBeenCalledWith(expect.stringContaining('asg-1'));
   });
-
 
   it('reads one resource window with an explicit from/to', async () => {
     apiMocks.apiGet.mockResolvedValue([]);

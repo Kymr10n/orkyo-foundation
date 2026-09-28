@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { SettingRow } from './SettingRow';
@@ -41,10 +41,6 @@ const defaultProps = {
 };
 
 describe('SettingRow', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders display name and description', () => {
     renderWithQuery(<SettingRow {...defaultProps} />);
     expect(screen.getByText('Max Items')).toBeInTheDocument();

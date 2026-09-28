@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     API_BASE_URL,
     ApiError,
@@ -31,10 +31,6 @@ vi.mock('@foundation/src/lib/core/csrf', () => ({
 
 describe('api-utils', () => {
   const originalLocation = window.location;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   afterEach(() => {
     Object.defineProperty(window, 'location', {
@@ -277,7 +273,6 @@ describe('api-utils', () => {
     });
 
     it('handles 401 invalid API key by clearing session', async () => {
-
       const response = {
         status: 401,
         statusText: 'Unauthorized',
@@ -353,7 +348,6 @@ describe('api-utils', () => {
     });
 
     it('handles break_glass_hard_cap_reached by navigating to /site-admin', async () => {
-
       const response = {
         status: 410,
         statusText: 'Gone',

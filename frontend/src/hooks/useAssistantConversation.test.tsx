@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useAssistantConversation, type AssistantContext } from './useAssistantConversation';
 import {
@@ -32,8 +32,6 @@ function renderConversation(initial: { open: boolean; context?: AssistantContext
     wrapper: createTestQueryWrapper(),
   });
 }
-
-beforeEach(() => vi.clearAllMocks());
 
 describe('useAssistantConversation', () => {
   it('runs a turn for a sent message and saves the finished conversation under the first question', async () => {

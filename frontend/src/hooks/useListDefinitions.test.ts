@@ -58,7 +58,6 @@ let wrapper: ReturnType<typeof createTestQueryWrapper>;
  */
 describe('useListDefinitions', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     wrapper = createTestQueryWrapper();
     api.getListDefinitions.mockResolvedValue([]);
     api.getListDefinition.mockResolvedValue({ id: DEF });

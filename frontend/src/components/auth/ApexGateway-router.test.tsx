@@ -26,7 +26,6 @@ import { mockAuth } from '@foundation/src/test-utils/auth';
 
 describe("ApexGateway — Router regression", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     Object.defineProperty(window, "location", {
       value: {
         pathname: "/site-admin",

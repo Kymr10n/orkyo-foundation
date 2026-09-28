@@ -63,7 +63,6 @@ function sessionStatus(overrides: Record<string, unknown> = {}) {
 
 describe('BreakGlassBanner', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockMembership = null;
     mockGetStatus.mockResolvedValue(sessionStatus());
     mockRenew.mockResolvedValue(sessionStatus({ expiresAt: '2026-04-18T14:00:00Z' }));

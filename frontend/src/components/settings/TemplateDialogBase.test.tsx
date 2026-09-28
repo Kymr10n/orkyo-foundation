@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render as rtlRender, screen, fireEvent, waitFor, type RenderOptions } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { TemplateDialogBase } from './TemplateDialogBase';
@@ -103,10 +103,6 @@ function submit() {
 }
 
 describe('TemplateDialogBase', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   // ── Rendering ─────────────────────────────────────────
   it('renders create mode title', async () => {
     render(<TemplateDialogBase {...defaultProps} />);

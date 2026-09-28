@@ -32,7 +32,6 @@ import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth'
 
 describe('TenantSuspendedPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockAuthState.membership = null;
     mockAuthState.send = mockSend;
     configMock.supportEmail = 'support@example.test';

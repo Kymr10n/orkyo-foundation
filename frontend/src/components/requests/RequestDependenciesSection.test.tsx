@@ -60,7 +60,6 @@ function twoPredecessors() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (getRequestDependencies as Mock).mockResolvedValue({ predecessors: [], successors: [] });
 });
 

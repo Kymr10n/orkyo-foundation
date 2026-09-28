@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import * as securityApi from '@foundation/src/lib/api/security-api';
@@ -8,8 +8,6 @@ import { useRequestEmailChange } from './useAccount';
 vi.mock('@foundation/src/lib/api/security-api');
 
 describe('useRequestEmailChange', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('reports a failure inline only: no error toast next to the alert', async () => {
     vi.mocked(securityApi.requestEmailChange).mockRejectedValue(new Error('Email already in use'));
     const { wrapper } = createTestQueryClient({ feedback: true });

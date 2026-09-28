@@ -68,7 +68,6 @@ function renderPicker(value: string[], onChange = vi.fn()) {
 
 describe('ListRowPicker', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     getListRows.mockResolvedValue(rows);
     getListDefinition.mockResolvedValue(definition);
   });

@@ -99,7 +99,6 @@ describe('toStepRequests', () => {
 
 describe('RoutingEditDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getTemplates).mockResolvedValue(templates);
     vi.mocked(createRouting).mockResolvedValue(bracket);
     vi.mocked(updateRouting).mockResolvedValue(bracket);

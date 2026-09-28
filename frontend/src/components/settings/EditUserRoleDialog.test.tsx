@@ -30,7 +30,6 @@ describe('EditUserRoleDialog', () => {
     // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
     // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
     ({ queryClient, spy: invalidateSpy } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
     vi.mocked(userApi.updateUserRole).mockResolvedValue({
       ...mockUser,
       role: 'editor',

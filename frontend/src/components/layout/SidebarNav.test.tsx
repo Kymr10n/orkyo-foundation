@@ -54,7 +54,6 @@ function renderSidebar(
 
 describe('SidebarNav', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.membership = editor;
     authState.isSiteAdmin = false;
     resourceTypesState.data = [];

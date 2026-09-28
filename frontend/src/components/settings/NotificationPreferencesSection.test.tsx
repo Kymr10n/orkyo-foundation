@@ -22,7 +22,6 @@ function renderNotif(props: { locked?: boolean } = {}) {
 
 describe('NotificationPreferencesSection', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getNotificationPreferences).mockResolvedValue({ announcementEmailOptOut: false });
     vi.mocked(updateNotificationPreferences).mockResolvedValue({ message: 'ok' });
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AutoSchedulePreviewDialog } from './AutoSchedulePreviewDialog';
 import type { AutoSchedulePreviewResponse } from '@foundation/src/lib/api/auto-schedule-api';
@@ -67,10 +67,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof AutoSchedulePre
 }
 
 describe('AutoSchedulePreviewDialog', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders dialog title', () => {
     renderDialog();
     expect(screen.getByText('Auto-schedule preview')).toBeInTheDocument();

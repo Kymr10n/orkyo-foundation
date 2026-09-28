@@ -37,7 +37,6 @@ function renderGuard() {
 
 describe('RequireTenantAdmin', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.membership = null;
     authState.isSiteAdmin = false;
   });

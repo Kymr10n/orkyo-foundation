@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { GroupHeader } from './GroupHeader';
 
@@ -15,10 +15,6 @@ function renderHeader(props: Partial<React.ComponentProps<typeof GroupHeader>> =
 }
 
 describe('GroupHeader', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders group name', () => {
     renderHeader();
     expect(screen.getByText('Production Hall')).toBeInTheDocument();

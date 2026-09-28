@@ -65,7 +65,6 @@ describe('SiteSettings', () => {
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
     ({ queryClient } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
 
     vi.mocked(useSites).mockReturnValue({
       data: mockSites,

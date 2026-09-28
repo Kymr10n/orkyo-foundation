@@ -24,7 +24,6 @@ import { useLayoutStore } from "@foundation/src/store/layout-store";
 import { useSiteStore } from "@foundation/src/store/site-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 
-
 // --- Extractable mock fns for per-test control ---
 const mockUseRequests = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 const mockUseSpaces = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
@@ -119,18 +118,13 @@ vi.mock("@foundation/src/lib/api/request-api", () => ({
   moveRequest: vi.fn(() => Promise.resolve()),
 }));
 
-
 vi.mock("@foundation/src/lib/utils/export-handlers", () => ({
   exportUtilization: vi.fn(() => Promise.resolve()),
 }));
 
-
 vi.mock("@foundation/src/lib/api/space-capability-api", () => ({
   getSpaceCapabilities: vi.fn(() => Promise.resolve([])),
 }));
-
-
-
 
 // Capture DndContext.onDragEnd for handler testing
 let capturedOnDragEnd: ((event: any) => void) | null = null;
@@ -241,7 +235,6 @@ vi.mock("@foundation/src/hooks/useResourceTypes", () => ({
   useResourceTypes: (...args: unknown[]) => mockResourceTypes(...(args as [])),
 }));
 
-
 vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () => ({
   AutoSchedulePreviewDialog: ({ open, onApply, onClose, applyError }: any) => open ? (
     <div data-testid="preview-dialog">
@@ -318,7 +311,6 @@ const createWrapper = (initialTab = "stations", types?: string, feedback = false
 
 describe("UtilizationPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockRole = "admin";
     mockIsPhone = false;
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
@@ -1304,7 +1296,6 @@ describe("time navigation", () => {
 
     expect(await screen.findByTestId("auto-schedule-btn")).toBeDisabled();
   });
-
 
   describe("stations grid search and filters", () => {
     // Status is derived from the schedule (withEffectiveStatus), so the dates decide it: an

@@ -65,7 +65,6 @@ function renderPage() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   authState.membership = entitled;
   authState.isLoading = false;
   vi.mocked(listApiAccessTokens).mockResolvedValue([]);

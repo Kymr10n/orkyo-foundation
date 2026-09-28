@@ -1,392 +1,92 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type * as ApiUtils from "../core/api-utils";
+import { describe, expect, it, vi } from "vitest";
+import * as apiClient from "../core/api-client";
+import { API_PATHS } from "../core/api-paths";
 import {
-  getUsers,
-  getInvitations,
-  createInvitation,
-  resendInvitation,
   cancelInvitation,
-  updateUserRole,
+  createInvitation,
   deleteUser,
+  getInvitations,
+  getUsers,
+  resendInvitation,
+  updateUserRole,
+  type UserWithRole,
 } from "./user-api";
 
-vi.mock("@foundation/src/lib/core/csrf", () => ({
-  getCsrfToken: () => "test-csrf-token",
-  CSRF_HEADER_NAME: "X-CSRF-Token",
-  isMutatingMethod: (m: string) =>
-    ["POST", "PUT", "PATCH", "DELETE"].includes(m.toUpperCase()),
-}));
+vi.mock("../core/api-client");
 
-vi.mock("@foundation/src/config/runtime", () => ({
-  runtimeConfig: { apiBaseUrl: "http://localhost:5000", baseDomain: "" },
-}));
+// Headers, credentials and error mapping belong to api-client (api-client.test.ts).
 
-vi.mock("../core/api-utils", async (importOriginal) => {
-  const actual = await importOriginal<typeof ApiUtils>();
-  return {
-    ...actual,
-    handleApiError: vi.fn().mockImplementation(async (response: Response) => {
-      const text =
-        (await response.text?.()) || `Error ${(response).status}`;
-      throw new Error(text);
-    }),
-    API_BASE_URL: "http://localhost:5000",
-  };
-});
-
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
-
-// ============================================================================
-// Shared fixtures
-// ============================================================================
-
-const USER_ID = "user-123";
-const INVITATION_ID = "inv-789";
-
-const mockUser = {
-  id: USER_ID,
-  email: "test@example.com",
-  displayName: "Test User",
-  role: "editor" as const,
-  status: "active" as const,
-  createdAt: "2025-01-01T00:00:00Z",
-  lastLoginAt: "2025-03-01T10:00:00Z",
+const user: UserWithRole = {
+  id: "u1",
+  email: "a@example.com",
+  displayName: "A",
+  role: "editor",
+  status: "active",
+  createdAt: "2026-01-01T00:00:00Z",
 };
-
-const mockInvitation = {
-  id: INVITATION_ID,
-  email: "invite@example.com",
-  role: "viewer" as const,
-  invitedBy: "admin@example.com",
-  tokenHash: "abc123hash",
-  expiresAt: "2026-05-01T00:00:00Z",
-  createdAt: "2026-04-01T00:00:00Z",
-};
-
-// ============================================================================
-// getUsers
-// ============================================================================
 
 describe("user-api", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it("getUsers unwraps the users array", async () => {
+    vi.mocked(apiClient.apiGet).mockResolvedValue({ users: [user] });
+
+    expect(await getUsers()).toEqual([user]);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.USERS);
   });
 
-  describe("getUsers", () => {
-    it("sends GET to /api/users", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ users: [mockUser] }),
-      });
+  it("getUsers answers an empty list when the body has none", async () => {
+    vi.mocked(apiClient.apiGet).mockResolvedValue({});
 
-      await getUsers();
+    expect(await getUsers()).toEqual([]);
+  });
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/users",
-        expect.objectContaining({ method: "GET", credentials: "include" }),
-      );
-    });
+  it("getInvitations unwraps the invitations array, or answers an empty list", async () => {
+    const invitation = { id: "i1", email: "b@example.com", role: "viewer" };
+    vi.mocked(apiClient.apiGet).mockResolvedValueOnce({ invitations: [invitation] });
+    vi.mocked(apiClient.apiGet).mockResolvedValueOnce({});
 
-    it("returns the users array extracted from the response", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ users: [mockUser] }),
-      });
+    expect(await getInvitations()).toEqual([invitation]);
+    expect(await getInvitations()).toEqual([]);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.USER_INVITATIONS);
+  });
 
-      const result = await getUsers();
+  it("createInvitation posts the invite and returns the answer", async () => {
+    const answer = { member: { userId: "u2", email: "c@example.com", role: "editor" }, message: "Added" };
+    vi.mocked(apiClient.apiPost).mockResolvedValue(answer);
 
-      expect(result).toEqual([mockUser]);
-    });
-
-    it("returns an empty array when users is missing from response", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({}),
-      });
-
-      const result = await getUsers();
-
-      expect(result).toEqual([]);
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: async () => "Forbidden",
-      });
-
-      await expect(getUsers()).rejects.toThrow("Forbidden");
+    expect(await createInvitation({ email: "c@example.com", role: "editor" })).toEqual(answer);
+    expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.USER_INVITE, {
+      email: "c@example.com",
+      role: "editor",
     });
   });
 
-  // ============================================================================
-  // getInvitations
-  // ============================================================================
+  it("resendInvitation posts to the invitation's resend path", async () => {
+    vi.mocked(apiClient.apiPost).mockResolvedValue(undefined);
 
-  describe("getInvitations", () => {
-    it("sends GET to /api/users/invitations", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ invitations: [mockInvitation] }),
-      });
-
-      await getInvitations();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/users/invitations",
-        expect.objectContaining({ method: "GET", credentials: "include" }),
-      );
-    });
-
-    it("returns the invitations array extracted from the response", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ invitations: [mockInvitation] }),
-      });
-
-      const result = await getInvitations();
-
-      expect(result).toEqual([mockInvitation]);
-    });
-
-    it("returns an empty array when invitations is missing from response", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({}),
-      });
-
-      const result = await getInvitations();
-
-      expect(result).toEqual([]);
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: async () => "Forbidden",
-      });
-
-      await expect(getInvitations()).rejects.toThrow("Forbidden");
-    });
+    expect(await resendInvitation("i1")).toBeUndefined();
+    expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.userInvitationResend("i1"), undefined);
   });
 
-  // ============================================================================
-  // createInvitation
-  // ============================================================================
+  it("cancelInvitation and deleteUser delete their item", async () => {
+    vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
 
-  describe("createInvitation", () => {
-    const payload = { email: "invite@example.com", role: "viewer" as const };
+    await cancelInvitation("i1");
+    await deleteUser("u1");
 
-    it("sends POST to /api/users/invite with body", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockInvitation,
-      });
-
-      await createInvitation(payload);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/users/invite",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "include",
-          body: JSON.stringify(payload),
-        }),
-      );
-    });
-
-    it("returns the created invitation", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockInvitation,
-      });
-
-      const result = await createInvitation(payload);
-
-      expect(result).toEqual(mockInvitation);
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 409,
-        text: async () => "User already invited",
-      });
-
-      await expect(createInvitation(payload)).rejects.toThrow(
-        "User already invited",
-      );
-    });
+    expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.userInvitation("i1"));
+    expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.user("u1"));
   });
 
-  // ============================================================================
-  // resendInvitation
-  // ============================================================================
+  it("updateUserRole patches the role and returns the user", async () => {
+    vi.mocked(apiClient.apiPatch).mockResolvedValue({ ...user, role: "admin" });
 
-  describe("resendInvitation", () => {
-    it("sends POST to /api/users/invitations/{invitationId}/resend", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => null });
-
-      await resendInvitation(INVITATION_ID);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/users/invitations/${INVITATION_ID}/resend`,
-        expect.objectContaining({
-          method: "POST",
-          credentials: "include",
-        }),
-      );
-    });
-
-    it("resolves to void on success", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => null });
-
-      const result = await resendInvitation(INVITATION_ID);
-
-      expect(result).toBeUndefined();
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: async () => "Invitation not found",
-      });
-
-      await expect(resendInvitation(INVITATION_ID)).rejects.toThrow(
-        "Invitation not found",
-      );
-    });
+    expect(await updateUserRole("u1", { role: "admin" })).toEqual({ ...user, role: "admin" });
+    expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.userRole("u1"), { role: "admin" });
   });
 
-  // ============================================================================
-  // cancelInvitation
-  // ============================================================================
+  it("passes a failure through", async () => {
+    vi.mocked(apiClient.apiGet).mockRejectedValue(new Error("Forbidden"));
 
-  describe("cancelInvitation", () => {
-    it("sends DELETE to /api/users/invitations/{invitationId}", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => null });
-
-      await cancelInvitation(INVITATION_ID);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/users/invitations/${INVITATION_ID}`,
-        expect.objectContaining({
-          method: "DELETE",
-          credentials: "include",
-        }),
-      );
-    });
-
-    it("resolves to void on success", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => null });
-
-      const result = await cancelInvitation(INVITATION_ID);
-
-      expect(result).toBeUndefined();
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: async () => "Invitation not found",
-      });
-
-      await expect(cancelInvitation(INVITATION_ID)).rejects.toThrow(
-        "Invitation not found",
-      );
-    });
-  });
-
-  // ============================================================================
-  // updateUserRole
-  // ============================================================================
-
-  describe("updateUserRole", () => {
-    const payload = { role: "admin" as const };
-
-    it("sends PATCH to /api/users/{userId}/role with body", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ ...mockUser, role: "admin" }),
-      });
-
-      await updateUserRole(USER_ID, payload);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/users/${USER_ID}/role`,
-        expect.objectContaining({
-          method: "PATCH",
-          credentials: "include",
-          body: JSON.stringify(payload),
-        }),
-      );
-    });
-
-    it("returns the updated user", async () => {
-      const updatedUser = { ...mockUser, role: "admin" as const };
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => updatedUser,
-      });
-
-      const result = await updateUserRole(USER_ID, payload);
-
-      expect(result).toEqual(updatedUser);
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: async () => "User not found",
-      });
-
-      await expect(updateUserRole(USER_ID, payload)).rejects.toThrow(
-        "User not found",
-      );
-    });
-  });
-
-  // ============================================================================
-  // deleteUser
-  // ============================================================================
-
-  describe("deleteUser", () => {
-    it("sends DELETE to /api/users/{userId}", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => null });
-
-      await deleteUser(USER_ID);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `http://localhost:5000/api/users/${USER_ID}`,
-        expect.objectContaining({
-          method: "DELETE",
-          credentials: "include",
-        }),
-      );
-    });
-
-    it("resolves to void on success", async () => {
-      mockFetch.mockResolvedValue({ ok: true, json: async () => null });
-
-      const result = await deleteUser(USER_ID);
-
-      expect(result).toBeUndefined();
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 404,
-        text: async () => "User not found",
-      });
-
-      await expect(deleteUser(USER_ID)).rejects.toThrow("User not found");
-    });
+    await expect(getUsers()).rejects.toThrow("Forbidden");
   });
 });

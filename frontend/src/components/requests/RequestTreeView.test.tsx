@@ -107,7 +107,6 @@ function renderTreeView(
 
 describe('RequestTreeView', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockExpandedIds.clear();
     mockExpandedIds.add('parent-1');
     mockExpandAll.mockClear();

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { toast } from 'sonner';
 import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
@@ -35,10 +35,6 @@ vi.mock('@foundation/src/lib/api/request-api', () => ({ updateRequest: vi.fn() }
  * toasts by hand. These pin the messages at the source the MutationCache reads.
  */
 describe('useAiAssistant mutation feedback', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('toasts the daily-limits outcome from meta', async () => {
     vi.mocked(aiApi.saveAiDailyLimits).mockResolvedValue(undefined);
     const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createTestQueryWrapper({ feedback: true }) });

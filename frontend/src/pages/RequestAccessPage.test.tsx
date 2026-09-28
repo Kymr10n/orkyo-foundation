@@ -40,7 +40,6 @@ function sentBody() {
 
 describe('RequestAccessPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     widgetToken.value = null;
     vi.stubGlobal('fetch', vi.fn());
   });

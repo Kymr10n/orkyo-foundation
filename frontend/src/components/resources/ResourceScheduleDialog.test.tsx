@@ -70,7 +70,6 @@ function renderDialog() {
 const latest = () => calendarProps[calendarProps.length - 1];
 
 beforeEach(() => {
-  vi.clearAllMocks();
   calendarProps.length = 0;
   canEdit.mockReturnValue(true);
   (getAssignmentsByResource as Mock).mockResolvedValue([ASSIGNMENT]);

@@ -68,7 +68,6 @@ const renderEditor = () => renderWithQuery(<TestHookComponent />, { feedback: tr
 
 describe('useRequestEditor', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockUpdateRequest.mockResolvedValue(undefined);
   });
 

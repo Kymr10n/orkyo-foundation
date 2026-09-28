@@ -37,7 +37,6 @@ const renderTab = () =>
   );
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (getTenantAuditEvents as Mock).mockResolvedValue({
     events: [event],
     totalCount: 60,

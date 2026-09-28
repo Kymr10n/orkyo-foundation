@@ -41,7 +41,6 @@ describe("GroupCapabilitiesEditor", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue(mockCriteria);
     vi.mocked(groupCapApi.getGroupCapabilities).mockResolvedValue(mockExistingCaps);
     vi.mocked(groupCapApi.addGroupCapability).mockResolvedValue({

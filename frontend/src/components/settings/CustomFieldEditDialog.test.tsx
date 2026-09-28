@@ -51,7 +51,6 @@ const save = () => screen.getByRole('button', { name: 'Save' });
 
 describe('CustomFieldEditDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(createResourceCustomField).mockResolvedValue(existing);
     vi.mocked(updateResourceCustomField).mockResolvedValue(existing);
   });

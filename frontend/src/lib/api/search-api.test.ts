@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { globalSearch, type SearchResponse, type SearchResult } from './search-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -27,10 +27,6 @@ const mockSearchResponse: SearchResponse = {
 };
 
 describe('search-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('globalSearch', () => {
     it('calls apiGet with correct endpoint and query param', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockSearchResponse);

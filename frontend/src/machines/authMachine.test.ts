@@ -120,10 +120,6 @@ function machineWithOutput(output: Record<string, unknown>) {
 }
 
 describe('authMachine', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('transitions to ready when session has resolved membership (local dev)', async () => {
     const machine = machineWithOutput({
       kind: 'loaded',
@@ -509,7 +505,6 @@ describe('authMachine', () => {
 // handled them, so the event vanished and any spinner waited forever.
 describe('authMachine — UNAUTHORIZED is never dropped', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     setLocation({ pathname: '/about' });
   });
 
@@ -590,7 +585,6 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetCurrentSubdomain.mockReturnValue(null);
     mockConsumeBreakGlassCookie.mockReturnValue(null);
   });
@@ -729,10 +723,6 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
 });
 
 describe('performLogin (redirecting_login entry)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('skips the BFF redirect on a public path (/signup)', async () => {
     setLocation({ pathname: '/signup', href: 'http://localhost:5173/signup' });
     const actor = createActor(machineWithOutput({ kind: 'empty' }));

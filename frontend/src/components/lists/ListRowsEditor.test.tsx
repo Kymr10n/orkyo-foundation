@@ -65,7 +65,6 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ListRowsEditor>
 
 describe('ListRowsEditor', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     getListRows.mockResolvedValue([existingRow]);
     createListRow.mockResolvedValue({ ...existingRow, id: 'r2' });
     updateListRow.mockResolvedValue(existingRow);

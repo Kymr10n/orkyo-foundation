@@ -46,7 +46,6 @@ import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 
-
 const personType: ResourceTypeInfo = {
   ...machineResourceType,
   id: 'type-person',
@@ -71,7 +70,6 @@ function renderDialog(resourceType: ResourceTypeInfo, resource: ResourceInfo | n
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(createResource).mockResolvedValue({ id: 'new' } as ResourceInfo);
   vi.mocked(updateResource).mockResolvedValue({ id: 'r-1' } as ResourceInfo);

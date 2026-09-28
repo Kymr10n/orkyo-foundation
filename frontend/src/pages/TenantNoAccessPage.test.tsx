@@ -28,7 +28,6 @@ import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth'
 
 describe('TenantNoAccessPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockAuthState.sessionData = { tenants: [{ slug: 'acme' }] };
     mockAuthState.isSiteAdmin = false;
     configMock.supportEmail = 'support@example.test';

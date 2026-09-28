@@ -98,7 +98,6 @@ function renderAuthProvider() {
 
 describe("AuthContext BFF session", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     localStorage.clear();
     // Ensure no URL error params by default
     Object.defineProperty(window, 'location', {

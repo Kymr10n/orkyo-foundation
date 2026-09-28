@@ -79,7 +79,6 @@ const renderOrganizationSettings = (upgradeHref?: string) => {
 
 describe('OrganizationSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockDataExportAvailable = true;
     vi.mocked(userApi.getUsers).mockResolvedValue(mockAdmins);
     vi.mocked(tenantApi.updateTenant).mockResolvedValue({

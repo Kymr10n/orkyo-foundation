@@ -8,7 +8,13 @@
   "type": "module",
   "files": [
     ".tsbuild",
-    "assets"
+    "assets",
+    "!.tsbuild/**/*.test.*",
+    "!.tsbuild/src/test-utils*",
+    "!.tsbuild/src/test-utils/**",
+    "!.tsbuild/src/test/**",
+    "!.tsbuild/vitest.config.*",
+    "!.tsbuild/.tsbuildinfo"
   ],
   "exports": {
     "./src/*": {

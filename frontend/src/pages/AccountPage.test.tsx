@@ -126,7 +126,6 @@ const createWrapper = (initialPath = "/account") => {
 
 describe("AccountPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockMembership = {
       tenantId: "tenant-1",
       slug: "acme-corp",

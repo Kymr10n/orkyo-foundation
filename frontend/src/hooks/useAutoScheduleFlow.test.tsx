@@ -38,7 +38,6 @@ async function openPreview(result: ReturnType<typeof renderFlow>['result']) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   useUiActionsStore.setState({ autoScheduleRequestIds: null });
   vi.mocked(previewAutoSchedule).mockResolvedValue(PREVIEW as never);
   vi.mocked(applyAutoSchedule).mockResolvedValue({ createdAssignments: 2, unscheduledCount: 0 });

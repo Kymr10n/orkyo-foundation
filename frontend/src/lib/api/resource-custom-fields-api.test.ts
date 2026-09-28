@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   createResourceCustomField,
   customFieldDataTypeLabel,
@@ -33,8 +33,6 @@ const field: ResourceCustomField = {
 };
 
 describe('resource-custom-fields-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('lists a type’s fields from its nested collection', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([field]);
 

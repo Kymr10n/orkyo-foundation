@@ -154,9 +154,10 @@ Three exemptions, and nothing else. State the reason in the PR:
   loading a remote script, a container entrypoint. Test the decision around them (does the
   widget render at all?) rather than the vendor's code.
 
-This is a rule of practice, not a CI gate. Codecov reports the number and does not block the
-merge; deliberately, because a hard threshold turns into a treadmill of tests written to move
-a percentage rather than to catch a defect.
+Patch coverage is a rule of practice, not a CI gate: codecov reports it and does not block the
+merge, because a hard patch threshold turns into a treadmill of tests written to move a
+percentage. The frontend aggregate IS gated: vitest's thresholds (`frontend/vitest.config.ts`,
+80 lines/statements/functions, 70 branches) fail `npm test -- --coverage` in CI.
 
 ## Nothing unreachable gets committed (enforced)
 

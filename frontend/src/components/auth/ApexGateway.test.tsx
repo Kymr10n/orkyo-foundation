@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@foundation/src/constants/auth';
@@ -87,10 +87,6 @@ function renderGateway(path = '/') {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ApexGateway', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
   });

@@ -11,7 +11,6 @@ describe('api-client', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(apiUtils.getApiHeaders).mockReturnValue(mockHeaders);
     global.fetch = vi.fn();
   });
@@ -337,7 +336,6 @@ describe('api-client (same-origin mode)', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     global.fetch = vi.fn();
   });
 

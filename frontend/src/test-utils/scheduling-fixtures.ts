@@ -1,4 +1,4 @@
-import type { OffTimeRange } from "./types";
+import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 
 export const TZ = "Europe/Berlin";
 

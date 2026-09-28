@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { previewAutoSchedule, applyAutoSchedule } from './auto-schedule-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -6,10 +6,6 @@ import { API_PATHS } from '../core/api-paths';
 vi.mock('../core/api-client');
 
 describe('auto-schedule-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('previewAutoSchedule posts to the preview endpoint', async () => {
     const mockResponse = {
       solverUsed: 'Greedy',

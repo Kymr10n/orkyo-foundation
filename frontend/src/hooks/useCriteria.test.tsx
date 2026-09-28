@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import {
   useCriteria,
@@ -24,10 +24,6 @@ const mockCriterion: Criterion = {
 };
 
 describe('useCriteria', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('useCriteria query', () => {
     it('fetches criteria (tenant-wide)', async () => {
       const criteria = [mockCriterion];

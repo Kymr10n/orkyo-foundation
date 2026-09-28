@@ -93,7 +93,6 @@ function expectedPresetLabel(days: number): string {
 
 describe('ReportingApiSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.membership = entitled;
     authState.isLoading = false;
     vi.mocked(listReportingTokens).mockResolvedValue([activeToken]);

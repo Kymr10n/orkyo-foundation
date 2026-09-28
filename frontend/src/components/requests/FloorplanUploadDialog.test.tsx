@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { FloorplanUploadDialog } from './FloorplanUploadDialog';
 
@@ -26,10 +26,6 @@ function createMockFile(name: string, type: string, size: number): File {
 }
 
 describe('FloorplanUploadDialog', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders dialog title and description', () => {
     renderDialog();
     expect(screen.getByText('Upload Floorplan Image')).toBeInTheDocument();

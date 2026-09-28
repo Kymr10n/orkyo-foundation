@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getSchedulingSettings,
   upsertSchedulingSettings,
@@ -24,10 +24,6 @@ const mockSettingsWire = {
 };
 
 describe('scheduling-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   // ── Settings ────────────────────────────────────────────────
 
   describe('getSchedulingSettings', () => {

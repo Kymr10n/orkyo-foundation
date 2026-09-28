@@ -102,7 +102,6 @@ const defaultProps = {
 
 describe('RequestPeopleSection', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     // The section derives "people" from the active directory-profile types, not a fixed key.
     (getResourceTypes as Mock).mockResolvedValue([
       { id: 'rt-1', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, hasDirectoryProfile: true, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },

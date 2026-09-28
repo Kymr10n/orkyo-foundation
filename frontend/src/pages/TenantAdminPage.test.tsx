@@ -40,7 +40,6 @@ function renderAt(initialPath: string) {
 
 describe('TenantAdminPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.tier = 'professional';
     sitesState.data = [{ id: 's1', name: 'HQ' }, { id: 's2', name: 'Branch' }];
   });

@@ -15,7 +15,6 @@ vi.mock('@foundation/src/lib/api/resource-custom-fields-api', async (importOrigi
 });
 import type { ResourceGeometry } from '@foundation/src/types/geometry';
 
-
 const mockGeometry: ResourceGeometry = {
   type: 'rectangle',
   coordinates: [
@@ -47,7 +46,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof CreateSpaceDial
 
 describe('CreateSpaceDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetResourceCustomFields.mockResolvedValue([]);
   });
 

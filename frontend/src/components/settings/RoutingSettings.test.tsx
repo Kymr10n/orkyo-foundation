@@ -50,7 +50,6 @@ describe('describeSteps', () => {
 
 describe('RoutingSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetRoutings.mockResolvedValue([]);
   });
 

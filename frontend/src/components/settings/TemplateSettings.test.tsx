@@ -48,7 +48,6 @@ function renderTemplateSettings(initialEntries: string[] = ['/settings/templates
 
 describe('TemplateSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetTemplates.mockResolvedValue([]);
     global.alert = vi.fn();
   });

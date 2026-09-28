@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MfaSection } from './MfaSection';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
@@ -17,10 +17,6 @@ function renderMfa() {
 }
 
 describe('MfaSection', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('shows loading state', () => {
     vi.mocked(getMfaStatus).mockReturnValue(new Promise(() => {}));
     renderMfa();

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { createFeedbackMutationCache } from './query-client';
 
@@ -30,8 +30,6 @@ async function runMutation(
 }
 
 describe('createFeedbackMutationCache', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('fires a success toast when meta.successMessage is set', async () => {
     const client = makeClient();
     await runMutation(client, () => Promise.resolve('ok'), { successMessage: 'Saved' });

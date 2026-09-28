@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
@@ -69,10 +69,6 @@ vi.mock('@foundation/src/components/ui/select', () => ({
 
 describe('CriterionEditDialog', () => {
   const wrapper = createTestQueryWrapper();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   describe('create mode (criterion=null)', () => {
     const defaultProps = {

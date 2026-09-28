@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { enrichColumnsWithOffTime } from './time-grid-offtime';
 import type { TimeColumn } from './scheduler-types';
-import { makeOffTimeRange as range } from '@foundation/src/domain/scheduling/test-helpers';
+import { makeOffTimeRange as range } from '@foundation/src/test-utils/scheduling-fixtures';
 
 function col(startISO: string, endISO: string): TimeColumn {
   return { start: new Date(startISO), end: new Date(endISO), label: startISO };
