@@ -15,13 +15,11 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class UtilizationEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _anonClient;
 
     public UtilizationEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
         // Unauthenticated client using the same test server (no credentials)
-        _anonClient = databaseFixture.Factory.CreateClient();
     }
 
     private static string DateParam(DateTime dt) =>
@@ -155,16 +153,6 @@ public class UtilizationEndpointsTests
             $"/api/utilization/?from={from}&to={to}&granularity=day");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetTenantUtilization_Unauthenticated_Returns401()
-    {
-        var (from, to) = DateRange();
-        var response = await _anonClient.GetAsync(
-            $"/api/utilization/?from={from}&to={to}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

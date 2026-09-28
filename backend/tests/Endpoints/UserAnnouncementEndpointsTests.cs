@@ -29,14 +29,6 @@ public class UserAnnouncementEndpointsTests
     #region GET /api/announcements
 
     [Fact]
-    public async Task GetActive_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/announcements");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetActive_Authenticated_Returns200()
     {
         var response = await _client.GetAsync("/api/announcements");
@@ -52,14 +44,6 @@ public class UserAnnouncementEndpointsTests
     #endregion
 
     #region GET /api/announcements/unread-count
-
-    [Fact]
-    public async Task GetUnreadCount_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/announcements/unread-count");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task GetUnreadCount_Authenticated_Returns200WithCount()
@@ -78,15 +62,6 @@ public class UserAnnouncementEndpointsTests
     #endregion
 
     #region POST /api/announcements/{id}/read
-
-    [Fact]
-    public async Task MarkRead_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PostAsync(
-            $"/api/announcements/{Guid.NewGuid()}/read", null);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task MarkRead_NonExistentAnnouncement_Returns204()

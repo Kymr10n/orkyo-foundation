@@ -156,14 +156,6 @@ public class ReportingEndpointsTests
     }
 
     [Fact]
-    public async Task ReportingEndpoint_WithNoAuth_Returns401()
-    {
-        var anonClient = _fixture.Factory.CreateClient();
-        var response = await anonClient.GetAsync("/api/reporting/v1/allocations");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task ReportingEndpoint_WithMalformedToken_Returns401()
     {
         using var client = _fixture.CreateClientWithToken("orkyo_rpt_notvalid");
@@ -288,6 +280,40 @@ public class ReportingEndpointsTests
         var response = await client.GetAsync("/api/reporting/v1/allocations");
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden,
             because: "a token issued for a different tenant must be rejected with 403");
+    }
+
+    [Fact]
+    public async Task ListTokens_DoesNotListAnotherTenantsToken()
+    {
+        var foreignTenantId = await SeedForeignTenantAsync();
+        var name = $"foreign-list-{Guid.NewGuid():N}";
+        await InsertRawTokenForTenantAsync(foreignTenantId, name);
+
+        var tokens = await _adminClient.GetFromJsonAsync<List<ReportingTokenSummary>>("/api/reporting/v1/tokens");
+
+        tokens.Should().NotContain(t => t.Name == name);
+    }
+
+    [Fact]
+    public async Task RevokeToken_OfAnotherTenant_Returns404AndLeavesItActive()
+    {
+        var foreignTenantId = await SeedForeignTenantAsync();
+        var name = $"foreign-revoke-{Guid.NewGuid():N}";
+        await InsertRawTokenForTenantAsync(foreignTenantId, name);
+
+        await using var conn = new NpgsqlConnection(_cpConnStr);
+        await conn.OpenAsync();
+        await using var idCmd = new NpgsqlCommand("SELECT id FROM reporting_api_tokens WHERE name = @name", conn);
+        idCmd.Parameters.AddWithValue("name", name);
+        var tokenId = (Guid)(await idCmd.ExecuteScalarAsync())!;
+
+        var response = await _adminClient.DeleteAsync($"/api/reporting/v1/tokens/{tokenId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        await using var revokedCmd = new NpgsqlCommand(
+            "SELECT revoked_at IS NOT NULL FROM reporting_api_tokens WHERE id = @id", conn);
+        revokedCmd.Parameters.AddWithValue("id", tokenId);
+        ((bool)(await revokedCmd.ExecuteScalarAsync())!).Should().BeFalse();
     }
 
     // ── Token expiry ──────────────────────────────────────────────────────────

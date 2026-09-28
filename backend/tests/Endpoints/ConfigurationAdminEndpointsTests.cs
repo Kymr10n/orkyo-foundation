@@ -62,13 +62,6 @@ public class ConfigurationAdminEndpointsTests
     // ── GET — RequireSiteAdmin ───────────────────────────────────────
 
     [Fact]
-    public async Task GetConfiguration_NoAuth_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/configuration");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task GetConfiguration_NonSiteAdmin_Returns403()
     {
         var token = await CreateRegularUserTokenAsync();

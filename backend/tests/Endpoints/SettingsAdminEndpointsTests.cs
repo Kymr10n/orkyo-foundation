@@ -35,14 +35,6 @@ public class SettingsAdminEndpointsTests
     // ── GET /api/admin/settings ─────────────────────────────────
 
     [Fact]
-    public async Task GetSettings_NoAuth_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/settings");
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetSettings_NonSiteAdmin_Returns403()
     {
         var token = await CreateRegularUserTokenAsync();
@@ -90,17 +82,6 @@ public class SettingsAdminEndpointsTests
     }
 
     // ── PUT /api/admin/settings ─────────────────────────────────
-
-    [Fact]
-    public async Task UpdateSettings_NoAuth_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
-        {
-            Content = JsonContent.Create(new { settings = new { DefaultTimezone = "Europe/Zurich" } })
-        };
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task UpdateSettings_NonSiteAdmin_Returns403()

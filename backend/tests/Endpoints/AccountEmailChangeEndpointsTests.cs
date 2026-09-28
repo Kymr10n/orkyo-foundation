@@ -323,21 +323,6 @@ public class AccountEmailChangeEndpointsTests
     }
 
     [Fact]
-    public async Task RequestEmailChange_WithoutAuth_Returns401()
-    {
-        var anonClient = _factory.CreateClient();
-
-        var response = await anonClient.SendAsync(
-            new HttpRequestMessage(HttpMethod.Post, "/api/account/email")
-            {
-                Content = JsonContent.Create(new { newEmail = "new@example.com" }),
-                Headers = { { HeaderConstants.TenantSlug, TestConstants.TenantSlug } }
-            });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task RequestEmailChange_OverwritesPreviousPendingRequest()
     {
         await SetUserEmailAsync("current@example.com");

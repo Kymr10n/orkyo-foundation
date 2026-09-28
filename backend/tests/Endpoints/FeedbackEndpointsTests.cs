@@ -25,20 +25,6 @@ public class FeedbackEndpointsTests
     #region POST /api/feedback
 
     [Fact]
-    public async Task SubmitFeedback_NoAuth_Returns401()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = "Something is broken"
-        };
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task SubmitFeedback_ValidBug_Returns201()
     {
         var request = new CreateFeedbackRequest

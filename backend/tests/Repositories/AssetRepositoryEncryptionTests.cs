@@ -85,4 +85,19 @@ public class AssetRepositoryEncryptionTests
         download.Should().NotBeNull();
         download!.Data.Should().Equal(plaintext);
     }
+
+    [Fact]
+    public async Task Reads_DoNotReturnAnotherTenantsAsset()
+    {
+        var asset = await UpsertAsync(FakePng("TENANT_SCOPED"));
+        var otherTenantId = Guid.NewGuid();
+
+        var info = await _repo.GetForOwnerAsync(
+            otherTenantId, AssetOwnerTypes.Site, asset.OwnerId, AssetTypes.Floorplan);
+        var download = await _repo.GetDownloadForOwnerAsync(
+            otherTenantId, AssetOwnerTypes.Site, asset.OwnerId, AssetTypes.Floorplan);
+
+        info.Should().BeNull();
+        download.Should().BeNull();
+    }
 }

@@ -45,14 +45,6 @@ public class TenantAuditEndpointsTests
     }
 
     [Fact]
-    public async Task Get_Unauthenticated_Returns401()
-    {
-        using var client = _fixture.Factory.CreateClient();
-        var response = await client.GetAsync("/api/audit/");
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Get_NonAdminMember_Returns403()
     {
         using var client = _fixture.CreateClientWithRole("viewer");

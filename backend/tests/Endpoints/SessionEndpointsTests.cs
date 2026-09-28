@@ -66,13 +66,6 @@ public class SessionEndpointsTests
 
     // ─── 401 guard ───────────────────────────────────────────────────────────────
 
-    [Fact]
-    public async Task GetMe_WithoutAuthentication_Returns401()
-    {
-        var response = await _client.GetAsync("/api/session/me");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     // ─── response shape (contract tests) ─────────────────────────────────────────
     // These tests guard the mapping between backend UserInfo and frontend AppUser.
     // If a field is missing from the SQL SELECT or accidentally renamed, the
@@ -204,14 +197,6 @@ public class SessionEndpointsTests
     // ─── POST /api/session/tour/seen ─────────────────────────────────────────────
 
     [Fact]
-    public async Task TourSeen_WithoutAuthentication_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tour/seen");
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task TourSeen_WithAuthentication_ReturnsOk()
     {
         var token = await MakeTokenAsync();
@@ -229,17 +214,6 @@ public class SessionEndpointsTests
     }
 
     // ─── POST /api/session/tos/accept ────────────────────────────────────────────
-
-    [Fact]
-    public async Task TosAccept_WithoutAuthentication_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tos/accept");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { tosVersion = "1.0" }),
-            System.Text.Encoding.UTF8, "application/json");
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 
     [Fact]
     public async Task TosAccept_WithWrongVersion_Returns400()

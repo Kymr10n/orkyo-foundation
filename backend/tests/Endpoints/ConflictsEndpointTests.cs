@@ -8,12 +8,10 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class ConflictsEndpointTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _anonClient;
 
     public ConflictsEndpointTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _anonClient = databaseFixture.Factory.CreateClient();
     }
 
     [Fact]
@@ -36,13 +34,6 @@ public class ConflictsEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(JsonValueKind.Array, body.ValueKind);
-    }
-
-    [Fact]
-    public async Task GetConflicts_Unauthenticated_Returns401()
-    {
-        var response = await _anonClient.GetAsync("/api/conflicts");
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

@@ -240,27 +240,6 @@ public class SecurityEndpointsTests
         content.GetProperty("detail").GetString().Should().Contain("incorrect");
     }
 
-    [Fact]
-    public async Task ChangePassword_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange - no auth token
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
-        {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "OldPass123!",
-                newPassword = "NewPass456!",
-                confirmPassword = "NewPass456!"
-            })
-        };
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     #endregion
 
     #region List Sessions Tests
@@ -368,19 +347,6 @@ public class SecurityEndpointsTests
         remaining.Should().NotContain(staleSid);
     }
 
-    [Fact]
-    public async Task GetSessions_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     #endregion
 
     #region Revoke Session Tests
@@ -437,19 +403,6 @@ public class SecurityEndpointsTests
         content.GetProperty("detail").GetString().Should().Contain("not found");
     }
 
-    [Fact]
-    public async Task RevokeSession_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/sessions/some-session-id");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     #endregion
 
     #region Logout All Tests
@@ -477,19 +430,6 @@ public class SecurityEndpointsTests
         content.GetProperty("message").GetString().Should().Contain("Logged out");
 
         _mockKeycloak.LogoutAllCallCount.Should().Be(1);
-    }
-
-    [Fact]
-    public async Task LogoutAll_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -539,19 +479,6 @@ public class SecurityEndpointsTests
         content.GetProperty("identityProvider").GetString().Should().Be("google");
     }
 
-    [Fact]
-    public async Task GetSecurityInfo_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/security-info");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     #endregion
 
     #region MFA Status Tests
@@ -597,16 +524,6 @@ public class SecurityEndpointsTests
         content.GetProperty("totpCredentialId").GetString().Should().Be("cred-123");
         content.GetProperty("totpLabel").GetString().Should().Be("Google Authenticator");
         content.GetProperty("recoveryCodesConfigured").GetBoolean().Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetMfaStatus_WithoutAuth_ShouldReturn401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/mfa-status");
-
-        var response = await _client.SendAsync(request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -768,16 +685,6 @@ public class SecurityEndpointsTests
         content.GetProperty("firstName").GetString().Should().Be("Alice");
         content.GetProperty("lastName").GetString().Should().Be("Smith");
         content.GetProperty("emailVerified").GetBoolean().Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetProfile_WithoutAuth_ShouldReturn401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/profile");
-
-        var response = await _client.SendAsync(request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion

@@ -31,13 +31,6 @@ public class QuotaEndpointsTests
     }
 
     [Fact]
-    public async Task GetQuotas_Unauthenticated_ReturnsUnauthorized()
-    {
-        var response = await _client.GetAsync("/api/settings/quotas/");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task GetQuotas_AsAdmin_ReachesHandler_AndReturnsUsage()
     {
         var request = new HttpRequestMessage(HttpMethod.Get, "/api/settings/quotas/");

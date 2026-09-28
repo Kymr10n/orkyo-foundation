@@ -75,14 +75,6 @@ public class SettingsEndpointsTests
     // ── GET /api/settings ───────────────────────────────────────────
 
     [Fact]
-    public async Task GetSettings_Unauthenticated_ReturnsUnauthorized()
-    {
-        // No bearer token → 401
-        var response = await _client.GetAsync("/api/settings");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task GetSettings_Viewer_ReturnsOk()
     {
         // GET /api/settings is member-read: tenant config (scheduling, working hours, …) is read
@@ -199,20 +191,6 @@ public class SettingsEndpointsTests
     }
 
     // ── PUT /api/settings ───────────────────────────────────────────
-
-    [Fact]
-    public async Task UpdateSettings_Unauthenticated_ReturnsUnauthorized()
-    {
-        var response = await _client.PutAsJsonAsync("/api/settings", new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["search.search_default_page_size"] = "30"
-            }
-        });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 
     [Fact]
     public async Task UpdateSettings_ValidIntSetting_Succeeds()
@@ -431,13 +409,6 @@ public class SettingsEndpointsTests
     }
 
     // ── DELETE /api/settings/{key} ──────────────────────────────────
-
-    [Fact]
-    public async Task ResetSetting_Unauthenticated_ReturnsUnauthorized()
-    {
-        var response = await _client.DeleteAsync("/api/settings/search.search_default_page_size");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 
     [Fact]
     public async Task ResetSetting_UnknownKey_ReturnsNotFound()

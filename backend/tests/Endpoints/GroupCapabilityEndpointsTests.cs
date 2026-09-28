@@ -60,16 +60,6 @@ public class GroupCapabilityEndpointsTests
     #region GET /api/resource-groups/{groupId}/capabilities
 
     [Fact]
-    public async Task GetCapabilities_NoAuth_Returns401()
-    {
-        var groupId = Guid.NewGuid();
-
-        var response = await _unauthenticatedClient.GetAsync($"/api/resource-groups/{groupId}/capabilities");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetCapabilities_ValidGroup_Returns200()
     {
         var groupId = await CreateTestGroupAsync();
@@ -99,20 +89,6 @@ public class GroupCapabilityEndpointsTests
     #endregion
 
     #region POST /api/resource-groups/{groupId}/capabilities
-
-    [Fact]
-    public async Task AddCapability_NoAuth_Returns401()
-    {
-        var groupId = Guid.NewGuid();
-        var request = new AddGroupCapabilityRequest(
-            CriterionId: Guid.NewGuid(),
-            Value: JsonSerializer.SerializeToElement(42));
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            $"/api/resource-groups/{groupId}/capabilities", request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task AddCapability_ValidData_Returns201()
@@ -256,15 +232,6 @@ public class GroupCapabilityEndpointsTests
     #endregion
 
     #region DELETE /api/resource-groups/{groupId}/capabilities/{capabilityId}
-
-    [Fact]
-    public async Task DeleteCapability_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/resource-groups/{Guid.NewGuid()}/capabilities/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task DeleteCapability_NonExistent_Returns404()

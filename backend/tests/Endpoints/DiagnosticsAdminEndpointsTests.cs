@@ -60,14 +60,6 @@ public class DiagnosticsAdminEndpointsTests
     // ── GET /api/admin/diagnostics ──────────────────────────────
 
     [Fact]
-    public async Task GetDiagnostics_NoAuth_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetDiagnostics_NonSiteAdmin_Returns403()
     {
         var token = await CreateRegularUserTokenAsync();

@@ -207,6 +207,22 @@ public class AppExceptionHandlerTests
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 
+    // Both derive from ArgumentException, so an arm order that lets the ArgumentException arm
+    // catch them echoes internal parameter names to the client as a 400 again (#96).
+    [Theory]
+    [InlineData(typeof(ArgumentNullException))]
+    [InlineData(typeof(ArgumentOutOfRangeException))]
+    public async Task GuardClauseException_FallsThrough_WithoutWritingResponse(Type exceptionType)
+    {
+        var ctx = CreateHttpContext();
+        var exception = (Exception)Activator.CreateInstance(exceptionType, "internalParameterName")!;
+
+        var handled = await Handler.TryHandleAsync(ctx, exception, default);
+
+        handled.Should().BeFalse();
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status200OK); // nothing written
+    }
+
     [Fact]
     public async Task UnhandledException_ReturnsFalse_WithoutWritingResponse()
     {

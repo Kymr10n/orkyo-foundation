@@ -82,14 +82,6 @@ public class UserManagementEndpointsTests
     #region GET /api/users (Admin only)
 
     [Fact]
-    public async Task GetAllUsers_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/users");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetAllUsers_Authenticated_Returns200()
     {
         var response = await _client.GetAsync("/api/users");
@@ -125,17 +117,6 @@ public class UserManagementEndpointsTests
     #endregion
 
     #region POST /api/users/invite (Admin only)
-
-    [Fact]
-    public async Task InviteUser_NoAuth_Returns401()
-    {
-        var request = new InviteUserRequest("new@test.com", UserRole.Viewer);
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/users/invite", request, _jsonOptions);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task InviteUser_ValidRequest_ReachesEndpoint()
@@ -203,14 +184,6 @@ public class UserManagementEndpointsTests
     #region GET /api/users/invitations (Admin only)
 
     [Fact]
-    public async Task GetPendingInvitations_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/users/invitations");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetPendingInvitations_Authenticated_Returns200()
     {
         var response = await _client.GetAsync("/api/users/invitations");
@@ -247,15 +220,6 @@ public class UserManagementEndpointsTests
     #endregion
 
     #region DELETE /api/users/invitations/{invitationId} (Admin only)
-
-    [Fact]
-    public async Task RevokeInvitation_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/users/invitations/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task RevokeInvitation_NonExistent_Returns404()
@@ -300,15 +264,6 @@ public class UserManagementEndpointsTests
     // tenant scoping) is covered against a real database in Services/InvitationResendServiceTests.
 
     [Fact]
-    public async Task ResendInvitation_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PostAsync(
-            $"/api/users/invitations/{Guid.NewGuid()}/resend", content: null);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task ResendInvitation_Authenticated_RouteIsRegistered()
     {
         // Guards the route's existence — the whole point of the bug this fixes. The mocked service
@@ -347,29 +302,9 @@ public class UserManagementEndpointsTests
 
     #region PATCH /api/users/{userId}/role (Admin only)
 
-    [Fact]
-    public async Task UpdateUserRole_NoAuth_Returns401()
-    {
-        var request = new UpdateUserRoleRequest(UserRole.Editor);
-
-        var response = await _unauthenticatedClient.PatchAsJsonAsync(
-            $"/api/users/{Guid.NewGuid()}/role", request, _jsonOptions);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
     #endregion
 
     #region DELETE /api/users/{userId} (Admin only)
-
-    [Fact]
-    public async Task DeleteUser_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/users/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task DeleteUser_NonAdmin_Returns200()

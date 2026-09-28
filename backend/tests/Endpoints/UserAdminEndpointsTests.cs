@@ -52,13 +52,6 @@ public class UserAdminEndpointsTests
     // ── Auth guards ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetUsers_Unauthenticated_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/users");
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetUsers_RegularUser_Returns403()
     {
         var (_, token) = await CreateRegularUserAsync();

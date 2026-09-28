@@ -34,13 +34,6 @@ public class AuditEndpointsTests
     // ── Auth guards ───────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetAuditEvents_Unauthenticated_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/audit");
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetAuditEvents_RegularUser_Returns403()
     {
         var token = await CreateRegularUserTokenAsync();

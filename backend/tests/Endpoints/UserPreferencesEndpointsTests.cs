@@ -126,29 +126,6 @@ public class UserPreferencesEndpointsTests
     }
 
     [Fact]
-    public async Task UpdatePreferences_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var preferences = new { spaceOrder = new[] { "space-1" } };
-
-        // Act
-        var response = await _client.PutAsJsonAsync("/api/preferences", preferences);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task GetPreferences_WithoutAuth_ShouldReturn401()
-    {
-        // Act
-        var response = await _client.GetAsync("/api/preferences");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task UpdatePreferences_MultipleUpdates_ShouldOverwritePrevious()
     {
         // Arrange

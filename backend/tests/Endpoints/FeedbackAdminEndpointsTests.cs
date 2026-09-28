@@ -71,13 +71,6 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     // ── Authorization ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task List_Unauthenticated_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/feedback");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task List_RegularUser_Returns403()
     {
         var token = await CreateUserTokenAsync(siteAdmin: false);

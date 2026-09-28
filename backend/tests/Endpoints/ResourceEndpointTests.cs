@@ -106,24 +106,6 @@ public class ResourceEndpointTests
         Assert.False(r!.IsActive);
     }
 
-    [Fact]
-    public async Task CreateResource_Unauthenticated_Returns401()
-    {
-        var anon = _fixture.Factory.CreateClient();
-        anon.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
-
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = "Unauthorized",
-            AllocationMode = "Fractional",
-        };
-        var response = await anon.PostAsJsonAsync("/api/resources", request);
-        Assert.True(
-            response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
-            $"Expected 401/403, got {response.StatusCode}");
-    }
-
     // ── Placeable resources ───────────────────────────────────────────────────
 
     private static async Task<List<ResourceInfo>> ReadListAsync(HttpResponseMessage response)

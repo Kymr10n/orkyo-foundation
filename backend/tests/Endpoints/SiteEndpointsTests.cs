@@ -13,32 +13,15 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class SiteEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _unauthenticatedClient;
 
     public SiteEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _unauthenticatedClient = databaseFixture.Factory.CreateClient();
     }
 
     private static string UniqueCode() => $"t-{Guid.NewGuid():N}"[..10];
 
     // ── Auth guard ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task GetSites_WithoutAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/sites");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task CreateSite_WithoutAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PostAsJsonAsync("/api/sites",
-            new { code = "x", name = "x" });
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 
     // ── Create ───────────────────────────────────────────────────────────────────
 

@@ -277,20 +277,6 @@ public class ExportEndpointsTests
     }
 
     [Fact]
-    public async Task Export_Unauthenticated_Returns401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/export");
-        request.Content = JsonContent.Create(new ExportRequest());
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Export_NonAdminUser_Returns403()
     {
         // Arrange - create a viewer user

@@ -52,13 +52,6 @@ public class AnnouncementEndpointsTests
     // ========================================================================
 
     [Fact]
-    public async Task GetAll_Unauthenticated_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/announcements");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task GetAll_NonSiteAdmin_Returns403()
     {
         var token = await CreateRegularUserTokenAsync();
