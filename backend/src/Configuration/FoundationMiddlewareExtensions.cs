@@ -13,11 +13,17 @@ public static class FoundationMiddlewareExtensions
     /// Products must call <c>services.AddResponseCompression()</c> before <c>app.UseResponseCompression()</c>
     /// separately, as that is infrastructure — not foundation domain.
     /// </summary>
+    /// <remarks>
+    /// Request logging sits outside the exception handler, so it logs the status the client got.
+    /// Inside it, every <c>NotFoundException</c>, <c>ConflictException</c> and
+    /// <c>ArgumentException</c> reached it first and was logged at Error with a stack trace
+    /// before <c>AppExceptionHandler</c> turned it into a 4xx.
+    /// </remarks>
     public static WebApplication UseFoundationMiddleware(this WebApplication app)
     {
-        app.UseExceptionHandler();
         app.UseCorrelationId();
         app.UseRequestLogging();
+        app.UseExceptionHandler();
         return app;
     }
 }
