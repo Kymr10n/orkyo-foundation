@@ -3,7 +3,7 @@ import {
   RequestFormDialog,
   type RequestFormData,
 } from "@foundation/src/components/requests/RequestFormDialog";
-import { useSaveRequest } from "@foundation/src/hooks/useRequests";
+import { saveRequestVariables, useSaveRequest } from "@foundation/src/hooks/useRequests";
 import type { Conflict, Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
@@ -51,7 +51,7 @@ export function useRequestEditor(): UseRequestEditorResult {
     async (data: RequestFormData) => {
       if (!request) return;
       // Returned so the dialog can say when the scheduler moved the dates that were typed.
-      return saveRequest({ data, editing: request });
+      return saveRequest(saveRequestVariables(data, request));
     },
     [request, saveRequest],
   );

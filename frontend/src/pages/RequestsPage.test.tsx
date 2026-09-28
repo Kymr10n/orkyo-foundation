@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router';
-import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestsPage } from '@foundation/src/pages/RequestsPage';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useSiteStore } from '@foundation/src/store/site-store';
@@ -169,9 +168,7 @@ const createWrapper = () => {
   const QueryWrapper = createTestQueryWrapper({ feedback: true });
   return ({ children }: { children: React.ReactNode }) => (
     <QueryWrapper>
-      <BrowserRouter>
-        <TooltipProvider>{children}</TooltipProvider>
-      </BrowserRouter>
+      <BrowserRouter>{children}</BrowserRouter>
     </QueryWrapper>
   );
 };
@@ -589,12 +586,7 @@ describe('RequestsPage', () => {
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
     ]);
-    renderWithQuery(
-      <TooltipProvider>
-        <RequestsPage />
-      </TooltipProvider>,
-      { router: '/requests?edit=r1' },
-    );
+    renderWithQuery(<RequestsPage />, { router: '/requests?edit=r1' });
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
   });
 

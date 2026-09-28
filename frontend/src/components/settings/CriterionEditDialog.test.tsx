@@ -163,6 +163,18 @@ describe('CriterionEditDialog', () => {
       expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'false');
     });
 
+    it('shows validation error when an Enum criterion has no values, and sends nothing', async () => {
+      render(<CriterionEditDialog {...defaultProps} defaultResourceType="person" />, { wrapper });
+      fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Colour' } });
+      fireEvent.change(screen.getByTestId('datatype-select'), { target: { value: 'Enum' } });
+      fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent(/at least one enum value/i);
+      });
+      expect(mockCreateCriterion).not.toHaveBeenCalled();
+    });
+
     it('shows validation error when no applicability is selected', async () => {
       render(<CriterionEditDialog {...defaultProps} />, { wrapper });
       // Nothing is preselected, so submitting straight away trips the rule.

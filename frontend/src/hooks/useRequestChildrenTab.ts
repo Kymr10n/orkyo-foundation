@@ -167,7 +167,7 @@ export function useRequestChildrenTab({
   // Virtualize the candidate list so the picker opens instantly regardless of
   // how many requests the tenant has (only ~15 rows mount at once).
   const addExistingViewportRef = useRef<HTMLDivElement>(null);
-  // TanStack Virtual's API is not memoizable, so the compiler skips this component. Nothing to fix.
+  // TanStack Virtual's API is not memoizable, so the compiler skips this hook. Nothing to fix.
   // eslint-disable-next-line react-hooks/incompatible-library
   const addExistingVirtualizer = useVirtualizer({
     count: addExistingCandidates.length,
@@ -283,8 +283,6 @@ export function useRequestChildrenTab({
     handleRemoveChild,
     /** Create mode: queued work that Discard legitimately drops, so it counts as unsaved. */
     hasPending: !request && (pendingChildren.length > 0 || pendingExistingIds.length > 0),
-    /** A Task cannot have children: drops the names queued while it was a group. */
-    clearPendingChildren: () => setPendingChildren([]),
     commitPending,
   };
 }

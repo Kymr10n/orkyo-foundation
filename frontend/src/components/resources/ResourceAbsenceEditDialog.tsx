@@ -54,20 +54,21 @@ export function ResourceAbsenceEditDialog({
     absence ? new Date(absence.endTs) : initialEnd,
   );
 
-  const saveMutation = useSaveResourceAbsence(resourceId, absence);
+  const saveMutation = useSaveResourceAbsence(resourceId);
 
   const handleSubmit = () => {
     if (!startDate || !endDate) return;
     // The times of day are preserved from the existing absence: this form edits dates, and a
     // drag on the schedule calendar is what sets times. Dropping them here would quietly
     // widen an absence to midnight-to-midnight on every save.
+    const payload = {
+      absenceType,
+      title: title || absenceType,
+      startTs: startDate.toISOString(),
+      endTs: endDate.toISOString(),
+    };
     saveMutation.mutate(
-      {
-        absenceType,
-        title: title || absenceType,
-        startTs: startDate.toISOString(),
-        endTs: endDate.toISOString(),
-      },
+      absence ? { id: absence.id, data: { payload, previous: absence } } : { id: null, data: payload },
       {
         onSuccess: () => {
           setAbsenceType(defaultAbsenceType);

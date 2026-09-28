@@ -60,9 +60,10 @@ import {
     useMoveRequestToParent,
     useRequests,
     useRequestsImportHandler,
+    saveRequestVariables,
     useSaveRequest,
 } from "@foundation/src/hooks/useRequests";
-import { useFetchRequest } from "@foundation/src/hooks/useInsights";
+import { useFetchRequest } from "@foundation/src/hooks/useRequests";
 import { useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { exportRequests } from "@foundation/src/lib/utils/export-handlers";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
@@ -296,7 +297,7 @@ export function RequestsPage() {
     // tell the person when the scheduler moved the dates they typed. A rejection keeps the
     // dialog open and the inline error shows why, which is why the save mutation suppresses
     // the toast.
-    return saveRequest({ data, editing: dialog?.kind === "edit" ? dialog.request : null });
+    return saveRequest(saveRequestVariables(data, dialog?.kind === "edit" ? dialog.request : null));
   }, [dialog, saveRequest]);
 
   // The planner is a route, so the row action navigates rather than opening a dialog. Same

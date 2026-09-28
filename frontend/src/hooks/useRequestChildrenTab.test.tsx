@@ -101,7 +101,7 @@ describe('useRequestChildrenTab — create mode', () => {
     expect(result.current.pendingChildren).toEqual(['Queued']);
     expect(result.current.hasPending).toBe(true);
 
-    act(() => result.current.clearPendingChildren());
+    act(() => result.current.setPendingChildren([]));
     expect(result.current.hasPending).toBe(false);
   });
 

@@ -25,15 +25,13 @@ import {
   isRequestFormValidationError,
   validateRequestForm,
   type RequestFormTab,
-} from "@foundation/src/hooks/request-form-validation";
+} from "@foundation/src/domain/request-form-validation";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { logger } from "@foundation/src/lib/core/logger";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 const EMPTY_CRITERIA: Criterion[] = [];
 const EMPTY_TEMPLATES: Template[] = [];
-
-export type { RequestFormTab };
 
 export interface UseRequestFormDialogOptions {
   open: boolean;
@@ -319,7 +317,7 @@ export function useRequestFormDialog({
     if (value === 'leaf') {
       setField('planningMode', 'leaf');
       // A task can't have children — drop any names queued while it was a group.
-      childrenTab.clearPendingChildren();
+      childrenTab.setPendingChildren([]);
       return;
     }
 

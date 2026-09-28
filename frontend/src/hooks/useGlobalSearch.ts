@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { qk } from "@foundation/src/lib/api/query-keys";
 import { globalSearch } from "@foundation/src/lib/api/search-api";
 import { logger } from "@foundation/src/lib/core/logger";
 
@@ -8,7 +9,7 @@ import { logger } from "@foundation/src/lib/core/logger";
  */
 export const useGlobalSearch = (term: string, siteId: string | null) =>
   useQuery({
-    queryKey: ["global-search", term, siteId] as const,
+    queryKey: qk.search(term, siteId),
     queryFn: () =>
       globalSearch({ query: term, siteId: siteId ?? undefined, limit: 20 }).catch((err: unknown) => {
         logger.error("Search failed:", err);

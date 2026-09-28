@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { useAnchoredZoom } from './useAnchoredZoom';
+import { useAnchoredZoom, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from './useAnchoredZoom';
 
 /** A scroller 400×300 scrolled to (200, 100): its centre sits at layout point (400, 250) at 1×. */
 function scroller() {
@@ -15,16 +15,22 @@ function scroller() {
 describe('useAnchoredZoom', () => {
   it('steps within the limits and says when a limit is reached', () => {
     const ref = { current: scroller() };
-    const { result } = renderHook(() => useAnchoredZoom(ref, { min: 0.5, max: 1, step: 0.5 }));
+    const { result } = renderHook(() => useAnchoredZoom(ref));
+    const stepsToMax = Math.round((ZOOM_MAX - 1) / ZOOM_STEP);
+    const stepsToMin = Math.round((1 - ZOOM_MIN) / ZOOM_STEP);
 
     expect(result.current.zoom).toBe(1);
+    for (let i = 0; i < stepsToMax; i++) act(() => result.current.zoomIn());
+    expect(result.current.zoom).toBe(ZOOM_MAX);
     expect(result.current.canZoomIn).toBe(false);
     act(() => result.current.zoomIn());
-    expect(result.current.zoom).toBe(1);
+    expect(result.current.zoom).toBe(ZOOM_MAX);
 
-    act(() => result.current.zoomOut());
-    expect(result.current.zoom).toBe(0.5);
+    for (let i = 0; i < stepsToMax + stepsToMin; i++) act(() => result.current.zoomOut());
+    expect(result.current.zoom).toBe(ZOOM_MIN);
     expect(result.current.canZoomOut).toBe(false);
+    act(() => result.current.zoomOut());
+    expect(result.current.zoom).toBe(ZOOM_MIN);
 
     act(() => result.current.reset());
     expect(result.current.zoom).toBe(1);

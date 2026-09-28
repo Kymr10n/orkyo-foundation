@@ -1061,10 +1061,11 @@ describe("RequestFormDialog", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Children" }));
     const quickAdd = screen.getByTestId("new-child-name");
     const firstChildRow = screen.getByText("Child One");
-    expect(
-      quickAdd.compareDocumentPosition(firstChildRow) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(quickAdd).toBeVisible();
+    // The child row comes after the quick-add row in document order.
+    expect(quickAdd.compareDocumentPosition(firstChildRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   // ── Boundary-mode Timing copy (create mode) ─────────────────────────────────

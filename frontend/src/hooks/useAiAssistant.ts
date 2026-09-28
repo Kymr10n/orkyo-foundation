@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteAiConversation,
   deleteAiCredential,
@@ -156,38 +156,41 @@ export function useInvalidateAiStatus() {
   return useInvalidateKeys(qk.ai.status());
 }
 
-/** Re-read the conversation list after a save or a delete. */
-export function useInvalidateAiConversations() {
-  return useInvalidateKeys(qk.ai.conversations());
-}
-
 /** Read one saved conversation's body when the person opens it. */
 export function useFetchAiConversation() {
-  return useCallback((id: string) => getAiConversation(id), []);
+  const queryClient = useQueryClient();
+  return useCallback(
+    (id: string) =>
+      queryClient.fetchQuery({ queryKey: qk.ai.conversation(id), queryFn: () => getAiConversation(id) }),
+    [queryClient],
+  );
 }
 
-/** Store a conversation under its id, then re-read the list so its title shows. */
+/** What a save stores under the conversation's id. */
+export interface SaveAiConversationVariables {
+  id: string;
+  title: string;
+  entries: AiEntry[];
+  transcript: AiMessage[];
+}
+
+/**
+ * Store a conversation under its id, then re-read the list so its title shows. No toast:
+ * storage is a notebook beside the conversation, and the caller logs a failed save.
+ */
 export function useSaveAiConversation() {
-  const refresh = useInvalidateAiConversations();
-  return useCallback(
-    async (id: string, body: { title: string; entries: AiEntry[]; transcript: AiMessage[] }) => {
-      await saveAiConversation(id, body);
-      await refresh();
-    },
-    [refresh],
-  );
+  return useMutation({
+    mutationFn: ({ id, ...body }: SaveAiConversationVariables) => saveAiConversation(id, body),
+    meta: { invalidates: [qk.ai.conversations()] },
+  });
 }
 
 /** Delete a conversation, then re-read the list. */
 export function useDeleteAiConversation() {
-  const refresh = useInvalidateAiConversations();
-  return useCallback(
-    async (id: string) => {
-      await deleteAiConversation(id);
-      await refresh();
-    },
-    [refresh],
-  );
+  return useMutation({
+    mutationFn: (id: string) => deleteAiConversation(id),
+    meta: { invalidates: [qk.ai.conversations()] },
+  });
 }
 
 /**

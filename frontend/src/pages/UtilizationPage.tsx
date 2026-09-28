@@ -48,7 +48,7 @@ import { ScheduleSlotDialog } from "@foundation/src/components/utilization/Sched
 import { requestsToCalendarEvents, scaleToCalendarView } from "@foundation/src/components/utilization/request-calendar-events";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { logger } from "@foundation/src/lib/core/logger";
-import { useSaveRequest } from "@foundation/src/hooks/useRequests";
+import { saveRequestVariables, useSaveRequest } from "@foundation/src/hooks/useRequests";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useSchedulerViewStore } from "@foundation/src/store/scheduler-view-store";
@@ -1015,7 +1015,7 @@ export function UtilizationPage() {
         scheduleSiteId={selectedSiteId ?? undefined}
         // Returned so the dialog can say when the scheduler moved the dates that were typed.
         onSave={(data) =>
-          saveRequest({ data, editing: calendarForm?.mode === "edit" ? (calendarForm.request ?? null) : null })
+          saveRequest(saveRequestVariables(data, calendarForm?.mode === "edit" ? (calendarForm.request ?? null) : null))
         }
       />
 

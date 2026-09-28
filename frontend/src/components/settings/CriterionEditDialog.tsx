@@ -17,6 +17,21 @@ import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 import { EnumValueEditor } from './EnumValueEditor';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 
+/**
+ * Rules the server cannot state as a disabled Save button: both carry a reason the
+ * user has to read. Shown in the dialog's own ErrorAlert, the same place a failed request lands.
+ */
+function validateDraft(draft: CriterionDraft): string | null {
+  if (!draft.name.trim()) return 'Name is required';
+  if (draft.dataType === 'Enum' && draft.enumValues.length === 0) {
+    return 'At least one enum value is required';
+  }
+  if (draft.resourceTypeKeys.length === 0) {
+    return 'At least one applicability scope must be selected';
+  }
+  return null;
+}
+
 interface CriterionEditDialogProps {
   criterion: Criterion | null;
   open: boolean;
@@ -61,7 +76,9 @@ export function CriterionEditDialog({
       resourceTypeKeys: [...(c.resourceTypeKeys ?? [])],
     }),
     mutation,
-    toVariables: (draft: CriterionDraft, c: Criterion | null) => ({ draft, criterion: c }),
+    toVariables: (draft: CriterionDraft, c: Criterion | null) =>
+      c ? { id: c.id, data: { draft, previous: c } } : { id: null, data: draft },
+    validate: validateDraft,
     onSaved,
   });
 

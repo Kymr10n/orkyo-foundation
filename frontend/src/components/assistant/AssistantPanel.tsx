@@ -33,8 +33,6 @@ import {
   MAX_PANEL_WIDTH,
 } from "@foundation/src/hooks/usePanelWidth";
 
-export type { AssistantContext };
-
 export interface AssistantPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

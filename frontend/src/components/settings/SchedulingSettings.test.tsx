@@ -63,7 +63,6 @@ const mockAvailabilityEvent = {
 };
 
 function setup() {
-  vi.clearAllMocks();
   vi.mocked(useCanEdit).mockReturnValue(true);
   useSiteStore.setState({ selectedSiteId: 'site-1' });
   mockUseSchedulingSettings.mockReturnValue({ data: mockSettings, isLoading: false });

@@ -264,7 +264,12 @@ export const qk = {
     status: () => ["ai", "status"] as const,
     /** The caller's saved conversations (titles only — bodies are fetched on demand). */
     conversations: () => ["ai", "conversations"] as const,
+    /** One saved conversation's body. Under `conversations()` so a save or delete reaches it. */
+    conversation: (id: string) => ["ai", "conversations", id] as const,
   },
+
+  /** The command palette's search for one debounced term, scoped to an optional site. */
+  search: (term: string, siteId: string | null) => ["global-search", term, siteId] as const,
 
   userProfile: {
     /** The current user's identity-provider profile (also its own invalidation prefix). */

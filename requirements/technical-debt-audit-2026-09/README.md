@@ -102,6 +102,57 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
     `tenantStorage.clear()` also removes the legacy `active_membership` key (remove after
     one release). The remove-MFA dialog asks for the current authenticator code next to
     the password. Frontend 4207 tests, coverage 87.3 / 80.5 / 83.5 / 89.1.
+  - **G3 backend DRY (done):** `PlatformUserRepository.KeycloakSubjectSubquery(alias)` is
+    the one Keycloak-subject rule (lifecycle service, both repository reads,
+    `GetKeycloakSubjectAsync`); the `COALESCE(u.keycloak_id, …)` is gone and
+    `users.keycloak_id` is read nowhere. `AppExceptionHandler.ClientErrorDetail(ex)` is the
+    single 4xx classification; `McpToolPipeline.DomainRefusal` delegates to it, so
+    account-locked, 4xx Keycloak and forbidden now reach the agent with a message.
+    `WindowRules` serves both window validators; `UtilizationGranularity` is the one
+    step-and-cap table and an unknown granularity throws instead of meaning "day".
+    `RequestRepository.SiteOrNeutralFilter` and `NpgsqlQueryExtensions.QueryCappedAsync`
+    replace the pasted filter and the hand-rolled capped branch. The unread
+    `X-Total-Count`/`X-Has-Next-Page` headers are gone; the `PagedResult` body is the
+    convention, with admin users' `{users,totalItems,hasNextPage}` as the documented
+    exception (the frontend reads it). `ActiveAdminGuard` owns the locking last-admin
+    check for role changes and `DeleteMembershipAsync`, which now throws the same
+    `ConflictException`; `LastActiveAdminPolicy`/`TenantLeaveMembershipPolicy` stay
+    because saas `TenantService.LeaveTenantAsync` calls them (its count-then-act
+    pre-check is now backed by the guarded DELETE; saas follow-up: drop the pre-check or
+    catch the conflict). Group capability upsert mirrors the resource one. Token hashes
+    are `SecureTokens.Sha256Base64/Sha256Hex/LifecycleConfirmTokenHash` (stored encodings
+    unchanged); `IConfiguration.GetNonEmptyOrNull` at four sites;
+    `UserPurgeAfterDormantSqlInterval` derives from its day count. Backend 3920/3920,
+    patch coverage 100 %.
+  - **G4 frontend DRY (done):** `OrkyoDataTable` takes `error: unknown` +
+    `errorFallback` and `noDataMessage`/`noDataAction` (shown when the unfiltered data is
+    empty; `emptyMessage` stays for a filter with no hits), so seven screens lose their
+    error conditionals and five their empty-state copies; `string` errors still work for
+    product callers. `useDeleteTenant(meta?)` replaces `useDeleteOrganization`.
+    `CriterionRequirementList` takes criteria, the requirement map and a `renderInput`
+    callback and builds one lookup. One `RevokeTokenButton` (a one-action row keeps its
+    labelled icon button, not `RowActions`); `toForm` is `emptyForm`; `TokenForm`/
+    `TokenRequestBase` exports dropped. One `runPreview` in the auto-schedule flow with a
+    corrected comment. `nextSortOrder(siblings)` in `request-tree.ts` serves
+    `getNextSortOrder(parentRequestId | null, …)` and the plan panel. Frontend 4217 tests,
+    coverage 87.3 / 80.5 / 83.6 / 89.1.
+  - **G6 frontend KISS / orphans (done):** `qk.search` and `qk.ai.conversation` replace
+    the last inline keys; the AI conversation hooks use `fetchQuery`/`useMutation` +
+    `meta.invalidates` like their siblings. Criterion validation lives in
+    `CriterionEditDialog` via `useEntityFormDialog({ validate })`. `useSaveCriterion`,
+    `useSaveRequest`, `useSaveTemplate` and `useSaveResourceAbsence` all use
+    `SaveVariables`. `useAnchoredZoom` lost its test-only limits option
+    (`ZOOM_MIN/MAX/STEP` exported). The proposal parsers moved to
+    `domain/ai-proposal.ts`, `request-form-validation` to `domain/`, `useFetchRequest` to
+    `useRequests.ts`; the two re-export shims and `clearPendingChildren` are gone.
+    `useInvalidateRequestData` stays (one consumer). Assert-free tests in
+    OrganizationSettings and CollapsibleFloorplan are replaced or deleted; spinner and
+    quick-add tests assert real state. Redundant `vi.clearAllMocks`, a double
+    `TooltipProvider` and two hand-wired `QueryClientProvider`s are gone. Not done:
+    `useSpreadsheetImport` as plain functions (not simpler) and a shared
+    `ResourceEditDialog` fixture module (`vi.mock` is hoisted per file; the type fixtures
+    already share `test-utils/resource-fixtures.ts`). Frontend 4230 tests, coverage
+    87.4 / 80.6 / 83.6 / 89.1.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.

@@ -28,8 +28,9 @@ describe('NotificationPreferencesSection', () => {
 
   it('shows a loading spinner while fetching', () => {
     vi.mocked(getNotificationPreferences).mockReturnValue(new Promise(() => {}));
-    const { container } = renderNotif();
-    expect(container.querySelector('.animate-spin')).toBeTruthy();
+    renderNotif();
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
   it('renders the switch on when the user is opted in', async () => {

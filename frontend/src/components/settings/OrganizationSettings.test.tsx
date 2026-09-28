@@ -440,54 +440,31 @@ describe('OrganizationSettings', () => {
     });
   });
 
-  describe('Ownership transfer confirm', () => {
-    it('clicking Transfer confirm in dialog calls handleTransferOwnership', async () => {
+  describe('Delete organization confirm', () => {
+    it('keeps Delete disabled until the slug is typed', async () => {
       const user = userEvent.setup();
       renderOrganizationSettings();
-      await waitFor(() => screen.getByText('Organization Details'));
 
-      const openTransferBtn = screen.queryByRole('button', { name: /Transfer Ownership/i });
-      if (!openTransferBtn) return;
-      await user.click(openTransferBtn);
+      await user.click(await screen.findByRole('button', { name: /Delete Organization/ }));
+      const dialog = await screen.findByRole('alertdialog');
+      const confirm = within(dialog).getByRole('button', { name: /Delete Organization/ });
+      expect(confirm).toBeDisabled();
 
-      const dialog = await screen.findByRole('alertdialog').catch(() => null);
-      if (dialog) {
-        await user.click(within(dialog).getByRole('button', { name: /Transfer Ownership/i }));
-      }
-      // handleTransferOwnership fires — dialog interaction confirmed
-    });
-  });
-
-  describe('Delete organization confirm input', () => {
-    it('typing in confirm field fires setDeleteConfirmText', async () => {
-      const user = userEvent.setup();
-      renderOrganizationSettings();
-      await waitFor(() => screen.getByText('Organization Details'));
-
-      const deleteBtn = screen.queryByRole('button', { name: /Delete Organization/i });
-      if (!deleteBtn) return;
-      await user.click(deleteBtn);
-
-      const inputs = screen.queryAllByRole('textbox');
-      const confirmInput = inputs[inputs.length - 1]; // last textbox is the confirm input
-      if (confirmInput) {
-        await user.type(confirmInput, 'My Organization');
-        expect((confirmInput as HTMLInputElement).value).toBe('My Organization');
-      }
+      await user.type(within(dialog).getByRole('textbox'), 'my-org');
+      expect(confirm).toBeEnabled();
     });
 
-    it('cancel button in delete dialog fires setDeleteConfirmText empty', async () => {
+    it('closes the confirm on Cancel without deleting', async () => {
       const user = userEvent.setup();
       renderOrganizationSettings();
-      await waitFor(() => screen.getByText('Organization Details'));
 
-      const deleteBtn = screen.queryByRole('button', { name: /Delete Organization/i });
-      if (!deleteBtn) return;
-      await user.click(deleteBtn);
+      await user.click(await screen.findByRole('button', { name: /Delete Organization/ }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.type(within(dialog).getByRole('textbox'), 'my-org');
+      await user.click(within(dialog).getByRole('button', { name: /^Cancel$/ }));
 
-      const cancelBtn = await screen.findByRole('button', { name: /^Cancel$/i }).catch(() => null);
-      if (cancelBtn) await user.click(cancelBtn);
-      // setDeleteConfirmText('') fires — interaction confirmed
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      expect(tenantsApi.deleteTenant).not.toHaveBeenCalled();
     });
   });
 });

@@ -8,8 +8,6 @@ import {
   useSaveAiConversation,
 } from "@foundation/src/hooks/useAiAssistant";
 import {
-  // The one direct call left: an SSE stream read turn by turn, not a request/response
-  // a query or a mutation can hold.
   streamAiChat,
   type AiEntry,
   type AiMessage,
@@ -21,7 +19,7 @@ import { useSiteStore } from "@foundation/src/store/site-store";
 import {
   proposalToAutoScheduleRequestIds,
   proposalToRequestUpdate,
-} from "@foundation/src/components/assistant/ProposalCard";
+} from "@foundation/src/domain/ai-proposal";
 
 /** Where the assistant was opened from, when that should shape the first question. */
 export interface AssistantContext {
@@ -68,19 +66,6 @@ function acceptorFor(
   return null;
 }
 
-/** Whether this proposal has a usable accept path — see {@link acceptorFor}. */
-function canApplyProposal(proposal: { kind: string; input: string }, handlers: ProposalAcceptors): boolean {
-  return acceptorFor(proposal, handlers) !== null;
-}
-
-/**
- * One line in the panel's visible history — the same shape the server stores, so a
- * conversation restores into exactly what it was. Kinds: `user`, `assistant`, `action`
- * (something the assistant did to the screen, recorded so nothing moves silently), and
- * `error`.
- */
-type Entry = AiEntry;
-
 export interface UseAssistantConversationOptions extends ProposalAcceptors {
   open: boolean;
   context?: AssistantContext | null;
@@ -115,7 +100,7 @@ export function useAssistantConversation({
   const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
   const { data: status } = useAiStatus(open);
 
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<AiEntry[]>([]);
   const [transcript, setTranscript] = useState<AiMessage[]>([]);
   const [proposal, setProposal] = useState<AiProposal | null>(null);
   const [phase, setPhase] = useState<string | null>(null);
@@ -148,8 +133,8 @@ export function useAssistantConversation({
 
   const invalidateAiStatus = useInvalidateAiStatus();
   const getAiConversation = useFetchAiConversation();
-  const saveAiConversation = useSaveAiConversation();
-  const deleteAiConversation = useDeleteAiConversation();
+  const { mutateAsync: saveAiConversation } = useSaveAiConversation();
+  const { mutateAsync: deleteAiConversation } = useDeleteAiConversation();
 
   // Titles only; a body is fetched when a conversation is actually opened.
   const { data: conversations = [] } = useAiConversations(open);
@@ -160,7 +145,7 @@ export function useAssistantConversation({
    * transcript are always replaced, never mutated, so identity is exact — where counting
    * lengths would miss a same-length replacement.
    */
-  const saved = useRef<{ id: string; entries: Entry[]; transcript: AiMessage[] } | null>(null);
+  const saved = useRef<{ id: string; entries: AiEntry[]; transcript: AiMessage[] } | null>(null);
   const restoredOnce = useRef(false);
 
   const startNewConversation = useCallback(() => {
@@ -322,7 +307,8 @@ export function useAssistantConversation({
     saved.current = { id: conversationId, entries, transcript };
 
     const firstAsked = entries.find((e) => e.kind === "user")?.text ?? "Conversation";
-    void saveAiConversation(conversationId, {
+    void saveAiConversation({
+      id: conversationId,
       title: firstAsked.slice(0, 120),
       entries,
       transcript,
@@ -385,7 +371,7 @@ export function useAssistantConversation({
   const applyProposal = async () => {
     if (!proposal) return;
     // Each proposal kind has its own accept path, and a kind whose host handler is absent
-    // is not offered an Apply button at all — see canApplyProposal.
+    // is not offered an Apply button at all — see proposalCanApply.
     const accept = acceptorFor(proposal, { onApplyProposal, onApplyAutoSchedule });
     if (!accept) return;
 
@@ -420,7 +406,7 @@ export function useAssistantConversation({
     entries,
     proposal,
     /** Whether the current proposal has an accept path — see {@link acceptorFor}. */
-    proposalCanApply: proposal ? canApplyProposal(proposal, { onApplyProposal, onApplyAutoSchedule }) : false,
+    proposalCanApply: proposal ? acceptorFor(proposal, { onApplyProposal, onApplyAutoSchedule }) !== null : false,
     phase,
     busy,
     applying,

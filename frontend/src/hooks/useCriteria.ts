@@ -13,6 +13,7 @@ import type {
 } from "@foundation/src/types/criterion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
 
@@ -71,24 +72,12 @@ export interface CriterionDraft {
 }
 
 /**
- * Rules the server cannot state as a disabled Save button: both carry a reason the
- * user has to read. Thrown from the save so the dialog renders them in its own
- * ErrorAlert, the same place a failed request lands.
+ * Create, or update details and applicability as they changed. The dialog validates the
+ * draft before it gets here.
  */
-function validate(draft: CriterionDraft): string | null {
-  if (!draft.name.trim()) return "Name is required";
-  if (draft.dataType === "Enum" && draft.enumValues.length === 0) {
-    return "At least one enum value is required";
-  }
-  if (draft.resourceTypeKeys.length === 0) {
-    return "At least one applicability scope must be selected";
-  }
-  return null;
-}
-
-async function saveCriterion({ draft, criterion }: SaveCriterionVariables): Promise<Criterion> {
-  const validationError = validate(draft);
-  if (validationError) throw new Error(validationError);
+async function saveCriterion(variables: SaveCriterionVariables): Promise<Criterion> {
+  const draft = variables.id === null ? variables.data : variables.data.draft;
+  const criterion = variables.id === null ? null : variables.data.previous;
 
   const name = draft.name.trim();
   const description = draft.description.trim() || undefined;
@@ -137,19 +126,18 @@ async function saveCriterion({ draft, criterion }: SaveCriterionVariables): Prom
   return updated;
 }
 
-export interface SaveCriterionVariables {
-  draft: CriterionDraft;
-  /** The criterion being edited, or null to create one. */
-  criterion: Criterion | null;
-}
+/** An update carries the criterion as it was, so only the changed details are sent. */
+export type SaveCriterionVariables = SaveVariables<
+  CriterionDraft,
+  { draft: CriterionDraft; previous: Criterion }
+>;
 
 /** The edit dialog's save: create, or update details and applicability as they changed. */
 export const useSaveCriterion = () =>
   useMutation({
     mutationFn: saveCriterion,
     meta: {
-      successMessage: (_data, variables) =>
-        (variables as SaveCriterionVariables).criterion ? "Criterion updated" : "Criterion created",
+      successMessage: savedMessage("Criterion created", "Criterion updated"),
       suppressErrorToast: true,
       invalidates: CRITERIA_INVALIDATES,
     },

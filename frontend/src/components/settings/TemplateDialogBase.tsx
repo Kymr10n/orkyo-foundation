@@ -14,7 +14,7 @@ import {
 import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
 import type { CriterionValue } from "@foundation/src/types/criterion";
-import type { CreateTemplateRequest, Template, UpdateTemplateRequest } from "@foundation/src/types/templates";
+import type { Template } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
 import { useMemo, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
@@ -22,7 +22,7 @@ import { CriterionRequirementList } from "../requests/CriterionRequirementList";
 import { RequestTargetTypesField } from "../requests/RequestTargetTypesField";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useTemplateForm } from "@foundation/src/hooks/useTemplateForm";
-import { useSaveTemplate } from "@foundation/src/hooks/useTemplates";
+import { useSaveTemplate, type SaveTemplateVariables } from "@foundation/src/hooks/useTemplates";
 import { useCriteria } from "@foundation/src/hooks/useCriteria";
 
 interface TemplateDialogBaseProps {
@@ -97,7 +97,7 @@ export function TemplateDialogBase({
     updateRequirement(criterionId, value);
   };
 
-  const saveMutation = useSaveTemplate(template, entityType, {
+  const saveMutation = useSaveTemplate(entityType, {
     onSuccess: () => {
       if (!isEditMode) {
         reset();
@@ -113,14 +113,19 @@ export function TemplateDialogBase({
 
   const isSubmitting = saveMutation.isPending;
 
-  const buildRequest = (durationVal: number): CreateTemplateRequest | UpdateTemplateRequest =>
-    isEditMode
-      ? {
-          name: state.name.trim(),
-          description: state.description.trim() || undefined,
-          entityType,
-          durationValue: durationVal,
-          durationUnit: state.durationUnit,
+  const buildVariables = (durationVal: number): SaveTemplateVariables => {
+    const base = {
+      name: state.name.trim(),
+      description: state.description.trim() || undefined,
+      entityType,
+      durationValue: durationVal,
+      durationUnit: state.durationUnit,
+    };
+    if (template) {
+      return {
+        id: template.id,
+        data: {
+          ...base,
           targetResourceTypeKeys: state.targetResourceTypeKeys,
           items: state.requirements.size > 0
             ? Array.from(state.requirements.entries()).map(([criterionId, value]) => ({
@@ -130,15 +135,17 @@ export function TemplateDialogBase({
                 value: String(value ?? ''),
               }))
             : undefined,
-        }
-      : {
-          name: state.name.trim(),
-          description: state.description.trim() || undefined,
-          entityType,
-          durationValue: durationVal,
-          durationUnit: state.durationUnit,
-          targetResourceTypeKeys: entityType === 'request' ? state.targetResourceTypeKeys : undefined,
-        };
+        },
+      };
+    }
+    return {
+      id: null,
+      data: {
+        ...base,
+        targetResourceTypeKeys: entityType === 'request' ? state.targetResourceTypeKeys : undefined,
+      },
+    };
+  };
 
   const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -155,7 +162,7 @@ export function TemplateDialogBase({
       return;
     }
 
-    saveMutation.mutate(buildRequest(durationVal));
+    saveMutation.mutate(buildVariables(durationVal));
   };
 
   const handleOpenChange = (newOpen: boolean) => {

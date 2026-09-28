@@ -1,19 +1,23 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createRequest,
   deleteRequest,
   deleteRequestSubtree,
+  getRequest,
   getRequests,
   moveRequest,
   updateRequest,
 } from "@foundation/src/lib/api/request-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { STALE } from "@foundation/src/lib/core/query-client";
 import {
   REQUEST_DERIVED_QUERY_KEYS,
 } from "@foundation/src/lib/core/invalidate-request-data";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import type { Request, RequestFormData } from "@foundation/src/types/requests";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 import { useImportHandler } from "@foundation/src/hooks/useImportExport";
 import { importRequests } from "@foundation/src/lib/utils/export-handlers";
 
@@ -29,6 +33,27 @@ export function useRequests(siteId: string | null) {
     queryKey: qk.requests.list(siteId),
     queryFn: () => getRequests(true, siteId ?? undefined),
   });
+}
+
+/**
+ * Fetch one request on demand, through the cache.
+ *
+ * A critical-path node carries only an id and a name, so the request is read when the user asks
+ * for it. Eagerly loading every node's request would cost a tenant-wide read to make rows
+ * clickable that mostly never get clicked.
+ */
+export function useFetchRequest() {
+  const queryClient = useQueryClient();
+
+  return useCallback(
+    (requestId: string): Promise<Request> =>
+      queryClient.fetchQuery({
+        queryKey: qk.requests.detail(requestId),
+        queryFn: () => getRequest(requestId),
+        staleTime: STALE.STANDARD,
+      }),
+    [queryClient],
+  );
 }
 
 /**
@@ -95,18 +120,27 @@ export function useDeleteRequest(handlers: {
  * Create or update a request from the dialog's form data. Every request save goes through here,
  * so the same edit toasts the same way on every page. The dialog shows a failure inline.
  */
+export type SaveRequestVariables = SaveVariables<
+  RequestFormData,
+  /** An update carries what the request was, so an unchanged planning mode or site is not resent. */
+  { form: RequestFormData; previous: Pick<Request, "planningMode" | "siteId"> }
+>;
+
+/** The save's variables for a form: an update of `editing`, or a create when there is none. */
+export const saveRequestVariables = (form: RequestFormData, editing: Request | null): SaveRequestVariables =>
+  editing ? { id: editing.id, data: { form, previous: editing } } : { id: null, data: form };
+
 export function useSaveRequest(handlers: {
   onSuccess?: () => void;
   onError?: (error: unknown) => void;
 } = {}) {
   return useMutation({
-    mutationFn: ({ data, editing }: { data: RequestFormData; editing: Request | null }) =>
-      editing
-        ? updateRequest(editing.id, buildUpdatePayload(data, editing.planningMode, editing.siteId))
-        : createRequest(buildCreatePayload(data)),
+    mutationFn: (v: SaveRequestVariables) =>
+      v.id === null
+        ? createRequest(buildCreatePayload(v.data))
+        : updateRequest(v.id, buildUpdatePayload(v.data.form, v.data.previous.planningMode, v.data.previous.siteId)),
     meta: {
-      successMessage: (_saved, variables) =>
-        (variables as { editing: Request | null }).editing ? "Request updated" : "Request created",
+      successMessage: savedMessage("Request created", "Request updated"),
       suppressErrorToast: true,
       invalidates: REQUEST_DERIVED_QUERY_KEYS,
     },

@@ -33,8 +33,9 @@ vi.mock('./SessionsSection', () => ({
 describe('SecuritySettings', () => {
   it('shows loading spinner when loading', () => {
     mockQueryResult.current = { data: null, isLoading: true, error: null };
-    const { container } = render(<SecuritySettings />);
-    expect(container.querySelector('.animate-spin')).toBeTruthy();
+    render(<SecuritySettings />);
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByTestId('mfa-section')).not.toBeInTheDocument();
   });
 
   it('shows error alert when query fails', () => {

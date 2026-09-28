@@ -29,7 +29,7 @@ import { RequestResourcesSection } from "./RequestResourcesSection";
 import { RequestChildrenSection } from "./RequestChildrenSection";
 import { RequestDependenciesSection } from "./RequestDependenciesSection";
 // The hook owns the tab state, so it owns the union naming the tabs.
-import type { RequestFormTab } from "@foundation/src/hooks/useRequestFormDialog";
+import type { RequestFormTab } from "@foundation/src/domain/request-form-validation";
 
 
 /** Sentinel for the "Any site" (site-neutral) option — Radix Select disallows empty values. */

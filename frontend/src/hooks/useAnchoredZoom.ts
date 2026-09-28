@@ -1,10 +1,9 @@
 import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
-export interface ZoomLimits {
-  min?: number;
-  max?: number;
-  step?: number;
-}
+/** The zoom range and the size of one button step. */
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 2;
+export const ZOOM_STEP = 0.25;
 
 export interface AnchoredZoom {
   zoom: number;
@@ -21,10 +20,7 @@ export interface AnchoredZoom {
  * viewport lands somewhere else entirely on a tall plan; the scroll offset is moved on purpose,
  * in a layout effect, before the new scale paints.
  */
-export function useAnchoredZoom(
-  scrollRef: RefObject<HTMLElement | null>,
-  { min = 0.5, max = 2, step = 0.25 }: ZoomLimits = {},
-): AnchoredZoom {
+export function useAnchoredZoom(scrollRef: RefObject<HTMLElement | null>): AnchoredZoom {
   const [zoom, setZoom] = useState(1);
   const anchor = useRef<{ x: number; y: number } | null>(null);
 
@@ -54,10 +50,10 @@ export function useAnchoredZoom(
 
   return {
     zoom,
-    zoomIn: () => applyZoom(Math.min(max, zoom + step)),
-    zoomOut: () => applyZoom(Math.max(min, zoom - step)),
+    zoomIn: () => applyZoom(Math.min(ZOOM_MAX, zoom + ZOOM_STEP)),
+    zoomOut: () => applyZoom(Math.max(ZOOM_MIN, zoom - ZOOM_STEP)),
     reset: () => applyZoom(1),
-    canZoomIn: zoom < max,
-    canZoomOut: zoom > min,
+    canZoomIn: zoom < ZOOM_MAX,
+    canZoomOut: zoom > ZOOM_MIN,
   };
 }

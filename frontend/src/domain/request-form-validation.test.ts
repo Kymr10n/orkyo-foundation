@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { isRequestFormValidationError, validateRequestForm } from './request-form-validation';
-import type { RequestFormState, RequirementEntry } from './useRequestForm';
+import type { RequestFormState, RequirementEntry } from '@foundation/src/hooks/useRequestForm';
 import { VALIDATION_MESSAGES } from '@foundation/src/constants';
 import type { RequestFormData } from '@foundation/src/types/requests';
 

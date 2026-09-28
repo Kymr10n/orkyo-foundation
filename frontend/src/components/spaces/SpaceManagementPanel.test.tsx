@@ -137,9 +137,8 @@ const ONE_PLACEABLE_TYPE = {
 };
 
 function setup() {
-  vi.clearAllMocks();
-  // clearAllMocks resets calls but keeps implementations, so a mockReturnValue set by one test
-  // would otherwise decide what the next one sees.
+  // The config's clearMocks resets calls but keeps implementations, so a mockReturnValue set by
+  // one test would otherwise decide what the next one sees.
   mockResourceTypes.mockReturnValue(ONE_PLACEABLE_TYPE);
   mockUseSpaces.mockReturnValue({ data: [], isLoading: false });
   mockGetFloorplanMetadata.mockResolvedValue(null);

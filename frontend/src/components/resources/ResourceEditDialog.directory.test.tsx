@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type * as CustomFieldsApi from '@foundation/src/lib/api/resource-custom-fields-api';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClientProvider } from '@tanstack/react-query';
 import { ResourceEditDialog } from './ResourceEditDialog';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
@@ -43,7 +42,7 @@ vi.mock('./ResourceDirectoryFields', () => ({
 
 import { createResource, updateResource } from '@foundation/src/lib/api/resources-api';
 import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
-import { createTestQueryClient } from '@foundation/src/test-utils';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 
 const personType: ResourceTypeInfo = {
@@ -56,16 +55,9 @@ const personType: ResourceTypeInfo = {
 };
 
 function renderDialog(resourceType: ResourceTypeInfo, resource: ResourceInfo | null = null) {
-  const { queryClient } = createTestQueryClient({ feedback: true });
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <ResourceEditDialog
-        resourceType={resourceType}
-        resource={resource}
-        open
-        onOpenChange={() => {}}
-      />
-    </QueryClientProvider>,
+  return renderWithQuery(
+    <ResourceEditDialog resourceType={resourceType} resource={resource} open onOpenChange={() => {}} />,
+    { feedback: true },
   );
 }
 
