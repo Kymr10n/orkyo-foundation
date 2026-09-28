@@ -649,6 +649,41 @@ public class SecurityEndpointsTests
 
     #region Remove MFA Tests
 
+    private static HttpRequestMessage RemoveMfaRequest(string? currentPassword) =>
+        new(HttpMethod.Delete, "/api/account/mfa") { Content = JsonContent.Create(new { currentPassword }) };
+
+    [Fact]
+    public async Task RemoveMfa_WithoutCurrentPassword_Returns400AndKeepsMfa()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+
+        foreach (var request in new[] { new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa"), RemoveMfaRequest(null) })
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await _client.SendAsync(request);
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        }
+
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_WithWrongPassword_Returns400AndKeepsMfa()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+        _mockKeycloak.VerifyPasswordSuccess = false;
+
+        var request = RemoveMfaRequest("wrong-password");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
     [Fact]
     public async Task RemoveMfa_WhenEnabled_ShouldDeleteTotpCredential()
     {
@@ -660,7 +695,7 @@ public class SecurityEndpointsTests
             RecoveryCodesConfigured = false,
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa");
+        var request = RemoveMfaRequest("current-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.SendAsync(request);
@@ -682,7 +717,7 @@ public class SecurityEndpointsTests
             RecoveryCodesCredentialId = "recovery-cred-id",
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa");
+        var request = RemoveMfaRequest("current-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.SendAsync(request);
@@ -697,7 +732,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = false };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa");
+        var request = RemoveMfaRequest("current-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.SendAsync(request);

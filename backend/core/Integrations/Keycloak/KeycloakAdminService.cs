@@ -404,7 +404,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         }
     }
 
-    private async Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct)
+    public async Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct = default)
     {
         var (adminToken, userId) = await ResolveUserAsync(keycloakSub, ct);
 

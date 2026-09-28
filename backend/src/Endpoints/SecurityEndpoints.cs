@@ -10,6 +10,7 @@ using Api.Services.BffSession;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace Api.Endpoints;
@@ -233,26 +234,36 @@ public static class SecurityEndpoints
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IEmailService emailService,
+            [FromBody] RemoveMfaRequest? body,
+            IValidator<RemoveMfaRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
+            // Optional body so the account guard answers first; the validator then refuses a missing password.
             accountGuard.EnsureCanMutateOwnAccount(principal);
-            var sub = principal.RequireExternalSubject();
-            var status = await keycloakService.GetMfaStatusAsync(sub, ct);
-            if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
-                return ErrorResponses.BadRequest("MFA is not enabled");
-            await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
-            if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
+            var request = body ?? new RemoveMfaRequest();
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
-                catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
-            }
-            logger.LogInformation("MFA removed for user {Sub}", sub);
-            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
-            return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
+                var sub = principal.RequireExternalSubject();
+                // A session alone must not strip the second factor: a hijacked session would.
+                await keycloakService.VerifyCurrentPasswordAsync(sub, request.CurrentPassword!, ct);
+                var status = await keycloakService.GetMfaStatusAsync(sub, ct);
+                if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
+                    return ErrorResponses.BadRequest("MFA is not enabled");
+                await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
+                if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
+                {
+                    try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
+                    catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
+                }
+                logger.LogInformation("MFA removed for user {Sub}", sub);
+                _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
+                return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
+            }, logger, "remove MFA");
         })
         .WithName("RemoveMfa")
         .WithSummary("Remove MFA")
-        .WithTags("Security");
+        .WithTags("Security")
+        .RequireRateLimiting(FoundationRateLimitPolicies.PasswordChange);
 
         security.MapGet("/profile", async (
             ICurrentPrincipal principal,

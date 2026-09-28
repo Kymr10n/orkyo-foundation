@@ -19,6 +19,7 @@ public static class FoundationRateLimitPolicies
     public const string PasswordChange = "password-change";
     public const string SessionBootstrap = "session-bootstrap";
     public const string ContactForm = "contact-form";
+    public const string CreateAccount = "create-account";
     public const string BffAuth = "bff-auth";
     public const string ReportingApi = "reporting-api";
     public const string McpApi = "mcp-api";
@@ -76,6 +77,12 @@ public static class RateLimitingServiceExtensions
                 RateLimitPartition.GetFixedWindowLimiter(
                     IpKey(ctx),
                     _ => Window(permitLimit: 3, TimeSpan.FromHours(1))));
+
+            // SessionEndpoints — per-IP ceiling on anonymous self-registration.
+            options.AddPolicy(FoundationRateLimitPolicies.CreateAccount, ctx =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    IpKey(ctx),
+                    _ => Window(permitLimit: 5, TimeSpan.FromHours(1))));
 
             // BffAuthEndpoints — per-IP ceiling on the anonymous login/callback/logout endpoints.
             options.AddPolicy(FoundationRateLimitPolicies.BffAuth, ctx =>

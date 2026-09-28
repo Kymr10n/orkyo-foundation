@@ -30,6 +30,18 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.CompletedTask;
     }
 
+    // ── Verify password ───────────────────────────────────────────
+    public bool VerifyPasswordSuccess { get; set; } = true;
+    public int VerifyPasswordCallCount { get; private set; }
+
+    public Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct = default)
+    {
+        VerifyPasswordCallCount++;
+        if (!VerifyPasswordSuccess)
+            throw new KeycloakAdminException("Current password is incorrect", StatusCodes.Status400BadRequest);
+        return Task.CompletedTask;
+    }
+
     // ── Sessions ──────────────────────────────────────────────────
     public List<KeycloakSession> MockSessions { get; set; } = new();
     public int GetSessionsCallCount { get; private set; }
@@ -305,6 +317,8 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     {
         ChangePasswordSuccess = true;
         ChangePasswordError = null;
+        VerifyPasswordSuccess = true;
+        VerifyPasswordCallCount = 0;
         IsFederatedUser = false;
         FederatedIdentityProvider = null;
         MockSessions = new List<KeycloakSession>();

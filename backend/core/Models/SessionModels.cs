@@ -2,11 +2,12 @@ namespace Api.Models;
 
 // Session models shared between SessionService and SessionEndpoints.
 
-public record CreateAccountRequest
+public record CreateAccountRequest : IChallengeProtectedRequest
 {
     public required string Email { get; init; }
     public required string Password { get; init; }
     public string? DisplayName { get; init; }
+    public string? ChallengeToken { get; init; }
 }
 
 public record SessionBootstrapResponse

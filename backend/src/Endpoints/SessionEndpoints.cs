@@ -6,6 +6,7 @@ using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Models;
 using Api.Security;
+using Api.Security.Challenge;
 using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -233,11 +234,19 @@ public static class SessionEndpoints
                     lastName = parts.Length > 1 ? parts[1] : null;
                 }
 
-                await keycloakAdminService.CreateUserAsync(
-                    request.Email, request.Password, firstName, lastName,
-                    emailVerified: false, ct: ct);
+                try
+                {
+                    await keycloakAdminService.CreateUserAsync(
+                        request.Email, request.Password, firstName, lastName,
+                        emailVerified: false, ct: ct);
+                    logger.LogInformation("Account created for {Email}", request.Email);
+                }
+                catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status409Conflict)
+                {
+                    // Same answer as a new address: a 409 would tell anyone which emails have accounts.
+                    logger.LogInformation("Create-account for existing {Email}; answered as created", request.Email);
+                }
 
-                logger.LogInformation("Account created for {Email}", request.Email);
                 return Results.Ok(new { message = "Account created. Please check your email to verify your account." });
             }, logger, "create account", new { email = request.Email });
         })
@@ -245,7 +254,9 @@ public static class SessionEndpoints
         .WithName("CreateAccount")
         .WithSummary("Create a new account")
         .WithDescription("Creates a new user in Keycloak and sends a verification email.")
-        .WithTags("Auth");
+        .WithTags("Auth")
+        .RequireRateLimiting(FoundationRateLimitPolicies.CreateAccount)
+        .RequireChallengeVerification();
     }
 
 }

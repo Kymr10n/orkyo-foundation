@@ -1,5 +1,10 @@
 namespace Api.Models;
 
+public record RemoveMfaRequest
+{
+    public string? CurrentPassword { get; init; }
+}
+
 public record ChangePasswordRequest
 {
     public string? CurrentPassword { get; init; }

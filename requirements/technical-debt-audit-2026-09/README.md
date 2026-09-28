@@ -63,6 +63,21 @@ per agent, sequential within a stack, stacks in parallel.
 - **M24:** `frontend/package-lock.json` must be refreshed with `npm install --package-lock-only`
   after the peer-dependency move (done in batch F5 if not before).
 - **Workflows were validated statically only**; none has run in GitHub Actions on this branch.
+- **S18 (frontend, before merge):** `DELETE /api/account/mfa` now requires a JSON body
+  `{ currentPassword }` — `security-api.ts` calls `apiDelete(API_PATHS.ACCOUNT.MFA)` with no body,
+  so MFA removal answers 400 until the frontend asks for the password (and records its docs impact).
+  `RequestAccessPage` sends no `challengeToken`: harmless today (community sets no
+  `TURNSTILE_SECRET_KEY`; saas has self-registration off), but a deployment with both would reject
+  every signup. With Turnstile on, saas's invitation-only 403 now answers `CHALLENGE_FAILED` before
+  `NOT_INVITED` (the filter runs before the handler).
+- **S18 (saas tests):** `InvitationEndpointsTests.CreateAccount_WhenEmailAlreadyExists_ShouldReturn409`
+  must expect 200 with the created message. `DemoAccountLockTests` DELETE `/api/account/mfa` still
+  gets its 403 (the body is optional, so the account guard runs before validation).
+- **S12:** site-admin user actions now write `control_plane.audit_events` rows (`user.deactivated`,
+  `user.reactivated`, `user.deleted`, `site_admin.granted`, `site_admin.revoked`, NULL tenant); a
+  Keycloak failure on deactivate/reactivate/delete now answers 502 instead of 204.
+- **S19:** the `demo` starter template cannot work in any product: `Presets/demo/demo-seed.sql` ships
+  nowhere, so it throws and saas creates an empty tenant. Needs a product decision.
 
 | ID | Batch | Status | Notes |
 |---|---|---|---|
@@ -87,7 +102,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S15 | B1b | done | Demote and remove are each one statement: `UPDATE/DELETE … AND (target not an active admin OR stays admin OR EXISTS other active admin)`, with the tenant's active-admin rows locked `ORDER BY user_id FOR UPDATE` in a CTE — a bare `EXISTS` under READ COMMITTED still lets two cross-demotions both pass. 0 rows + membership exists → the same "last admin" error. Constants bound as parameters (file left `KnownSqlLiteralFiles`). `TenantLeaveMembershipPolicy` calls `LastActiveAdminPolicy`. saas `TenantService` leave flow still checks-then-deletes (saas code). Test: concurrent demotion of the other admin → demote/remove refused, target stays admin (failed before) |
 | S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
 | S17 | B1a | done | `KeycloakOptions.FromConfiguration`: required keys fail on empty as well as absent, empty `KEYCLOAK_INTERNAL_URL` becomes null, `EffectiveInternalBaseUrl` treats "" as unset (local helpers with `GetRequired`/`IsSet` semantics — `Orkyo.Shared` cannot reference core's `ConfigurationExtensions`). Diagnostics probe fixed at the source: `DeploymentConfig.OidcInternalAuthority` is now `IsSet ? value : null`, so line 99's `??` falls back correctly. `shared` added to `TestRepoPaths.BackendRoots` and the `RawConfigFallback` roots; it flags nothing else |
-| S18 | B1b | todo | |
+| S18 | B1b | done | `create-account`: new per-IP `FoundationRateLimitPolicies.CreateAccount` (5/h) + `RequireChallengeVerification()`; `CreateAccountRequest` implements `IChallengeProtectedRequest` (optional `challengeToken`); a Keycloak 409 is answered with the same 200 body as a new account. Test host keeps the permissive `NoOpChallengeProvider` (no Turnstile key). `DELETE /api/account/mfa` now takes `{ currentPassword }` (FluentValidation `RemoveMfaRequestValidator`) and checks it with `IKeycloakAdminService.VerifyCurrentPasswordAsync` — the ROPC helper `/password` already used, now public (implementers: foundation + testsupport mock only; grepped saas + community) — and shares the `PasswordChange` rate limit. Chose password over `auth_time`. Tests: existing email → identical 200 body; policy metadata; MFA delete without password / wrong password → 400, credential kept |
 | S19 | B1b | done | Deleted `CopyDemoFloorplanAsync` (plaintext upsert and its SQL copy) instead of rerouting it: it was unreachable — no assembly embeds `demo-floorplan.png` (core has no `EmbeddedResource`), and it only ran after `demo/demo-seed.sql` loaded, which ships in no repo (foundation, saas, community). **New, not fixed:** the `demo` starter template therefore always throws `FileNotFoundException`; saas `TenantService` swallows it and creates an empty tenant. Decide whether to ship the seed or drop `demo` from `StarterTemplateCatalog` (saas tests reference the key) |
 | S20 | F1 | done | `csvToArray` uses a character-level parser (quoted line breaks, CRLF); `arrayToCSV` prefixes text cells starting `= + - @ \t \r` with `'` and import strips it, so exports round-trip; sites CSV import maps `code,name,description,address` through a typed callback; round-trip test |
 | S21 | F1 | done | names-only fetch moved to its own key `qk.requests.names()`; hook test proves both fetches run |

@@ -22,6 +22,12 @@ public interface IKeycloakAdminService
     Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default);
 
     /// <summary>
+    /// Verify a user's current password. Throws <see cref="KeycloakAdminException"/> with
+    /// status 400 when it is wrong.
+    /// </summary>
+    Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct = default);
+
+    /// <summary>
     /// Get all active sessions for a user.
     /// </summary>
     Task<List<KeycloakSession>> GetUserSessionsAsync(string keycloakSub, CancellationToken ct = default);

@@ -1,5 +1,10 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Configuration;
+using Api.Models;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -537,5 +542,40 @@ public class SessionEndpointsTests
 
         var response = await _client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task CreateAccount_ForAnExistingEmail_AnswersAsForANewOne()
+    {
+        // A 409 here would let anyone test which addresses have accounts.
+        var keycloak = _factory.MockKeycloakAdminService;
+        keycloak.CreateUserSuccess = false;
+        keycloak.CreateUserError = "An account with this email already exists";
+        HttpResponseMessage response;
+        try
+        {
+            response = await _client.PostAsJsonAsync("/api/auth/create-account",
+                new { email = $"existing-{Guid.NewGuid():N}@example.com", password = "SecurePass123!" });
+        }
+        finally
+        {
+            keycloak.Reset();
+        }
+        var fresh = await _client.PostAsJsonAsync("/api/auth/create-account",
+            new { email = $"fresh-{Guid.NewGuid():N}@example.com", password = "SecurePass123!" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be(await fresh.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public void CreateAccount_IsRateLimitedAndChallengeProtected()
+    {
+        var endpoint = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Single(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == "CreateAccount");
+
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .Should().Be(FoundationRateLimitPolicies.CreateAccount);
+        typeof(IChallengeProtectedRequest).IsAssignableFrom(typeof(CreateAccountRequest)).Should().BeTrue();
     }
 }
