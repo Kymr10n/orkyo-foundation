@@ -1,10 +1,8 @@
 using Api.Constants;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Npgsql;
 using Orkyo.Migrator;
-using Orkyo.Shared;
 
 namespace Orkyo.Foundation.TestSupport;
 

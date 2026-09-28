@@ -2,7 +2,6 @@ using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Repositories;
 
@@ -23,18 +22,11 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
     private async Task<T?> UpdateWhileAnotherWriterHoldsTheRowAsync<T>(
         string concurrentSql, Guid id, Func<Task<T?>> update)
     {
-        await using var conn = new NpgsqlConnection(fixture.TenantConnectionString);
-        await conn.OpenAsync();
-        await using var tx = await conn.BeginTransactionAsync();
-        await using (var cmd = new NpgsqlCommand(concurrentSql, conn, tx))
-        {
-            cmd.Parameters.AddWithValue("id", id);
-            await cmd.ExecuteNonQueryAsync();
-        }
+        await using var writer = await RowLock.HoldAsync(fixture.TenantConnectionString, concurrentSql, ("id", id));
 
         var pending = update();
-        await Task.WhenAny(pending, Task.Delay(TimeSpan.FromMilliseconds(500)));
-        await tx.CommitAsync();
+        await writer.WaitUntilBlockedAsync(pending);
+        await writer.CommitAsync();
         return await pending;
     }
 

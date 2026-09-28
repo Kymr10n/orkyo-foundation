@@ -40,7 +40,7 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task GetAll_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("regular");
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("regular")).Token;
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/announcements", token));
 
@@ -50,7 +50,7 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task Create_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("regular");
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("regular")).Token;
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Test", body = "Body" }));

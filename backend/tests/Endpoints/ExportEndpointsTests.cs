@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -311,16 +310,9 @@ public class ExportEndpointsTests
     [Fact]
     public async Task Export_NonAdminUser_Returns403()
     {
-        // Arrange - create a viewer user
-        var email = $"exportviewer_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Viewer User", TestConstants.TenantSlug, "viewer", active: true);
-        var tenantId = TestConstants.TenantId;
+        var token = await DatabaseFixture.CreateMemberTokenAsync("viewer");
 
-        var token = TestConstants.BearerToken(userId.ToString(), email, "Viewer User", tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "viewer");
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/export");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", token);
         request.Content = JsonContent.Create(new ExportRequest(), options: _jsonOptions);
 
         // Act

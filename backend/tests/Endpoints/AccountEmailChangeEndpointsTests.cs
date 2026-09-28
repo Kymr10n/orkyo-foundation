@@ -407,9 +407,10 @@ public class AccountEmailChangeEndpointsTests
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using var rename = new NpgsqlCommand(@"
-            UPDATE users SET display_name = @name WHERE id = '11111111-1111-1111-1111-111111111111'
-            RETURNING (SELECT display_name FROM users WHERE id = '11111111-1111-1111-1111-111111111111')", conn);
+            UPDATE users SET display_name = @name WHERE id = @id
+            RETURNING (SELECT display_name FROM users WHERE id = @id)", conn);
         rename.Parameters.AddWithValue("name", "Dana Scully");
+        rename.Parameters.AddWithValue("id", TestConstants.UserId);
         var original = (string)(await rename.ExecuteScalarAsync())!;
         try
         {
@@ -417,15 +418,15 @@ public class AccountEmailChangeEndpointsTests
             response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
 
             // Sent after the response, from its own scope.
-            for (var i = 0; i < 50 && _mockEmail.CallCount(nameof(IEmailService.SendEmailChangedAsync)) == 0; i++)
-                await Task.Delay(100);
+            await _factory.BackgroundWork.WhenIdleAsync();
+            _mockEmail.CallCount(nameof(IEmailService.SendEmailChangedAsync)).Should().Be(1);
             _mockEmail.LastEmailChangedDisplayName.Should().Be("Dana Scully");
         }
         finally
         {
-            await using var restore = new NpgsqlCommand(
-                "UPDATE users SET display_name = @name WHERE id = '11111111-1111-1111-1111-111111111111'", conn);
+            await using var restore = new NpgsqlCommand("UPDATE users SET display_name = @name WHERE id = @id", conn);
             restore.Parameters.AddWithValue("name", original);
+            restore.Parameters.AddWithValue("id", TestConstants.UserId);
             await restore.ExecuteNonQueryAsync();
         }
     }

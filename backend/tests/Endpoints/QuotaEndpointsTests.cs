@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -25,8 +24,7 @@ public class QuotaEndpointsTests
     [Fact]
     public async Task GetQuotas_AsAdmin_ReachesHandler_AndReturnsUsage()
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/settings/quotas/");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Admin));
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings/quotas/", await DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Admin));
 
         var response = await _client.SendAsync(request);
 

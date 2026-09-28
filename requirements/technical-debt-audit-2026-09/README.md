@@ -153,6 +153,19 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
     `ResourceEditDialog` fixture module (`vi.mock` is hoisted per file; the type fixtures
     already share `test-utils/resource-fixtures.ts`). Frontend 4230 tests, coverage
     87.4 / 80.6 / 83.6 / 89.1.
+  - **G5 backend tests DRY (done):** the last sleep poll is gone: `BackgroundWorkTracker`
+    + `TrackedBackgroundDispatcher` wrap the production dispatcher in the test host and
+    `factory.BackgroundWork.WhenIdleAsync()` waits for dispatched work (S44). Lock tests
+    use `RowLock`, which waits on `pg_stat_activity`/`pg_blocking_pids` and fails on
+    timeout instead of passing vacuously. Three `CreateResourceTypeAsync`, three
+    `UniqueName`, one `CreatePersonAsync`, one `Req`, four member-token blocks and 65
+    bearer-header sites folded into `TestHelpers`/`DatabaseFixture` (S48); 19 sites with a
+    different shape stay. `DatabaseFixture.CreateLinkedTokenAsync` deleted (M20).
+    `InMemoryBffSessionStoreTests` run on a fixed instant; candidate-request dates derive
+    from next year (M22; the host has no fake clock). The authorization matrix has the
+    editor-PUT settings row again. `MockKeycloakAdminService.GetRealmRoleMemberIdsError`
+    is its own flag; `MockEmailService` last-call writes sit under the lock; five dead
+    usings removed. Backend 3921/3921.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.

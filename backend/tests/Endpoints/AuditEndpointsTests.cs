@@ -23,7 +23,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_RegularUser_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-user");
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-user")).Token;
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/audit", token));
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -33,7 +33,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_SiteAdmin_Returns200WithPagedResponse()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/audit", token));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -49,7 +49,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_WithPaginationParams_Honoured()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/audit?page=1&pageSize=10", token));
 
@@ -62,7 +62,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_PageSizeCappedAt100()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/audit?pageSize=999", token));
 
@@ -74,7 +74,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_WithActionFilter_Returns200()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/audit?action=user.login", token));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -83,7 +83,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_WithActorIdFilter_Returns200()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
         var actorId = Guid.NewGuid();
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/audit?actorId={actorId}", token));
@@ -93,7 +93,7 @@ public class AuditEndpointsTests
     [Fact]
     public async Task GetAuditEvents_WithDateRangeFilter_Returns200()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("audit-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
         var from = Uri.EscapeDataString(DateTime.UtcNow.AddDays(-7).ToString("o"));
         var to = Uri.EscapeDataString(DateTime.UtcNow.ToString("o"));
         var response = await _client.SendAsync(

@@ -53,9 +53,7 @@ public class SessionEndpointsTests
 
     private async Task<JsonElement> GetMeAsync(string token)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/session/me");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/session/me", token);
 
         var response = await _client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -200,9 +198,7 @@ public class SessionEndpointsTests
     public async Task TourSeen_WithAuthentication_ReturnsOk()
     {
         var token = await MakeTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tour/seen");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/session/tour/seen", token);
 
         var response = await _client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -219,9 +215,7 @@ public class SessionEndpointsTests
     public async Task TosAccept_WithWrongVersion_Returns400()
     {
         var token = await MakeTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tos/accept");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/session/tos/accept", token);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { tosVersion = "99.0" }),
             System.Text.Encoding.UTF8, "application/json");
@@ -239,9 +233,7 @@ public class SessionEndpointsTests
         // The required version comes from appsettings.json Tos:RequiredVersion
         const string requiredVersion = "2026-02";
         var token = await MakeTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tos/accept");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/session/tos/accept", token);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { tosVersion = requiredVersion }),
             System.Text.Encoding.UTF8, "application/json");
@@ -311,9 +303,7 @@ public class SessionEndpointsTests
 
     private async Task<HttpResponseMessage> BootstrapAsync(string token)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/session/bootstrap");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/session/bootstrap", token);
         return await _client.SendAsync(request);
     }
 

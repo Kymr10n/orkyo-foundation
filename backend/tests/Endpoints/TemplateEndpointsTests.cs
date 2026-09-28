@@ -147,17 +147,7 @@ public class TemplateEndpointsTests
         Assert.Equal([ResourceTypeKeys.Space, ResourceTypeKeys.Tool], after!.TargetResourceTypeKeys.Order());
     }
 
-    private async Task<string> GetAuthTokenAsync()
-    {
-        // Create a test user directly in database (legacy /api/auth/register no longer exists)
-        var email = $"templatetest_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Template Test User", TestConstants.TenantSlug, "viewer", active: true);
-
-        var tenantId = TestConstants.TenantId; // Test tenant
-
-        return TestConstants.BearerToken(userId.ToString(), email, "Template Test User", tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "admin");
-    }
+    private static Task<string> GetAuthTokenAsync() => DatabaseFixture.CreateMemberTokenAsync("admin");
 
     private async Task CleanupTestDataAsync()
     {
@@ -190,18 +180,13 @@ public class TemplateEndpointsTests
             DurationUnit = "minutes"
         };
 
-        var createRequestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/templates")
-        {
-            Content = JsonContent.Create(createRequest)
-        };
-        createRequestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var createRequestMessage = TestHelpers.AuthRequest(HttpMethod.Post, "/api/templates", token, createRequest);
 
         var createResponse = await _client.SendAsync(createRequestMessage);
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
 
         // Act
-        var getRequest = new HttpRequestMessage(HttpMethod.Get, "/api/templates?entityType=request");
-        getRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var getRequest = TestHelpers.AuthRequest(HttpMethod.Get, "/api/templates?entityType=request", token);
         var response = await _client.SendAsync(getRequest);
 
         // Assert
@@ -219,8 +204,7 @@ public class TemplateEndpointsTests
     {
         // Arrange
         var token = await GetAuthTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/templates");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/templates", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -236,8 +220,7 @@ public class TemplateEndpointsTests
     {
         // Arrange
         var token = await GetAuthTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/templates?entityType=invalid");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/templates?entityType=invalid", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -256,8 +239,7 @@ public class TemplateEndpointsTests
     {
         // Arrange
         var token = await GetAuthTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/templates?entityType={entityType}");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, $"/api/templates?entityType={entityType}", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -278,18 +260,13 @@ public class TemplateEndpointsTests
             EntityType = "space"
         };
 
-        var createRequestMessage = new HttpRequestMessage(HttpMethod.Post, "/api/templates")
-        {
-            Content = JsonContent.Create(createRequest)
-        };
-        createRequestMessage.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var createRequestMessage = TestHelpers.AuthRequest(HttpMethod.Post, "/api/templates", token, createRequest);
 
         var createResponse = await _client.SendAsync(createRequestMessage);
         var createdTemplate = await createResponse.Content.ReadFromJsonAsync<Template>();
 
         // Act
-        var getRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/templates/{createdTemplate!.Id}");
-        getRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var getRequest = TestHelpers.AuthRequest(HttpMethod.Get, $"/api/templates/{createdTemplate!.Id}", token);
         var response = await _client.SendAsync(getRequest);
 
         // Assert
@@ -308,8 +285,7 @@ public class TemplateEndpointsTests
     {
         // Arrange
         var token = await GetAuthTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/templates/{Guid.NewGuid()}");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, $"/api/templates/{Guid.NewGuid()}", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -354,11 +330,7 @@ public class TemplateEndpointsTests
         };
 
         // Act
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/templates")
-        {
-            Content = JsonContent.Create(createRequest)
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/templates", token, createRequest);
         var response = await _client.SendAsync(request);
 
         // Assert

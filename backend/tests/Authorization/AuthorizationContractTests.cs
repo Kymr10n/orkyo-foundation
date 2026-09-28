@@ -2,7 +2,6 @@ using Api.Endpoints.Admin;
 using Api.Middleware;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Orkyo.Foundation.Tests.Authorization;
 

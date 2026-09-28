@@ -51,6 +51,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     /// <summary>Toggleable account-lock guard — flip <c>Locked</c> to exercise shared/demo-account paths.</summary>
     public Mocks.TestAccountMutationGuard AccountGuard => _accountGuard;
 
+    /// <summary>The work queued after responses; await <see cref="BackgroundWorkTracker.WhenIdleAsync"/> before asserting on it.</summary>
+    public BackgroundWorkTracker BackgroundWork => Services.GetRequiredService<BackgroundWorkTracker>();
+
     /// <summary>Exposes the application's service provider for advanced test scenarios.</summary>
     public IServiceProvider Services => ((WebApplication)_host).Services;
 
@@ -219,6 +222,12 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         builder.Services.RemoveAll<IEmailService>();
         builder.Services.AddSingleton<IEmailService>(mockEmail);
+
+        // The production dispatcher, tracked so a test can await the work it queues.
+        builder.Services.AddSingleton<BackgroundWorkTracker>();
+        builder.Services.AddScoped<BackgroundDispatcher>();
+        builder.Services.RemoveAll<IBackgroundDispatcher>();
+        builder.Services.AddScoped<IBackgroundDispatcher, TrackedBackgroundDispatcher>();
 
         // Programmable, not Mock.Of: with every call returning default, the revoke and resend
         // SUCCESS paths were unreachable and only their not-found halves could be tested.

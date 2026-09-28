@@ -124,6 +124,11 @@ public class AuthorizationMatrixTests
         AssertForbidden(await _editor.DeleteAsync("/api/settings/some-key"));
 
     [Fact]
+    public async Task SettingsUpdate_AsEditor_IsForbidden() =>
+        AssertForbidden(await _editor.PutAsJsonAsync("/api/settings",
+            new { settings = new Dictionary<string, string> { ["working_day_start"] = "08:00" } }));
+
+    [Fact]
     public async Task SettingsWrite_AsAdmin_IsAllowed() =>
         AssertNotForbidden(await _admin.DeleteAsync("/api/settings/some-key"));
 }

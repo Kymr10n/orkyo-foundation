@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Npgsql;
@@ -31,9 +30,8 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task GetSettings_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("settings-regular");
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/settings");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("settings-regular")).Token;
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/settings", token);
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -42,8 +40,7 @@ public class SettingsAdminEndpointsTests
     public async Task GetSettings_SiteAdmin_ReturnsAllSections()
     {
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/settings");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/settings", token);
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -80,12 +77,8 @@ public class SettingsAdminEndpointsTests
     [Fact]
     public async Task UpdateSettings_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("settings-regular");
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
-        {
-            Content = JsonContent.Create(new { settings = new Dictionary<string, string> { ["DefaultTimezone"] = "Europe/Zurich" } })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("settings-regular")).Token;
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new { settings = new Dictionary<string, string> { ["DefaultTimezone"] = "Europe/Zurich" } });
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -95,18 +88,14 @@ public class SettingsAdminEndpointsTests
     {
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
         {
-            Content = JsonContent.Create(new
+            settings = new Dictionary<string, string>
             {
-                settings = new Dictionary<string, string>
-                {
-                    ["DefaultTimezone"] = "Europe/Zurich",
-                    ["BrandingName"] = "TestOrg",
-                }
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                ["DefaultTimezone"] = "Europe/Zurich",
+                ["BrandingName"] = "TestOrg",
+            }
+        });
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -125,17 +114,13 @@ public class SettingsAdminEndpointsTests
     {
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
         {
-            Content = JsonContent.Create(new
+            settings = new Dictionary<string, string>
             {
-                settings = new Dictionary<string, string>
-                {
-                    ["NonExistentSetting"] = "value"
-                }
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                ["NonExistentSetting"] = "value"
+            }
+        });
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -146,11 +131,7 @@ public class SettingsAdminEndpointsTests
     {
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
-        {
-            Content = JsonContent.Create(new { settings = new Dictionary<string, string>() })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new { settings = new Dictionary<string, string>() });
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -161,17 +142,13 @@ public class SettingsAdminEndpointsTests
     {
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
         {
-            Content = JsonContent.Create(new
+            settings = new Dictionary<string, string>
             {
-                settings = new Dictionary<string, string>
-                {
-                    ["HolidayProviderEnabled"] = "not-a-bool"
-                }
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                ["HolidayProviderEnabled"] = "not-a-bool"
+            }
+        });
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -182,17 +159,13 @@ public class SettingsAdminEndpointsTests
     {
         var (userId, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
         {
-            Content = JsonContent.Create(new
+            settings = new Dictionary<string, string>
             {
-                settings = new Dictionary<string, string>
-                {
-                    ["BrandingName"] = $"AuditTest-{Guid.NewGuid():N}"
-                }
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                ["BrandingName"] = $"AuditTest-{Guid.NewGuid():N}"
+            }
+        });
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -214,17 +187,13 @@ public class SettingsAdminEndpointsTests
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
 
         // Use the DB key format (general.default_timezone) instead of property name
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
         {
-            Content = JsonContent.Create(new
+            settings = new Dictionary<string, string>
             {
-                settings = new Dictionary<string, string>
-                {
-                    ["general.default_timezone"] = "America/New_York"
-                }
-            })
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                ["general.default_timezone"] = "America/New_York"
+            }
+        });
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -240,20 +209,15 @@ public class SettingsAdminEndpointsTests
         var uniqueName = $"GetReflect-{Guid.NewGuid():N}";
 
         // Update
-        var updateReq = new HttpRequestMessage(HttpMethod.Put, "/api/admin/settings")
+        var updateReq = TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                settings = new Dictionary<string, string> { ["BrandingName"] = uniqueName }
-            })
-        };
-        updateReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            settings = new Dictionary<string, string> { ["BrandingName"] = uniqueName }
+        });
         var updateResp = await _client.SendAsync(updateReq);
         Assert.Equal(HttpStatusCode.OK, updateResp.StatusCode);
 
         // Read back
-        var getReq = new HttpRequestMessage(HttpMethod.Get, "/api/admin/settings");
-        getReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var getReq = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/settings", token);
         var getResp = await _client.SendAsync(getReq);
         Assert.Equal(HttpStatusCode.OK, getResp.StatusCode);
 

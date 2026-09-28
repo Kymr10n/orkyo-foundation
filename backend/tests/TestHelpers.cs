@@ -42,14 +42,18 @@ public static class TestHelpers
     /// <summary>A key that no other test uses: <c>{prefix}_{guid}</c>.</summary>
     public static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
-    /// <summary>Creates a fractional person resource through the API.</summary>
-    public static async Task<ResourceInfo> CreatePersonAsync(HttpClient client, string? name = null, int availabilityPercent = 100)
+    /// <summary>A display name that no other test uses: <c>{prefix} {guid}</c>.</summary>
+    public static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
+
+    /// <summary>Creates a person resource through the API; fractional unless <paramref name="allocationMode"/> says otherwise.</summary>
+    public static async Task<ResourceInfo> CreatePersonAsync(
+        HttpClient client, string? name = null, int availabilityPercent = 100, string allocationMode = AllocationModes.Fractional)
     {
         var response = await client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Person,
             Name = name ?? $"Person-{Guid.NewGuid():N}"[..20],
-            AllocationMode = AllocationModes.Fractional,
+            AllocationMode = allocationMode,
             BaseAvailabilityPercent = availabilityPercent,
         });
         Assert.Equal(System.Net.HttpStatusCode.Created, response.StatusCode);

@@ -105,8 +105,7 @@ public sealed class OrkyoMetricsEndpointTests : IAsyncLifetime
     public async Task BearerHeader_Returns401()
     {
         var client = await StartAppAsync(metricsToken: "supersecrettoken");
-        var request = new HttpRequestMessage(HttpMethod.Get, "/metrics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", "supersecrettoken");
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/metrics", "supersecrettoken");
 
         var response = await client.SendAsync(request);
 

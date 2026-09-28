@@ -2,7 +2,6 @@ using System.Text.Json;
 using Api.Models;
 using Api.Repositories;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Repositories;
 
@@ -29,26 +28,15 @@ public class ListRowCapTests(DatabaseFixture fixture)
 
         // Writer one, on its own connection: takes the instance lock and inserts the last row
         // the cap allows, then holds its transaction open.
-        await using var conn = new NpgsqlConnection(fixture.TenantConnectionString);
-        await conn.OpenAsync();
-        await using var tx = await conn.BeginTransactionAsync();
-        await using (var lockCmd = new NpgsqlCommand(
-            "SELECT 1 FROM list_instances WHERE id = @id FOR UPDATE", conn, tx))
-        {
-            lockCmd.Parameters.AddWithValue("id", instance.Id);
-            await lockCmd.ExecuteNonQueryAsync();
-        }
-        await using (var insert = new NpgsqlCommand(
-            "INSERT INTO list_rows (list_instance_id, values) VALUES (@id, '{}'::jsonb)", conn, tx))
-        {
-            insert.Parameters.AddWithValue("id", instance.Id);
-            await insert.ExecuteNonQueryAsync();
-        }
+        await using var writerOne = await RowLock.HoldAsync(fixture.TenantConnectionString, @"
+            SELECT 1 FROM list_instances WHERE id = @id FOR UPDATE;
+            INSERT INTO list_rows (list_instance_id, values) VALUES (@id, '{}'::jsonb)",
+            ("id", instance.Id));
 
         // Writer two, through the repository, while writer one is still open.
         var second = instances.CreateRowAsync(instance.Id, values, cap);
-        await Task.WhenAny(second, Task.Delay(TimeSpan.FromMilliseconds(500)));
-        await tx.CommitAsync();
+        await writerOne.WaitUntilBlockedAsync(second);
+        await writerOne.CommitAsync();
 
         (await second).Should().BeNull("writer one took the last slot, so writer two must see the cap");
         (await instances.GetRowsAsync(instance.Id)).Should().HaveCount(cap);

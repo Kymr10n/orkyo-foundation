@@ -65,13 +65,6 @@ public class DatabaseFixture : IAsyncLifetime
             TestConstants.TenantSlug, isTenantAdmin: role == RoleConstants.Admin, role: role);
     }
 
-    /// <summary>
-    /// Creates a linked user with no tenant (see <see cref="DatabaseTestUtils.CreateLinkedUserAsync"/>)
-    /// and returns their bearer token; a site admin when <paramref name="siteAdmin"/>.
-    /// </summary>
-    public static async Task<string> CreateLinkedTokenAsync(string prefix, bool siteAdmin = false)
-        => (await DatabaseTestUtils.CreateLinkedUserAsync(prefix, siteAdmin)).Token;
-
     public async Task InitializeAsync()
     {
         var server = await TestPostgresBootstrap.GetAsync();

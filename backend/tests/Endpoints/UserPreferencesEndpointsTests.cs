@@ -18,18 +18,7 @@ public class UserPreferencesEndpointsTests
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
-    private async Task<string> GetAuthTokenAsync()
-    {
-        // Create a test user directly in database (Keycloak handles real auth)
-        var email = $"preftest_{Guid.NewGuid()}@example.com";
-        var displayName = "Preferences Test User";
-
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName, TestConstants.TenantSlug, "viewer", active: true);
-        var tenantId = TestConstants.TenantId; // Test tenant
-
-        return TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "admin");
-    }
+    private static Task<string> GetAuthTokenAsync() => DatabaseFixture.CreateMemberTokenAsync("admin");
 
     [Fact]
     public async Task GetPreferences_WhenNoPreferencesExist_ShouldReturnEmptyObject()
@@ -37,8 +26,7 @@ public class UserPreferencesEndpointsTests
         // Arrange
         var token = await GetAuthTokenAsync();
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/preferences");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/preferences", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -62,11 +50,7 @@ public class UserPreferencesEndpointsTests
             theme = "dark"
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/preferences")
-        {
-            Content = JsonContent.Create(preferences)
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/preferences", token, preferences);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -96,17 +80,12 @@ public class UserPreferencesEndpointsTests
         };
 
         // Act - Update preferences
-        var updateRequest = new HttpRequestMessage(HttpMethod.Put, "/api/preferences")
-        {
-            Content = JsonContent.Create(preferences)
-        };
-        updateRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var updateRequest = TestHelpers.AuthRequest(HttpMethod.Put, "/api/preferences", token, preferences);
         var updateResponse = await _client.SendAsync(updateRequest);
         updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Act - Get preferences
-        var getRequest = new HttpRequestMessage(HttpMethod.Get, "/api/preferences");
-        getRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var getRequest = TestHelpers.AuthRequest(HttpMethod.Get, "/api/preferences", token);
         var getResponse = await _client.SendAsync(getRequest);
 
         // Assert
@@ -135,24 +114,15 @@ public class UserPreferencesEndpointsTests
         var secondPreferences = new { spaceOrder = new[] { "x", "y", "z" } };
 
         // Act - First update
-        var firstRequest = new HttpRequestMessage(HttpMethod.Put, "/api/preferences")
-        {
-            Content = JsonContent.Create(firstPreferences)
-        };
-        firstRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var firstRequest = TestHelpers.AuthRequest(HttpMethod.Put, "/api/preferences", token, firstPreferences);
         await _client.SendAsync(firstRequest);
 
         // Act - Second update
-        var secondRequest = new HttpRequestMessage(HttpMethod.Put, "/api/preferences")
-        {
-            Content = JsonContent.Create(secondPreferences)
-        };
-        secondRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var secondRequest = TestHelpers.AuthRequest(HttpMethod.Put, "/api/preferences", token, secondPreferences);
         await _client.SendAsync(secondRequest);
 
         // Act - Get current preferences
-        var getRequest = new HttpRequestMessage(HttpMethod.Get, "/api/preferences");
-        getRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var getRequest = TestHelpers.AuthRequest(HttpMethod.Get, "/api/preferences", token);
         var response = await _client.SendAsync(getRequest);
 
         // Assert

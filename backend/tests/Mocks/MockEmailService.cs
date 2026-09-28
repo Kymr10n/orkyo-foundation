@@ -74,7 +74,7 @@ public class MockEmailService : IEmailService
     public Task<bool> SendEmailChangeConfirmationAsync(string toEmail, string displayName,
         string confirmationToken, CancellationToken ct = default)
     {
-        LastSendEmailChangeConfirmationCall = (toEmail, displayName, confirmationToken);
+        lock (_lock) LastSendEmailChangeConfirmationCall = (toEmail, displayName, confirmationToken);
         var fail = FailNextEmailChangeConfirmation;
         FailNextEmailChangeConfirmation = false;
         return Record(nameof(SendEmailChangeConfirmationAsync), toEmail, !fail);
@@ -118,7 +118,7 @@ public class MockEmailService : IEmailService
 
     public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
     {
-        LastEmailChangedDisplayName = displayName;
+        lock (_lock) LastEmailChangedDisplayName = displayName;
         return Record(nameof(SendEmailChangedAsync), toEmail);
     }
 

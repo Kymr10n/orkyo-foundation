@@ -1,6 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Npgsql;
 using Orkyo.Foundation.Migrations;
 using Orkyo.Migrations.Abstractions;
 using Orkyo.Migrator;

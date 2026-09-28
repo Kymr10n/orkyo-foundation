@@ -501,24 +501,18 @@ public class UserManagementEndpointsTests
         string? targetRole;
         try
         {
-            await using (var tx = await conn.BeginTransactionAsync())
+            await using (var demoteOthers = await RowLock.HoldAsync(_connString, @"
+                UPDATE tenant_memberships SET role = @editor
+                WHERE tenant_id = @tid AND role = @admin AND user_id <> @target",
+                ("editor", RoleConstants.Editor), ("tid", TestTenantId), ("admin", RoleConstants.Admin), ("target", targetAdminId)))
             {
-                await using var demoteOthers = new NpgsqlCommand(@"
-                    UPDATE tenant_memberships SET role = @editor
-                    WHERE tenant_id = @tid AND role = @admin AND user_id <> @target", conn, tx);
-                demoteOthers.Parameters.AddWithValue("editor", RoleConstants.Editor);
-                demoteOthers.Parameters.AddWithValue("tid", TestTenantId);
-                demoteOthers.Parameters.AddWithValue("admin", RoleConstants.Admin);
-                demoteOthers.Parameters.AddWithValue("target", targetAdminId);
-                await demoteOthers.ExecuteNonQueryAsync();
-
                 using var scope = _factory.Services.CreateScope();
                 var service = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
                 var call = remove
                     ? service.DeleteUserAsync(org, targetAdminId, testUserId)
                     : service.UpdateUserRoleAsync(org, targetAdminId, UserRole.Editor, testUserId);
-                await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(1)));
-                await tx.CommitAsync();
+                await demoteOthers.WaitUntilBlockedAsync(call);
+                await demoteOthers.CommitAsync();
                 result = await call;
             }
 

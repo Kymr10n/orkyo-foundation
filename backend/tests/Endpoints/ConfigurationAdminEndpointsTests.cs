@@ -50,7 +50,7 @@ public class ConfigurationAdminEndpointsTests
     [Fact]
     public async Task GetConfiguration_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("config-regular");
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("config-regular")).Token;
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/configuration", token));
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -58,7 +58,7 @@ public class ConfigurationAdminEndpointsTests
     [Fact]
     public async Task GetConfiguration_SiteAdmin_ReturnsSettings()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("config-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("config-admin", siteAdmin: true)).Token;
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/configuration", token));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -71,7 +71,7 @@ public class ConfigurationAdminEndpointsTests
     [Fact]
     public async Task UpdateConfiguration_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("config-regular");
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("config-regular")).Token;
         var body = new { settings = new Dictionary<string, string> { [Key] = "30" } };
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/configuration", token, body));
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -81,7 +81,7 @@ public class ConfigurationAdminEndpointsTests
     public async Task UpdateConfiguration_SiteAdmin_PersistsAndReflects()
     {
         await ResetOverridesAsync();
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("config-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("config-admin", siteAdmin: true)).Token;
 
         var put = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/configuration", token,
             new { settings = new Dictionary<string, string> { [Key] = "30" } }));
@@ -99,7 +99,7 @@ public class ConfigurationAdminEndpointsTests
     [Fact]
     public async Task ResetConfiguration_NonSiteAdmin_Returns403()
     {
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("config-regular");
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("config-regular")).Token;
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/admin/configuration/{Key}", token));
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -108,7 +108,7 @@ public class ConfigurationAdminEndpointsTests
     public async Task ResetConfiguration_SiteAdmin_RemovesOverride()
     {
         await ResetOverridesAsync();
-        var token = await DatabaseFixture.CreateLinkedTokenAsync("config-admin", siteAdmin: true);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("config-admin", siteAdmin: true)).Token;
 
         (await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/configuration", token,
             new { settings = new Dictionary<string, string> { [Key] = "30" } }))).EnsureSuccessStatusCode();

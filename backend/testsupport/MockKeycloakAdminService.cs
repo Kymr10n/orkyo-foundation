@@ -320,12 +320,14 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     /// <summary>The ids <see cref="GetRealmRoleMemberIdsAsync"/> answers with.</summary>
     public HashSet<string> RealmRoleMemberIds { get; set; } = new(StringComparer.Ordinal);
     public int GetRealmRoleMemberIdsCallCount { get; private set; }
+    /// <summary>When set, <see cref="GetRealmRoleMemberIdsAsync"/> throws with this message.</summary>
+    public string? GetRealmRoleMemberIdsError { get; set; }
 
     public Task<IReadOnlySet<string>> GetRealmRoleMemberIdsAsync(string roleName, CancellationToken ct = default)
     {
         GetRealmRoleMemberIdsCallCount++;
-        if (HasRealmRoleError_)
-            throw new KeycloakAdminException("Failed to list role members", HasRealmRoleErrorStatusCode ?? StatusCodes.Status502BadGateway);
+        if (GetRealmRoleMemberIdsError is not null)
+            throw new KeycloakAdminException(GetRealmRoleMemberIdsError, StatusCodes.Status502BadGateway);
         return Task.FromResult<IReadOnlySet<string>>(RealmRoleMemberIds);
     }
 
@@ -411,6 +413,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         HasRealmRoleCallCount = 0;
         RealmRoleMemberIds = new HashSet<string>(StringComparer.Ordinal);
         GetRealmRoleMemberIdsCallCount = 0;
+        GetRealmRoleMemberIdsError = null;
         AssignRealmRoleCallCount = 0;
         RevokeRealmRoleCallCount = 0;
         LastAssignRealmRoleCall = default;
