@@ -26,7 +26,10 @@ per agent, sequential within a stack, stacks in parallel.
   after `dotnet build Orkyo.Foundation.slnx -c Release --no-restore -warnaserror` (CI uses
   `-warnaserror`; IDE0051/52/60 are errors). Always use `-c Release` so builds reuse each other.
   The whole backend suite takes a long time; run the classes your change touches plus
-  `Architecture` and `Authorization`, and run the full suite once at the end of the batch. Frontend: `cd frontend && npx vitest run <paths>` and `npm run lint`
+  `Architecture` and `Authorization`, and run the full suite once at the end of the batch.
+  Before a full run, drop the leftover test databases, or earlier runs' rows cause false
+  failures: `su postgres -c "psql -Atc \"SELECT datname FROM pg_database WHERE datname LIKE 'orkyo%' OR datname LIKE 'test%'\"" | xargs -r -n1 -I{} su postgres -c "psql -c 'DROP DATABASE IF EXISTS \"{}\"'"`
+  (check the names the fixtures create first with `\l`). Frontend: `cd frontend && npx vitest run <paths>` and `npm run lint`
   and `npm run typecheck`. Format C# with `dotnet format Orkyo.Foundation.slnx --no-restore`.
 - **Downstream.** A read-only clone of orkyo-community is at
   `/tmp/claude-0/-home-user-orkyo-foundation/46a5ff40-5242-5e7d-b784-c25d67af1249/scratchpad/downstream/orkyo-community`.
