@@ -30,9 +30,10 @@ per agent, sequential within a stack, stacks in parallel.
   and `npm run typecheck`. Format C# with `dotnet format Orkyo.Foundation.slnx --no-restore`.
 - **Downstream.** A read-only clone of orkyo-community is at
   `/tmp/claude-0/-home-user-orkyo-foundation/46a5ff40-5242-5e7d-b784-c25d67af1249/scratchpad/downstream/orkyo-community`.
-  orkyo-saas is not available. A public symbol with no consumer here and none in community is
-  still `deferred` unless the audit row already says it is SaaS-only by design; deleting public
-  API is a breaking change (CLAUDE.md), so record it and move on.
+  A read-only clone of orkyo-saas is at `/home/user/orkyo-saas`. Grep both before deleting any
+  public symbol. A symbol with no consumer in foundation, community or saas may be deleted; note
+  "no downstream consumer (grepped saas + community)" in the tracker. A symbol a product uses
+  stays, marked `deferred` with the consumer file named.
 - **Smallest diff.** One finding at a time. Fix what the row says; do not widen. Prefer deletion.
   Do not rename or reformat beyond what `dotnet format` does.
 - **Tests.** Every behaviour change ships a test that fails before and passes after (security
@@ -107,7 +108,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S48 | B7 | todo | |
 | S49 | R1 | todo | |
 | S50 | R1 | todo | |
-| S51 | R1 | todo | |
+| S51 | R1 | in-progress |  |
 | S52 | R1 | todo | |
 | S53 | R1 | todo | |
 | S54 | R1 | todo | |
