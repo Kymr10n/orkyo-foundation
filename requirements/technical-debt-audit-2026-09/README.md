@@ -88,7 +88,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
 | S17 | B1a | done | `KeycloakOptions.FromConfiguration`: required keys fail on empty as well as absent, empty `KEYCLOAK_INTERNAL_URL` becomes null, `EffectiveInternalBaseUrl` treats "" as unset (local helpers with `GetRequired`/`IsSet` semantics — `Orkyo.Shared` cannot reference core's `ConfigurationExtensions`). Diagnostics probe fixed at the source: `DeploymentConfig.OidcInternalAuthority` is now `IsSet ? value : null`, so line 99's `??` falls back correctly. `shared` added to `TestRepoPaths.BackendRoots` and the `RawConfigFallback` roots; it flags nothing else |
 | S18 | B1b | todo | |
-| S19 | B1b | in-progress | |
+| S19 | B1b | done | Deleted `CopyDemoFloorplanAsync` (plaintext upsert and its SQL copy) instead of rerouting it: it was unreachable — no assembly embeds `demo-floorplan.png` (core has no `EmbeddedResource`), and it only ran after `demo/demo-seed.sql` loaded, which ships in no repo (foundation, saas, community). **New, not fixed:** the `demo` starter template therefore always throws `FileNotFoundException`; saas `TenantService` swallows it and creates an empty tenant. Decide whether to ship the seed or drop `demo` from `StarterTemplateCatalog` (saas tests reference the key) |
 | S20 | F1 | done | `csvToArray` uses a character-level parser (quoted line breaks, CRLF); `arrayToCSV` prefixes text cells starting `= + - @ \t \r` with `'` and import strips it, so exports round-trip; sites CSV import maps `code,name,description,address` through a typed callback; round-trip test |
 | S21 | F1 | done | names-only fetch moved to its own key `qk.requests.names()`; hook test proves both fetches run |
 | S22 | B3 | todo | |
@@ -131,7 +131,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M3 | B4 | todo | |
 | M4 | F4 | todo | |
 | M5 | F1 | done | About footer sentence and its `VITE_RUM_ENDPOINT` condition deleted; `initRUM` registers observers only in dev; `metrics`/`getMetrics` deleted (no downstream consumer (grepped saas + community); both call only `initRUM`) |
-| M6 | B2 / F1 | todo | backend items in B2, frontend items in F1 |
+| M6 | B2 / F1 | in-progress | backend items in B2, frontend items in F1 (F1 in progress) |
 | M7 | B4 | todo | |
 | M8 | B4 | todo | |
 | M9 | B3 | todo | |
