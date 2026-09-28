@@ -30,7 +30,6 @@ public static class BffAuthEndpoints
     private const int PkceVerifierLength = 32;
     private const int StateLength = 32;
     private static readonly TimeSpan StateTtl = TimePolicyConstants.BffPkceStateTtl;
-    private const string DataProtectionPurpose = "BffSession";
 
     // ILogger<T> requires a non-static type argument. This private marker class
     // gives log entries the category "Api.Endpoints.BffAuthEndpoints+Log".
@@ -38,7 +37,7 @@ public static class BffAuthEndpoints
 
     public static void MapBffAuthEndpoints(this WebApplication app)
     {
-        if (!string.Equals(app.Configuration[ConfigKeys.BffEnabled], "true", StringComparison.OrdinalIgnoreCase))
+        if (!BffAuthenticationServiceExtensions.IsBffEnabled(app.Configuration))
             return;
 
         var bff = app.MapGroup("/api/auth/bff")
@@ -139,12 +138,11 @@ public static class BffAuthEndpoints
         string? state,
         HttpContext ctx,
         IOptions<BffOptions> bffOpts,
-        KeycloakOptions keycloakOptions,
         IBffPkceStateStore pkceStore,
         IBffSessionEstablisher sessionEstablisher,
         IIdentityLinkService identityLinkService,
         ISessionService sessionService,
-        IHttpClientFactory httpClientFactory,
+        KeycloakTokenClient tokenClient,
         IOptions<TenantMiddlewareOptions> tenantMiddlewareOpts,
         ILogger<Log> logger,
         CancellationToken ct = default)
@@ -167,7 +165,7 @@ public static class BffAuthEndpoints
                 return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=invalid_state");
             }
 
-            var tokenResponse = await ExchangeCodeForTokensAsync(httpClientFactory, keycloakOptions, bffOptions, code, pkceState.CodeVerifier, logger, ct);
+            var tokenResponse = await tokenClient.ExchangeCodeAsync(code, pkceState.CodeVerifier, bffOptions.RedirectUri, ct);
 
             if (tokenResponse is null)
                 return ErrorResponses.BadRequest("Token exchange failed");
@@ -243,7 +241,7 @@ public static class BffAuthEndpoints
         {
             try
             {
-                var protector = dataProtection.CreateProtector(DataProtectionPurpose);
+                var protector = dataProtection.CreateProtector(BffSessionCookies.DataProtectionPurpose);
                 var sessionId = protector.Unprotect(cookieValue);
                 var session = await sessionStore.GetAsync(sessionId);
                 if (session is not null)
@@ -268,7 +266,7 @@ public static class BffAuthEndpoints
 
         var clearOptions = new CookieOptions { Domain = bffOptions.CookieDomain, Path = "/" };
         ctx.Response.Cookies.Delete(bffOptions.CookieName, clearOptions);
-        ctx.Response.Cookies.Delete(bffOptions.CsrfCookieName, clearOptions);
+        ctx.Response.Cookies.Delete(BffOptions.CsrfCookieName, clearOptions);
 
         returnTo ??= bffOptions.GetDefaultReturnToBase();
 
@@ -343,67 +341,13 @@ public static class BffAuthEndpoints
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    [ExcludeFromCodeCoverage]
-    private static async Task<TokenResponse?> ExchangeCodeForTokensAsync(
-        IHttpClientFactory httpClientFactory,
-        KeycloakOptions keycloakOptions,
-        BffOptions bffOptions,
-        string code,
-        string codeVerifier,
-        ILogger logger,
-        CancellationToken ct = default)
-    {
-        var tokenEndpoint = $"{keycloakOptions.InternalAuthority}/protocol/openid-connect/token";
-        var client = httpClientFactory.CreateClient("BffKeycloak");
-
-        var tokenRequest = new FormUrlEncodedContent(new Dictionary<string, string>
-        {
-            ["grant_type"] = "authorization_code",
-            ["client_id"] = keycloakOptions.BackendClientId,
-            ["client_secret"] = keycloakOptions.BackendClientSecret,
-            ["code"] = code,
-            ["redirect_uri"] = bffOptions.RedirectUri,
-            ["code_verifier"] = codeVerifier,
-        });
-
-        var response = await client.PostAsync(tokenEndpoint, tokenRequest, ct);
-        return await ParseTokenResponseAsync(response, logger);
-    }
-
     /// <summary>
-    /// Parses a Keycloak token response into a <see cref="TokenResponse"/>, or null
-    /// on a non-success status or missing required fields. The error body is logged
-    /// only on failure and never includes the request credentials.
+    /// Parses a Keycloak token response into a <see cref="TokenResponse"/>, or null on a
+    /// non-success status or a missing field. Kept for the products' own grants (saas's demo
+    /// login); the BFF's own calls go through <see cref="KeycloakTokenClient"/>, which owns the parser.
     /// </summary>
-    [ExcludeFromCodeCoverage]
-    public static async Task<TokenResponse?> ParseTokenResponseAsync(HttpResponseMessage response, ILogger logger)
-    {
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync();
-            logger.LogError("Keycloak token request failed: {StatusCode} {Body}", response.StatusCode, errorBody);
-            return null;
-        }
-
-        using var doc = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
-        var root = doc.RootElement;
-
-        if (!root.TryGetProperty("access_token", out var atProp) || atProp.ValueKind != JsonValueKind.String ||
-            !root.TryGetProperty("refresh_token", out var rtProp) || rtProp.ValueKind != JsonValueKind.String ||
-            !root.TryGetProperty("id_token", out var itProp) || itProp.ValueKind != JsonValueKind.String)
-        {
-            logger.LogError("Keycloak token response missing required fields (access_token / refresh_token / id_token)");
-            return null;
-        }
-
-        var expiresInSeconds = root.TryGetProperty("expires_in", out var expProp) ? expProp.GetInt32() : 300;
-
-        return new TokenResponse(
-            atProp.GetString()!,
-            rtProp.GetString()!,
-            itProp.GetString()!,
-            expiresInSeconds);
-    }
+    public static Task<TokenResponse?> ParseTokenResponseAsync(HttpResponseMessage response, ILogger logger) =>
+        KeycloakTokenClient.ParseAsync(response, logger, requireIdToken: true);
 
     [ExcludeFromCodeCoverage]
     public static ClaimsPrincipal BuildClaimsPrincipal(string accessToken)

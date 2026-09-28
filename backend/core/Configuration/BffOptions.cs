@@ -14,11 +14,14 @@ public sealed class BffOptions
     /// <summary>Session cookie name.</summary>
     public string CookieName { get; set; } = DefaultCookieName;
 
-    /// <summary>CSRF double-submit cookie name (NOT HttpOnly — read by JS).</summary>
-    public string CsrfCookieName { get; set; } = "orkyo-csrf";
+    /// <summary>
+    /// CSRF double-submit cookie name (NOT HttpOnly — read by JS). A constant: no configuration
+    /// key ever set it, and the SPA reads this exact name.
+    /// </summary>
+    public const string CsrfCookieName = "orkyo-csrf";
 
     /// <summary>CSRF header name that must match the cookie value.</summary>
-    public string CsrfHeaderName { get; set; } = HeaderConstants.CsrfToken;
+    public const string CsrfHeaderName = HeaderConstants.CsrfToken;
 
     /// <summary>
     /// Cookie domain (e.g. <c>.orkyo.com</c>). Null in dev so cookies

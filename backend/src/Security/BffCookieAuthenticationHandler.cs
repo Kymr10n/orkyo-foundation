@@ -49,9 +49,8 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     private readonly IBffSessionStore _sessionStore;
     private readonly IDataProtector _protector;
     private readonly Configuration.BffOptions _bffOptions;
-    private readonly KeycloakOptions _keycloakOptions;
     private readonly IBffAuthClientRegistry _authClientRegistry;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly KeycloakTokenClient _tokenClient;
     private readonly TimeProvider _time;
 
     public BffCookieAuthenticationHandler(
@@ -61,18 +60,16 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         IBffSessionStore sessionStore,
         IDataProtectionProvider dataProtection,
         IOptions<Configuration.BffOptions> bffOptions,
-        KeycloakOptions keycloakOptions,
         IBffAuthClientRegistry authClientRegistry,
-        IHttpClientFactory httpClientFactory,
+        KeycloakTokenClient tokenClient,
         TimeProvider time)
         : base(options, logger, encoder)
     {
         _sessionStore = sessionStore;
-        _protector = dataProtection.CreateProtector("BffSession");
+        _protector = dataProtection.CreateProtector(BffSessionCookies.DataProtectionPurpose);
         _bffOptions = bffOptions.Value;
-        _keycloakOptions = keycloakOptions;
         _authClientRegistry = authClientRegistry;
-        _httpClientFactory = httpClientFactory;
+        _tokenClient = tokenClient;
         _time = time;
     }
 
@@ -206,7 +203,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         // The browser copy must move too, or the cookie would lapse while the server-side session
         // is still alive — the user would be logged out despite the extension.
         var cookieValue = Request.Cookies[_bffOptions.CookieName];
-        var csrfValue = Request.Cookies[_bffOptions.CsrfCookieName];
+        var csrfValue = Request.Cookies[Configuration.BffOptions.CsrfCookieName];
         var lifetime = target - now;
         if (!string.IsNullOrEmpty(cookieValue))
             BffSessionCookies.WriteSessionCookie(Context, _bffOptions, cookieValue, lifetime);
@@ -223,45 +220,24 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     {
         try
         {
-            var tokenEndpoint = $"{_keycloakOptions.InternalAuthority}/protocol/openid-connect/token";
-            var client = _httpClientFactory.CreateClient("BffKeycloak");
-
             // A refresh token is bound to the client it was issued to — a session
             // established through a secondary client (session.AuthClient) must
             // refresh with that client's credentials or Keycloak rejects the grant.
             var (clientId, clientSecret) = _authClientRegistry.Resolve(session.AuthClient);
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "refresh_token",
-                ["client_id"] = clientId,
-                ["client_secret"] = clientSecret,
-                ["refresh_token"] = session.RefreshToken,
-            });
+            var (tokens, rejected) = await _tokenClient.RefreshAsync(
+                clientId, clientSecret, session.RefreshToken, Context.RequestAborted);
+            if (tokens is null)
+                return (null, rejected);
 
-            var response = await client.PostAsync(tokenEndpoint, content, Context.RequestAborted);
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.LogWarning("Keycloak token refresh returned {StatusCode}", response.StatusCode);
-                return (null, await IsInvalidGrantAsync(response));
-            }
-
-            using var doc = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(Context.RequestAborted),
-                cancellationToken: Context.RequestAborted);
-
-            var root = doc.RootElement;
-            var newAccessToken = root.GetProperty("access_token").GetString()!;
-            var newRefreshToken = root.GetProperty("refresh_token").GetString()!;
-            var expiresIn = root.GetProperty("expires_in").GetInt32();
-            var newTokenExpiresAt = _time.GetUtcNow().AddSeconds(expiresIn);
+            var newTokenExpiresAt = _time.GetUtcNow().AddSeconds(tokens.ExpiresInSeconds);
 
             await _sessionStore.RefreshTokensAsync(
-                session.SessionId, newAccessToken, newRefreshToken, newTokenExpiresAt, Context.RequestAborted);
+                session.SessionId, tokens.AccessToken, tokens.RefreshToken, newTokenExpiresAt, Context.RequestAborted);
 
             return (session with
             {
-                AccessToken = newAccessToken,
-                RefreshToken = newRefreshToken,
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
                 TokenExpiresAt = newTokenExpiresAt,
             }, false);
         }
@@ -270,30 +246,6 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             Logger.LogError(ex, "Error refreshing tokens for session {SessionIdPrefix}…",
                 session.SessionId[..Math.Min(8, session.SessionId.Length)]);
             return (null, false);
-        }
-    }
-
-    /// <summary>
-    /// True for the OAuth 2.0 <c>invalid_grant</c> error (RFC 6749 §5.2), which Keycloak returns
-    /// for an expired, revoked or logged-out refresh token and for a disabled user. Any other
-    /// failure — a client-credential error included — is not the session's fault.
-    /// </summary>
-    private async Task<bool> IsInvalidGrantAsync(HttpResponseMessage response)
-    {
-        if (response.StatusCode != System.Net.HttpStatusCode.BadRequest)
-            return false;
-        try
-        {
-            using var doc = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(Context.RequestAborted),
-                cancellationToken: Context.RequestAborted);
-            return doc.RootElement.TryGetProperty("error", out var error)
-                && error.ValueKind == JsonValueKind.String
-                && error.GetString() == "invalid_grant";
-        }
-        catch (JsonException)
-        {
-            return false;
         }
     }
 }

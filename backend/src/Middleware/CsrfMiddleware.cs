@@ -29,10 +29,8 @@ public sealed class CsrfMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, IOptions<BffOptions> bffOptions)
+    public async Task InvokeAsync(HttpContext context)
     {
-        var options = bffOptions.Value;
-
         // Only enforce CSRF for BFF-authenticated requests
         if (context.User.Identity?.AuthenticationType != BffCookieAuthenticationHandler.SchemeName)
         {
@@ -48,8 +46,8 @@ public sealed class CsrfMiddleware
         }
 
         // Validate double-submit: header must match cookie
-        var csrfCookie = context.Request.Cookies[options.CsrfCookieName];
-        var csrfHeader = context.Request.Headers[options.CsrfHeaderName].FirstOrDefault();
+        var csrfCookie = context.Request.Cookies[BffOptions.CsrfCookieName];
+        var csrfHeader = context.Request.Headers[BffOptions.CsrfHeaderName].FirstOrDefault();
 
         if (string.IsNullOrEmpty(csrfCookie) ||
             string.IsNullOrEmpty(csrfHeader) ||

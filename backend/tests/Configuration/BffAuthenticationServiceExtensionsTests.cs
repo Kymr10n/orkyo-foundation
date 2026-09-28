@@ -87,6 +87,33 @@ public class BffAuthenticationServiceExtensionsTests
         disc1.Should().Be(disc2).And.Be("orkyo");
     }
 
+    [Fact]
+    public void AddBffAuthentication_WithValkey_KeysUseTheRegisteredMultiplexer_AndConnectNothingAtRegistration()
+    {
+        // Registration used to open its own ConnectionMultiplexer eagerly: a second Valkey
+        // connection per process, and an unreachable host failed AddBffAuthentication itself.
+        var provider = BuildProvider(valkeyConnection: "unreachable.invalid:1,abortConnect=true,connectTimeout=50",
+            configure: services => services.AddSingleton(Mock.Of<StackExchange.Redis.IConnectionMultiplexer>()));
+
+        provider.GetRequiredService<IOptions<Microsoft.AspNetCore.DataProtection.KeyManagement.KeyManagementOptions>>()
+            .Value.XmlRepository.Should().BeOfType<Microsoft.AspNetCore.DataProtection.StackExchangeRedis.RedisXmlRepository>();
+    }
+
+    [Fact]
+    public void AddBffAuthentication_RegistersTheTokenClient()
+    {
+        var provider = BuildProvider(valkeyConnection: null,
+            configure: services => services.AddSingleton(new Orkyo.Shared.Keycloak.KeycloakOptions
+            {
+                BaseUrl = "https://auth.example.com",
+                Realm = "orkyo",
+                BackendClientId = "orkyo-backend",
+                BackendClientSecret = "secret",
+            }));
+
+        provider.GetRequiredService<KeycloakTokenClient>().Should().NotBeNull();
+    }
+
     // ── BffOptions binding ────────────────────────────────────────────────────
 
     [Fact]
@@ -345,7 +372,8 @@ public class BffAuthenticationServiceExtensionsTests
     private static ServiceProvider BuildProvider(
         string? valkeyConnection,
         Dictionary<string, string?>? extra = null,
-        string environmentName = EnvironmentNames.Production)
+        string environmentName = EnvironmentNames.Production,
+        Action<IServiceCollection>? configure = null)
     {
         var values = new Dictionary<string, string?>();
         if (valkeyConnection != null)
@@ -364,6 +392,7 @@ public class BffAuthenticationServiceExtensionsTests
         services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment(environmentName));
         services.AddSingleton(TimeProvider.System);
         services.AddBffAuthentication(config);
+        configure?.Invoke(services);
 
         return services.BuildServiceProvider();
     }
