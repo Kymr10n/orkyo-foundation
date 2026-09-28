@@ -2,9 +2,9 @@ import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import { createResourceGroup, updateResourceGroup, type ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
+import { useSaveResourceGroup } from '@foundation/src/hooks/useResourceGroups';
 
 interface ResourceGroupEditDialogProps {
   resourceTypeKey: string;
@@ -25,8 +25,9 @@ const EMPTY: FormState = { name: '', description: '', defaultAvailabilityPercent
 
 export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClose, onSaved, entityLabel = 'Group' }: ResourceGroupEditDialogProps) {
   // The shared scaffold owns form + baseline, reseed-on-open, the dirty compare and the
-  // create-or-update mutation with its meta feedback — this dialog is exactly the shape it
-  // was extracted for, so it keeps only field rendering and the name-required rule.
+  // submit; the domain hook owns the call and its meta feedback — this dialog keeps only
+  // field rendering and the name-required rule.
+  const mutation = useSaveResourceGroup(resourceTypeKey, entityLabel);
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
     open: isOpen,
     onOpenChange: (o: boolean) => { if (!o) onClose(); },
@@ -37,21 +38,15 @@ export function ResourceGroupEditDialog({ resourceTypeKey, group, isOpen, onClos
       description: g.description ?? '',
       defaultAvailabilityPercent: g.defaultAvailabilityPercent,
     }),
-    save: (f: FormState, g: ResourceGroupInfo | null) =>
-      g
-        ? updateResourceGroup(g.id, {
-            name: f.name,
-            description: f.description || undefined,
-            defaultAvailabilityPercent: f.defaultAvailabilityPercent,
-          })
-        : createResourceGroup({
-            resourceTypeKey,
-            name: f.name,
-            description: f.description || undefined,
-            defaultAvailabilityPercent: f.defaultAvailabilityPercent,
-          }),
-    entityLabel,
-    invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
+    mutation,
+    toVariables: (f: FormState, g: ResourceGroupInfo | null) => ({
+      id: g?.id ?? null,
+      data: {
+        name: f.name,
+        description: f.description || undefined,
+        defaultAvailabilityPercent: f.defaultAvailabilityPercent,
+      },
+    }),
     onSaved,
   });
 

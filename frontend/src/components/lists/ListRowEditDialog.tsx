@@ -4,10 +4,15 @@ import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { Label } from '@foundation/src/components/ui/label';
 import { ScalarValueInput } from '@foundation/src/components/fields/ScalarValueInput';
 import { rowDisplayLabel } from '@foundation/src/components/lists/format-list-cell';
-import { qk } from '@foundation/src/lib/api/query-keys';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
-import { useListRows } from '@foundation/src/hooks/useListRows';
-import type { ListCellValue, ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
+import { useListRows, useSaveListRow } from '@foundation/src/hooks/useListRows';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
+import type {
+  ListCellValue,
+  ListColumn,
+  ListRow,
+  ListRowRequest,
+} from '@foundation/src/lib/api/lists-api';
 
 type RowValues = Record<string, ListCellValue>;
 
@@ -22,11 +27,6 @@ interface ListRowEditDialogProps {
   displayColumnId?: string | null;
   /** What one row is called, so the title says "Add Department" rather than "Add row". */
   entityLabel?: string;
-  /**
-   * Persists the row. The caller owns this because adding the first row to a per-resource list
-   * has to create the instance first, which this dialog should not know about.
-   */
-  save: (values: RowValues, row: ListRow | null) => Promise<unknown>;
 }
 
 /**
@@ -43,7 +43,6 @@ export function ListRowEditDialog({
   instanceId,
   displayColumnId,
   entityLabel = 'row',
-  save,
 }: ListRowEditDialogProps) {
   const activeColumns = columns.filter((c) => c.isActive);
 
@@ -67,21 +66,23 @@ export function ListRowEditDialog({
     [siblingRows, row?.id, activeColumns, displayColumnId],
   );
 
+  // Bound to `instanceId` at render. A per-resource list has no instance until its first row,
+  // so the host creates the holder before it opens this dialog (see ListRowsEditor).
+  const mutation = useSaveListRow(instanceId);
+
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ListRow,
     RowValues,
-    unknown
+    unknown,
+    SaveVariables<ListRowRequest>
   >({
     open,
     onOpenChange,
     entity: row,
     emptyForm: () => ({}),
     toForm: (entity) => ({ ...entity.values }),
-    save: (values, entity) => save(values, entity),
-    entityLabel: 'Row',
-    // Required by the hook, and the same key the create/update mutations behind `save` declare.
-    // React Query dedupes the pair, so the repetition costs a round trip to nobody.
-    invalidates: [qk.lists.instanceRows(instanceId ?? 'none')],
+    mutation,
+    toVariables: (values, entity) => ({ id: entity?.id ?? null, data: { values } }),
   });
 
   // A required column with nothing in it is the one thing the dialog can check itself; every

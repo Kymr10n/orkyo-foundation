@@ -32,8 +32,8 @@ vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   ),
 }));
 
-// The dialog composes its create/update/applicability calls itself through
-// useEntityFormDialog, so the api module is the seam now, not the per-call hooks.
+// useSaveCriterion composes the create/update/applicability calls, and its meta drives the
+// toast these tests assert, so the api module under the real hook is the seam.
 const mockCreateCriterion = vi.fn(() =>
   Promise.resolve({ id: 'new-id', name: 'Test', dataType: 'Boolean', description: '', unit: null, enumValues: [] }),
 );

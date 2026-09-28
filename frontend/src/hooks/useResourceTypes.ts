@@ -1,14 +1,18 @@
 import {
+  createResourceType,
   deleteResourceType,
   getResourceTypes,
+  updateResourceType,
+  type CreateResourceTypeRequest,
+  type UpdateResourceTypeRequest,
 } from "@foundation/src/lib/api/resource-types-api";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 /**
  * A type's shape drives resource forms and the nav, so type edits invalidate the
- * resource lists as well as the type list itself. Shared with the edit dialogs,
- * which persist through `useEntityFormDialog`.
+ * resource lists as well as the type list itself. Shared with the type catalog.
  */
 export const RESOURCE_TYPE_INVALIDATES = [
   qk.resourceTypes.all(),
@@ -26,6 +30,17 @@ export const useResourceTypes = (isActive?: boolean) =>
     queryFn: () => getResourceTypes(isActive),
   });
 
+/** Create (`id: null`) or update a type — the edit dialog's save. */
+export const useSaveResourceType = () =>
+  useMutation({
+    mutationFn: (v: SaveVariables<CreateResourceTypeRequest, UpdateResourceTypeRequest>) =>
+      v.id === null ? createResourceType(v.data) : updateResourceType(v.id, v.data),
+    meta: {
+      successMessage: savedMessage("Resource type created", "Resource type updated"),
+      suppressErrorToast: true,
+      invalidates: RESOURCE_TYPE_INVALIDATES,
+    },
+  });
 
 /** Removes the type, or deactivates it server-side when resources still reference it. */
 export const useDeleteResourceType = () =>

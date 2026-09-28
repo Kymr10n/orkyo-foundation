@@ -9,14 +9,13 @@ import { Label } from '@foundation/src/components/ui/label';
 import { ListRowsEditor } from '@foundation/src/components/lists/ListRowsEditor';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 import {
-  useCreateSharedListInstance,
   useDeleteSharedListInstance,
+  useListDefinition,
+  useSaveSharedListInstance,
   useSharedListInstances,
-  useUpdateSharedListInstance,
 } from '@foundation/src/hooks/useListDefinitions';
-import { useListDefinition } from '@foundation/src/hooks/useListDefinitions';
-import { qk } from '@foundation/src/lib/api/query-keys';
-import type { ListInstance } from '@foundation/src/lib/api/lists-api';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
+import type { ListInstance, ListInstanceRequest } from '@foundation/src/lib/api/lists-api';
 
 interface ListInstancesDialogProps {
   open: boolean;
@@ -166,25 +165,24 @@ function InstanceNameDialog({
   definitionId: string;
   instance: ListInstance | null;
 }) {
-  const createInstance = useCreateSharedListInstance(definitionId);
-  const updateInstance = useUpdateSharedListInstance(definitionId);
+  const mutation = useSaveSharedListInstance(definitionId);
 
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ListInstance,
     { name: string },
-    unknown
+    unknown,
+    SaveVariables<ListInstanceRequest>
   >({
     open,
     onOpenChange,
     entity: instance,
     emptyForm: () => ({ name: '' }),
     toForm: (entity) => ({ name: entity.name ?? '' }),
-    save: (values, entity) =>
-      entity
-        ? updateInstance.mutateAsync({ instanceId: entity.id, request: { name: values.name.trim() } })
-        : createInstance.mutateAsync({ name: values.name.trim() }),
-    entityLabel: 'Shared list',
-    invalidates: [qk.lists.all()],
+    mutation,
+    toVariables: (values, entity) => ({
+      id: entity?.id ?? null,
+      data: { name: values.name.trim() },
+    }),
   });
 
   return (

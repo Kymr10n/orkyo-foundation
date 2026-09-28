@@ -11,17 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@foundation/src/components/ui/select';
-import type {
-  Criterion,
-  CriterionDataType,
-  UpdateCriterionRequest,
-} from '@foundation/src/types/criterion';
-import {
-  createCriterion,
-  updateCriterion,
-  updateCriterionApplicability,
-} from '@foundation/src/lib/api/criteria-api';
-import { CRITERIA_INVALIDATES } from '@foundation/src/hooks/useCriteria';
+import type { Criterion, CriterionDataType } from '@foundation/src/types/criterion';
+import { useSaveCriterion, type CriterionDraft } from '@foundation/src/hooks/useCriteria';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 import { EnumValueEditor } from './EnumValueEditor';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
@@ -36,82 +27,6 @@ interface CriterionEditDialogProps {
   defaultResourceType?: string;
 }
 
-interface FormState {
-  name: string;
-  dataType: CriterionDataType;
-  description: string;
-  unit: string;
-  enumValues: string[];
-  resourceTypeKeys: string[];
-}
-
-/**
- * Rules the server cannot state as a disabled Save button: both carry a reason the
- * user has to read. Thrown from `save` so the dialog renders them in its own
- * ErrorAlert, the same place a failed request lands.
- */
-function validate(form: FormState): string | null {
-  if (!form.name.trim()) return 'Name is required';
-  if (form.dataType === 'Enum' && form.enumValues.length === 0) {
-    return 'At least one enum value is required';
-  }
-  if (form.resourceTypeKeys.length === 0) {
-    return 'At least one applicability scope must be selected';
-  }
-  return null;
-}
-
-async function saveCriterion(form: FormState, criterion: Criterion | null): Promise<Criterion> {
-  const validationError = validate(form);
-  if (validationError) throw new Error(validationError);
-
-  const name = form.name.trim();
-  const description = form.description.trim() || undefined;
-  const enumValues = form.dataType === 'Enum' ? form.enumValues : undefined;
-  const unit = form.dataType === 'Number' && form.unit.trim() ? form.unit.trim() : undefined;
-
-  if (!criterion) {
-    return createCriterion({
-      name,
-      description,
-      dataType: form.dataType,
-      enumValues,
-      unit,
-      resourceTypeKeys: form.resourceTypeKeys,
-    });
-  }
-
-  const detailData: UpdateCriterionRequest = { description, enumValues, unit };
-  // Name and DataType are sent only when actually changed.
-  if (name !== criterion.name) detailData.name = name;
-  if (form.dataType !== criterion.dataType) detailData.dataType = form.dataType;
-
-  // Only PUT the criterion when there's a detail field to update — otherwise the
-  // backend rejects an empty update with 400 "No fields to update" (e.g. a Boolean
-  // criterion with no description, where the user only changed applicability).
-  const hasDetailChanges =
-    detailData.name !== undefined ||
-    detailData.dataType !== undefined ||
-    detailData.description !== undefined ||
-    detailData.enumValues !== undefined ||
-    detailData.unit !== undefined;
-
-  let updated = criterion;
-  if (hasDetailChanges) {
-    updated = await updateCriterion(criterion.id, detailData);
-  }
-
-  const currentKeys = [...(criterion.resourceTypeKeys ?? [])].sort().join(',');
-  const newKeys = [...form.resourceTypeKeys].sort().join(',');
-  if (currentKeys !== newKeys) {
-    await updateCriterionApplicability(criterion.id, {
-      resourceTypeKeys: form.resourceTypeKeys,
-    });
-  }
-
-  return updated;
-}
-
 export function CriterionEditDialog({
   criterion,
   open,
@@ -122,17 +37,14 @@ export function CriterionEditDialog({
   // Applicability targets are whatever types the tenant has defined, not a fixed list.
   const { data: resourceTypes = [] } = useResourceTypes(true);
 
-  const { form, set, error, submit, isSubmitting } = useEntityFormDialog<
-    Criterion,
-    FormState,
-    Criterion
-  >({
+  const mutation = useSaveCriterion();
+  const { form, set, error, submit, isSubmitting } = useEntityFormDialog({
     open,
     onOpenChange,
     entity: criterion,
     // No preselected fallback type: nothing is built in, so an unseeded dialog starts
     // empty and validation requires an explicit choice.
-    emptyForm: () => ({
+    emptyForm: (): CriterionDraft => ({
       name: '',
       dataType: 'Boolean',
       description: '',
@@ -140,7 +52,7 @@ export function CriterionEditDialog({
       enumValues: [],
       resourceTypeKeys: defaultResourceType ? [defaultResourceType] : [],
     }),
-    toForm: (c) => ({
+    toForm: (c: Criterion): CriterionDraft => ({
       name: c.name,
       dataType: c.dataType,
       description: c.description ?? '',
@@ -148,9 +60,8 @@ export function CriterionEditDialog({
       enumValues: [...(c.enumValues ?? [])],
       resourceTypeKeys: [...(c.resourceTypeKeys ?? [])],
     }),
-    save: saveCriterion,
-    entityLabel: 'Criterion',
-    invalidates: CRITERIA_INVALIDATES,
+    mutation,
+    toVariables: (draft: CriterionDraft, c: Criterion | null) => ({ draft, criterion: c }),
     onSaved,
   });
 

@@ -5,6 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { ListRowsEditor } from './ListRowsEditor';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const getListRows = vi.fn();
 const createListRow = vi.fn();
@@ -119,6 +122,24 @@ describe('ListRowsEditor', () => {
 
     await waitFor(() => expect(updateListRow).toHaveBeenCalled());
     expect(updateListRow).toHaveBeenCalledWith('i1', 'r1', { values: { note: 'new brakes' } });
+  });
+
+  it('reports a save once: one success toast, and a failure inline only', async () => {
+    // The dialog used to wrap the row mutation in a second one, so each save toasted twice
+    // and a failure showed inline and as a toast.
+    const user = userEvent.setup();
+    renderWithQuery(<ListRowsEditor columns={columns} instanceId="i1" />, { feedback: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Edit row' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Row updated'));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+
+    updateListRow.mockRejectedValueOnce(new Error('Row is locked'));
+    await user.click(await screen.findByRole('button', { name: 'Edit row' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Row is locked')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('opens the edit dialog from the row itself, not only the pencil', async () => {

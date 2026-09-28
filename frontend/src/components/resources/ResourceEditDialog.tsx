@@ -10,13 +10,9 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import {
-  createResource,
-  updateResource,
-  type ResourceInfo,
-} from '@foundation/src/lib/api/resources-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
+import { useSaveResource } from '@foundation/src/hooks/useResources';
 import { useIsMultiSite, useSites } from '@foundation/src/hooks/useSites';
 import { useSiteStore } from '@foundation/src/store/site-store';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
@@ -76,11 +72,8 @@ export function ResourceEditDialog({
 
   const customFields = useResourceCustomFieldForm(resourceType.id, open);
 
-  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
-    ResourceInfo,
-    FormState,
-    ResourceInfo
-  >({
+  const mutation = useSaveResource(resourceType);
+  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
     open,
     onOpenChange,
     entity: resource,
@@ -101,7 +94,7 @@ export function ResourceEditDialog({
       email: '',
       notes: '',
     }),
-    toForm: (r) => ({
+    toForm: (r: ResourceInfo): FormState => ({
       name: r.name,
       description: r.description ?? '',
       externalReference: r.externalReference ?? '',
@@ -113,7 +106,8 @@ export function ResourceEditDialog({
       email: r.email ?? '',
       notes: r.notes ?? '',
     }),
-    save: (form, r) => {
+    mutation,
+    toVariables: (form: FormState, r: ResourceInfo | null) => {
       const fields = {
         name: form.name,
         description: form.description || undefined,
@@ -132,12 +126,8 @@ export function ResourceEditDialog({
             }
           : {}),
       };
-      return r
-        ? updateResource(r.id, fields)
-        : createResource({ resourceTypeKey: resourceType.key, ...fields });
+      return r ? { id: r.id, data: fields } : { id: null, data: fields };
     },
-    entityLabel: resourceType.displayName,
-    invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
   });
 
   const setCustomField = (key: string, value: CustomFieldValue) =>

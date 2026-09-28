@@ -3,13 +3,14 @@ import { Checkbox } from '@foundation/src/components/ui/checkbox';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import {
-  createResourceType,
-  updateResourceType,
-  type ResourceTypeInfo,
+import type {
+  CreateResourceTypeRequest,
+  ResourceTypeInfo,
+  UpdateResourceTypeRequest,
 } from '@foundation/src/lib/api/resource-types-api';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
-import { RESOURCE_TYPE_INVALIDATES } from '@foundation/src/hooks/useResourceTypes';
+import { useSaveResourceType } from '@foundation/src/hooks/useResourceTypes';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
 import {
   RESOURCE_TYPE_ICONS,
   DEFAULT_RESOURCE_TYPE_ICON,
@@ -84,10 +85,12 @@ export function ResourceTypeEditDialog({
   onOpenChange,
   onSaved,
 }: ResourceTypeEditDialogProps) {
+  const mutation = useSaveResourceType();
   const { form, set, setForm, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ResourceTypeInfo,
     FormState,
-    ResourceTypeInfo
+    ResourceTypeInfo,
+    SaveVariables<CreateResourceTypeRequest, UpdateResourceTypeRequest>
   >({
     open,
     onOpenChange,
@@ -109,32 +112,22 @@ export function ResourceTypeEditDialog({
       scanCodesEnabled: rt.scanCodesEnabled,
       isActive: rt.isActive,
     }),
-    save: (form, rt) =>
-      rt
-        ? updateResourceType(rt.id, {
-            displayName: form.displayName,
-            displayNamePlural: form.displayNamePlural,
-            description: form.description || undefined,
-            icon: form.icon || undefined,
-            hasGeometry: form.hasGeometry,
-            hasDirectoryProfile: form.hasDirectoryProfile,
-            singleGroupMembership: form.singleGroupMembership,
-            scanCodesEnabled: form.scanCodesEnabled,
-            isActive: form.isActive,
-          })
-        : createResourceType({
-            key: form.key,
-            displayName: form.displayName,
-            displayNamePlural: form.displayNamePlural,
-            description: form.description || undefined,
-            icon: form.icon || undefined,
-            hasGeometry: form.hasGeometry,
-            hasDirectoryProfile: form.hasDirectoryProfile,
-            singleGroupMembership: form.singleGroupMembership,
-            scanCodesEnabled: form.scanCodesEnabled,
-          }),
-    entityLabel: 'Resource type',
-    invalidates: RESOURCE_TYPE_INVALIDATES,
+    mutation,
+    toVariables: (form, rt) => {
+      const shared = {
+        displayName: form.displayName,
+        displayNamePlural: form.displayNamePlural,
+        description: form.description || undefined,
+        icon: form.icon || undefined,
+        hasGeometry: form.hasGeometry,
+        hasDirectoryProfile: form.hasDirectoryProfile,
+        singleGroupMembership: form.singleGroupMembership,
+        scanCodesEnabled: form.scanCodesEnabled,
+      };
+      return rt
+        ? { id: rt.id, data: { ...shared, isActive: form.isActive } }
+        : { id: null, data: { key: form.key, ...shared } };
+    },
     onSaved,
   });
 

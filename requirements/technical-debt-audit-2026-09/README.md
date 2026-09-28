@@ -94,7 +94,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S1 | B4 | todo | |
 | S2 | F1 | done | `handleApiError` throws `ApiError { status, code }` without the `API Error (N):` prefix; UtilizationPage switches on `status === 409`; dead `includes("401")` branch and its test deleted; `errorMessage(err, fallback?)` replaces the fallback-string copies in hooks (description-`undefined` copies and components left as they are) |
 | S3 | F1 | done | barrel no longer re-exports export-handlers/tenant-navigation (no importer relied on it); `getTenantSlugSync` deleted from AuthContext, api-utils reads the key itself (no downstream consumer (grepped saas + community)); no `lib/**` file imports `contexts/**` |
-| S4 | F2 | todo | |
+| S4 | F2 | partial | Step 1 done: `useEntityFormDialog` takes `mutation` (a domain `UseMutationResult`) + `toVariables`; `save`/`entityLabel`/`invalidates` gone. The nine dialogs use new `useSave*` hooks (`SaveVariables` = `{id: null|string, data}`, `savedMessage`) that own keys and `meta` (`suppressErrorToast`); `useCreate/UpdateListDefinition/ListColumn/SharedListInstance/ListRow` pairs folded into them (no downstream consumer (grepped saas + community)), which also ends the list dialogs' double toast; `ListRowEditDialog` lost its `save` prop; criterion save logic moved to `useSaveCriterion`. Dialog tests that assert the toast keep the api mock under the real hook (mocking the hook would drop what they assert). Left: steps 2–3 |
 | S5 | F1 | done | `RequireTenantAdmin` and `SidebarNav` use `useIsTenantAdmin()`; `useRequestEditor` uses `useCanEdit()`; the three tests unmock the permission hooks and cover the site-admin case; SidebarNav has a Viewer test |
 | S6 | B4 | todo | |
 | S7 | B4 | todo | |

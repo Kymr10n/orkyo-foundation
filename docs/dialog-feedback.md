@@ -76,7 +76,8 @@ meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. 
    `meta.suppressErrorToast: true`, because the person is already looking at the dialog;
    its `onError` keeps `setError(...)` and drops nothing else. A dialog that closes itself
    on failure keeps the toast, because its inline alert goes away with it.
-   `useEntityFormDialog` sets the suppression for every dialog built on it. The full rule,
+   A dialog on `useEntityFormDialog` gets its save mutation from a domain hook. That hook
+   declares the suppression. The full rule,
    including the query case, is in [frontend/ARCHITECTURE.md](../frontend/ARCHITECTURE.md).
 5. Client-side validation that never calls the mutation (e.g. "email required") may toast directly —
    it isn't a mutation result.

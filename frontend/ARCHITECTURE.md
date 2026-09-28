@@ -147,8 +147,8 @@ A failed mutation and a failed query surface differently, and never both ways at
   usable and the message sits where the missing content is.
 - A **dialog** that keeps itself open on failure shows the message inline in its own
   `ErrorAlert`. Its mutation then declares `meta.suppressErrorToast: true`, because the user
-  is already looking at the message. `useEntityFormDialog` does this for every dialog built
-  on it. A dialog that **closes** itself on failure is the converse: its inline alert goes
+  is already looking at the message. A dialog on `useEntityFormDialog` takes its save
+  mutation from a domain hook, and that hook declares the suppression. A dialog that **closes** itself on failure is the converse: its inline alert goes
   away with it, so it keeps the toast and does not suppress.
 
 The test for which one applies is where the user's attention is. A dialog holds it; a

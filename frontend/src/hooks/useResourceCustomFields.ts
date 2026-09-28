@@ -1,15 +1,20 @@
 import {
+  createResourceCustomField,
   deleteResourceCustomField,
   getResourceCustomFields,
+  updateResourceCustomField,
+  type CreateResourceCustomFieldRequest,
+  type UpdateResourceCustomFieldRequest,
 } from "@foundation/src/lib/api/resource-custom-fields-api";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 /**
  * Definitions drive the resource form, so a change to them invalidates the resource lists
  * alongside the definition list itself.
  */
-export const CUSTOM_FIELD_INVALIDATES = (resourceTypeId: string) =>
+const CUSTOM_FIELD_INVALIDATES = (resourceTypeId: string) =>
   [
     qk.resourceTypes.customFields(resourceTypeId),
     // Both roots: `all()` covers the per-type lists and the floorplan, `allFlat()` is its own
@@ -23,6 +28,22 @@ export const useResourceCustomFields = (resourceTypeId: string, enabled = true) 
     queryKey: qk.resourceTypes.customFields(resourceTypeId),
     queryFn: () => getResourceCustomFields(resourceTypeId),
     enabled,
+  });
+
+/** Create (`id: null`) or update one field definition of the type. */
+export const useSaveResourceCustomField = (resourceTypeId: string) =>
+  useMutation({
+    mutationFn: (
+      v: SaveVariables<CreateResourceCustomFieldRequest, UpdateResourceCustomFieldRequest>,
+    ) =>
+      v.id === null
+        ? createResourceCustomField(resourceTypeId, v.data)
+        : updateResourceCustomField(resourceTypeId, v.id, v.data),
+    meta: {
+      successMessage: savedMessage("Custom field created", "Custom field updated"),
+      suppressErrorToast: true,
+      invalidates: CUSTOM_FIELD_INVALIDATES(resourceTypeId),
+    },
   });
 
 /** Deletes the field and discards the values resources hold for it. */

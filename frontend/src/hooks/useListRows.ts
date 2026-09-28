@@ -10,6 +10,7 @@ import {
   type ListRowRequest,
 } from "@foundation/src/lib/api/lists-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 /**
  * The rows of one instance. Keyed by instance id, which is the only thing row CRUD needs — a
@@ -36,23 +37,14 @@ export const useListInstance = (instanceId: string | null) =>
     enabled: instanceId !== null,
   });
 
-export const useCreateListRow = (instanceId: string | null) =>
+/** Create (`id: null`) or update one row; the row dialog shows a failure inline. */
+export const useSaveListRow = (instanceId: string | null) =>
   useMutation({
-    mutationFn: (request: ListRowRequest) => createListRow(instanceId!, request),
+    mutationFn: (v: SaveVariables<ListRowRequest>) =>
+      v.id === null ? createListRow(instanceId!, v.data) : updateListRow(instanceId!, v.id, v.data),
     meta: {
-      successMessage: "Row added",
-      errorMessage: "Failed to add row",
-      invalidates: [qk.lists.instanceRows(instanceId ?? "none")],
-    },
-  });
-
-export const useUpdateListRow = (instanceId: string | null) =>
-  useMutation({
-    mutationFn: ({ rowId, request }: { rowId: string; request: ListRowRequest }) =>
-      updateListRow(instanceId!, rowId, request),
-    meta: {
-      successMessage: "Row updated",
-      errorMessage: "Failed to update row",
+      successMessage: savedMessage("Row added", "Row updated"),
+      suppressErrorToast: true,
       invalidates: [qk.lists.instanceRows(instanceId ?? "none")],
     },
   });

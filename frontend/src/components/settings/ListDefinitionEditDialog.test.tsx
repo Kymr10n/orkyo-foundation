@@ -5,12 +5,11 @@ import { ListDefinitionEditDialog } from './ListDefinitionEditDialog';
 import type { ListDefinition } from '@foundation/src/lib/api/lists-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
 
-const createDefinition = vi.fn();
-const updateDefinition = vi.fn();
+// The dialog runs the domain save through `mutate`; its variables are what reaches the API.
+const saveDefinition = vi.fn();
 
 vi.mock('@foundation/src/hooks/useListDefinitions', () => ({
-  useCreateListDefinition: () => ({ mutateAsync: createDefinition }),
-  useUpdateListDefinition: () => ({ mutateAsync: updateDefinition }),
+  useSaveListDefinition: () => ({ mutate: saveDefinition, isPending: false }),
   useListDefinition: () => ({ data: null }),
 }));
 
@@ -30,8 +29,7 @@ function renderDialog(definition: ListDefinition | null = null) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  createDefinition.mockResolvedValue({ id: 'def-new' });
-  updateDefinition.mockResolvedValue({});
+  saveDefinition.mockImplementation((_vars, callbacks) => callbacks?.onSuccess?.({ id: 'def-new' }));
 });
 
 describe('ListDefinitionEditDialog scope', () => {
@@ -41,10 +39,10 @@ describe('ListDefinitionEditDialog scope', () => {
     await userEvent.type(screen.getByLabelText(/Name/), 'Countries');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-    await waitFor(() => expect(createDefinition).toHaveBeenCalled());
-    expect(createDefinition.mock.calls[0][0]).toMatchObject({ name: 'Countries', scope: 'common' });
+    await waitFor(() => expect(saveDefinition).toHaveBeenCalled());
+    expect(saveDefinition.mock.calls[0][0].data).toMatchObject({ name: 'Countries', scope: 'common' });
     // The server rejects a type on a scope that owns none, so it must not be sent.
-    expect(createDefinition.mock.calls[0][0]).not.toHaveProperty('resourceTypeId');
+    expect(saveDefinition.mock.calls[0][0].data).not.toHaveProperty('resourceTypeId');
   });
 
   it('asks for the owning type once the resource scope is chosen', async () => {
@@ -82,8 +80,8 @@ describe('ListDefinitionEditDialog scope', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Mills' }));
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-    await waitFor(() => expect(createDefinition).toHaveBeenCalled());
-    expect(createDefinition.mock.calls[0][0]).toMatchObject({
+    await waitFor(() => expect(saveDefinition).toHaveBeenCalled());
+    expect(saveDefinition.mock.calls[0][0].data).toMatchObject({
       scope: 'resource',
       resourceTypeId: 'rt-mill',
     });
@@ -102,9 +100,9 @@ describe('ListDefinitionEditDialog scope', () => {
     await userEvent.click(await screen.findByRole('option', { name: 'Organization' }));
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
 
-    await waitFor(() => expect(createDefinition).toHaveBeenCalled());
-    expect(createDefinition.mock.calls[0][0]).toMatchObject({ scope: 'organization' });
-    expect(createDefinition.mock.calls[0][0]).not.toHaveProperty('resourceTypeId');
+    await waitFor(() => expect(saveDefinition).toHaveBeenCalled());
+    expect(saveDefinition.mock.calls[0][0].data).toMatchObject({ scope: 'organization' });
+    expect(saveDefinition.mock.calls[0][0].data).not.toHaveProperty('resourceTypeId');
   });
 
   it('hides the scope selector while editing, because ownership is fixed', () => {
