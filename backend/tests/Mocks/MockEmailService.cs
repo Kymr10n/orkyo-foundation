@@ -150,8 +150,9 @@ public class MockEmailService : IEmailService
     { SendMfaChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
     public Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
     { SendEmailChangeRequestedOldAddressCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    public string? LastEmailChangedDisplayName { get; private set; }
     public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
-    { SendEmailChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+    { LastEmailChangedDisplayName = displayName; SendEmailChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
 
     // ── Announcements ─────────────────────────────────────────────────────────
     // Broadcasts dispatch concurrently (Parallel.ForEachAsync), so guard the shared state.

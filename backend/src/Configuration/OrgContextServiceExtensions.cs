@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Helpers;
+using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,6 +26,7 @@ public static class OrgContextServiceExtensions
     public static IServiceCollection AddOrgContextFromHttpContext(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
+        services.TryAddScoped<CurrentTenant>();
         services.TryAddScoped<IOrgContextAccessor, HttpContextOrgContextAccessor>();
         services.AddScoped<OrgContext>(sp =>
             sp.GetRequiredService<IOrgContextAccessor>().Current
@@ -36,15 +38,18 @@ public static class OrgContextServiceExtensions
 /// <summary>
 /// Reads the org context the tenant middleware stored on the request: the derived
 /// <see cref="OrgContext"/> item when present, else the <see cref="TenantContext"/> item.
+/// Outside a request — a <see cref="BackgroundDispatcher"/> scope — it reads the scope's
+/// <see cref="CurrentTenant"/>, which the dispatcher carries over from the request.
 /// </summary>
-internal sealed class HttpContextOrgContextAccessor(IHttpContextAccessor httpContextAccessor) : IOrgContextAccessor
+internal sealed class HttpContextOrgContextAccessor(IHttpContextAccessor httpContextAccessor, CurrentTenant currentTenant)
+    : IOrgContextAccessor
 {
     public OrgContext? Current
     {
         get
         {
             var context = httpContextAccessor.HttpContext;
-            if (context is null) return null;
+            if (context is null) return currentTenant.GetTenantContext()?.ToOrgContext();
 
             if (context.Items.TryGetValue(HttpContextItemKeys.OrgContext, out var org) && org is OrgContext orgContext)
                 return orgContext;

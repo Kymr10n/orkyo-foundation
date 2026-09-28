@@ -27,7 +27,7 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             ChangePasswordRequest request,
             IValidator<ChangePasswordRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
@@ -40,7 +40,9 @@ public static class SecurityEndpoints
                 await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword!, ct);
                 logger.LogInformation("Password changed for user {Sub}", sub);
                 // Security confirmation (best-effort, non-blocking).
-                _ = emailService.SendPasswordChangedAsync(principal.Email, principal.DisplayName ?? principal.Email);
+                var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+                background.Dispatch<IEmailService>("password-changed mail",
+                    (mail, mailCt) => mail.SendPasswordChangedAsync(email, name, mailCt));
                 return Results.Ok(new { message = "Password changed successfully" });
             }, logger, "change password");
         })
@@ -213,7 +215,7 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             CancellationToken ct) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
@@ -222,7 +224,9 @@ public static class SecurityEndpoints
             if (status.TotpEnabled)
                 return ErrorResponses.BadRequest("MFA is already enabled");
             await keycloakService.EnableMfaAsync(sub, ct);
-            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true, ct: ct);
+            var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+            background.Dispatch<IEmailService>("MFA-enabled mail",
+                (mail, mailCt) => mail.SendMfaChangedAsync(email, name, enabled: true, ct: mailCt));
             return Results.Ok(new { message = "MFA enrollment enabled. You will be prompted to set up TOTP on your next login." });
         })
         .WithName("EnableMfa")
@@ -233,7 +237,7 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             [FromBody] RemoveMfaRequest? body,
             IValidator<RemoveMfaRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
@@ -256,7 +260,9 @@ public static class SecurityEndpoints
                     catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
                 }
                 logger.LogInformation("MFA removed for user {Sub}", sub);
-                _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
+                var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+                background.Dispatch<IEmailService>("MFA-removed mail",
+                    (mail, mailCt) => mail.SendMfaChangedAsync(email, name, enabled: false, ct: mailCt));
                 return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
             }, logger, "remove MFA");
         })

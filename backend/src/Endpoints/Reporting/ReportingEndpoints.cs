@@ -62,7 +62,8 @@ public static class ReportingEndpoints
             return await next(ctx);
         });
 
-        // Audit each reporting request (fire-and-forget, non-blocking)
+        // Audit each reporting request after the response (BackgroundDispatcher: own scope, no
+        // request cancellation — the row used to be lost when the request scope went first).
         group.AddEndpointFilter(async (ctx, next) =>
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
@@ -71,23 +72,28 @@ public static class ReportingEndpoints
 
             var record = ctx.HttpContext.Items[ReportingTokenContextKeys.TokenRecord]
                 as ReportingTokenRecord;
-            if (record is not null)
+            // A product that registers no audit service gets no audit row.
+            var services = ctx.HttpContext.RequestServices;
+            if (record is not null && services.GetService<IAdminAuditService>() is not null)
             {
-                var audit = ctx.HttpContext.RequestServices.GetService<IAdminAuditService>();
                 var statusCode = ctx.HttpContext.Response.StatusCode;
-                _ = audit?.RecordEventAsync(
-                    actorUserId: null,
-                    action: "reporting.read",
-                    targetType: ctx.HttpContext.Request.Path,
-                    targetId: record.TenantId.ToString(),
-                    metadata: new
-                    {
-                        actorType = "reporting_token",
-                        tokenId = record.Id,
-                        tokenPrefix = record.TokenPrefix,
-                        statusCode,
-                        durationMs = sw.ElapsedMilliseconds,
-                    });
+                string path = ctx.HttpContext.Request.Path;
+                var metadata = new
+                {
+                    actorType = "reporting_token",
+                    tokenId = record.Id,
+                    tokenPrefix = record.TokenPrefix,
+                    statusCode,
+                    durationMs = sw.ElapsedMilliseconds,
+                };
+                services.GetRequiredService<IBackgroundDispatcher>().Dispatch<IAdminAuditService>(
+                    "reporting audit", (audit, ct) => audit.RecordEventAsync(
+                        actorUserId: null,
+                        action: "reporting.read",
+                        targetType: path,
+                        targetId: record.TenantId.ToString(),
+                        metadata: metadata,
+                        ct: ct));
             }
 
             return result;

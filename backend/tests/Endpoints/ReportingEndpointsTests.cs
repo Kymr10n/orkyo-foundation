@@ -344,9 +344,6 @@ public class ReportingEndpointsTests
         var before = DateTime.UtcNow.AddSeconds(-1);
         await client.GetAsync("/api/reporting/v1/allocations");
 
-        // Audit write is fire-and-forget — wait briefly for it to land
-        await Task.Delay(200);
-
         await using var conn = new NpgsqlConnection(_cpConnStr);
         await conn.OpenAsync();
 
@@ -358,7 +355,13 @@ public class ReportingEndpointsTests
         cmd.Parameters.AddWithValue("before", before);
         cmd.Parameters.AddWithValue("tokenPrefix", $"%{created.Summary.TokenPrefix}%");
 
-        var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+        // The audit row is written after the response, in its own scope — poll for it.
+        var count = 0;
+        for (var i = 0; i < 50 && count == 0; i++)
+        {
+            count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            if (count == 0) await Task.Delay(100);
+        }
         count.Should().BeGreaterThan(0, because: "a successful reporting request must write an audit event");
     }
 

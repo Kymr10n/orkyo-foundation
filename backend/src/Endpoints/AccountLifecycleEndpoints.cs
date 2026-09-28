@@ -98,6 +98,7 @@ public static class AccountEmailChangeEndpoints
             IPlatformUserRepository userRepository,
             IKeycloakAdminService keycloakAdmin,
             IEmailService emailService,
+            IBackgroundDispatcher background,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
@@ -158,7 +159,8 @@ public static class AccountEmailChangeEndpoints
                 }
 
                 // Security: tell the CURRENT address that a change was requested (best-effort).
-                _ = emailService.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail);
+                background.Dispatch<IEmailService>("email-change notice to the old address",
+                    (mail, mailCt) => mail.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail, mailCt));
 
                 logger.LogInformation("Email change requested for user {UserId}: pending={NewEmail}", userId, newEmail);
                 return Results.Ok(new { message = "Confirmation email sent. Check your new inbox and click the link to complete the change." });
@@ -175,7 +177,7 @@ public static class AccountEmailChangeEndpoints
             string? token,
             IPlatformUserRepository userRepository,
             IKeycloakAdminService keycloakAdmin,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             IConfiguration configuration,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -206,7 +208,9 @@ public static class AccountEmailChangeEndpoints
 
                 logger.LogInformation("Email change confirmed for user {UserId}: new email={PendingEmail}", result.UserId, result.PendingEmail);
                 // Confirm completion to the new address (best-effort).
-                _ = emailService.SendEmailChangedAsync(result.PendingEmail!, result.PendingEmail!, result.PendingEmail!);
+                var (newAddress, name) = (result.PendingEmail!, result.DisplayName ?? result.PendingEmail!);
+                background.Dispatch<IEmailService>("email-changed mail",
+                    (mail, mailCt) => mail.SendEmailChangedAsync(newAddress, name, newAddress, mailCt));
                 return Results.Redirect(Redirect("confirmed"));
             }
             catch (Exception ex)

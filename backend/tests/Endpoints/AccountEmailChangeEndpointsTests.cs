@@ -409,6 +409,38 @@ public class AccountEmailChangeEndpointsTests
     }
 
     [Fact]
+    public async Task ConfirmEmail_TheChangedNotice_GreetsTheUserByName()
+    {
+        // The notice used to pass the new address as the display name.
+        await SetUserEmailAsync("old@example.com");
+        var token = await StorePendingEmailChangeAsync("new@example.com", Guid.NewGuid().ToString());
+        await using var conn = new NpgsqlConnection(_cpConnectionString);
+        await conn.OpenAsync();
+        await using var rename = new NpgsqlCommand(@"
+            UPDATE users SET display_name = @name WHERE id = '11111111-1111-1111-1111-111111111111'
+            RETURNING (SELECT display_name FROM users WHERE id = '11111111-1111-1111-1111-111111111111')", conn);
+        rename.Parameters.AddWithValue("name", "Dana Scully");
+        var original = (string)(await rename.ExecuteScalarAsync())!;
+        try
+        {
+            var response = await _client.GetAsync($"/api/account/confirm-email?token={token}");
+            response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
+
+            // Sent after the response, from its own scope.
+            for (var i = 0; i < 50 && _mockEmail.SendEmailChangedCallCount == 0; i++)
+                await Task.Delay(100);
+            _mockEmail.LastEmailChangedDisplayName.Should().Be("Dana Scully");
+        }
+        finally
+        {
+            await using var restore = new NpgsqlCommand(
+                "UPDATE users SET display_name = @name WHERE id = '11111111-1111-1111-1111-111111111111'", conn);
+            restore.Parameters.AddWithValue("name", original);
+            await restore.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
     public async Task ConfirmEmail_WithIdentityOnlyKeycloakSubject_UpdatesEmailInDbAndKeycloak()
     {
         await SetUserEmailAsync("old@example.com");

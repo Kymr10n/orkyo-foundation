@@ -167,6 +167,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         services.AddScoped<ICapabilityAssignmentService, CapabilityAssignmentService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IBackgroundDispatcher, BackgroundDispatcher>();
         services.AddScoped<IExportService, ExportService>();
         services.AddScoped<ICalendarFeedService, CalendarFeedService>();
         services.AddScoped<IAssetStorageService, AssetStorageService>();

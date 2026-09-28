@@ -21,6 +21,7 @@ public sealed class InvitationService : IInvitationService
     private readonly IQuotaEnforcer _quotaEnforcer;
     private readonly ILogger<InvitationService> _logger;
     private readonly TimeProvider _time;
+    private readonly IBackgroundDispatcher? _background;
 
     public InvitationService(
         IDbConnectionFactory connectionFactory,
@@ -30,7 +31,8 @@ public sealed class InvitationService : IInvitationService
         ITenantSettingsService settingsService,
         IQuotaEnforcer quotaEnforcer,
         ILogger<InvitationService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        IBackgroundDispatcher? background = null)
     {
         _connectionFactory = connectionFactory;
         _emailService = emailService;
@@ -40,6 +42,7 @@ public sealed class InvitationService : IInvitationService
         _quotaEnforcer = quotaEnforcer;
         _logger = logger;
         _time = time;
+        _background = background;
     }
 
     public async Task<(Models.Invitation invitation, string token)?> InviteUserAsync(
@@ -242,8 +245,13 @@ public sealed class InvitationService : IInvitationService
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvitationAccepted, userId, "user", userId.ToString(), ct: ct);
 
             _logger.LogInformation("User {Email} accepted invitation and joined tenant {TenantId}", email, tenantId);
-            // Welcome the new member (best-effort).
-            _ = _emailService.SendWelcomeEmailAsync(email, displayName, ct);
+            // Welcome the new member (best-effort): after the response when DI composed this
+            // service, inline for a hand-composed instance.
+            if (_background is null)
+                await _emailService.SendWelcomeEmailAsync(email, displayName, CancellationToken.None);
+            else
+                _background.Dispatch<IEmailService>("welcome mail",
+                    (mail, mailCt) => mail.SendWelcomeEmailAsync(email, displayName, mailCt));
             return (user, null);
         }
         catch (Exception ex)

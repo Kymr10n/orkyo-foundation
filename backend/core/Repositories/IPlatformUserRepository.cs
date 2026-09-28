@@ -38,7 +38,8 @@ public enum EmailChangeConfirmStatus
 public sealed record EmailChangeConfirmResult(
     EmailChangeConfirmStatus Status,
     Guid? UserId = null,
-    string? PendingEmail = null);
+    string? PendingEmail = null,
+    string? DisplayName = null);
 
 /// <summary>
 /// Data access for the control-plane <c>users</c> table. Consolidates the raw ADO.NET that used

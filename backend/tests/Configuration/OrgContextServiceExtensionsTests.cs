@@ -120,6 +120,21 @@ public sealed class OrgContextServiceExtensionsTests
     }
 
     [Fact]
+    public void OutsideAnHttpRequest_TheAccessorReadsTheScopesTenant()
+    {
+        // A BackgroundDispatcher scope has no HttpContext; it carries the request's tenant over
+        // on CurrentTenant, so a tenant-branded mail sent from it keeps the branding.
+        var (services, _) = Build(withHttpContext: false);
+
+        using var scope = services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<Api.Security.CurrentTenant>().SetContext(Tenant);
+
+        var org = scope.ServiceProvider.GetRequiredService<IOrgContextAccessor>().Current;
+        org.Should().NotBeNull();
+        org!.OrgId.Should().Be(Tenant.TenantId);
+    }
+
+    [Fact]
     public void TheAccessorIsNull_OutsideAnHttpRequest()
     {
         var (services, _) = Build(withHttpContext: false);

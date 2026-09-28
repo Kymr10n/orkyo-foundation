@@ -180,6 +180,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         Guid userId;
         string currentEmail;
         string? pendingEmail;
+        string? displayName;
         await using (var findCmd = new NpgsqlCommand(@"
             SELECT u.id,
                    COALESCE(
@@ -193,7 +194,8 @@ public class PlatformUserRepository : IPlatformUserRepository
                        )
                    ) AS keycloak_id,
                    u.email,
-                   u.pending_email
+                   u.pending_email,
+                   u.display_name
             FROM users u
             WHERE u.email_change_token = @token
               AND u.email_change_requested_at > NOW() - INTERVAL '24 hours'
@@ -208,6 +210,7 @@ public class PlatformUserRepository : IPlatformUserRepository
             keycloakId = reader.GetNullableString("keycloak_id");
             currentEmail = reader.GetString("email");
             pendingEmail = reader.GetNullableString("pending_email");
+            displayName = reader.GetNullableString("display_name");
         }
 
         if (string.IsNullOrEmpty(pendingEmail))
@@ -270,7 +273,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         await updateKeycloakEmailAsync(keycloakId, currentEmail, pendingEmail, ct);
         await tx.CommitAsync(ct);
 
-        return new EmailChangeConfirmResult(EmailChangeConfirmStatus.Confirmed, userId, pendingEmail);
+        return new EmailChangeConfirmResult(EmailChangeConfirmStatus.Confirmed, userId, pendingEmail, displayName);
     }
 
     public async Task<AccountLifecycleConfirmRecord?> FindActiveLifecycleConfirmAsync(string token, CancellationToken ct = default)
