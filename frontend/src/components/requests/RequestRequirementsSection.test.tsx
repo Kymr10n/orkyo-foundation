@@ -104,8 +104,7 @@ describe('RequestRequirementsSection', () => {
         onAddRequirement={onAdd}
       />,
     );
-    const addBtn = screen.getAllByRole('button').find(b => !b.textContent?.includes('Requirements'));
-    fireEvent.click(addBtn!);
+    fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
     expect(onAdd).toHaveBeenCalled();
   });
 
@@ -116,8 +115,7 @@ describe('RequestRequirementsSection', () => {
         selectedCriterionId=""
       />,
     );
-    const addBtn = screen.getAllByRole('button').find(b => !b.textContent?.includes('Requirements'));
-    expect(addBtn).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add requirement' })).toBeDisabled();
   });
 
   it('calls onRemoveRequirement when trash button clicked', () => {
@@ -133,11 +131,8 @@ describe('RequestRequirementsSection', () => {
         onRemoveRequirement={onRemove}
       />,
     );
-    // Buttons: add (+) and the remove trash button
-    const buttons = screen.getAllByRole('button');
-    // Remove button is the last one (after add)
-    const removeBtn = buttons[buttons.length - 1];
-    fireEvent.click(removeBtn);
+    // The icon buttons are named for a screen reader: the remove names its criterion.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Power' }));
     expect(onRemove).toHaveBeenCalledWith('c1');
   });
 

@@ -1,6 +1,3 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { Badge } from "@foundation/src/components/ui/badge";
-import { Button } from "@foundation/src/components/ui/button";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { DialogFormFooter } from "@foundation/src/components/ui/DialogFormFooter";
@@ -16,13 +13,12 @@ import {
 } from "@foundation/src/components/ui/select";
 import { Separator } from "@foundation/src/components/ui/separator";
 import { Textarea } from "@foundation/src/components/ui/textarea";
-import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { CriterionValue } from "@foundation/src/types/criterion";
 import type { CreateTemplateRequest, Template, UpdateTemplateRequest } from "@foundation/src/types/templates";
 import type { DurationUnit } from "@foundation/src/types/requests";
-import { Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CriterionRequirementInput } from "../requests/CriterionRequirementInput";
+import { CriterionRequirementList } from "../requests/CriterionRequirementList";
 import { RequestTargetTypesField } from "../requests/RequestTargetTypesField";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useTemplateForm } from "@foundation/src/hooks/useTemplateForm";
@@ -258,92 +254,32 @@ export function TemplateDialogBase({
                 />
               )}
 
-              {/* Criteria */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Criteria</h3>
-                  <Badge variant="outline" className="text-xs">
-                    {state.requirements.size} active
-                  </Badge>
-                </div>
-
-                {/* Add Criterion */}
-                {unusedCriteria.length > 0 && (
-                  <div className="flex gap-2">
-                    <Select
-                      value={selectedCriterionId}
-                      onValueChange={setSelectedCriterionId}
-                      disabled={isLoadingCriteria || isSubmitting}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select a criterion to add" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {unusedCriteria
-                          .map((criterion) => (
-                            <SelectItem key={criterion.id} value={criterion.id}>
-                              <div className="flex items-center gap-2">
-                                <span>{criterion.name}</span>
-                                <Badge
-                                  variant="outline"
-                                  className={`text-xs ${getDataTypeColor(criterion.dataType)}`}
-                                >
-                                  {criterion.dataType}
-                                </Badge>
-                              </div>
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      onClick={handleAddRequirement}
-                      disabled={!selectedCriterionId || isSubmitting}
-                      size="sm"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-
-                {/* Active Criteria */}
-                {state.requirements.size === 0 ? (
-                  <div className="text-center py-8 text-sm text-muted-foreground border rounded-lg border-dashed">
-                    No criteria added yet. Add criteria to define values for this template.
-                  </div>
-                ) : (
-                  <div className="space-y-4 border rounded-lg p-4">
-                    {Array.from(state.requirements.entries()).map(([criterionId, value]) => {
-                      const criterion = availableCriteria.find((c) => c.id === criterionId);
-                      if (!criterion) return null;
-
-                      return (
-                        <div key={criterionId} className="flex gap-3">
-                          <div className="flex-1">
-                            <CriterionRequirementInput
-                              criterion={criterion}
-                              value={value}
-                              onChange={(newValue) =>
-                                handleRequirementValueChange(criterionId, newValue)
-                              }
-                            />
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRemoveRequirement(criterionId)}
-                            className="mt-7"
-                            disabled={isSubmitting}
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <CriterionRequirementList
+                title="Criteria"
+                addLabel="Add criterion"
+                emptyMessage="No criteria added yet. Add criteria to define values for this template."
+                unusedCriteria={unusedCriteria}
+                selectedCriterionId={selectedCriterionId}
+                onSelectCriterion={setSelectedCriterionId}
+                onAdd={handleAddRequirement}
+                count={state.requirements.size}
+                rows={Array.from(state.requirements.entries()).flatMap(([criterionId, value]) => {
+                  const criterion = availableCriteria.find((c) => c.id === criterionId);
+                  if (!criterion) return [];
+                  return [{
+                    criterion,
+                    input: (
+                      <CriterionRequirementInput
+                        criterion={criterion}
+                        value={value}
+                        onChange={(newValue) => handleRequirementValueChange(criterionId, newValue)}
+                      />
+                    ),
+                  }];
+                })}
+                onRemove={handleRemoveRequirement}
+                disabled={isLoadingCriteria || isSubmitting}
+              />
 
               {/* Error Message */}
               <ErrorAlert message={error} />
