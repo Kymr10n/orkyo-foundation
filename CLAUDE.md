@@ -17,7 +17,7 @@ Multi-tenancy or a `tenantId` parameter alone is NOT a reason to keep code in Sa
 - **No runtime wiring** in this repo. Products do the wiring.
 - **Public API surface** must stay backward-compatible within a major version. Breaking changes require a major bump + coordinated downstream PRs in saas + community.
 - **Tests live where the code lives.** Service tests for foundation code stay here; integration tests against product wiring stay in the product repo.
-- **`dotnet format`** must pass before push. The pre-push hook in `.pre-commit-config.yaml` runs it; `./setup.sh` installs the hooks once.
+- **`dotnet format`** must pass before push. The pre-commit hook in `.pre-commit-config.yaml` runs it and CI verifies it; `./setup.sh` installs the hooks once.
 - **Documentation language is ASD-STE100 Simplified Technical English.** Applies to `docs/` and `frontend/docs/` — descriptive register: simple tenses, 25 words maximum per sentence, no imperative. Approved modals are can/will/must — never should, would, may, might, or could. The 53 rules are in `.claude/skills/simple-english/SKILL.md`; the scope table and the Orkyo term list are in `orkyo-documentation/docs/LANGUAGE-STANDARD.md`. `requirements/` is out of scope (historical spec packs). A `PostToolUse` hook (`.claude/hooks/ste-check.py`) reports violations — advisory, no CI gate.
 
 ## Authorization & roles

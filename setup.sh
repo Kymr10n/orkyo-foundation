@@ -33,7 +33,7 @@ fi
 # Foundation requires pre-commit: its commit-msg hook enforces the Docs-impact trailer.
 if command -v pre-commit >/dev/null 2>&1; then
   pre-commit install --install-hooks
-  success "git hooks installed (pre-commit, commit-msg, pre-push)"
+  success "git hooks installed (pre-commit, commit-msg)"
 else
   error "pre-commit not found — run: pip install pre-commit && ./setup.sh"
   exit 1

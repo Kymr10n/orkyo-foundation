@@ -108,7 +108,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S48 | B7 | todo | |
 | S49 | R1 | todo | |
 | S50 | R1 | todo | |
-| S51 | R1 | in-progress |  |
+| S51 | R1 | done | dotnet-format hook no longer runs `git add`; frontend/backend pre-push test hooks deleted and `pre-push` dropped from install types; CLAUDE.md, CONTRIBUTING, setup.sh wording aligned |
 | S52 | R1 | todo | |
 | S53 | R1 | todo | |
 | S54 | R1 | todo | |

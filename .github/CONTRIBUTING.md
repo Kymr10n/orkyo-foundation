@@ -57,7 +57,7 @@ Use the PR template — it covers the key checks. The short version:
 - [ ] No runtime wiring added (`Program.cs`, DI registrations, middleware).
 - [ ] Public API change documented and version bump included if needed.
 - [ ] Tests added or updated. `dotnet test` passes locally.
-- [ ] `dotnet format` passes (enforced by the pre-push hook).
+- [ ] `dotnet format` passes (the pre-commit hook runs it; CI verifies it).
 - [ ] Migration header present if a migration was added.
 
 ## Running Tests
