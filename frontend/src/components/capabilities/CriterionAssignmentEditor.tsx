@@ -197,6 +197,7 @@ export function CriterionAssignmentEditor({
                         onClick={handleAdd}
                         disabled={!selectedCriterionId || isSaving}
                         size="sm"
+                        aria-label={`Add to ${labels.sectionLabel.toLowerCase()}`}
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -238,6 +239,7 @@ export function CriterionAssignmentEditor({
                           onClick={() => handleRemove(criterionId)}
                           className="mt-7"
                           disabled={isSaving}
+                          aria-label={`Remove ${criterion.name}`}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
