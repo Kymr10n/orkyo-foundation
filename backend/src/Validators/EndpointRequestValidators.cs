@@ -26,11 +26,10 @@ public class AddResourceCapabilityRequestValidator : AbstractValidator<AddResour
 
 public class CreateReportingTokenRequestValidator : AbstractValidator<CreateReportingTokenRequest>
 {
-    public const int NameMaxLength = 200;
-
     public CreateReportingTokenRequestValidator(TimeProvider time)
     {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(NameMaxLength);
+        // The API-access token's cap: both name columns are VARCHAR(255). This one used to stop at 200.
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.TokenNameMaxLength);
         // A token minted already-expired is silently useless; reject it at the boundary.
         RuleFor(x => x.ExpiresAt!.Value).GreaterThan(time.GetUtcNow().UtcDateTime)
             .WithMessage("ExpiresAt must be in the future")

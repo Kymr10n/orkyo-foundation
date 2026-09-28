@@ -199,16 +199,13 @@ public sealed class LifecycleTools
     {
         McpToolGuards.RequireWrite(_authorization, "unblock_resource_time");
 
-        // Check the absence actually belongs to the named resource before deleting, exactly as the
-        // HTTP endpoint does. Without it a hallucinated id would delete an unrelated absence.
-        var existing = await _absences.GetByIdAsync(absenceId, ct);
-        if (existing is null || existing.ResourceId != resourceId)
+        // The delete is scoped to the named resource, as over HTTP: a hallucinated id cannot
+        // remove an unrelated absence.
+        if (!await _absences.DeleteAsync(resourceId, absenceId, ct))
             throw new McpException(
                 $"No absence {absenceId} on resource {resourceId}. Call list_resource_absences to "
                 + "see what that resource actually has.");
-
-        var removed = await _absences.DeleteAsync(absenceId, ct);
-        return removed;
+        return true;
     }
 
 }

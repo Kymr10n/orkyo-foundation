@@ -87,12 +87,7 @@ public sealed class ContextEnrichmentMiddleware
                     var stubKey = $"{StubKeyPrefix}{principal.UserId}:{tenantContext.TenantId}";
                     if (!_cache.TryGet<bool>(stubKey, out _))
                     {
-                        var orgContext = new OrgContext
-                        {
-                            OrgId = tenantContext.TenantId,
-                            OrgSlug = tenantContext.TenantSlug,
-                            DbConnectionString = tenantContext.TenantDbConnectionString,
-                        };
+                        var orgContext = tenantContext.ToOrgContext();
                         await tenantUserService.CreateUserStubInTenantDatabaseAsync(
                             orgContext, principal.UserId, principal.Email);
                         // Cache only after the INSERT succeeds: a positive entry written

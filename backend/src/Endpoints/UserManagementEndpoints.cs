@@ -82,8 +82,7 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> GetAllUsers(HttpContext context, IUserManagementService userManagementService, CancellationToken ct = default)
     {
-        var tc = context.GetTenantContext();
-        var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+        var org = context.GetTenantContext().ToOrgContext();
         var users = await userManagementService.GetAllUsersAsync(org, ct);
         return Results.Ok(new
         {
@@ -132,8 +131,7 @@ public static class UserManagementEndpoints
         CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var tc = context.GetTenantContext();
-                var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+                var org = context.GetTenantContext().ToOrgContext();
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
                 var result = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
@@ -147,8 +145,7 @@ public static class UserManagementEndpoints
         ICurrentPrincipal currentPrincipal, Guid userId,
         CancellationToken ct = default)
     {
-        var tc = context.GetTenantContext();
-        var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+        var org = context.GetTenantContext().ToOrgContext();
         var currentUserId = currentPrincipal.RequireUserId();
         if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
         var result = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);

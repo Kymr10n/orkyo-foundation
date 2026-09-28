@@ -43,12 +43,12 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         return events.GroupBy(x => x.SiteId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    public async Task<AvailabilityEventInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<AvailabilityEventInfo?> GetByIdAsync(Guid siteId, Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
 
-        var ev = await FetchEventByIdCoreAsync(conn, id, ct);
+        var ev = await FetchEventByIdCoreAsync(conn, siteId, id, ct);
         if (ev == null) return null;
 
         var scopes = await FetchScopesByEventAsync(conn, [id], ct);
@@ -101,7 +101,7 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         return ev with { Scopes = scopes };
     }
 
-    public async Task<AvailabilityEventInfo?> UpdateAsync(Guid id, UpdateAvailabilityEventRequest request, CancellationToken ct = default)
+    public async Task<AvailabilityEventInfo?> UpdateAsync(Guid siteId, Guid id, UpdateAvailabilityEventRequest request, CancellationToken ct = default)
     {
         // Only the fields the request carries are written: a read-merge-write of the whole row
         // would overwrite a concurrent update of another field with the value read before it.
@@ -115,12 +115,13 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         await conn.OpenAsync(ct);
 
         var updated = update.IsEmpty
-            ? await FetchEventByIdCoreAsync(conn, id, ct)
+            ? await FetchEventByIdCoreAsync(conn, siteId, id, ct)
             : await conn.QuerySingleOrDefaultAsync(
-                $"UPDATE availability_events SET {update.SetClause} WHERE id = @id RETURNING {EventCols}",
+                $"UPDATE availability_events SET {update.SetClause} WHERE id = @id AND site_id = @siteId RETURNING {EventCols}",
                 p =>
                 {
                     p.AddWithValue("id", id);
+                    p.AddWithValue("siteId", siteId);
                     RecurringWindowUpdate.Bind(p, request);
                     update.Apply(p);
                 }, SchedulingMapper.MapAvailabilityEventFromReader, ct);
@@ -130,28 +131,33 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
         return updated with { Scopes = scopeMap.GetValueOrDefault(id, []) };
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Guid siteId, Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.ExecuteAsync("DELETE FROM availability_events WHERE id = @id",
-            p => p.AddWithValue("id", id), ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM availability_events WHERE id = @id AND site_id = @siteId",
+            p => { p.AddWithValue("id", id); p.AddWithValue("siteId", siteId); }, ct) > 0;
     }
 
     // ── Scope mutations ──────────────────────────────────────────────────────
 
-    public async Task<AvailabilityEventScopeInfo> AddScopeAsync(Guid eventId, AddScopeRequest request, CancellationToken ct = default)
+    public async Task<AvailabilityEventScopeInfo?> AddScopeAsync(Guid siteId, Guid eventId, AddScopeRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
+        if (await FetchEventByIdCoreAsync(conn, siteId, eventId, ct) is null)
+            return null;
         return await InsertScopeAsync(conn, null, eventId, request, ct);
     }
 
-    public async Task<bool> DeleteScopeAsync(Guid eventId, Guid scopeId, CancellationToken ct = default)
+    public async Task<bool> DeleteScopeAsync(Guid siteId, Guid eventId, Guid scopeId, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.ExecuteAsync(
-            "DELETE FROM availability_event_scopes WHERE id = @id AND availability_event_id = @eventId",
-            p => { p.AddWithValue("id", scopeId); p.AddWithValue("eventId", eventId); }, ct) > 0;
+        return await conn.ExecuteAsync(@"
+            DELETE FROM availability_event_scopes s
+             USING availability_events e
+             WHERE s.id = @id AND s.availability_event_id = @eventId
+               AND e.id = s.availability_event_id AND e.site_id = @siteId",
+            p => { p.AddWithValue("id", scopeId); p.AddWithValue("eventId", eventId); p.AddWithValue("siteId", siteId); }, ct) > 0;
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
@@ -164,10 +170,10 @@ public class AvailabilityEventRepository(OrgContext orgContext, IOrgDbConnection
             SchedulingMapper.MapAvailabilityEventFromReader, ct);
 
     private Task<AvailabilityEventInfo?> FetchEventByIdCoreAsync(
-        NpgsqlConnection conn, Guid id, CancellationToken ct)
+        NpgsqlConnection conn, Guid siteId, Guid id, CancellationToken ct)
         => conn.QuerySingleOrDefaultAsync(
-            $"SELECT {EventCols} FROM availability_events WHERE id = @id",
-            p => p.AddWithValue("id", id),
+            $"SELECT {EventCols} FROM availability_events WHERE id = @id AND site_id = @siteId",
+            p => { p.AddWithValue("id", id); p.AddWithValue("siteId", siteId); },
             SchedulingMapper.MapAvailabilityEventFromReader, ct);
 
     private async Task HydrateScopesAsync(

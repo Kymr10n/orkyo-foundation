@@ -64,18 +64,16 @@ public static class ReportingTokenEndpoints
 
         // The name/expiry shape guards live in CreateReportingTokenRequestValidator; the
         // entitlement check above stays here because it is authorization, not shape.
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
-        var created = await tokenService.CreateAsync(
-            tenant.TenantId,
-            request.Name.Trim(),
-            request.ExpiresAt,
-            principal.UserIdOrNull,
-            ct);
-
-        return Results.Created($"/api/reporting/v1/tokens/{created.Summary.Id}", created);
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            var created = await tokenService.CreateAsync(
+                tenant.TenantId,
+                request.Name.Trim(),
+                request.ExpiresAt,
+                principal.UserIdOrNull,
+                ct);
+            return Results.Created($"/api/reporting/v1/tokens/{created.Summary.Id}", created);
+        }, ct);
     }
 
     private static async Task<IResult> RevokeToken(

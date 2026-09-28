@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,11 +53,11 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
 
         var updated = await UpdateWhileAnotherWriterHoldsTheRowAsync(
             "UPDATE availability_events SET enabled = false WHERE id = @id", created.Id,
-            () => repo.UpdateAsync(created.Id, new UpdateAvailabilityEventRequest { Title = "After" }));
+            () => repo.UpdateAsync(siteId, created.Id, new UpdateAvailabilityEventRequest { Title = "After" }));
 
         updated!.Title.Should().Be("After");
         updated.Enabled.Should().BeFalse("the title update must not rewrite a column it was not given");
-        await repo.DeleteAsync(created.Id);
+        await repo.DeleteAsync(siteId, created.Id);
     }
 
     [Fact]
@@ -75,11 +76,11 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
 
         var updated = await UpdateWhileAnotherWriterHoldsTheRowAsync(
             "UPDATE resource_absences SET notes = 'concurrent' WHERE id = @id", created.Id,
-            () => repo.UpdateAsync(created.Id, new UpdateResourceAbsenceRequest { Title = "After" }));
+            () => repo.UpdateAsync(resourceId, created.Id, new UpdateResourceAbsenceRequest { Title = "After" }));
 
         updated!.Title.Should().Be("After");
         updated.Notes.Should().Be("concurrent", "the title update must not rewrite a column it was not given");
-        await repo.DeleteAsync(created.Id);
+        await repo.DeleteAsync(resourceId, created.Id);
     }
 
     [Fact]
@@ -98,19 +99,67 @@ public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
             RecurrenceRule = "FREQ=WEEKLY",
         });
 
-        var kept = await repo.UpdateAsync(created.Id, new UpdateResourceAbsenceRequest { Title = "Weekly 2" });
+        var kept = await repo.UpdateAsync(resourceId, created.Id, new UpdateResourceAbsenceRequest { Title = "Weekly 2" });
         kept!.RecurrenceRule.Should().Be("FREQ=WEEKLY");
 
-        var off = await repo.UpdateAsync(created.Id, new UpdateResourceAbsenceRequest { IsRecurring = false });
+        var off = await repo.UpdateAsync(resourceId, created.Id, new UpdateResourceAbsenceRequest { IsRecurring = false });
         off!.IsRecurring.Should().BeFalse();
         off.RecurrenceRule.Should().BeNull();
 
-        var ruleOnly = await repo.UpdateAsync(created.Id, new UpdateResourceAbsenceRequest { RecurrenceRule = "FREQ=DAILY" });
+        var ruleOnly = await repo.UpdateAsync(resourceId, created.Id, new UpdateResourceAbsenceRequest { RecurrenceRule = "FREQ=DAILY" });
         ruleOnly!.RecurrenceRule.Should().BeNull("a rule applies only to a recurring window");
 
-        var unchanged = await repo.UpdateAsync(created.Id, new UpdateResourceAbsenceRequest());
+        var unchanged = await repo.UpdateAsync(resourceId, created.Id, new UpdateResourceAbsenceRequest());
         unchanged!.Title.Should().Be("Weekly 2");
-        (await repo.UpdateAsync(Guid.NewGuid(), new UpdateResourceAbsenceRequest { Title = "x" })).Should().BeNull();
-        await repo.DeleteAsync(created.Id);
+        (await repo.UpdateAsync(resourceId, Guid.NewGuid(), new UpdateResourceAbsenceRequest { Title = "x" })).Should().BeNull();
+        // Another resource's absence is not found through this resource.
+        (await repo.UpdateAsync(Guid.NewGuid(), created.Id, new UpdateResourceAbsenceRequest { Title = "x" })).Should().BeNull();
+        (await repo.DeleteAsync(Guid.NewGuid(), created.Id)).Should().BeFalse();
+        await repo.DeleteAsync(resourceId, created.Id);
+    }
+
+    [Fact]
+    public async Task ResourceAbsence_ForAMissingResource_IsNotFound()
+    {
+        // The MCP tool used to skip the resource check the HTTP endpoint made; the repository makes it now.
+        using var scope = fixture.Factory.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IResourceAbsenceRepository>();
+
+        var act = () => repo.CreateAsync(Guid.NewGuid(), new CreateResourceAbsenceRequest
+        {
+            AbsenceType = AbsenceType.Maintenance,
+            Title = "Nowhere",
+            StartTs = Start,
+            EndTs = Start.AddHours(2),
+        });
+
+        await act.Should().ThrowAsync<NotFoundException>();
+    }
+
+    [Fact]
+    public async Task AvailabilityEvent_OfAnotherSite_IsNotFound()
+    {
+        using var scope = fixture.Factory.Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IAvailabilityEventRepository>();
+        var siteId = await TestHelpers.GetOrCreateTestSite(fixture.CreateAuthorizedClient());
+        var created = await repo.CreateAsync(siteId, new CreateAvailabilityEventRequest
+        {
+            Title = "Scoped",
+            StartTs = Start,
+            EndTs = Start.AddHours(2),
+        });
+        var otherSite = Guid.NewGuid();
+
+        (await repo.GetByIdAsync(otherSite, created.Id)).Should().BeNull();
+        (await repo.UpdateAsync(otherSite, created.Id, new UpdateAvailabilityEventRequest { Title = "x" })).Should().BeNull();
+        (await repo.AddScopeAsync(otherSite, created.Id, new AddScopeRequest
+        {
+            TargetType = ScopeTargetType.Resource,
+            TargetId = Guid.NewGuid(),
+            Effect = ScopeEffect.Closed,
+        })).Should().BeNull();
+        (await repo.DeleteAsync(otherSite, created.Id)).Should().BeFalse();
+        (await repo.GetByIdAsync(siteId, created.Id)).Should().NotBeNull();
+        (await repo.DeleteAsync(siteId, created.Id)).Should().BeTrue();
     }
 }

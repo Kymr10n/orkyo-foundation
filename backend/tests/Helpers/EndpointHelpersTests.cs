@@ -50,6 +50,23 @@ public class EndpointHelpersTests
     }
 
     [Fact]
+    public async Task ExecuteAsyncWithAToken_PassesItToTheValidator_AndSkipsTheHandlerOnFailure()
+    {
+        using var cts = new CancellationTokenSource();
+        var validator = new TokenRecordingValidator();
+        var called = false;
+
+        var result = await EndpointHelpers.ExecuteAsync(new DummyRequest(), validator,
+            () => { called = true; return Task.FromResult<IResult>(Results.Ok()); }, cts.Token);
+
+        var context = CreateHttpContext();
+        await result.ExecuteAsync(context);
+        context.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
+        called.Should().BeFalse();
+        validator.Seen.Should().Be(cts.Token);
+    }
+
+    [Fact]
     public async Task ExecuteAsyncWithValidatorAndResult_ShouldReturnOk_WhenValid()
     {
         var validator = new DummyRequestValidator();
@@ -106,6 +123,20 @@ public class EndpointHelpersTests
     private sealed class DummyRequest
     {
         public string Name { get; init; } = string.Empty;
+    }
+
+    private sealed class TokenRecordingValidator : AbstractValidator<DummyRequest>
+    {
+        public CancellationToken Seen { get; private set; }
+
+        public TokenRecordingValidator() => RuleFor(x => x.Name).NotEmpty();
+
+        public override Task<FluentValidation.Results.ValidationResult> ValidateAsync(
+            ValidationContext<DummyRequest> context, CancellationToken cancellation = default)
+        {
+            Seen = cancellation;
+            return base.ValidateAsync(context, cancellation);
+        }
     }
 
     private sealed class DummyRequestValidator : AbstractValidator<DummyRequest>

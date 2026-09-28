@@ -21,18 +21,13 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
             SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
-    public async Task<ResourceAbsenceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.QuerySingleOrDefaultAsync(
-            $"SELECT {Cols} FROM resource_absences WHERE id = @id",
-            p => p.AddWithValue("id", id),
-            SchedulingMapper.MapResourceAbsenceFromReader, ct);
-    }
-
     public async Task<ResourceAbsenceInfo> CreateAsync(Guid resourceId, CreateResourceAbsenceRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        // The HTTP endpoint and the MCP tool both rely on this: a missing resource is a 404, not
+        // a foreign-key violation.
+        if (!await conn.ExistsAsync("resources", resourceId, ct))
+            throw new NotFoundException("Resource", resourceId);
 
         return (await conn.QuerySingleOrDefaultAsync($@"
             INSERT INTO resource_absences
@@ -56,7 +51,7 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
             }, SchedulingMapper.MapResourceAbsenceFromReader, ct))!;
     }
 
-    public async Task<ResourceAbsenceInfo?> UpdateAsync(Guid id, UpdateResourceAbsenceRequest request, CancellationToken ct = default)
+    public async Task<ResourceAbsenceInfo?> UpdateAsync(Guid resourceId, Guid id, UpdateResourceAbsenceRequest request, CancellationToken ct = default)
     {
         // Only the fields the request carries are written: a read-merge-write of the whole row
         // would overwrite a concurrent update of another field with the value read before it.
@@ -68,24 +63,25 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         return update.IsEmpty
             ? await conn.QuerySingleOrDefaultAsync(
-                $"SELECT {Cols} FROM resource_absences WHERE id = @id",
-                p => p.AddWithValue("id", id),
+                $"SELECT {Cols} FROM resource_absences WHERE id = @id AND resource_id = @resourceId",
+                p => { p.AddWithValue("id", id); p.AddWithValue("resourceId", resourceId); },
                 SchedulingMapper.MapResourceAbsenceFromReader, ct)
             : await conn.QuerySingleOrDefaultAsync(
-                $"UPDATE resource_absences SET {update.SetClause} WHERE id = @id RETURNING {Cols}",
+                $"UPDATE resource_absences SET {update.SetClause} WHERE id = @id AND resource_id = @resourceId RETURNING {Cols}",
                 p =>
                 {
                     p.AddWithValue("id", id);
+                    p.AddWithValue("resourceId", resourceId);
                     RecurringWindowUpdate.Bind(p, request);
                     update.Apply(p);
                 }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Guid resourceId, Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.ExecuteAsync("DELETE FROM resource_absences WHERE id = @id",
-            p => p.AddWithValue("id", id), ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM resource_absences WHERE id = @id AND resource_id = @resourceId",
+            p => { p.AddWithValue("id", id); p.AddWithValue("resourceId", resourceId); }, ct) > 0;
     }
 
     public async Task<Dictionary<Guid, List<ResourceAbsenceInfo>>> GetEnabledByResourcesAsync(

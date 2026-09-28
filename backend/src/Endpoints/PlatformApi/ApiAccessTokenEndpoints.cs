@@ -60,19 +60,17 @@ public static class ApiAccessTokenEndpoints
         if (!await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct))
             return ErrorResponses.UpgradeRequired("API access requires a paid plan.");
 
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
-        var created = await tokenService.CreateAsync(
-            tenant.TenantId,
-            request.Name.Trim(),
-            request.Scopes,
-            request.ExpiresAt,
-            principal.UserIdOrNull,
-            ct);
-
-        return Results.Created($"/api/platform/v1/tokens/{created.Summary.Id}", created);
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            var created = await tokenService.CreateAsync(
+                tenant.TenantId,
+                request.Name.Trim(),
+                request.Scopes,
+                request.ExpiresAt,
+                principal.UserIdOrNull,
+                ct);
+            return Results.Created($"/api/platform/v1/tokens/{created.Summary.Id}", created);
+        }, ct);
     }
 
     private static async Task<IResult> RevokeToken(

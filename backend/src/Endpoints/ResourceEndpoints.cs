@@ -201,14 +201,12 @@ public static class ResourceEndpoints
         group.MapPost("/{id:guid}/absences", async (
             Guid id,
             [FromBody] CreateResourceAbsenceRequest request,
-            IResourceService resourceService,
             IResourceAbsenceRepository absenceRepo,
             IValidator<CreateResourceAbsenceRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var resource = await resourceService.GetByIdAsync(id);
-                if (resource is null) return ErrorResponses.NotFound("Resource", id);
+                // A missing resource is the repository's NotFoundException (404).
                 var absence = await absenceRepo.CreateAsync(id, request, ct);
                 return Results.Created($"/api/resources/{id}/absences/{absence.Id}", absence);
             }, logger, "create resource absence", new { id }))
@@ -224,10 +222,7 @@ public static class ResourceEndpoints
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var existing = await absenceRepo.GetByIdAsync(absenceId, ct);
-                if (existing is null || existing.ResourceId != id)
-                    return ErrorResponses.NotFound("Absence", absenceId);
-                var updated = await absenceRepo.UpdateAsync(absenceId, request, ct);
+                var updated = await absenceRepo.UpdateAsync(id, absenceId, request, ct);
                 return EndpointHelpers.OkOrNotFound(updated, "Absence", absenceId);
             }, logger, "update resource absence", new { id, absenceId }))
             .WithName("UpdateResourceAbsence")
@@ -239,10 +234,7 @@ public static class ResourceEndpoints
             IResourceAbsenceRepository absenceRepo,
             CancellationToken ct) =>
         {
-            var existing = await absenceRepo.GetByIdAsync(absenceId, ct);
-            if (existing is null || existing.ResourceId != id)
-                return ErrorResponses.NotFound("Absence", absenceId);
-            var deleted = await absenceRepo.DeleteAsync(absenceId, ct);
+            var deleted = await absenceRepo.DeleteAsync(id, absenceId, ct);
             return EndpointHelpers.NoContentOrNotFound(deleted, "Absence", absenceId);
         })
             .WithName("DeleteResourceAbsence")
