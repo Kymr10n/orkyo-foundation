@@ -13,8 +13,6 @@ vi.mock('@foundation/src/lib/api/api-access-tokens-api', async (importOriginal) 
   revokeApiAccessToken: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 const { authState, entitled, notEntitled } = vi.hoisted(() => {
   const entitled = { entitlements: { api_access_enabled: true } };
   const notEntitled = { entitlements: { api_access_enabled: false } };
@@ -28,11 +26,7 @@ const { authState, entitled, notEntitled } = vi.hoisted(() => {
   };
 });
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    membership: authState.membership,
-    isLoading: authState.isLoading,
-    isSiteAdmin: false,
-  }),
+  useAuth: () => mockAuth({ membership: authState.membership, isLoading: authState.isLoading }),
 }));
 
 import {
@@ -42,6 +36,7 @@ import {
   API_SCOPES,
 } from '@foundation/src/lib/api/api-access-tokens-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 const readToken: ApiAccessTokenSummary = {
   id: 'tok-read',

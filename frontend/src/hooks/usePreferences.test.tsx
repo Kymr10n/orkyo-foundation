@@ -8,7 +8,6 @@ vi.mock("@foundation/src/lib/core/api-client", () => ({
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import * as apiClient from "@foundation/src/lib/core/api-client";
 

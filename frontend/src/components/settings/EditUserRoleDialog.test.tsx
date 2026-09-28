@@ -9,9 +9,6 @@ import { qk } from '@foundation/src/lib/api/query-keys';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 
 describe('EditUserRoleDialog', () => {
   let queryClient: QueryClient;

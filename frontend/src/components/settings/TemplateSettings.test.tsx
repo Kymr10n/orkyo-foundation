@@ -5,9 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { TemplateSettings } from './TemplateSettings';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { getTemplates, deleteTemplate } from '@foundation/src/lib/api/template-api';
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+import { toast } from 'sonner';
 
 const mockGetTemplates = vi.mocked(getTemplates);
 const mockDeleteTemplate = vi.mocked(deleteTemplate);
@@ -159,7 +157,7 @@ describe('TemplateSettings', () => {
     await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));
     });
   });
 

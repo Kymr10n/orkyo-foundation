@@ -10,7 +10,6 @@ import * as settingsApi from "@foundation/src/lib/api/tenant-settings-api";
 import { createTestQueryWrapper, createTestQueryClient } from "@foundation/src/test-utils";
 
 vi.mock("@foundation/src/lib/api/tenant-settings-api");
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockResponse: settingsApi.TenantSettingsResponse = {
   settings: [

@@ -7,10 +7,6 @@ import { useEntityFormDialog } from './useEntityFormDialog';
 import { savedMessage, type SaveVariables } from './mutation-utils';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 interface Widget {
   id: string;
   name: string;

@@ -1,4 +1,4 @@
-import type { Request, ResourceAssignment } from '@foundation/src/types/requests';
+import type { Request, RequestFormData, ResourceAssignment } from '@foundation/src/types/requests';
 
 /**
  * Factory function to create Request test fixtures.
@@ -79,6 +79,19 @@ export function makeAssignment(
     assignmentStatus: 'Planned',
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+/** A complete, valid request form submission: a one-hour leaf task for spaces. */
+export function makeRequestFormData(overrides: Partial<RequestFormData> = {}): RequestFormData {
+  return {
+    name: 'Test',
+    planningMode: 'leaf',
+    targetResourceTypeKeys: ['space'],
+    duration: { value: 60, unit: 'minutes' },
+    schedulingSettingsApply: false,
+    requirements: [],
     ...overrides,
   };
 }

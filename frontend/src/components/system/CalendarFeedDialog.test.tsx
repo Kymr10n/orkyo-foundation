@@ -17,8 +17,6 @@ vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
   revokeCalendarSubscription: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 let mockAvailable = true;
 vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
   useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.CalendarFeed && mockAvailable,

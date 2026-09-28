@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SecuritySettings } from './SecuritySettings';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 const mockSend = vi.fn();
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ send: mockSend }),
+  useAuth: () => mockAuth({ send: mockSend }),
 }));
 
 const mockQueryResult = vi.hoisted(() => ({

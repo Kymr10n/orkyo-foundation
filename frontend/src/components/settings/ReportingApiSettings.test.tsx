@@ -12,10 +12,6 @@ vi.mock('@foundation/src/lib/api/reporting-tokens-api', () => ({
   revokeReportingToken: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 // Entitlement gate: ReportingApiSettings requires the server-reported api_access_enabled
 // entitlement. Mock useAuth so tests control it; default to entitled so the page renders.
 const { authState, entitled, notEntitled } = vi.hoisted(() => {
@@ -31,7 +27,7 @@ const { authState, entitled, notEntitled } = vi.hoisted(() => {
   };
 });
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership, isLoading: authState.isLoading, isSiteAdmin: false }),
+  useAuth: () => mockAuth({ membership: authState.membership, isLoading: authState.isLoading }),
 }));
 
 import {
@@ -42,6 +38,7 @@ import {
 } from '@foundation/src/lib/api/reporting-tokens-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { formatDateForInput } from '@foundation/src/lib/utils';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 const activeToken: ReportingTokenSummary = {
   id: 'tok-1',

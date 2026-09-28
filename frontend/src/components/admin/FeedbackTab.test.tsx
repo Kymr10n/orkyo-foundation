@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { FeedbackTab } from './FeedbackTab';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
+import { toast } from 'sonner';
 
 // The save mutation declares `meta.successMessage`, so render under the
 // production-identical feedback MutationCache (dialog-feedback.md).
@@ -20,9 +21,6 @@ vi.mock('@foundation/src/lib/api/feedback-admin-api', () => ({
   getFeedbackItem: (...args: unknown[]) => mockGetOne(...args),
   updateFeedback: (...args: unknown[]) => mockUpdate(...args),
 }));
-
-const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock('sonner', () => ({ toast: mockToast }));
 
 const summary = {
   id: 'fb-1',
@@ -106,7 +104,7 @@ describe('FeedbackTab', () => {
       expect.objectContaining({ adminNotes: 'On it.' }),
     ));
     // The success toast now originates from the central MutationCache (meta).
-    await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Feedback updated'));
+    await waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Feedback updated'));
     // The save's meta invalidates the list, so the table re-reads the new status.
     await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
   });

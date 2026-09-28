@@ -7,7 +7,6 @@ import type { Site } from '@foundation/src/lib/api/site-api';
 import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/site-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockSite: Site = {
   id: 'site-1',

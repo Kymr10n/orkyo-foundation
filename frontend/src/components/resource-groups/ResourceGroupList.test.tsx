@@ -25,7 +25,6 @@ import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
 import { renderWithQuery } from '@foundation/src/test-utils';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@foundation/src/lib/api/criteria-api', () => ({
   getCriteria: vi.fn().mockResolvedValue([]),
 }));

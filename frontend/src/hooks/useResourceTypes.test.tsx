@@ -5,7 +5,6 @@ import { createTestQueryClient } from '@foundation/src/test-utils';
 import { useDeleteResourceType } from './useResourceTypes';
 
 vi.mock('@foundation/src/lib/api/resource-types-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 describe('useDeleteResourceType', () => {
   beforeEach(() => vi.clearAllMocks());

@@ -12,10 +12,6 @@ vi.mock('@foundation/src/lib/api/resource-type-catalog-api', () => ({
   purgeCatalogType: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 import {
   getResourceTypeCatalog,
   activateCatalogType,

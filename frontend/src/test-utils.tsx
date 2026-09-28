@@ -14,8 +14,8 @@ export interface TestQueryClientOptions {
    * Wire the same meta-driven feedback MutationCache as production
    * (`createFeedbackMutationCache`). Use this for components whose mutations declare
    * `meta.successMessage`/`invalidates` so the central toast + invalidation fire in tests
-   * exactly as they do at runtime. `toast` is resolved from the (mocked) `sonner` module
-   * the test sets up. Note the cache invalidates prefix-style: assert
+   * exactly as they do at runtime. `toast` is the spy double `src/test/setup.ts` installs
+   * for `sonner`. Note the cache invalidates prefix-style: assert
    * `{ queryKey, exact: false }`.
    */
   feedback?: boolean;

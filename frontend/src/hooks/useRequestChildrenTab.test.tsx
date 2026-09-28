@@ -7,7 +7,6 @@ import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import type { Request } from '@foundation/src/types/requests';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock('@foundation/src/lib/api/request-api', () => ({
   createChildRequest: vi.fn(),
   moveRequest: vi.fn(),

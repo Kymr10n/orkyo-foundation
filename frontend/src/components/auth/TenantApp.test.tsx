@@ -73,22 +73,20 @@ vi.mock("@foundation/src/components/auth/RequireAuth", () => ({
 // ── Mock useAuth ────────────────────────────────────────────────────────
 
 const mockSend = vi.fn();
-const mockUseAuth = vi.fn();
 
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => mockUseAuth(),
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
 }));
 
 import { TenantApp } from "./TenantApp";
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
-function authState(overrides: Record<string, unknown> = {}) {
-  return {
-    authStage: AUTH_STAGES.READY,
-    send: mockSend,
-    ...overrides,
-  };
+function authState(overrides: MockAuthOptions = {}) {
+  return mockAuth({ send: mockSend, ...overrides });
 }
 
 // The app shell renders inside the product's QueryClientProvider; the break-glass banner reads
@@ -106,7 +104,7 @@ function renderAt(path: string) {
 describe("TenantApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
   });
 
   // ── Route rendering ───────────────────────────────────────────────────
@@ -130,7 +128,7 @@ describe("TenantApp", () => {
   // ── Unauthenticated redirect ──────────────────────────────────────────
 
   it("sends LOGIN to the machine when unauthenticated (triggers BFF redirect)", async () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({
         authStage: AUTH_STAGES.UNAUTHENTICATED,
       }),
@@ -144,7 +142,7 @@ describe("TenantApp", () => {
   });
 
   it("does not send LOGIN while initializing", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({
         authStage: AUTH_STAGES.INITIALIZING,
       }),
@@ -158,7 +156,7 @@ describe("TenantApp", () => {
   // ── Suspended tenant on subdomain ───────────────────────────────────────
 
   it("renders TenantSuspendedPage when selecting_tenant with suspended membership", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({
         authStage: AUTH_STAGES.SELECTING_TENANT,
         membership: {
@@ -176,7 +174,7 @@ describe("TenantApp", () => {
   });
 
   it("renders TenantSuspendedPage when selecting_tenant with deleting membership", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({
         authStage: AUTH_STAGES.SELECTING_TENANT,
         membership: {
@@ -194,7 +192,7 @@ describe("TenantApp", () => {
   });
 
   it("does not render TenantSuspendedPage when selecting_tenant with active membership", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({
         authStage: AUTH_STAGES.SELECTING_TENANT,
         membership: {
@@ -216,7 +214,7 @@ describe("TenantApp", () => {
   // the machine fix) ignored it — a permanent spinner.
 
   it("renders TenantNoAccessPage when selecting_tenant without any membership", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({
         authStage: AUTH_STAGES.SELECTING_TENANT,
         membership: null,
@@ -231,7 +229,7 @@ describe("TenantApp", () => {
   });
 
   it("renders TenantNoAccessPage when the user has no tenants at all", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({ authStage: AUTH_STAGES.NO_TENANTS, membership: null }),
     );
 
@@ -241,7 +239,7 @@ describe("TenantApp", () => {
   });
 
   it("renders TenantNoAccessPage for a site admin with no tenants", () => {
-    mockUseAuth.mockReturnValue(
+    vi.mocked(useAuth).mockReturnValue(
       authState({ authStage: AUTH_STAGES.NO_TENANTS_ADMIN, membership: null }),
     );
 

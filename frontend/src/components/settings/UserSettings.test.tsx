@@ -8,9 +8,6 @@ import * as userApi from '@foundation/src/lib/api/user-api';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 import { renderWithQuery } from '@foundation/src/test-utils';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 vi.mock('@foundation/src/lib/api/user-api');
 const ioHandlers = vi.hoisted(() => ({
   exportCb: null as null | ((format: string) => Promise<void>),

@@ -6,9 +6,7 @@ import { RoutingSettings, describeSteps } from './RoutingSettings';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { getRoutings, deleteRouting } from '@foundation/src/lib/api/routing-api';
 import type { Routing } from '@foundation/src/types/routings';
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+import { toast } from 'sonner';
 
 vi.mock('@foundation/src/lib/api/routing-api', () => ({
   getRoutings: vi.fn(() => Promise.resolve([])),
@@ -130,7 +128,7 @@ describe('RoutingSettings', () => {
     await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Failed to delete routing', expect.objectContaining({ description: 'In use' }));
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete routing', expect.objectContaining({ description: 'In use' }));
     });
   });
 });

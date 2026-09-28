@@ -30,21 +30,15 @@ import {
   useUpdateTenantSettings,
 } from "@foundation/src/hooks/useTenantSettings";
 import { renderWithQuery } from "@foundation/src/test-utils";
+import { mockAuth } from "@foundation/src/test-utils/auth";
 
 // Auth mock — mutable so tests can override
-let mockAuth: any = {
-  membership: {
-    tenantId: "tenant-1",
-    slug: "test",
-    displayName: "Test Org",
-    isTenantAdmin: true,
-    isOwner: false,
-    isBreakGlass: false,
-  },
-};
+let authValue = mockAuth({
+  membership: { tenantId: "tenant-1", slug: "test", displayName: "Test Org", isTenantAdmin: true, isOwner: false, isBreakGlass: false },
+});
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => mockAuth,
+  useAuth: () => authValue,
 }));
 
 // ── Test data ───────────────────────────────────────────────────────
@@ -149,16 +143,9 @@ describe("TenantConfigSettings", () => {
     vi.clearAllMocks();
     // Globally mocked to true in src/test/setup.ts; the non-admin test overrides it.
     vi.mocked(useIsTenantAdmin).mockReturnValue(true);
-    mockAuth = {
-      membership: {
-        tenantId: "tenant-1",
-        slug: "test",
-        displayName: "Test Org",
-        isTenantAdmin: true,
-        isOwner: false,
-        isBreakGlass: false,
-      },
-    };
+    authValue = mockAuth({
+      membership: { tenantId: "tenant-1", slug: "test", displayName: "Test Org", isTenantAdmin: true, isOwner: false, isBreakGlass: false },
+    });
     mockUpdateMutateAsync.mockResolvedValue(mockSettings);
     mockResetMutateAsync.mockResolvedValue(undefined);
   });
@@ -167,17 +154,9 @@ describe("TenantConfigSettings", () => {
 
   it("shows admin-only message for non-admin users", () => {
     vi.mocked(useIsTenantAdmin).mockReturnValue(false);
-    mockAuth = {
-      membership: {
-        tenantId: "tenant-1",
-        slug: "test",
-        displayName: "Test Org",
-        isTenantAdmin: false,
-        isOwner: false,
-        isBreakGlass: false,
-        role: "viewer",
-      },
-    };
+    authValue = mockAuth({
+      membership: { tenantId: "tenant-1", slug: "test", displayName: "Test Org", isTenantAdmin: false, isOwner: false, isBreakGlass: false, role: "viewer" },
+    });
     setupHook();
 
     renderComponent();
@@ -197,16 +176,9 @@ describe("TenantConfigSettings", () => {
   });
 
   it("renders for owner (non-admin)", () => {
-    mockAuth = {
-      membership: {
-        tenantId: "tenant-1",
-        slug: "test",
-        displayName: "Test Org",
-        isTenantAdmin: false,
-        isOwner: true,
-        isBreakGlass: false,
-      },
-    };
+    authValue = mockAuth({
+      membership: { tenantId: "tenant-1", slug: "test", displayName: "Test Org", isTenantAdmin: false, isOwner: true, isBreakGlass: false },
+    });
     setupHook();
     renderComponent();
 
@@ -216,16 +188,9 @@ describe("TenantConfigSettings", () => {
   });
 
   it("renders for break-glass user", () => {
-    mockAuth = {
-      membership: {
-        tenantId: "tenant-1",
-        slug: "test",
-        displayName: "Test Org",
-        isTenantAdmin: false,
-        isOwner: false,
-        isBreakGlass: true,
-      },
-    };
+    authValue = mockAuth({
+      membership: { tenantId: "tenant-1", slug: "test", displayName: "Test Org", isTenantAdmin: false, isOwner: false, isBreakGlass: true },
+    });
     setupHook();
     renderComponent();
 

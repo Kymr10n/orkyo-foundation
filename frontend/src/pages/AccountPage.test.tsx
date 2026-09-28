@@ -4,18 +4,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { AccountPage } from "@foundation/src/pages/AccountPage";
 import { createTestQueryClient } from "@foundation/src/test-utils";
+import { toast } from "sonner";
+import { mockAuth } from "@foundation/src/test-utils/auth";
+import type { TenantMembership } from "@foundation/src/contexts/AuthContext";
 
-const { mockToastSuccess, mockToastError, mockRefresh } = vi.hoisted(() => ({
-  mockToastSuccess: vi.fn(),
-  mockToastError: vi.fn(),
+const { mockRefresh } = vi.hoisted(() => ({
   mockRefresh: vi.fn(),
-}));
-
-vi.mock("sonner", () => ({
-  toast: {
-    success: mockToastSuccess,
-    error: mockToastError,
-  },
 }));
 
 // Mock navigate
@@ -31,28 +25,23 @@ vi.mock("react-router", async () => {
 // Mock AuthContext
 const mockSetMembership = vi.fn();
 const mockLogout = vi.fn();
-let mockMembership: { tenantId: string; slug: string } | null = null;
+let mockMembership: Partial<TenantMembership> | null = null;
 let mockIsSiteAdmin = false;
 const mockSend = vi.fn();
 const mockSetAppUser = vi.fn();
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => ({
-    membership: mockMembership,
-    setMembership: mockSetMembership,
-    logout: mockLogout,
-    send: mockSend,
-    refresh: mockRefresh,
-    user: { sub: "test-user", email: "test@example.com" },
-    appUser: {
-      id: "test-user",
-      email: "test@example.com",
-      displayName: "Alex Johnson",
-    },
-    isSiteAdmin: mockIsSiteAdmin,
-    setAppUser: mockSetAppUser,
-  }),
-  getAuthTokenSync: () => "test-token",
+  useAuth: () =>
+    mockAuth({
+      membership: mockMembership,
+      setMembership: mockSetMembership,
+      logout: mockLogout,
+      send: mockSend,
+      refresh: mockRefresh,
+      appUser: { id: "test-user", email: "test@example.com", displayName: "Alex Johnson" },
+      isSiteAdmin: mockIsSiteAdmin,
+      setAppUser: mockSetAppUser,
+    }),
 }));
 
 // Mock tenant navigation
@@ -617,7 +606,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith("Your email address has been updated.", {
+      expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Your email address has been updated.", {
         id: "email-change-confirmed",
       });
     });
@@ -633,7 +622,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith("Could not confirm email change", {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Could not confirm email change", {
         id: "email-change-error",
         description: "Please try again.",
       });
@@ -650,7 +639,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(title, {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(title, {
         id: `email-change-${status}`,
         description,
       });

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { SidebarNav } from './SidebarNav';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 vi.mock('@foundation/src/store/layout-store', () => ({
   useLayoutStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -24,7 +25,7 @@ const authState: { membership: Membership; isSiteAdmin: boolean } = {
   isSiteAdmin: false,
 };
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership, isSiteAdmin: authState.isSiteAdmin }),
+  useAuth: () => mockAuth({ membership: authState.membership, isSiteAdmin: authState.isSiteAdmin }),
 }));
 
 // User-defined resource types become nav entries; mocked so the nav stays renderable

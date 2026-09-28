@@ -9,6 +9,7 @@ import {
   useSaveAiDailyLimits,
 } from '@foundation/src/hooks/useAiAssistant';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
+import { toast } from 'sonner';
 
 vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
   useFeatureEnabled: vi.fn(() => true),
@@ -27,15 +28,6 @@ vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
   useSaveAiAllowance: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevokeAiAllowance: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSaveAiDailyLimits: vi.fn(),
-}));
-
-const toastError = vi.fn();
-const toastSuccess = vi.fn();
-vi.mock('sonner', () => ({
-  toast: {
-    error: (...args: unknown[]) => toastError(...args),
-    success: (...args: unknown[]) => toastSuccess(...args),
-  },
 }));
 
 /** Sets the daily-limits query state; defaults to a configured workspace. */
@@ -107,7 +99,7 @@ describe('AiAssistantSettings daily limits', () => {
     await user.click(screen.getByRole('button', { name: /save limits/i }));
 
     expect(saveLimits).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalled();
   });
 
   it('does not offer the form when the limits could not be read', () => {
@@ -129,7 +121,7 @@ describe('AiAssistantSettings daily limits', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save limits/i }));
 
-    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
   });
 });
 
@@ -140,7 +132,7 @@ describe('AiAssistantSettings key test', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /test connection/i }));
 
-    expect(toastSuccess).toHaveBeenCalledWith('The key works.');
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('The key works.');
   });
 
   it('leaves a failed request to the mutation feedback and claims nothing', async () => {
@@ -151,7 +143,7 @@ describe('AiAssistantSettings key test', () => {
     await userEvent.click(screen.getByRole('button', { name: /test connection/i }));
 
     expect(testCredential).toHaveBeenCalledTimes(1);
-    expect(toastSuccess).not.toHaveBeenCalled();
-    expect(toastError).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { RequireTenantAdmin } from './RequireTenantAdmin';
+import { toast } from 'sonner';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 // Real permission hook, not the global test-mock from src/test/setup.ts.
 vi.unmock('@foundation/src/hooks/usePermissions');
@@ -12,11 +14,8 @@ const authState: { membership: { isTenantAdmin?: boolean } | null; isSiteAdmin: 
 };
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership, isSiteAdmin: authState.isSiteAdmin }),
+  useAuth: () => mockAuth({ membership: authState.membership, isSiteAdmin: authState.isSiteAdmin }),
 }));
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
 
 function renderGuard() {
   return render(
@@ -49,7 +48,7 @@ describe('RequireTenantAdmin', () => {
     authState.isSiteAdmin = true;
     renderGuard();
     expect(screen.getByTestId('admin-content')).toBeInTheDocument();
-    expect(toastError).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
   });
 
   it('renders children for tenant admins', () => {
@@ -63,7 +62,7 @@ describe('RequireTenantAdmin', () => {
     renderGuard();
     expect(screen.queryByTestId('admin-content')).not.toBeInTheDocument();
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    expect(toastError).toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalled();
   });
 
   it('redirects when membership is absent', () => {

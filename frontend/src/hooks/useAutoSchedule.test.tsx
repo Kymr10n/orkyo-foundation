@@ -5,23 +5,27 @@ import { usePreviewAutoSchedule, useApplyAutoSchedule, useAutoScheduleAvailable 
 import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
 import { applyAutoSchedule } from '@foundation/src/lib/api/auto-schedule-api';
 import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
-
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth } from '@foundation/src/test-utils/auth';
+import type { PlanCode } from '@foundation/contracts/plans';
 
 vi.mock('@foundation/src/lib/api/auto-schedule-api', () => ({
   previewAutoSchedule: vi.fn(() => Promise.resolve({ assignments: [] })),
   applyAutoSchedule: vi.fn(() => Promise.resolve({ applied: 3 })),
 }));
 
-const { mockUseAuth, mockUseTenantSettings } = vi.hoisted(() => ({
-  mockUseAuth: vi.fn(() => ({ membership: { tier: 'professional' } })),
+const { mockUseTenantSettings } = vi.hoisted(() => ({
   mockUseTenantSettings: vi.fn(() => ({
     data: { settings: [{ key: 'scheduling.auto_schedule_enabled', currentValue: 'True' }] },
   })),
 }));
 
-vi.mock('@foundation/src/contexts/AuthContext', () => ({ useAuth: mockUseAuth }));
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
+}));
 vi.mock('@foundation/src/hooks/useTenantSettings', () => ({ useTenantSettings: mockUseTenantSettings }));
+vi.mocked(useAuth).mockReturnValue(mockAuth({ membership: { tier: 'professional' } }));
 
 describe('usePreviewAutoSchedule', () => {
   it('returns a mutation', () => {
@@ -76,7 +80,7 @@ describe('useAutoScheduleAvailable', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Restore defaults for each test
-    mockUseAuth.mockReturnValue({ membership: { tier: 'professional' } });
+    vi.mocked(useAuth).mockReturnValue(mockAuth({ membership: { tier: 'professional' as PlanCode } }));
     mockUseTenantSettings.mockReturnValue({
       data: { settings: [{ key: 'scheduling.auto_schedule_enabled', currentValue: 'True' }] },
     });
@@ -88,13 +92,13 @@ describe('useAutoScheduleAvailable', () => {
   });
 
   it('returns true for Enterprise tier with setting enabled', () => {
-    mockUseAuth.mockReturnValue({ membership: { tier: 'enterprise' } });
+    vi.mocked(useAuth).mockReturnValue(mockAuth({ membership: { tier: 'enterprise' as PlanCode } }));
     const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(true);
   });
 
   it('returns false for Free tier even when setting is enabled', () => {
-    mockUseAuth.mockReturnValue({ membership: { tier: 'Free' } });
+    vi.mocked(useAuth).mockReturnValue(mockAuth({ membership: { tier: 'Free' as PlanCode } }));
     const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(false);
   });
@@ -122,7 +126,7 @@ describe('useAutoScheduleAvailable', () => {
   });
 
   it('returns false when membership is null (unauthenticated)', () => {
-    mockUseAuth.mockReturnValue({ membership: null as unknown as { tier: string } });
+    vi.mocked(useAuth).mockReturnValue(mockAuth({ membership: null }));
     const { result } = renderHook(() => useAutoScheduleAvailable(), { wrapper: createTestQueryWrapper() });
     expect(result.current).toBe(false);
   });

@@ -7,26 +7,16 @@ import type { Site } from "@foundation/src/types/site";
 import { pagedResult } from "@foundation/src/test-utils/paged-result";
 import { renderWithQuery } from "@foundation/src/test-utils";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { toast } from "sonner";
+import { useSiteStore } from "@foundation/src/store/site-store";
 
 // --- Mock the data-loading boundary (network) and site hooks -------------------
 const useSitesMock = vi.fn(() => ({ data: [] as Site[] }));
 const useIsMultiSiteMock = vi.fn(() => false);
-const toastMocks = vi.hoisted(() => ({
-  info: vi.fn(),
-  error: vi.fn(),
-  success: vi.fn(),
-}));
-vi.mock("sonner", () => ({ toast: toastMocks }));
 
 vi.mock("@foundation/src/hooks/useSites", () => ({
   useSites: () => useSitesMock(),
   useIsMultiSite: () => useIsMultiSiteMock(),
-}));
-
-vi.mock("@foundation/src/store/site-store", () => ({
-  useSiteStore: vi.fn((selector: (s: { selectedSiteId: string }) => unknown) =>
-    selector({ selectedSiteId: "site-1" }),
-  ),
 }));
 
 // API mocks are overridable per-test via these handles.
@@ -295,9 +285,10 @@ function renderDialog(props?: Partial<React.ComponentProps<typeof RequestFormDia
 
 beforeEach(() => {
   vi.mocked(useCanEdit).mockReturnValue(true);
-  toastMocks.info.mockClear();
-  toastMocks.error.mockClear();
-  toastMocks.success.mockClear();
+  vi.mocked(toast.info).mockClear();
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.success).mockClear();
+  useSiteStore.setState({ selectedSiteId: "site-1" });
   useSitesMock.mockReturnValue({ data: [] });
   useIsMultiSiteMock.mockReturnValue(false);
   apiMocks.getCriteria.mockResolvedValue([]);
@@ -462,7 +453,7 @@ describe("RequestFormDialog", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(toastMocks.info).toHaveBeenCalledWith(
+      expect(vi.mocked(toast.info)).toHaveBeenCalledWith(
         expect.stringContaining("Moved to"),
         expect.objectContaining({ description: expect.stringContaining("outside working hours") }),
       ),
@@ -481,7 +472,7 @@ describe("RequestFormDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(toastMocks.info).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.info)).not.toHaveBeenCalled();
   });
 
   it("surfaces the error and stays open when save rejects", async () => {

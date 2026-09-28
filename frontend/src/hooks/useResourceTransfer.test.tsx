@@ -6,8 +6,6 @@ import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   createResource: vi.fn(),
 }));

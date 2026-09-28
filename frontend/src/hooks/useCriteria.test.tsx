@@ -11,7 +11,6 @@ import type { Criterion } from '@foundation/src/types/criterion';
 import { createTestQueryWrapper, createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockCriterion: Criterion = {
   id: 'criterion-1',

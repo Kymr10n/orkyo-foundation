@@ -6,7 +6,6 @@ import { createTestQueryClient } from '@foundation/src/test-utils';
 import { useRequestEmailChange } from './useAccount';
 
 vi.mock('@foundation/src/lib/api/security-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 describe('useRequestEmailChange', () => {
   beforeEach(() => vi.clearAllMocks());

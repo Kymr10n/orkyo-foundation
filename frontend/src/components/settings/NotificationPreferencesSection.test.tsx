@@ -13,10 +13,6 @@ vi.mock('@foundation/src/lib/api/security-api', () => ({
   updateNotificationPreferences: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 // The success/error toast + cache invalidation now originate from the central
 // feedback MutationCache (meta), not the component — so wire the real cache here
 // (with the mocked toast) exactly as production does. See docs/dialog-feedback.md.

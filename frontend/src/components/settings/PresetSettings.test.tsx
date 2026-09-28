@@ -5,9 +5,7 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PresetSettings } from './PresetSettings';
 import * as presetApi from '@foundation/src/lib/api/preset-api';
 import { createTestQueryClient } from '@foundation/src/test-utils';
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+import { toast } from 'sonner';
 
 vi.mock('@foundation/src/lib/api/preset-api');
 
@@ -290,7 +288,7 @@ describe('PresetSettings', () => {
       simulateFileUpload('not valid json', 'invalid.json');
 
       await waitFor(() => {
-        expect(toastError).toHaveBeenCalledWith(
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
           'Failed to read preset file',
           expect.objectContaining({ description: 'Invalid JSON format' }),
         );

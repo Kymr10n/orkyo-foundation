@@ -5,6 +5,7 @@ import { getSites } from '@foundation/src/lib/api/site-api';
 import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 vi.mock('@foundation/src/store/site-store', () => ({
   useSiteStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
@@ -18,9 +19,9 @@ vi.mock('@foundation/src/lib/api/site-api', () => ({
   ),
 }));
 
-const mockAppUser = { isSuperAdmin: false, hasSeenTour: true };
+const authState = { hasSeenTour: true };
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ appUser: mockAppUser }),
+  useAuth: () => mockAuth({ appUser: { hasSeenTour: authState.hasSeenTour } }),
 }));
 
 vi.mock('./CommandPalette', () => ({
@@ -148,14 +149,12 @@ describe('AppLayout', () => {
   });
 
   it('auto-shows tour for users who have not seen it', async () => {
-    // Override hasSeenTour to false for this test
-    (mockAppUser as Record<string, unknown>).hasSeenTour = false;
+    authState.hasSeenTour = false;
     renderLayout();
     await waitFor(() => {
       expect(screen.getByTestId('tour-dialog')).toBeInTheDocument();
     });
-    // Restore
-    (mockAppUser as Record<string, unknown>).hasSeenTour = true;
+    authState.hasSeenTour = true;
   });
 
   it('does not auto-show tour when user has already seen it', async () => {

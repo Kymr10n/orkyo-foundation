@@ -2,6 +2,8 @@ import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BreakGlassBanner } from './BreakGlassBanner';
+import { mockAuth } from '@foundation/src/test-utils/auth';
+import type { TenantMembership } from '@foundation/src/contexts/AuthContext';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -13,13 +15,10 @@ const { mockClearMembership, mockRenew, mockGetStatus, mockExit, mockGoToApex } 
   mockGoToApex: vi.fn(),
 }));
 
-let mockMembership: Record<string, unknown> | null = null;
+let mockMembership: Partial<TenantMembership> | null = null;
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    membership: mockMembership,
-    clearMembership: mockClearMembership,
-  }),
+  useAuth: () => mockAuth({ membership: mockMembership, clearMembership: mockClearMembership }),
 }));
 
 vi.mock('@foundation/src/lib/api/admin-api', () => ({
@@ -36,7 +35,7 @@ vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
 
 const BASE_TIME = new Date('2026-04-18T12:00:00Z').getTime();
 
-function breakGlassMembership(overrides: Record<string, unknown> = {}) {
+function breakGlassMembership(overrides: Partial<TenantMembership> = {}): Partial<TenantMembership> {
   return {
     tenantId: 'tid',
     slug: 'acme',

@@ -13,7 +13,6 @@ import type { ResourceGeometry } from '@foundation/src/types/geometry';
 import { qk } from '@foundation/src/lib/api/query-keys';
 
 vi.mock('@foundation/src/lib/api/resources-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
 import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';

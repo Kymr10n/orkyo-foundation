@@ -10,9 +10,6 @@ import { createTestQueryClient } from '@foundation/src/test-utils';
 import { ApiError } from '@foundation/src/lib/core/api-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 
 describe('InviteUserDialog', () => {
   let queryClient: QueryClient;

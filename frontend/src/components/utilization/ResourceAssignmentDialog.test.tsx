@@ -12,10 +12,6 @@ import type * as ResourceAssignmentsApi from "@foundation/src/lib/api/resource-a
 import type { ResourceAssignmentOption } from "@foundation/src/lib/api/resource-candidate-requests-api";
 import type { ResourceAssignmentInfo, ValidationResult } from "@foundation/src/lib/api/resource-assignments-api";
 
-vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}));
-
 vi.mock("@foundation/src/lib/api/resource-candidate-requests-api", () => ({
   getResourceAssignmentOptions: vi.fn(),
   mismatchCount: vi.fn((o: ResourceAssignmentOption) =>

@@ -7,8 +7,6 @@ import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { toast } from 'sonner';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 const getListRows = vi.fn();
 const createListRow = vi.fn();
 const updateListRow = vi.fn();

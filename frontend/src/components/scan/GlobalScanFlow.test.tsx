@@ -7,6 +7,7 @@ import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 import { GlobalScanFlow } from './GlobalScanFlow';
+import { toast } from 'sonner';
 
 const api = vi.hoisted(() => ({ lookupScanCode: vi.fn(), linkResourceScanCode: vi.fn() }));
 vi.mock('@foundation/src/lib/api/resource-scan-codes-api', () => api);
@@ -16,9 +17,6 @@ vi.mock('@foundation/src/lib/api/resources-api', () => resourcesApi);
 
 const typesApi = vi.hoisted(() => ({ getResourceTypes: vi.fn() }));
 vi.mock('@foundation/src/lib/api/resource-types-api', () => typesApi);
-
-const toast = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }));
-vi.mock('sonner', () => ({ toast }));
 
 // Sites decide whether a resource label carries its site name. One site by default.
 const sitesState = vi.hoisted(() => ({ sites: [{ id: 'site-1', name: 'North' }] }));
@@ -81,7 +79,7 @@ async function scanWith(lookupResult: unknown) {
 }
 
 /** What the last plain toast offered as its action. */
-const toastAction = () => (toast.mock.lastCall![1] as { action: { label: string; onClick: () => void } }).action;
+const toastAction = () => (vi.mocked(toast).mock.lastCall![1] as { action: { label: string; onClick: () => void } }).action;
 
 describe('GlobalScanFlow', () => {
   beforeEach(() => {

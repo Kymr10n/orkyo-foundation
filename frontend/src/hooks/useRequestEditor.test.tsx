@@ -3,11 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { useRequestEditor } from '@foundation/src/hooks/useRequestEditor';
 import type { Request } from '@foundation/src/types/requests';
-import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
+import { makeRequestFormData } from '@foundation/src/test-utils/request-fixtures';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { toast } from 'sonner';
-
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -41,14 +39,7 @@ const mockRequest = {
   updatedAt: '2026-01-01T00:00Z',
 } as Request;
 
-const mockFormData: RequestFormData = {
-  name: 'Updated Name',
-  planningMode: 'leaf',
-  targetResourceTypeKeys: ['space'],
-  duration: { value: 60, unit: 'minutes' },
-  schedulingSettingsApply: false,
-  requirements: [],
-};
+const mockFormData = makeRequestFormData({ name: 'Updated Name' });
 
 // ---------------------------------------------------------------------------
 // Test component

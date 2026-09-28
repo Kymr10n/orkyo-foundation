@@ -7,7 +7,6 @@ import { ResourceTypeEditDialog } from './ResourceTypeEditDialog';
 
 const api = vi.hoisted(() => ({ createResourceType: vi.fn(), updateResourceType: vi.fn() }));
 vi.mock('@foundation/src/lib/api/resource-types-api', () => api);
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 function renderDialog(resourceType = machineResourceType as typeof machineResourceType | null) {
   const { wrapper: Wrapper } = createTestQueryClient({ feedback: true });

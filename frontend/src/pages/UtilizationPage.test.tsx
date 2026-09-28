@@ -15,9 +15,14 @@ vi.mock("react-router", async (importOriginal) => ({
 import { UtilizationPage } from "@foundation/src/pages/UtilizationPage";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
-import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
+import { makeRequest, makeRequestFormData, spaceAssignment } from "@foundation/src/test-utils/request-fixtures";
 import { renderWithQuery, createTestQueryWrapper } from "@foundation/src/test-utils";
 import { toast } from "sonner";
+import { mockAuth } from "@foundation/src/test-utils/auth";
+import { useSchedulerViewStore } from "@foundation/src/store/scheduler-view-store";
+import { useLayoutStore } from "@foundation/src/store/layout-store";
+import { useSiteStore } from "@foundation/src/store/site-store";
+import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -44,85 +49,17 @@ vi.mock("@foundation/src/hooks/useBreakpoint", () => ({
 // Mock AuthContext — default: admin
 let mockRole = "admin";
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => ({
-    membership: {
-      tenantId: "tenant-1",
-      slug: "demo",
-      displayName: "Demo",
-      displayNamePlural: "Demos",
-      hasGeometry: false,
-      hasDirectoryProfile: false,
-      singleGroupMembership: false,
-      get role() { return mockRole; },
-      state: "active",
-      isTenantAdmin: true,
-    },
-    setMembership: vi.fn(),
-    logout: vi.fn(),
-    user: { sub: "test-user", email: "test@example.com" },
-  }),
-  getAuthTokenSync: () => "test-token",
+  useAuth: () => mockAuth({ role: mockRole }),
 }));
 
-// Mock the store — configurable per test
-let mockStoreOverrides: Record<string, any> = {};
-const mockSetSpaceOrder = vi.fn();
-const mockSetScale = vi.fn();
-const mockSetAnchorTs = vi.fn();
-const mockSetTimeCursorTs = vi.fn();
-const mockSetIsFloorplanCollapsed = vi.fn();
-const mockSetConflicts = vi.fn();
-
-// Single source of truth for the mocked store state, shared by the hook selectors and
-// getState() (the stale-anchor reconcile effect reads the live anchor via
-// useSchedulerViewStore.getState()). One object across the three stores keeps
-// `mockStoreOverrides` a single per-test knob.
-const buildMockState = (): any => ({
-  selectedSiteId: "site-1",
-  conflicts: new Map(),
-  scale: "month" as const,
-  setScale: mockSetScale,
-  anchorTs: new Date("2024-01-15"),
-  setAnchorTs: mockSetAnchorTs,
-  timeCursorTs: new Date(),
-  setTimeCursorTs: mockSetTimeCursorTs,
-  isFloorplanCollapsed: false,
-  setIsFloorplanCollapsed: mockSetIsFloorplanCollapsed,
-  setConflicts: mockSetConflicts,
-  spaceOrder: [],
-  setSpaceOrder: mockSetSpaceOrder,
-  ...mockStoreOverrides,
-});
-
-// vi.mock factories are hoisted above every const in this file, so the shared shape is
-// built inside each factory rather than referenced from one.
-function mockStore() {
-  return Object.assign(
-    vi.fn((selector: any) => {
-      const mockState = buildMockState();
-      return selector ? selector(mockState) : mockState;
-    }),
-    { getState: () => buildMockState() },
-  );
-}
-
-vi.mock("@foundation/src/store/scheduler-view-store", () => ({
-  useSchedulerViewStore: mockStore(),
-}));
-
-vi.mock("@foundation/src/store/layout-store", () => ({
-  useLayoutStore: mockStore(),
-}));
-
-vi.mock("@foundation/src/store/site-store", () => ({
-  useSiteStore: mockStore(),
-}));
-
-vi.mock("@foundation/src/store/scheduler-store", () => ({
-  useSchedulerStore: Object.assign(vi.fn((sel: any) => sel ? sel({}) : {}), {
-    getState: () => ({ finalizeDraft: vi.fn() }),
-  }),
-}));
+// The stores are real; each test starts from their initial state plus the page's usual
+// context (a selected site, a month scale, an anchor in the future so no snap moves it).
+const FUTURE_ANCHOR = new Date("2099-01-15T00:00:00Z");
+const initialViewState = useSchedulerViewStore.getState();
+const initialLayoutState = useLayoutStore.getState();
+const initialSiteState = useSiteStore.getState();
+const initialSchedulerState = useSchedulerStore.getState();
+const viewState = () => useSchedulerViewStore.getState();
 
 // Mock hooks
 vi.mock("@foundation/src/hooks/usePreferences", () => ({
@@ -182,39 +119,18 @@ vi.mock("@foundation/src/lib/api/request-api", () => ({
   moveRequest: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@foundation/src/lib/utils/utils", async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    buildUpdatePayload: vi.fn((d: any) => d),
-    buildCreatePayload: vi.fn((d: any) => d),
-  };
-});
 
 vi.mock("@foundation/src/lib/utils/export-handlers", () => ({
   exportUtilization: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@foundation/src/domain/request-tree", () => ({
-  wouldCreateCycle: vi.fn(() => false),
-  getNextSortOrder: vi.fn(() => 0),
-}));
 
 vi.mock("@foundation/src/lib/api/space-capability-api", () => ({
   getSpaceCapabilities: vi.fn(() => Promise.resolve([])),
 }));
 
-vi.mock("@foundation/src/domain/scheduling/capability-matcher", () => ({
-  validateSpaceRequirements: vi.fn(() => []),
-}));
 
-vi.mock("@foundation/src/domain/scheduling/recurrence", () => ({
-  expandRecurrence: vi.fn(() => []),
-}));
 
-vi.mock("@foundation/src/domain/scheduling/weekend-ranges", () => ({
-  generateWeekendRanges: vi.fn(() => []),
-}));
 
 // Capture DndContext.onDragEnd for handler testing
 let capturedOnDragEnd: ((event: any) => void) | null = null;
@@ -339,7 +255,7 @@ vi.mock("@foundation/src/components/utilization/AutoSchedulePreviewDialog", () =
 vi.mock("@foundation/src/components/requests/RequestFormDialog", () => ({
   RequestFormDialog: ({ open, onSave, onOpenChange, scheduleSiteId, defaultResource }: any) => open ? (
     <div data-testid="request-form-dialog" data-schedule-site-id={scheduleSiteId ?? ""} data-default-resource={defaultResource ? `${defaultResource.typeKey}:${defaultResource.resourceId}` : ""}>
-      <button data-testid="save-request" onClick={() => onSave({ name: "Test" })}>Save</button>
+      <button data-testid="save-request" onClick={() => onSave(makeRequestFormData())}>Save</button>
       <button data-testid="close-form" onClick={() => onOpenChange(false)}>Close</button>
     </div>
   ) : null,
@@ -423,7 +339,16 @@ describe("UtilizationPage", () => {
     capturedOnCreateNew = null;
     capturedChooserBacklog = null;
     mockUseBacklog.mockReturnValue({ data: [], isLoading: false });
-    mockStoreOverrides = {};
+    useSchedulerViewStore.setState({
+      ...initialViewState,
+      scale: "month",
+      anchorTs: FUTURE_ANCHOR,
+      timeCursorTs: FUTURE_ANCHOR,
+      spaceOrder: [],
+    }, true);
+    useLayoutStore.setState({ ...initialLayoutState, isFloorplanCollapsed: false }, true);
+    useSiteStore.setState({ ...initialSiteState, selectedSiteId: "site-1" }, true);
+    useSchedulerStore.setState(initialSchedulerState, true);
   });
 
   it("renders heading and toolbar controls", () => {
@@ -511,92 +436,74 @@ describe("UtilizationPage", () => {
 
   // --- Time navigation handlers ---
 
-  it("handlePrevious calls setAnchorTs via TimeNavigator", () => {
+  it("steps back one period", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("nav-prev"));
-    // No error = handler ran successfully
-    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+    expect(viewState().anchorTs).toEqual(navigateCalendarPeriod(FUTURE_ANCHOR, "month", -1));
   });
 
-  it("handleNext calls setAnchorTs via TimeNavigator", () => {
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-    fireEvent.click(screen.getByTestId("nav-next"));
-    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
-  });
-
-  it("handleToday resets anchor to current date", () => {
+  it("resets the anchor to today", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("nav-today"));
-    expect(screen.getByTestId("time-navigator")).toBeInTheDocument();
+    expect(viewState().anchorTs.toDateString()).toBe(new Date().toDateString());
   });
 
   it("steps by a full period on every tab", () => {
-    const anchor = new Date("2024-01-15"); // matches the mocked store anchor; scale = month
-
     const CalWrapper = createWrapper("calendar");
     const { unmount } = render(<CalWrapper><UtilizationPage /></CalWrapper>);
-    mockSetAnchorTs.mockClear(); // ignore any on-mount snap
     fireEvent.click(screen.getByTestId("nav-next"));
-    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateCalendarPeriod(anchor, "month", 1));
+    expect(viewState().anchorTs).toEqual(navigateCalendarPeriod(FUTURE_ANCHOR, "month", 1));
     unmount();
 
     // The grids used to pan by a sub-period here (a week, on a month scale), which read as a
     // control that did not work. They now page like the calendar.
+    act(() => useSchedulerViewStore.setState({ anchorTs: FUTURE_ANCHOR }));
     const GridWrapper = createWrapper("stations");
     render(<GridWrapper><UtilizationPage /></GridWrapper>);
-    mockSetAnchorTs.mockClear();
     fireEvent.click(screen.getByTestId("nav-next"));
-    expect(mockSetAnchorTs).toHaveBeenCalledWith(navigateCalendarPeriod(anchor, "month", 1));
+    expect(viewState().anchorTs).toEqual(navigateCalendarPeriod(FUTURE_ANCHOR, "month", 1));
   });
 
   // --- Stale-anchor reconcile (frozen default anchor drifts on a long-lived tab) ---
   // The store default is a `new Date()` frozen at module load; the effect snaps a *past-day* anchor to
   // today on open and whenever the tab regains focus/visibility, while preserving a future navigation.
 
-  const lastSnappedToToday = (mock: typeof mockSetAnchorTs) => {
-    // The snap passes `new Date()`; assert the most recent arg is the current calendar day
-    // (not the stale 2024 default).
-    const arg = mock.mock.calls.at(-1)?.[0];
-    return arg instanceof Date && arg.toDateString() === new Date().toDateString();
-  };
+  const STALE_ANCHOR = new Date("2024-01-15");
+  const isToday = (d: Date) => d.toDateString() === new Date().toDateString();
 
   it("snaps a stale anchor to today on open", () => {
-    // Default mock anchor is 2024-01-15 → stale relative to now.
+    useSchedulerViewStore.setState({ anchorTs: STALE_ANCHOR, timeCursorTs: STALE_ANCHOR });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
-    expect(lastSnappedToToday(mockSetAnchorTs)).toBe(true);
-    expect(lastSnappedToToday(mockSetTimeCursorTs)).toBe(true);
+    expect(isToday(viewState().anchorTs)).toBe(true);
+    expect(isToday(viewState().timeCursorTs)).toBe(true);
   });
 
   it("re-snaps a stale anchor when the window regains focus", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
-    mockSetAnchorTs.mockClear(); // ignore the on-open snap; isolate the focus listener
+    act(() => useSchedulerViewStore.setState({ anchorTs: STALE_ANCHOR }));
     act(() => { window.dispatchEvent(new Event("focus")); });
-    expect(mockSetAnchorTs).toHaveBeenCalled();
-    expect(lastSnappedToToday(mockSetAnchorTs)).toBe(true);
+    expect(isToday(viewState().anchorTs)).toBe(true);
   });
 
   it("re-snaps a stale anchor when the tab becomes visible", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
-    mockSetAnchorTs.mockClear();
+    act(() => useSchedulerViewStore.setState({ anchorTs: STALE_ANCHOR }));
     // jsdom defaults document.visibilityState to "visible".
     act(() => { document.dispatchEvent(new Event("visibilitychange")); });
-    expect(mockSetAnchorTs).toHaveBeenCalled();
-    expect(lastSnappedToToday(mockSetAnchorTs)).toBe(true);
+    expect(isToday(viewState().anchorTs)).toBe(true);
   });
 
   it("preserves a current/future anchor (no snap on open or focus)", () => {
-    mockStoreOverrides = { anchorTs: new Date(Date.now() + 7 * 86_400_000) }; // next week
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     act(() => { window.dispatchEvent(new Event("focus")); });
-    expect(mockSetAnchorTs).not.toHaveBeenCalled();
-    expect(mockSetTimeCursorTs).not.toHaveBeenCalled();
+    expect(viewState().anchorTs).toEqual(FUTURE_ANCHOR);
+    expect(viewState().timeCursorTs).toEqual(FUTURE_ANCHOR);
   });
 
   // --- Floorplan toggle ---
@@ -605,7 +512,7 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("toggle-floorplan"));
-    expect(screen.getByTestId("collapsible-floorplan")).toBeInTheDocument();
+    expect(useLayoutStore.getState().isFloorplanCollapsed).toBe(true);
   });
 
   // --- Request click handlers ---
@@ -732,7 +639,7 @@ describe("UtilizationPage", () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("cursor-click"));
-    expect(screen.getByTestId("scheduler-grid")).toBeInTheDocument();
+    expect(viewState().timeCursorTs).toEqual(new Date("2024-06-01"));
   });
 
   // --- Save request from edit dialog ---
@@ -807,7 +714,6 @@ describe("UtilizationPage", () => {
 
   it("toasts a calendar save as the Requests page does", async () => {
     // The calendar used to call the API itself and saved silently.
-    const success = vi.spyOn(toast, "success");
     const Wrapper = createWrapper("calendar", undefined, true);
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
@@ -817,8 +723,7 @@ describe("UtilizationPage", () => {
     await waitFor(() => expect(screen.getByTestId("request-form-dialog")).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId("save-request"));
-    await waitFor(() => expect(success).toHaveBeenCalledWith("Request updated"));
-    success.mockRestore();
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Request updated"));
   });
 
   // --- Spaces-grid empty-cell scheduling ---
@@ -920,10 +825,10 @@ describe("UtilizationPage", () => {
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
     const start = new Date("2026-07-01T00:00:00Z");
-    capturedOnDatesSet!(start);
-    expect(mockSetAnchorTs).toHaveBeenCalledWith(start);
+    act(() => capturedOnDatesSet!(start));
+    expect(viewState().anchorTs).toEqual(start);
     // Scale is owned by the page's selector now — the calendar never sets it.
-    expect(mockSetScale).not.toHaveBeenCalled();
+    expect(viewState().scale).toBe("month");
   });
 
   it("moving a calendar event with no space assignment does nothing", async () => {
@@ -1074,10 +979,11 @@ describe("UtilizationPage", () => {
   it("handleDragEnd does nothing when no over target", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
-    expect(capturedOnDragEnd).toBeTruthy();
 
-    capturedOnDragEnd!({ active: { id: "r1", data: { current: {} } }, over: null });
-    // No error = early return worked
+    act(() => capturedOnDragEnd!({ active: { id: "r1", data: { current: {} } }, over: null }));
+
+    expect(mockScheduleMutateAsync).not.toHaveBeenCalled();
+    expect(viewState().spaceOrder).toEqual([]);
   });
 
   it("handleDragEnd ignores a drop that carries no existing placement", async () => {
@@ -1134,16 +1040,16 @@ describe("UtilizationPage", () => {
       data: [{ id: "s1", name: "Room A" }, { id: "s2", name: "Room B" }],
       isLoading: false,
     });
-    mockStoreOverrides = { spaceOrder: ["s1", "s2"] };
+    useSchedulerViewStore.setState({ spaceOrder: ["s1", "s2"] });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 
-    capturedOnDragEnd!({
+    act(() => capturedOnDragEnd!({
       active: { id: "s1", data: { current: { type: "space-row" } } },
       over: { id: "s2", data: { current: { type: "space-row" } } },
-    });
+    }));
 
-    expect(mockSetSpaceOrder).toHaveBeenCalledWith(["s2", "s1"]);
+    expect(viewState().spaceOrder).toEqual(["s2", "s1"]);
   });
 
   it("handleDragEnd moves a bar to where it was dropped, not to a column edge", async () => {
@@ -1186,6 +1092,34 @@ describe("UtilizationPage", () => {
     });
   });
 
+  it("handleDragEnd leaves a failed move to the mutation's rollback toast", async () => {
+    // The schedule mutation rolls the bar back and toasts on its own; the rejection must stop
+    // there instead of escaping the drop handler.
+    mockScheduleMutateAsync.mockRejectedValueOnce(new Error("conflict"));
+    const Wrapper = createWrapper();
+    render(<Wrapper><UtilizationPage /></Wrapper>);
+
+    capturedOnDragEnd!({
+      active: {
+        id: "r1",
+        data: {
+          current: {
+            id: "r1", name: "Task 1", isScheduled: true,
+            startTs: "2024-01-20T06:00:00Z", endTs: "2024-01-20T08:00:00Z",
+          },
+        },
+      },
+      over: {
+        id: "track-s2",
+        rect: { left: 0, width: 100 },
+        data: { current: { type: "space-track", resourceId: "s2", viewStartMs: VIEW_START_MS, viewEndMs: VIEW_END_MS } },
+      },
+      delta: { x: 0, y: 0 },
+    });
+
+    await waitFor(() => expect(mockScheduleMutateAsync).toHaveBeenCalledTimes(1));
+  });
+
   it("handleDragEnd keeps the time when a bar is dragged straight to another row", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -1224,26 +1158,6 @@ describe("UtilizationPage", () => {
     });
   });
 
-  it("handleTabChange switches to People tab via URL", () => {
-    const Wrapper = createWrapper();
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-    // PageTabs renders TabsTrigger for each tab; click "People"
-    const peopleTab = screen.queryByRole('tab', { name: /people/i });
-    if (peopleTab) {
-      fireEvent.click(peopleTab);
-      // After clicking, the URL search param should reflect the change
-      // (MemoryRouter tracks history internally)
-    }
-    // At minimum the component renders without crashing after tab click
-    expect(screen.getByTestId('scheduler-grid')).toBeInTheDocument();
-  });
-
-  it("passes the selected site to the People utilization grid", () => {
-    const Wrapper = createWrapper("assets", "person");
-    render(<Wrapper><UtilizationPage /></Wrapper>);
-    expect(screen.getByTestId('person-utilization-grid')).toHaveAttribute('data-site-id', 'site-1');
-  });
-
   it("does not unschedule a request that is not scheduled", async () => {
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
@@ -1260,11 +1174,11 @@ describe("UtilizationPage", () => {
 
   it("defaults to the calendar tab when no tab param is present", () => {
     renderWithQuery(<UtilizationPage />, { router: "/" });
-    expect(screen.getByText("Utilization")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Calendar" })).toHaveAttribute("data-state", "active");
   });
 
   it("passes undefined site id to scheduling hooks when no site is selected", () => {
-    mockStoreOverrides = { selectedSiteId: null };
+    useSiteStore.setState({ selectedSiteId: null });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     expect(mockUseSchedulingSettings).toHaveBeenCalledWith(undefined);
@@ -1278,7 +1192,7 @@ describe("UtilizationPage", () => {
     async (scale) => {
       const { exportUtilization } = await import("@foundation/src/lib/utils/export-handlers");
       const { generateTimeColumns } = await import("@foundation/src/components/utilization/time-grid-utils");
-      mockStoreOverrides = { scale };
+      useSchedulerViewStore.setState({ scale });
       const Wrapper = createWrapper();
       render(<Wrapper><UtilizationPage /></Wrapper>);
       await capturedExportHandler!("pdf");
@@ -1286,7 +1200,7 @@ describe("UtilizationPage", () => {
       // The exported window must be the grid's own columns — snapped to
       // week/month starts — not a raw anchor+1-period span, or the bars land
       // outside the chart.
-      const columns = generateTimeColumns(scale, buildMockState().anchorTs);
+      const columns = generateTimeColumns(scale, viewState().anchorTs);
       expect(vi.mocked(exportUtilization)).toHaveBeenCalledWith(
         expect.any(Array),
         columns[0].start,
@@ -1300,7 +1214,7 @@ describe("UtilizationPage", () => {
 
   it("auto-schedule click is a no-op when no site is selected", () => {
     mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockStoreOverrides = { selectedSiteId: null };
+    useSiteStore.setState({ selectedSiteId: null });
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
     fireEvent.click(screen.getByTestId("auto-schedule-btn"));

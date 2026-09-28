@@ -7,10 +7,6 @@ import type { ExportFormat, ImportFormat, ExportContext } from '../lib/utils/imp
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 /** Every export registration carries one; the content is irrelevant to firing. */
 const OFFER = { label: 'Spaces', description: 'Spaces.', formats: ['csv'] as ExportFormat[] };
 

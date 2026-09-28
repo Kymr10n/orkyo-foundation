@@ -13,7 +13,6 @@ import {
   type TokenSummaryLike,
 } from './token-ui';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
 import { formatDateForInput } from '@foundation/src/lib/utils';
 

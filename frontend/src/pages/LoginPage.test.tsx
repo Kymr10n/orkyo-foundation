@@ -6,11 +6,10 @@ import { AUTH_MESSAGES } from '@foundation/src/constants/auth';
 
 const mockLogin = vi.fn();
 const mockNavigate = vi.fn();
-const mockUseAuth = vi.fn();
 
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockUseAuth(),
-  debugAuth: vi.fn(),
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
 }));
 
 vi.mock('react-router', async () => {
@@ -19,15 +18,11 @@ vi.mock('react-router', async () => {
 });
 
 import { LoginPage } from './LoginPage';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
-function authState(overrides: Record<string, unknown> = {}) {
-  return {
-    isAuthenticated: false,
-    isLoading: false,
-    login: mockLogin,
-    error: null,
-    ...overrides,
-  };
+function authState(overrides: MockAuthOptions = {}) {
+  return mockAuth({ isAuthenticated: false, login: mockLogin, ...overrides });
 }
 
 function renderLoginPage(_path = '/login') {
@@ -42,11 +37,11 @@ describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockLogin.mockReturnValue(undefined);
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
   });
 
   it('shows spinner while auth is loading', () => {
-    mockUseAuth.mockReturnValue(authState({ isLoading: true }));
+    vi.mocked(useAuth).mockReturnValue(authState({ isLoading: true }));
     renderLoginPage();
     expect(screen.getByText(AUTH_MESSAGES.REDIRECTING_LOGIN)).toBeInTheDocument();
   });
@@ -66,7 +61,7 @@ describe('LoginPage', () => {
   });
 
   it('navigates to "/" when user is already authenticated', async () => {
-    mockUseAuth.mockReturnValue(authState({ isAuthenticated: true }));
+    vi.mocked(useAuth).mockReturnValue(authState({ isAuthenticated: true }));
     renderLoginPage();
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
@@ -75,7 +70,7 @@ describe('LoginPage', () => {
   });
 
   it('does not call login() when already authenticated', async () => {
-    mockUseAuth.mockReturnValue(authState({ isAuthenticated: true }));
+    vi.mocked(useAuth).mockReturnValue(authState({ isAuthenticated: true }));
     renderLoginPage();
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
     expect(mockLogin).not.toHaveBeenCalled();
@@ -84,7 +79,7 @@ describe('LoginPage', () => {
   // ── Error display ──────────────────────────────────────────────────────
 
   it('shows error from auth context with retry button', () => {
-    mockUseAuth.mockReturnValue(authState({ error: 'Authentication error: identity link failed' }));
+    vi.mocked(useAuth).mockReturnValue(authState({ error: 'Authentication error: identity link failed' }));
     renderLoginPage();
     expect(screen.getByText(AUTH_MESSAGES.AUTH_ERROR_TITLE)).toBeInTheDocument();
     expect(screen.getByText('Authentication error: identity link failed')).toBeInTheDocument();
@@ -92,13 +87,13 @@ describe('LoginPage', () => {
   });
 
   it('does not auto-redirect when there is an error', () => {
-    mockUseAuth.mockReturnValue(authState({ error: 'Some error' }));
+    vi.mocked(useAuth).mockReturnValue(authState({ error: 'Some error' }));
     renderLoginPage();
     expect(mockLogin).not.toHaveBeenCalled();
   });
 
   it('calls login() when retry button is clicked', async () => {
-    mockUseAuth.mockReturnValue(authState({ error: 'Some error' }));
+    vi.mocked(useAuth).mockReturnValue(authState({ error: 'Some error' }));
     renderLoginPage();
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
     await waitFor(() => {

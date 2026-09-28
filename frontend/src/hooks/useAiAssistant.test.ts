@@ -30,10 +30,6 @@ vi.mock('@foundation/src/lib/api/ai-api', () => ({
 
 vi.mock('@foundation/src/lib/api/request-api', () => ({ updateRequest: vi.fn() }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 /**
  * The AI admin mutations declare their feedback in `meta`, so the settings page no longer
  * toasts by hand. These pin the messages at the source the MutationCache reads.

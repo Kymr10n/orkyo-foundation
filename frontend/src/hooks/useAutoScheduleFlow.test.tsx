@@ -6,8 +6,7 @@ import { previewAutoSchedule, applyAutoSchedule } from '@foundation/src/lib/api/
 import { ApiError } from '@foundation/src/lib/core/api-utils';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
-
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 vi.mock('@foundation/src/lib/api/auto-schedule-api', () => ({
   previewAutoSchedule: vi.fn(),
@@ -15,7 +14,7 @@ vi.mock('@foundation/src/lib/api/auto-schedule-api', () => ({
 }));
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: { tier: 'professional' } }),
+  useAuth: () => mockAuth({ membership: { tier: 'professional' } }),
 }));
 vi.mock('@foundation/src/hooks/useTenantSettings', () => ({
   useTenantSettings: () => ({

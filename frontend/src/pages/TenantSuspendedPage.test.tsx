@@ -3,13 +3,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock useAuth
 const mockSend = vi.fn();
-const mockAuthState = {
-  membership: null as Record<string, unknown> | null,
+const mockAuthState: MockAuthOptions = {
+  membership: null,
   send: mockSend,
 };
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockAuthState,
+  useAuth: () => mockAuth(mockAuthState),
 }));
 
 vi.mock('@foundation/src/lib/core/api-utils', () => ({
@@ -28,6 +28,7 @@ const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@
 vi.mock('@foundation/src/config/runtime', () => ({ runtimeConfig: configMock }));
 
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 describe('TenantSuspendedPage', () => {
   beforeEach(() => {

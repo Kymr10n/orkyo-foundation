@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import type * as ReactRouterDom from "react-router";
 import { TourDialog } from "./TourDialog";
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 // ─── mocks ───────────────────────────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ const { authState, mockSetAppUser } = vi.hoisted(() => ({
   mockSetAppUser: vi.fn(),
 }));
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => ({ appUser: authState.appUser, setAppUser: mockSetAppUser }),
+  useAuth: () => mockAuth({ appUser: authState.appUser, setAppUser: mockSetAppUser }),
 }));
 vi.mock("@foundation/src/hooks/usePermissions", () => ({
   useCanEdit: () => authState.canEdit,

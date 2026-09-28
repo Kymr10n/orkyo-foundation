@@ -3,14 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock useAuth — the page reads sessionData/isSiteAdmin and sends LOGOUT.
 const mockSend = vi.fn();
-const mockAuthState = {
-  sessionData: null as Record<string, unknown> | null,
+const mockAuthState: MockAuthOptions = {
+  sessionData: null,
   isSiteAdmin: false,
   send: mockSend,
 };
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockAuthState,
+  useAuth: () => mockAuth(mockAuthState),
 }));
 
 const mockNavigateToApex = vi.fn<(path?: string) => boolean>(() => true);
@@ -24,6 +24,7 @@ const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@
 vi.mock('@foundation/src/config/runtime', () => ({ runtimeConfig: configMock }));
 
 import { TenantNoAccessPage } from '@foundation/src/pages/TenantNoAccessPage';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 describe('TenantNoAccessPage', () => {
   beforeEach(() => {

@@ -11,8 +11,7 @@ import { exportTenantData } from '@foundation/src/lib/api/export-api';
 import { downloadFile } from '@foundation/src/lib/utils/import-export';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import { toast } from 'sonner';
-
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 // Mock APIs
 vi.mock('@foundation/src/lib/api/tenant-management-api');
@@ -35,7 +34,7 @@ vi.mock('react-router', async () => {
 
 // Mock AuthContext
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockAuth,
+  useAuth: () => authValue,
 }));
 
 let mockDataExportAvailable = true;
@@ -43,16 +42,11 @@ vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
   useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.DataExport && mockDataExportAvailable,
 }));
 
-let mockAuth = {
-  membership: {
-    tenantId: 'tenant-123',
-    slug: 'my-org',
-    displayName: 'My Organization',
-    isOwner: true,
-  },
+let authValue = mockAuth({
+  membership: { tenantId: 'tenant-123', slug: 'my-org', displayName: 'My Organization', isOwner: true },
   appUser: { id: 'user-123' },
   clearMembership: mockClearMembership,
-};
+});
 
 const mockAdmins: userApi.UserWithRole[] = [
   {
@@ -98,16 +92,11 @@ describe('OrganizationSettings', () => {
     vi.mocked(tenantsApi.deleteTenant).mockResolvedValue(undefined);
 
     // Reset mock auth to default owner state
-    mockAuth = {
-      membership: {
-        tenantId: 'tenant-123',
-        slug: 'my-org',
-        displayName: 'My Organization',
-        isOwner: true,
-      },
+    authValue = mockAuth({
+      membership: { tenantId: 'tenant-123', slug: 'my-org', displayName: 'My Organization', isOwner: true },
       appUser: { id: 'user-123' },
       clearMembership: mockClearMembership,
-    };
+    });
   });
 
   describe('Owner view', () => {
@@ -342,16 +331,11 @@ describe('OrganizationSettings', () => {
 
   describe('Non-owner view', () => {
     beforeEach(() => {
-      mockAuth = {
-        membership: {
-          tenantId: 'tenant-123',
-          slug: 'my-org',
-          displayName: 'My Organization',
-          isOwner: false,
-        },
+      authValue = mockAuth({
+        membership: { tenantId: 'tenant-123', slug: 'my-org', displayName: 'My Organization', isOwner: false },
         appUser: { id: 'user-456' },
         clearMembership: mockClearMembership,
-      };
+      });
     });
 
     it('shows read-only view for non-owners', async () => {
