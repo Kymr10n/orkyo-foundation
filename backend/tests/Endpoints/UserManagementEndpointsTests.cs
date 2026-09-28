@@ -10,6 +10,7 @@ using Api.Services;
 using Api.Services.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -27,9 +28,11 @@ public class UserManagementEndpointsTests
     private readonly HttpClient _unauthenticatedClient;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly string _connString;
+    private readonly string _tenantConnString;
 
     public UserManagementEndpointsTests(DatabaseFixture databaseFixture)
     {
+        _tenantConnString = databaseFixture.TenantConnectionString;
         // The seeded test user has admin role in DatabaseFixture
         _factory = databaseFixture.Factory;
         _client = databaseFixture.CreateAuthorizedClient();
@@ -502,6 +505,72 @@ public class UserManagementEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("last admin", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DemoteOrRemove_WhileTheOtherAdminIsBeingDemoted_RefusesTheLastAdmin(bool remove)
+    {
+        // Two admins demoting each other at once must not leave the tenant without an admin.
+        // An open transaction demotes every other admin; the service call runs before it
+        // commits. A check-then-write sees the uncommitted demotion as still an admin and
+        // proceeds; the guarded single statement waits for the lock and then refuses.
+        var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
+        var testUserId = new Guid("11111111-1111-1111-1111-111111111111");
+        var org = new OrgContext { OrgId = TestTenantId, OrgSlug = TestConstants.TenantSlug, DbConnectionString = _tenantConnString };
+
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        Result result;
+        string? targetRole;
+        try
+        {
+            await using (var tx = await conn.BeginTransactionAsync())
+            {
+                await using var demoteOthers = new NpgsqlCommand(@"
+                    UPDATE tenant_memberships SET role = @editor
+                    WHERE tenant_id = @tid AND role = @admin AND user_id <> @target", conn, tx);
+                demoteOthers.Parameters.AddWithValue("editor", RoleConstants.Editor);
+                demoteOthers.Parameters.AddWithValue("tid", TestTenantId);
+                demoteOthers.Parameters.AddWithValue("admin", RoleConstants.Admin);
+                demoteOthers.Parameters.AddWithValue("target", targetAdminId);
+                await demoteOthers.ExecuteNonQueryAsync();
+
+                using var scope = _factory.Services.CreateScope();
+                var service = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
+                var call = remove
+                    ? service.DeleteUserAsync(org, targetAdminId, testUserId)
+                    : service.UpdateUserRoleAsync(org, targetAdminId, UserRole.Editor, testUserId);
+                await Task.WhenAny(call, Task.Delay(TimeSpan.FromSeconds(1)));
+                await tx.CommitAsync();
+                result = await call;
+            }
+
+            await using var read = new NpgsqlCommand(
+                "SELECT role FROM tenant_memberships WHERE user_id = @uid AND tenant_id = @tid", conn);
+            read.Parameters.AddWithValue("uid", targetAdminId);
+            read.Parameters.AddWithValue("tid", TestTenantId);
+            targetRole = (string?)await read.ExecuteScalarAsync();
+        }
+        finally
+        {
+            await using var restore = new NpgsqlCommand(
+                "UPDATE tenant_memberships SET role = @admin WHERE user_id = @uid AND tenant_id = @tid", conn);
+            restore.Parameters.AddWithValue("admin", RoleConstants.Admin);
+            restore.Parameters.AddWithValue("uid", testUserId);
+            restore.Parameters.AddWithValue("tid", TestTenantId);
+            await restore.ExecuteNonQueryAsync();
+            await using var cleanup = new NpgsqlCommand(
+                "DELETE FROM tenant_memberships WHERE user_id = @target AND tenant_id = @tid", conn);
+            cleanup.Parameters.AddWithValue("target", targetAdminId);
+            cleanup.Parameters.AddWithValue("tid", TestTenantId);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+
+        Assert.False(result.Success);
+        Assert.Contains("last admin", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(RoleConstants.Admin, targetRole);
     }
 
     #endregion

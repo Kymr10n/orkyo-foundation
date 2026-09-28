@@ -81,7 +81,6 @@ public partial class ConventionContractTests
         "core:Repositories/PlatformUserRepository.cs",
         "core:Integrations/Keycloak/KeycloakIdentityLinkService.cs",
         "core:Services/InvitationService.cs",
-        "core:Services/UserManagementService.cs",
         "core:Services/SessionService.cs",
         "core:Services/UserProvisioningService.cs",
         "core:Services/UserLifecycleService.cs",

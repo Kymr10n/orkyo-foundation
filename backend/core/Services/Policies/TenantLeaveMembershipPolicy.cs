@@ -1,5 +1,3 @@
-using Api.Constants;
-
 namespace Api.Services;
 
 public enum TenantLeaveMembershipDecision
@@ -20,7 +18,7 @@ public static class TenantLeaveMembershipPolicy
         if (actorRole == null)
             return TenantLeaveMembershipDecision.NotMember;
 
-        if (string.Equals(actorRole, RoleConstants.Admin, StringComparison.OrdinalIgnoreCase) && activeAdminCount <= 1)
+        if (LastActiveAdminPolicy.IsLastActiveAdmin(actorRole, activeAdminCount))
             return TenantLeaveMembershipDecision.LastAdminCannotLeave;
 
         return TenantLeaveMembershipDecision.Allowed;
