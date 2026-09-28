@@ -34,9 +34,8 @@ import {
   TableHeader,
   TableRow,
 } from "@foundation/src/components/ui/table";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { formatDateTimeDisplay } from "@foundation/src/lib/formatters";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
-import { format, parseISO } from "date-fns";
 
 /**
  * Where the plan is constrained: which resources are over capacity, and which work decides the
@@ -224,7 +223,7 @@ function CriticalPathBody({
     );
   }
 
-  const day = (iso: string) => format(parseISO(iso), DATE_FORMATS.DATETIME_MEDIUM);
+  const day = formatDateTimeDisplay;
 
   return (
     <div className="space-y-3">

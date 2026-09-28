@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@foundation/src/components/ui/select";
-import { formatLocalized } from "@foundation/src/lib/formatters";
+import { formatDateDisplay, formatLocalized } from "@foundation/src/lib/formatters";
 import { formatDateForInput } from "@foundation/src/lib/utils";
 import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { useEntityFormDialog, type SaveMutation } from "@foundation/src/hooks/useEntityFormDialog";
@@ -90,11 +90,6 @@ function formatExpiryLabel(dateOnly: string): string {
   const date = fromDateOnly(dateOnly);
   if (!date) return "";
   return formatLocalized(date, { month: "short", day: "2-digit", year: "numeric" });
-}
-
-export function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return formatLocalized(new Date(iso), { year: "numeric", month: "short", day: "numeric" });
 }
 
 /** Resolves the picker's state to the date string the API takes ("" means no expiry). */
@@ -335,7 +330,7 @@ function buildTokenColumns<T extends TokenSummaryLike>(
       header: "Created",
       meta: { filter: { type: "date" } },
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAtUtc)}</span>
+        <span className="text-sm text-muted-foreground">{formatDateDisplay(row.original.createdAtUtc, "—")}</span>
       ),
     },
     {
@@ -344,7 +339,7 @@ function buildTokenColumns<T extends TokenSummaryLike>(
       header: "Last used",
       meta: { filter: { type: "date" } },
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.lastUsedAtUtc)}</span>
+        <span className="text-sm text-muted-foreground">{formatDateDisplay(row.original.lastUsedAtUtc, "—")}</span>
       ),
     },
     {
@@ -353,7 +348,7 @@ function buildTokenColumns<T extends TokenSummaryLike>(
       header: "Expires",
       meta: { filter: { type: "date" } },
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.expiresAtUtc)}</span>
+        <span className="text-sm text-muted-foreground">{formatDateDisplay(row.original.expiresAtUtc, "—")}</span>
       ),
     },
     {
@@ -399,7 +394,7 @@ function renderTokenCard<T extends TokenSummaryLike>(
         <p className="font-mono text-xs text-muted-foreground truncate">{token.tokenPrefix}…</p>
         {subtitle}
         <p className="text-xs text-muted-foreground truncate">
-          Created {formatDate(token.createdAtUtc)} · Last used {formatDate(token.lastUsedAtUtc)}
+          Created {formatDateDisplay(token.createdAtUtc, "—")} · Last used {formatDateDisplay(token.lastUsedAtUtc, "—")}
         </p>
       </div>
       {token.isActive && (

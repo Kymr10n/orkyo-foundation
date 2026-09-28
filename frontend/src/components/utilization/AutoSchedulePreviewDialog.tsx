@@ -1,8 +1,7 @@
-import { format, parseISO } from "date-fns";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { formatDateTimeDisplay } from "@foundation/src/lib/formatters";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
 
 interface Props {
@@ -110,8 +109,8 @@ export function AutoSchedulePreviewDialog({
                           >
                             {a.resources.map((r) => r.resourceName).join(", ")}
                           </td>
-                          <td className="py-0.5 whitespace-nowrap">{format(parseISO(a.start), DATE_FORMATS.DATETIME_MEDIUM)}</td>
-                          <td className="py-0.5 whitespace-nowrap">{format(parseISO(a.end), DATE_FORMATS.DATETIME_MEDIUM)}</td>
+                          <td className="py-0.5 whitespace-nowrap">{formatDateTimeDisplay(a.start)}</td>
+                          <td className="py-0.5 whitespace-nowrap">{formatDateTimeDisplay(a.end)}</td>
                           <td className="py-0.5">{formatMinutesHuman(a.durationMinutes)}</td>
                         </tr>
                       ))}

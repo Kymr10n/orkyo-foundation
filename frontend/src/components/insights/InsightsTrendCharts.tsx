@@ -10,7 +10,7 @@ import type {
   InsightsUtilization,
 } from "@foundation/src/lib/api/insights-api";
 import { format, parseISO } from "date-fns";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { DATE_FORMATS, formatLocalized } from "@foundation/src/lib/formatters";
 import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import {
   Bar,
@@ -50,8 +50,9 @@ const clampUtilization = (v: number | null) => (v == null ? null : Math.min(v, U
 function bucketLabel(iso: string, bucket: InsightsBucket): string {
   const d = parseISO(iso);
   switch (bucket) {
-    case "week": return format(d, DATE_FORMATS.DATE_HEADER);
-    case "month": return format(d, DATE_FORMATS.MONTH_YEAR);
+    case "week": return formatLocalized(d, { month: "short", day: "numeric" });
+    case "month": return formatLocalized(d, { month: "short", year: "2-digit" });
+    // Intl names no quarters, so this one stays a token.
     case "quarter": return format(d, DATE_FORMATS.QUARTER_YEAR);
     case "year": return format(d, DATE_FORMATS.YEAR);
   }

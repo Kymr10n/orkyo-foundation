@@ -7,7 +7,6 @@ import {
   ExpiryFields,
   tokenStatus,
   resolveExpiry,
-  formatDate,
   getPresetExpiry,
   fromDateOnly,
   type ExpiryMode,
@@ -82,9 +81,6 @@ describe('date helpers', () => {
     expect(fromDateOnly('not-a-date')).toBeUndefined();
   });
 
-  it('shows an em dash rather than "Invalid Date" for a token never used', () => {
-    expect(formatDate(null)).toBe('—');
-  });
 });
 
 /** navigator.clipboard is getter-only in jsdom, so it has to be redefined rather than assigned. */

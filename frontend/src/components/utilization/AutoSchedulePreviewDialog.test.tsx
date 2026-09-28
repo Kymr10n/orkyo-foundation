@@ -109,7 +109,7 @@ describe('AutoSchedulePreviewDialog', () => {
     // Timestamps to the minute and a working-time duration, not whole days.
     expect(screen.getByText('3h 20m')).toBeInTheDocument();
     expect(screen.getByText('18h')).toBeInTheDocument();
-    expect(screen.getAllByText(/Mar 2, 2026 \d\d:00/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Mar 2, 2026, \d\d:00/).length).toBeGreaterThan(0);
   });
 
   it('shows "No assignments proposed" when empty', () => {

@@ -34,7 +34,7 @@ import {
 import { toast } from "sonner";
 import { AlertCircle, CheckCircle2, Download, FileJson, History, Upload } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
+import { formatDateTimeDisplay } from "@foundation/src/lib/formatters";
 import { cn } from "@foundation/src/lib/utils";
 import { useRef, useState } from "react";
 
@@ -116,18 +116,6 @@ export function PresetSettings() {
     setPreviewDialogOpen(false);
   };
 
-
-  const formatDate = (dateStr: string) => {
-    return formatLocalized(new Date(dateStr), {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: HOUR_CYCLE,
-    });
-  };
-
   return (
     <div className="space-y-6">
       <SettingsPageHeader
@@ -196,8 +184,8 @@ export function PresetSettings() {
                   <div>
                     <div className="font-medium">{app.presetId}</div>
                     <div className="text-sm text-muted-foreground">
-                      Applied: {formatDate(app.appliedAt)}
-                      {app.updatedAt && ` • Updated: ${formatDate(app.updatedAt)}`}
+                      Applied: {formatDateTimeDisplay(app.appliedAt)}
+                      {app.updatedAt && ` • Updated: ${formatDateTimeDisplay(app.updatedAt)}`}
                     </div>
                   </div>
                   <Badge variant="outline">v{app.presetVersion}</Badge>

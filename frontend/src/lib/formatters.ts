@@ -1,13 +1,13 @@
 /**
- * Centralized date format tokens for date-fns `format()`.
+ * Date formatting in one place.
  *
- * Use these instead of inline string literals so that locale/format changes
- * happen in one place. Existing call sites can be migrated incrementally.
+ * Text a person reads goes through the locale-aware helpers below
+ * ({@link formatDateDisplay}, {@link formatDateTimeDisplay}, {@link formatDateTimeShort},
+ * {@link formatLocalized}), so every surface follows {@link USER_LOCALE}.
  *
- * Usage:
- *   import { format } from 'date-fns';
- *   import { DATE_FORMATS } from '@foundation/src/lib/formatters';
- *   format(date, DATE_FORMATS.DATE_LOCALE_SHORT)
+ * `DATE_FORMATS` holds date-fns tokens for fixed machine formats — ISO dates, input values,
+ * file names — and for the few labels `Intl` cannot produce (quarters). Its fixed-English
+ * display tokens stay for existing importers.
  */
 import { differenceInCalendarDays, format, isValid } from "date-fns";
 
@@ -107,9 +107,23 @@ export const GRID_WEEK_HEADER_OPTS: Intl.DateTimeFormatOptions = { month: "short
  * Format an ISO date string as a locale-aware medium date for display.
  * Returns "-" for missing values. e.g. "2026-04-02T10:30:00Z" → "Apr 2, 2026"
  */
-export function formatDateDisplay(dateStr?: string | null): string {
-  if (!dateStr) return "-";
+export function formatDateDisplay(dateStr?: string | Date | null, empty = "-"): string {
+  if (!dateStr) return empty;
   return formatLocalized(new Date(dateStr), { dateStyle: "medium" });
+}
+
+const DATETIME_DISPLAY_OPTS: Intl.DateTimeFormatOptions = {
+  year: "numeric",
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: HOUR_CYCLE,
+};
+
+/** Date with year and clock time, for records that outlive the year. "Apr 2, 2026, 14:30" */
+export function formatDateTimeDisplay(value: string | Date): string {
+  return formatLocalized(new Date(value), DATETIME_DISPLAY_OPTS);
 }
 
 /** Day-and-month only, for surfaces too narrow for a year. "Apr 2" */
