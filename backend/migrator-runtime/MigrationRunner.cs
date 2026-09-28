@@ -48,14 +48,6 @@ public sealed class MigrationRunner
         ArgumentException.ThrowIfNullOrWhiteSpace(lockKey);
         options ??= new MigrationOptions();
 
-        if (options.TargetFilter is { } filter && filter != target)
-        {
-            _logger.LogInformation(
-                "MigrationRunner: skipping target {Target} because options.TargetFilter={Filter}",
-                target, filter);
-            return Array.Empty<MigrationResult>();
-        }
-
         var ordered = MigrationOrderer.Order(_modules, target);
         if (ordered.Count == 0)
         {
@@ -98,14 +90,6 @@ public sealed class MigrationRunner
             await history.RefreshChecksumAsync(script, applied[script.Id].Checksum, ct);
         }
 
-        if (options.Mode == MigrationExecutionMode.DryRun)
-        {
-            throw new NotSupportedException(
-                "DryRun mode is deferred under the slim DbUp spec. Use ValidateOnly to verify " +
-                "ordering / checksum drift, and rely on the disposable-PG CI job for full apply " +
-                "validation. See requirements/orkyo-dbup-migration-spec-for-copilot.md.");
-        }
-
         // Apply mode: hand pending scripts to DbUp.
         var pending = ordered.Where(s => !applied.ContainsKey(s.Id)).ToList();
         if (pending.Count == 0)
@@ -113,7 +97,7 @@ public sealed class MigrationRunner
             _logger.LogInformation(
                 "MigrationRunner: no pending migrations for target {Target} ({Count} already applied)",
                 target, ordered.Count);
-            return ordered.Select(s => new MigrationResult(s, MigrationOutcome.Skipped, null, null)).ToList();
+            return ordered.Select(s => new MigrationResult(s, MigrationOutcome.Skipped, null)).ToList();
         }
 
         _logger.LogInformation(
@@ -149,8 +133,8 @@ public sealed class MigrationRunner
         var appliedIds = result.Scripts.Select(s => s.Name).ToHashSet(StringComparer.Ordinal);
         return ordered.Select(s =>
             appliedIds.Contains(s.Id)
-                ? new MigrationResult(s, MigrationOutcome.Applied, null, null)
-                : new MigrationResult(s, MigrationOutcome.Skipped, null, null))
+                ? new MigrationResult(s, MigrationOutcome.Applied, null)
+                : new MigrationResult(s, MigrationOutcome.Skipped, null))
             .ToList();
     }
 
@@ -196,8 +180,8 @@ public sealed class MigrationRunner
     {
         return ordered.Select(s =>
             applied.ContainsKey(s.Id)
-                ? new MigrationResult(s, MigrationOutcome.Validated, null, null)
-                : new MigrationResult(s, MigrationOutcome.Failed, null,
+                ? new MigrationResult(s, MigrationOutcome.Validated, null)
+                : new MigrationResult(s, MigrationOutcome.Failed,
                     $"ValidateOnly: migration '{s.Id}' is pending in code but not in history."))
             .ToList();
     }

@@ -15,7 +15,7 @@ public sealed class MigrationScopeTests
     public void AScriptIsDefaultScoped_UnlessDeclared()
     {
         var script = new MigrationScript("V001__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc",
-            Array.Empty<string>(), Array.Empty<string>());
+            Array.Empty<string>());
 
         script.Scope.Should().Be(MigrationScope.Default);
     }

@@ -4,7 +4,7 @@
     <AssemblyName>Orkyo.Migrator</AssemblyName>
 
     <PackageId>Orkyo.Migrator</PackageId>
-    <Description>Migration runner for Orkyo. Composes IMigrationModule registrations into Apply/DryRun/ValidateOnly executions against a single Postgres database, with advisory locking, checksum validation, and an explicit history table (orkyo_schema_migrations).</Description>
+    <Description>Migration runner for Orkyo. Composes IMigrationModule registrations into Apply/ValidateOnly executions against a single Postgres database, with advisory locking, checksum validation, and an explicit history table (orkyo_schema_migrations).</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 

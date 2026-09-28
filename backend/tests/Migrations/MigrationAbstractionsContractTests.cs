@@ -21,7 +21,7 @@ public sealed class MigrationAbstractionsContractTests
     public void MigrationExecutionMode_HasExpectedMembers_AndApplyIsZero()
     {
         var members = Enum.GetNames<MigrationExecutionMode>();
-        members.Should().BeEquivalentTo(new[] { "Apply", "DryRun", "ValidateOnly" });
+        members.Should().BeEquivalentTo(new[] { "Apply", "ValidateOnly" });
         ((int)MigrationExecutionMode.Apply).Should().Be(0,
             "Apply must be the default-zero value so MigrationOptions defaults to Apply when uninitialized");
     }
@@ -30,26 +30,24 @@ public sealed class MigrationAbstractionsContractTests
     public void MigrationOutcome_HasExpectedMembers()
     {
         var members = Enum.GetNames<MigrationOutcome>();
-        members.Should().BeEquivalentTo(new[] { "Applied", "Skipped", "Failed", "DryRunSucceeded", "Validated" });
+        members.Should().BeEquivalentTo(new[] { "Applied", "Skipped", "Failed", "Validated" });
     }
 
     [Fact]
-    public void MigrationOptions_DefaultsToApplyMode_60sLockTimeout_NoFilter()
+    public void MigrationOptions_DefaultsToApplyMode_60sLockTimeout()
     {
         var options = new MigrationOptions();
 
         options.Mode.Should().Be(MigrationExecutionMode.Apply);
         options.LockTimeoutSeconds.Should().Be(60);
-        options.TargetFilter.Should().BeNull();
         options.AppliedByVersion.Should().BeNull();
     }
 
     [Fact]
     public void MigrationScript_RecordEquality_ConsidersAllFields()
     {
-        var deps = new[] { "V001__init" };
-        var a = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", deps, []);
-        var b = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", deps, []);
+        var a = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", []);
+        var b = new MigrationScript("V002__x", "saas-cp", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "abc", []);
 
         a.Should().Be(b, "records must compare by value for the dedup logic in the runner");
     }
@@ -57,8 +55,7 @@ public sealed class MigrationAbstractionsContractTests
     [Fact]
     public void MigrationScript_DiffersWhenChecksumDiffers()
     {
-        var deps = Array.Empty<string>();
-        var a = new MigrationScript("V002__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc", deps, []);
+        var a = new MigrationScript("V002__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc", []);
         var b = a with { Checksum = "abd" };
 
         a.Should().NotBe(b);
@@ -67,12 +64,11 @@ public sealed class MigrationAbstractionsContractTests
     [Fact]
     public void MigrationResult_FailedRecordCarriesErrorMessage()
     {
-        var script = new MigrationScript("V001__x", "m", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "x", Array.Empty<string>(), Array.Empty<string>());
-        var result = new MigrationResult(script, MigrationOutcome.Failed, ExecutionMs: 12, ErrorMessage: "boom");
+        var script = new MigrationScript("V001__x", "m", MigrationTargetDatabase.ControlPlane, "SELECT 1;", "x", Array.Empty<string>());
+        var result = new MigrationResult(script, MigrationOutcome.Failed, ErrorMessage: "boom");
 
         result.Outcome.Should().Be(MigrationOutcome.Failed);
         result.ErrorMessage.Should().Be("boom");
-        result.ExecutionMs.Should().Be(12);
     }
 
     // ── superseded checksums ──────────────────────────────────────────────────
@@ -84,7 +80,7 @@ public sealed class MigrationAbstractionsContractTests
     {
         var script = new MigrationScript(
             "V001__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc",
-            Array.Empty<string>(), Array.Empty<string>());
+            Array.Empty<string>());
 
         script.SupersededChecksums.Should().BeEmpty();
     }

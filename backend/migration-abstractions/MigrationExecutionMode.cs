@@ -9,13 +9,7 @@ public enum MigrationExecutionMode
     Apply,
 
     /// <summary>
-    /// Discover and order pending migrations + run a transactional rollback after each
-    /// migration. Verifies the apply path without committing changes — used by CI.
-    /// </summary>
-    DryRun,
-
-    /// <summary>
-    /// Validate migration ordering, dependencies, and checksum stability against an
+    /// Validate migration ordering and checksum stability against an
     /// already-migrated database. Reports drift without applying anything.
     /// </summary>
     ValidateOnly,

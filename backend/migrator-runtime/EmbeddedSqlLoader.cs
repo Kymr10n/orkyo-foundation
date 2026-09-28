@@ -57,7 +57,6 @@ public static partial class EmbeddedSqlLoader
                 TargetDatabase: target,
                 Sql: normalized,
                 Checksum: checksum,
-                DependsOn: Array.Empty<string>(),
                 SupersededChecksums: ParseSupersededChecksums(normalized),
                 Scope: ParseScope(normalized)));
         }
