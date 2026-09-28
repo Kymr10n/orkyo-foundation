@@ -161,6 +161,24 @@ describe('api-utils', () => {
       });
     });
 
+    it('shows the frontend text for a code that has one, not the server detail', async () => {
+      const response = {
+        status: 502,
+        statusText: 'Bad Gateway',
+        json: async () => ({
+          detail: 'Could not send the confirmation email. Please try again later.',
+          code: 'email_delivery_failed',
+        }),
+      } as Response;
+
+      const err = await handleApiError(response).catch((e: unknown) => e);
+      expect(err).toMatchObject({
+        status: 502,
+        code: 'email_delivery_failed',
+        message: 'We could not send the confirmation email. Check the address and try again later.',
+      });
+    });
+
     it('falls back to the status when the response carries no message at all', async () => {
       const response = {
         status: 502,

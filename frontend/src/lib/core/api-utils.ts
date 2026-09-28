@@ -6,7 +6,7 @@
  */
 
 import { runtimeConfig } from "@foundation/src/config/runtime";
-import { API_ERROR_CODES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
+import { API_ERROR_CODES, API_ERROR_MESSAGES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
 import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import { tenantStorage } from "@foundation/src/lib/core/tenant-storage";
 import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
@@ -128,7 +128,10 @@ export async function handleApiError(response: Response): Promise<never> {
     // RFC 7807: `detail` explains this occurrence, `title` is the generic summary.
     // Field-level validation messages are flattened in so a 400 says what was wrong
     // rather than the useless generic "One or more fields failed validation."
-    errorMessage = flattenFieldErrors(body) ?? body.detail ?? body.title ?? errorMessage;
+    // A code with its own user-facing text wins over the server's wording.
+    errorMessage =
+      (body.code ? API_ERROR_MESSAGES[body.code] : undefined) ??
+      flattenFieldErrors(body) ?? body.detail ?? body.title ?? errorMessage;
   } catch {
     // Response might not be JSON
   }
