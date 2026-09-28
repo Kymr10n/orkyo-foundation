@@ -81,7 +81,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S9 | B6 | todo | |
 | S10 | B1a | done | Email-match branch of `LinkIdentityAsync` refuses unless `token.EmailVerified` (`email_not_verified`, checked before the status check); already-linked and self-registration paths unchanged. All call sites (foundation x3, saas demo, community JIT) build the token via `ToExternalIdentityToken`, which carries the claim. Added the `email_not_verified` login message to `AUTH_ERROR_MESSAGES` so the BFF redirect does not fall to the generic retry text |
 | S11 | B1b | todo | |
-| S12 | B1b | todo | |
+| S12 | B1b | in-progress | |
 | S13 | B1a | partial | **Done:** role-cache eviction — new `IdentityCacheKeys.Role` (middleware reads through it); `UpdateUserRoleAsync`, `DeleteUserAsync` and `TenantControlPlaneRepository.DeleteMembershipAsync` evict it (optional `SingleFlightCache` ctor param, so saas's hand-composed test instances still compile). In-process only: other API instances keep a stale entry up to the 5-min TTL. **Deferred (needs coordinated saas + community PRs):** deleting `ResolveLegacyPrincipal` / always-`sub` in `TestAuthHandler`. Both products' `ApiWebApplicationFactory` run the real `ContextEnrichmentMiddleware`, and their sub-less test tokens (saas `CrossTenantIsolationTests` says so explicitly, plus `TenantEndpointsTests`, `InvitationOnlyAccessTests` and every `TestConstants.TestBearerToken` user) resolve only through that fallback; an always-`sub` token resolves to `Guid.Empty` without a seeded `user_identities` row. Downstream must seed identity links (or pass `Sub`) first |
 | S14 | B1b | done | `DeleteTemplateItemAsync(templateId, id)` deletes `WHERE id AND template_id`; the endpoint passes `{templateId}`. No downstream caller or implementer (grepped saas + community). Test: deleting B's item via A's route is 404 and B keeps it |
 | S15 | B1b | done | Demote and remove are each one statement: `UPDATE/DELETE … AND (target not an active admin OR stays admin OR EXISTS other active admin)`, with the tenant's active-admin rows locked `ORDER BY user_id FOR UPDATE` in a CTE — a bare `EXISTS` under READ COMMITTED still lets two cross-demotions both pass. 0 rows + membership exists → the same "last admin" error. Constants bound as parameters (file left `KnownSqlLiteralFiles`). `TenantLeaveMembershipPolicy` calls `LastActiveAdminPolicy`. saas `TenantService` leave flow still checks-then-deletes (saas code). Test: concurrent demotion of the other admin → demote/remove refused, target stays admin (failed before) |
@@ -131,7 +131,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M3 | B4 | todo | |
 | M4 | F4 | todo | |
 | M5 | F1 | done | About footer sentence and its `VITE_RUM_ENDPOINT` condition deleted; `initRUM` registers observers only in dev; `metrics`/`getMetrics` deleted (no downstream consumer (grepped saas + community); both call only `initRUM`) |
-| M6 | B2 / F1 | in-progress | backend items in B2, frontend items in F1 (F1 in progress) |
+| M6 | B2 / F1 | partial | F1 done: AccountPage org delete takes `confirmPhrase` (the slug); `isSafeRelativePath` (starts with `/`, not `//` or `/\`) gates the server `returnTo` in `handleApiError` and every `navigateToApex`/`navigateToTenantSubdomain` path. Left: backend items (B2) |
 | M7 | B4 | todo | |
 | M8 | B4 | todo | |
 | M9 | B3 | todo | |

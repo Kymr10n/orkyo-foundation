@@ -723,6 +723,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         confirmLabel="Delete Organization"
         destructive
         isPending={actionLoading !== null}
+        confirmPhrase={selectedTenant?.tenantSlug}
         onConfirm={() => runTenantAction(deleteTenant, "Delete")}
       />
     </FocusedPageLayout>

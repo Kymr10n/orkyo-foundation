@@ -13,7 +13,12 @@ import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
 import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
 import { logger } from "@foundation/src/lib/core/logger";
 import { randomId } from "@foundation/src/lib/core/ids";
-import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@foundation/src/lib/utils/tenant-navigation";
+import {
+  extractSlugFromHostname,
+  isSafeRelativePath,
+  navigateToApex,
+  redirectToLogin,
+} from "@foundation/src/lib/utils/tenant-navigation";
 import { takeSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
 
 /**
@@ -155,7 +160,8 @@ export async function handleApiError(response: Response): Promise<never> {
   }
 
   const code = body?.code;
-  const returnTo = body?.returnTo;
+  // The server names where to go next; only a same-origin path is honoured.
+  const returnTo = body?.returnTo && isSafeRelativePath(body.returnTo) ? body.returnTo : undefined;
 
   // Break-glass: route the admin back to /site-admin instead of /login.
   if (

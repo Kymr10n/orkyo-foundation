@@ -366,6 +366,20 @@ describe('api-utils', () => {
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
+    it.each(['@evil.com', '//evil.com', 'https://evil.com'])(
+      'ignores a returnTo of %s that would leave the origin',
+      async (returnTo) => {
+        const response = {
+          status: 403,
+          statusText: 'Forbidden',
+          json: async () => ({ detail: 'Ended', code: 'break_glass_expired', returnTo }),
+        } as unknown as Response;
+
+        await expect(handleApiError(response)).rejects.toThrow();
+        expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      },
+    );
+
     it('falls back to /site-admin when break-glass response has no returnTo', async () => {
       const response = {
         status: 404,

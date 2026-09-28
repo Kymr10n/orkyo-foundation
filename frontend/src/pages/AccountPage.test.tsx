@@ -854,6 +854,10 @@ describe("AccountPage", () => {
     });
 
     const confirmDeleteBtn = screen.getByRole("button", { name: /delete organization/i });
+    // Type-to-confirm, as on the organization settings page: the slug unlocks the button.
+    expect(confirmDeleteBtn).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: "acme-corp" } });
+    expect(confirmDeleteBtn).toBeEnabled();
     fireEvent.click(confirmDeleteBtn);
 
     await waitFor(() => {
@@ -882,6 +886,7 @@ describe("AccountPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Delete Organization?")).toBeInTheDocument();
     });
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: "acme-corp" } });
     fireEvent.click(screen.getByRole("button", { name: /delete organization/i }));
 
     await waitFor(() => {
