@@ -12,6 +12,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 /** Groups of one resource type (person teams, space groups, …). */
 export const useResourceGroups = (resourceTypeKey: string) =>
@@ -138,7 +139,7 @@ export function useResourceGroupMembershipRoster(
       } catch (err) {
         if (cancelled) return;
         logger.error("Failed to load resources / group members:", err);
-        setError(err instanceof Error ? err.message : "Failed to load");
+        setError(errorMessage(err, "Failed to load"));
       } finally {
         if (!cancelled) setIsLoading(false);
       }

@@ -19,6 +19,7 @@ import { makeRequest, spaceAssignment } from "@foundation/src/test-utils/request
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
 import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
 import { renderWithQuery, createTestQueryWrapper } from "@foundation/src/test-utils";
+import { ApiError } from "@foundation/src/lib/core/api-utils";
 
 
 // --- Extractable mock fns for per-test control ---
@@ -1110,7 +1111,7 @@ describe("UtilizationPage", () => {
 
   it("shows 409 conflict error on auto-schedule apply", async () => {
     mockUseAutoScheduleAvailable.mockReturnValue(true);
-    mockApplyMutateAsync.mockRejectedValueOnce(new Error("API Error (409): Conflict"));
+    mockApplyMutateAsync.mockRejectedValueOnce(new ApiError("Conflict", 409));
     const Wrapper = createWrapper();
     render(<Wrapper><UtilizationPage /></Wrapper>);
 

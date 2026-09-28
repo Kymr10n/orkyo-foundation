@@ -9,6 +9,7 @@ import {
 import type { Criterion, CriterionValue } from "@foundation/src/types/criterion";
 import { logger } from "@foundation/src/lib/core/logger";
 import { diffCapabilityAssignments } from "@foundation/src/components/capabilities/capability-diff";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 /**
  * The group-capability editor's data.
@@ -37,7 +38,7 @@ export function useGroupCapabilitiesData(groupId: string, open: boolean) {
         setInitialAssignments(map);
       } catch (err) {
         logger.error("Failed to load criteria:", err);
-        setLoadError(err instanceof Error ? err.message : "Failed to load data");
+        setLoadError(errorMessage(err, "Failed to load data"));
       } finally {
         setIsLoading(false);
       }

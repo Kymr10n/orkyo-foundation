@@ -114,7 +114,7 @@ describe('ResourceScanCodesSection', () => {
   it('closes the confirmation and reports a failed move', async () => {
     const user = userEvent.setup();
     api.lookupScanCode.mockResolvedValue({ status: 'type_disabled' });
-    api.linkResourceScanCode.mockRejectedValue(new Error('API Error (409): taken'));
+    api.linkResourceScanCode.mockRejectedValue(new Error('taken'));
     renderSection();
 
     await scan(user);

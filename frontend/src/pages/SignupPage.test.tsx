@@ -99,7 +99,6 @@ describe('SignupPage', () => {
 
     renderSignup('?invitation=expired-token');
     await waitFor(() => {
-      // handleApiError wraps the body.error as "API Error (status): {message}"
       expect(screen.getByText(/Invitation expired/)).toBeInTheDocument();
     });
   });

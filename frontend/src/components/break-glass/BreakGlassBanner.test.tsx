@@ -219,4 +219,15 @@ describe('BreakGlassBanner', () => {
       expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
+
+  it('stays in the session when the status read fails for another reason', async () => {
+    mockMembership = breakGlassMembership();
+    mockGetStatus.mockRejectedValue(new Error('Internal Server Error'));
+    render(<BreakGlassBanner now={() => BASE_TIME} />);
+
+    await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockClearMembership).not.toHaveBeenCalled();
+    expect(mockNavigateToApex).not.toHaveBeenCalled();
+  });
 });

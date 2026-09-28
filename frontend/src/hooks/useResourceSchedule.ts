@@ -10,6 +10,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 /** One resource's assignments over a window — the blocks on its own calendar. */
 export const useResourceAssignments = (
@@ -119,7 +120,7 @@ export function useResourceAssignmentOptions(
         onLoaded(opts, cancelled);
       })
       .catch((err: unknown) => {
-        if (!cancelled) setLoadError(err instanceof Error ? err.message : "Failed to load");
+        if (!cancelled) setLoadError(errorMessage(err, "Failed to load"));
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);

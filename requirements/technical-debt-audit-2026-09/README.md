@@ -71,7 +71,7 @@ per agent, sequential within a stack, stacks in parallel.
 | C3 | B2 | todo | |
 | C4 | B1a | done | Refresh answered `400 invalid_grant` now removes the BFF session and returns `Fail`; network errors, 5xx, 401 (client credentials) and non-JSON bodies keep today's keep-alive. New `IBffSessionStore.RemoveAllForUserAsync` (in-memory: scan; Valkey: per-user `bff:u:{userId}` index set, TTL tracks the longest session, so sessions created before deploy are not indexed and end at their next refresh) called from `/logout-all`. No downstream implementer of the interface (grepped saas + community) |
 | S1 | B4 | todo | |
-| S2 | F1 | in-progress | |
+| S2 | F1 | done | `handleApiError` throws `ApiError { status, code }` without the `API Error (N):` prefix; UtilizationPage switches on `status === 409`; dead `includes("401")` branch and its test deleted; `errorMessage(err, fallback?)` replaces the fallback-string copies in hooks (description-`undefined` copies and components left as they are) |
 | S3 | F1 | done | barrel no longer re-exports export-handlers/tenant-navigation (no importer relied on it); `getTenantSlugSync` deleted from AuthContext, api-utils reads the key itself (no downstream consumer (grepped saas + community)); no `lib/**` file imports `contexts/**` |
 | S4 | F2 | todo | |
 | S5 | F1 | done | `RequireTenantAdmin` and `SidebarNav` use `useIsTenantAdmin()`; `useRequestEditor` uses `useCanEdit()`; the three tests unmock the permission hooks and cover the site-admin case; SidebarNav has a Viewer test |
@@ -88,7 +88,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S16 | F1 | done | ResourceAssignmentDialog disables its toggles for Viewers (the segment click still opens it: it is the sanctioned read-only view in dialog-feedback.md); `useImportHandler` registers and runs only when `canEdit`, so TopBar offers no Import; `useRequestFormDialog` derives read-only from `useCanEdit()` and the `canEdit` prop is gone (callers + page tests updated; `useRequestEditor` no longer gates) |
 | S17 | B1a | done | `KeycloakOptions.FromConfiguration`: required keys fail on empty as well as absent, empty `KEYCLOAK_INTERNAL_URL` becomes null, `EffectiveInternalBaseUrl` treats "" as unset (local helpers with `GetRequired`/`IsSet` semantics — `Orkyo.Shared` cannot reference core's `ConfigurationExtensions`). Diagnostics probe fixed at the source: `DeploymentConfig.OidcInternalAuthority` is now `IsSet ? value : null`, so line 99's `??` falls back correctly. `shared` added to `TestRepoPaths.BackendRoots` and the `RawConfigFallback` roots; it flags nothing else |
 | S18 | B1b | todo | |
-| S19 | B1b | todo | |
+| S19 | B1b | in-progress | |
 | S20 | F1 | done | `csvToArray` uses a character-level parser (quoted line breaks, CRLF); `arrayToCSV` prefixes text cells starting `= + - @ \t \r` with `'` and import strips it, so exports round-trip; sites CSV import maps `code,name,description,address` through a typed callback; round-trip test |
 | S21 | F1 | done | names-only fetch moved to its own key `qk.requests.names()`; hook test proves both fetches run |
 | S22 | B3 | todo | |
@@ -138,7 +138,7 @@ per agent, sequential within a stack, stacks in parallel.
 | M10 | B3 | todo | |
 | M11 | B3 | todo | |
 | M12 | B3 | todo | |
-| M13 | F1 | in-progress | type edits invalidate `resources.all()`; email change `suppressErrorToast`; template LOAD falls back to the RESET unit ("days"); left: break-glass rethrow (lands with S2's `ApiError`) |
+| M13 | F1 | done | type edits invalidate `resources.all()`; email change `suppressErrorToast`; template LOAD falls back to the RESET unit ("days"); `getBreakGlassSessionStatus` returns null only on 404 and rethrows the rest (the banner logs it and keeps the session) |
 | M14 | B4 | todo | |
 | M15 | B3 | todo | |
 | M16 | B2 / B3 | todo | services in B2, repository items in B3 |

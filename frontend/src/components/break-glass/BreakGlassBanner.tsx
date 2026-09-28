@@ -81,16 +81,20 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
   useEffect(() => {
     if (!membership?.isBreakGlass || !tenantSlug) return;
     let cancelled = false;
-    getBreakGlassSessionStatus(tenantSlug).then((status) => {
-      if (cancelled) return;
-      if (status) {
-        setSession(status);
-      } else {
-        // Server says no active session — the session expired or was revoked
-        // externally (e.g. server restart, another admin). Exit gracefully.
-        handleExit();
-      }
-    });
+    getBreakGlassSessionStatus(tenantSlug).then(
+      (status) => {
+        if (cancelled) return;
+        if (status) {
+          setSession(status);
+        } else {
+          // Server says no active session — the session expired or was revoked
+          // externally (e.g. server restart, another admin). Exit gracefully.
+          handleExit();
+        }
+      },
+      // Any other failure says nothing about the session: stay in, without the hard cap.
+      (err: unknown) => logger.warn('Failed to read break-glass session status:', err),
+    );
     return () => {
       cancelled = true;
     };

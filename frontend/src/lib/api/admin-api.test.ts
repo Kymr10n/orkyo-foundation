@@ -40,7 +40,7 @@ vi.mock("../core/api-utils", async (importOriginal) => {
     handleApiError: vi.fn().mockImplementation(async (response: Response) => {
       const text =
         (await response.text?.()) || `Error ${(response).status}`;
-      throw new Error(text);
+      throw new actual.ApiError(text, response.status);
     }),
     API_BASE_URL: "http://localhost:5000",
   };
@@ -1105,6 +1105,17 @@ describe("admin-api — Break Glass", () => {
       const result = await getBreakGlassSessionStatus("acme");
 
       expect(result).toBeNull();
+    });
+
+    it("rethrows a server error instead of reporting no session", async () => {
+      mockFetch.mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({}),
+      });
+
+      await expect(getBreakGlassSessionStatus("acme")).rejects.toMatchObject({ status: 500 });
     });
 
     it("encodes special characters in tenantSlug", async () => {

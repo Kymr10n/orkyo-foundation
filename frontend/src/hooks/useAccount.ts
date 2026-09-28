@@ -10,9 +10,9 @@ import {
   type TenantMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 export const useUserProfile = () =>
   useQuery({
@@ -47,11 +47,11 @@ export const useInvalidateUserProfile = () => useInvalidateKeys(qk.userProfile.a
 
 /**
  * The caller's tenant memberships. Loaded manually by design on this operator
- * surface — see docs/dialog-feedback.md. A 401 signals the auth machine instead
- * of surfacing an error, and `reload` re-reads the list after leave/delete.
+ * surface — see docs/dialog-feedback.md. A 401 never reaches here as an error to
+ * show: `handleApiError` has already sent the browser to login. `reload` re-reads the
+ * list after leave/delete.
  */
 export const useTenantMemberships = () => {
-  const { send } = useAuth();
   const [memberships, setMemberships] = useState<TenantMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,18 +62,11 @@ export const useTenantMemberships = () => {
       setMemberships(data);
     } catch (err) {
       logger.error("Failed to load memberships:", err);
-      // If unauthorized, signal the machine — it handles the redirect
-      if (err instanceof Error && err.message.includes("401")) {
-        send({ type: "UNAUTHORIZED" });
-        return;
-      }
-      setError(
-        err instanceof Error ? err.message : "Failed to load memberships",
-      );
+      setError(errorMessage(err, "Failed to load memberships"));
     } finally {
       setLoading(false);
     }
-  }, [send]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect

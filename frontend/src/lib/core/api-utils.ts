@@ -98,6 +98,23 @@ function clearTenantState(): void {
 }
 
 /**
+ * An error response from the application API. `status` is the HTTP status and `code` the
+ * body's machine-readable code, so a caller switches on those instead of matching `message`,
+ * which is the human text meant for the user.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/**
  * Handle API errors consistently.
  *
  * The backend returns one canonical body for every error — RFC 7807 ProblemDetails plus a
@@ -150,7 +167,7 @@ export async function handleApiError(response: Response): Promise<never> {
       // Local dev / no apex — fall back to a same-origin nav.
       window.location.href = returnTo || ROUTE_SITE_ADMIN;
     }
-    throw new Error(errorMessage || "Break-glass session has ended.");
+    throw new ApiError(errorMessage || "Break-glass session has ended.", response.status, code);
   }
 
   if (response.status === 401) {
@@ -164,8 +181,12 @@ export async function handleApiError(response: Response): Promise<never> {
     } else {
       redirectToLogin();
     }
-    throw new Error(errorMessage || "Your session has expired. Please log in again.");
+    throw new ApiError(
+      errorMessage || "Your session has expired. Please log in again.",
+      response.status,
+      code,
+    );
   }
 
-  throw new Error(`API Error (${response.status}): ${errorMessage}`);
+  throw new ApiError(errorMessage || `Request failed (${response.status})`, response.status, code);
 }

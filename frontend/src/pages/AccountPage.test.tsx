@@ -396,24 +396,6 @@ describe("AccountPage", () => {
     expect(screen.getByText("admin")).toBeInTheDocument(); // role badge for owned tenant
   });
 
-  it("sends UNAUTHORIZED to the machine when API returns 401", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockGetTenantMemberships.mockRejectedValue(new Error("401 Unauthorized"));
-
-    const Wrapper = createWrapper();
-
-    render(
-      <Wrapper>
-        <AccountPage />
-      </Wrapper>,
-    );
-
-    await waitFor(() => {
-      expect(mockSend).toHaveBeenCalledWith({ type: "UNAUTHORIZED" });
-    });
-    consoleSpy.mockRestore();
-  });
-
   it("shows error when API fails", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     mockGetTenantMemberships.mockRejectedValue(

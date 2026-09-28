@@ -49,6 +49,7 @@ import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-s
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
 import { createRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
+import { ApiError } from "@foundation/src/lib/core/api-utils";
 import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
 import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
 import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
@@ -550,13 +551,12 @@ export function UtilizationPage() {
           : "Auto-schedule applied",
       );
     } catch (err) {
-      const message = errorMessage(err);
-      if (message.startsWith("API Error (409)")) {
+      if (err instanceof ApiError && err.status === 409) {
         setAutoScheduleError(
           "The scheduling data has changed since this preview was generated. Please close and re-run the auto-schedule."
         );
       } else {
-        setAutoScheduleError(message);
+        setAutoScheduleError(errorMessage(err));
       }
     }
   }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview, invalidateRequests]);

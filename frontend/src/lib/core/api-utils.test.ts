@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     API_BASE_URL,
+    ApiError,
     getApiHeaders,
     getTenantSlug,
     handleApiError,
@@ -146,16 +147,30 @@ describe('api-utils', () => {
   });
 
   describe('handleApiError', () => {
-    it('throws error with status and message', async () => {
+    it('throws an ApiError carrying status, code and the plain message', async () => {
       const response = {
         status: 500,
         statusText: 'Internal Server Error',
-        json: async () => ({ detail: 'Database connection failed' }),
+        json: async () => ({ detail: 'Database connection failed', code: 'internal_error' }),
       } as Response;
 
-      await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (500): Database connection failed'
-      );
+      const err = await handleApiError(response).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err).toMatchObject({
+        status: 500,
+        code: 'internal_error',
+        message: 'Database connection failed',
+      });
+    });
+
+    it('falls back to the status when the response carries no message at all', async () => {
+      const response = {
+        status: 502,
+        statusText: '',
+        json: async () => ({}),
+      } as Response;
+
+      await expect(handleApiError(response)).rejects.toThrow('Request failed (502)');
     });
 
     it('uses statusText when JSON parsing fails', async () => {
@@ -168,7 +183,7 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (404): Not Found'
+        'Not Found'
       );
     });
 
@@ -274,7 +289,7 @@ describe('api-utils', () => {
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (400): Validation failed'
+        'Validation failed'
       );
     });
 
@@ -285,7 +300,7 @@ describe('api-utils', () => {
         json: async () => ({ title: 'Conflict', code: 'conflict' }),
       } as Response;
 
-      await expect(handleApiError(response)).rejects.toThrow('API Error (409): Conflict');
+      await expect(handleApiError(response)).rejects.toThrow('Conflict');
     });
 
     it('surfaces field-level validation messages instead of the generic detail', async () => {
@@ -303,7 +318,7 @@ describe('api-utils', () => {
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (400): Name must not be empty. EndUtc must be after StartUtc'
+        'Name must not be empty. EndUtc must be after StartUtc'
       );
     });
 
