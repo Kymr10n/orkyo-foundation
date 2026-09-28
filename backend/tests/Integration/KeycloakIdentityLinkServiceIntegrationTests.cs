@@ -310,30 +310,7 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         result.ErrorCode.Should().Be("invalid_token");
     }
 
-    // ── GetUserMembershipsAsync / GetUserTenantRoleAsync ─────────────────────
-
-    [Fact]
-    public async Task GetUserMemberships_ReturnsActiveMemberships()
-    {
-        var service = BuildService();
-        var userId = await CreateUserAsync(UniqueEmail(), displayName: null, status: "active");
-        var tenantId = await CreateActiveMembershipAsync(userId, "editor");
-
-        var memberships = await service.GetUserMembershipsAsync(userId);
-
-        memberships.Should().ContainSingle();
-        memberships[0].TenantId.Should().Be(tenantId);
-        memberships[0].TenantSlug.Should().NotBeNullOrEmpty();
-        memberships[0].Role.Should().Be(TenantRole.Editor);
-    }
-
-    [Fact]
-    public async Task GetUserMemberships_ReturnsEmpty_WhenUserHasNoMemberships()
-    {
-        var memberships = await BuildService().GetUserMembershipsAsync(Guid.NewGuid());
-
-        memberships.Should().BeEmpty();
-    }
+    // ── GetUserTenantRoleAsync ───────────────────────────────────────────────
 
     [Fact]
     public async Task GetUserTenantRole_ReturnsNone_WhenUserNotMember()

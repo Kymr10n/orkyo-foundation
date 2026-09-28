@@ -107,9 +107,9 @@ public class PresetService : IPresetService
 
         var presetTemplates = new PresetTemplates
         {
-            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space, ct), criterionIdToKey),
-            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group, ct), criterionIdToKey),
-            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request, ct), criterionIdToKey)
+            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space, ct), criterionIdToKey, ct),
+            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group, ct), criterionIdToKey, ct),
+            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request, ct), criterionIdToKey, ct)
         };
 
         return new Preset
@@ -156,31 +156,18 @@ public class PresetService : IPresetService
         return applications;
     }
 
-    private async Task<List<PresetTemplate>> ConvertTemplatesAsync(List<Template> templates, Dictionary<Guid, string> criterionIdToKey)
-    {
-        // Bulk-fetch items for all templates in one query (was one query per template).
-        var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(templates.Select(t => t.Id).ToList());
-
-        var result = new List<PresetTemplate>();
-        foreach (var template in templates)
+    private Task<List<PresetTemplate>> ConvertTemplatesAsync(
+        List<Template> templates, Dictionary<Guid, string> criterionIdToKey, CancellationToken ct) =>
+        TemplateProjection.ProjectAsync(_templateRepo, templates, criterionIdToKey, (template, items) => new PresetTemplate
         {
-            var items = itemsByTemplate.GetValueOrDefault(template.Id, []);
-            result.Add(new PresetTemplate
-            {
-                Key = GenerateKey(template.Name),
-                Name = template.Name,
-                Description = template.Description,
-                DurationValue = template.DurationValue,
-                DurationUnit = template.DurationUnit,
-                FixedStart = template.FixedStart,
-                FixedEnd = template.FixedEnd,
-                FixedDuration = template.FixedDuration,
-                Items = items
-                    .Where(i => criterionIdToKey.ContainsKey(i.CriterionId))
-                    .Select(i => new PresetTemplateItem { CriterionKey = criterionIdToKey[i.CriterionId], Value = i.Value })
-                    .ToList()
-            });
-        }
-        return result;
-    }
+            Key = GenerateKey(template.Name),
+            Name = template.Name,
+            Description = template.Description,
+            DurationValue = template.DurationValue,
+            DurationUnit = template.DurationUnit,
+            FixedStart = template.FixedStart,
+            FixedEnd = template.FixedEnd,
+            FixedDuration = template.FixedDuration,
+            Items = items.Select(i => new PresetTemplateItem { CriterionKey = i.CriterionKey, Value = i.Value }).ToList()
+        }, ct);
 }

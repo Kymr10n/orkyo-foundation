@@ -369,43 +369,23 @@ public class ExportService : IExportService
     private async Task<List<ExportTemplate>> BuildTemplatesAsync(
         Dictionary<Guid, string> criterionIdToKey, CancellationToken ct)
     {
-        var templatesByType = new List<(string EntityType, List<Template> Templates)>();
+        var templates = new List<Template>();
         foreach (var entityType in new[] { TemplateEntityTypes.Space, TemplateEntityTypes.Group, TemplateEntityTypes.Request })
-            templatesByType.Add((entityType, await _templateRepo.GetAllAsync(entityType, ct)));
+            templates.AddRange((await _templateRepo.GetAllAsync(entityType, ct)).OrderBy(t => t.Name, StringComparer.Ordinal));
 
-        // Bulk-fetch items for all templates in one query (was one query per template).
-        var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(
-            templatesByType.SelectMany(t => t.Templates).Select(t => t.Id).ToList(), ct);
-
-        var allTemplates = new List<ExportTemplate>();
-        foreach (var (entityType, templates) in templatesByType)
+        return await TemplateProjection.ProjectAsync(_templateRepo, templates, criterionIdToKey, (template, items) => new ExportTemplate
         {
-            foreach (var template in templates.OrderBy(t => t.Name, StringComparer.Ordinal))
-            {
-                var items = itemsByTemplate.GetValueOrDefault(template.Id, []);
-                allTemplates.Add(new ExportTemplate
-                {
-                    Key = GenerateKey(template.Name),
-                    Name = template.Name,
-                    Description = template.Description,
-                    EntityType = entityType,
-                    DurationValue = template.DurationValue,
-                    DurationUnit = template.DurationUnit,
-                    FixedStart = template.FixedStart,
-                    FixedEnd = template.FixedEnd,
-                    FixedDuration = template.FixedDuration,
-                    Items = items
-                        .Where(i => criterionIdToKey.ContainsKey(i.CriterionId))
-                        .OrderBy(i => criterionIdToKey[i.CriterionId], StringComparer.Ordinal)
-                        .Select(i => new ExportTemplateItem
-                        {
-                            CriterionKey = criterionIdToKey[i.CriterionId],
-                            Value = i.Value
-                        }).ToList()
-                });
-            }
-        }
-        return allTemplates;
+            Key = GenerateKey(template.Name),
+            Name = template.Name,
+            Description = template.Description,
+            EntityType = template.EntityType,
+            DurationValue = template.DurationValue,
+            DurationUnit = template.DurationUnit,
+            FixedStart = template.FixedStart,
+            FixedEnd = template.FixedEnd,
+            FixedDuration = template.FixedDuration,
+            Items = items.Select(i => new ExportTemplateItem { CriterionKey = i.CriterionKey, Value = i.Value }).ToList()
+        }, ct);
     }
 
     private async Task<List<ExportRequestData>> BuildRequestDataAsync(

@@ -96,13 +96,6 @@ public interface IIdentityLinkService
     Task<IdentityLinkResult> LinkIdentityAsync(ExternalIdentityToken token, CancellationToken ct = default);
 
     /// <summary>
-    /// Get the user's memberships across all tenants.
-    /// </summary>
-    /// <param name="userId">The internal user ID</param>
-    /// <returns>List of tenant memberships</returns>
-    Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(Guid userId, CancellationToken ct = default);
-
-    /// <summary>
     /// Get the user's role in a specific tenant.
     /// </summary>
     /// <param name="userId">The internal user ID</param>
@@ -112,7 +105,8 @@ public interface IIdentityLinkService
 }
 
 /// <summary>
-/// Tenant membership information.
+/// Tenant membership information. No longer returned by any foundation API; kept only because
+/// orkyo-community's <c>CommunityJitProvisioningMiddlewareTests</c> spy still names it.
 /// </summary>
 public sealed class TenantMembership
 {

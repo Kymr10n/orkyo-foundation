@@ -21,7 +21,6 @@ public partial class ConventionContractTests
     /// </summary>
     private static readonly HashSet<string> KnownSqlWritingServiceFiles = new(StringComparer.Ordinal)
     {
-        "core:Services/AdminAuditService.cs",
         "core:Services/AnnouncementBroadcastService.cs",
         // "open + SELECT 1" control-plane reachability probe; a raw command by design.
         "core:Services/DbHealthProbe.cs",

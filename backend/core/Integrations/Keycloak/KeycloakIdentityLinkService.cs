@@ -253,48 +253,6 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         }
     }
 
-    public async Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(Guid userId, CancellationToken ct = default)
-    {
-        await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT
-                t.id,
-                t.slug,
-                t.display_name,
-                tm.role,
-                tm.status
-            FROM tenant_memberships tm
-            INNER JOIN tenants t ON tm.tenant_id = t.id
-            WHERE tm.user_id = @userId
-              AND tm.status = 'active'
-              AND t.status = 'active'
-            ORDER BY t.display_name",
-            conn);
-        cmd.Parameters.AddWithValue("userId", userId);
-
-        var memberships = new List<TenantMembership>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-        while (await reader.ReadAsync(ct))
-        {
-            var roleString = reader.GetString("role");
-            var role = RoleConstants.ParseRoleString(roleString);
-
-            memberships.Add(new TenantMembership
-            {
-                TenantId = reader.GetGuid("id"),
-                TenantSlug = reader.GetString("slug"),
-                TenantName = reader.GetString("display_name"),
-                Role = role,
-                Status = reader.GetString("status")
-            });
-        }
-
-        return memberships;
-    }
-
     public async Task<TenantRole> GetUserTenantRoleAsync(Guid userId, Guid tenantId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();

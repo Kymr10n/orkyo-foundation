@@ -32,10 +32,6 @@ public sealed class StubIdentityLinkService : IIdentityLinkService
         AuthProvider provider, string externalSubject, CancellationToken ct = default) =>
         Task.FromResult<PrincipalContext?>(null);
 
-    public Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(
-        Guid userId, CancellationToken ct = default) =>
-        Task.FromResult<IReadOnlyList<TenantMembership>>([]);
-
     /// <summary>
     /// What <see cref="GetUserTenantRoleAsync"/> returns. Admin by default, matching the role
     /// the test host gives every request; a test sets <see cref="TenantRole.None"/> to reach a
