@@ -10,6 +10,9 @@ import * as userApi from '@foundation/src/lib/api/user-api';
 import { exportTenantData } from '@foundation/src/lib/api/export-api';
 import { downloadFile } from '@foundation/src/lib/utils/import-export';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
+import { toast } from 'sonner';
+
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 // Mock APIs
 vi.mock('@foundation/src/lib/api/tenant-management-api');
@@ -71,10 +74,12 @@ const mockAdmins: userApi.UserWithRole[] = [
 ];
 
 const renderOrganizationSettings = (upgradeHref?: string) => {
+  // The card's writes report through their `meta` toasts: wire the production feedback cache.
   return renderWithQuery(
       <BrowserRouter>
       <OrganizationSettings upgradeHref={upgradeHref} />
-    </BrowserRouter>
+    </BrowserRouter>,
+    { feedback: true },
   );
 };
 
@@ -177,8 +182,10 @@ describe('OrganizationSettings', () => {
       await user.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/updated successfully/i)).toBeInTheDocument();
+        expect(toast.success).toHaveBeenCalledWith('Organization name updated successfully.');
       });
+      // The saved name is the new baseline, so Save disables again.
+      expect(screen.getByRole('button', { name: /save/i })).toBeDisabled();
     });
 
     it('shows error when save fails', async () => {
@@ -198,8 +205,11 @@ describe('OrganizationSettings', () => {
       await user.click(saveButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/Network error/)).toBeInTheDocument();
+        expect(toast.error).toHaveBeenCalledWith('Could not update the organization name', {
+          description: 'Network error',
+        });
       });
+      expect(toast.success).not.toHaveBeenCalled();
     });
   });
 
@@ -227,15 +237,31 @@ describe('OrganizationSettings', () => {
       expect(type).toBe('application/json');
     });
 
-    it('shows the failure inline when the export fails', async () => {
+    it('toasts the failure when the export fails', async () => {
       vi.mocked(exportTenantData).mockRejectedValue(new Error('Export refused'));
       const user = userEvent.setup();
       renderOrganizationSettings();
 
       await user.click(await screen.findByRole('button', { name: /export json/i }));
 
-      expect(await screen.findByText('Export refused')).toBeInTheDocument();
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith('Could not export the organization data', {
+          description: 'Export refused',
+        }),
+      );
       expect(downloadFile).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: /export json/i })).toBeInTheDocument();
+    });
+
+    it('says "Downloaded" on the button after a successful export', async () => {
+      vi.mocked(exportTenantData).mockResolvedValue({ sites: [] } as never);
+      const user = userEvent.setup();
+      renderOrganizationSettings();
+
+      await user.click(await screen.findByRole('button', { name: /export json/i }));
+
+      expect(await screen.findByRole('button', { name: /downloaded/i })).toBeInTheDocument();
+      expect(toast.error).not.toHaveBeenCalled();
     });
 
     it('shows the upsell instead of the export button when it does not', async () => {
@@ -376,6 +402,58 @@ describe('OrganizationSettings', () => {
 
       // The component should show loading state
       expect(document.querySelector('.animate-spin')).toBeInTheDocument();
+    });
+  });
+
+  describe('Transfer and delete feedback', () => {
+    it('toasts a refused transfer and stays on the page', async () => {
+      vi.mocked(tenantApi.transferTenantOwnership).mockRejectedValue(new Error('Not an admin'));
+      const user = userEvent.setup();
+      renderOrganizationSettings();
+
+      await user.click(await screen.findByRole('combobox'));
+      await user.click(await screen.findByRole('option', { name: /Admin Two/ }));
+      await user.click(screen.getByRole('button', { name: /^Transfer Ownership$/ }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: /Transfer Ownership/ }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith('Could not transfer ownership', { description: 'Not an admin' }),
+      );
+      expect(tenantApi.transferTenantOwnership).toHaveBeenCalledWith('tenant-123', 'admin-2');
+    });
+
+    it('toasts a refused delete and closes the confirm', async () => {
+      vi.mocked(tenantsApi.deleteTenant).mockRejectedValue(new Error('Grace period active'));
+      const user = userEvent.setup();
+      renderOrganizationSettings();
+
+      await user.click(await screen.findByRole('button', { name: /Delete Organization/ }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.type(within(dialog).getByRole('textbox'), 'my-org');
+      await user.click(within(dialog).getByRole('button', { name: /Delete Organization/ }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith('Could not delete the organization', {
+          description: 'Grace period active',
+        }),
+      );
+      await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+      expect(mockClearMembership).not.toHaveBeenCalled();
+    });
+
+    it('leaves the organization behind after a delete', async () => {
+      const user = userEvent.setup();
+      renderOrganizationSettings();
+
+      await user.click(await screen.findByRole('button', { name: /Delete Organization/ }));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.type(within(dialog).getByRole('textbox'), 'my-org');
+      await user.click(within(dialog).getByRole('button', { name: /Delete Organization/ }));
+
+      await waitFor(() => expect(mockClearMembership).toHaveBeenCalled());
+      expect(tenantsApi.deleteTenant).toHaveBeenCalledWith('tenant-123');
+      expect(toast.error).not.toHaveBeenCalled();
     });
   });
 

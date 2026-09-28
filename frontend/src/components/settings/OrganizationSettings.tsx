@@ -42,9 +42,8 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { errorMessage } from "@foundation/src/hooks/mutation-utils";
-import { useDeleteTenant } from "@foundation/src/hooks/useAccount";
 import {
+  useDeleteOrganization,
   useExportTenantData,
   useRenameTenant,
   useTransferTenantOwnership,
@@ -68,14 +67,8 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   const [displayName, setDisplayName] = useState("");
   const [originalName, setOriginalName] = useState("");
   const [selectedNewOwner, setSelectedNewOwner] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [transferring, setTransferring] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [transferConfirmOpen, setTransferConfirmOpen] = useState(false);
   const [deleteOrgOpen, setDeleteOrgOpen] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [exportDone, setExportDone] = useState(false);
   const [includePlanningData, setIncludePlanningData] = useState(false);
 
@@ -109,81 +102,55 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   );
   const loading = canManageOrg && usersQuery.isLoading;
 
-  const { mutateAsync: updateTenant } = useRenameTenant();
-  const { mutateAsync: transferTenantOwnership } = useTransferTenantOwnership();
-  const { mutateAsync: exportTenantData } = useExportTenantData(tenantSlug);
-  const { mutateAsync: deleteTenant } = useDeleteTenant();
+  // Success and failure are toasted from each hook's `meta`; the handlers keep only the
+  // follow-ups that are not feedback.
+  const renameMutation = useRenameTenant();
+  const transferMutation = useTransferTenantOwnership();
+  const exportMutation = useExportTenantData(tenantSlug);
+  const deleteMutation = useDeleteOrganization();
+  const saving = renameMutation.isPending;
+  const transferring = transferMutation.isPending;
+  const exporting = exportMutation.isPending;
+  const deleting = deleteMutation.isPending;
 
-  const handleSaveName = async () => {
+  const handleSaveName = () => {
     if (!tenantId || displayName === originalName) return;
-
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await updateTenant({ tenantId, displayName: displayName.trim() });
-      setOriginalName(displayName.trim());
-      setSuccess("Organization name updated successfully.");
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
+    const trimmed = displayName.trim();
+    renameMutation.mutate(
+      { tenantId, displayName: trimmed },
+      { onSuccess: () => setOriginalName(trimmed) },
+    );
   };
 
-  const handleTransferOwnership = async () => {
+  const handleTransferOwnership = () => {
     if (!tenantId || !selectedNewOwner) return;
-
     setTransferConfirmOpen(false);
-    setTransferring(true);
-    setError(null);
-
-    try {
-      await transferTenantOwnership({ tenantId, newOwnerId: selectedNewOwner });
-      setSuccess(
-        "Ownership transferred successfully. You are no longer the owner.",
-      );
+    transferMutation.mutate(
+      { tenantId, newOwnerId: selectedNewOwner },
       // Refresh the page to update membership state
-      window.location.reload();
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setTransferring(false);
-    }
+      { onSuccess: () => window.location.reload() },
+    );
   };
 
-  const handleExport = async () => {
-    setExporting(true);
-    setError(null);
+  const handleExport = () => {
     setExportDone(false);
-
-    try {
-      await exportTenantData(includePlanningData);
-      setExportDone(true);
-      setTimeout(() => setExportDone(false), 3000);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setExporting(false);
-    }
+    exportMutation.mutate(includePlanningData, {
+      onSuccess: () => {
+        setExportDone(true);
+        setTimeout(() => setExportDone(false), 3000);
+      },
+    });
   };
 
-  const handleDeleteOrganization = async () => {
+  const handleDeleteOrganization = () => {
     if (!tenantId) return;
-
-    setDeleting(true);
-    setError(null);
-
-    try {
-      await deleteTenant(tenantId);
-      clearMembership();
-      if (!navigateToApex("/")) window.location.href = "/";
-    } catch (err) {
-      setError(errorMessage(err));
-      setDeleting(false);
-      setDeleteOrgOpen(false);
-    }
+    deleteMutation.mutate(tenantId, {
+      onSuccess: () => {
+        clearMembership();
+        if (!navigateToApex("/")) window.location.href = "/";
+      },
+      onError: () => setDeleteOrgOpen(false),
+    });
   };
 
   if (loading) {
@@ -226,19 +193,6 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
         title="Organization"
         description="Manage your organization name, ownership, and deletion."
       />
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {success && (
-        <Alert>
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
-      )}
 
       {/* Organization Name */}
       <Card>
