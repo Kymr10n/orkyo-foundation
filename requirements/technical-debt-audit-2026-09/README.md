@@ -78,7 +78,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S18 | B1b | todo | |
 | S19 | B1b | todo | |
 | S20 | F1 | todo | |
-| S21 | F1 | todo | |
+| S21 | F1 | done | names-only fetch moved to its own key `qk.requests.names()`; hook test proves both fetches run |
 | S22 | B3 | todo | |
 | S23 | B3 | todo | |
 | S24 | F1 | todo | |
@@ -109,7 +109,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S49 | R1 | todo | |
 | S50 | R1 | todo | |
 | S51 | R1 | done | dotnet-format hook no longer runs `git add`; frontend/backend pre-push test hooks deleted and `pre-push` dropped from install types; CLAUDE.md, CONTRIBUTING, setup.sh wording aligned |
-| S52 | R1 | todo | |
+| S52 | R1 | done | Both non-root checks now `docker pull` + `docker image inspect` `.Config.User` and fail on empty/`0`/`root` or on any pull/inspect error; no fallback UID (the old `id -u` ran through Keycloak's `kc.sh` entrypoint and always fell back to 1000) |
 | S53 | R1 | todo | |
 | S54 | R1 | todo | |
 | S55 | F5 | todo | |

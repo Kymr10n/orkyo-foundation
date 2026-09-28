@@ -98,14 +98,19 @@ jobs:
       - name: Verify non-root container
         if: matrix.service != 'frontend'
         run: |
-          uid=$(docker run --rm \
-            ${{ inputs.registry }}/${{ inputs.image-name-prefix }}-${{ matrix.service }}:sha-${{ github.sha }} \
-            id -u 2>/dev/null || echo "999")
-          echo "Container UID: $uid"
-          if [ "$uid" = "0" ]; then
-            echo "::error::${{ matrix.service }} runs as root — must use non-root user"
-            exit 1
-          fi
+          # Read the configured user from the image metadata: it needs no `id`
+          # binary in the image and ignores the entrypoint. A pull or inspect
+          # failure fails the step; there is no fallback UID.
+          image="${{ inputs.registry }}/${{ inputs.image-name-prefix }}-${{ matrix.service }}:sha-${{ github.sha }}"
+          docker pull --quiet "$image"
+          user=$(docker image inspect --format '{{.Config.User}}' "$image")
+          echo "Container user: '${user:-<unset>}'"
+          case "${user%%:*}" in
+            ""|0|root)
+              echo "::error::${{ matrix.service }} runs as root — must use non-root user"
+              exit 1
+              ;;
+          esac
 
       - name: Verify .NET runtime can load app
         if: matrix.service != 'frontend'

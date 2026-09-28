@@ -398,14 +398,19 @@ jobs:
 
       - name: Verify non-root container
         run: |
-          uid=$(docker run --rm \
-            ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }} \
-            id -u 2>/dev/null || echo "1000")
-          echo "Container UID: $uid"
-          if [ "$uid" = "0" ]; then
-            echo "::error::Container runs as root — must use non-root user"
-            exit 1
-          fi
+          # Read the configured user from the image metadata: it needs no `id`
+          # binary in the image and ignores the entrypoint. A pull or inspect
+          # failure fails the step; there is no fallback UID.
+          image="${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}"
+          docker pull --quiet "$image"
+          user=$(docker image inspect --format '{{.Config.User}}' "$image")
+          echo "Container user: '${user:-<unset>}'"
+          case "${user%%:*}" in
+            ""|0|root)
+              echo "::error::Container runs as root — must use non-root user"
+              exit 1
+              ;;
+          esac
 
       - name: Generate SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
