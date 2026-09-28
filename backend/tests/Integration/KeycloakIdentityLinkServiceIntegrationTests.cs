@@ -312,6 +312,18 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         role.Should().Be(TenantRole.Admin);
     }
 
+    [Fact]
+    public async Task GetUserTenantRole_ReturnsNone_WhenUserIsDisabled()
+    {
+        var service = BuildService();
+        var userId = await CreateUserAsync(UniqueEmail(), displayName: null, status: "disabled");
+        var tenantId = await CreateActiveMembershipAsync(userId, "admin");
+
+        var role = await service.GetUserTenantRoleAsync(userId, tenantId);
+
+        role.Should().Be(TenantRole.None, "deactivation keeps the membership row, so the user's own status decides");
+    }
+
     // ── composition ──────────────────────────────────────────────────────────
 
     private KeycloakIdentityLinkService BuildService(

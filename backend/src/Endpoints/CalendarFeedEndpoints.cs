@@ -1,5 +1,6 @@
 using Api.Configuration;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models;
 using Api.Repositories;
 using Api.Security;
@@ -59,6 +60,8 @@ public static class CalendarFeedEndpoints
             ICalendarFeedService feedService,
             IConfiguration configuration,
             ICurrentTenant currentTenant,
+            OrgContext orgContext,
+            IIdentityLinkService identityLinks,
             IFeatureGate featureGate,
             TimeProvider time,
             CancellationToken ct) =>
@@ -72,6 +75,13 @@ public static class CalendarFeedEndpoints
             // Unknown and revoked are the same answer on purpose: a 401 would tell
             // a probing client that some other token exists.
             if (stored is null) return Results.NotFound();
+
+            // The token lives no longer than its owner's access. Tokens sit in the tenant
+            // database and memberships in the control plane, so this is a second lookup rather
+            // than a join: a removed, suspended, disabled or purged member's feed stops serving,
+            // with the same answer as a revoked token.
+            if (await identityLinks.GetUserTenantRoleAsync(stored.UserId, orgContext.OrgId, ct) == TenantRole.None)
+                return Results.NotFound();
 
             var events = await feedService.GetEventsAsync(stored.SiteId, time.GetUtcNow().UtcDateTime, ct);
             await tokenRepo.TouchAsync(stored.Id, ct);
@@ -89,8 +99,10 @@ public static class CalendarFeedEndpoints
         // ── Managing subscriptions (authenticated, always the caller's own) ───
         // Listing and revoking stay ungated on purpose: a tenant that loses the
         // entitlement must still be able to see and revoke the tokens it already
-        // handed out. Only creating a new one requires the plan.
-        var group = app.MapGroup("/api/calendar/subscriptions").RequireAuthorization();
+        // handed out. Only creating a new one requires the plan. Any member may manage their
+        // own feeds, so there is no write gate — but a non-member of this tenant may not
+        // mint one: the anonymous feed route would then serve them the tenant's schedule.
+        var group = app.MapGroup("/api/calendar/subscriptions").RequireAuthorization().RequireTenantMembership();
 
         group.MapGet("/", async (
             ICalendarFeedTokenRepository tokenRepo,

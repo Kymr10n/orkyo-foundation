@@ -236,4 +236,5 @@ Note: this machine OOM-kills `npm ci` at default concurrency (exit 137);
    deactivated or purged, so a removed member's `.ics` keeps serving the site
    schedule until someone revokes it by hand. Pre-existing, but this change is
    what makes the feed reachable in prod at all. Belongs with the GDPR user
-   lifecycle work.
+   lifecycle work. **Resolved 2026-09:** the feed route checks the owner's
+   active membership and account status on each fetch.

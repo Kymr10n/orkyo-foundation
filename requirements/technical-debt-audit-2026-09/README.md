@@ -54,7 +54,7 @@ per agent, sequential within a stack, stacks in parallel.
 
 | ID | Batch | Status | Notes |
 |---|---|---|---|
-| C1 | B1a | todo | |
+| C1 | B1a | done | Subscriptions group now `RequireTenantMembership()` (allow-list entry kept: no write gate, so no governed marker). Chose serve-time membership check over revoke-on-lifecycle (tokens are per tenant DB, memberships in the control plane, so no join): the `.ics` route calls `GetUserTenantRoleAsync`, which now also excludes `users.status = disabled`; removed/suspended/disabled/purged owners get 404. SaaS `TenantMiddleware` does not 403 non-members (checked). Tests: non-member create/list 403, removed-owner feed 404, disabled-user role None |
 | C2 | B2 | todo | |
 | C3 | B2 | todo | |
 | C4 | B1a | todo | |

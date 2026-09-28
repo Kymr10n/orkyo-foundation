@@ -391,8 +391,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 // Honour the role claim from the test token so tests can exercise
                 // role-based authorisation (admin vs editor vs viewer). Defaults to
                 // Admin when no role is supplied — matches the legacy hard-coded behaviour.
+                // An explicit "none" is a signed-in user who is not a member of the tenant.
                 var roleClaim = context.User.FindFirst("role")?.Value;
-                var role = string.IsNullOrEmpty(roleClaim)
+                var role = roleClaim == Api.Constants.RoleConstants.None
+                    ? TenantRole.None
+                    : string.IsNullOrEmpty(roleClaim)
                     ? TenantRole.Admin
                     : Api.Constants.RoleConstants.ParseRoleString(roleClaim) is var parsed && parsed != TenantRole.None
                         ? parsed

@@ -32,7 +32,9 @@ public static class AuthorizationContract
         "/api/invitations",
         // Calendar subscriptions are the caller's own feed tokens: every route
         // resolves the user from the principal and the revoke predicate is
-        // scoped by user_id, so one user can never touch another's.
+        // scoped by user_id, so one user can never touch another's. The group requires tenant
+        // membership but deliberately has no write gate (a viewer manages their own feeds), so
+        // it carries no governed marker and stays on this list.
         "/api/calendar/subscriptions",
     ];
 

@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Security;
+using Microsoft.Extensions.DependencyInjection;
+using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -98,6 +101,48 @@ public class CalendarFeedEndpointsTests
         // them would confirm to a prober that some other token exists.
         var afterRevoke = await CreateAnonymousClient().GetAsync(FeedPath(feedUrl));
         afterRevoke.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Create_RefusesASignedInUserWhoIsNotAMemberOfTheTenant()
+    {
+        using var outsider = _fixture.CreateClientWithRole(RoleConstants.None);
+
+        var response = await outsider.PostAsJsonAsync("/api/calendar/subscriptions", new { label = "Not mine" });
+
+        // A feed minted here would let the anonymous .ics route serve this tenant's schedule
+        // to someone who has no access to it.
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task List_RefusesASignedInUserWhoIsNotAMemberOfTheTenant()
+    {
+        using var outsider = _fixture.CreateClientWithRole(RoleConstants.None);
+
+        var response = await outsider.GetAsync("/api/calendar/subscriptions");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Feed_StopsServingOnceTheOwnerIsNoLongerAMember()
+    {
+        var (_, feedUrl) = await CreateSubscriptionAsync("Owner removed");
+        var identityLinks = _fixture.Factory.Services.GetRequiredService<StubIdentityLinkService>();
+
+        identityLinks.TenantRole = TenantRole.None;
+        try
+        {
+            var response = await CreateAnonymousClient().GetAsync(FeedPath(feedUrl));
+
+            // The same answer as a revoked token: the route never says why it refuses.
+            response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        }
+        finally
+        {
+            identityLinks.TenantRole = TenantRole.Admin;
+        }
     }
 
     // NOTE: the entitlement-denied paths (create → 402 upgrade_required, feed → 404) are not

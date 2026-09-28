@@ -286,15 +286,22 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
+        // A disabled user keeps their membership rows (the lifecycle deactivation and the
+        // admin "deactivate" both set users.status only), so the user's own status is part
+        // of the answer: anything that authorizes by this role — a calendar feed token,
+        // above all — stops working the moment the account is disabled.
         await using var cmd = new NpgsqlCommand(@"
-            SELECT role
-            FROM tenant_memberships
-            WHERE user_id = @userId
-              AND tenant_id = @tenantId
-              AND status = 'active'",
+            SELECT tm.role
+            FROM tenant_memberships tm
+            JOIN users u ON u.id = tm.user_id
+            WHERE tm.user_id = @userId
+              AND tm.tenant_id = @tenantId
+              AND tm.status = 'active'
+              AND u.status <> @disabled",
             conn);
         cmd.Parameters.AddWithValue("userId", userId);
         cmd.Parameters.AddWithValue("tenantId", tenantId);
+        cmd.Parameters.AddWithValue("disabled", UserStatusConstants.Disabled);
 
         var roleString = await cmd.ExecuteScalarAsync(ct) as string;
         return RoleConstants.ParseRoleString(roleString);
