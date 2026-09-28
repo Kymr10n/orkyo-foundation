@@ -23,9 +23,10 @@ public interface IKeycloakAdminService
 
     /// <summary>
     /// Verify a user's current password. Throws <see cref="KeycloakAdminException"/> with
-    /// status 400 when it is wrong.
+    /// status 400 when it is wrong. The realm's direct-grant flow asks a TOTP user for the
+    /// code too, so <paramref name="totp"/> must carry it for such a user — the same 400 otherwise.
     /// </summary>
-    Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct = default);
+    Task VerifyCurrentPasswordAsync(string keycloakSub, string password, string? totp = null, CancellationToken ct = default);
 
     /// <summary>
     /// Get all active sessions for a user.

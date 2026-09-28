@@ -39,7 +39,7 @@ public class KeycloakAdminService : IKeycloakAdminService
     public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
     {
         // Verify current password first — "incorrect password" is a user error (400), not an upstream failure.
-        await VerifyCurrentPasswordAsync(keycloakSub, currentPassword, ct);
+        await VerifyCurrentPasswordAsync(keycloakSub, currentPassword, ct: ct);
 
         var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
@@ -400,7 +400,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         }
     }
 
-    public async Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct = default)
+    public async Task VerifyCurrentPasswordAsync(string keycloakSub, string password, string? totp = null, CancellationToken ct = default)
     {
         var (adminToken, userId) = await ResolveUserAsync(keycloakSub, ct);
 
@@ -421,16 +421,21 @@ public class KeycloakAdminService : IKeycloakAdminService
         // (3) the token endpoint is rate-limited in Nginx.
         var tokenUrl = $"{_kc.EffectiveInternalBaseUrl}/realms/{_kc.Realm}/protocol/openid-connect/token";
 
+        var form = new Dictionary<string, string>
+        {
+            ["grant_type"] = "password",
+            ["client_id"] = _kc.BackendClientId,
+            ["client_secret"] = _kc.BackendClientSecret,
+            ["username"] = username,
+            ["password"] = password
+        };
+        // The direct-grant flow's conditional-OTP step reads the code from the "totp" form value.
+        if (totp is not null)
+            form["totp"] = totp;
+
         using var verifyRequest = new HttpRequestMessage(HttpMethod.Post, tokenUrl)
         {
-            Content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "password",
-                ["client_id"] = _kc.BackendClientId,
-                ["client_secret"] = _kc.BackendClientSecret,
-                ["username"] = username,
-                ["password"] = password
-            })
+            Content = new FormUrlEncodedContent(form)
         };
         SetInternalProxyHeaders(verifyRequest);
 

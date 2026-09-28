@@ -95,7 +95,8 @@ public class UserManagementService : IUserManagementService
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
-        // A demoted member must not keep the old role for the rest of the cache TTL.
+        // A demoted member must not keep the old role for the rest of the cache TTL. The cache
+        // is per process instance: another instance keeps the stale role until its TTL runs out.
         _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
 
         if (rowsAffected == 0 && await MembershipExistsAsync(conn, org.OrgId, userId, ct))
@@ -128,7 +129,8 @@ public class UserManagementService : IUserManagementService
 
         var rowsAffected = await cmd.ExecuteNonQueryAsync(ct);
 
-        // A removed member must lose access now, not when the cached role expires.
+        // A removed member must lose access now, not when the cached role expires. The cache
+        // is per process instance: another instance keeps the stale role until its TTL runs out.
         _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
 
         if (rowsAffected == 0 && await MembershipExistsAsync(conn, org.OrgId, userId, ct))

@@ -73,6 +73,35 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
     `TenantSettings.cs`, has logic). `CHANGELOG.md` Unreleased records the TestSupport
     surface changes. Foundation no longer runs `reusable-audit-nuget.yml` or the npm-audit
     path itself, so a regression in those reusables surfaces first in a product.
+  - **G1 backend correctness (done):** Dormancy step order is now tx → rows → notice →
+    commit → `DisableUserAsync`; the earlier "Keycloak disable stays first" reasoning in
+    row C2 is superseded (it locked out a user whose notice failed). A Keycloak failure
+    after the commit is logged only: `status='disabled'` already refuses the user, and the
+    purge deletes the account. `KeycloakIdentityLinkService` checks `EmailVerified` once
+    after the existing-link branch (covers invited-row link, `ON CONFLICT` re-read and
+    create) and normalizes the email once via `UserProvisioningService.Normalize`; an
+    unverified unknown identity now gets `email_not_verified` (was `not_invited`), a
+    missing email on an unlinked identity `invalid_token`. **MFA removal:**
+    `DELETE /api/account/mfa` takes `{ currentPassword, currentCode }`; the code goes to
+    Keycloak as the `totp` form value, because the realm's default direct-grant flow
+    refuses a TOTP user's password grant without it (the branch had added the password
+    check, which made removal impossible for exactly the users who have MFA). No product
+    calls `VerifyCurrentPasswordAsync`. **Follow-up, pre-existing on main:**
+    `ChangePasswordAsync` uses the same grant without a code, so a TOTP user cannot change
+    their password either; same fix pattern. `ExportService` placement pick excludes
+    cancelled assignments. `ConflictService` throws on an overbook issue without
+    `ConflictingAssignmentId` (producer bug, not "no peer"). Role-cache eviction comments
+    say the cache is per process instance. Backend 3907/3907, patch coverage 98 %.
+  - **G2 frontend correctness (done):** `commitPending` re-reads request data once after
+    the whole queue (was once per child); the two commit mutations keep separate feedback
+    surfaces, so they stay two `useMutation`s over one `createChild`. The spreadsheet
+    import stops with a message when the resource list was cut at the backend cap (S24).
+    The command palette resets its debounced term when the query empties, so no stale
+    answer shows under a new query. The children tab resets in the render phase like its
+    parent. `useTenantMemberships` clears the previous load error on success.
+    `tenantStorage.clear()` also removes the legacy `active_membership` key (remove after
+    one release). The remove-MFA dialog asks for the current authenticator code next to
+    the password. Frontend 4207 tests, coverage 87.3 / 80.5 / 83.5 / 89.1.
 - **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
   SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
   "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.

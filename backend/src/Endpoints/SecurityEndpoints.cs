@@ -249,7 +249,8 @@ public static class SecurityEndpoints
             {
                 var sub = principal.RequireExternalSubject();
                 // A session alone must not strip the second factor: a hijacked session would.
-                await keycloakService.VerifyCurrentPasswordAsync(sub, request.CurrentPassword!, ct);
+                // The code goes with the password: the direct-grant flow refuses a TOTP user without it.
+                await keycloakService.VerifyCurrentPasswordAsync(sub, request.CurrentPassword!, request.CurrentCode, ct);
                 var status = await keycloakService.GetMfaStatusAsync(sub, ct);
                 if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
                     return ErrorResponses.BadRequest("MFA is not enabled");

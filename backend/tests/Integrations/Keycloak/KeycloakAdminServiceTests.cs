@@ -302,6 +302,61 @@ public class KeycloakAdminServiceTests
         await act.Should().NotThrowAsync();
     }
 
+    // ── VerifyCurrentPasswordAsync ───────────────────────────────────────
+
+    /// <summary>Admin token, user lookup, and a password grant that succeeds only for the given
+    /// password and (when required) the given TOTP code — the realm's conditional-OTP step.</summary>
+    private static HttpResponseMessage PasswordGrantResponder(HttpRequestMessage req, string? requiredTotp)
+    {
+        var url = req.RequestUri!.ToString();
+        if (url.Contains("openid-connect/token"))
+        {
+            var form = req.Content!.ReadAsStringAsync().Result;
+            if (!form.Contains("grant_type=password"))
+                return Json(HttpStatusCode.OK, TokenJson());
+            var ok = form.Contains("password=s3cret-pass")
+                && (requiredTotp is null || form.Contains($"totp={requiredTotp}"));
+            return Json(ok ? HttpStatusCode.OK : HttpStatusCode.Unauthorized, ok ? TokenJson() : """{"error":"invalid_grant"}""");
+        }
+        return Json(HttpStatusCode.OK, UserJson());
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
+        new(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_SendsTheTotpCode_WhenGiven()
+    {
+        var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
+
+        await svc.VerifyCurrentPasswordAsync("kc-user-id", "s3cret-pass", totp: "654321");
+
+        var grant = handler.Bodies.Single(b => b.Contains("grant_type=password"));
+        grant.Should().Contain("totp=654321");
+    }
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_OmitsTotp_WhenNotGiven()
+    {
+        var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: null));
+
+        await svc.VerifyCurrentPasswordAsync("kc-user-id", "s3cret-pass");
+
+        handler.Bodies.Single(b => b.Contains("grant_type=password")).Should().NotContain("totp=");
+    }
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_ARejectedGrant_IsTheIncorrectPasswordError()
+    {
+        // A TOTP user without the code and a wrong password come back the same way from Keycloak.
+        var (svc, _) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
+
+        var act = () => svc.VerifyCurrentPasswordAsync("kc-user-id", "s3cret-pass");
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(400);
+    }
+
     [Fact]
     public async Task CreateUserAsync_SetsPassword_ViaResetPasswordEndpoint()
     {

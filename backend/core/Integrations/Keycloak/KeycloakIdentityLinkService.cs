@@ -96,35 +96,46 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
                 isNew: false);
         }
 
+        // Every path below hands this identity an account by its address — an invited row, a
+        // row a concurrent sign-in created, or a fresh one — so the address must be proven first.
+        // An unverified claim would let anyone who can register (or federate) the victim's
+        // address in Keycloak take over the invited or existing account.
+        if (!token.EmailVerified)
+        {
+            _logger.LogWarning(
+                "Refused to link Keycloak identity {Subject}: email not verified", token.Subject);
+            return IdentityLinkResult.Failed(
+                "Verify your email address before signing in.",
+                ApiErrorCodes.Auth.EmailNotVerified);
+        }
+
+        // One normalized spelling for the lookup and the insert; both compare against LOWER(email).
+        string email;
+        try
+        {
+            email = UserProvisioningService.Normalize(token.Email ?? string.Empty);
+        }
+        catch (ArgumentException)
+        {
+            return IdentityLinkResult.Failed("Token email is required", ApiErrorCodes.Auth.InvalidToken);
+        }
+
         // Check if there's a user with this email (from invitation)
         await using var findByEmailCmd = new NpgsqlCommand(@"
             SELECT id, email, display_name, status
             FROM users
-            WHERE LOWER(email) = LOWER(@email)", conn);
-        findByEmailCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+            WHERE LOWER(email) = @email", conn);
+        findByEmailCmd.Parameters.AddWithValue("email", email);
 
         await using var emailReader = await findByEmailCmd.ExecuteReaderAsync(ct);
         if (await emailReader.ReadAsync(ct))
         {
             var userId = emailReader.GetGuid("id");
-            var email = emailReader.GetString("email");
+            var storedEmail = emailReader.GetString("email");
             var displayName = emailReader.GetNullableString("display_name");
             var status = emailReader.GetString("status");
 
             await emailReader.CloseAsync();
-
-            // Matching by address hands this identity an existing account, so the address must
-            // be proven. An unverified claim would let anyone who can register (or federate)
-            // the victim's address in Keycloak take over the invited or existing account.
-            if (!token.EmailVerified)
-            {
-                _logger.LogWarning(
-                    "Refused to link Keycloak identity {Subject} to user {UserId}: email not verified",
-                    token.Subject, userId);
-                return IdentityLinkResult.Failed(
-                    "Verify your email address before signing in.",
-                    ApiErrorCodes.Auth.EmailNotVerified);
-            }
 
             if (status != UserStatusConstants.Active)
             {
@@ -139,9 +150,9 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
             _logger.LogInformation(
                 "Linked Keycloak identity {Subject} to existing user {UserId} ({Email})",
-                token.Subject, userId, email);
+                token.Subject, userId, storedEmail);
 
-            return IdentityLinkResult.Linked(userId, email, displayName, isNew: false);
+            return IdentityLinkResult.Linked(userId, storedEmail, displayName, isNew: false);
         }
 
         // Close reader before starting transaction
@@ -170,7 +181,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             "Creating new user for Keycloak identity {Subject} with email {Email}",
             token.Subject, token.Email);
 
-        var newUser = await CreateUserFromKeycloakAsync(conn, token, ct);
+        var newUser = await CreateUserFromKeycloakAsync(conn, token, email, ct);
         if (newUser == null)
         {
             return IdentityLinkResult.Failed("Failed to create user account", ApiErrorCodes.Auth.IdentityNotLinked);
@@ -188,14 +199,14 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         return IdentityLinkResult.Linked(newUser.UserId, newUser.Email, newUser.DisplayName, isNew: true);
     }
 
-    private async Task<PrincipalContext?> CreateUserFromKeycloakAsync(NpgsqlConnection conn, ExternalIdentityToken token, CancellationToken ct = default)
+    private async Task<PrincipalContext?> CreateUserFromKeycloakAsync(
+        NpgsqlConnection conn, ExternalIdentityToken token, string email, CancellationToken ct = default)
     {
         await using var transaction = await conn.BeginTransactionAsync(ct);
 
         try
         {
             var userId = Guid.NewGuid();
-            var email = UserProvisioningService.Normalize(token.Email ?? string.Empty);
             var displayName = token.DisplayName ?? token.Email?.Split('@')[0] ?? "User";
 
             // Create user in control plane. ON CONFLICT + re-read rather than a bare INSERT:

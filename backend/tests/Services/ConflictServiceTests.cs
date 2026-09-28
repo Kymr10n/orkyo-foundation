@@ -211,6 +211,27 @@ public class ConflictServiceTests
     }
 
     [Fact]
+    public async Task AnOverbookWithoutTheConflictingAssignmentIdIsAProducerBug()
+    {
+        // The id used to fall back to Guid.Empty and silently report "no peer".
+        var r1 = Guid.NewGuid();
+        var spaceId = Guid.NewGuid();
+        var s1 = SpaceAssignment(Guid.NewGuid(), r1, spaceId, Start, Start.AddHours(2));
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([ScheduledRequest(r1, [s1], Start, Start.AddHours(2))]);
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([Batch(r1, spaceId, new ValidationIssue
+            {
+                Code = ValidationReasonCode.AssignmentOverbooked,
+                Message = "Resource is already assigned during this time window",
+                ResourceId = spaceId,
+            })]);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _service.GetAllAsync());
+    }
+
+    [Fact]
     public async Task TwoOffTimePeriodsOnOneAssignmentGetDistinctConflictIds()
     {
         // One assignment can overlap several blocked periods — two closures, or a holiday

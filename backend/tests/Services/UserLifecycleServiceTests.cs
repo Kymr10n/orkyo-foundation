@@ -215,7 +215,7 @@ public class UserLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WhenKeycloakDisableFails_LeavesUserWarnedAndSendsNoNotice()
+    public async Task ProcessAsync_WhenKeycloakDisableFails_UserIsStillDormantAndNotified()
     {
         var keycloakId = Guid.NewGuid().ToString();
         var userId = await CreateLifecycleUserAsync(
@@ -227,14 +227,15 @@ public class UserLifecycleServiceTests
             await ProcessAsync();
 
             _mockKeycloak.DisableUserCallCount.Should().Be(1);
-            _mockEmail.CallCount(nameof(IEmailService.SendDormancyNoticeEmailAsync)).Should().Be(0);
+            _mockEmail.CallCount(nameof(IEmailService.SendDormancyNoticeEmailAsync)).Should().Be(1);
 
-            // A Keycloak failure must skip the user — state stays 'warned' for the next run.
+            // Keycloak is disabled after the commit; its failure leaves the committed row as is,
+            // and status = 'disabled' already refuses the user app-side.
             var (exists, status, count, dbStatus) = await GetUserStateAsync(userId);
             exists.Should().BeTrue();
-            status.Should().Be("warned");
+            status.Should().Be("dormant");
             count.Should().Be(3);
-            dbStatus.Should().Be("active");
+            dbStatus.Should().Be("disabled");
         }
         finally
         {
@@ -244,7 +245,7 @@ public class UserLifecycleServiceTests
     }
 
     [Fact]
-    public async Task ProcessAsync_WhenDormancyNoticeFails_LeavesUserWarned()
+    public async Task ProcessAsync_WhenDormancyNoticeFails_LeavesUserWarnedAndKeycloakEnabled()
     {
         var userId = await CreateLifecycleUserAsync(
             lifecycleStatus: "warned", warningCount: 3, lastWarnedDaysAgo: 15, keycloakId: Guid.NewGuid().ToString());
@@ -254,7 +255,9 @@ public class UserLifecycleServiceTests
             await ProcessAsync();
 
             _mockEmail.CallCount(nameof(IEmailService.SendDormancyNoticeEmailAsync)).Should().BeGreaterThanOrEqualTo(1);
-            // No notice, no dormancy: the purge clock must not start for a user who was not told.
+            // No notice, no dormancy: the purge clock must not start for a user who was not told,
+            // and Keycloak must stay enabled — a disabled-but-unnotified user would be locked out for good.
+            _mockKeycloak.DisableUserCallCount.Should().Be(0);
             var (exists, status, count, dbStatus) = await GetUserStateAsync(userId);
             exists.Should().BeTrue();
             status.Should().Be("warned");

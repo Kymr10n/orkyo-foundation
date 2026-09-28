@@ -152,19 +152,9 @@ public sealed class UserLifecycleService
             if (ct.IsCancellationRequested) break;
             try
             {
-                if (!string.IsNullOrEmpty(user.KeycloakId))
-                {
-                    try
-                    {
-                        await keycloakAdmin.DisableUserAsync(user.KeycloakId, ct);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to disable Keycloak user {KeycloakId}", user.KeycloakId);
-                        continue;
-                    }
-                }
-
+                // Order matters: rows, then mail, then commit, then Keycloak. Disabling Keycloak
+                // before the commit locked out a user whose notice failed to send (the rollback
+                // kept them 'warned', and nothing re-enabled the Keycloak account).
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "dormant", warningCount: 3,
                     lastWarnedAt: null, dormantSince: _time.GetUtcNow().UtcDateTime, confirmToken: null, ct);
@@ -179,6 +169,21 @@ public sealed class UserLifecycleService
 
                 await tx.CommitAsync(ct);
                 _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
+
+                // A Keycloak failure here is logged, not retried: the committed status = 'disabled'
+                // already refuses the user everywhere the app resolves them (identity lookup and
+                // tenant roles both check it), and the purge deletes the Keycloak account anyway.
+                if (!string.IsNullOrEmpty(user.KeycloakId))
+                {
+                    try
+                    {
+                        await keycloakAdmin.DisableUserAsync(user.KeycloakId, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to disable Keycloak user {KeycloakId}; user {UserId} stays dormant", user.KeycloakId, user.Id);
+                    }
+                }
             }
             catch (Exception ex)
             {

@@ -147,6 +147,71 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
     }
 
     [Fact]
+    public async Task LinkIdentity_AutoProvision_RefusesAnUnverifiedAddress_AndCreatesNothing()
+    {
+        // The create path used to skip the check the invited-user path had: an unverified
+        // claim must neither create a row nor link to one a concurrent sign-in created.
+        var emailServiceMock = new Mock<IEmailService>(MockBehavior.Loose);
+        var service = BuildService(emailServiceMock.Object, allowSelfRegistration: true);
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(new ExternalIdentityToken
+        {
+            Provider = AuthProvider.Keycloak,
+            Subject = subject,
+            Email = email,
+            EmailVerified = false,
+            DisplayName = "Walk-in",
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.EmailNotVerified);
+        (await UserExistsWithEmailAsync(email)).Should().BeFalse();
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+        emailServiceMock.Verify(e => e.SendNewUserAlertAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LinkIdentity_UnlinkedIdentityWithoutAnEmail_IsAnInvalidToken()
+    {
+        // Nothing to match or create by: the address is normalized once, up front, and an
+        // unusable one is refused before any lookup.
+        var service = BuildService();
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(new ExternalIdentityToken
+        {
+            Provider = AuthProvider.Keycloak,
+            Subject = subject,
+            Email = null,
+            EmailVerified = true,
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.InvalidToken);
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LinkIdentity_MatchByEmail_FindsTheInvitedRowFromAPaddedMixedCaseClaim()
+    {
+        // The lookup normalizes the claim the way the insert does, so " Ann@Example.com " matches
+        // the invited row for ann@example.com instead of falling through to auto-provision.
+        var service = BuildService();
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+        var userId = await CreateUserAsync(email, displayName: "Invited", status: "active");
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, $"  {email.ToUpperInvariant()}  ", "Ann"));
+
+        result.Success.Should().BeTrue();
+        result.IsNewUser.Should().BeFalse();
+        result.UserId.Should().Be(userId);
+        (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task LinkIdentity_MatchByEmail_RejectsInactiveUser()
     {
         var service = BuildService();

@@ -35,6 +35,19 @@ public class UserValidatorTests
         Assert.False(validator.Validate(new RequestEmailChangeRequest($"{local}@{domain}")).IsValid);
     }
 
+    [Fact]
+    public void RemoveMfa_RequiresThePasswordAndASixDigitCode()
+    {
+        var validator = new RemoveMfaRequestValidator();
+
+        Assert.True(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "123456" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "12345" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "1234567" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "12345a" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentCode = "123456" }).IsValid);
+    }
+
     #endregion
 
     #region InviteUserRequest

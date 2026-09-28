@@ -199,7 +199,11 @@ public class ConflictService(
                 // Exclusive overbook carries the conflicting assignment id → it's an overlap with a
                 // peer request.
                 {
-                    var caId = issue.ConflictingAssignmentId ?? Guid.Empty;
+                    // The validator always names the overlapping assignment; a missing id is a
+                    // producer bug, not a conflict without a peer.
+                    var caId = issue.ConflictingAssignmentId
+                        ?? throw new InvalidOperationException(
+                            $"AssignmentOverbooked issue for request {requestId} carries no ConflictingAssignmentId");
                     requestByAssignmentId.TryGetValue(caId, out var peer);
                     return new ConflictInfo
                     {

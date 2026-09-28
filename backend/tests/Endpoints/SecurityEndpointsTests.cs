@@ -566,8 +566,8 @@ public class SecurityEndpointsTests
 
     #region Remove MFA Tests
 
-    private static HttpRequestMessage RemoveMfaRequest(string? currentPassword) =>
-        new(HttpMethod.Delete, "/api/account/mfa") { Content = JsonContent.Create(new { currentPassword }) };
+    private static HttpRequestMessage RemoveMfaRequest(string? currentPassword, string? currentCode = "123456") =>
+        new(HttpMethod.Delete, "/api/account/mfa") { Content = JsonContent.Create(new { currentPassword, currentCode }) };
 
     [Fact]
     public async Task RemoveMfa_WithoutCurrentPassword_Returns400AndKeepsMfa()
@@ -598,6 +598,60 @@ public class SecurityEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_TotpUser_WithPasswordAndCurrentCode_RemovesMfa()
+    {
+        // The realm's direct-grant flow rejects a TOTP user's password grant without the code;
+        // the endpoint must hand the code through or MFA removal can never succeed.
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+        _mockKeycloak.RequireTotpForPasswordGrant = true;
+        _mockKeycloak.AcceptedTotp = "654321";
+
+        var request = RemoveMfaRequest("current-password", "654321");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _mockKeycloak.LastVerifiedTotp.Should().Be("654321");
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_TotpUser_WithWrongCode_Returns400AndKeepsMfa()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+        _mockKeycloak.RequireTotpForPasswordGrant = true;
+        _mockKeycloak.AcceptedTotp = "654321";
+
+        var request = RemoveMfaRequest("current-password", "111111");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_WithoutCurrentCode_Returns400BeforeKeycloak()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+
+        foreach (var code in new[] { null, "", "12345", "abcdef" })
+        {
+            var request = RemoveMfaRequest("current-password", code);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await _client.SendAsync(request);
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest, $"code '{code}' must fail validation");
+        }
+
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(0);
         _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
     }
 

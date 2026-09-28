@@ -34,10 +34,19 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public bool VerifyPasswordSuccess { get; set; } = true;
     public int VerifyPasswordCallCount { get; private set; }
 
-    public Task VerifyCurrentPasswordAsync(string keycloakSub, string password, CancellationToken ct = default)
+    /// <summary>
+    /// Models a TOTP user: the realm's direct-grant flow rejects the password grant unless the
+    /// <c>totp</c> value equals <see cref="AcceptedTotp"/> — the same failure as a wrong password.
+    /// </summary>
+    public bool RequireTotpForPasswordGrant { get; set; }
+    public string? AcceptedTotp { get; set; }
+    public string? LastVerifiedTotp { get; private set; }
+
+    public Task VerifyCurrentPasswordAsync(string keycloakSub, string password, string? totp = null, CancellationToken ct = default)
     {
         VerifyPasswordCallCount++;
-        if (!VerifyPasswordSuccess)
+        LastVerifiedTotp = totp;
+        if (!VerifyPasswordSuccess || (RequireTotpForPasswordGrant && totp != AcceptedTotp))
             throw new KeycloakAdminException("Current password is incorrect", StatusCodes.Status400BadRequest);
         return Task.CompletedTask;
     }
@@ -326,6 +335,9 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         ChangePasswordError = null;
         VerifyPasswordSuccess = true;
         VerifyPasswordCallCount = 0;
+        RequireTotpForPasswordGrant = false;
+        AcceptedTotp = null;
+        LastVerifiedTotp = null;
         IsFederatedUser = false;
         FederatedIdentityProvider = null;
         MockSessions = new List<KeycloakSession>();

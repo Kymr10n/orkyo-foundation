@@ -212,6 +212,64 @@ public class ExportEndpointsTests
     }
 
     [Fact]
+    public async Task Export_PlacedRequest_ReportsTheLiveSpaceNotACancelledOne()
+    {
+        // The SQL excludes cancelled assignments, but the in-memory pick of "the" placement did not:
+        // a cancelled assignment on another exported space was reported as the placement.
+        var tag = $"exp-cx-{Guid.NewGuid():N}"[..20];
+        await using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
+        await conn.OpenAsync();
+        try
+        {
+            var siteId = Guid.NewGuid();
+            var oldSpaceId = Guid.NewGuid();
+            var liveSpaceId = Guid.NewGuid();
+            var requestId = Guid.NewGuid();
+            await using (var seed = new NpgsqlCommand(@"
+                INSERT INTO sites (id, name, code) VALUES (@siteId, @tag, @tag);
+                INSERT INTO resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, home_site_id)
+                SELECT @oldSpaceId, rt.id, @tag || ' old', 'Exclusive', 100, true, @siteId FROM resource_types rt WHERE rt.key = 'space';
+                INSERT INTO resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, home_site_id)
+                SELECT @liveSpaceId, rt.id, @tag || ' live', 'Exclusive', 100, true, @siteId FROM resource_types rt WHERE rt.key = 'space';
+                INSERT INTO requests (id, name, site_id, status, start_ts, end_ts, minimal_duration_value, minimal_duration_unit,
+                                      planning_mode, created_at, updated_at)
+                VALUES (@requestId, @tag, @siteId, 'new', @start, @end, 60, 'minutes', 'leaf', NOW(), NOW());
+                INSERT INTO resource_assignments (id, request_id, resource_id, start_utc, end_utc, assignment_status)
+                VALUES (gen_random_uuid(), @requestId, @oldSpaceId, @start, @end, 'Cancelled'),
+                       (gen_random_uuid(), @requestId, @liveSpaceId, @start, @end, 'Planned')", conn))
+            {
+                var start = new DateTime(2099, 3, 1, 9, 0, 0, DateTimeKind.Utc);
+                seed.Parameters.AddWithValue("siteId", siteId);
+                seed.Parameters.AddWithValue("tag", tag);
+                seed.Parameters.AddWithValue("oldSpaceId", oldSpaceId);
+                seed.Parameters.AddWithValue("liveSpaceId", liveSpaceId);
+                seed.Parameters.AddWithValue("requestId", requestId);
+                seed.Parameters.AddWithValue("start", start);
+                seed.Parameters.AddWithValue("end", start.AddHours(1));
+                await seed.ExecuteNonQueryAsync();
+            }
+
+            var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token,
+                new ExportRequest { SiteIds = [siteId], IncludeMasterData = true, IncludePlanningData = true });
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
+            var exported = Assert.Single(payload!.Data.Requests!, r => r.Name == tag);
+            Assert.Equal(tag + " live", exported.ResourceName);
+        }
+        finally
+        {
+            await using var cleanup = new NpgsqlCommand(@"
+                DELETE FROM requests WHERE name = @tag;
+                DELETE FROM resources WHERE name LIKE @tag || '%';
+                DELETE FROM sites WHERE code = @tag", conn);
+            cleanup.Parameters.AddWithValue("tag", tag);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
     public async Task Export_SeesSitesPastTheOldReadCap()
     {
         // The site read once stopped at 200 rows by name, so the 201st site was never exported.

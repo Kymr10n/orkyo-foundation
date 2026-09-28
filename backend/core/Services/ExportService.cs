@@ -410,11 +410,13 @@ public class ExportService : IExportService
         }
 
         // Only the requests placed in an exported site, filtered in SQL. A request holds at most
-        // one placeable resource, so the assignment to an allowed one is its placement.
+        // one live placeable resource, so the non-cancelled assignment to an allowed one is its
+        // placement — a cancelled one on another allowed space is history, as in the SQL.
         var placed = await _requestRepo.GetPlacedOnAsync(allowedResourceIds, ct);
 
         return placed
-            .Select(r => (Request: r, SpaceResourceId: r.Assignments.First(a => allowedResourceIds.Contains(a.ResourceId)).ResourceId))
+            .Select(r => (Request: r, SpaceResourceId: r.Assignments
+                .First(a => a.AssignmentStatus != AssignmentStatuses.Cancelled && allowedResourceIds.Contains(a.ResourceId)).ResourceId))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>
             {

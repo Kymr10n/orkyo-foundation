@@ -234,6 +234,7 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
                 p.AddWithValue("tenantId", tenantId);
                 p.AddWithValue("userId", userId);
             }, ct);
+        // Per process instance: another instance keeps the stale role until its TTL runs out.
         _identityCache?.Remove(IdentityCacheKeys.Role(userId, tenantId));
     }
 }
