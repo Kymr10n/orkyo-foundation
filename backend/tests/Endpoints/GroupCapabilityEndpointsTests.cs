@@ -106,7 +106,7 @@ public class GroupCapabilityEndpointsTests
         var groupId = Guid.NewGuid();
         var request = new AddGroupCapabilityRequest(
             CriterionId: Guid.NewGuid(),
-            Value: 42);
+            Value: JsonSerializer.SerializeToElement(42));
 
         var response = await _unauthenticatedClient.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", request);
@@ -122,7 +122,7 @@ public class GroupCapabilityEndpointsTests
 
         var request = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
-            Value: 42);
+            Value: JsonSerializer.SerializeToElement(42));
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", request);
@@ -156,9 +156,42 @@ public class GroupCapabilityEndpointsTests
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities",
-            new AddGroupCapabilityRequest(criterion.Id, true));
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddCapability_SameCriterionTwice_ReplacesTheValue()
+    {
+        // Same contract as the resource capability POST: an upsert, not insert-then-409.
+        var groupId = await CreateTestGroupAsync();
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Number);
+        var url = $"/api/resource-groups/{groupId}/capabilities";
+
+        var first = await _client.PostAsJsonAsync(url,
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(1)));
+        var second = await _client.PostAsJsonAsync(url,
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(2)));
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var list = await _client.GetFromJsonAsync<List<GroupCapabilityInfo>>(url);
+        var only = Assert.Single(list!, c => c.CriterionId == criterion.Id);
+        Assert.Equal(2, only.Value.GetInt32());
+        Assert.Equal((await first.Content.ReadFromJsonAsync<GroupCapabilityInfo>())!.Id, only.Id);
+    }
+
+    [Fact]
+    public async Task AddCapability_MissingGroup_Returns404()
+    {
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Boolean);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{Guid.NewGuid()}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -169,7 +202,7 @@ public class GroupCapabilityEndpointsTests
 
         var addRequest = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
-            Value: true);
+            Value: JsonSerializer.SerializeToElement(true));
 
         var addResponse = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", addRequest);
@@ -215,7 +248,7 @@ public class GroupCapabilityEndpointsTests
         // Create capability
         var addRequest = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
-            Value: 99);
+            Value: JsonSerializer.SerializeToElement(99));
 
         var addResponse = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", addRequest);
@@ -240,7 +273,7 @@ public class GroupCapabilityEndpointsTests
         // Create
         var addResponse = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities",
-            new AddGroupCapabilityRequest(criterion.Id, "test-value"));
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement("test-value")));
         addResponse.EnsureSuccessStatusCode();
 
         var created = await addResponse.Content.ReadFromJsonAsync<GroupCapabilityInfo>();

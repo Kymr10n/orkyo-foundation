@@ -11,7 +11,11 @@ public interface IGroupCapabilityRepository
     Task<List<GroupCapabilityInfo>> GetAllAsync(Guid groupId, CancellationToken ct = default);
     /// <summary>Bulk fetch capabilities for many groups in one query, keyed by group id — for export.</summary>
     Task<Dictionary<Guid, List<GroupCapabilityInfo>>> GetByGroupsAsync(IReadOnlyList<Guid> groupIds, CancellationToken ct = default);
-    Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default);
+    /// <summary>
+    /// Sets the group's value for a criterion — inserted, or replaced when the group already has
+    /// one. Throws <see cref="NotFoundException"/> for a missing group or criterion.
+    /// </summary>
+    Task<GroupCapabilityInfo> UpsertAsync(Guid groupId, Guid criterionId, JsonElement value, CancellationToken ct = default);
     Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default);
 }
 
@@ -66,20 +70,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
             p => p.AddWithValue("groupIds", groupIds.ToArray()),
             r => MapFromReader(r), ct);
 
-        var map = new Dictionary<Guid, List<GroupCapabilityInfo>>();
-        foreach (var capability in capabilities)
-        {
-            if (!map.TryGetValue(capability.GroupId, out var list))
-            {
-                list = [];
-                map[capability.GroupId] = list;
-            }
-            list.Add(capability);
-        }
-        return map;
+        return capabilities.GroupBy(c => c.GroupId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
-    public async Task<GroupCapabilityInfo> CreateAsync(Guid groupId, Guid criterionId, object value, CancellationToken ct = default)
+    public async Task<GroupCapabilityInfo> UpsertAsync(Guid groupId, Guid criterionId, JsonElement value, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 
@@ -119,25 +113,19 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
                 groupId, criterionId,
                 "Criterion is not applicable to this group's resource type");
 
-        try
-        {
-            return await conn.QuerySingleOrDefaultAsync(@"
-                INSERT INTO resource_group_capabilities (resource_group_id, criterion_id, value)
-                VALUES (@groupId, @criterionId, @value::jsonb)
-                RETURNING id, resource_group_id, criterion_id, value, created_at, updated_at",
-                p =>
-                {
-                    p.AddWithValue("groupId", groupId);
-                    p.AddWithValue("criterionId", criterionId);
-                    p.AddWithValue("value", JsonSerializer.Serialize(value));
-                },
-                r => MapFromReader(r, includeCriterion: false), ct)
-                ?? throw new InvalidOperationException("Failed to create capability");
-        }
-        catch (PostgresException ex) when (ex.SqlState == "23505") // Unique violation
-        {
-            throw new ConflictException("This criterion already has a value for this group");
-        }
+        return (await conn.QuerySingleOrDefaultAsync(@"
+            INSERT INTO resource_group_capabilities (resource_group_id, criterion_id, value)
+            VALUES (@groupId, @criterionId, @value)
+            ON CONFLICT (resource_group_id, criterion_id) DO UPDATE
+            SET value = EXCLUDED.value, updated_at = NOW()
+            RETURNING id, resource_group_id, criterion_id, value, created_at, updated_at",
+            p =>
+            {
+                p.AddWithValue("groupId", groupId);
+                p.AddWithValue("criterionId", criterionId);
+                p.AddJsonb("value", value.GetRawText());
+            },
+            r => MapFromReader(r, includeCriterion: false), ct))!;
     }
 
     public async Task<bool> DeleteAsync(Guid groupId, Guid capabilityId, CancellationToken ct = default)
@@ -155,12 +143,6 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
 
     private static GroupCapabilityInfo MapFromReader(NpgsqlDataReader reader, bool includeCriterion = true)
     {
-        object? value = null;
-        if (reader.GetNullableString("value") is { } valueJson)
-        {
-            value = JsonSerializer.Deserialize<JsonElement>(valueJson);
-        }
-
         CriterionMetadata? criterion = null;
         if (includeCriterion)
         {
@@ -178,21 +160,10 @@ public class GroupCapabilityRepository : IGroupCapabilityRepository
             Id = reader.GetGuid("id"),
             GroupId = reader.GetGuid("resource_group_id"),
             CriterionId = reader.GetGuid("criterion_id"),
-            Value = value,
+            Value = reader.GetJsonElement("value"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),
             Criterion = criterion
         };
     }
-}
-
-public record GroupCapabilityInfo
-{
-    public Guid Id { get; init; }
-    public Guid GroupId { get; init; }
-    public Guid CriterionId { get; init; }
-    public object? Value { get; init; }
-    public DateTime CreatedAt { get; init; }
-    public DateTime UpdatedAt { get; init; }
-    public CriterionMetadata? Criterion { get; init; }
 }

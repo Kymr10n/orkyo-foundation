@@ -136,7 +136,7 @@ public class ExportService : IExportService
                 Description = g.Description,
                 Color = g.Color,
                 DisplayOrder = g.DisplayOrder ?? 0,
-                Capabilities = MapCapabilities(groupCaps.Select(gc => (gc.CriterionId, gc.Value)), criterionIdToKey)
+                Capabilities = MapCapabilities(groupCaps.Select(gc => (gc.CriterionId, (object?)gc.Value)), criterionIdToKey)
             });
         }
 
