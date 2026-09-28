@@ -102,9 +102,14 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public bool UserExistsResult { get; set; } = false;
     public int UserExistsCallCount { get; private set; }
 
+    /// <summary>When set, <see cref="UserExistsAsync"/> throws it (a Keycloak outage).</summary>
+    public KeycloakAdminException? UserExistsException { get; set; }
+
     public Task<bool> UserExistsAsync(string email, CancellationToken ct = default)
     {
         UserExistsCallCount++;
+        if (UserExistsException is not null)
+            throw UserExistsException;
         return Task.FromResult(UserExistsResult);
     }
 
@@ -348,6 +353,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
         UserExistsResult = false;
         UserExistsCallCount = 0;
+        UserExistsException = null;
 
         DisableUserSuccess = true;
         DisableUserError = null;

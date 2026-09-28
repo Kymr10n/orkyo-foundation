@@ -65,18 +65,11 @@ public static class AiAllowanceEndpoints
         if (!shape.IsValid)
             return EndpointHelpers.ValidationFailed(shape);
 
-        try
-        {
-            await access.SetDailyLimitsAsync(
-                request.UserDailyTurns, request.TenantDailyTurns,
-                principal.UserIdOrNull, ct);
-            return Results.NoContent();
-        }
-        catch (ArgumentOutOfRangeException ex)
-        {
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
-        }
+        // The ranges are the validator's; the service's own guard is a programming-error check.
+        await access.SetDailyLimitsAsync(
+            request.UserDailyTurns, request.TenantDailyTurns,
+            principal.UserIdOrNull, ct);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> ListAllowances(
@@ -96,18 +89,10 @@ public static class AiAllowanceEndpoints
         if (!shape.IsValid)
             return EndpointHelpers.ValidationFailed(shape);
 
-        try
-        {
-            await access.SetAllowanceAsync(
-                userId, request.MonthlyTokenLimit,
-                principal.UserIdOrNull, ct);
-            return Results.NoContent();
-        }
-        catch (ArgumentOutOfRangeException ex)
-        {
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
-        }
+        await access.SetAllowanceAsync(
+            userId, request.MonthlyTokenLimit,
+            principal.UserIdOrNull, ct);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> RevokeAllowance(

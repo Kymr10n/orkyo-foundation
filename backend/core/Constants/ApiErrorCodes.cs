@@ -18,6 +18,9 @@ public static class ApiErrorCodes
     public const string QuotaExceeded = "quota_exceeded";
     public const string UpgradeRequired = "upgrade_required";
 
+    /// <summary>A mail the operation depends on could not be sent (502); nothing was changed.</summary>
+    public const string EmailDeliveryFailed = "email_delivery_failed";
+
     /// <summary>Resource not found (404)</summary>
     public const string NotFound = "NOT_FOUND";
 

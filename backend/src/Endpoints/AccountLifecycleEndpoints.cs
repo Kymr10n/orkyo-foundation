@@ -1,4 +1,5 @@
 using Api.Configuration;
+using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
@@ -115,15 +116,9 @@ public static class AccountEmailChangeEndpoints
                 if (string.Equals(currentEmail, newEmail, StringComparison.OrdinalIgnoreCase))
                     return ErrorResponses.BadRequest("The new email address is the same as your current one.");
 
-                // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE indexes below
-                bool taken;
-                try { taken = await keycloakAdmin.UserExistsAsync(newEmail, ct); }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Failed to check email availability for {NewEmail}", newEmail);
-                    return Results.Problem("Could not verify email availability. Please try again.");
-                }
-                if (taken)
+                // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE
+                // indexes below. A Keycloak failure is KeycloakAdminExceptionMapper's 502, with a code.
+                if (await keycloakAdmin.UserExistsAsync(newEmail, ct))
                     return ErrorResponses.Conflict("That email address is already in use.");
 
                 var token = Guid.NewGuid().ToString();
@@ -131,31 +126,21 @@ public static class AccountEmailChangeEndpoints
                 if (!await userRepository.SetPendingEmailChangeAsync(userId, newEmail, token, ct))
                     return ErrorResponses.Conflict("That email address is already in use.");
 
-                // IEmailService returns false on SMTP failure (no exception thrown).
+                // IEmailService returns false on SMTP failure (it catches and logs; nothing is thrown).
                 // If we cannot deliver the confirmation link the user can never complete
                 // the change, so we must surface the failure rather than respond 200 OK.
                 // The pending row is cleared so the next attempt starts from a clean
                 // state — otherwise the (orphan, undeliverable) pending_email would
                 // keep the UNIQUE (lower(pending_email)) index claimed for 24h.
-                bool sent;
-                try
-                {
-                    sent = await emailService.SendEmailChangeConfirmationAsync(newEmail, displayName, token, ct);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Failed to send email change confirmation for user {UserId}", userId);
-                    sent = false;
-                }
-
-                if (!sent)
+                if (!await emailService.SendEmailChangeConfirmationAsync(newEmail, displayName, token, ct))
                 {
                     await userRepository.ClearPendingEmailChangeAsync(userId, ct);
 
-                    return Results.Problem(
-                        title: "Email delivery failed",
+                    return ProblemResults.Problem(
+                        StatusCodes.Status502BadGateway,
+                        ApiErrorCodes.EmailDeliveryFailed,
                         detail: "Could not send the confirmation email. Please try again later.",
-                        statusCode: StatusCodes.Status502BadGateway);
+                        title: "Email delivery failed");
                 }
 
                 // Security: tell the CURRENT address that a change was requested (best-effort).

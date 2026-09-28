@@ -241,6 +241,8 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "new@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
+            .Should().Be(Api.Constants.ApiErrorCodes.EmailDeliveryFailed);
 
         // Pending row must be cleared so the orphan UNIQUE index entry is released
         // and the user (or anyone else) can retry the same address.
@@ -249,6 +251,21 @@ public class AccountEmailChangeEndpointsTests
         token.Should().BeNull();
 
         _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RequestEmailChange_WhenKeycloakIsDown_Returns502WithACode_AndStoresNothing()
+    {
+        // The endpoint's own catch answered a code-less 500; the global mapper answers 502 with one.
+        await SetUserEmailAsync("current@example.com");
+        _mockKeycloak.UserExistsException = new Api.Integrations.Keycloak.KeycloakAdminException("down", 502);
+
+        var response = await _client.PostAsJsonAsync("/api/account/email", new { newEmail = "new@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("code", out _).Should().BeTrue();
+        (await GetPendingEmailStateAsync()).pendingEmail.Should().BeNull();
+        _mockKeycloak.UserExistsException = null;
     }
 
     [Fact]

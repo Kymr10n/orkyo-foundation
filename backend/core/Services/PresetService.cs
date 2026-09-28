@@ -57,29 +57,23 @@ public class PresetService : IPresetService
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
+        // A failure rolls back on dispose and reaches AppExceptionHandler, which answers with a
+        // code and without the exception text: the message used to carry Npgsql's table and
+        // constraint names to the client.
         await using var transaction = await conn.BeginTransactionAsync(ct);
 
-        try
-        {
-            var stats = await PresetApplier.ApplyAsync(conn, transaction, preset, userId);
-            await transaction.CommitAsync(ct);
+        var stats = await PresetApplier.ApplyAsync(conn, transaction, preset, userId);
+        await transaction.CommitAsync(ct);
 
-            _logger.LogInformation(
-                "Applied preset {PresetId} v{Version}: {CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
-                "{GroupsCreated} groups created, {GroupsUpdated} updated, {TemplatesCreated} templates created, {TemplatesUpdated} updated",
-                preset.PresetId, preset.Version,
-                stats.CriteriaCreated, stats.CriteriaUpdated,
-                stats.SpaceGroupsCreated, stats.SpaceGroupsUpdated,
-                stats.TemplatesCreated, stats.TemplatesUpdated);
+        _logger.LogInformation(
+            "Applied preset {PresetId} v{Version}: {CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
+            "{GroupsCreated} groups created, {GroupsUpdated} updated, {TemplatesCreated} templates created, {TemplatesUpdated} updated",
+            preset.PresetId, preset.Version,
+            stats.CriteriaCreated, stats.CriteriaUpdated,
+            stats.SpaceGroupsCreated, stats.SpaceGroupsUpdated,
+            stats.TemplatesCreated, stats.TemplatesUpdated);
 
-            return new PresetApplicationResult { Success = true, Stats = stats };
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync(ct);
-            _logger.LogError(ex, "Failed to apply preset {PresetId}", preset.PresetId);
-            return new PresetApplicationResult { Success = false, Error = $"Failed to apply preset: {ex.Message}" };
-        }
+        return new PresetApplicationResult { Success = true, Stats = stats };
     }
 
     public async Task<Preset> ExportAsync(string presetId, string name, string? description = null, CancellationToken ct = default)

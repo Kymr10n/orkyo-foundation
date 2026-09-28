@@ -145,7 +145,8 @@ internal sealed class TokenStore<TRecord, TSummary>(
             cmd.Parameters.AddWithValue("id", tokenId);
             await cmd.ExecuteNonQueryAsync(ct);
         }
-        catch (Exception ex)
+        // A cancelled touch is not a failure worth a warning; anything else is best-effort.
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogWarning(ex, "Failed to update last_used_at for token {TokenId}", tokenId);
         }
