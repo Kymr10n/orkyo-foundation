@@ -109,11 +109,6 @@ export function AboutPage() {
 
             <div className="text-center text-sm text-muted-foreground">
               <p>© {currentYear} Orkyo. Licensed under AGPL-3.0.</p>
-              {!import.meta.env.VITE_RUM_ENDPOINT && (
-                <p className="mt-1">
-                  Version and telemetry data are not shared with third parties.
-                </p>
-              )}
             </div>
           </CardContent>
         </Card>
