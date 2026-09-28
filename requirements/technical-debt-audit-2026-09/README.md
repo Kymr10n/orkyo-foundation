@@ -111,7 +111,7 @@ per agent, sequential within a stack, stacks in parallel.
 | S51 | R1 | done | dotnet-format hook no longer runs `git add`; frontend/backend pre-push test hooks deleted and `pre-push` dropped from install types; CLAUDE.md, CONTRIBUTING, setup.sh wording aligned |
 | S52 | R1 | done | Both non-root checks now `docker pull` + `docker image inspect` `.Config.User` and fail on empty/`0`/`root` or on any pull/inspect error; no fallback UID (the old `id -u` ran through Keycloak's `kc.sh` entrypoint and always fell back to 1000) |
 | S53 | R1 | todo | |
-| S54 | R1 | todo | |
+| S54 | R1 | in-progress | |
 | S55 | F5 | todo | |
 | S56 | R1 | todo | |
 | M1 | — | skipped | major-version decision; see do-not-touch |

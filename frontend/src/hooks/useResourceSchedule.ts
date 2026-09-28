@@ -31,7 +31,7 @@ export const useResourceAssignments = (
  */
 export const useScheduleRequestNames = (enabled: boolean) =>
   useQuery({
-    queryKey: qk.requests.list(),
+    queryKey: qk.requests.names(),
     queryFn: () => getRequests(),
     staleTime: STALE.STANDARD,
     enabled,

@@ -35,6 +35,8 @@ export const qk = {
     conflicted: () => ["requests", "conflicted"] as const,
     /** Full request list incl. hierarchy — the Requests page, scoped to the selected site. */
     list: (siteId: string | null = null) => ["requests", "list", { siteId }] as const,
+    /** Every request without requirements — names for labels only. Never shares `list`'s key. */
+    names: () => ["requests", "names"] as const,
     /** One request, fetched by id on demand. */
     detail: (requestId: string) => ["requests", "detail", requestId] as const,
     /** Precedence edges touching one request. */
