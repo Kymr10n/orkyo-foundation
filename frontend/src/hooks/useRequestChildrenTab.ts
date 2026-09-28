@@ -225,8 +225,7 @@ export function useRequestChildrenTab({
     if (!allRequests) return;
     setError(null);
     // Reparent to root (reversible). sortOrder = end of the current root list.
-    const rootSiblings = allRequests.filter((r) => !r.parentRequestId);
-    const sortOrder = rootSiblings.length ? Math.max(...rootSiblings.map((r) => r.sortOrder)) + 1 : 0;
+    const sortOrder = getNextSortOrder(null, allRequests);
     try {
       await removeChildMutation.mutateAsync({ childId: child.id, sortOrder });
     } catch (error) {

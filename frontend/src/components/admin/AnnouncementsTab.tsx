@@ -224,7 +224,8 @@ export function AnnouncementsTab() {
             onRowClick={(a) => setEditingAnnouncement(a)}
             columns={columns}
             data={announcements}
-            error={loadError ? loadError.message || 'Failed to load announcements' : null}
+            error={loadError}
+            errorFallback="Failed to load announcements"
             onRetry={() => void refetch()}
             emptyMessage="No announcements yet. Create one to get started."
             renderCard={renderCard}

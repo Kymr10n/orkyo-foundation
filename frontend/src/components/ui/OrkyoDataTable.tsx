@@ -30,6 +30,7 @@ import { DataTableColumnHeader } from '@foundation/src/components/ui/DataTableCo
 import { filterFnFor } from '@foundation/src/lib/table/column-meta';
 import { useBreakpoint } from '@foundation/src/hooks/useBreakpoint';
 import { cn } from '@foundation/src/lib/utils';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 // Re-export so callers don't need a separate @tanstack/react-table import for ColumnDef
 export type { ColumnDef, RowData };
@@ -49,14 +50,22 @@ export interface OrkyoDataTableProps<TData extends RowData> {
   columns: ColumnDef<TData>[];
   data: TData[];
   isLoading?: boolean;
-  error?: string | null;
+  /** A query's error as it comes (or a ready-made message); falsy renders no alert. */
+  error?: unknown;
+  /** Shown when `error` is not an `Error` or its message is empty, e.g. "Failed to load sites". */
+  errorFallback?: string;
   /** Shown as a "Try again" button next to the error alert. Omit to render no retry affordance. */
   onRetry?: () => void;
+  /** Shown when the rows are empty after filtering (or always, without noDataMessage). */
   emptyMessage?: string;
   /** Optional icon rendered above the empty message. */
   emptyIcon?: ReactNode;
   /** Optional CTA (e.g. a button) rendered below the empty message. */
   emptyAction?: ReactNode;
+  /** Shown instead of emptyMessage when `data` itself is empty, i.e. nothing exists yet. */
+  noDataMessage?: string;
+  /** Optional CTA below noDataMessage, e.g. "Create your first site". */
+  noDataAction?: ReactNode;
 
   // Filtering — choose one mode:
   // Client-side: provide filterColumn (accessor key). Filter fires on keystroke.
@@ -103,10 +112,13 @@ export function OrkyoDataTable<TData extends RowData>({
   data,
   isLoading,
   error,
+  errorFallback,
   onRetry,
   emptyMessage = 'No results found.',
   emptyIcon,
   emptyAction,
+  noDataMessage,
+  noDataAction,
   filterColumn,
   filterPlaceholder = 'Search…',
   filterValue: controlledFilterValue,
@@ -124,6 +136,9 @@ export function OrkyoDataTable<TData extends RowData>({
   renderCard,
 }: OrkyoDataTableProps<TData>) {
   const isServerFilter = onFilterChange !== undefined;
+  // An Error with an empty message still gets the fallback, as the call sites used to do.
+  const errorText = error ? errorMessage(error, errorFallback) || errorFallback || null : null;
+  const showNoData = data.length === 0 && noDataMessage !== undefined;
   const isServerPagination = onPageChange !== undefined;
   const { isPhone } = useBreakpoint();
   const showCards = isPhone && renderCard !== undefined;
@@ -307,11 +322,11 @@ export function OrkyoDataTable<TData extends RowData>({
             </div>
           ))}
         </div>
-      ) : error ? (
+      ) : errorText ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error}</span>
+            <span>{errorText}</span>
             {onRetry && (
               <Button variant="outline" size="sm" onClick={onRetry}>
                 Try again
@@ -319,6 +334,8 @@ export function OrkyoDataTable<TData extends RowData>({
             )}
           </AlertDescription>
         </Alert>
+      ) : showNoData ? (
+        <EmptyState message={noDataMessage} icon={emptyIcon} action={noDataAction} />
       ) : table.getRowModel().rows.length === 0 ? (
         <EmptyState message={emptyMessage} icon={emptyIcon} action={emptyAction} />
       ) : showCards ? (
@@ -392,7 +409,7 @@ export function OrkyoDataTable<TData extends RowData>({
         </Table>
       )}
 
-      {pageSize && !isLoading && !error && table.getRowModel().rows.length > 0 && (
+      {pageSize && !isLoading && !errorText && table.getRowModel().rows.length > 0 && (
         <div className="flex items-center justify-between px-1">
           <p className="text-sm text-muted-foreground">
             Page {currentPage + 1} of {pageCount}

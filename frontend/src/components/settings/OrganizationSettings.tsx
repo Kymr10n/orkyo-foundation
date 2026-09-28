@@ -43,11 +43,11 @@ import {
 import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import {
-  useDeleteOrganization,
   useExportTenantData,
   useRenameTenant,
   useTransferTenantOwnership,
 } from "@foundation/src/hooks/useOrganization";
+import { useDeleteTenant } from "@foundation/src/hooks/useAccount";
 import { useUsers } from "@foundation/src/hooks/useTenantUsers";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { FeatureKeys } from "@foundation/contracts/plans";
@@ -107,7 +107,8 @@ export function OrganizationSettings({ upgradeHref }: OrganizationSettingsProps 
   const renameMutation = useRenameTenant();
   const transferMutation = useTransferTenantOwnership();
   const exportMutation = useExportTenantData(tenantSlug);
-  const deleteMutation = useDeleteOrganization();
+  // The confirm closes on failure, so the failure is toasted rather than shown inline.
+  const deleteMutation = useDeleteTenant({ errorMessage: "Could not delete the organization" });
   const saving = renameMutation.isPending;
   const transferring = transferMutation.isPending;
   const exporting = exportMutation.isPending;

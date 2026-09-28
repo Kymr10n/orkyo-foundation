@@ -50,26 +50,34 @@ export function useAutoScheduleFlow({ siteId, anchorTs, resourceTypeKeys }: Auto
   const horizonStart = format(anchorTs, DATE_FORMATS.DATE_ISO);
   const horizonEnd = format(addMonths(anchorTs, AUTO_SCHEDULE_HORIZON_MONTHS), DATE_FORMATS.DATE_ISO);
 
-  const start = useCallback(async () => {
-    if (!siteId) return;
-    try {
-      const result = await previewMutation.mutateAsync({
-        siteId,
-        horizonStart,
-        horizonEnd,
-        resourceTypeKeys,
-      });
-      setRequestIds(null);
-      setPreview(result);
-      setIsDialogOpen(true);
-    } catch {
-      // Error handled by mutation state
-    }
-  }, [siteId, horizonStart, horizonEnd, resourceTypeKeys, previewMutation]);
+  /** Preview the whole site (`null`) or exactly these requests, then open the dialog. */
+  const runPreview = useCallback(
+    async (ids: string[] | null) => {
+      if (!siteId) return;
+      try {
+        const result = await previewMutation.mutateAsync({
+          siteId,
+          horizonStart,
+          horizonEnd,
+          requestIds: ids ?? undefined,
+          resourceTypeKeys,
+        });
+        setRequestIds(ids);
+        setPreview(result);
+        setIsDialogOpen(true);
+      } catch {
+        // Surfaced by the mutation's own error state.
+      }
+    },
+    [siteId, horizonStart, horizonEnd, resourceTypeKeys, previewMutation],
+  );
+
+  const start = useCallback(() => runPreview(null), [runPreview]);
 
   // An accepted auto-scheduling proposal lands here: preview exactly the requests the
-  // person approved and open the ordinary dialog. Keyed on the tick rather than the ids so
-  // accepting the same proposal twice still fires, and so a re-render never re-runs it.
+  // person approved and open the ordinary dialog. The effect keys on the array's identity:
+  // the store hands out a fresh array per acceptance, so accepting the same proposal twice
+  // still fires, and clearing it below means a re-render never re-runs it.
   const proposedRequestIds = useUiActionsStore((s) => s.autoScheduleRequestIds);
   const clearAutoSchedule = useUiActionsStore((s) => s.clearAutoSchedule);
 
@@ -79,24 +87,10 @@ export function useAutoScheduleFlow({ siteId, anchorTs, resourceTypeKeys }: Auto
     // back to the scheduler later would re-open the preview for requests already dealt
     // with. Clearing the payload makes the request single-use wherever it is read.
     clearAutoSchedule();
-
-    void (async () => {
-      try {
-        const result = await previewMutation.mutateAsync({
-          siteId,
-          horizonStart,
-          horizonEnd,
-          requestIds: proposedRequestIds,
-          resourceTypeKeys,
-        });
-        setRequestIds(proposedRequestIds);
-        setPreview(result);
-        setIsDialogOpen(true);
-      } catch {
-        // Surfaced by the mutation's own error state, same as the toolbar run.
-      }
-    })();
-  }, [proposedRequestIds, clearAutoSchedule, siteId, horizonStart, horizonEnd, resourceTypeKeys, previewMutation]);
+    // The state updates in runPreview come after the await, not in the effect body.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void runPreview(proposedRequestIds);
+  }, [proposedRequestIds, clearAutoSchedule, siteId, runPreview]);
 
   const apply = useCallback(async () => {
     if (!siteId) return;

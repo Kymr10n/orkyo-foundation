@@ -43,28 +43,6 @@ export function RequestRequirementsSection({
     (c) => !state.requirements.has(c.id) && c.resourceTypeKeys.some((k) => requirementTypeKeys.has(k))
   );
 
-  const rows = Array.from(state.requirements.entries()).flatMap(([criterionId, entry]) => {
-    const criterion = availableCriteria.find((c) => c.id === criterionId);
-    if (!criterion) return [];
-    return [{
-      criterion,
-      leading: (
-        <ConflictIndicator conflicts={conflictsByCriterionId?.get(criterionId) ?? []} className="mt-9" />
-      ),
-      input: (
-        <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0">
-          <CriterionRequirementInput
-            criterion={criterion}
-            value={entry.value}
-            operator={entry.operator}
-            onChange={(newValue) => onRequirementChange(criterionId, { value: newValue })}
-            onOperatorChange={(newOperator) => onRequirementChange(criterionId, { operator: newOperator })}
-          />
-        </fieldset>
-      ),
-    }];
-  });
-
   return (
     <CriterionRequirementList
       title="Requirements"
@@ -74,8 +52,22 @@ export function RequestRequirementsSection({
       selectedCriterionId={selectedCriterionId}
       onSelectCriterion={setSelectedCriterionId}
       onAdd={onAddRequirement}
-      count={state.requirements.size}
-      rows={rows}
+      availableCriteria={availableCriteria}
+      requirements={state.requirements}
+      renderLeading={(criterion) => (
+        <ConflictIndicator conflicts={conflictsByCriterionId?.get(criterion.id) ?? []} className="mt-9" />
+      )}
+      renderInput={(criterion, entry) => (
+        <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0">
+          <CriterionRequirementInput
+            criterion={criterion}
+            value={entry.value}
+            operator={entry.operator}
+            onChange={(newValue) => onRequirementChange(criterion.id, { value: newValue })}
+            onOperatorChange={(newOperator) => onRequirementChange(criterion.id, { operator: newOperator })}
+          />
+        </fieldset>
+      )}
       onRemove={onRemoveRequirement}
       disabled={isLoading}
       readOnly={readOnly}

@@ -126,16 +126,15 @@ export function RoutingSettings() {
         {...tableUrlState}
         columns={columns}
         data={routings}
-        error={error ? error.message || "Failed to load routings" : null}
+        error={error}
+        errorFallback="Failed to load routings"
         onRetry={() => void refetch()}
-        emptyMessage={routings.length === 0 ? "No routings defined yet" : undefined}
-        emptyAction={
-          routings.length === 0 && (
-            <Button onClick={() => setDialog({ open: true, routing: null })} variant="outline" disabled={!canEdit}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create your first routing
-            </Button>
-          )
+        noDataMessage="No routings defined yet"
+        noDataAction={
+          <Button onClick={() => setDialog({ open: true, routing: null })} variant="outline" disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create your first routing
+          </Button>
         }
         renderCard={renderCard}
         onRowClick={(routing) => setDialog({ open: true, routing })}

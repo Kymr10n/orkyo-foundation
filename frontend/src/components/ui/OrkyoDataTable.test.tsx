@@ -76,6 +76,59 @@ describe('OrkyoDataTable', () => {
     expect(screen.getByText('No tenants yet.')).toBeInTheDocument();
   });
 
+  it('shows the message of an Error passed as-is', () => {
+    render(<OrkyoDataTable columns={columns} data={[]} error={new Error('Boom')} errorFallback="Failed to load" />);
+    expect(screen.getByText('Boom')).toBeInTheDocument();
+  });
+
+  it('shows errorFallback for a non-Error rejection and for an Error without a message', () => {
+    const { rerender } = render(
+      <OrkyoDataTable columns={columns} data={[]} error={{ status: 500 }} errorFallback="Failed to load" />,
+    );
+    expect(screen.getByText('Failed to load')).toBeInTheDocument();
+    rerender(<OrkyoDataTable columns={columns} data={[]} error={new Error('')} errorFallback="Failed to load" />);
+    expect(screen.getByText('Failed to load')).toBeInTheDocument();
+  });
+
+  it('renders no error for a null or undefined query error', () => {
+    render(<OrkyoDataTable columns={columns} data={makeRows(1)} error={null} errorFallback="Failed to load" />);
+    expect(screen.queryByText('Failed to load')).not.toBeInTheDocument();
+    expect(screen.getByText('Item 1')).toBeInTheDocument();
+  });
+
+  it('shows noDataMessage and noDataAction when nothing exists yet', () => {
+    render(
+      <OrkyoDataTable
+        columns={columns}
+        data={[]}
+        emptyMessage="No match."
+        noDataMessage="No sites defined yet"
+        noDataAction={<button>Create your first site</button>}
+      />,
+    );
+    expect(screen.getByText('No sites defined yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create your first site' })).toBeInTheDocument();
+    expect(screen.queryByText('No match.')).not.toBeInTheDocument();
+  });
+
+  it('shows emptyMessage, not noDataMessage, when the filter hides every row', async () => {
+    const user = userEvent.setup();
+    render(
+      <OrkyoDataTable
+        columns={columns}
+        data={makeRows(3)}
+        filterColumn="name"
+        emptyMessage="No match."
+        noDataMessage="No sites defined yet"
+        noDataAction={<button>Create your first site</button>}
+      />,
+    );
+    await user.type(screen.getByPlaceholderText('Search…'), 'zzz');
+    expect(screen.getByText('No match.')).toBeInTheDocument();
+    expect(screen.queryByText('No sites defined yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create your first site' })).not.toBeInTheDocument();
+  });
+
   // ── Data rendering ───────────────────────────────────────────────────────
 
   it('renders column headers', () => {

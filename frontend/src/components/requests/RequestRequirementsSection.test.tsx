@@ -162,6 +162,20 @@ describe('RequestRequirementsSection', () => {
     expect(screen.getByTestId('input-c3')).toBeInTheDocument();
   });
 
+  it('counts a requirement whose criterion has not loaded yet, but renders no row for it', () => {
+    const stateWithUnknown = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([
+        ['c1', { value: true }],
+        ['not-loaded', { value: 1 }],
+      ]),
+    };
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithUnknown} />);
+    expect(screen.getByText('2 active')).toBeInTheDocument();
+    expect(screen.getByTestId('input-c1')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(1);
+  });
+
   it('hides add row when no criterion applies to any requirement type', () => {
     renderWithQuery(<RequestRequirementsSection {...defaultProps} requirementTypeKeys={new Set()} />);
     expect(screen.queryByText('Select a criterion to add')).not.toBeInTheDocument();

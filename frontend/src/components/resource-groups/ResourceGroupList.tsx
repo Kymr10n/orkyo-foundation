@@ -141,7 +141,8 @@ export function ResourceGroupList({ resourceTypeKey, entityLabel = 'Group', memb
         columns={columns}
         data={groups}
         isLoading={isLoading}
-        error={error ? error.message || `Failed to load ${entityLabel.toLowerCase()}s` : null}
+        error={error}
+        errorFallback={`Failed to load ${entityLabel.toLowerCase()}s`}
         onRetry={() => void refetch()}
         emptyMessage={`No ${entityLabel.toLowerCase()}s yet. Click "Add ${entityLabel}" to create one.`}
         emptyAction={

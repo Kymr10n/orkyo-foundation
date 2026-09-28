@@ -245,16 +245,16 @@ export function CriteriaSettings() {
         {...tableUrlState}
         columns={columns}
         data={criteria}
-        error={error ? error.message || 'Failed to load criteria' : null}
+        error={error}
+        errorFallback="Failed to load criteria"
         onRetry={() => void refetch()}
-        emptyMessage={criteria.length === 0 ? 'No criteria defined yet' : 'No criteria match your search.'}
-        emptyAction={
-          criteria.length === 0 && (
-            <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create your first criterion
-            </Button>
-          )
+        emptyMessage="No criteria match your search."
+        noDataMessage="No criteria defined yet"
+        noDataAction={
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create your first criterion
+          </Button>
         }
         onRowClick={(criterion) => setEditingCriterion(criterion)}
         renderCard={renderCard}

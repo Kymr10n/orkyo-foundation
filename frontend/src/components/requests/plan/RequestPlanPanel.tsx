@@ -27,6 +27,7 @@ import {
 } from "@foundation/src/domain/plan-layout";
 import { PlanEdgeLayer } from "./PlanEdgeLayer";
 import { collectViolatingEdgeIds } from "./plan-conflicts";
+import { nextSortOrder } from "@foundation/src/domain/request-tree";
 import { PlanNodeCard } from "./PlanNodeCard";
 import { PlanBacklogTray } from "./PlanBacklogTray";
 
@@ -138,12 +139,9 @@ export function RequestPlanPanel({
   // only arrange what the Children tab had already created, so building a sequence meant leaving
   // for a dialog and coming back. Tasks are made where the sequence is drawn now.
   const children = data?.children;
-  const nextSortOrder = useMemo(
-    () => (children && children.length > 0 ? Math.max(...children.map((c) => c.sortOrder)) + 1 : 0),
-    [children],
-  );
+  const addTaskSortOrder = useMemo(() => nextSortOrder(children ?? []), [children]);
 
-  const addTaskMutation = useAddPlanTask(requestId, nextSortOrder, (created) => {
+  const addTaskMutation = useAddPlanTask(requestId, addTaskSortOrder, (created) => {
     // It has no dependencies yet, so the plan counts it as unsequenced and the tray would
     // swallow it. The user made it here, looking at the canvas; that is where it belongs.
     setStaged((current) => new Set(current).add(created.id));

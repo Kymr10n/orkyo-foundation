@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import * as securityApi from '@foundation/src/lib/api/security-api';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import * as tenantAccountApi from '@foundation/src/lib/api/tenant-account-api';
-import { useRequestEmailChange, useTenantMemberships } from './useAccount';
+import { useDeleteTenant, useRequestEmailChange, useTenantMemberships } from './useAccount';
 
 vi.mock('@foundation/src/lib/api/security-api');
 vi.mock('@foundation/src/lib/api/tenant-account-api');
@@ -21,6 +21,36 @@ describe('useRequestEmailChange', () => {
 
     await waitFor(() => expect(result.current.error?.message).toBe('Email already in use'));
     expect(toast.error).not.toHaveBeenCalled();
+  });
+});
+
+describe('useDeleteTenant', () => {
+  it('reports a failure inline only when called without meta', async () => {
+    vi.mocked(tenantAccountApi.deleteTenant).mockRejectedValue(new Error('Grace period active'));
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useDeleteTenant(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync('t-1').catch(() => {});
+    });
+
+    expect(tenantAccountApi.deleteTenant).toHaveBeenCalledWith('t-1');
+    await waitFor(() => expect(result.current.error?.message).toBe('Grace period active'));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('toasts the given errorMessage when called with meta', async () => {
+    vi.mocked(tenantAccountApi.deleteTenant).mockRejectedValue(new Error('Grace period active'));
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useDeleteTenant({ errorMessage: 'Could not delete' }), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync('t-1').catch(() => {});
+    });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not delete', { description: 'Grace period active' }),
+    );
   });
 });
 

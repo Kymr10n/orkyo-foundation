@@ -262,21 +262,15 @@ export function TemplateDialogBase({
                 selectedCriterionId={selectedCriterionId}
                 onSelectCriterion={setSelectedCriterionId}
                 onAdd={handleAddRequirement}
-                count={state.requirements.size}
-                rows={Array.from(state.requirements.entries()).flatMap(([criterionId, value]) => {
-                  const criterion = availableCriteria.find((c) => c.id === criterionId);
-                  if (!criterion) return [];
-                  return [{
-                    criterion,
-                    input: (
-                      <CriterionRequirementInput
-                        criterion={criterion}
-                        value={value}
-                        onChange={(newValue) => handleRequirementValueChange(criterionId, newValue)}
-                      />
-                    ),
-                  }];
-                })}
+                availableCriteria={availableCriteria}
+                requirements={state.requirements}
+                renderInput={(criterion, value) => (
+                  <CriterionRequirementInput
+                    criterion={criterion}
+                    value={value}
+                    onChange={(newValue) => handleRequirementValueChange(criterion.id, newValue)}
+                  />
+                )}
                 onRemove={handleRemoveRequirement}
                 disabled={isLoadingCriteria || isSubmitting}
               />

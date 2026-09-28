@@ -84,7 +84,7 @@ export function FeedbackTab() {
     try {
       setSelected(await fetchFeedbackItem(id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load feedback');
+      toast.error(errorMessage(err, 'Failed to load feedback'));
     }
   };
 

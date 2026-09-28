@@ -214,16 +214,25 @@ export function canHaveChildren(planningMode: PlanningMode): boolean {
   return planningMode === PLANNING_MODE.SUMMARY || planningMode === PLANNING_MODE.CONTAINER;
 }
 
+/** The sort_order that puts a new row after every one of these siblings. */
+export function nextSortOrder(siblings: readonly { sortOrder: number }[]): number {
+  if (siblings.length === 0) return 0;
+  return Math.max(...siblings.map((s) => s.sortOrder)) + 1;
+}
+
 /**
- * Compute the next sort_order for adding a child to a parent request.
+ * Compute the next sort_order for adding a child to a parent request, or to the root
+ * list when `parentRequestId` is null.
  */
 export function getNextSortOrder(
-  parentRequestId: string,
+  parentRequestId: string | null,
   requests: Request[],
 ): number {
-  const children = getDirectChildren(parentRequestId, requests);
-  if (children.length === 0) return 0;
-  return Math.max(...children.map((c) => c.sortOrder)) + 1;
+  return nextSortOrder(
+    parentRequestId === null
+      ? requests.filter((r) => !r.parentRequestId)
+      : getDirectChildren(parentRequestId, requests),
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -401,19 +401,18 @@ export function UserSettings() {
           {...usersUrlState}
           columns={userColumns}
           data={users}
-          error={error ? error.message || "Failed to load users" : null}
+          error={error}
+          errorFallback="Failed to load users"
           onRetry={() => {
             void refetchUsers();
             void refetchInvitations();
           }}
-          emptyMessage={users.length === 0 ? "No users yet" : undefined}
-          emptyAction={
-            users.length === 0 && (
-              <Button onClick={() => setInviteDialogOpen(true)} variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Invite your first user
-              </Button>
-            )
+          noDataMessage="No users yet"
+          noDataAction={
+            <Button onClick={() => setInviteDialogOpen(true)} variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              Invite your first user
+            </Button>
           }
           onRowClick={(user) => setEditingUser(user)}
           renderCard={renderUserCard}

@@ -1,6 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
 import { transferTenantOwnership, updateTenant } from "@foundation/src/lib/api/tenant-management-api";
-import { deleteTenant } from "@foundation/src/lib/api/tenant-account-api";
 import { exportTenantData } from "@foundation/src/lib/api/export-api";
 import { downloadFile } from "@foundation/src/lib/utils/import-export";
 import { formatDateForInput } from "@foundation/src/lib/utils";
@@ -27,16 +26,6 @@ export const useTransferTenantOwnership = () =>
       await transferTenantOwnership(tenantId, newOwnerId);
     },
     meta: { errorMessage: "Could not transfer ownership" },
-  });
-
-/**
- * Start deleting the organization from its settings page. The confirm closes on failure, so
- * the failure is toasted; the account page's `useDeleteTenant` shows it inline instead.
- */
-export const useDeleteOrganization = () =>
-  useMutation({
-    mutationFn: (tenantId: string) => deleteTenant(tenantId),
-    meta: { errorMessage: "Could not delete the organization" },
   });
 
 /** Export the tenant's data and hand the browser a `<slug>-export-<date>.json` file. */

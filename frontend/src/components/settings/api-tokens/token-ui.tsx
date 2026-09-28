@@ -363,18 +363,7 @@ function buildTokenColumns<T extends TokenSummaryLike>(
         const token = row.original;
         return token.isActive ? (
           <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRevoke(token);
-              }}
-              aria-label={`Revoke ${token.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <RevokeTokenButton token={token} onRevoke={onRevoke} />
           </div>
         ) : null;
       },
@@ -401,35 +390,46 @@ function renderTokenCard<T extends TokenSummaryLike>(
           Created {formatDateDisplay(token.createdAtUtc, "—")} · Last used {formatDateDisplay(token.lastUsedAtUtc, "—")}
         </p>
       </div>
-      {token.isActive && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRevoke(token);
-          }}
-          aria-label={`Revoke ${token.name}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      )}
+      {token.isActive && <RevokeTokenButton token={token} onRevoke={onRevoke} />}
     </div>
+  );
+}
+
+/** The trash icon of a table row or a card: stops propagation so the row click stays quiet. */
+function RevokeTokenButton<T extends TokenSummaryLike>({
+  token,
+  onRevoke,
+}: {
+  token: T;
+  onRevoke: (token: T) => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+      onClick={(e) => {
+        e.stopPropagation();
+        onRevoke(token);
+      }}
+      aria-label={`Revoke ${token.name}`}
+    >
+      <Trash2 className="h-4 w-4" />
+    </Button>
   );
 }
 
 // ── Create ───────────────────────────────────────────────────────────────────
 
 /** Name and expiry: what creating any token asks for. */
-export interface TokenForm {
+interface TokenForm {
   name: string;
   expiryMode: ExpiryMode;
   customExpiresAt: string;
 }
 
 /** The request fields every token class takes. */
-export interface TokenRequestBase {
+interface TokenRequestBase {
   name: string;
   expiresAt?: string;
 }
@@ -470,6 +470,7 @@ export function CreateTokenDialog<TExtra extends object, TRequest>({
   toRequest,
 }: CreateTokenDialogProps<TExtra, TRequest>) {
   // Create-only, so there is never an entity: the form reseeds each time the dialog opens.
+  const emptyForm = () => ({ name: "", expiryMode: defaultExpiry, customExpiresAt: "", ...initialExtra });
   const { form, set, error, submit, isSubmitting } = useEntityFormDialog<
     never,
     TForm<TExtra>,
@@ -479,8 +480,8 @@ export function CreateTokenDialog<TExtra extends object, TRequest>({
     open,
     onOpenChange,
     entity: null,
-    emptyForm: () => ({ name: "", expiryMode: defaultExpiry, customExpiresAt: "", ...initialExtra }),
-    toForm: () => ({ name: "", expiryMode: defaultExpiry, customExpiresAt: "", ...initialExtra }),
+    emptyForm,
+    toForm: emptyForm,
     mutation,
     toVariables: (f) => {
       const expiresAt = resolveExpiry(f.expiryMode, f.customExpiresAt);

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
 import { EmptyState } from "@foundation/src/components/ui/EmptyState";
@@ -7,14 +7,7 @@ import { getDataTypeColor } from "@foundation/src/lib/utils";
 import type { Criterion } from "@foundation/src/types/criterion";
 import { Plus, Trash2 } from "lucide-react";
 
-/** One chosen criterion: its value input, and anything shown before it (e.g. a conflict flag). */
-export interface CriterionRequirementRow {
-  criterion: Criterion;
-  input: ReactNode;
-  leading?: ReactNode;
-}
-
-interface CriterionRequirementListProps {
+interface CriterionRequirementListProps<TValue> {
   /** "Requirements" on a request, "Criteria" on a template. */
   title: string;
   /** Names the "+" button for a screen reader, e.g. "Add requirement". */
@@ -25,9 +18,14 @@ interface CriterionRequirementListProps {
   selectedCriterionId: string;
   onSelectCriterion: (id: string) => void;
   onAdd: () => void;
-  /** How many criteria are chosen. Can exceed `rows` while the criterion list still loads. */
-  count: number;
-  rows: CriterionRequirementRow[];
+  /** Every criterion a requirement can name. A requirement whose criterion is not here yet (the list still loads) renders no row. */
+  availableCriteria: Criterion[];
+  /** The chosen criteria and their values, keyed by criterion id. */
+  requirements: ReadonlyMap<string, TValue>;
+  /** The value input of one chosen criterion. */
+  renderInput: (criterion: Criterion, value: TValue) => ReactNode;
+  /** Anything shown before the input, e.g. a conflict flag. */
+  renderLeading?: (criterion: Criterion, value: TValue) => ReactNode;
   onRemove: (criterionId: string) => void;
   /** Blocks the picker and the buttons, e.g. while criteria load or a save runs. */
   disabled?: boolean;
@@ -37,9 +35,9 @@ interface CriterionRequirementListProps {
 
 /**
  * The pick-a-criterion-then-set-its-value list that a request and a template share. The caller
- * owns the rows' state and decides which criteria are still on offer.
+ * owns the requirements' state and decides which criteria are still on offer.
  */
-export function CriterionRequirementList({
+export function CriterionRequirementList<TValue>({
   title,
   addLabel,
   emptyMessage,
@@ -47,12 +45,19 @@ export function CriterionRequirementList({
   selectedCriterionId,
   onSelectCriterion,
   onAdd,
-  count,
-  rows,
+  availableCriteria,
+  requirements,
+  renderInput,
+  renderLeading,
   onRemove,
   disabled = false,
   readOnly = false,
-}: CriterionRequirementListProps) {
+}: CriterionRequirementListProps<TValue>) {
+  const count = requirements.size;
+  const criteriaById = useMemo(
+    () => new Map(availableCriteria.map((c) => [c.id, c])),
+    [availableCriteria],
+  );
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -100,25 +105,29 @@ export function CriterionRequirementList({
           <EmptyState message={emptyMessage} className="text-sm border rounded-lg border-dashed" />
         ) : (
           <div className="space-y-4 border rounded-lg p-4">
-            {rows.map(({ criterion, input, leading }) => (
-              <div key={criterion.id} className="flex gap-3">
-                {leading}
-                <div className="flex-1 min-w-0">{input}</div>
-                {!readOnly && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onRemove(criterion.id)}
-                    className="mt-7"
-                    disabled={disabled}
-                    aria-label={`Remove ${criterion.name}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                )}
-              </div>
-            ))}
+            {Array.from(requirements, ([criterionId, value]) => {
+              const criterion = criteriaById.get(criterionId);
+              if (!criterion) return null;
+              return (
+                <div key={criterion.id} className="flex gap-3">
+                  {renderLeading?.(criterion, value)}
+                  <div className="flex-1 min-w-0">{renderInput(criterion, value)}</div>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onRemove(criterion.id)}
+                      className="mt-7"
+                      disabled={disabled}
+                      aria-label={`Remove ${criterion.name}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

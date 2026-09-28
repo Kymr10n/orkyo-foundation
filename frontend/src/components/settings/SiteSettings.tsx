@@ -184,16 +184,15 @@ export function SiteSettings() {
         {...tableUrlState}
         columns={columns}
         data={sites}
-        error={error ? error.message || "Failed to load sites" : null}
+        error={error}
+        errorFallback="Failed to load sites"
         onRetry={() => void refetch()}
-        emptyMessage={sites.length === 0 ? "No sites defined yet" : undefined}
-        emptyAction={
-          sites.length === 0 && (
-            <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Create your first site
-            </Button>
-          )
+        noDataMessage="No sites defined yet"
+        noDataAction={
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline">
+            <Plus className="h-4 w-4 mr-2" />
+            Create your first site
+          </Button>
         }
         onRowClick={(site) => setEditingSite(site)}
         renderCard={renderCard}

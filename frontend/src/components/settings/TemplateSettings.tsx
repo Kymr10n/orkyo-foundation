@@ -204,16 +204,15 @@ export function TemplateSettings({ entityType = 'request' }: TemplateSettingsPro
         {...tableUrlState}
         columns={columns}
         data={templates}
-        error={error ? error.message || "Failed to load templates" : null}
+        error={error}
+        errorFallback="Failed to load templates"
         onRetry={() => void refetch()}
-        emptyMessage={templates.length === 0 ? "No request templates defined yet" : undefined}
-        emptyAction={
-          templates.length === 0 && (
-            <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create your first template
-            </Button>
-          )
+        noDataMessage="No request templates defined yet"
+        noDataAction={
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create your first template
+          </Button>
         }
         renderCard={renderCard}
         onRowClick={(template) => setEditingTemplate(template)}

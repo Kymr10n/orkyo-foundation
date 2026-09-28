@@ -83,6 +83,9 @@ export const useTenantMemberships = () => {
 export const useLeaveTenant = () =>
   useMutation({ mutationFn: (tenantId: string) => leaveTenant(tenantId) });
 
-/** Start deleting one organization. No `meta`: the account page shows a failure inline. */
-export const useDeleteTenant = () =>
-  useMutation({ mutationFn: (tenantId: string) => deleteTenant(tenantId) });
+/**
+ * Start deleting one organization. Without `meta` the account page shows a failure inline;
+ * the organization settings page passes an `errorMessage` because its confirm closes on failure.
+ */
+export const useDeleteTenant = (meta?: { errorMessage: string }) =>
+  useMutation({ mutationFn: (tenantId: string) => deleteTenant(tenantId), meta });
