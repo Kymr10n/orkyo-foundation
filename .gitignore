@@ -45,3 +45,4 @@ frontend/contracts/*.js
 frontend/assets/
 frontend/contracts/*.d.ts
 frontend/src/**/*.js
+__pycache__/
