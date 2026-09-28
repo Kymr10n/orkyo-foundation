@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { useAssistantConversation, type AssistantContext } from './useAssistantConversation';
 import {
@@ -8,6 +8,7 @@ import {
   streamAiChat,
 } from '@foundation/src/lib/api/ai-api';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 vi.mock('@foundation/src/lib/api/ai-api', () => ({
   streamAiChat: vi.fn(async function* () {
@@ -22,9 +23,9 @@ vi.mock('@foundation/src/lib/api/ai-api', () => ({
   deleteAiConversation: vi.fn(async () => undefined),
 }));
 
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: (selector: (s: { selectedSiteId: string }) => unknown) => selector({ selectedSiteId: 'site-1' }),
-}));
+beforeEach(() => {
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
+});
 
 function renderConversation(initial: { open: boolean; context?: AssistantContext | null }) {
   return renderHook((props: { open: boolean; context?: AssistantContext | null }) => useAssistantConversation(props), {

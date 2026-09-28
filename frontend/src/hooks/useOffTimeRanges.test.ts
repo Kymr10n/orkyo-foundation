@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useOffTimeRanges } from './useOffTimeRanges';
-import { expandRecurrence } from '@foundation/src/domain/scheduling/recurrence';
-import { generateWeekendRanges } from '@foundation/src/domain/scheduling/weekend-ranges';
 
 const { mockUseSchedulingSettings, mockUseAvailabilityEvents } = vi.hoisted(() => ({
   mockUseSchedulingSettings: vi.fn((_?: unknown): { data: unknown } => ({ data: null })),
@@ -14,17 +12,9 @@ vi.mock('@foundation/src/hooks/useScheduling', () => ({
   useAvailabilityEvents: (arg?: unknown) => mockUseAvailabilityEvents(arg),
 }));
 
-vi.mock('@foundation/src/domain/scheduling/recurrence', () => ({
-  expandRecurrence: vi.fn(() => []),
-}));
-
-vi.mock('@foundation/src/domain/scheduling/weekend-ranges', () => ({
-  generateWeekendRanges: vi.fn(() => []),
-}));
-
 const ANCHOR = new Date('2026-12-10T00:00:00Z');
 
-function shutdown(id: string, enabled: boolean) {
+function shutdown(id: string, enabled: boolean, recurrenceRule?: string) {
   return {
     id,
     siteId: 'site-1',
@@ -33,7 +23,8 @@ function shutdown(id: string, enabled: boolean) {
     defaultEffect: 'closed',
     startTs: '2026-12-24T00:00:00.000Z',
     endTs: '2026-12-26T00:00:00.000Z',
-    isRecurring: false,
+    isRecurring: recurrenceRule !== undefined,
+    recurrenceRule,
     enabled,
   };
 }
@@ -52,35 +43,41 @@ describe('useOffTimeRanges', () => {
   });
 
   it('expands availability event recurrences in the site time zone', () => {
-    mockUseAvailabilityEvents.mockReturnValue({ data: [shutdown('event-1', true)] });
+    // 2026-12-24T00:00Z is 19:00 on the 23rd in New York. Monthly in that zone, the March
+    // occurrence keeps 19:00 local, which is 23:00Z once daylight saving time has started.
+    mockUseAvailabilityEvents.mockReturnValue({ data: [shutdown('event-1', true, 'FREQ=MONTHLY;COUNT=4')] });
     mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: 'America/New_York', weekendsEnabled: true } });
 
-    renderHook(() => useOffTimeRanges('site-1', ANCHOR));
+    const { result } = renderHook(() => useOffTimeRanges('site-1', ANCHOR));
 
-    expect(vi.mocked(expandRecurrence)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(expandRecurrence).mock.calls[0][3]).toBe('America/New_York');
+    expect(result.current.map((r) => new Date(r.startMs).toISOString())).toEqual([
+      '2026-12-24T00:00:00.000Z',
+      '2027-01-24T00:00:00.000Z',
+      '2027-02-24T00:00:00.000Z',
+      '2027-03-23T23:00:00.000Z',
+    ]);
   });
 
   it('generates weekend ranges when weekends are disabled', () => {
     mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: 'UTC', weekendsEnabled: false } });
-    renderHook(() => useOffTimeRanges('site-1', ANCHOR));
-    expect(vi.mocked(generateWeekendRanges)).toHaveBeenCalled();
+    const { result } = renderHook(() => useOffTimeRanges('site-1', ANCHOR));
+    expect(result.current.length).toBeGreaterThan(0);
+    expect(result.current.every((r) => r.title === 'Weekend')).toBe(true);
   });
 
   it('skips weekend ranges when weekends are enabled', () => {
     mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: 'UTC', weekendsEnabled: true } });
-    renderHook(() => useOffTimeRanges('site-1', ANCHOR));
-    expect(vi.mocked(generateWeekendRanges)).not.toHaveBeenCalled();
+    const { result } = renderHook(() => useOffTimeRanges('site-1', ANCHOR));
+    expect(result.current).toEqual([]);
   });
 
   it('filters out disabled availability events', () => {
     mockUseAvailabilityEvents.mockReturnValue({ data: [shutdown('event-1', false), shutdown('event-2', true)] });
     mockUseSchedulingSettings.mockReturnValue({ data: { timeZone: 'UTC', weekendsEnabled: true } });
 
-    renderHook(() => useOffTimeRanges('site-1', ANCHOR));
+    const { result } = renderHook(() => useOffTimeRanges('site-1', ANCHOR));
 
-    expect(vi.mocked(expandRecurrence)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(expandRecurrence).mock.calls[0][0]).toMatchObject({ id: 'event-2' });
+    expect(result.current.map((r) => r.id)).toEqual(['event-2']);
   });
 
   it('keeps the same array while the anchor moves within its month', () => {

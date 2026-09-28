@@ -16,6 +16,8 @@ import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
 import { restoreViewport, setViewport } from '@foundation/src/test-utils/viewport';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
@@ -38,27 +40,6 @@ vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   getCurrentSubdomain: vi.fn(() => null),
 }));
 
-const mockSetSelectedSiteId = vi.fn();
-const mockSetTheme = vi.fn();
-
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ selectedSiteId: null, setSelectedSiteId: mockSetSelectedSiteId }),
-  ),
-}));
-
-vi.mock('@foundation/src/store/scheduler-view-store', () => ({
-  useSchedulerViewStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ scale: 'week', anchorTs: new Date('2026-01-01') }),
-  ),
-}));
-
-vi.mock('@foundation/src/store/layout-store', () => ({
-  useLayoutStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ resolvedTheme: 'dark', setTheme: mockSetTheme }),
-  ),
-}));
-
 const mockSitesData = { current: undefined as unknown };
 
 vi.mock('@tanstack/react-query', async (importOriginal) => ({
@@ -75,6 +56,13 @@ vi.mock('@foundation/src/lib/api/site-api', () => ({ getSites: vi.fn() }));
 vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({ getUnreadAnnouncementCount: vi.fn() }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+const initialSiteState = useSiteStore.getState();
+const initialLayoutState = useLayoutStore.getState();
+beforeEach(() => {
+  useSiteStore.setState({ ...initialSiteState, selectedSiteId: null }, true);
+  useLayoutStore.setState({ ...initialLayoutState, resolvedTheme: 'dark' }, true);
+});
 
 const baseMembership = {
   tenantId: 't1',

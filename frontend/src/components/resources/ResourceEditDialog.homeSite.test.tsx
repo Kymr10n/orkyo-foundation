@@ -29,14 +29,10 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
 }));
 
 // The top-bar site. The list that opens the dialog is scoped by it.
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: (selector: (s: { selectedSiteId: string | null }) => unknown) =>
-    selector({ selectedSiteId: 'site-1' }),
-}));
-
 import { createResource, updateResource } from '@foundation/src/lib/api/resources-api';
 import { getResourceCustomFields } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { createTestQueryClient } from '@foundation/src/test-utils';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 function renderDialog(resource: ResourceInfo | null = null) {
   const { queryClient } = createTestQueryClient({ feedback: true });
@@ -60,6 +56,7 @@ async function saveNew(name: string) {
 }
 
 beforeEach(() => {
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(createResource).mockResolvedValue({ id: 'new' } as ResourceInfo);
   vi.mocked(updateResource).mockResolvedValue({ id: 'r-1' } as ResourceInfo);

@@ -5,6 +5,7 @@ import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router';
 import { CommandPalette } from './CommandPalette';
+import { useSiteStore } from '@foundation/src/store/site-store';
 import { useCanEdit, useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
 import * as searchApi from '@foundation/src/lib/api/search-api';
 import type { SearchResponse, SearchResult } from '@foundation/src/lib/api/search-api';
@@ -22,17 +23,6 @@ vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
       { key: 'tool', displayNamePlural: 'Tools', hasGeometry: false },
       { key: 'delivery_van', displayNamePlural: 'Vans', hasGeometry: false },
     ],
-  }),
-}));
-
-// Mock the store
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector) => {
-    const state = {
-      selectedSiteId: 'site-1',
-      setSelectedSiteId: vi.fn(),
-    };
-    return selector(state);
   }),
 }));
 
@@ -76,6 +66,7 @@ function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: bool
 
 describe('CommandPalette', () => {
   beforeEach(() => {
+    useSiteStore.setState({ selectedSiteId: 'site-1' });
     vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: '', results: [] });
     // usePermissions hooks are globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);

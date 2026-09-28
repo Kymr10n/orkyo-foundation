@@ -3,8 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { FloorplanView } from './FloorplanView';
-
-vi.mock('@foundation/src/store/site-store', () => ({ useSiteStore: vi.fn() }));
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 // The view registers CSV import/export per placeable type; those queries have their own suites.
 vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
@@ -19,12 +18,8 @@ vi.mock('./SpaceManagementPanel', () => ({
   ),
 }));
 
-import { useSiteStore } from '@foundation/src/store/site-store';
-
 function setSite(siteId: string | null) {
-  vi.mocked(useSiteStore).mockImplementation((selector: unknown) =>
-    (selector as (s: { selectedSiteId: string | null }) => unknown)({ selectedSiteId: siteId }) as never,
-  );
+  useSiteStore.setState({ selectedSiteId: siteId });
 }
 
 describe('FloorplanView', () => {

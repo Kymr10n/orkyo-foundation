@@ -4,15 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { SidebarNav } from './SidebarNav';
 import { mockAuth } from '@foundation/src/test-utils/auth';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
 
-vi.mock('@foundation/src/store/layout-store', () => ({
-  useLayoutStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({
-      isSidebarCollapsed: false,
-      setIsSidebarCollapsed: vi.fn(),
-    }),
-  ),
-}));
+const initialLayoutState = useLayoutStore.getState();
 
 // Real permission hooks, not the global test-mock from src/test/setup.ts: the nav's gating is
 // what these tests are about.
@@ -29,7 +23,7 @@ vi.mock('@foundation/src/contexts/AuthContext', () => ({
 }));
 
 // User-defined resource types become nav entries; mocked so the nav stays renderable
-// without a QueryClient, matching how the store and auth context are handled above.
+// without a QueryClient, matching how the auth context is handled above.
 const resourceTypesState: {
   data: { key: string; displayName: string; displayNamePlural: string; isSystem: boolean }[];
 } = {
@@ -54,6 +48,7 @@ function renderSidebar(
 
 describe('SidebarNav', () => {
   beforeEach(() => {
+    useLayoutStore.setState({ ...initialLayoutState, isSidebarCollapsed: false }, true);
     authState.membership = editor;
     authState.isSiteAdmin = false;
     resourceTypesState.data = [];

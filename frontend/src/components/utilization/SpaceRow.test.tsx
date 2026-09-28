@@ -5,7 +5,7 @@ import type { Request } from '@foundation/src/types/requests';
 import type { TimeColumn } from './scheduler-types';
 import type { PreviewEntry, ValidationResult } from '@foundation/src/domain/scheduling/schedule-model';
 
-// ---- Mocks for hooks and shared selectors ----
+// ---- Mocks for the dnd-kit hooks ----
 const mockUseSortable = vi.fn();
 vi.mock('@dnd-kit/sortable', () => ({
   useSortable: (args: unknown) => mockUseSortable(args),
@@ -18,14 +18,6 @@ vi.mock('@dnd-kit/core', () => ({
 
 vi.mock('@dnd-kit/utilities', () => ({
   CSS: { Transform: { toString: () => 'translate3d(0,0,0)' } },
-}));
-
-const mockSelectSpaceOverlapCount = vi.fn();
-vi.mock('@foundation/src/domain/scheduling/schedule-selectors', () => ({
-  selectSpaceOverlapCount: (...args: unknown[]) => mockSelectSpaceOverlapCount(...args),
-  // Real implementation — SpaceRow uses it to window overlays to the view.
-  isOutsideView: (entry: { startMs: number; endMs: number }, vs: number, ve: number) =>
-    entry.endMs <= vs || entry.startMs >= ve,
 }));
 
 // ---- Stub child components so this test stays bounded to SpaceRow's own behavior ----
@@ -107,7 +99,6 @@ const emptyValidation: ValidationResult = new Map();
 function renderRow({
   spaceRequests = [],
   previewEntries = [],
-  overlapCount = 1,
   isDragging = false,
   offTimeRanges = [],
   columns,
@@ -118,7 +109,6 @@ function renderRow({
 }: {
   spaceRequests?: Request[];
   previewEntries?: PreviewEntry[];
-  overlapCount?: number;
   isDragging?: boolean;
   offTimeRanges?: OffTimeRange[];
   columns?: TimeColumn[];
@@ -135,7 +125,6 @@ function renderRow({
     transition: null,
     isDragging,
   });
-  mockSelectSpaceOverlapCount.mockReturnValue(overlapCount);
 
   const result = render(
     <SpaceRow
@@ -164,7 +153,6 @@ function getCells(container: HTMLElement): HTMLElement[] {
 describe('SpaceRow', () => {
   beforeEach(() => {
     mockUseSortable.mockReset();
-    mockSelectSpaceOverlapCount.mockReset();
     mockUseDroppable.mockReset();
     mockUseDroppable.mockReturnValue({ setNodeRef: vi.fn(), isOver: false });
   });
@@ -248,13 +236,16 @@ describe('SpaceRow', () => {
   });
 
   it('uses a single base row height when there are no overlaps', () => {
-    const { container } = renderRow({ overlapCount: 1 });
+    const { container } = renderRow({ previewEntries: [makePreviewEntry()] });
     const cellsContainer = container.querySelector('[style*="min-height"]') as HTMLElement;
     expect(cellsContainer.style.minHeight).toBe('52px');
   });
 
   it('grows row height for additional overlapping requests', () => {
-    const { container } = renderRow({ overlapCount: 3 });
+    // Three bookings of this space over the same hour stack three deep.
+    const { container } = renderRow({
+      previewEntries: ['req-a', 'req-b', 'req-c'].map((requestId) => makePreviewEntry({ requestId })),
+    });
     const cellsContainer = container.querySelector('[style*="min-height"]') as HTMLElement;
     // 52 + (3 - 1) * 44 = 140
     expect(cellsContainer.style.minHeight).toBe('140px');

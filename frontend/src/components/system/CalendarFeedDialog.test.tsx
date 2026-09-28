@@ -10,6 +10,7 @@ import {
 } from '@foundation/src/lib/api/calendar-feed-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { toast } from 'sonner';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
   getCalendarSubscriptions: vi.fn(),
@@ -20,12 +21,6 @@ vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
 let mockAvailable = true;
 vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
   useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.CalendarFeed && mockAvailable,
-}));
-
-let mockSelectedSiteId: string | null = 'site-1';
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
-    selector({ selectedSiteId: mockSelectedSiteId }),
 }));
 
 function renderDialog(upgradeHref?: string) {
@@ -55,7 +50,7 @@ const subscription = {
 
 beforeEach(() => {
   mockAvailable = true;
-  mockSelectedSiteId = 'site-1';
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
   vi.mocked(getCalendarSubscriptions).mockResolvedValue([]);
   // jsdom exposes navigator.clipboard as getter-only.
   writeText = vi.fn().mockResolvedValue(undefined);
@@ -101,7 +96,7 @@ describe('CalendarFeedDialog', () => {
   });
 
   it('will not create a site-less feed when no site is selected', async () => {
-    mockSelectedSiteId = null;
+    useSiteStore.setState({ selectedSiteId: null });
     renderDialog();
 
     expect(await screen.findByRole('button', { name: /create feed/i })).toBeDisabled();

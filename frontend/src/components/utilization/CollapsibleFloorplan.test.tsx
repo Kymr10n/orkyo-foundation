@@ -4,14 +4,9 @@ import { CollapsibleFloorplan } from "./CollapsibleFloorplan";
 import type { Request } from "@foundation/src/types/requests";
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 const renderInRouter = (ui: React.ReactElement) => renderWithQuery(ui, { router: true });
-
-let mockSelectedSiteId: string | null = null;
-vi.mock("@foundation/src/store/site-store", () => ({
-  useSiteStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
-    selector({ selectedSiteId: mockSelectedSiteId }),
-}));
 
 const mockFloorplan = vi.hoisted(() => ({
   data: undefined as unknown,
@@ -43,7 +38,7 @@ describe("CollapsibleFloorplan", () => {
   };
 
   beforeEach(() => {
-    mockSelectedSiteId = null;
+    useSiteStore.setState({ selectedSiteId: null });
     mockFloorplan.data = undefined;
     mockFloorplan.isLoading = false;
     mockFloorplan.error = null;
@@ -297,7 +292,7 @@ describe("CollapsibleFloorplan", () => {
   // upload CTA — not the destructive "Failed to load floorplan" error.
   describe("empty-state when no floorplan exists", () => {
     it("shows the upload CTA and not an error message", () => {
-      mockSelectedSiteId = "site-without-floorplan";
+      useSiteStore.setState({ selectedSiteId: "site-without-floorplan" });
       mockFloorplan.data = null;
 
       renderInRouter(<CollapsibleFloorplan {...defaultProps} />);
@@ -311,7 +306,7 @@ describe("CollapsibleFloorplan", () => {
     });
 
     it("shows the destructive error only when the query actually errored", () => {
-      mockSelectedSiteId = "site-with-real-error";
+      useSiteStore.setState({ selectedSiteId: "site-with-real-error" });
       mockFloorplan.data = undefined;
       mockFloorplan.error = new Error("boom");
 

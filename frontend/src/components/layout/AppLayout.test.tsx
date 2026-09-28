@@ -6,12 +6,12 @@ import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewpor
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import { mockAuth } from '@foundation/src/test-utils/auth';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({ selectedSiteId: 'site-1', setSelectedSiteId: vi.fn() }),
-  ),
-}));
+const initialSiteState = useSiteStore.getState();
+beforeEach(() => {
+  useSiteStore.setState({ ...initialSiteState, selectedSiteId: 'site-1' }, true);
+});
 
 vi.mock('@foundation/src/lib/api/site-api', () => ({
   getSites: vi.fn(() =>

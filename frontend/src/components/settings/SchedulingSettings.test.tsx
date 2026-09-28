@@ -4,11 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SchedulingSettings } from './SchedulingSettings';
 import { useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
-
-const mockUseAppStore = vi.fn();
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: (sel: any) => mockUseAppStore(sel),
-}));
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 // Availability-event write actions are admin-gated; useIsTenantAdmin is globally mocked
 // to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
@@ -69,9 +65,7 @@ const mockAvailabilityEvent = {
 function setup() {
   vi.clearAllMocks();
   vi.mocked(useIsTenantAdmin).mockReturnValue(true);
-  mockUseAppStore.mockImplementation((selector: any) =>
-    selector({ selectedSiteId: 'site-1' }),
-  );
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
   mockUseSchedulingSettings.mockReturnValue({ data: mockSettings, isLoading: false });
   mockUseAvailabilityEvents.mockReturnValue({ data: [], isLoading: false });
   mockUpsertMutateAsync.mockResolvedValue(undefined);
@@ -128,9 +122,7 @@ describe('SchedulingSettings', () => {
   });
 
   it('shows "Select a site" when no site selected', () => {
-    mockUseAppStore.mockImplementation((selector: any) =>
-      selector({ selectedSiteId: null }),
-    );
+    useSiteStore.setState({ selectedSiteId: null });
     render(<SchedulingSettings />);
     expect(screen.getByText('Select a site to configure scheduling.')).toBeInTheDocument();
   });
