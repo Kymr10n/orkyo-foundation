@@ -319,6 +319,23 @@ public class TemplateEndpointsTests
     }
 
     [Fact]
+    public async Task CreateTemplate_DescriptionWithinTheValidatorLimit_Creates()
+    {
+        // The validator allows 1000 characters; a stale repository guard once refused past 255.
+        var description = new string('d', 600);
+        var response = await Authorized.PostAsJsonAsync("/api/templates", new CreateTemplateRequest
+        {
+            Name = $"S30 {Guid.NewGuid():N}",
+            Description = description,
+            EntityType = "request",
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<Template>();
+        Assert.Equal(description, created!.Description);
+    }
+
+    [Fact]
     public async Task CreateTemplate_WithValidData_ShouldCreateAndReturnTemplate()
     {
         // Arrange

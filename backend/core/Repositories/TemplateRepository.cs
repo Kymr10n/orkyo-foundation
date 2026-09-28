@@ -124,15 +124,6 @@ public class TemplateRepository : ITemplateRepository
 
     public async Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default)
     {
-        if (!TemplateEntityTypes.IsKnown(request.EntityType))
-            throw new ArgumentException($"Invalid entity type: {request.EntityType}");
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw new ArgumentException("Name is required");
-        if (request.Name.Length > 255)
-            throw new ArgumentException("Name must be 255 characters or fewer");
-        if (request.Description?.Length > 255)
-            throw new ArgumentException("Description must be 255 characters or fewer");
-
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
