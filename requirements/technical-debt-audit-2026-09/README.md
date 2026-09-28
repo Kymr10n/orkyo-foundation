@@ -11,6 +11,36 @@ Every finding has a location, evidence, a concrete reason it matters, and a fix 
 
 ## 0. Fix status (single PR on `claude/technical-debt-audit-fys1ta`)
 
+### Handoff status — 2026-09-28
+
+- **Pull request:** https://github.com/Kymr10n/orkyo-foundation/pull/215 (base `main`, 127 commits,
+  887 files, +17.5k / −17.9k). All batches (`R1`, `B1a`–`B7`, `F1`–`F6`) are complete. No batch
+  agent is running; the working tree is clean at the commit that adds this section.
+- **Final verification on the PR head:** backend `dotnet test` 3895 passed / 0 failed / 0 skipped
+  (local PostgreSQL 16 through the suite's CI path, fresh databases); frontend `npm test -- --coverage`
+  4197 passed, coverage 87.2 / 80.5 / 83.5 / 89.0 (thresholds pass); `npm run lint` and
+  `npm run typecheck` clean; `dotnet build -c Release -warnaserror` and
+  `dotnet format --verify-no-changes` clean; backend patch coverage 94.7%. Every commit carries a
+  `Docs-impact:` trailer (the new `pr-gates` job checks it).
+- **Row totals:** 71 done, 13 partial, 1 deferred (S1), 1 skipped (M1). Each partial and deferred
+  row names what is left and why in its note.
+- **Not verified:** the workflow changes have not run in GitHub Actions yet (this PR's run is their
+  first); `scripts/test-downstream.sh` was not run (no saas/community build in the cloud
+  environment). Both are the next step before merge.
+- **Next steps for whoever continues:**
+  1. Watch the first CI run on #215 and fix anything the workflow edits (S49–S54, M24) broke.
+  2. Run `./scripts/test-downstream.sh` against the two product checkouts; the expected product-side
+     changes are listed under "Merge coordination" below (one saas test expectation, `TurnstileWidget`
+     import, audit action names, error-code lists, TestSupport token role).
+  3. Decide the items marked as decisions: the broken `demo` starter template (S19), the
+     availability-event Editor gating (UI now matches the API), the major version bumps for
+     `Orkyo.Migration.Abstractions`, `Orkyo.Foundation` and `@kymr10n/foundation`.
+  4. Coordinate infra: Keycloak tag prefix `26.7`, `SECURITY_TRUSTED_PROXY_NETWORKS`, ruleset drops
+     `audit-nuget`, migration 2000 needs `approve_unsafe_migration=true`.
+- **Reproducing the local test environment** (cloud container had no Docker): install the .NET 10
+  SDK, start PostgreSQL on `localhost:5432` with `postgres`/`postgres`, then use the commands in
+  "Batch rules" below. With Docker present, plain `dotnet test` uses Testcontainers as before.
+
 This table is the source of truth for progress. Update the row when a finding changes state and
 commit the file with the code. Statuses: `todo` · `in-progress` · `done` · `partial` (say what
 is left) · `deferred` (needs a downstream grep or a major bump; say which) · `skipped` (reason).
