@@ -10,7 +10,6 @@
 export const API_PATHS = {
   // Session (OIDC authenticated, no tenant context required)
   SESSION: {
-    ME: '/api/session/me',
     TOUR_SEEN: '/api/session/tour/seen',
     TOS_ACCEPT: '/api/session/tos/accept',
   },

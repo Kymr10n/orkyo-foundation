@@ -3,10 +3,6 @@ import { API_PATHS } from './api-paths';
 
 describe('api-paths', () => {
   describe('SESSION paths', () => {
-    it('has correct me path', () => {
-      expect(API_PATHS.SESSION.ME).toBe('/api/session/me');
-    });
-
     it('has correct tos accept path', () => {
       expect(API_PATHS.SESSION.TOS_ACCEPT).toBe('/api/session/tos/accept');
     });
