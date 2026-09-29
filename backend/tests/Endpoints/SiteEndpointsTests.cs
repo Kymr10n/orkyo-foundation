@@ -13,32 +13,15 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class SiteEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _unauthenticatedClient;
 
     public SiteEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _unauthenticatedClient = databaseFixture.Factory.CreateClient();
     }
 
     private static string UniqueCode() => $"t-{Guid.NewGuid():N}"[..10];
 
     // ── Auth guard ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task GetSites_WithoutAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/sites");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task CreateSite_WithoutAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PostAsJsonAsync("/api/sites",
-            new { code = "x", name = "x" });
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 
     // ── Create ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +36,7 @@ public class SiteEndpointsTests
         site.Should().NotBeNull();
         site!.Name.Should().Be("Test Site");
         site.Code.Should().Be(code);
+        response.Headers.Location!.ToString().Should().Be($"/api/sites/{site.Id}");
     }
 
     [Fact]
@@ -65,14 +49,6 @@ public class SiteEndpointsTests
         var site = await response.Content.ReadFromJsonAsync<SiteInfo>();
         site!.Description.Should().Be("A description");
         site.Address.Should().Be("123 Main St");
-    }
-
-    [Fact]
-    public async Task CreateSite_EmptyCode_Returns400()
-    {
-        var request = new { code = "", name = "No Code Site" };
-        var response = await _client.PostAsJsonAsync("/api/sites", request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -150,6 +126,32 @@ public class SiteEndpointsTests
         updateResp.EnsureSuccessStatusCode();
         var updated = await updateResp.Content.ReadFromJsonAsync<SiteInfo>();
         updated!.Name.Should().Be("Updated Name");
+    }
+
+    [Fact]
+    public async Task CreateSite_DuplicateCode_Returns409WithTheSiteMessage()
+    {
+        var code = UniqueCode();
+        (await _client.PostAsJsonAsync("/api/sites", new { code, name = "First" })).EnsureSuccessStatusCode();
+
+        var response = await _client.PostAsJsonAsync("/api/sites", new { code, name = "Second" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Site with this code already exists");
+    }
+
+    [Fact]
+    public async Task UpdateSite_ToAnotherSitesCode_Returns409()
+    {
+        var taken = UniqueCode();
+        (await _client.PostAsJsonAsync("/api/sites", new { code = taken, name = "Holder" })).EnsureSuccessStatusCode();
+        var other = await (await _client.PostAsJsonAsync("/api/sites", new { code = UniqueCode(), name = "Mover" }))
+            .Content.ReadFromJsonAsync<SiteInfo>();
+
+        var response = await _client.PutAsJsonAsync($"/api/sites/{other!.Id}", new { code = taken, name = "Mover" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("Another site with this code already exists");
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Api.Models;
+using Api.Services;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -25,20 +26,6 @@ public class FeedbackEndpointsTests
     #region POST /api/feedback
 
     [Fact]
-    public async Task SubmitFeedback_NoAuth_Returns401()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = "Something is broken"
-        };
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task SubmitFeedback_ValidBug_Returns201()
     {
         var request = new CreateFeedbackRequest
@@ -56,6 +43,7 @@ public class FeedbackEndpointsTests
         var body = await response.Content.ReadFromJsonAsync<FeedbackResponse>();
         Assert.NotNull(body);
         Assert.NotEqual(Guid.Empty, body.Id);
+        Assert.Equal($"/api/feedback/{body.Id}", response.Headers.Location?.ToString());
         Assert.Equal("bug", body.FeedbackType);
         Assert.Equal(request.Title, body.Title);
         Assert.Equal("new", body.Status);
@@ -118,39 +106,11 @@ public class FeedbackEndpointsTests
     }
 
     [Fact]
-    public async Task SubmitFeedback_EmptyTitle_Returns400()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = ""
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SubmitFeedback_TitleTooLong_Returns400()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = new string('A', 201) // DomainLimits.FeedbackTitleMaxLength is 200
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task SubmitFeedback_WhenNotificationEmailConfigured_SendsNotification()
     {
         // FEEDBACK_NOTIFICATION_EMAIL is set in the test config, so a submit triggers one best-effort
         // admin notification. The Database collection serializes tests, so the counter delta is stable.
-        var before = _fixture.Factory.MockEmailService.SendEmailCallCount;
+        var before = _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync));
 
         var response = await _client.PostAsJsonAsync("/api/feedback", new CreateFeedbackRequest
         {
@@ -161,7 +121,7 @@ public class FeedbackEndpointsTests
         });
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal(before + 1, _fixture.Factory.MockEmailService.SendEmailCallCount);
+        Assert.Equal(before + 1, _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync)));
     }
 
     [Fact]

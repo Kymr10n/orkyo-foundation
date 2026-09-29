@@ -3,13 +3,13 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // Mock useAuth
 const mockSend = vi.fn();
-const mockAuthState = {
-  membership: null as Record<string, unknown> | null,
+const mockAuthState: MockAuthOptions = {
+  membership: null,
   send: mockSend,
 };
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockAuthState,
+  useAuth: () => mockAuth(mockAuthState),
 }));
 
 vi.mock('@foundation/src/lib/core/api-utils', () => ({
@@ -28,10 +28,10 @@ const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@
 vi.mock('@foundation/src/config/runtime', () => ({ runtimeConfig: configMock }));
 
 import { TenantSuspendedPage } from '@foundation/src/pages/TenantSuspendedPage';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 describe('TenantSuspendedPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockAuthState.membership = null;
     mockAuthState.send = mockSend;
     configMock.supportEmail = 'support@example.test';
@@ -117,9 +117,9 @@ describe('TenantSuspendedPage', () => {
       canReactivate: true,
     };
     render(<TenantSuspendedPage />);
-    expect(screen.getByText('Workspace scheduled for deletion')).toBeInTheDocument();
+    expect(screen.getByText('Organization scheduled for deletion')).toBeInTheDocument();
     expect(screen.getByText(/scheduled for permanent deletion/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Restore workspace/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Restore organization/ })).toBeInTheDocument();
   });
 
   it('shows restore-oriented helper text for a deleting membership without canReactivate', () => {
@@ -130,7 +130,7 @@ describe('TenantSuspendedPage', () => {
     };
     render(<TenantSuspendedPage />);
     expect(screen.getByText(/restore this organization/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Restore workspace/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Restore organization/ })).not.toBeInTheDocument();
   });
 
   it('always shows sign out button', () => {

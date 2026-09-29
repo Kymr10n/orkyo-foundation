@@ -1,11 +1,11 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Api.Models;
 using Api.Models.Export;
 using Api.Models.Preset;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -14,10 +14,12 @@ public class ExportEndpointsTests
 {
     private readonly HttpClient _client;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly DatabaseFixture _fixture;
     private const string TenantSlug = TestConstants.TenantSlug;
 
     public ExportEndpointsTests(DatabaseFixture databaseFixture)
     {
+        _fixture = databaseFixture;
         _client = databaseFixture.Factory.CreateClient();
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
         _jsonOptions = new JsonSerializerOptions
@@ -27,34 +29,8 @@ public class ExportEndpointsTests
         };
     }
 
-    private string? _cachedAuthToken;
-
-    private async Task<string> GetAdminAuthTokenAsync()
-    {
-        if (_cachedAuthToken != null)
-            return _cachedAuthToken;
-
-        var email = $"exporttest_{Guid.NewGuid()}@example.com";
-        var displayName = "Export Test Admin";
-
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName, TestConstants.TenantSlug, "admin", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        _cachedAuthToken = TestConstants.BearerToken(userId.ToString(), email, displayName, tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: true, role: "admin");
-        return _cachedAuthToken;
-    }
-
-    private async Task<HttpRequestMessage> CreateAuthenticatedRequestAsync(HttpMethod method, string url, object? content = null)
-    {
-        var request = new HttpRequestMessage(method, url);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetAdminAuthTokenAsync());
-        if (content != null)
-        {
-            request.Content = JsonContent.Create(content, options: _jsonOptions);
-        }
-        return request;
-    }
+    private Task<string>? _token;
+    private Task<string> Token => _token ??= DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Admin);
 
     #region POST /api/admin/export
 
@@ -63,7 +39,7 @@ public class ExportEndpointsTests
     {
         // Arrange
         var exportRequest = new ExportRequest();
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -113,13 +89,13 @@ public class ExportEndpointsTests
             }
         };
 
-        var applyReq = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var applyReq = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
         var applyResponse = await _client.SendAsync(applyReq);
         Assert.Equal(HttpStatusCode.OK, applyResponse.StatusCode);
 
         // Act - export
         var exportRequest = new ExportRequest { IncludeMasterData = true, IncludePlanningData = false };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
         var response = await _client.SendAsync(request);
 
         // Assert
@@ -140,7 +116,7 @@ public class ExportEndpointsTests
     {
         // Arrange
         var exportRequest = new ExportRequest { IncludeMasterData = true, IncludePlanningData = true };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -172,16 +148,16 @@ public class ExportEndpointsTests
             }
         };
 
-        var applyReq = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/presets/apply", preset);
+        var applyReq = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
         await _client.SendAsync(applyReq);
 
         // Act - export twice
         var exportRequest = new ExportRequest { IncludeMasterData = true };
-        var req1 = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+        var req1 = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
         var resp1 = await _client.SendAsync(req1);
         var payload1 = await resp1.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
 
-        var req2 = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+        var req2 = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
         var resp2 = await _client.SendAsync(req2);
         var payload2 = await resp2.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
 
@@ -203,7 +179,7 @@ public class ExportEndpointsTests
     {
         // Arrange - create a site
         var siteCode = $"exp-site-{Guid.NewGuid():N}"[..20];
-        var createSiteReq = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/sites",
+        var createSiteReq = TestHelpers.AuthRequest(HttpMethod.Post, "/api/sites", await Token,
             new { code = siteCode, name = $"Export Site {siteCode}" });
         var siteResp = await _client.SendAsync(createSiteReq);
 
@@ -218,7 +194,7 @@ public class ExportEndpointsTests
                 SiteIds = new List<Guid> { siteId },
                 IncludeMasterData = true
             };
-            var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+            var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
             var response = await _client.SendAsync(request);
 
             // Assert
@@ -235,41 +211,115 @@ public class ExportEndpointsTests
     }
 
     [Fact]
-    public async Task Export_Unauthenticated_Returns401()
+    public async Task Export_PlacedRequest_ReportsTheLiveSpaceNotACancelledOne()
     {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/export");
-        request.Content = JsonContent.Create(new ExportRequest());
+        // The SQL excludes cancelled assignments, but the in-memory pick of "the" placement did not:
+        // a cancelled assignment on another exported space was reported as the placement.
+        var tag = $"exp-cx-{Guid.NewGuid():N}"[..20];
+        await using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
+        await conn.OpenAsync();
+        try
+        {
+            var siteId = Guid.NewGuid();
+            var oldSpaceId = Guid.NewGuid();
+            var liveSpaceId = Guid.NewGuid();
+            var requestId = Guid.NewGuid();
+            await using (var seed = new NpgsqlCommand(@"
+                INSERT INTO sites (id, name, code) VALUES (@siteId, @tag, @tag);
+                INSERT INTO resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, home_site_id)
+                SELECT @oldSpaceId, rt.id, @tag || ' old', 'Exclusive', 100, true, @siteId FROM resource_types rt WHERE rt.key = 'space';
+                INSERT INTO resources (id, resource_type_id, name, allocation_mode, base_availability_percent, is_active, home_site_id)
+                SELECT @liveSpaceId, rt.id, @tag || ' live', 'Exclusive', 100, true, @siteId FROM resource_types rt WHERE rt.key = 'space';
+                INSERT INTO requests (id, name, site_id, status, start_ts, end_ts, minimal_duration_value, minimal_duration_unit,
+                                      planning_mode, created_at, updated_at)
+                VALUES (@requestId, @tag, @siteId, 'new', @start, @end, 60, 'minutes', 'leaf', NOW(), NOW());
+                INSERT INTO resource_assignments (id, request_id, resource_id, start_utc, end_utc, assignment_status)
+                VALUES (gen_random_uuid(), @requestId, @oldSpaceId, @start, @end, 'Cancelled'),
+                       (gen_random_uuid(), @requestId, @liveSpaceId, @start, @end, 'Planned')", conn))
+            {
+                var start = new DateTime(2099, 3, 1, 9, 0, 0, DateTimeKind.Utc);
+                seed.Parameters.AddWithValue("siteId", siteId);
+                seed.Parameters.AddWithValue("tag", tag);
+                seed.Parameters.AddWithValue("oldSpaceId", oldSpaceId);
+                seed.Parameters.AddWithValue("liveSpaceId", liveSpaceId);
+                seed.Parameters.AddWithValue("requestId", requestId);
+                seed.Parameters.AddWithValue("start", start);
+                seed.Parameters.AddWithValue("end", start.AddHours(1));
+                await seed.ExecuteNonQueryAsync();
+            }
 
-        // Act
-        var response = await _client.SendAsync(request);
+            var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token,
+                new ExportRequest { SiteIds = [siteId], IncludeMasterData = true, IncludePlanningData = true });
+            var response = await _client.SendAsync(request);
 
-        // Assert
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
+            var exported = Assert.Single(payload!.Data.Requests!, r => r.Name == tag);
+            Assert.Equal(tag + " live", exported.ResourceName);
+        }
+        finally
+        {
+            await using var cleanup = new NpgsqlCommand(@"
+                DELETE FROM requests WHERE name = @tag;
+                DELETE FROM resources WHERE name LIKE @tag || '%';
+                DELETE FROM sites WHERE code = @tag", conn);
+            cleanup.Parameters.AddWithValue("tag", tag);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Export_SeesSitesPastTheOldReadCap()
+    {
+        // The site read once stopped at 200 rows by name, so the 201st site was never exported.
+        var prefix = $"zzz-s22-{Guid.NewGuid():N}"[..16];
+        await using var conn = new NpgsqlConnection(_fixture.TenantConnectionString);
+        await conn.OpenAsync();
+        try
+        {
+            await using (var insert = new NpgsqlCommand(
+                "INSERT INTO sites (name, code) SELECT @prefix || lpad(i::text, 3, '0'), @prefix || i "
+                + "FROM generate_series(1, 201) AS i", conn))
+            {
+                insert.Parameters.AddWithValue("prefix", prefix);
+                await insert.ExecuteNonQueryAsync();
+            }
+            Guid lastSiteId;
+            await using (var last = new NpgsqlCommand("SELECT id FROM sites WHERE name = @name", conn))
+            {
+                last.Parameters.AddWithValue("name", prefix + "201");
+                lastSiteId = (Guid)(await last.ExecuteScalarAsync())!;
+            }
+
+            var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token,
+                new ExportRequest { SiteIds = [lastSiteId], IncludeMasterData = true });
+            var response = await _client.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
+            Assert.Equal([lastSiteId], payload!.Provenance.SiteIds);
+        }
+        finally
+        {
+            await using var cleanup = new NpgsqlCommand("DELETE FROM sites WHERE name LIKE @prefix || '%'", conn);
+            cleanup.Parameters.AddWithValue("prefix", prefix);
+            await cleanup.ExecuteNonQueryAsync();
+        }
     }
 
     [Fact]
     public async Task Export_NonAdminUser_Returns403()
     {
-        // Arrange - create a viewer user
-        var email = $"exportviewer_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Viewer User", TestConstants.TenantSlug, "viewer", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var token = await DatabaseFixture.CreateMemberTokenAsync("viewer");
 
-        var token = TestConstants.BearerToken(userId.ToString(), email, "Viewer User", tenantId.ToString(), TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "viewer");
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/admin/export");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", token);
         request.Content = JsonContent.Create(new ExportRequest(), options: _jsonOptions);
 
         // Act
         var response = await _client.SendAsync(request);
 
         // Assert
-        Assert.True(
-            response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.InternalServerError,
-            $"Expected 403 or 500 (UnauthorizedAccessException), got {response.StatusCode}");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]
@@ -277,7 +327,7 @@ public class ExportEndpointsTests
     {
         // Arrange
         var exportRequest = new ExportRequest { IncludeMasterData = false, IncludePlanningData = false };
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", exportRequest);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -300,26 +350,26 @@ public class ExportEndpointsTests
     {
         // Arrange — a definition with a column, a shared instance, and a row in it.
         var adminClient = _client;
-        var createDefinition = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/list-definitions",
+        var createDefinition = TestHelpers.AuthRequest(HttpMethod.Post, "/api/list-definitions", await Token,
             new CreateListDefinitionRequest { Name = $"Components {Guid.NewGuid():N}" });
         var definitionResponse = await adminClient.SendAsync(createDefinition);
         Assert.Equal(HttpStatusCode.Created, definitionResponse.StatusCode);
         var definition = (await definitionResponse.Content.ReadFromJsonAsync<ListDefinitionInfo>(_jsonOptions))!;
 
-        var createColumn = await CreateAuthenticatedRequestAsync(HttpMethod.Post,
-            $"/api/list-definitions/{definition.Id}/columns",
+        var createColumn = TestHelpers.AuthRequest(HttpMethod.Post,
+            $"/api/list-definitions/{definition.Id}/columns", await Token,
             new CreateListColumnRequest { Key = "name", Label = "Name", DataType = ListColumnDataTypes.Text });
         Assert.Equal(HttpStatusCode.Created, (await adminClient.SendAsync(createColumn)).StatusCode);
 
-        var createInstance = await CreateAuthenticatedRequestAsync(HttpMethod.Post,
-            $"/api/list-definitions/{definition.Id}/instances",
+        var createInstance = TestHelpers.AuthRequest(HttpMethod.Post,
+            $"/api/list-definitions/{definition.Id}/instances", await Token,
             new CreateListInstanceRequest { Name = "Standard" });
         var instanceResponse = await adminClient.SendAsync(createInstance);
         Assert.Equal(HttpStatusCode.Created, instanceResponse.StatusCode);
         var instance = (await instanceResponse.Content.ReadFromJsonAsync<ListInstanceInfo>(_jsonOptions))!;
 
-        var createRow = await CreateAuthenticatedRequestAsync(HttpMethod.Post,
-            $"/api/list-instances/{instance.Id}/rows",
+        var createRow = TestHelpers.AuthRequest(HttpMethod.Post,
+            $"/api/list-instances/{instance.Id}/rows", await Token,
             new ListRowRequest
             {
                 Values = new Dictionary<string, JsonElement>
@@ -332,7 +382,7 @@ public class ExportEndpointsTests
         var row = (await rowResponse.Content.ReadFromJsonAsync<ListRowInfo>(_jsonOptions))!;
 
         // Act
-        var request = await CreateAuthenticatedRequestAsync(HttpMethod.Post, "/api/admin/export", new ExportRequest());
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, new ExportRequest());
         var response = await adminClient.SendAsync(request);
 
         // Assert

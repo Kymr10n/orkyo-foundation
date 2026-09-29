@@ -63,14 +63,10 @@ public static class AiCredentialEndpoints
         // FeatureNotAvailableException, which AppExceptionHandler renders as 403.
         await featureGate.EnsureEnabledAsync(FeatureKeys.AiAssistant, ct);
 
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
         // A key without the provider's prefix throws ArgumentException: AppExceptionHandler
         // renders it as a 400 validation error.
-        var status = await credentials.SaveAsync(request.ApiKey, principal.UserIdOrNull, ct);
-        return Results.Ok(status);
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            Results.Ok(await credentials.SaveAsync(request.ApiKey, principal.UserIdOrNull, ct)), ct);
     }
 
     private static async Task<IResult> DeleteCredential(
@@ -92,7 +88,7 @@ public static class AiCredentialEndpoints
         if (string.IsNullOrEmpty(apiKey))
             return Results.Ok(new AiCredentialTestResult { Ok = false, Reason = "not_configured" });
 
-        var result = await gateway.TestAsync(apiKey, await credentials.GetModelAsync(ct), ct);
+        var result = await gateway.TestAsync(apiKey, AiDefaults.Model, ct);
         if (result.Ok) await credentials.MarkVerifiedAsync(ct);
 
         // Key saves and removals were audited; tests were not, though the constant existed.

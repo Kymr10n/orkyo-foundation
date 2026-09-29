@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getRoutings,
   createRouting,
@@ -15,10 +15,6 @@ const routing = { id: 'r1', name: 'Bracket', steps: [] };
 const step = { stepNo: 1, operationTemplateId: 't1', setupMinutes: 10, runMinutesPerUnit: 5, lagMinutesAfter: 0 };
 
 describe('routing-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('getRoutings reads the collection', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([routing]);
     expect(await getRoutings()).toEqual([routing]);

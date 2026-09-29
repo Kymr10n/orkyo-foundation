@@ -61,7 +61,8 @@ export type ValidationReasonCode =
   | 'allocation-percent.invalid'
   | 'site.mismatch-space'
   | 'site.mismatch-person'
-  | 'site.cross-not-allowed';
+  | 'site.cross-not-allowed'
+  | 'assignment.capacity-exceeded';
 
 export interface ValidationIssue {
   code: ValidationReasonCode;
@@ -88,6 +89,7 @@ export interface ValidationResult {
 export const SOFT_BLOCKER_CODES: ReadonlySet<ValidationReasonCode> = new Set<ValidationReasonCode>([
   'capability.missing',
   'assignment.overbooked',
+  'assignment.capacity-exceeded',
 ]);
 
 /** Blockers that genuinely prevent a manual assignment (soft blockers excluded). */

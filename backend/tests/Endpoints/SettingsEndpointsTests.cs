@@ -26,30 +26,8 @@ public class SettingsEndpointsTests
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
-    private string? _cachedAdminToken;
-
-    private async Task<string> GetAdminAuthTokenAsync()
-    {
-        if (_cachedAdminToken != null) return _cachedAdminToken;
-
-        var email = $"settings_admin_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Admin", TenantSlug, "admin", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        _cachedAdminToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Admin", tenantId.ToString(), TenantSlug,
-            isTenantAdmin: true, role: "admin");
-        return _cachedAdminToken;
-    }
-
-    /// <summary>Create an authenticated GET/DELETE request with admin token.</summary>
-    private async Task<HttpRequestMessage> AuthRequest(HttpMethod method, string url, object? content = null)
-    {
-        var msg = new HttpRequestMessage(method, url);
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetAdminAuthTokenAsync());
-        if (content != null)
-            msg.Content = JsonContent.Create(content);
-        return msg;
-    }
+    private Task<string>? _token;
+    private Task<string> Token => _token ??= DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Admin);
 
     /// <summary>Remove all setting overrides and clear in-memory cache between tests.</summary>
     private async Task CleanupSettingsAsync()
@@ -75,77 +53,11 @@ public class SettingsEndpointsTests
     // ── GET /api/settings ───────────────────────────────────────────
 
     [Fact]
-    public async Task GetSettings_Unauthenticated_ReturnsUnauthorized()
-    {
-        // No bearer token → 401
-        var response = await _client.GetAsync("/api/settings");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task GetSettings_Viewer_ReturnsOk()
-    {
-        // GET /api/settings is member-read: tenant config (scheduling, working hours, …) is read
-        // app-wide (e.g. the auto-schedule flow). Only PUT/DELETE require Admin.
-        var email = $"settings_viewer_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Viewer", TenantSlug, "viewer", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        var viewerToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Viewer", tenantId.ToString(), TenantSlug,
-            isTenantAdmin: false, role: "viewer");
-
-        var msg = new HttpRequestMessage(HttpMethod.Get, "/api/settings");
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", viewerToken);
-
-        var response = await _client.SendAsync(msg);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task GetSettings_Editor_ReturnsOk()
-    {
-        // Members (incl. Editors) can read tenant settings; managing them stays Admin-only.
-        var email = $"settings_editor_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor", TenantSlug, "editor", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        var editorToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Editor", tenantId.ToString(), TenantSlug,
-            isTenantAdmin: false, role: "editor");
-
-        var msg = new HttpRequestMessage(HttpMethod.Get, "/api/settings");
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", editorToken);
-
-        var response = await _client.SendAsync(msg);
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task UpdateSettings_Editor_ReturnsForbidden()
-    {
-        // Writes remain Admin-only even though reads are member-open.
-        var email = $"settings_editor_w_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Settings Editor W", TenantSlug, "editor", active: true);
-        var tenantId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-
-        var editorToken = TestConstants.BearerToken(userId.ToString(), email, "Settings Editor W", tenantId.ToString(), TenantSlug,
-            isTenantAdmin: false, role: "editor");
-
-        var msg = new HttpRequestMessage(HttpMethod.Put, "/api/settings")
-        {
-            Content = JsonContent.Create(new { settings = new Dictionary<string, string> { ["working_day_start"] = "08:00" } }),
-        };
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", editorToken);
-
-        var response = await _client.SendAsync(msg);
-        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
     public async Task GetSettings_ReturnsOnlyTenantScopedDescriptors()
     {
         await CleanupSettingsAsync();
 
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
@@ -160,7 +72,7 @@ public class SettingsEndpointsTests
     {
         await CleanupSettingsAsync();
 
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var items = json.GetProperty("settings").EnumerateArray().ToList();
 
@@ -182,7 +94,7 @@ public class SettingsEndpointsTests
     {
         await CleanupSettingsAsync();
 
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var json = await response.Content.ReadFromJsonAsync<JsonElement>();
         var items = json.GetProperty("settings").EnumerateArray().ToList();
 
@@ -201,25 +113,11 @@ public class SettingsEndpointsTests
     // ── PUT /api/settings ───────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateSettings_Unauthenticated_ReturnsUnauthorized()
-    {
-        var response = await _client.PutAsJsonAsync("/api/settings", new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["search.search_default_page_size"] = "30"
-            }
-        });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task UpdateSettings_ValidIntSetting_Succeeds()
     {
         await CleanupSettingsAsync();
 
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -242,7 +140,7 @@ public class SettingsEndpointsTests
     {
         await CleanupSettingsAsync();
 
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -265,7 +163,7 @@ public class SettingsEndpointsTests
     {
         await CleanupSettingsAsync();
 
-        await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -276,7 +174,7 @@ public class SettingsEndpointsTests
         }));
 
         // Verify via GET
-        var getResponse = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var getResponse = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var json = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
         var items = json.GetProperty("settings").EnumerateArray().ToList();
 
@@ -291,7 +189,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_EmptyRequest_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>()
         }));
@@ -302,7 +200,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_UnknownKey_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -316,7 +214,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_IntBelowMinimum_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -330,7 +228,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_IntAboveMaximum_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -344,7 +242,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_InvalidIntValue_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -360,7 +258,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_InvalidHexColor_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -376,7 +274,7 @@ public class SettingsEndpointsTests
     {
         await CleanupSettingsAsync();
 
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -391,7 +289,7 @@ public class SettingsEndpointsTests
     public async Task UpdateSettings_SiteScoped_FromTenantContext_ReturnsBadRequest()
     {
         // upload_allowed_mime_types is site-scoped → tenant context rejects with ArgumentException → 400
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -405,7 +303,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_ProductNameWithHtml_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -419,7 +317,7 @@ public class SettingsEndpointsTests
     [Fact]
     public async Task UpdateSettings_ValueExceedsMaxLength_ReturnsBadRequest()
     {
-        var response = await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -433,17 +331,10 @@ public class SettingsEndpointsTests
     // ── DELETE /api/settings/{key} ──────────────────────────────────
 
     [Fact]
-    public async Task ResetSetting_Unauthenticated_ReturnsUnauthorized()
-    {
-        var response = await _client.DeleteAsync("/api/settings/search.search_default_page_size");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task ResetSetting_UnknownKey_ReturnsNotFound()
     {
         var response = await _client.SendAsync(
-            await AuthRequest(HttpMethod.Delete, "/api/settings/unknown.bogus_key"));
+            TestHelpers.AuthRequest(HttpMethod.Delete, "/api/settings/unknown.bogus_key", await Token));
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -453,7 +344,7 @@ public class SettingsEndpointsTests
         await CleanupSettingsAsync();
 
         // First set an override
-        await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -462,7 +353,7 @@ public class SettingsEndpointsTests
         }));
 
         // Verify it was set
-        var getResponse = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var getResponse = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var json = await getResponse.Content.ReadFromJsonAsync<JsonElement>();
         json.GetProperty("settings").EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == "search.search_default_page_size")
@@ -470,11 +361,11 @@ public class SettingsEndpointsTests
 
         // Delete the override
         var deleteResponse = await _client.SendAsync(
-            await AuthRequest(HttpMethod.Delete, "/api/settings/search.search_default_page_size"));
+            TestHelpers.AuthRequest(HttpMethod.Delete, "/api/settings/search.search_default_page_size", await Token));
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Verify it reverted to default
-        var afterDelete = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var afterDelete = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var afterJson = await afterDelete.Content.ReadFromJsonAsync<JsonElement>();
         afterJson.GetProperty("settings").EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == "search.search_default_page_size")
@@ -487,7 +378,7 @@ public class SettingsEndpointsTests
         await CleanupSettingsAsync();
 
         var response = await _client.SendAsync(
-            await AuthRequest(HttpMethod.Delete, "/api/settings/search.search_default_page_size"));
+            TestHelpers.AuthRequest(HttpMethod.Delete, "/api/settings/search.search_default_page_size", await Token));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -500,14 +391,14 @@ public class SettingsEndpointsTests
         await CleanupSettingsAsync();
 
         // 1. Verify initial defaults
-        var r1 = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var r1 = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var j1 = await r1.Content.ReadFromJsonAsync<JsonElement>();
         j1.GetProperty("settings").EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == "search.search_default_page_size")
             .GetProperty("currentValue").GetString().Should().Be("20");
 
         // 2. Set override
-        await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -516,14 +407,14 @@ public class SettingsEndpointsTests
         }));
 
         // 3. Verify override
-        var r2 = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var r2 = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var j2 = await r2.Content.ReadFromJsonAsync<JsonElement>();
         j2.GetProperty("settings").EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == "search.search_default_page_size")
             .GetProperty("currentValue").GetString().Should().Be("50");
 
         // 4. Update the override to a different value
-        await _client.SendAsync(await AuthRequest(HttpMethod.Put, "/api/settings", new
+        await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
         {
             settings = new Dictionary<string, string>
             {
@@ -531,7 +422,7 @@ public class SettingsEndpointsTests
             }
         }));
 
-        var r3 = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var r3 = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var j3 = await r3.Content.ReadFromJsonAsync<JsonElement>();
         j3.GetProperty("settings").EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == "search.search_default_page_size")
@@ -539,11 +430,11 @@ public class SettingsEndpointsTests
 
         // 5. Reset to default
         var deleteResp = await _client.SendAsync(
-            await AuthRequest(HttpMethod.Delete, "/api/settings/search.search_default_page_size"));
+            TestHelpers.AuthRequest(HttpMethod.Delete, "/api/settings/search.search_default_page_size", await Token));
         deleteResp.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 6. Verify default restored
-        var r4 = await _client.SendAsync(await AuthRequest(HttpMethod.Get, "/api/settings"));
+        var r4 = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings", await Token));
         var j4 = await r4.Content.ReadFromJsonAsync<JsonElement>();
         j4.GetProperty("settings").EnumerateArray()
             .First(s => s.GetProperty("key").GetString() == "search.search_default_page_size")

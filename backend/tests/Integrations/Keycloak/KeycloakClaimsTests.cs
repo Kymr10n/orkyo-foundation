@@ -14,14 +14,7 @@ public class KeycloakClaimsTests
     [InlineData(nameof(KeycloakClaims.Name), "name")]
     [InlineData(nameof(KeycloakClaims.Issuer), "iss")]
     [InlineData(nameof(KeycloakClaims.Audience), "aud")]
-    [InlineData(nameof(KeycloakClaims.AuthorizedParty), "azp")]
     [InlineData(nameof(KeycloakClaims.SessionId), "sid")]
-    [InlineData(nameof(KeycloakClaims.SessionState), "session_state")]
-    [InlineData(nameof(KeycloakClaims.TokenType), "typ")]
-    [InlineData(nameof(KeycloakClaims.Scope), "scope")]
-    [InlineData(nameof(KeycloakClaims.IssuedAt), "iat")]
-    [InlineData(nameof(KeycloakClaims.Expiration), "exp")]
-    [InlineData(nameof(KeycloakClaims.AuthTime), "auth_time")]
     [InlineData(nameof(KeycloakClaims.RealmAccess), "realm_access")]
     public void ClaimNameConstants_AreLockedToWireValues(string memberName, string expectedWireValue)
     {

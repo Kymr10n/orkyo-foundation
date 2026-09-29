@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Constants;
 using Api.Models;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -17,17 +18,12 @@ public class CandidateRequestsEndpointTests
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    private async Task<Guid> CreatePersonAsync()
-    {
-        var resp = await _client.PostAsJsonAsync("/api/resources", new
-        {
-            ResourceTypeKey = "person",
-            Name = $"Person-{Guid.NewGuid():N}"[..20],
-            AllocationMode = "Exclusive",
-        });
-        resp.EnsureSuccessStatusCode();
-        return (await resp.Content.ReadFromJsonAsync<JsonElement>())!.GetProperty("id").GetGuid();
-    }
+    // No fake clock in the test host: a window next September stays in the future for every
+    // run, and each test takes its own day so their requests do not overlap.
+    private static readonly int NextYear = DateTime.UtcNow.Year + 1;
+
+    private static DateTime NextSeptember(int day, int hour) =>
+        new(NextYear, 9, day, hour, 0, 0, DateTimeKind.Utc);
 
     private async Task<Guid> CreateBooleanCriterionAsync(string resourceTypeKey, string name)
     {
@@ -92,7 +88,7 @@ public class CandidateRequestsEndpointTests
     public async Task Returns404_WhenResourceDoesNotExist()
     {
         var unknownId = Guid.NewGuid();
-        var start = new DateTime(2026, 9, 1, 9, 0, 0, DateTimeKind.Utc);
+        var start = NextSeptember(1, 9);
         var end = start.AddHours(8);
         var resp = await _client.GetAsync(CandidateUrl(unknownId, start, end));
         Assert.Equal(HttpStatusCode.NotFound, resp.StatusCode);
@@ -101,8 +97,8 @@ public class CandidateRequestsEndpointTests
     [Fact]
     public async Task Returns200_WithOverlappingPlannedRequest()
     {
-        var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 10, 9, 0, 0, DateTimeKind.Utc);
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
+        var start = NextSeptember(10, 9);
         var end = start.AddHours(4);
         var reqId = await CreateScheduledRequestAsync(start, start.AddHours(8));
 
@@ -119,8 +115,8 @@ public class CandidateRequestsEndpointTests
     [Fact]
     public async Task Excludes_RequestEndingBeforePeriodStart()
     {
-        var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 11, 12, 0, 0, DateTimeKind.Utc);
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
+        var start = NextSeptember(11, 12);
         var end = start.AddHours(4);
         // Request ends exactly at period start (exclusive overlap: end_ts > @start)
         var excludedId = await CreateScheduledRequestAsync(start.AddHours(-4), start);
@@ -135,8 +131,8 @@ public class CandidateRequestsEndpointTests
     [Fact]
     public async Task Excludes_RequestStartingAtOrAfterPeriodEnd()
     {
-        var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 12, 9, 0, 0, DateTimeKind.Utc);
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
+        var start = NextSeptember(12, 9);
         var end = start.AddHours(4);
         // Request starts exactly at period end (exclusive: start_ts < @end)
         var excludedId = await CreateScheduledRequestAsync(end, end.AddHours(4));
@@ -151,8 +147,8 @@ public class CandidateRequestsEndpointTests
     [Fact]
     public async Task AlreadyAssignedRequest_AppearsWithAssignmentId()
     {
-        var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 13, 9, 0, 0, DateTimeKind.Utc);
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
+        var start = NextSeptember(13, 9);
         var end = start.AddHours(8);
         var reqId = await CreateScheduledRequestAsync(start, end);
 
@@ -182,8 +178,8 @@ public class CandidateRequestsEndpointTests
     [Fact]
     public async Task Excludes_DoneAndCancelledRequests()
     {
-        var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 14, 9, 0, 0, DateTimeKind.Utc);
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
+        var start = NextSeptember(14, 9);
         var end = start.AddHours(4);
         var doneId = await CreateScheduledRequestAsync(start, end, "done");
         var cancelledId = await CreateScheduledRequestAsync(start, end, "cancelled");
@@ -201,11 +197,11 @@ public class CandidateRequestsEndpointTests
     {
         // The panel lists what this resource must satisfy. A space-scoped criterion is not a
         // person's to satisfy, so it is left out rather than shown as unmet.
-        var personId = await CreatePersonAsync();
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
         var spaceCriterion = await CreateBooleanCriterionAsync("space", $"Crane-{Guid.NewGuid():N}"[..20]);
         var personCriterionName = $"Forklift-{Guid.NewGuid():N}"[..20];
         var personCriterion = await CreateBooleanCriterionAsync("person", personCriterionName);
-        var start = new DateTime(2026, 9, 16, 9, 0, 0, DateTimeKind.Utc);
+        var start = NextSeptember(16, 9);
         var end = start.AddHours(4);
         var reqId = await CreateScheduledRequestAsync(start, end, requiredCriterionIds: [spaceCriterion, personCriterion]);
 
@@ -222,8 +218,8 @@ public class CandidateRequestsEndpointTests
     [Fact]
     public async Task Returns200_EmptyList_WhenNoOverlappingRequests()
     {
-        var personId = await CreatePersonAsync();
-        var start = new DateTime(2026, 9, 15, 9, 0, 0, DateTimeKind.Utc);
+        var personId = (await TestHelpers.CreatePersonAsync(_client, allocationMode: AllocationModes.Exclusive)).Id;
+        var start = NextSeptember(15, 9);
         var end = start.AddHours(4);
 
         var resp = await _client.GetAsync(CandidateUrl(personId, start, end));

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getSecurityInfo,
   getSessions,
@@ -33,10 +33,6 @@ const mockSession = {
 };
 
 describe('security-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('getSecurityInfo', () => {
     it('calls apiGet with correct endpoint', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockSecurityInfo);
@@ -136,10 +132,13 @@ describe('security-api', () => {
   });
 
   describe('removeMfa', () => {
-    it('calls apiDelete with MFA endpoint', async () => {
+    it('sends the current password and TOTP code as the DELETE body', async () => {
       vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
-      await removeMfa();
-      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA);
+      await removeMfa({ currentPassword: 'secret', currentCode: '123456' });
+      expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA, undefined, {
+        currentPassword: 'secret',
+        currentCode: '123456',
+      });
     });
   });
 

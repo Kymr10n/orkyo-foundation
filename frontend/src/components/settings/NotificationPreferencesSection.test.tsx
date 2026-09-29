@@ -13,10 +13,6 @@ vi.mock('@foundation/src/lib/api/security-api', () => ({
   updateNotificationPreferences: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 // The success/error toast + cache invalidation now originate from the central
 // feedback MutationCache (meta), not the component — so wire the real cache here
 // (with the mocked toast) exactly as production does. See docs/dialog-feedback.md.
@@ -26,15 +22,15 @@ function renderNotif(props: { locked?: boolean } = {}) {
 
 describe('NotificationPreferencesSection', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getNotificationPreferences).mockResolvedValue({ announcementEmailOptOut: false });
     vi.mocked(updateNotificationPreferences).mockResolvedValue({ message: 'ok' });
   });
 
   it('shows a loading spinner while fetching', () => {
     vi.mocked(getNotificationPreferences).mockReturnValue(new Promise(() => {}));
-    const { container } = renderNotif();
-    expect(container.querySelector('.animate-spin')).toBeTruthy();
+    renderNotif();
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
   });
 
   it('renders the switch on when the user is opted in', async () => {

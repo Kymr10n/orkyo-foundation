@@ -8,6 +8,7 @@ import {
 } from "@foundation/src/lib/api/routing-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 import type {
   CreateRoutingRequest,
   InstantiateRoutingRequest,
@@ -18,23 +19,13 @@ export function useRoutings() {
   return useQuery({ queryKey: qk.routings(), queryFn: getRoutings });
 }
 
-export function useCreateRouting() {
+/** Create (`id: null`) or update a routing — the edit dialog's save; it shows a failure inline. */
+export function useSaveRouting() {
   return useMutation({
-    mutationFn: (request: CreateRoutingRequest) => createRouting(request),
+    mutationFn: (v: SaveVariables<CreateRoutingRequest, UpdateRoutingRequest>) =>
+      v.id === null ? createRouting(v.data) : updateRouting(v.id, v.data),
     meta: {
-      successMessage: "Routing created",
-      suppressErrorToast: true,
-      invalidates: [qk.routings()],
-    },
-  });
-}
-
-export function useUpdateRouting() {
-  return useMutation({
-    mutationFn: ({ id, request }: { id: string; request: UpdateRoutingRequest }) =>
-      updateRouting(id, request),
-    meta: {
-      successMessage: "Routing updated",
+      successMessage: savedMessage("Routing created", "Routing updated"),
       suppressErrorToast: true,
       invalidates: [qk.routings()],
     },

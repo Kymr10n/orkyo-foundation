@@ -2,7 +2,7 @@ import { ShieldX, LayoutGrid, LogOut, Mail, Shield } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_EVENTS } from '@foundation/src/constants/auth';
-import { navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
+import { goToApex, navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
 import { runtimeConfig } from '@foundation/src/config/runtime';
 import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
 
@@ -18,7 +18,7 @@ import { usePageTitle } from '@foundation/src/hooks/usePageTitle';
  */
 export function TenantNoAccessPage() {
   const { sessionData, isSiteAdmin, send } = useAuth();
-  usePageTitle('No access to this workspace');
+  usePageTitle('No access to this organization');
 
   const hasOtherWorkspaces = (sessionData?.tenants.length ?? 0) > 0;
 
@@ -26,7 +26,7 @@ export function TenantNoAccessPage() {
   // loads the app and lands on the tenant selector (same reasoning as the
   // machine's performLogin action).
   const goToMyWorkspaces = () => {
-    if (!navigateToApex('/login?auto=1')) window.location.href = '/login?auto=1';
+    goToApex('/login?auto=1');
   };
 
   return (
@@ -35,18 +35,18 @@ export function TenantNoAccessPage() {
         <ShieldX className="h-14 w-14 text-muted-foreground" />
 
         <div className="space-y-2">
-          <h1 className="text-xl font-semibold">No access to this workspace</h1>
+          <h1 className="text-xl font-semibold">No access to this organization</h1>
           <p className="text-muted-foreground text-sm">
             {hasOtherWorkspaces
-              ? "Your account isn't a member of this workspace. Switch to one of your workspaces, or ask this workspace's administrator for an invitation."
-              : "Your account isn't a member of this workspace. Ask this workspace's administrator for an invitation."}
+              ? "Your account isn't a member of this organization. Switch to one of your organizations, or ask this organization's administrator for an invitation."
+              : "Your account isn't a member of this organization. Ask this organization's administrator for an invitation."}
           </p>
         </div>
 
         {hasOtherWorkspaces && (
           <Button onClick={goToMyWorkspaces}>
             <LayoutGrid className="mr-2 h-4 w-4" />
-            Go to my workspaces
+            Go to my organizations
           </Button>
         )}
 

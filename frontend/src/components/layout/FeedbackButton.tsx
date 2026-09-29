@@ -25,7 +25,6 @@ import { submitFeedback, type FeedbackType } from '@foundation/src/lib/api/feedb
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from '@foundation/src/components/ui/tooltip';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
@@ -93,7 +92,6 @@ export function FeedbackButton() {
 
   return (
     <>
-      <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -110,7 +108,6 @@ export function FeedbackButton() {
             <p>Send Feedback</p>
           </TooltipContent>
         </Tooltip>
-      </TooltipProvider>
 
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className={DIALOG_SIZE.sm}>
@@ -187,7 +184,7 @@ export function FeedbackButton() {
               <Button variant="outline" onClick={() => handleOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleSubmit} loading={isSubmitting} disabled={isSubmitting}>
+              <Button onClick={() => void handleSubmit()} loading={isSubmitting} disabled={isSubmitting}>
                 Submit
               </Button>
             </DialogFooter>

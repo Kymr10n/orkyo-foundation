@@ -1,39 +1,22 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { useState } from "react";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
-import { Plus, Bot, TriangleAlert } from "lucide-react";
-import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
+import { Bot, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { Button } from "@foundation/src/components/ui/button";
-import { FormDialog } from "@foundation/src/components/ui/FormDialog";
-import { Input } from "@foundation/src/components/ui/input";
-import { Label } from "@foundation/src/components/ui/label";
 import { StatusBadge } from "@foundation/src/components/ui/status-badge";
-import { SettingsPageHeader } from "./SettingsPageHeader";
-import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import type { ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
 import {
-  revokeApiAccessToken,
   grantsWrite,
   API_SCOPES,
   type ApiScope,
   type ApiAccessTokenSummary,
+  type CreateApiAccessTokenRequest,
 } from "@foundation/src/lib/api/api-access-tokens-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { useApiAccessTokens, useCreateApiAccessToken } from "@foundation/src/hooks/useApiTokens";
-import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
 import {
-  CopyButton,
-  ExpiryFields,
-  RawTokenDialog,
-  RevokeTokenDialog,
-  buildTokenColumns,
-  renderTokenCard,
-  resolveExpiry,
-  type ExpiryMode,
-} from "./api-tokens/token-ui";
+  useApiAccessTokens,
+  useCreateApiAccessToken,
+  useRevokeApiAccessToken,
+} from "@foundation/src/hooks/useApiTokens";
+import { CopyButton, CreateTokenDialog, TokenSettingsPage } from "./api-tokens/token-ui";
 
 /** What each access level means, in the terms the person granting it thinks in. */
 const ACCESS_LEVELS = [
@@ -52,73 +35,12 @@ const ACCESS_LEVELS = [
   },
 ];
 
-function AccessBadge({ scopes }: { scopes: string }) {
-  return grantsWrite(scopes) ? (
-    <StatusBadge status="warning" label="Read & write" />
-  ) : (
-    <StatusBadge status="inactive" label="Read only" />
-  );
-}
+type AccessLevel = (typeof ACCESS_LEVELS)[number]["id"];
 
-interface CreateTokenDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (rawToken: string) => void;
-}
-
-function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogProps) {
-  const [name, setName] = useState("");
-  const [level, setLevel] = useState<"read" | "write">("read");
-  const [expiryMode, setExpiryMode] = useState<ExpiryMode>("90");
-  const [customExpiresAt, setCustomExpiresAt] = useState("");
-  const expiresAt = resolveExpiry(expiryMode, customExpiresAt);
-
-  // Reset the form each time the dialog opens — render-phase, not an effect.
-  const [syncedOpen, setSyncedOpen] = useState(open);
-  if (syncedOpen !== open) {
-    setSyncedOpen(open);
-    if (open) {
-      setName("");
-      // Defaults to read-only: granting write is a decision someone should make on purpose.
-      setLevel("read");
-      setExpiryMode("90");
-      setCustomExpiresAt("");
-    }
-  }
-
-  const mutation = useCreateApiAccessToken((result) => {
-    onOpenChange(false);
-    onCreated(result.rawToken);
-  });
-
+/** The access choice, and the warning once write is chosen. */
+function AccessFields({ level, onChange }: { level: AccessLevel; onChange: (level: AccessLevel) => void }) {
   return (
-    <FormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Create API token"
-      description="Connects an AI assistant or automated service to this workspace's schedule. It will be shown once — copy it before closing."
-      onSubmit={() =>
-        mutation.mutate({
-          name,
-          scopes: ACCESS_LEVELS.find((l) => l.id === level)!.scopes as ApiScope[],
-          ...(expiresAt ? { expiresAt } : {}),
-        })
-      }
-      isSubmitting={mutation.isPending}
-      submitLabel="Create token"
-      submitDisabled={!(name.trim() && (expiryMode !== "custom" || !!expiresAt))}
-    >
-      <div className="space-y-1.5">
-        <Label htmlFor="api-token-name">Name</Label>
-        <Input
-          id="api-token-name"
-          placeholder="e.g. Planning assistant"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-        />
-      </div>
-
+    <>
       <fieldset className="space-y-1.5">
         <legend className="text-sm font-medium leading-none">Access</legend>
         <div className="flex flex-col gap-2 pt-1.5">
@@ -132,7 +54,7 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
                 name="api-token-access"
                 className="mt-1"
                 checked={level === option.id}
-                onChange={() => setLevel(option.id)}
+                onChange={() => onChange(option.id)}
               />
               <span className="min-w-0">
                 <span className="block text-sm font-medium">{option.label}</span>
@@ -153,14 +75,15 @@ function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogP
           </AlertDescription>
         </Alert>
       )}
+    </>
+  );
+}
 
-      <ExpiryFields
-        mode={expiryMode}
-        onModeChange={setExpiryMode}
-        customExpiresAt={customExpiresAt}
-        onCustomChange={setCustomExpiresAt}
-      />
-    </FormDialog>
+function AccessBadge({ scopes }: { scopes: string }) {
+  return grantsWrite(scopes) ? (
+    <StatusBadge status="warning" label="Read & write" />
+  ) : (
+    <StatusBadge status="inactive" label="Read only" />
   );
 }
 
@@ -173,7 +96,7 @@ function McpQuickStart() {
         Connect an AI assistant
       </div>
       <p className="text-sm text-muted-foreground">
-        This workspace speaks the Model Context Protocol, so any MCP-compatible client can read and
+        This organization speaks the Model Context Protocol, so any MCP-compatible client can read and
         manage its schedule. Point the client at this server URL and authenticate with a token above.
       </p>
       <div className="bg-muted rounded-md p-2 font-mono text-xs break-all flex items-center justify-between gap-2">
@@ -206,16 +129,13 @@ interface PlatformApiSettingsProps {
   upgradeHref?: string;
 }
 
+/** Write-capable API tokens for AI assistants and services. The shared token screen, plus access. */
 export function PlatformApiSettings({ upgradeHref }: PlatformApiSettingsProps = {}) {
   // Same entitlement as the reporting API: programmatic access is one product capability.
-  const { isLoading: authLoading } = useAuth();
   const apiAccessAllowed = useFeatureEnabled(FeatureKeys.ApiAccess);
-
-  const [createOpen, setCreateOpen] = useState(false);
-  const [rawToken, setRawToken] = useState<string | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<ApiAccessTokenSummary | null>(null);
-
-  const { data: tokens = [], isLoading, error } = useApiAccessTokens(apiAccessAllowed);
+  const tokens = useApiAccessTokens(apiAccessAllowed);
+  const createMutation = useCreateApiAccessToken();
+  const revokeMutation = useRevokeApiAccessToken();
 
   // The access column is what this table has that the reporting one does not: whether a token can
   // change the schedule is the first thing worth seeing in a list of them.
@@ -227,102 +147,51 @@ export function PlatformApiSettings({ upgradeHref }: PlatformApiSettingsProps = 
     cell: ({ row }) => <AccessBadge scopes={row.original.scopes} />,
   };
 
-  const columns = buildTokenColumns<ApiAccessTokenSummary>(setRevokeTarget, [accessColumn]);
-  const tableUrlState = useTableUrlState("api-tokens", columns);
-
-  if (authLoading) {
-    return (
-      <div className="py-12">
-        <LoadingSpinner fullScreen={false} />
-      </div>
-    );
-  }
-
-  if (!apiAccessAllowed) {
-    if (upgradeHref) {
-      return (
-        <FeatureUpsell
-          title="API & AI access"
-          description="Available on Professional and Enterprise plans. Let an AI assistant or automated service read and manage your schedule."
-          upgradeHref={upgradeHref}
-        >
+  return (
+    <TokenSettingsPage
+      upgradeHref={upgradeHref}
+      apiAccessAllowed={apiAccessAllowed}
+      tokens={tokens}
+      title="API & AI access"
+      description="Manage tokens that let an AI assistant or automated service read and manage this organization's schedule."
+      upsell={{
+        title: "API & AI access",
+        description:
+          "Available on Professional and Enterprise plans. Let an AI assistant or automated service read and manage your schedule.",
+        points: (
           <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
-            <li>Connect any MCP-compatible AI assistant to your workspace</li>
+            <li>Connect any MCP-compatible AI assistant to your organization</li>
             <li>Read-only or read-and-write tokens you can revoke anytime</li>
             <li>Every change goes through the same rules and conflict checks your team does</li>
           </ul>
-        </FeatureUpsell>
-      );
-    }
-
-    return (
-      <Alert>
-        <AlertDescription>API access is not available for this workspace.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="py-12">
-        <LoadingSpinner fullScreen={false} />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>Failed to load API tokens. Please try again.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <SettingsPageHeader
-        title="API & AI access"
-        description="Manage tokens that let an AI assistant or automated service read and manage this workspace's schedule."
-      >
-        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          New token
-        </Button>
-      </SettingsPageHeader>
-
-      {tokens.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
-          No API tokens yet. Create one to connect an AI assistant.
-        </div>
-      ) : (
-        <OrkyoDataTable
-          {...tableUrlState}
-          columns={columns}
-          data={tokens}
-          renderCard={(token) =>
-            renderTokenCard(token, setRevokeTarget, <AccessBadge scopes={token.scopes} />)
-          }
+        ),
+      }}
+      unavailableMessage="API access is not available for this organization."
+      loadErrorMessage="Failed to load API tokens."
+      emptyMessage="No API tokens yet. Create one to connect an AI assistant."
+      tableKey="api-tokens"
+      extraColumns={[accessColumn]}
+      cardSubtitle={(token) => <AccessBadge scopes={token.scopes} />}
+      quickStart={<McpQuickStart />}
+      renderCreateDialog={(props) => (
+        <CreateTokenDialog<{ level: AccessLevel }, CreateApiAccessTokenRequest>
+          {...props}
+          title="Create API token"
+          description="Connects an AI assistant or automated service to this organization's schedule. It will be shown once — copy it before closing."
+          namePlaceholder="e.g. Planning assistant"
+          defaultExpiry="90"
+          mutation={createMutation}
+          // Defaults to read-only: granting write is a decision someone should make on purpose.
+          initialExtra={{ level: "read" }}
+          renderExtra={(form, set) => <AccessFields level={form.level} onChange={(level) => set({ level })} />}
+          toRequest={(base, form) => ({
+            ...base,
+            scopes: ACCESS_LEVELS.find((l) => l.id === form.level)!.scopes as ApiScope[],
+          })}
         />
       )}
-
-      <McpQuickStart />
-
-      <CreateTokenDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={(t) => setRawToken(t)}
-      />
-      <RawTokenDialog
-        token={rawToken}
-        onClose={() => setRawToken(null)}
-        warning="Store this token securely. Anyone with it can act on this workspace's schedule — with a read-and-write token, that includes creating, rescheduling and reassigning work."
-      />
-      <RevokeTokenDialog
-        token={revokeTarget}
-        onOpenChange={(open) => !open && setRevokeTarget(null)}
-        revokeFn={revokeApiAccessToken}
-        invalidates={qk.apiAccessTokens.all()}
-      />
-    </div>
+      rawTokenWarning="Store this token securely. Anyone with it can act on this organization's schedule — with a read-and-write token, that includes creating, rescheduling and reassigning work."
+      revokeMutation={revokeMutation}
+    />
   );
 }

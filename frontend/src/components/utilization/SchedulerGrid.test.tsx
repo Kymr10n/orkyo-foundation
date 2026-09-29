@@ -3,45 +3,22 @@ import { render, screen, act, fireEvent, waitFor } from '@testing-library/react'
 import type { Conflict } from '@foundation/src/types/requests';
 import { SchedulerGrid } from '@foundation/src/components/utilization/SchedulerGrid';
 import userEvent from '@testing-library/user-event';
-import { SpaceRow } from '@foundation/src/components/utilization/SpaceRow';
-import { ScheduledRequestOverlay } from '@foundation/src/components/utilization/ScheduledRequestOverlay';
-import { GroupHeader } from '@foundation/src/components/utilization/GroupHeader';
 import type { Request } from '@foundation/src/types/requests';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
-import type { ResourceGroupInfo } from '@foundation/src/lib/api/resource-groups-api';
 import { DndContext } from '@dnd-kit/core';
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 import { useSchedulerStore } from '@foundation/src/store/scheduler-store';
+import { useSchedulerViewStore } from '@foundation/src/store/scheduler-view-store';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
-const storeMock = vi.hoisted(() => ({
-  collapsedGroupIds: [] as string[],
-  spaceOrder: [] as string[],
-  toggleGroupCollapse: vi.fn(),
-}));
+const initialViewState = useSchedulerViewStore.getState();
+const initialLayoutState = useLayoutStore.getState();
 
-// Mock the store
 vi.mock('@foundation/src/components/resources/ResourceScheduleDialog', () => ({
   ResourceScheduleDialog: ({ resourceId }: { resourceId: string }) => (
     <div data-testid="resource-schedule" data-resource-id={resourceId} />
   ),
-}));
-
-vi.mock('@foundation/src/store/scheduler-view-store', () => ({
-  useSchedulerViewStore: vi.fn((selector) => {
-    const mockState = { spaceOrder: storeMock.spaceOrder };
-    return selector ? selector(mockState) : mockState;
-  }),
-}));
-
-vi.mock('@foundation/src/store/layout-store', () => ({
-  useLayoutStore: vi.fn((selector) => {
-    const mockState = {
-      collapsedGroupIds: storeMock.collapsedGroupIds,
-      toggleGroupCollapse: storeMock.toggleGroupCollapse,
-    };
-    return selector ? selector(mockState) : mockState;
-  }),
 }));
 
 // Mock the resource groups API
@@ -144,49 +121,13 @@ const mockRequests: Request[] = [
   },
 ];
 
-const _mockColumns = [
-  {
-    start: new Date('2024-01-01T00:00:00Z'),
-    end: new Date('2024-01-01T23:59:59Z'),
-    label: 'Mon 01',
-  },
-  {
-    start: new Date('2024-01-02T00:00:00Z'),
-    end: new Date('2024-01-02T23:59:59Z'),
-    label: 'Tue 02',
-  },
-];
-
 describe('SchedulerGrid', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    storeMock.collapsedGroupIds = [];
-    storeMock.spaceOrder = [];
+    useSchedulerViewStore.setState({ ...initialViewState, spaceOrder: [] }, true);
+    useLayoutStore.setState({ ...initialLayoutState, collapsedGroupIds: [] }, true);
     registryMock.conflicts = [];
     // Reset any draft left over from a draft-overlay test.
     useSchedulerStore.getState().cancelResize();
-  });
-
-  it('renders without crashing', async () => {
-    const Wrapper = createWrapper();
-
-    render(
-      <Wrapper>
-        <SchedulerGrid
-          spaces={mockSpaces}
-          requests={mockRequests}
-          scale="month"
-          anchorTs={new Date('2024-01-15')}
-          timeCursorTs={new Date()}
-          nowMs={Date.now()}
-          onRequestClick={vi.fn()}
-          onTimeCursorClick={vi.fn()}
-        />
-      </Wrapper>
-    );
-
-    await flushQueries();
-    expect(screen.getByText('Room A101')).toBeInTheDocument();
   });
 
   it("opens a space's own schedule from its row label", async () => {
@@ -304,43 +245,6 @@ describe('SchedulerGrid', () => {
     await flushQueries();
   });
 
-  it('renders space groups when provided', async () => {
-    const Wrapper = createWrapper();
-    const _mockSpaceGroups: ResourceGroupInfo[] = [
-      {
-        id: 'group-1',
-        name: 'Building A',
-        color: '#FF0000',
-        displayOrder: 1,
-        resourceTypeKey: 'space',
-        memberCount: 0,
-        defaultAvailabilityPercent: 100,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-      },
-    ];
-
-    render(
-      <Wrapper>
-        <SchedulerGrid
-          spaces={mockSpaces}
-          requests={mockRequests}
-          scale="month"
-          anchorTs={new Date('2024-01-15')}
-          timeCursorTs={new Date()}
-          nowMs={Date.now()}
-          onRequestClick={vi.fn()}
-          onTimeCursorClick={vi.fn()}
-        />
-      </Wrapper>
-    );
-
-    // Should render grouped spaces
-    await flushQueries();
-    expect(screen.getByText('Room A101')).toBeInTheDocument();
-    expect(screen.getByText('Room A102')).toBeInTheDocument();
-  });
-
   it('orders spaces by spaceOrder and groups them by resource group', async () => {
     const { getResourceGroups } = await import(
       '@foundation/src/lib/api/resource-groups-api'
@@ -370,7 +274,7 @@ describe('SchedulerGrid', () => {
       },
     ]);
     // Custom order pins space-2 first; each space sits in a different group.
-    storeMock.spaceOrder = ['space-2', 'space-1'];
+    useSchedulerViewStore.setState({ spaceOrder: ['space-2', 'space-1'] });
     const grouped: ResourceInfo[] = [
       { ...mockSpaces[0], groupId: 'group-1' },
       { ...mockSpaces[1], groupId: 'group-2' },
@@ -402,7 +306,7 @@ describe('SchedulerGrid', () => {
 
   it('sorts spaces when only some appear in spaceOrder', async () => {
     // space-2 is pinned; space-1 is not in the order → falls through to code sort.
-    storeMock.spaceOrder = ['space-2'];
+    useSchedulerViewStore.setState({ spaceOrder: ['space-2'] });
     const Wrapper = createWrapper();
 
     render(
@@ -426,7 +330,7 @@ describe('SchedulerGrid', () => {
   });
 
   it('uses a spaces-scoped collapse id so people groups do not collapse spaces', async () => {
-    storeMock.collapsedGroupIds = ['people:ungrouped'];
+    useLayoutStore.setState({ collapsedGroupIds: ['people:ungrouped'] });
     const Wrapper = createWrapper();
 
     render(
@@ -450,16 +354,7 @@ describe('SchedulerGrid', () => {
     fireEvent.click(screen.getByText('Ungrouped'));
 
     // The collapse namespace follows the tab: one floorplan of stations, not spaces.
-    expect(storeMock.toggleGroupCollapse).toHaveBeenCalledWith('stations:ungrouped');
-    expect(storeMock.toggleGroupCollapse).not.toHaveBeenCalledWith('ungrouped');
-  });
-
-  it('verifies all sub-components are defined', () => {
-    expect(SchedulerGrid).toBeDefined();
-    expect(typeof SchedulerGrid).toBe('function');
-    expect(SpaceRow).toBeDefined();
-    expect(ScheduledRequestOverlay).toBeDefined();
-    expect(GroupHeader).toBeDefined();
+    expect(useLayoutStore.getState().collapsedGroupIds).toEqual(['people:ungrouped', 'stations:ungrouped']);
   });
 
   describe('Column header tooltips', () => {
@@ -675,79 +570,6 @@ describe('SchedulerGrid', () => {
   });
 
   describe('Edge Scroll Feature', () => {
-    it('accepts onAnchorChange prop for edge scrolling', async () => {
-      const Wrapper = createWrapper();
-      const onAnchorChange = vi.fn();
-
-      render(
-        <Wrapper>
-          <SchedulerGrid
-            spaces={mockSpaces}
-            requests={mockRequests}
-            scale="week"
-            anchorTs={new Date('2024-01-15')}
-            timeCursorTs={new Date('2024-01-15T12:00:00Z')}
-            nowMs={Date.now()}
-            onRequestClick={vi.fn()}
-            onTimeCursorClick={vi.fn()}
-            onAnchorChange={onAnchorChange}
-          />
-        </Wrapper>
-      );
-
-      await flushQueries();
-      expect(screen.getByText('Room A101')).toBeInTheDocument();
-    });
-
-    it('renders time cursor that can be dragged', async () => {
-      const Wrapper = createWrapper();
-      const onTimeCursorClick = vi.fn();
-
-      render(
-        <Wrapper>
-          <SchedulerGrid
-            spaces={mockSpaces}
-            requests={mockRequests}
-            scale="week"
-            anchorTs={new Date('2024-01-15')}
-            timeCursorTs={new Date('2024-01-15T12:00:00Z')}
-            nowMs={Date.now()}
-            onRequestClick={vi.fn()}
-            onTimeCursorClick={onTimeCursorClick}
-          />
-        </Wrapper>
-      );
-
-      // The time cursor area exists (pointer-events-none container with draggable child)
-      // Just verify component renders without errors
-      await flushQueries();
-      expect(screen.getByText('Room A101')).toBeInTheDocument();
-    });
-
-    it('works without onAnchorChange (edge scroll disabled)', async () => {
-      const Wrapper = createWrapper();
-      const onTimeCursorClick = vi.fn();
-
-      // This verifies backward compatibility - onAnchorChange is optional
-      render(
-        <Wrapper>
-          <SchedulerGrid
-            spaces={mockSpaces}
-            requests={mockRequests}
-            scale="day"
-            anchorTs={new Date('2024-01-15')}
-            timeCursorTs={new Date('2024-01-15T12:00:00Z')}
-            nowMs={Date.now()}
-            onRequestClick={vi.fn()}
-            onTimeCursorClick={onTimeCursorClick}
-          />
-        </Wrapper>
-      );
-
-      await flushQueries();
-      expect(screen.getByText('Room A101')).toBeInTheDocument();
-    });
-
     it('drags the time cursor to a new position (non-edge move)', async () => {
       const Wrapper = createWrapper();
       const onTimeCursorClick = vi.fn();

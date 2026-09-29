@@ -217,13 +217,9 @@ export const RequestListView = React.memo(function RequestListView({
     return (
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <div
-            className={`flex items-center gap-2 min-w-0 cursor-pointer ${selectedId === request.id ? "font-semibold" : ""}`}
-            onClick={() => {
-              onSelect(request.id);
-              onEdit(request);
-            }}
-          >
+          {/* Opening is the card's own click and Enter/Space (OrkyoDataTable), so the name
+              needs no handler of its own. */}
+          <div className={`flex items-center gap-2 min-w-0 ${selectedId === request.id ? "font-semibold" : ""}`}>
             <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <span className="font-medium truncate">{request.name}</span>
           </div>
@@ -248,7 +244,7 @@ export const RequestListView = React.memo(function RequestListView({
         </div>
       </div>
     );
-  }, [selectedId, derivedMap, onSelect, onEdit, canEdit, onDelete]);
+  }, [selectedId, derivedMap, onEdit, canEdit, onDelete]);
 
   // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
   const tableUrlState = useTableUrlState('requests', columns);

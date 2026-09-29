@@ -24,6 +24,17 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <!-- NuGet metadata shared by every package this repo publishes. CI passes the real
+         version with -p:Version; 0.1.0 is only the local default. Orkyo.Shared overrides
+         PackageTags; each project keeps its own PackageId and Description. -->
+    <Version>0.1.0</Version>
+    <Authors>Orkyo</Authors>
+    <PackageTags>orkyo;scheduling;booking;foundation</PackageTags>
+    <RepositoryUrl>https://github.com/Kymr10n/orkyo-foundation</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <PropertyGroup>
     <!-- The central list governs transitive versions too, not only direct references.
          Without this a project can resolve an older patch of a package the central list
          already pins (seeding resolved Microsoft.Extensions.DependencyInjection.Abstractions

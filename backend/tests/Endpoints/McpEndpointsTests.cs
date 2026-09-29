@@ -96,8 +96,7 @@ public class McpEndpointsTests
     /// </summary>
     private async Task<string> MintForeignTenantTokenAsync()
     {
-        var foreignTenantId = Guid.NewGuid();
-        var slug = $"foreign-{foreignTenantId:N}"[..20];
+        var (foreignTenantId, _) = await DatabaseTestUtils.CreateTestTenantAsync("foreign");
 
         const string chars = "abcdefghijklmnopqrstuvwxyz0123456789";
         var prefix = new string(RandomNumberGenerator.GetBytes(8).Select(b => chars[b % chars.Length]).ToArray());
@@ -109,15 +108,6 @@ public class McpEndpointsTests
 
         await using var conn = new NpgsqlConnection(CpConnStr);
         await conn.OpenAsync();
-        await using (var tenant = new NpgsqlCommand(@"
-            INSERT INTO tenants (id, slug, display_name, status, db_identifier, tier, created_at, updated_at)
-            VALUES (@id, @slug, 'Foreign Tenant', 'active', @db, 2, NOW(), NOW())", conn))
-        {
-            tenant.Parameters.AddWithValue("id", foreignTenantId);
-            tenant.Parameters.AddWithValue("slug", slug);
-            tenant.Parameters.AddWithValue("db", $"tenant_{slug}");
-            await tenant.ExecuteNonQueryAsync();
-        }
         await using (var token = new NpgsqlCommand(@"
             INSERT INTO api_access_tokens (tenant_id, name, token_prefix, token_hash, scopes)
             VALUES (@tenantId, 'foreign', @prefix, @hash, 'schedule:read schedule:write')", conn))
@@ -439,8 +429,10 @@ public class McpEndpointsTests
     public async Task ARawServerExceptionNeverReachesTheClient()
     {
         // create_request with a fabricated siteId trips a real FK violation in Postgres. The
-        // client is a third-party LLM: it must get the pipeline's generic failure, not
-        // NpgsqlException text carrying SQL state, table or column names.
+        // client is a third-party LLM: it must never see NpgsqlException text carrying SQL
+        // state, table or column names. The repository turns the violation into a domain
+        // refusal, which the pipeline passes on as it would a 400 (McpToolPipelineTests covers
+        // the generic failure for anything else).
         var response = await RpcAsync(
             ClientWithToken(await IssueTokenAsync(PlatformApiScopes.ScheduleRead, PlatformApiScopes.ScheduleWrite)),
             CallTool("create_request", new
@@ -452,8 +444,36 @@ public class McpEndpointsTests
             }));
 
         var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("failed unexpectedly");
+        body.Should().Contain("site does not exist");
         body.Should().NotContainAny("Npgsql", "23503", "foreign key", "requests_site_id");
+    }
+
+    [Fact]
+    public async Task LinkRequests_ACycle_IsRefusedWithTheConflictMessage()
+    {
+        // The tool promises "Cycles are rejected". The ConflictException used to reach the agent
+        // as the generic "failed unexpectedly", indistinguishable from a crash.
+        var client = ClientWithToken(await IssueTokenAsync(PlatformApiScopes.ScheduleRead, PlatformApiScopes.ScheduleWrite));
+        async Task<Guid> CreateAsync(string name)
+        {
+            var created = await RpcAsync(client, CallTool("create_request",
+                new { name, durationValue = 1, durationUnit = "hours" }));
+            using var doc = JsonDocument.Parse(SsePayload(await created.Content.ReadAsStringAsync()));
+            return doc.RootElement.GetProperty("result").GetProperty("structuredContent").GetProperty("id").GetGuid();
+        }
+        var first = await CreateAsync($"Cycle A {Guid.NewGuid():N}"[..16]);
+        var second = await CreateAsync($"Cycle B {Guid.NewGuid():N}"[..16]);
+
+        var linked = await RpcAsync(client, CallTool("link_requests",
+            new { predecessorRequestId = first, successorRequestId = second }));
+        (await linked.Content.ReadAsStringAsync()).Should().NotContain("\"isError\":true");
+
+        var cycle = await RpcAsync(client, CallTool("link_requests",
+            new { predecessorRequestId = second, successorRequestId = first }));
+
+        var body = await cycle.Content.ReadAsStringAsync();
+        body.Should().Contain("circular reference");
+        body.Should().NotContain("failed unexpectedly");
     }
 
     [Fact]

@@ -61,6 +61,7 @@ public static class FoundationServiceExtensions
 
         // ── Keycloak ──────────────────────────────────────────────────────────
         services.AddSingleton(KeycloakOptions.FromConfiguration(configuration));
+        services.AddSingleton<KeycloakAdminTokenCache>();
         services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>();
 
         // ── Auth ──────────────────────────────────────────────────────────────
@@ -163,8 +164,11 @@ public static class FoundationServiceExtensions
         services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IAnnouncementBroadcastService, AnnouncementBroadcastService>();
         services.AddScoped<ICapabilityMatcher, CapabilityMatcher>();
+        services.AddScoped<ICandidateRequestService, CandidateRequestService>();
         services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
+        services.AddScoped<ICapabilityAssignmentService, CapabilityAssignmentService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddScoped<IBackgroundDispatcher, BackgroundDispatcher>();
         services.AddScoped<IExportService, ExportService>();
         services.AddScoped<ICalendarFeedService, CalendarFeedService>();
         services.AddScoped<IAssetStorageService, AssetStorageService>();

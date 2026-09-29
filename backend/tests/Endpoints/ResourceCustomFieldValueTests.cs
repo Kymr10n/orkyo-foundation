@@ -19,17 +19,6 @@ public class ResourceCustomFieldValueTests
 
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
-    private async Task<ResourceTypeInfo> CreateTypeAsync()
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = $"machine_{Guid.NewGuid():N}",
-            DisplayName = "Machine",
-            DisplayNamePlural = "Machines",
-        });
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
-    }
-
     private async Task CreateFieldAsync(
         Guid typeId, string key, string dataType, bool isRequired = false)
     {
@@ -60,7 +49,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_PersistsAndReturnsValues()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text);
         await CreateFieldAsync(type.Id, "datasheet", CustomFieldDataTypes.Url);
 
@@ -81,7 +70,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_AcceptsEveryDataType()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text);
         await CreateFieldAsync(type.Id, "capacity_kg", CustomFieldDataTypes.Number);
         await CreateFieldAsync(type.Id, "certified", CustomFieldDataTypes.Boolean);
@@ -108,7 +97,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_RejectsUnknownKey()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await CreateResourceAsync(type.Key, new() { ["nope"] = Json("\"x\"") });
 
@@ -132,7 +121,7 @@ public class ResourceCustomFieldValueTests
     [InlineData(CustomFieldDataTypes.Number, "1e1000000")]
     public async Task CreateResource_RejectsWronglyTypedValue(string dataType, string rawValue)
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "field", dataType);
 
         var response = await CreateResourceAsync(type.Key, new() { ["field"] = Json(rawValue) });
@@ -143,7 +132,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_RejectsMissingRequiredFieldAndPersistsNothing()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text, isRequired: true);
 
         // Omitting the document entirely must not be a way around a required field.
@@ -158,7 +147,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_TreatsBlankValueAsMissingForRequiredField()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text, isRequired: true);
 
         var response = await CreateResourceAsync(type.Key, new() { ["serial_number"] = Json("\"  \"") });
@@ -172,7 +161,7 @@ public class ResourceCustomFieldValueTests
     public async Task CreateResource_RejectsOverLongValue(string dataType, int length)
     {
         // Values ship back with every resource list read, so nothing may be unbounded.
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "field", dataType);
         var prefix = dataType == CustomFieldDataTypes.Url ? "https://example.com/" : "";
         var value = prefix + new string('x', length - prefix.Length);
@@ -185,7 +174,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_TreatsJsonNullAsNoValue()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "notes", CustomFieldDataTypes.Text);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text, isRequired: true);
 
@@ -202,7 +191,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_AllowsBlankValueForOptionalField()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "notes", CustomFieldDataTypes.Text);
 
         var response = await CreateResourceAsync(type.Key, new() { ["notes"] = Json("\"\"") });
@@ -215,7 +204,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task UpdateResource_WithoutCustomFieldsLeavesValuesUntouched()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text, isRequired: true);
         var created = await CreateResourceAsync(type.Key, new() { ["serial_number"] = Json("\"SN-7\"") });
         var resource = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
@@ -234,7 +223,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task UpdateResource_ReplacesTheWholeValueDocument()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text);
         await CreateFieldAsync(type.Id, "notes", CustomFieldDataTypes.Text);
         var created = await CreateResourceAsync(type.Key, new()
@@ -259,7 +248,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task UpdateResource_WithAnEmptyDocumentClearsEveryValue()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text);
         var created = await CreateResourceAsync(type.Key, new() { ["serial_number"] = Json("\"SN-7\"") });
         var resource = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
@@ -276,7 +265,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task CreateResource_ReportsAnEmptyDocumentTheSameWayItReadsBack()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await CreateResourceAsync(type.Key, new());
         var created = (await response.Content.ReadFromJsonAsync<ResourceInfo>())!;
@@ -289,7 +278,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task DeletingTheTypeTakesItsFieldDefinitionsWithIt()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text);
 
         var deleted = await _client.DeleteAsync($"/api/resource-types/{type.Id}");
@@ -303,7 +292,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task UpdateResource_RejectsDocumentMissingARequiredField()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number", CustomFieldDataTypes.Text, isRequired: true);
         await CreateFieldAsync(type.Id, "notes", CustomFieldDataTypes.Text);
         var created = await CreateResourceAsync(type.Key, new() { ["serial_number"] = Json("\"SN-7\"") });
@@ -318,7 +307,7 @@ public class ResourceCustomFieldValueTests
     [Fact]
     public async Task RetiringAField_LeavesResourcesEditable()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var fieldResponse = await _client.PostAsJsonAsync(
             $"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest

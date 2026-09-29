@@ -156,7 +156,7 @@ After a scan, the dialog does one of three things:
 ### 5.3 Global Scan action
 
 `TopBar` gets a Scan icon button on every screen size. The phone is where users scan, so
-the button is not in the phone overflow menu. The action increments a new `scanTick` in
+the button is not in the phone overflow menu. The action sets `scannerOpen` in
 `store/ui-actions-store.ts`, and `AppLayout` loads `GlobalScanFlow` and opens the scanner. This is the same pattern as `openAssistant`. There is no floating button,
 because `FeedbackButton` already uses the bottom-right corner.
 

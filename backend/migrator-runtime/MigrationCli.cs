@@ -107,9 +107,11 @@ public static class MigrationCli
                     logger.LogInformation("-- tenant {Slug} ({Id}) --", tenant.Slug, tenant.Id);
 
                     // Tenant databases may not yet exist (new tenants provisioned via a seed
-                    // migration, CI environments, first-run deployments). Create the database
-                    // if absent — this is a no-op for already-provisioned tenants.
-                    EnsureDatabase.For.PostgresqlDatabase(tenant.ConnectionString);
+                    // migration, CI environments, first-run deployments). Apply creates the
+                    // database if absent — a no-op for already-provisioned tenants. Validate
+                    // must not change what it inspects, so a missing database fails the check.
+                    if (migrationOptions.Mode == MigrationExecutionMode.Apply)
+                        EnsureDatabase.For.PostgresqlDatabase(tenant.ConnectionString);
 
                     // Lock on the DATABASE NAME, not the tenant UUID: TenantProvisioningService
                     // locks the same database as `orkyo:tenant:{dbIdentifier}` while creating it,

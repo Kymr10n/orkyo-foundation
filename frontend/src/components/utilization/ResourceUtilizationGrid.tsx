@@ -50,7 +50,7 @@ export interface ResourceUtilizationGridProps {
    * `resourceIds === null` means the range applies to every resource (site-wide).
    */
   offTimeRanges?: readonly OffTimeRange[];
-  weekendsEnabled?: boolean;
+  weekendsAreOff?: boolean;
   siteId?: string | null;
   /**
    * Search and utilization-state filter. Owned by the Assets tab rather than by this grid: the tab
@@ -96,7 +96,7 @@ interface DialogState {
 /** The lookup whose label names a row. Seeded on the person type by migration 1820. */
 const JOB_TITLE_KEYS = ['job_title'] as const;
 
-export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTimeRanges = [], weekendsEnabled, siteId, filter }: ResourceUtilizationGridProps) {
+export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTimeRanges = [], weekendsAreOff, siteId, filter }: ResourceUtilizationGridProps) {
   const typeKey = resourceType.key;
   // Everything here names the collection and uses the plural the type carries; the row-label
   // column heads "Name", because the tab and the rows already say what kind of thing these are.
@@ -107,7 +107,7 @@ export function ResourceUtilizationGrid({ resourceType, anchorTs, scale, offTime
   const [dialogState, setDialogState] = useState<DialogState | null>(null);
   const [scheduleFor, setScheduleFor] = useState<ResourceInfo | null>(null);
 
-  const columns = useTimeColumns({ scale, anchorTs, weekendsEnabled, offTimeRanges });
+  const columns = useTimeColumns({ scale, anchorTs, weekendsAreOff, offTimeRanges });
   const from = columns[0].start;
   const to = columns[columns.length - 1].end;
   const granularity = utilizationGranularityForScale(scale);

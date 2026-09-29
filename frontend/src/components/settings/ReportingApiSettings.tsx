@@ -1,94 +1,13 @@
-/* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { useState } from "react";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
-import { Plus, Key } from "lucide-react";
-import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
-import { Button } from "@foundation/src/components/ui/button";
-import { FormDialog } from "@foundation/src/components/ui/FormDialog";
-import { Input } from "@foundation/src/components/ui/input";
-import { Label } from "@foundation/src/components/ui/label";
-import { SettingsPageHeader } from "./SettingsPageHeader";
-import { OrkyoDataTable } from "@foundation/src/components/ui/OrkyoDataTable";
+import { Key } from "lucide-react";
+import type { CreateReportingTokenRequest } from "@foundation/src/lib/api/reporting-tokens-api";
 import {
-  revokeReportingToken,
-  type ReportingTokenSummary,
-} from "@foundation/src/lib/api/reporting-tokens-api";
-import { qk } from "@foundation/src/lib/api/query-keys";
-import { useCreateReportingToken, useReportingTokens } from "@foundation/src/hooks/useApiTokens";
-import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
-import {
-  CopyButton,
-  ExpiryFields,
-  RawTokenDialog,
-  RevokeTokenDialog,
-  buildTokenColumns,
-  renderTokenCard,
-  resolveExpiry,
-  type ExpiryMode,
-} from "./api-tokens/token-ui";
-
-interface CreateTokenDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (rawToken: string) => void;
-}
-
-function CreateTokenDialog({ open, onOpenChange, onCreated }: CreateTokenDialogProps) {
-  const [name, setName] = useState("");
-  const [expiryMode, setExpiryMode] = useState<ExpiryMode>("7");
-  const [customExpiresAt, setCustomExpiresAt] = useState("");
-  const expiresAt = resolveExpiry(expiryMode, customExpiresAt);
-
-  // Reset the form each time the dialog opens — render-phase, not an effect (see useEntityFormDialog.ts).
-  const [syncedOpen, setSyncedOpen] = useState(open);
-  if (syncedOpen !== open) {
-    setSyncedOpen(open);
-    if (open) {
-      setName("");
-      setExpiryMode("7");
-      setCustomExpiresAt("");
-    }
-  }
-
-  const mutation = useCreateReportingToken((result) => {
-    onOpenChange(false);
-    onCreated(result.rawToken);
-  });
-
-  return (
-    <FormDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title="Create Reporting Token"
-      description="This token grants read-only access to reporting data for this workspace. It will be shown once — copy it before closing."
-      onSubmit={() => mutation.mutate({ name, ...(expiresAt ? { expiresAt } : {}) })}
-      isSubmitting={mutation.isPending}
-      submitLabel="Create token"
-      submitDisabled={!(name.trim() && (expiryMode !== "custom" || !!expiresAt))}
-    >
-      <div className="space-y-1.5">
-        <Label htmlFor="token-name">Name</Label>
-        <Input
-          id="token-name"
-          placeholder="e.g. Power BI Dashboard"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-        />
-      </div>
-      <ExpiryFields
-        mode={expiryMode}
-        onModeChange={setExpiryMode}
-        customExpiresAt={customExpiresAt}
-        onCustomChange={setCustomExpiresAt}
-      />
-    </FormDialog>
-  );
-}
+  useCreateReportingToken,
+  useReportingTokens,
+  useRevokeReportingToken,
+} from "@foundation/src/hooks/useApiTokens";
+import { CopyButton, CreateTokenDialog, TokenSettingsPage } from "./api-tokens/token-ui";
 
 function PowerBiQuickStart() {
   const url = `${window.location.origin}/api/reporting/v1/`;
@@ -120,118 +39,52 @@ interface ReportingApiSettingsProps {
   upgradeHref?: string;
 }
 
+/** Read-only reporting tokens for BI tools. The shared token screen with this class's copy. */
 export function ReportingApiSettings({ upgradeHref }: ReportingApiSettingsProps = {}) {
   // Paid-tier gate: reporting API keys require API access (Professional+).
-  const { isLoading: authLoading } = useAuth();
   const apiAccessAllowed = useFeatureEnabled(FeatureKeys.ApiAccess);
+  const tokens = useReportingTokens(apiAccessAllowed);
+  const createMutation = useCreateReportingToken();
+  const revokeMutation = useRevokeReportingToken();
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [rawToken, setRawToken] = useState<string | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<ReportingTokenSummary | null>(null);
-
-  const { data: tokens = [], isLoading, error } = useReportingTokens(apiAccessAllowed);
-
-  const columns = buildTokenColumns<ReportingTokenSummary>(setRevokeTarget);
-
-  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
-  const tableUrlState = useTableUrlState("tokens", columns);
-
-  if (authLoading) {
-    return (
-      <div className="py-12">
-        <LoadingSpinner fullScreen={false} />
-      </div>
-    );
-  }
-
-  if (!apiAccessAllowed) {
-    // Paid-tier gate. Rather than silently redirecting, keep the user on the page and
-    // explain the feature + upgrade path. When no upgrade target is provided (e.g.
-    // Community, which has no plans), fall back to a plain unavailable notice.
-    if (upgradeHref) {
-      return (
-        <FeatureUpsell
-          title="Reporting API"
-          description="Available on Professional and Enterprise plans. Connect BI tools to your workspace data with read-only API tokens."
-          upgradeHref={upgradeHref}
-        >
+  return (
+    <TokenSettingsPage
+      upgradeHref={upgradeHref}
+      apiAccessAllowed={apiAccessAllowed}
+      tokens={tokens}
+      title="Reporting API"
+      description="Manage API tokens for connecting BI tools (Power BI, Excel, Metabase) to your organization data."
+      upsell={{
+        title: "Reporting API",
+        description:
+          "Available on Professional and Enterprise plans. Connect BI tools to your organization data with read-only API tokens.",
+        points: (
           <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
-            <li>Connect Power BI, Excel, or Metabase to your workspace data</li>
+            <li>Connect Power BI, Excel, or Metabase to your organization data</li>
             <li>Read-only, scoped API tokens you can revoke anytime</li>
             <li>Incremental refresh via <code className="text-xs bg-muted px-1 rounded">updatedSince</code></li>
           </ul>
-        </FeatureUpsell>
-      );
-    }
-
-    return (
-      <Alert>
-        <AlertDescription>
-          Reporting API access is not available for this workspace.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="py-12">
-        <LoadingSpinner fullScreen={false} />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert variant="destructive">
-        <AlertDescription>Failed to load reporting tokens. Please try again.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <SettingsPageHeader
-        title="Reporting API"
-        description="Manage API tokens for connecting BI tools (Power BI, Excel, Metabase) to your workspace data."
-      >
-        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
-          <Plus className="h-4 w-4" />
-          New token
-        </Button>
-      </SettingsPageHeader>
-
-      {tokens.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground text-sm">
-          No reporting tokens yet. Create one to connect a BI tool.
-        </div>
-      ) : (
-        <OrkyoDataTable
-          {...tableUrlState}
-          columns={columns}
-          data={tokens}
-          renderCard={(token) => renderTokenCard(token, setRevokeTarget)}
+        ),
+      }}
+      unavailableMessage="Reporting API access is not available for this organization."
+      loadErrorMessage="Failed to load reporting tokens."
+      emptyMessage="No reporting tokens yet. Create one to connect a BI tool."
+      tableKey="tokens"
+      quickStart={<PowerBiQuickStart />}
+      renderCreateDialog={(props) => (
+        <CreateTokenDialog<object, CreateReportingTokenRequest>
+          {...props}
+          title="Create Reporting Token"
+          description="This token grants read-only access to reporting data for this organization. It will be shown once — copy it before closing."
+          namePlaceholder="e.g. Power BI Dashboard"
+          defaultExpiry="7"
+          mutation={createMutation}
+          initialExtra={{}}
+          toRequest={(base) => base}
         />
       )}
-
-      <PowerBiQuickStart />
-
-      <CreateTokenDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={(t) => setRawToken(t)}
-      />
-      <RawTokenDialog
-        token={rawToken}
-        onClose={() => setRawToken(null)}
-        warning="Store this token securely. Anyone with it can read your workspace's reporting data."
-      />
-      <RevokeTokenDialog
-        token={revokeTarget}
-        onOpenChange={(open) => !open && setRevokeTarget(null)}
-        revokeFn={revokeReportingToken}
-        invalidates={qk.reportingTokens.all()}
-      />
-    </div>
+      rawTokenWarning="Store this token securely. Anyone with it can read your organization's reporting data."
+      revokeMutation={revokeMutation}
+    />
   );
 }

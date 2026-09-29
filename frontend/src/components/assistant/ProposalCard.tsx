@@ -126,38 +126,3 @@ function formatValue(value: unknown): string {
   }
   return String(value);
 }
-
-// Re-exported so the panel can convert a proposal into the update payload without
-// duplicating the shape knowledge.
-/**
- * The requests an auto-scheduling proposal names.
- *
- * Separate from {@link proposalToRequestUpdate} because the two proposal kinds have
- * genuinely different payloads: one names a single request and its new field values, the
- * other names a set of requests and no values at all.
- */
-export function proposalToAutoScheduleRequestIds(input: string): string[] {
-  try {
-    const parsed = JSON.parse(input) as Record<string, unknown>;
-    const ids = parsed.requestIds;
-    if (!Array.isArray(ids)) return [];
-    return ids.filter((id): id is string => typeof id === "string" && id.length > 0);
-  } catch {
-    return [];
-  }
-}
-
-export function proposalToRequestUpdate(input: string): {
-  requestId: string | null;
-  changes: Record<string, unknown>;
-} {
-  try {
-    const parsed = JSON.parse(input) as Record<string, unknown>;
-    return {
-      requestId: typeof parsed.requestId === "string" ? parsed.requestId : null,
-      changes: (parsed.changes ?? {}) as Record<string, unknown>,
-    };
-  } catch {
-    return { requestId: null, changes: {} };
-  }
-}

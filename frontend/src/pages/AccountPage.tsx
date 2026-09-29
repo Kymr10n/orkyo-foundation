@@ -24,6 +24,8 @@ import {
   CardTitle,
 } from "@foundation/src/components/ui/card";
 import { Badge } from "@foundation/src/components/ui/badge";
+import { StatusBadge } from "@foundation/src/components/ui/status-badge";
+import { ROLE_LABELS, type SelectableRole } from "@foundation/src/components/ui/RoleSelect";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { Input } from "@foundation/src/components/ui/input";
@@ -36,29 +38,27 @@ import { NotificationPreferencesSection } from "@foundation/src/components/setti
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
-import {
-  leaveTenant,
-  deleteTenant,
-  type TenantMembership,
-} from "@foundation/src/lib/api/tenant-account-api";
+import type { AccountMembership } from "@foundation/src/lib/api/tenant-account-api";
 import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import {
   useInvalidateUserProfile,
   useRequestEmailChange,
   useTenantMemberships,
+  useLeaveTenant,
+  useDeleteTenant,
   useUpdateUserProfile,
   useUserProfile,
 } from "@foundation/src/hooks/useAccount";
 import { useSecurityInfo } from "@foundation/src/hooks/useSecuritySettings";
 import {
   navigateToTenantSubdomain,
-  navigateToApex,
+  goToApex,
 } from "@foundation/src/lib/utils/tenant-navigation";
 import { logger } from "@foundation/src/lib/core/logger";
 import { toast } from "sonner";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
-type Membership = TenantMembership;
+type Membership = AccountMembership;
 type EmailChangeStatus = "confirmed" | "expired" | "invalid" | "error" | "conflict";
 
 const roleBadgeVariant: Record<string, "destructive" | "default" | "secondary"> = {
@@ -73,7 +73,7 @@ const emailChangeStatusMessages: Record<
 > = {
   confirmed: {
     kind: "success",
-    title: "Your email address has been updated successfully.",
+    title: "Your email address has been updated.",
   },
   expired: {
     kind: "error",
@@ -145,6 +145,8 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     setError,
     reload: loadMemberships,
   } = useTenantMemberships();
+  const { mutateAsync: leaveTenant } = useLeaveTenant();
+  const { mutateAsync: deleteTenant } = useDeleteTenant();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -189,7 +191,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     if (message.kind === "success") {
       toast.success(message.title, { id: `email-change-${status}` });
       // Refetch profile so the email field on this page reflects the new address.
-      invalidateUserProfile();
+      void invalidateUserProfile();
     } else {
       toast.error(message.title, {
         id: `email-change-${status}`,
@@ -245,7 +247,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
       isTenantAdmin: membership.role === TENANT_ROLE.Admin,
       isOwner: membership.isOwner,
     });
-    navigate("/", { replace: true });
+    void navigate("/", { replace: true });
   };
 
   const runTenantAction = async (action: (tenantId: string) => Promise<void>, label: string) => {
@@ -259,7 +261,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
       // If we left or deleted the active tenant, send back through the apex pipeline
       if (activeMembership?.tenantId === selectedTenant.tenantId) {
-        if (!navigateToApex("/")) window.location.href = "/";
+        goToApex("/");
         return;
       }
 
@@ -276,10 +278,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     }
   };
 
-  const handleLogout = () => {
-    logout();
-  };
-
   if (loading) {
     return (
       <LoadingSpinner fullScreen={false} className="min-h-[400px]" />
@@ -292,7 +290,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         title="Account"
         description="Manage your profile, organizations, and security."
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="sm" onClick={() => void navigate(-1)}>
             <ChevronLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
@@ -517,15 +515,6 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             <NotificationPreferencesSection locked={accountLocked} />
           </div>
 
-          {/* Sign out button at the bottom of profile tab */}
-          <Card className="mt-6">
-            <CardContent className="pt-6 md:pt-6">
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="organizations" className="mt-6">
@@ -548,7 +537,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                     <Button
                       className="mt-4"
                       onClick={() => {
-                        if (!navigateToApex("/")) window.location.href = "/";
+                        goToApex("/");
                       }}
                     >
                       Create Organization
@@ -594,17 +583,14 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                             variant={roleBadgeVariant[membership.role] ?? "secondary"}
                             className="text-xs"
                           >
-                            {membership.role}
+                            {ROLE_LABELS[membership.role as SelectableRole] ?? membership.role}
                           </Badge>
-                          {membership.tenantStatus === "suspended" && (
-                            <Badge variant="destructive" className="text-xs">
-                              Suspended
-                            </Badge>
-                          )}
-                          {membership.tenantStatus === "deleting" && (
-                            <Badge variant="destructive" className="text-xs">
-                              Deleting
-                            </Badge>
+                          {(membership.tenantStatus === "suspended" || membership.tenantStatus === "deleting") && (
+                            <StatusBadge
+                              status={membership.tenantStatus}
+                              label={membership.tenantStatus === "suspended" ? "Suspended" : "Deleting"}
+                              className="text-xs"
+                            />
                           )}
                         </div>
                       </div>
@@ -636,6 +622,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                                 setDeleteDialogOpen(true);
                               }}
                               disabled={actionLoading !== null}
+                              aria-label={`Delete ${membership.tenantDisplayName}`}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -648,6 +635,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
                                 setLeaveDialogOpen(true);
                               }}
                               disabled={actionLoading !== null}
+                              aria-label={`Leave ${membership.tenantDisplayName}`}
                             >
                               <LogOut className="h-4 w-4" />
                             </Button>
@@ -661,29 +649,10 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
             </CardContent>
           </Card>
 
-          {/* Sign out button at the bottom of organizations tab */}
-          <Card className="mt-6">
-            <CardContent className="pt-6 md:pt-6">
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="security" className="mt-6">
           <SecuritySettings />
-
-          {/* Sign out button at the bottom of security tab */}
-          <Card className="mt-6">
-            <CardContent className="pt-6 md:pt-6">
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {visibleAccountTabs.map((tab) => (
@@ -693,6 +662,16 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         ))}
 
       </PageTabs>
+
+      {/* One sign-out for every tab, below whichever one is open. */}
+      <Card className="mt-6">
+        <CardContent className="pt-6 md:pt-6">
+          <Button variant="outline" onClick={logout}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign out
+          </Button>
+        </CardContent>
+      </Card>
 
       <ConfirmDialog
         open={leaveDialogOpen}
@@ -723,6 +702,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
         confirmLabel="Delete Organization"
         destructive
         isPending={actionLoading !== null}
+        confirmPhrase={selectedTenant?.tenantSlug}
         onConfirm={() => runTenantAction(deleteTenant, "Delete")}
       />
     </FocusedPageLayout>

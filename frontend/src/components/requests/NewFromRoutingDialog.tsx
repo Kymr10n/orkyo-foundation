@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { FormField } from "@foundation/src/components/ui/FormField";
 import { Input } from "@foundation/src/components/ui/input";
@@ -12,7 +11,7 @@ import {
 } from "@foundation/src/components/ui/select";
 import { useInstantiateRouting, useRoutings } from "@foundation/src/hooks/useRoutings";
 import { useIsMultiSite, useSites } from "@foundation/src/hooks/useSites";
-import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { useEntityFormDialog } from "@foundation/src/hooks/useEntityFormDialog";
 import { canHaveChildren } from "@foundation/src/domain/request-tree";
 import type { Request } from "@foundation/src/types/requests";
 import type { InstantiateRoutingRequest } from "@foundation/src/types/routings";
@@ -90,25 +89,35 @@ export function NewFromRoutingDialog({
     latestEnd: "",
     parentRequestId: "",
   };
-  const [form, setForm] = useState<FormState>(empty);
-  const [error, setError] = useState<string | null>(null);
-
   const { data: routings = [] } = useRoutings();
   const { data: sites = [] } = useSites();
   const isMultiSite = useIsMultiSite();
   const instantiate = useInstantiateRouting();
 
-  // Reseed on open (render-phase, see SiteEditDialog).
-  const [syncedOpen, setSyncedOpen] = useState(false);
-  if (syncedOpen !== open) {
-    setSyncedOpen(open);
-    if (open) {
-      setError(null);
-      setForm(empty);
-    }
-  }
+  // Create-only, so there is never an entity: the form reseeds each time the dialog opens.
+  const { form, setForm, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
+    never,
+    FormState,
+    unknown,
+    { id: string; request: InstantiateRoutingRequest }
+  >({
+    open,
+    onOpenChange,
+    entity: null,
+    emptyForm: () => empty,
+    toForm: () => empty,
+    mutation: instantiate,
+    validate: (f) => {
+      const built = buildInstantiateRequest(f);
+      return "error" in built ? built.error : null;
+    },
+    toVariables: (f) => {
+      // `validate` has passed, so the request builds.
+      const built = buildInstantiateRequest(f) as { request: InstantiateRoutingRequest };
+      return { id: f.routingId, request: built.request };
+    },
+  });
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(empty);
   const parents = requests.filter((r) => canHaveChildren(r.planningMode));
 
   const chooseRouting = (routingId: string) => {
@@ -121,36 +130,21 @@ export function NewFromRoutingDialog({
     }));
   };
 
-  const handleSubmit = async () => {
-    setError(null);
-    const built = buildInstantiateRequest(form);
-    if ("error" in built) {
-      setError(built.error);
-      return;
-    }
-    try {
-      await instantiate.mutateAsync({ id: form.routingId, request: built.request });
-      onOpenChange(false);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
-
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title="New from routing"
       description="Creates one request per operation, chained in order, sized as setup plus run time × quantity."
-      onSubmit={handleSubmit}
-      isSubmitting={instantiate.isPending}
+      onSubmit={submit}
+      isSubmitting={isSubmitting}
       submitLabel="Create work order"
-      submittingLabel="Creating..."
+      submittingLabel="Creating…"
       error={error}
       dirty={isDirty}
     >
       <FormField htmlFor="routing" label="Routing" required>
-        <Select value={form.routingId} onValueChange={chooseRouting} disabled={instantiate.isPending}>
+        <Select value={form.routingId} onValueChange={chooseRouting} disabled={isSubmitting}>
           <SelectTrigger id="routing">
             <SelectValue placeholder={routings.length ? "Choose a routing" : "No routings defined yet"} />
           </SelectTrigger>
@@ -170,7 +164,7 @@ export function NewFromRoutingDialog({
           placeholder="e.g., WO-2026-0142"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          disabled={instantiate.isPending}
+          disabled={isSubmitting}
         />
       </FormField>
 
@@ -180,7 +174,7 @@ export function NewFromRoutingDialog({
           inputMode="numeric"
           value={form.quantity}
           onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-          disabled={instantiate.isPending}
+          disabled={isSubmitting}
           className="w-32"
         />
       </FormField>
@@ -190,7 +184,7 @@ export function NewFromRoutingDialog({
           <Select
             value={form.siteId || NONE}
             onValueChange={(v) => setForm({ ...form, siteId: v === NONE ? "" : v })}
-            disabled={instantiate.isPending}
+            disabled={isSubmitting}
           >
             <SelectTrigger id="site">
               <SelectValue placeholder="Any site" />
@@ -215,7 +209,7 @@ export function NewFromRoutingDialog({
             id="earliest-start"
             value={form.earliestStart}
             onChange={(v) => setForm({ ...form, earliestStart: v })}
-            disabled={instantiate.isPending}
+            disabled={isSubmitting}
           />
         </FormField>
         <FormField htmlFor="latest-end" label="Latest end" help="Every step inherits this window.">
@@ -223,7 +217,7 @@ export function NewFromRoutingDialog({
             id="latest-end"
             value={form.latestEnd}
             onChange={(v) => setForm({ ...form, latestEnd: v })}
-            disabled={instantiate.isPending}
+            disabled={isSubmitting}
           />
         </FormField>
       </div>
@@ -233,7 +227,7 @@ export function NewFromRoutingDialog({
           <Select
             value={form.parentRequestId || NONE}
             onValueChange={(v) => setForm({ ...form, parentRequestId: v === NONE ? "" : v })}
-            disabled={instantiate.isPending}
+            disabled={isSubmitting}
           >
             <SelectTrigger id="parent">
               <SelectValue placeholder="Top level" />

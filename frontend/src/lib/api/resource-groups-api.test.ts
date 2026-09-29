@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getResourceGroups,
   createResourceGroup,
@@ -19,8 +19,6 @@ const mockGroup = {
 };
 
 describe('resource-groups-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   describe('getResourceGroups', () => {
     it('calls apiGet with resourceTypeKey query param', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockGroup]);

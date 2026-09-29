@@ -109,12 +109,14 @@ export function apiPut<TResponse>(
   return sendJson('PUT', endpoint, data, options);
 }
 
+/** `data`, when given, is sent as a JSON body (e.g. a password re-check on a destructive DELETE). */
 export async function apiDelete(
   endpoint: string,
-  options?: ApiRequestOptions
+  options?: ApiRequestOptions,
+  data?: unknown,
 ): Promise<void> {
   const url = buildUrl(endpoint, options?.params);
-  await apiFetch(url, 'DELETE', options);
+  await apiFetch(url, 'DELETE', options, data);
 }
 
 export function apiPatch<TResponse>(

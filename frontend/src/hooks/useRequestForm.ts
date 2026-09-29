@@ -53,7 +53,6 @@ export interface RequestFormState {
 
   // Requirements
   requirements: Map<string, RequirementEntry>;
-  selectedCriterionId: string;
 }
 
 type RequestFormAction =
@@ -84,7 +83,6 @@ const initialState: RequestFormState = {
   durationUnit: DEFAULT_DURATION_UNIT as DurationUnit,
   schedulingSettingsApply: true,
   requirements: new Map<string, RequirementEntry>(),
-  selectedCriterionId: '',
 };
 
 /** @internal Exported for unit testing */
@@ -96,11 +94,7 @@ export function formReducer(state: RequestFormState, action: RequestFormAction):
     case 'ADD_REQUIREMENT': {
       const newRequirements = new Map(state.requirements);
       newRequirements.set(action.criterionId, { value: action.value });
-      return {
-        ...state,
-        requirements: newRequirements,
-        selectedCriterionId: '',
-      };
+      return { ...state, requirements: newRequirements };
     }
 
     case 'REMOVE_REQUIREMENT': {
@@ -214,7 +208,6 @@ export function buildInitialState(request?: Request | null, parentRequestId?: st
       durationUnit: request.minimalDurationUnit,
       schedulingSettingsApply: request.schedulingSettingsApply ?? true,
       requirements: reqMap,
-      selectedCriterionId: '',
     }, defaultSchedule);
   }
 

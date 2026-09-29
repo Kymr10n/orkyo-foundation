@@ -34,7 +34,7 @@ import {
 import { toast } from "sonner";
 import { AlertCircle, CheckCircle2, Download, FileJson, History, Upload } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { formatLocalized, HOUR_CYCLE } from "@foundation/src/lib/formatters";
+import { formatDateTimeDisplay } from "@foundation/src/lib/formatters";
 import { cn } from "@foundation/src/lib/utils";
 import { useRef, useState } from "react";
 
@@ -116,23 +116,11 @@ export function PresetSettings() {
     setPreviewDialogOpen(false);
   };
 
-
-  const formatDate = (dateStr: string) => {
-    return formatLocalized(new Date(dateStr), {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: HOUR_CYCLE,
-    });
-  };
-
   return (
     <div className="space-y-6">
       <SettingsPageHeader
         title="Presets"
-        description="Import, export, and manage tenant configuration presets."
+        description="Import, export, and manage organization configuration presets."
       />
 
       {/* Actions */}
@@ -143,7 +131,7 @@ export function PresetSettings() {
             Presets
           </CardTitle>
           <CardDescription>
-            Import or export tenant configuration presets. Presets include criteria,
+            Import or export organization configuration presets. Presets include criteria,
             space groups, and templates.
           </CardDescription>
         </CardHeader>
@@ -153,7 +141,7 @@ export function PresetSettings() {
             ref={fileInputRef}
             accept=".json"
             className="hidden"
-            onChange={handleFileSelect}
+            onChange={(e) => void handleFileSelect(e)}
           />
           <Button onClick={() => fileInputRef.current?.click()}>
             <Upload className="mr-2 h-4 w-4" />
@@ -174,7 +162,7 @@ export function PresetSettings() {
             Application History
           </CardTitle>
           <CardDescription>
-            Presets that have been applied to this tenant.
+            Presets that have been applied to this organization.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -184,7 +172,7 @@ export function PresetSettings() {
             </div>
           ) : applications.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4">
-              No presets have been applied to this tenant yet.
+              No presets have been applied to this organization yet.
             </p>
           ) : (
             <div className="space-y-3">
@@ -196,8 +184,8 @@ export function PresetSettings() {
                   <div>
                     <div className="font-medium">{app.presetId}</div>
                     <div className="text-sm text-muted-foreground">
-                      Applied: {formatDate(app.appliedAt)}
-                      {app.updatedAt && ` • Updated: ${formatDate(app.updatedAt)}`}
+                      Applied: {formatDateTimeDisplay(app.appliedAt)}
+                      {app.updatedAt && ` • Updated: ${formatDateTimeDisplay(app.updatedAt)}`}
                     </div>
                   </div>
                   <Badge variant="outline">v{app.presetVersion}</Badge>
@@ -217,8 +205,8 @@ export function PresetSettings() {
             </DialogTitle>
             <DialogDescription>
               {applicationResult?.success
-                ? "The preset has been successfully applied."
-                : "Review the preset before applying it to your tenant."}
+                ? "The preset has been applied."
+                : "Review the preset before applying it to your organization."}
             </DialogDescription>
           </DialogHeader>
 
@@ -307,7 +295,7 @@ export function PresetSettings() {
                 <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <AlertTitle className="text-green-700 dark:text-green-300">
-                    Successfully Applied
+                    Applied
                   </AlertTitle>
                   <AlertDescription className="text-green-600 dark:text-green-400">
                     <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
@@ -364,7 +352,7 @@ export function PresetSettings() {
           <DialogHeader>
             <DialogTitle>Export Configuration as Preset</DialogTitle>
             <DialogDescription>
-              Export your current tenant configuration (criteria, groups, templates)
+              Export your current organization configuration (criteria, groups, templates)
               as a reusable preset file.
             </DialogDescription>
           </DialogHeader>
@@ -397,7 +385,7 @@ export function PresetSettings() {
               <Label htmlFor="description">Description (optional)</Label>
               <Textarea
                 id="description"
-                placeholder="Describe what this preset contains..."
+                placeholder="Describe what this preset contains…"
                 value={exportDescription}
                 onChange={(e) => setExportDescription(e.target.value)}
               />

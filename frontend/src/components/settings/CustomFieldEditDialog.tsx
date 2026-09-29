@@ -11,14 +11,15 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
-import { CUSTOM_FIELD_INVALIDATES } from '@foundation/src/hooks/useResourceCustomFields';
+import { useSaveResourceCustomField } from '@foundation/src/hooks/useResourceCustomFields';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
 import {
-  createResourceCustomField,
-  updateResourceCustomField,
   customFieldDataTypeLabel,
   CUSTOM_FIELD_DATA_TYPES,
+  type CreateResourceCustomFieldRequest,
   type CustomFieldDataType,
   type ResourceCustomField,
+  type UpdateResourceCustomFieldRequest,
 } from '@foundation/src/lib/api/resource-custom-fields-api';
 import { KEY_PATTERN, keyFromLabel } from '@foundation/src/lib/key-from-label';
 import {
@@ -58,10 +59,12 @@ export function CustomFieldEditDialog({
   const { data: listDefinitions = [] } = useListDefinitions();
   const sharedInstances = useAllSharedListInstances();
 
+  const mutation = useSaveResourceCustomField(resourceTypeId);
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ResourceCustomField,
     FormState,
-    ResourceCustomField
+    ResourceCustomField,
+    SaveVariables<CreateResourceCustomFieldRequest, UpdateResourceCustomFieldRequest>
   >({
     open,
     onOpenChange,
@@ -88,28 +91,33 @@ export function CustomFieldEditDialog({
       sortOrder: String(f.sortOrder),
       isActive: f.isActive,
     }),
-    save: (form, f) =>
+    mutation,
+    toVariables: (form, f) =>
       f
-        ? updateResourceCustomField(resourceTypeId, f.id, {
-            label: form.label,
-            description: form.description || undefined,
-            isRequired: form.isRequired,
-            sortOrder: Number(form.sortOrder) || 0,
-            isActive: form.isActive,
-          })
-        : createResourceCustomField(resourceTypeId, {
-            key: form.key || keyFromLabel(form.label),
-            label: form.label,
-            description: form.description || undefined,
-            dataType: form.dataType,
-            // Only a list field carries a binding; the server rejects one on any other type.
-            ...(form.dataType === 'list' ? { listDefinitionId: form.listDefinitionId } : {}),
-            ...(form.dataType === 'list_lookup' ? { listInstanceId: form.listInstanceId } : {}),
-            isRequired: form.isRequired,
-            sortOrder: Number(form.sortOrder) || 0,
-          }),
-    entityLabel: 'custom field',
-    invalidates: CUSTOM_FIELD_INVALIDATES(resourceTypeId),
+        ? {
+            id: f.id,
+            data: {
+              label: form.label,
+              description: form.description || undefined,
+              isRequired: form.isRequired,
+              sortOrder: Number(form.sortOrder) || 0,
+              isActive: form.isActive,
+            },
+          }
+        : {
+            id: null,
+            data: {
+              key: form.key || keyFromLabel(form.label),
+              label: form.label,
+              description: form.description || undefined,
+              dataType: form.dataType,
+              // Only a list field carries a binding; the server rejects one on any other type.
+              ...(form.dataType === 'list' ? { listDefinitionId: form.listDefinitionId } : {}),
+              ...(form.dataType === 'list_lookup' ? { listInstanceId: form.listInstanceId } : {}),
+              isRequired: form.isRequired,
+              sortOrder: Number(form.sortOrder) || 0,
+            },
+          },
   });
 
   const isEditing = field !== null;

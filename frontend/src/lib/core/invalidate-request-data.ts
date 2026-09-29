@@ -31,6 +31,6 @@ export const REQUEST_DERIVED_QUERY_KEYS = [
  */
 export function invalidateRequestData(queryClient: QueryClient): void {
   for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
-    queryClient.invalidateQueries({ queryKey });
+    void queryClient.invalidateQueries({ queryKey });
   }
 }

@@ -1,12 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router';
 import { InsightsPage } from './InsightsPage';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: (selector: (s: { selectedSiteId: string | null }) => unknown) => selector({ selectedSiteId: null }),
-}));
+beforeEach(() => {
+  useSiteStore.setState({ selectedSiteId: null });
+});
 
 function renderAt(path: string) {
   return render(

@@ -1,5 +1,8 @@
+using Api.Helpers;
 using Api.Repositories;
+using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
@@ -16,12 +19,14 @@ public class TenantControlPlaneRepositoryTests
 {
     private readonly ITenantControlPlaneRepository _repo;
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly SingleFlightCache _cache;
 
     public TenantControlPlaneRepositoryTests(DatabaseFixture fixture)
     {
         var scope = fixture.Factory.Services.CreateScope();
         _repo = scope.ServiceProvider.GetRequiredService<ITenantControlPlaneRepository>();
         _connectionFactory = scope.ServiceProvider.GetRequiredService<IDbConnectionFactory>();
+        _cache = scope.ServiceProvider.GetRequiredService<SingleFlightCache>();
     }
 
     // ── Seed helpers ─────────────────────────────────────────────────────────
@@ -340,6 +345,17 @@ public class TenantControlPlaneRepositoryTests
     }
 
     [Fact]
+    public async Task MarkActive_LeavesASuspendedTenantSuspended()
+    {
+        var tenantId = await SeedTenantAsync(status: "suspended");
+
+        await _repo.MarkActiveAsync(tenantId);
+
+        (await QueryScalarAsync<string>("SELECT status FROM tenants WHERE id = @id", tenantId))
+            .Should().Be("suspended", "cancelling a deletion must not lift a suspension");
+    }
+
+    [Fact]
     public async Task TransferOwnership_SetsNewOwner()
     {
         var oldOwner = await CreateUserAsync();
@@ -352,14 +368,68 @@ public class TenantControlPlaneRepositoryTests
     }
 
     [Fact]
+    public async Task DeleteMembership_EvictsTheCachedRole()
+    {
+        var userId = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+        await SeedMembershipAsync(tenantId, userId, role: "editor");
+        var key = IdentityCacheKeys.Role(userId, tenantId);
+        _cache.Set(key, TenantRole.Admin, TimeSpan.FromMinutes(5));
+
+        await _repo.DeleteMembershipAsync(tenantId, userId);
+
+        _cache.TryGet<TenantRole>(key, out _).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task DeleteMembership_RemovesTheRow()
     {
         var userId = await CreateUserAsync();
         var tenantId = await SeedTenantAsync();
-        await SeedMembershipAsync(tenantId, userId);
+        await SeedMembershipAsync(tenantId, userId, role: "editor");
 
         await _repo.DeleteMembershipAsync(tenantId, userId);
 
         (await _repo.GetMembershipRoleStatusAsync(tenantId, userId)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteMembership_LastActiveAdmin_IsRefusedAndTheRowStays()
+    {
+        var userId = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+        await SeedMembershipAsync(tenantId, userId, role: "admin");
+
+        var act = () => _repo.DeleteMembershipAsync(tenantId, userId);
+
+        // The same locking statement, and the same error, as an admin removing a member.
+        await act.Should().ThrowAsync<ConflictException>()
+            .WithMessage("Cannot remove the last admin. Promote another user to admin first.");
+        (await _repo.GetMembershipRoleStatusAsync(tenantId, userId)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task DeleteMembership_AdminWithAnotherActiveAdmin_Removes()
+    {
+        var leaving = await CreateUserAsync();
+        var staying = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+        await SeedMembershipAsync(tenantId, leaving, role: "admin");
+        await SeedMembershipAsync(tenantId, staying, role: "admin");
+
+        await _repo.DeleteMembershipAsync(tenantId, leaving);
+
+        (await _repo.GetMembershipRoleStatusAsync(tenantId, leaving)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task DeleteMembership_NoRow_IsANoOp()
+    {
+        var userId = await CreateUserAsync();
+        var tenantId = await SeedTenantAsync();
+
+        var act = () => _repo.DeleteMembershipAsync(tenantId, userId);
+
+        await act.Should().NotThrowAsync();
     }
 }

@@ -90,56 +90,13 @@ public class UtilizationService(
         var activeMembers = membersResponse.Members.Where(m => m.IsActive).ToList();
 
         if (activeMembers.Count == 0)
-            return new UtilizationResponse
-            {
-                From = from,
-                To = to,
-                Granularity = granularity,
-                Buckets = BuildBucketShells(from, to, granularity)
-                    .Select(b => new UtilizationBucket
-                    {
-                        Start = b.Start,
-                        End = b.End,
-                        AllocatedPercent = 0,
-                        EffectiveAvailabilityPercent = 0,
-                        IsExclusiveOccupied = false,
-                    }).ToList(),
-            };
+            return Averaged([], from, to, granularity);
 
         // Compute per-member then average. Bulk-load the member resources + their assignments/blocked
         // periods (was N+1: a full per-resource compute — two DB round-trips — per member).
         var memberResources = await resourceRepository.GetByIdsAsync(activeMembers.Select(m => m.Id).ToList(), ct);
         var memberBucketsById = await ComputeBucketsForResourcesAsync(memberResources, from, to, granularity, ct);
-        var memberBuckets = memberResources.Select(r => memberBucketsById[r.Id]).ToList();
-
-        var shells = BuildBucketShells(from, to, granularity);
-        var averaged = shells.Select((shell, i) =>
-        {
-            var count = memberBuckets.Count;
-            if (count == 0)
-                return new UtilizationBucket
-                {
-                    Start = shell.Start,
-                    End = shell.End,
-                    AllocatedPercent = 0,
-                    EffectiveAvailabilityPercent = 0,
-                    IsExclusiveOccupied = false,
-                };
-
-            var allocPct = memberBuckets.Average(mb => i < mb.Count ? (double)mb[i].AllocatedPercent : 0);
-            var availPct = memberBuckets.Average(mb => i < mb.Count ? (double)mb[i].EffectiveAvailabilityPercent : 0);
-            var occupied = memberBuckets.Any(mb => i < mb.Count && mb[i].IsExclusiveOccupied);
-            return new UtilizationBucket
-            {
-                Start = shell.Start,
-                End = shell.End,
-                AllocatedPercent = (decimal)allocPct,
-                EffectiveAvailabilityPercent = (decimal)availPct,
-                IsExclusiveOccupied = occupied,
-            };
-        }).ToList();
-
-        return new UtilizationResponse { From = from, To = to, Granularity = granularity, Buckets = averaged };
+        return Averaged(memberResources.Select(r => memberBucketsById[r.Id]).ToList(), from, to, granularity);
     }
 
     public async Task<UtilizationResponse> GetTenantUtilizationAsync(
@@ -150,50 +107,34 @@ public class UtilizationService(
         // not a short list, and the response carries nothing that would say it was cut.
         var resources = await resourceRepository.GetEveryAsync(filter, ct);
 
-        if (resources.Count == 0)
-            return new UtilizationResponse
-            {
-                From = from,
-                To = to,
-                Granularity = granularity,
-                Buckets = BuildBucketShells(from, to, granularity)
-                    .Select(b => new UtilizationBucket
-                    {
-                        Start = b.Start,
-                        End = b.End,
-                        AllocatedPercent = 0,
-                        EffectiveAvailabilityPercent = 0,
-                        IsExclusiveOccupied = false,
-                    }).ToList(),
-            };
-
         var bucketsById = await ComputeBucketsForResourcesAsync(resources, from, to, granularity, ct);
-        var allBuckets = resources.Select(r => bucketsById[r.Id]).ToList();
+        return Averaged(resources.Select(r => bucketsById[r.Id]).ToList(), from, to, granularity);
+    }
 
-        var shells = BuildBucketShells(from, to, granularity);
-        var averaged = shells.Select((shell, i) =>
+    /// <summary>
+    /// Averages per-resource buckets slot by slot (a resource with fewer buckets counts 0 for the
+    /// missing slots); a slot is exclusively occupied if any resource's is. No resources: every slot 0.
+    /// </summary>
+    private static UtilizationResponse Averaged(
+        IReadOnlyList<List<UtilizationBucket>> perResource, DateTime from, DateTime to, string granularity)
+    {
+        decimal Average(Func<List<UtilizationBucket>, double> slotValue) =>
+            perResource.Count == 0 ? 0 : (decimal)perResource.Average(slotValue);
+
+        return new UtilizationResponse
         {
-            var count = allBuckets.Count;
-            if (count == 0)
-                return new UtilizationBucket
-                {
-                    Start = shell.Start,
-                    End = shell.End,
-                    AllocatedPercent = 0,
-                    EffectiveAvailabilityPercent = 0,
-                    IsExclusiveOccupied = false,
-                };
-            return new UtilizationBucket
+            From = from,
+            To = to,
+            Granularity = granularity,
+            Buckets = BuildBucketShells(from, to, granularity).Select((shell, i) => new UtilizationBucket
             {
                 Start = shell.Start,
                 End = shell.End,
-                AllocatedPercent = (decimal)allBuckets.Average(b => i < b.Count ? (double)b[i].AllocatedPercent : 0),
-                EffectiveAvailabilityPercent = (decimal)allBuckets.Average(b => i < b.Count ? (double)b[i].EffectiveAvailabilityPercent : 0),
-                IsExclusiveOccupied = allBuckets.Any(b => i < b.Count && b[i].IsExclusiveOccupied),
-            };
-        }).ToList();
-
-        return new UtilizationResponse { From = from, To = to, Granularity = granularity, Buckets = averaged };
+                AllocatedPercent = Average(b => i < b.Count ? (double)b[i].AllocatedPercent : 0),
+                EffectiveAvailabilityPercent = Average(b => i < b.Count ? (double)b[i].EffectiveAvailabilityPercent : 0),
+                IsExclusiveOccupied = perResource.Any(b => i < b.Count && b[i].IsExclusiveOccupied),
+            }).ToList(),
+        };
     }
 
     public async Task<List<ResourceUtilizationResponse>> GetUtilizationByResourceAsync(
@@ -244,17 +185,15 @@ public class UtilizationService(
         // far less bookable time than its span. Null/24-7 settings return the raw span.
         var bucketSpan = SchedulingEngine.WorkingMinutesInWindow(bucketStart, bucketEnd, settings);
 
-        // Blocked time is SUBTRACTED, not treated as an on/off switch. This is what
-        // WorkingMinutesInWindow's contract already asks of its callers: "Off-times and absences
-        // are deliberately NOT applied here. Callers subtract blocked periods by passing each
-        // blocked overlap back through this same function."
+        // Blocked time is SUBTRACTED, not treated as an on/off switch, as WorkingMinutesInWindow's
+        // contract asks of its callers.
         //
         // The previous `blockedPeriods.Any(overlap)` was indistinguishable from this at day
         // granularity, where a blocked day covers its whole bucket. At week and month
         // granularity it was not: one public holiday, one maintenance day or one day of
         // somebody's leave zeroed an entire week, while AllocatedPercent below was still
         // computed normally — so a bucket reported "Off" while carrying real booked time.
-        var blockedMinutes = BlockedWorkingMinutes(blockedPeriods, settings, bucketStart, bucketEnd);
+        var blockedMinutes = SchedulingEngine.BlockedWorkingMinutes(blockedPeriods, settings, bucketStart, bucketEnd);
         var openMinutes = Math.Max(0d, bucketSpan - blockedMinutes);
         // No bookable minutes at all (a weekend or overnight bucket, once working hours are on)
         // still reads zero: deriveBucketStatus maps a zero here to "non-working", and the grid's
@@ -309,49 +248,6 @@ public class UtilizationService(
         };
     }
 
-    /// <summary>
-    /// Working minutes inside [<paramref name="bucketStart"/>, <paramref name="bucketEnd"/>) that
-    /// a blocked period removes.
-    /// </summary>
-    /// <remarks>
-    /// Periods are clipped to the bucket and merged before measuring, so two absences on the same
-    /// day — or an absence and a closure that overlap — subtract that day once rather than twice.
-    /// Each merged run is measured with <see cref="SchedulingEngine.WorkingMinutesInWindow"/>, the
-    /// same currency as the bucket's own span, so a closure overnight or at a weekend removes no
-    /// capacity that was never open.
-    /// </remarks>
-    private static double BlockedWorkingMinutes(
-        List<BlockedPeriod> blockedPeriods,
-        SchedulingSettingsInfo? settings,
-        DateTime bucketStart,
-        DateTime bucketEnd)
-    {
-        var clipped = blockedPeriods
-            .Select(p => (
-                Start: p.StartTs > bucketStart ? p.StartTs : bucketStart,
-                End: p.EndTs < bucketEnd ? p.EndTs : bucketEnd))
-            .Where(p => p.End > p.Start)
-            .OrderBy(p => p.Start)
-            .ToList();
-        if (clipped.Count == 0) return 0d;
-
-        var total = 0d;
-        var runStart = clipped[0].Start;
-        var runEnd = clipped[0].End;
-        foreach (var p in clipped.Skip(1))
-        {
-            if (p.Start <= runEnd)
-            {
-                if (p.End > runEnd) runEnd = p.End;
-                continue;
-            }
-            total += SchedulingEngine.WorkingMinutesInWindow(runStart, runEnd, settings);
-            runStart = p.Start;
-            runEnd = p.End;
-        }
-        return total + SchedulingEngine.WorkingMinutesInWindow(runStart, runEnd, settings);
-    }
-
     private static List<(DateTime Start, DateTime End)> BuildBucketShells(
         DateTime from, DateTime to, string granularity)
     {
@@ -360,16 +256,7 @@ public class UtilizationService(
 
         while (current < to)
         {
-            var next = granularity.ToLowerInvariant() switch
-            {
-                "minute" => current.AddMinutes(15),
-                "hour" => current.AddHours(1),
-                "week" => current.AddDays(7),
-                "month" => current.AddMonths(1),
-                "quarter" => current.AddMonths(3),
-                "year" => current.AddYears(1),
-                _ => current.AddDays(1), // day
-            };
+            var next = UtilizationGranularity.AddStep(current, granularity);
             if (next > to) next = to;
             buckets.Add((current, next));
             current = next;

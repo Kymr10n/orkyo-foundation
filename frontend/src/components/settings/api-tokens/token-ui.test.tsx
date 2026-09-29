@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
@@ -7,14 +7,12 @@ import {
   ExpiryFields,
   tokenStatus,
   resolveExpiry,
-  formatDate,
   getPresetExpiry,
   fromDateOnly,
   type ExpiryMode,
   type TokenSummaryLike,
 } from './token-ui';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
 import { formatDateForInput } from '@foundation/src/lib/utils';
 
@@ -28,8 +26,6 @@ const baseToken: TokenSummaryLike = {
   revokedAtUtc: null,
   isActive: true,
 };
-
-beforeEach(() => vi.clearAllMocks());
 
 describe('tokenStatus', () => {
   it('reports a revoked token as revoked even if it had not expired', () => {
@@ -82,9 +78,6 @@ describe('date helpers', () => {
     expect(fromDateOnly('not-a-date')).toBeUndefined();
   });
 
-  it('shows an em dash rather than "Invalid Date" for a token never used', () => {
-    expect(formatDate(null)).toBe('—');
-  });
 });
 
 /** navigator.clipboard is getter-only in jsdom, so it has to be redefined rather than assigned. */
@@ -106,6 +99,17 @@ describe('CopyButton', () => {
 
     expect(writeText).toHaveBeenCalledWith('orkyo_api_secret');
     expect(await screen.findByText('Copied')).toBeInTheDocument();
+  });
+
+  it('says so when the browser refuses the copy', async () => {
+    setClipboard({ writeText: vi.fn().mockRejectedValue(new Error('NotAllowedError')) });
+
+    render(<CopyButton text="orkyo_api_secret" />);
+    await userEvent.click(screen.getByRole('button', { name: /Copy/ }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not copy — copy the token manually'));
+    expect(screen.queryByText('Copied')).not.toBeInTheDocument();
   });
 
   it('says so instead of failing silently when the clipboard is unavailable', async () => {

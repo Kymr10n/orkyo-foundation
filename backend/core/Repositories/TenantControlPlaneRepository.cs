@@ -1,6 +1,8 @@
 using Api.Helpers;
 using Api.Services;
+using Api.Services.Caching;
 using Npgsql;
+using Orkyo.Shared;
 
 namespace Api.Repositories;
 
@@ -10,10 +12,17 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     private const string TenantProjection = "id, slug, display_name, status, db_identifier, owner_user_id, created_at";
 
     private readonly IDbConnectionFactory _connectionFactory;
+    private readonly SingleFlightCache? _identityCache;
 
-    public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory)
+    /// <param name="identityCache">
+    /// The shared cache the request pipeline keeps each user's tenant role in, evicted when a
+    /// membership is deleted. Optional only because orkyo-saas's <c>TenantServiceIntegrationTests</c>
+    /// and <c>TenantServiceCreationIntegrationTests</c> compose this by hand; DI always supplies it.
+    /// </param>
+    public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory, SingleFlightCache? identityCache = null)
     {
         _connectionFactory = connectionFactory;
+        _identityCache = identityCache;
     }
 
     private static TenantRecord MapTenantRecord(NpgsqlDataReader reader) => new(
@@ -194,8 +203,11 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     public async Task MarkActiveAsync(Guid tenantId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.ExecuteAsync(
-            "UPDATE tenants SET status = 'active', updated_at = NOW() WHERE id = @tenantId",
+        // Only a pending deletion is cancelled. Without the status guard "cancel deletion" also
+        // reactivated a suspended tenant, bypassing whatever suspended it.
+        await conn.ExecuteAsync($@"
+            UPDATE tenants SET status = '{TenantStatusConstants.Active}', updated_at = NOW()
+            WHERE id = @tenantId AND status = '{TenantStatusConstants.Deleting}'",
             p => p.AddWithValue("tenantId", tenantId), ct);
     }
 
@@ -215,13 +227,11 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     public async Task DeleteMembershipAsync(Guid tenantId, Guid userId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.ExecuteAsync(@"
-            DELETE FROM tenant_memberships
-            WHERE tenant_id = @tenantId AND user_id = @userId",
-            p =>
-            {
-                p.AddWithValue("tenantId", tenantId);
-                p.AddWithValue("userId", userId);
-            }, ct);
+        // The same locking statement as an admin removing a member: a caller that counted the
+        // admins first still cannot race another leave or demotion past the guard.
+        if (await ActiveAdminGuard.DeleteAsync(conn, tenantId, userId, ct) == GuardedMembershipWrite.LastActiveAdmin)
+            throw new ConflictException(ActiveAdminGuard.RemovalRefused);
+        // Per process instance: another instance keeps the stale role until its TTL runs out.
+        _identityCache?.Remove(IdentityCacheKeys.Role(userId, tenantId));
     }
 }

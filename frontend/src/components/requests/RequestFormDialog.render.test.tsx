@@ -6,26 +6,17 @@ import type { Request } from "@foundation/src/types/requests";
 import type { Site } from "@foundation/src/types/site";
 import { pagedResult } from "@foundation/src/test-utils/paged-result";
 import { renderWithQuery } from "@foundation/src/test-utils";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
+import { toast } from "sonner";
+import { useSiteStore } from "@foundation/src/store/site-store";
 
 // --- Mock the data-loading boundary (network) and site hooks -------------------
 const useSitesMock = vi.fn(() => ({ data: [] as Site[] }));
 const useIsMultiSiteMock = vi.fn(() => false);
-const toastMocks = vi.hoisted(() => ({
-  info: vi.fn(),
-  error: vi.fn(),
-  success: vi.fn(),
-}));
-vi.mock("sonner", () => ({ toast: toastMocks }));
 
 vi.mock("@foundation/src/hooks/useSites", () => ({
   useSites: () => useSitesMock(),
   useIsMultiSite: () => useIsMultiSiteMock(),
-}));
-
-vi.mock("@foundation/src/store/site-store", () => ({
-  useSiteStore: vi.fn((selector: (s: { selectedSiteId: string }) => unknown) =>
-    selector({ selectedSiteId: "site-1" }),
-  ),
 }));
 
 // API mocks are overridable per-test via these handles.
@@ -293,9 +284,11 @@ function renderDialog(props?: Partial<React.ComponentProps<typeof RequestFormDia
 }
 
 beforeEach(() => {
-  toastMocks.info.mockClear();
-  toastMocks.error.mockClear();
-  toastMocks.success.mockClear();
+  vi.mocked(useCanEdit).mockReturnValue(true);
+  vi.mocked(toast.info).mockClear();
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.success).mockClear();
+  useSiteStore.setState({ selectedSiteId: "site-1" });
   useSitesMock.mockReturnValue({ data: [] });
   useIsMultiSiteMock.mockReturnValue(false);
   apiMocks.getCriteria.mockResolvedValue([]);
@@ -460,7 +453,7 @@ describe("RequestFormDialog", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(toastMocks.info).toHaveBeenCalledWith(
+      expect(vi.mocked(toast.info)).toHaveBeenCalledWith(
         expect.stringContaining("Moved to"),
         expect.objectContaining({ description: expect.stringContaining("outside working hours") }),
       ),
@@ -479,7 +472,7 @@ describe("RequestFormDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Update Request" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(toastMocks.info).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.info)).not.toHaveBeenCalled();
   });
 
   it("surfaces the error and stays open when save rejects", async () => {
@@ -705,6 +698,40 @@ describe("RequestFormDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("asks before leaving for the planner with unsaved changes, and drops the trip on Keep editing", async () => {
+    const onOpenPlan = vi.fn();
+    const { onOpenChange } = renderDialog({ request: GROUP, allRequests: TREE, onOpenPlan });
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
+      target: { value: "Renamed" },
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Children" }));
+    await userEvent.click(screen.getByRole("button", { name: /Sequence these tasks/ }));
+    expect(screen.getByText("Discard changes?")).toBeInTheDocument();
+    expect(onOpenPlan).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    // An ordinary close afterwards is just a close, not a trip to the planner.
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenPlan).not.toHaveBeenCalled();
+  });
+
+  it("opens the planner after the discard is confirmed", async () => {
+    const onOpenPlan = vi.fn();
+    renderDialog({ request: GROUP, allRequests: TREE, onOpenPlan });
+    fireEvent.change(screen.getByPlaceholderText(REQUEST_NAME_PLACEHOLDER), {
+      target: { value: "Renamed" },
+    });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Children" }));
+    await userEvent.click(screen.getByRole("button", { name: /Sequence these tasks/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(onOpenPlan).toHaveBeenCalledWith("grp-1");
+  });
+
   it("marks the form dirty when only a Radix-controlled field changes (Type select)", async () => {
     // Radix Selects don't bubble native input/change events, so dirty tracking
     // happens at the setField layer — changing ONLY the Type then closing must
@@ -799,22 +826,25 @@ describe("RequestFormDialog", () => {
     );
   });
 
-  // ── View mode (canEdit=false) ───────────────────────────────────────────────
+  // ── View mode (a Viewer: useCanEdit() is false; no prop overrides it) ────────
 
   it('shows the "Request details" title in view mode', () => {
-    renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: EXISTING });
     expect(screen.getByText("Request details")).toBeInTheDocument();
     expect(screen.getByText("View request details.")).toBeInTheDocument();
   });
 
   it("disables the editable fields in view mode", () => {
-    renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: EXISTING });
     expect(screen.getByDisplayValue("Existing Request")).toBeDisabled();
     expect(screen.getByLabelText("Description")).toBeDisabled();
   });
 
   it("renders a Close-only footer in view mode", () => {
-    renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: EXISTING });
     expect(screen.getByTestId("view-close-btn")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Update Request/ }),
@@ -822,7 +852,8 @@ describe("RequestFormDialog", () => {
   });
 
   it("closes when Close is clicked in view mode", () => {
-    const { onOpenChange } = renderDialog({ request: EXISTING, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    const { onOpenChange } = renderDialog({ request: EXISTING });
     fireEvent.click(screen.getByTestId("view-close-btn"));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -874,7 +905,8 @@ describe("RequestFormDialog", () => {
   });
 
   it("hides the add/remove child controls in view mode", async () => {
-    renderDialog({ request: GROUP, allRequests: TREE, canEdit: false });
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    renderDialog({ request: GROUP, allRequests: TREE });
     await userEvent.click(screen.getByRole("tab", { name: "Children" }));
     expect(screen.getByText("Child One")).toBeInTheDocument();
     expect(screen.queryByTestId("add-child-btn")).not.toBeInTheDocument();
@@ -1029,10 +1061,11 @@ describe("RequestFormDialog", () => {
     await userEvent.click(screen.getByRole("tab", { name: "Children" }));
     const quickAdd = screen.getByTestId("new-child-name");
     const firstChildRow = screen.getByText("Child One");
-    expect(
-      quickAdd.compareDocumentPosition(firstChildRow) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(quickAdd).toBeVisible();
+    // The child row comes after the quick-add row in document order.
+    expect(quickAdd.compareDocumentPosition(firstChildRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
   });
 
   // ── Boundary-mode Timing copy (create mode) ─────────────────────────────────

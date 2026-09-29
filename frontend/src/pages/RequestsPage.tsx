@@ -18,13 +18,8 @@ import { toast } from "sonner";
 import {
     Tooltip,
     TooltipContent,
-    TooltipProvider,
     TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
-import {
-    createRequest,
-    getRequest,
-} from "@foundation/src/lib/api/request-api";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useNow } from "@foundation/src/hooks/useNow";
@@ -64,13 +59,15 @@ import {
     useDeleteRequest,
     useMoveRequestToParent,
     useRequests,
+    useRequestsImportHandler,
+    saveRequestVariables,
     useSaveRequest,
 } from "@foundation/src/hooks/useRequests";
-import { useExportHandler, useImportHandler } from "@foundation/src/hooks/useImportExport";
-import { exportRequests, importRequests } from "@foundation/src/lib/utils/export-handlers";
+import { useFetchRequest } from "@foundation/src/hooks/useRequests";
+import { useExportHandler } from "@foundation/src/hooks/useImportExport";
+import { exportRequests } from "@foundation/src/lib/utils/export-handlers";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { logger } from "@foundation/src/lib/core/logger";
-import { REQUEST_DERIVED_QUERY_KEYS } from "@foundation/src/lib/core/invalidate-request-data";
 
 const EMPTY_REQUESTS: Request[] = [];
 
@@ -191,20 +188,8 @@ export function RequestsPage() {
     logger.info(`Exported ${requests.length} requests as ${format.toUpperCase()}`);
   }, { label: 'Requests', description: 'Export or import requests with their requirements and constraints.', formats: ['csv'] });
 
-  useImportHandler('requests', async (file, format) => {
-    const importedRequests = await importRequests(file, format);
-    if (!importedRequests.length) {
-      throw new Error('No valid requests found in file');
-    }
-    for (const req of importedRequests) {
-      await createRequest(req);
-    }
-    return importedRequests.length;
-  }, {
-    successMessage: (count) => `Imported ${count} requests`,
-    errorMessage: 'Failed to import requests',
-    invalidates: REQUEST_DERIVED_QUERY_KEYS,
-  });
+  useRequestsImportHandler();
+  const fetchRequest = useFetchRequest();
 
   // Open the detail dialog when arriving with ?edit=<id> — from global search, and from the
   // sequence editor's "Open task". The list this page loads is scoped to the selected site, and
@@ -212,7 +197,7 @@ export function RequestsPage() {
   // leaving the reader on the list they were trying to leave.
   useEditQueryParam(requests, (request) => setDialog({ kind: "edit", request }), {
     ready: !isLoading,
-    resolveMissing: (id) => getRequest(id).catch(() => null),
+    resolveMissing: (id) => fetchRequest(id).catch(() => null),
     onMissing: () => toast.error("That request could not be opened", {
       description: "It may have been deleted, or it belongs to another site.",
     }),
@@ -312,13 +297,13 @@ export function RequestsPage() {
     // tell the person when the scheduler moved the dates they typed. A rejection keeps the
     // dialog open and the inline error shows why, which is why the save mutation suppresses
     // the toast.
-    return saveRequest({ data, editing: dialog?.kind === "edit" ? dialog.request : null });
+    return saveRequest(saveRequestVariables(data, dialog?.kind === "edit" ? dialog.request : null));
   }, [dialog, saveRequest]);
 
   // The planner is a route, so the row action navigates rather than opening a dialog. Same
   // destination the editor's Children tab uses — one planner, two ways in.
   const handleOpenPlan = useCallback((request: Request) => {
-    navigate(`/requests/${request.id}/plan`);
+    void navigate(`/requests/${request.id}/plan`);
   }, [navigate]);
 
   const handleSelect = useCallback((id: string) => {
@@ -362,7 +347,7 @@ export function RequestsPage() {
         params.set("conflictId", targetConflictId);
       }
 
-      navigate(`/insights/conflicts?${params.toString()}`);
+      void navigate(`/insights/conflicts?${params.toString()}`);
     },
     [navigate, requests, childrenById, storeConflicts],
   );
@@ -401,7 +386,6 @@ export function RequestsPage() {
     : filteredRequests.length === 0;
 
   return (
-    <TooltipProvider delayDuration={300}>
     <PageLayout>
       <PageHeader
         title="Requests"
@@ -417,7 +401,7 @@ export function RequestsPage() {
           <div className="relative max-w-sm flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search requests..."
+              placeholder="Search requests…"
               aria-label="Search requests"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -544,7 +528,7 @@ export function RequestsPage() {
               <div className="text-destructive mb-4">⚠️</div>
               <h3 className="text-lg font-medium mb-2">Error loading requests</h3>
               <p className="text-muted-foreground mb-4">{errorMessage}</p>
-              <Button onClick={() => refetchRequests()} variant="outline">Try again</Button>
+              <Button onClick={() => void refetchRequests()} variant="outline">Try again</Button>
             </div>
           ) : isEmpty ? (
             <div className="flex h-full flex-col items-center justify-center p-12">
@@ -622,10 +606,9 @@ export function RequestsPage() {
         }
         parentRequest={dialog?.kind === "create" ? dialog.parent : null}
         defaultPlanningMode={dialog?.kind === "create" ? dialog.defaultMode : undefined}
-        canEdit={canEdit}
         allRequests={requests}
         onNavigate={handleDialogNavigate}
-        onOpenPlan={(id) => navigate(`/requests/${id}/plan`)}
+        onOpenPlan={(id) => void navigate(`/requests/${id}/plan`)}
         onSave={handleSaveRequest}
       />
 
@@ -649,6 +632,5 @@ export function RequestsPage() {
         onConfirm={handleConfirmDelete}
       />
     </PageLayout>
-    </TooltipProvider>
   );
 }

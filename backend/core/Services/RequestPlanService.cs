@@ -60,7 +60,7 @@ public class RequestPlanService(
     public async Task<SiteRequestPlan> GetSitePlanAsync(Guid? siteId, CancellationToken ct = default)
     {
         // The site filter keeps site-neutral rows, the same rule the requests list applies.
-        var leaves = (await requests.GetAllAsync(includeRequirements: false, siteId, ct))
+        var leaves = (await requests.GetAllAsync(siteId, includeRequirements: false, ct))
             .Where(r => r.PlanningMode == PlanningMode.Leaf)
             .ToList();
 

@@ -6,7 +6,10 @@ namespace Api.Services.BffSession;
 /// <summary>
 /// Valkey-backed implementation of <see cref="IBffSessionStore"/>.
 /// Safe for multi-instance / horizontally-scaled deployments.
-/// Key: <c>bff:s:{sessionId}</c> with TTL = session duration.
+/// Key: <c>bff:s:{sessionId}</c> with TTL = session duration. A per-user set
+/// <c>bff:u:{userId}</c> indexes the session ids so "log out everywhere" can find them; it lives
+/// as long as the user's longest-lived session. It can hold ids whose session is already gone —
+/// deleting a missing key is harmless, so nothing prunes them.
 /// </summary>
 public sealed class ValkeyBffSessionStore : IBffSessionStore
 {
@@ -16,6 +19,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
 
     private static string SessionKey(string sessionId) => $"bff:s:{sessionId}";
     private static string RefreshLockKey(string sessionId) => $"bff:refresh-lock:{sessionId}";
+    private static string UserSessionsKey(string userId) => $"bff:u:{userId}";
 
     public ValkeyBffSessionStore(
         IConnectionMultiplexer valkey,
@@ -40,11 +44,6 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (session is null || session.ExpiresAt <= _time.GetUtcNow())
                 return null;
 
-            // Update last activity (fire-and-forget — not critical)
-            session.LastActivityAt = _time.GetUtcNow();
-            _ = db.StringSetAsync(SessionKey(sessionId), JsonSerializer.Serialize(session),
-                session.ExpiresAt - _time.GetUtcNow(), flags: CommandFlags.FireAndForget);
-
             return session;
         }
         catch (Exception ex)
@@ -66,13 +65,16 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
 
             var json = JsonSerializer.Serialize(session);
             await db.StringSetAsync(SessionKey(session.SessionId), json, ttl);
+            await IndexForUserAsync(db, session.UserId, session.SessionId, ttl);
 
             _logger.LogDebug("BFF session stored in Valkey: SessionId={SessionIdPrefix}…", session.SessionId[..8]);
         }
         catch (Exception ex)
         {
+            // Rethrown: a login must not hand out a cookie for a session that was never stored.
             _logger.LogError(ex, "Valkey error storing BFF session SessionId={SessionIdPrefix}…",
                 session.SessionId[..Math.Min(8, session.SessionId.Length)]);
+            throw;
         }
     }
 
@@ -89,6 +91,31 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             _logger.LogError(ex, "Valkey error removing BFF session SessionId={SessionIdPrefix}…",
                 sessionId[..Math.Min(8, sessionId.Length)]);
         }
+    }
+
+    public async Task RemoveAllForUserAsync(string userId, CancellationToken ct = default)
+    {
+        // Not caught: a caller that promises "signed out everywhere" must not report success
+        // when the store could not be reached.
+        var db = _valkey.GetDatabase();
+        var sessionIds = await db.SetMembersAsync(UserSessionsKey(userId));
+        var keys = sessionIds.Select(id => (RedisKey)SessionKey(id.ToString()))
+            .Append(UserSessionsKey(userId))
+            .ToArray();
+        await db.KeyDeleteAsync(keys);
+        _logger.LogDebug("BFF sessions removed from Valkey for user: Count={Count}", sessionIds.Length);
+    }
+
+    /// <summary>
+    /// Adds the session to its user's index and makes the index outlive it. Two expiry calls
+    /// because a fresh set has no TTL, and GT treats "no TTL" as infinite.
+    /// </summary>
+    private static async Task IndexForUserAsync(IDatabase db, string userId, string sessionId, TimeSpan ttl)
+    {
+        var key = UserSessionsKey(userId);
+        await db.SetAddAsync(key, sessionId);
+        await db.KeyExpireAsync(key, ttl, ExpireWhen.HasNoExpiry);
+        await db.KeyExpireAsync(key, ttl, ExpireWhen.GreaterThanCurrentExpiry);
     }
 
     public async Task RefreshTokensAsync(string sessionId, string accessToken, string refreshToken, DateTimeOffset tokenExpiresAt, CancellationToken ct = default)
@@ -109,7 +136,6 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
                 AccessToken = accessToken,
                 RefreshToken = refreshToken,
                 TokenExpiresAt = tokenExpiresAt,
-                LastActivityAt = _time.GetUtcNow(),
             };
 
             // Keep Valkey TTL based on overall session expiry, not token expiry
@@ -124,6 +150,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
         {
             _logger.LogError(ex, "Valkey error refreshing BFF session tokens SessionId={SessionIdPrefix}…",
                 sessionId[..Math.Min(8, sessionId.Length)]);
+            throw;
         }
     }
 
@@ -144,17 +171,14 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (expiresAt <= session.ExpiresAt)
                 return;
 
-            var updated = session with
-            {
-                ExpiresAt = expiresAt,
-                LastActivityAt = _time.GetUtcNow(),
-            };
+            var updated = session with { ExpiresAt = expiresAt };
 
             var ttl = expiresAt - _time.GetUtcNow();
             if (ttl <= TimeSpan.Zero)
                 return;
 
             await db.StringSetAsync(SessionKey(sessionId), JsonSerializer.Serialize(updated), ttl);
+            await IndexForUserAsync(db, updated.UserId, sessionId, ttl);
             _logger.LogDebug("BFF session expiry slid in Valkey: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
                 sessionId[..8], expiresAt);
         }

@@ -4,14 +4,9 @@ import { CollapsibleFloorplan } from "./CollapsibleFloorplan";
 import type { Request } from "@foundation/src/types/requests";
 import { spaceAssignment } from '@foundation/src/test-utils/request-fixtures';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 const renderInRouter = (ui: React.ReactElement) => renderWithQuery(ui, { router: true });
-
-let mockSelectedSiteId: string | null = null;
-vi.mock("@foundation/src/store/site-store", () => ({
-  useSiteStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
-    selector({ selectedSiteId: mockSelectedSiteId }),
-}));
 
 const mockFloorplan = vi.hoisted(() => ({
   data: undefined as unknown,
@@ -43,8 +38,7 @@ describe("CollapsibleFloorplan", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockSelectedSiteId = null;
+    useSiteStore.setState({ selectedSiteId: null });
     mockFloorplan.data = undefined;
     mockFloorplan.isLoading = false;
     mockFloorplan.error = null;
@@ -86,77 +80,6 @@ describe("CollapsibleFloorplan", () => {
   });
 
   describe("space occupancy calculation", () => {
-    const mockRequests: Request[] = [
-      {
-        id: "req-1",
-        name: "Request 1",
-        assignments: [spaceAssignment('space-1')],
-        startTs: "2026-02-15T10:00:00Z",
-        endTs: "2026-02-15T14:00:00Z",
-        status: "new",
-        description: "",
-        minimalDurationValue: 4,
-        minimalDurationUnit: "hours",
-        requirements: [],
-        createdAt: "2026-02-15T00:00:00Z",
-        updatedAt: "2026-02-15T00:00:00Z",
-        schedulingSettingsApply: true,
-        planningMode: "leaf",
-        sortOrder: 0,
-      },
-      {
-        id: "req-2",
-        name: "Request 2",
-        assignments: [spaceAssignment('space-2')],
-        startTs: "2026-02-15T10:00:00Z",
-        endTs: "2026-02-15T14:00:00Z",
-        status: "new",
-        description: "",
-        minimalDurationValue: 4,
-        minimalDurationUnit: "hours",
-        requirements: [],
-        createdAt: "2026-02-15T00:00:00Z",
-        updatedAt: "2026-02-15T00:00:00Z",
-        schedulingSettingsApply: true,
-        planningMode: "leaf",
-        sortOrder: 0,
-      },
-      {
-        id: "req-3",
-        name: "Request 3 - Outside cursor",
-        assignments: [spaceAssignment('space-3')],
-        startTs: "2026-02-16T10:00:00Z",
-        endTs: "2026-02-16T14:00:00Z",
-        status: "new",
-        description: "",
-        minimalDurationValue: 4,
-        minimalDurationUnit: "hours",
-        requirements: [],
-        createdAt: "2026-02-16T00:00:00Z",
-        updatedAt: "2026-02-16T00:00:00Z",
-        schedulingSettingsApply: true,
-        planningMode: "leaf",
-        sortOrder: 0,
-      },
-    ];
-
-    it("correctly identifies occupied spaces at cursor time", () => {
-      // Time cursor at 12:00 on Feb 15 should mark space-1 and space-2 as occupied
-      // space-3 is on Feb 16, so should not be occupied
-      const timeCursorTs = new Date("2026-02-15T12:00:00Z");
-
-      renderInRouter(
-        <CollapsibleFloorplan
-          {...defaultProps}
-          requests={mockRequests}
-          timeCursorTs={timeCursorTs}
-        />
-      );
-
-      // The component calculates occupancy internally - we test the legend shows correct counts
-      // When no site is selected, we can't see the legend, but the logic is tested
-    });
-
     it("handles requests without resourceId", () => {
       const requestsWithoutSpace: Request[] = [
         {
@@ -298,7 +221,7 @@ describe("CollapsibleFloorplan", () => {
   // upload CTA — not the destructive "Failed to load floorplan" error.
   describe("empty-state when no floorplan exists", () => {
     it("shows the upload CTA and not an error message", () => {
-      mockSelectedSiteId = "site-without-floorplan";
+      useSiteStore.setState({ selectedSiteId: "site-without-floorplan" });
       mockFloorplan.data = null;
 
       renderInRouter(<CollapsibleFloorplan {...defaultProps} />);
@@ -312,7 +235,7 @@ describe("CollapsibleFloorplan", () => {
     });
 
     it("shows the destructive error only when the query actually errored", () => {
-      mockSelectedSiteId = "site-with-real-error";
+      useSiteStore.setState({ selectedSiteId: "site-with-real-error" });
       mockFloorplan.data = undefined;
       mockFloorplan.error = new Error("boom");
 

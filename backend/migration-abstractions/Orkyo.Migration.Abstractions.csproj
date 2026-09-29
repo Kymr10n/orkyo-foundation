@@ -4,8 +4,6 @@
     <AssemblyName>Orkyo.Migration.Abstractions</AssemblyName>
 
     <PackageId>Orkyo.Migration.Abstractions</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Orkyo</Authors>
     <Description>Contracts for the Orkyo migration framework — IMigrationModule, MigrationScript, and supporting value types. No runtime dependencies.</Description>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>

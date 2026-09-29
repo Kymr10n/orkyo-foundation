@@ -102,7 +102,6 @@ const defaultProps = {
 
 describe('RequestPeopleSection', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     // The section derives "people" from the active directory-profile types, not a fixed key.
     (getResourceTypes as Mock).mockResolvedValue([
       { id: 'rt-1', key: 'person', displayName: 'Person', displayNamePlural: 'People', hasGeometry: false, hasDirectoryProfile: true, singleGroupMembership: false, isSystem: false, isActive: true, createdAt: '', updatedAt: '' },
@@ -488,26 +487,31 @@ describe('RequestPeopleSection', () => {
   // ── Cache invalidation (assignments change occupancy + conflicts + insights) ──
 
   it('invalidates request-derived queries after a successful assignment create', async () => {
-    const { invalidateSpy } = renderWithQuery(<RequestPeopleSection {...defaultProps} />);
+    // The invalidation is the create mutation's meta, run by the production feedback cache.
+    const { invalidateSpy } = renderWithQuery(<RequestPeopleSection {...defaultProps} />, { feedback: true });
     await waitFor(() => screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('add-person-btn'));
     fireEvent.click(screen.getByTestId('person-select'));
     fireEvent.click(screen.getByTestId('save-row-btn'));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());
-    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
-      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
-    }
+    await waitFor(() => {
+      for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+      }
+    });
   });
 
   it('invalidates request-derived queries after removing an assignment', async () => {
     (getAssignmentsByRequest as Mock).mockResolvedValue([mockAssignment]);
-    const { invalidateSpy } = renderWithQuery(<RequestPeopleSection {...defaultProps} />);
+    const { invalidateSpy } = renderWithQuery(<RequestPeopleSection {...defaultProps} />, { feedback: true });
     await waitFor(() => screen.getByText('Alice'));
     fireEvent.click(screen.getByLabelText('Remove assignment'));
     await waitFor(() => expect(cancelAssignment).toHaveBeenCalledWith('assign-1'));
-    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
-      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
-    }
+    await waitFor(() => {
+      for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+      }
+    });
   });
 
   it('cancels a pending validation when the section unmounts', async () => {

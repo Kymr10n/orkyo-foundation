@@ -1,5 +1,13 @@
 namespace Api.Models;
 
+public record RemoveMfaRequest
+{
+    public string? CurrentPassword { get; init; }
+
+    /// <summary>The current TOTP code: the password grant that proves the password rejects a TOTP user without it.</summary>
+    public string? CurrentCode { get; init; }
+}
+
 public record ChangePasswordRequest
 {
     public string? CurrentPassword { get; init; }

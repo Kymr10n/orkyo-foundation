@@ -17,19 +17,6 @@ public class PersonResourceAllocationTests
         _client = fixture.CreateAuthorizedClient();
     }
 
-    private async Task<ResourceInfo> CreatePersonAsync(string name, int availabilityPct = 100)
-    {
-        var resp = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = name,
-            AllocationMode = "Fractional",
-            BaseAvailabilityPercent = availabilityPct,
-        });
-        Assert.Equal(HttpStatusCode.Created, resp.StatusCode);
-        return (await resp.Content.ReadFromJsonAsync<ResourceInfo>())!;
-    }
-
     private async Task<Guid> CreateRequestIdAsync()
     {
         var resp = await _client.PostAsJsonAsync("/api/requests", new
@@ -56,7 +43,7 @@ public class PersonResourceAllocationTests
     [Fact]
     public async Task FractionalPerson_50Pct_CanBeAssignedTwice()
     {
-        var person = await CreatePersonAsync($"P50-{Guid.NewGuid():N}"[..20], availabilityPct: 100);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"P50-{Guid.NewGuid():N}"[..20], availabilityPercent: 100);
         var start = DateTime.UtcNow.AddDays(1);
         var end = start.AddDays(5);
 
@@ -70,7 +57,7 @@ public class PersonResourceAllocationTests
     [Fact]
     public async Task FractionalPerson_ExceedsCapacity_IsAllowedAsOverbook()
     {
-        var person = await CreatePersonAsync($"PCap-{Guid.NewGuid():N}"[..20], availabilityPct: 100);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"PCap-{Guid.NewGuid():N}"[..20], availabilityPercent: 100);
         var start = DateTime.UtcNow.AddDays(10);
         var end = start.AddDays(5);
 
@@ -86,7 +73,7 @@ public class PersonResourceAllocationTests
     [Fact]
     public async Task FractionalPerson_MissingAllocationPct_Returns409()
     {
-        var person = await CreatePersonAsync($"PNoPct-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"PNoPct-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.AddDays(20);
 
         var r = await AssignAsync(person.Id, await CreateRequestIdAsync(), null, start, start.AddDays(3));
@@ -96,7 +83,7 @@ public class PersonResourceAllocationTests
     [Fact]
     public async Task FractionalPerson_ZeroAllocationPct_Returns409()
     {
-        var person = await CreatePersonAsync($"PZero-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"PZero-{Guid.NewGuid():N}"[..20]);
         var start = DateTime.UtcNow.AddDays(25);
 
         var r = await AssignAsync(person.Id, await CreateRequestIdAsync(), 0m, start, start.AddDays(3));

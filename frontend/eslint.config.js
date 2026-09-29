@@ -3,7 +3,6 @@ import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import uiPrimitives from './eslint-rules/ui-primitives.js';
 
@@ -136,12 +135,8 @@ export default defineConfig(
     plugins: {
       react,
       'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
     },
     rules: {
-      // Foundation is a library — react-refresh rules don't apply but the plugin
-      // must be registered so inline disable comments in source files are valid.
-      'react-refresh/only-export-components': 'off',
       '@typescript-eslint/non-nullable-type-assertion-style': 'off',
       // react-hooks rules are listed one by one rather than spread from
       // `reactHooks.configs.recommended.rules`. The spread inherits whatever the installed
@@ -179,8 +174,6 @@ export default defineConfig(
         varsIgnorePattern: '^_',
         caughtErrorsIgnorePattern: '^_',
       }],
-      '@typescript-eslint/no-misused-promises': 'off',
-      '@typescript-eslint/no-floating-promises': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
       '@typescript-eslint/prefer-nullish-coalescing': 'off',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
@@ -268,7 +261,7 @@ export default defineConfig(
       'src/components/ui/alert.tsx',
       'src/components/ui/badge.tsx',
       'src/components/ui/ErrorAlert.tsx',
-      'src/components/ui/ValidationIssueList.tsx',
+      'src/components/requests/ValidationIssueList.tsx',
       'src/components/utilization/RequestCalendar.tsx',
       // The column tint/header helpers moved here from TimelineGridShell — this file is now
       // the colour source the shell and the Requests timeline both read from.
@@ -387,20 +380,12 @@ export default defineConfig(
   {
     files: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
     rules: {
-      '@typescript-eslint/no-floating-promises': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unnecessary-condition': 'off',
       // Tests may mirror production date formatting to build expected values.
       'no-restricted-syntax': 'off',
       'no-restricted-properties': 'off',
       // Tests may stub dialogs and mirror native prompts freely.
       'no-restricted-imports': 'off',
       'no-restricted-globals': 'off',
-      'no-console': 'off',
     },
   },
 );

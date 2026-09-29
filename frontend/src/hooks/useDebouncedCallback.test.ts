@@ -19,7 +19,7 @@ describe("useDebouncedCallback", () => {
       result.current("c");
     });
     expect(spy).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(200));
+    act(() => { vi.advanceTimersByTime(200); });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith("c");
   });
@@ -41,7 +41,7 @@ describe("useDebouncedCallback", () => {
     });
     rerender({ cb: b });
     act(() => result.current());
-    act(() => vi.advanceTimersByTime(200));
+    act(() => { vi.advanceTimersByTime(200); });
     expect(a).not.toHaveBeenCalled();
     expect(b).toHaveBeenCalledTimes(1);
   });
@@ -62,7 +62,7 @@ describe("useDebouncedCallback", () => {
     const { result, unmount } = renderHook(() => useDebouncedCallback(spy, 200));
     act(() => result.current());
     unmount();
-    act(() => vi.advanceTimersByTime(200));
+    act(() => { vi.advanceTimersByTime(200); });
     expect(spy).not.toHaveBeenCalled();
   });
 });

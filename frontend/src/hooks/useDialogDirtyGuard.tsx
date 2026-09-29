@@ -20,6 +20,11 @@ interface UseDialogDirtyGuardOptions {
    * The dialog's original `onOpenChange` handler.
    */
   onOpenChange: (open: boolean) => void;
+  /**
+   * Called when the person answers "Keep editing" (or dismisses the prompt), so a caller can
+   * drop anything it queued behind the close attempt.
+   */
+  onKeepEditing?: () => void;
   /** Optional override for the confirm dialog title. */
   title?: string;
   /** Optional override for the confirm dialog body. */
@@ -68,6 +73,7 @@ interface UseDialogDirtyGuardResult {
 export function useDialogDirtyGuard({
   isDirty,
   onOpenChange,
+  onKeepEditing,
   title = "Discard changes?",
   description = "You have unsaved changes. They will be lost if you close this dialog.",
 }: UseDialogDirtyGuardOptions): UseDialogDirtyGuardResult {
@@ -99,8 +105,18 @@ export function useDialogDirtyGuard({
     onOpenChange(false);
   }, [onOpenChange, setConfirm]);
 
+  // Discard clears the ref before the prompt closes, so a close that arrives here with the ref
+  // still set is the person staying.
+  const handleConfirmOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open && confirmOpenRef.current) onKeepEditing?.();
+      setConfirm(open);
+    },
+    [onKeepEditing, setConfirm],
+  );
+
   const ConfirmDiscardDialog = (
-    <AlertDialog open={confirmOpen} onOpenChange={setConfirm}>
+    <AlertDialog open={confirmOpen} onOpenChange={handleConfirmOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

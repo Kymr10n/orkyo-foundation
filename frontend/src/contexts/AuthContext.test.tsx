@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
-import { AuthProvider, useAuth, debugAuth, getTenantSlugSync } from "./AuthContext";
+import { AuthProvider, useAuth, debugAuth } from "./AuthContext";
 import type { AppUser, TenantMembership } from "./AuthContext";
 import { AUTH_STAGES } from "@foundation/src/constants/auth";
 import { getCurrentSubdomain, consumeBreakGlassCookie } from "@foundation/src/lib/utils/tenant-navigation";
@@ -23,7 +23,6 @@ import { getCurrentSubdomain, consumeBreakGlassCookie } from "@foundation/src/li
 vi.mock("@foundation/src/config/runtime", () => ({
   runtimeConfig: {
     apiBaseUrl: "http://localhost:5000",
-    defaultTenant: "",
     baseDomain: "",
     isDev: true,
   },
@@ -99,7 +98,6 @@ function renderAuthProvider() {
 
 describe("AuthContext BFF session", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     localStorage.clear();
     // Ensure no URL error params by default
     Object.defineProperty(window, 'location', {
@@ -370,7 +368,6 @@ describe("AuthContext BFF session", () => {
 
       act(() => { getAuth().switchTenant(); });
       await waitFor(() => expect(getAuth().authStage).toBe(AUTH_STAGES.SELECTING_TENANT));
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
     });
 
@@ -516,13 +513,12 @@ describe("AuthContext BFF session", () => {
       const getAuth = renderAuthProvider();
       await waitFor(() => expect(getAuth().authStage).toBe(AUTH_STAGES.READY));
       expect(getAuth().appUser).not.toBeNull();
-      expect(localStorage.getItem('active_membership')).not.toBeNull();
+      expect(localStorage.getItem('tenant_slug')).not.toBeNull();
 
       act(() => { getAuth().logout(); });
 
       await waitFor(() => expect(getAuth().appUser).toBeNull());
       expect(getAuth().membership).toBeNull();
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
     });
   });
@@ -667,21 +663,6 @@ describe("useAuth outside AuthProvider", () => {
     }
     expect(() => render(<Orphan />)).toThrow("useAuth must be used within an AuthProvider");
     consoleSpy.mockRestore();
-  });
-});
-
-// ── getTenantSlugSync ─────────────────────────────────────────────────────
-
-describe("getTenantSlugSync", () => {
-  beforeEach(() => localStorage.clear());
-
-  it("returns null when localStorage has no tenant slug", () => {
-    expect(getTenantSlugSync()).toBeNull();
-  });
-
-  it("returns the stored slug", () => {
-    localStorage.setItem("tenant_slug", "acme");
-    expect(getTenantSlugSync()).toBe("acme");
   });
 });
 

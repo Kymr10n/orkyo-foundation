@@ -21,7 +21,7 @@ export function AboutPage() {
         <Button
           variant="ghost"
           className="mb-6"
-          onClick={() => navigate(-1)}
+          onClick={() => void navigate(-1)}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
@@ -109,11 +109,6 @@ export function AboutPage() {
 
             <div className="text-center text-sm text-muted-foreground">
               <p>© {currentYear} Orkyo. Licensed under AGPL-3.0.</p>
-              {!import.meta.env.VITE_RUM_ENDPOINT && (
-                <p className="mt-1">
-                  Version and telemetry data are not shared with third parties.
-                </p>
-              )}
             </div>
           </CardContent>
         </Card>

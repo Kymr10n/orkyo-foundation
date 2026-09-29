@@ -8,9 +8,6 @@ import * as userApi from '@foundation/src/lib/api/user-api';
 import { exportUsers, importUsers } from '@foundation/src/lib/utils/export-handlers';
 import { renderWithQuery } from '@foundation/src/test-utils';
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 vi.mock('@foundation/src/lib/api/user-api');
 const ioHandlers = vi.hoisted(() => ({
   exportCb: null as null | ((format: string) => Promise<void>),
@@ -103,7 +100,6 @@ describe('UserSettings', () => {
   ];
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(userApi.getUsers).mockResolvedValue(mockUsers);
     vi.mocked(userApi.getInvitations).mockResolvedValue(mockInvitations);
     vi.mocked(userApi.cancelInvitation).mockResolvedValue(undefined);
@@ -216,7 +212,7 @@ describe('UserSettings', () => {
       expect(userApi.resendInvitation).toHaveBeenCalled();
       const [[invitationId]] = vi.mocked(userApi.resendInvitation).mock.calls;
       expect(invitationId).toBe('inv-1');
-      expect(toast.success).toHaveBeenCalledWith('Invitation email resent successfully');
+      expect(toast.success).toHaveBeenCalledWith('Invitation email resent');
     });
   });
 
@@ -228,11 +224,8 @@ describe('UserSettings', () => {
       expect(screen.getByText('Admin User')).toBeInTheDocument();
     });
 
-    // Find remove button (aria-label is "Remove {displayName}")
-    const removeButtons = screen.getAllByRole('button', { name: /^Remove /i });
-    expect(removeButtons.length).toBeGreaterThan(0);
-
-    await user.click(removeButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Admin User' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Remove/ }));
 
     await user.click(await screen.findByRole('button', { name: 'Remove' }));
 
@@ -252,8 +245,8 @@ describe('UserSettings', () => {
       expect(screen.getByText('Admin User')).toBeInTheDocument();
     });
 
-    const removeButtons = screen.getAllByRole('button', { name: /^Remove /i });
-    await user.click(removeButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Admin User' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Remove/ }));
 
     const dialogCancelButton = await screen.findByRole('button', { name: 'Cancel' });
     await user.click(dialogCancelButton);
@@ -337,8 +330,8 @@ describe('UserSettings', () => {
     const user = userEvent.setup();
     renderSettings();
     await waitFor(() => screen.getByText('admin@example.com'));
-    const editBtns = screen.queryAllByTitle('Edit user role');
-    if (editBtns.length > 0) await user.click(editBtns[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Admin User' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit role/ }));
     await waitFor(() => expect(screen.getByTestId('role-success')).toBeInTheDocument());
   });
 
@@ -346,8 +339,8 @@ describe('UserSettings', () => {
     const user = userEvent.setup();
     renderSettings();
     await waitFor(() => screen.getByText('admin@example.com'));
-    const editBtns = screen.queryAllByTitle('Edit user role');
-    if (editBtns.length > 0) await user.click(editBtns[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Admin User' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit role/ }));
     await waitFor(() => screen.getByTestId('role-success'));
     await user.click(screen.getByTestId('role-success'));
     expect(screen.queryByTestId('role-success')).not.toBeInTheDocument();
@@ -403,7 +396,8 @@ describe('UserSettings', () => {
     const user = userEvent.setup();
     renderSettings();
     await waitFor(() => screen.getByText('Admin User'));
-    await user.click(screen.getAllByRole('button', { name: /^Remove /i })[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Admin User' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Remove/ }));
     await user.click(await screen.findByRole('button', { name: 'Remove' }));
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('Failed to remove user', { description: undefined })
@@ -430,7 +424,7 @@ describe('UserSettings', () => {
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'new@example.com', role: 'editor' });
       expect(userApi.createInvitation).toHaveBeenCalledWith({ email: 'demoted@example.com', role: 'viewer' });
       expect(userApi.createInvitation).not.toHaveBeenCalledWith(expect.objectContaining({ email: '' }));
-      expect(toast.success).toHaveBeenCalledWith('Successfully imported 3 users');
+      expect(toast.success).toHaveBeenCalledWith('Imported 3 users');
     });
 
     it('shows an error toast when the imported file has no valid users', async () => {

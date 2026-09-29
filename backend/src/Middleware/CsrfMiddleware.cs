@@ -2,7 +2,6 @@ using Api.Configuration;
 using Api.Constants;
 using Api.Helpers;
 using Api.Security;
-using Microsoft.Extensions.Options;
 
 namespace Api.Middleware;
 
@@ -29,10 +28,8 @@ public sealed class CsrfMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context, IOptions<BffOptions> bffOptions)
+    public async Task InvokeAsync(HttpContext context)
     {
-        var options = bffOptions.Value;
-
         // Only enforce CSRF for BFF-authenticated requests
         if (context.User.Identity?.AuthenticationType != BffCookieAuthenticationHandler.SchemeName)
         {
@@ -40,16 +37,18 @@ public sealed class CsrfMiddleware
             return;
         }
 
-        // Safe methods don't need CSRF protection
-        if (SafeMethods.Contains(context.Request.Method))
+        // Safe methods don't need CSRF protection, and neither does an endpoint that acts on a
+        // secret in its own request rather than on the session (see CsrfExemptAttribute).
+        if (SafeMethods.Contains(context.Request.Method)
+            || context.GetEndpoint()?.Metadata.GetMetadata<CsrfExemptAttribute>() is not null)
         {
             await _next(context);
             return;
         }
 
         // Validate double-submit: header must match cookie
-        var csrfCookie = context.Request.Cookies[options.CsrfCookieName];
-        var csrfHeader = context.Request.Headers[options.CsrfHeaderName].FirstOrDefault();
+        var csrfCookie = context.Request.Cookies[BffOptions.CsrfCookieName];
+        var csrfHeader = context.Request.Headers[BffOptions.CsrfHeaderName].FirstOrDefault();
 
         if (string.IsNullOrEmpty(csrfCookie) ||
             string.IsNullOrEmpty(csrfHeader) ||
@@ -67,3 +66,11 @@ public sealed class CsrfMiddleware
         await _next(context);
     }
 }
+
+/// <summary>
+/// Marks an anonymous endpoint whose POST acts only on a secret carried in the request itself (a
+/// plain HTML form posting an emailed token), never on the caller's session. Such a form cannot send
+/// the double-submit header, and a signed-in recipient's BFF cookie would otherwise make it fail.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
+public sealed class CsrfExemptAttribute : Attribute;

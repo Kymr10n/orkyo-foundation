@@ -1,4 +1,5 @@
 using Api.Configuration;
+using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Middleware;
@@ -18,7 +19,7 @@ public static class AccountLifecycleEndpoints
 {
     public static void MapAccountLifecycleEndpoints(this WebApplication app)
     {
-        // GET /api/account/confirm-activity?token=<uuid>
+        // GET /api/account/confirm-activity?token=<token>
         // Public endpoint — no auth required. User clicks this link from a lifecycle warning email.
         // Clears lifecycle state and redirects to the app. If the account was dormant, re-enables it in Keycloak.
         app.MapGet("/api/account/confirm-activity", [AllowAnonymous] async (
@@ -98,6 +99,7 @@ public static class AccountEmailChangeEndpoints
             IPlatformUserRepository userRepository,
             IKeycloakAdminService keycloakAdmin,
             IEmailService emailService,
+            IBackgroundDispatcher background,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
@@ -114,15 +116,9 @@ public static class AccountEmailChangeEndpoints
                 if (string.Equals(currentEmail, newEmail, StringComparison.OrdinalIgnoreCase))
                     return ErrorResponses.BadRequest("The new email address is the same as your current one.");
 
-                // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE indexes below
-                bool taken;
-                try { taken = await keycloakAdmin.UserExistsAsync(newEmail, ct); }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Failed to check email availability for {NewEmail}", newEmail);
-                    return Results.Problem("Could not verify email availability. Please try again.");
-                }
-                if (taken)
+                // Reject if already taken in Keycloak — local DB uniqueness is enforced by the UNIQUE
+                // indexes below. A Keycloak failure is KeycloakAdminExceptionMapper's 502, with a code.
+                if (await keycloakAdmin.UserExistsAsync(newEmail, ct))
                     return ErrorResponses.Conflict("That email address is already in use.");
 
                 var token = Guid.NewGuid().ToString();
@@ -130,35 +126,26 @@ public static class AccountEmailChangeEndpoints
                 if (!await userRepository.SetPendingEmailChangeAsync(userId, newEmail, token, ct))
                     return ErrorResponses.Conflict("That email address is already in use.");
 
-                // IEmailService returns false on SMTP failure (no exception thrown).
+                // IEmailService returns false on SMTP failure (it catches and logs; nothing is thrown).
                 // If we cannot deliver the confirmation link the user can never complete
                 // the change, so we must surface the failure rather than respond 200 OK.
                 // The pending row is cleared so the next attempt starts from a clean
                 // state — otherwise the (orphan, undeliverable) pending_email would
                 // keep the UNIQUE (lower(pending_email)) index claimed for 24h.
-                bool sent;
-                try
-                {
-                    sent = await emailService.SendEmailChangeConfirmationAsync(newEmail, displayName, token, ct);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Failed to send email change confirmation for user {UserId}", userId);
-                    sent = false;
-                }
-
-                if (!sent)
+                if (!await emailService.SendEmailChangeConfirmationAsync(newEmail, displayName, token, ct))
                 {
                     await userRepository.ClearPendingEmailChangeAsync(userId, ct);
 
-                    return Results.Problem(
-                        title: "Email delivery failed",
+                    return ProblemResults.Problem(
+                        StatusCodes.Status502BadGateway,
+                        ApiErrorCodes.EmailDeliveryFailed,
                         detail: "Could not send the confirmation email. Please try again later.",
-                        statusCode: StatusCodes.Status502BadGateway);
+                        title: "Email delivery failed");
                 }
 
                 // Security: tell the CURRENT address that a change was requested (best-effort).
-                _ = emailService.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail);
+                background.Dispatch<IEmailService>("email-change notice to the old address",
+                    (mail, mailCt) => mail.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail, mailCt));
 
                 logger.LogInformation("Email change requested for user {UserId}: pending={NewEmail}", userId, newEmail);
                 return Results.Ok(new { message = "Confirmation email sent. Check your new inbox and click the link to complete the change." });
@@ -175,7 +162,7 @@ public static class AccountEmailChangeEndpoints
             string? token,
             IPlatformUserRepository userRepository,
             IKeycloakAdminService keycloakAdmin,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             IConfiguration configuration,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
@@ -206,7 +193,9 @@ public static class AccountEmailChangeEndpoints
 
                 logger.LogInformation("Email change confirmed for user {UserId}: new email={PendingEmail}", result.UserId, result.PendingEmail);
                 // Confirm completion to the new address (best-effort).
-                _ = emailService.SendEmailChangedAsync(result.PendingEmail!, result.PendingEmail!, result.PendingEmail!);
+                var (newAddress, name) = (result.PendingEmail!, result.DisplayName ?? result.PendingEmail!);
+                background.Dispatch<IEmailService>("email-changed mail",
+                    (mail, mailCt) => mail.SendEmailChangedAsync(newAddress, name, newAddress, mailCt));
                 return Results.Redirect(Redirect("confirmed"));
             }
             catch (Exception ex)

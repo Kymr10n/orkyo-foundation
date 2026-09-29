@@ -1,8 +1,9 @@
 # Frontend UI Guidelines
 
 Canonical, prescriptive rules for building UI in `@kymr10n/foundation`. Keep these in force for
-every new component and every change you touch. The *why* behind them lives in
-[`UX-CONSISTENCY.md`](UX-CONSISTENCY.md); this file is the *what to do*.
+every new component and every change you touch. The UX audit that these rules come from is
+archived in
+[`UX-CONSISTENCY.md`](../../requirements/archive/superseded-docs/UX-CONSISTENCY.md).
 
 Principles: **DRY** (reach for the shared primitive before writing a new one) and **KISS**
 (one predictable rule beats N clever per-screen decisions).
@@ -490,8 +491,10 @@ TopBar `h-14` → PageLayout `p-3` → title row → `mb-2` → tab strip → `m
 - **One padding owner.** `PageLayout` / `FocusedPageLayout` own page padding; `AppLayout`'s
   `<main>` pads only from `md:` up. Never add a second padding layer around a page.
 - **Chrome margins are responsive.** Between page-chrome rows (header, toolbars, tab strip) use
-  `mb-2` / `space-y-2` on phones and `mb-4`+ / `space-y-4`+ from `md:` up. Use `md:` — never
-  `sm:` (unused in this codebase) and never a page-local breakpoint number (see `useBreakpoint`).
+  `mb-2` / `space-y-2` on phones and `mb-4`+ / `space-y-4`+ from `md:` up. Chrome margins use
+  `md:`. They never use `sm:` or a page-local breakpoint number (see `useBreakpoint`). The
+  `sm:` prefix occurs in the shadcn primitives, in dialog form grids and in filter bars.
+  These are not page chrome.
 - **Page controls live in `PageHeader` `actions`.** The header flex-wraps, so on phones compact
   controls wrap under the title at the standard gap. Don't add a bespoke controls row above the
   tabs (see `UtilizationPage`).

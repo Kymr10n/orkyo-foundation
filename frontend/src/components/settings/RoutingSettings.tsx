@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { AlertCircle, Edit, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 import { Badge } from "@foundation/src/components/ui/badge";
 import { Button } from "@foundation/src/components/ui/button";
-import { Card } from "@foundation/src/components/ui/card";
-import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { OrkyoDataTable, type ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { RowActions } from "@foundation/src/components/ui/RowActions";
 import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import { useDeleteRouting, useRoutings } from "@foundation/src/hooks/useRoutings";
@@ -44,29 +43,13 @@ export function RoutingSettings() {
   };
 
   const renderActions = (routing: Routing) => (
-    <div className="flex justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); setDialog({ open: true, routing }); }}
-        aria-label={`Edit ${routing.name}`}
-        title="Edit routing"
-      >
-        <Edit className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        disabled={!canEdit}
-        onClick={(e) => { e.stopPropagation(); setDeleting(routing); }}
-        className="text-destructive hover:text-destructive"
-        aria-label={`Delete ${routing.name}`}
-        title="Delete routing"
-      >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${routing.name}`}
+      actions={[
+        { label: "Edit", icon: Pencil, onSelect: () => setDialog({ open: true, routing }), disabled: !canEdit },
+        { label: "Delete", icon: Trash2, onSelect: () => setDeleting(routing), disabled: !canEdit, destructive: true },
+      ]}
+    />
   );
 
   const columns: ColumnDef<Routing>[] = [
@@ -139,35 +122,23 @@ export function RoutingSettings() {
         </Button>
       </SettingsPageHeader>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error instanceof Error ? error.message : "Failed to load routings"}</span>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {routings.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">No routings defined yet</p>
+      <OrkyoDataTable
+        {...tableUrlState}
+        columns={columns}
+        data={routings}
+        error={error}
+        errorFallback="Failed to load routings"
+        onRetry={() => void refetch()}
+        noDataMessage="No routings defined yet"
+        noDataAction={
           <Button onClick={() => setDialog({ open: true, routing: null })} variant="outline" disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             Create your first routing
           </Button>
-        </Card>
-      ) : (
-        <OrkyoDataTable
-          {...tableUrlState}
-          columns={columns}
-          data={routings}
-          renderCard={renderCard}
-          onRowClick={(routing) => setDialog({ open: true, routing })}
-        />
-      )}
+        }
+        renderCard={renderCard}
+        onRowClick={(routing) => setDialog({ open: true, routing })}
+      />
 
       <RoutingEditDialog
         routing={dialog.routing}

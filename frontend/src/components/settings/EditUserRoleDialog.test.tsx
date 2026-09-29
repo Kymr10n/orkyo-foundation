@@ -9,9 +9,6 @@ import { qk } from '@foundation/src/lib/api/query-keys';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 
 describe('EditUserRoleDialog', () => {
   let queryClient: QueryClient;
@@ -33,7 +30,6 @@ describe('EditUserRoleDialog', () => {
     // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
     // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
     ({ queryClient, spy: invalidateSpy } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
     vi.mocked(userApi.updateUserRole).mockResolvedValue({
       ...mockUser,
       role: 'editor',
@@ -328,7 +324,7 @@ describe('EditUserRoleDialog', () => {
     await user.click(saveButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Saving...')).toBeInTheDocument();
+      expect(screen.getByText('Saving…')).toBeInTheDocument();
       expect(saveButton).toBeDisabled();
     });
   });

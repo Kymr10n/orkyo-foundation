@@ -11,13 +11,8 @@ public class SafetyGuardTests
     [InlineData("LOCALHOST")]
     [InlineData("127.0.0.1")]
     [InlineData("::1")]
+    [InlineData("127.0.0.2")]
     [InlineData("host.docker.internal")]
-    [InlineData("my-machine.local")]
-    [InlineData("10.0.0.1")]
-    [InlineData("10.255.255.255")]
-    [InlineData("172.16.0.1")]
-    [InlineData("172.31.255.255")]
-    [InlineData("192.168.1.100")]
     public void IsLocalLike_ReturnsTrueForLocalAddresses(string host)
     {
         Assert.True(SafetyGuard.IsLocalLike(host));
@@ -26,8 +21,13 @@ public class SafetyGuardTests
     [Theory]
     [InlineData("8.8.8.8")]
     [InlineData("db.prod.example.com")]
-    [InlineData("172.32.0.1")]   // just outside 172.16–31 range
-    [InlineData("11.0.0.1")]     // not RFC1918
+    [InlineData("172.32.0.1")]
+    [InlineData("11.0.0.1")]
+    // Private and mDNS hosts can be shared servers: only loopback is local.
+    [InlineData("my-machine.local")]
+    [InlineData("10.0.0.1")]
+    [InlineData("172.17.0.2")]
+    [InlineData("192.168.1.100")]
     public void IsLocalLike_ReturnsFalseForNonLocalAddresses(string host)
     {
         Assert.False(SafetyGuard.IsLocalLike(host));

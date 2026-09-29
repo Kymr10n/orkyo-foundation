@@ -1,5 +1,8 @@
+using Api.Constants;
 using Api.Endpoints;
+using Api.Endpoints.PlatformApi;
 using Api.Endpoints.Reporting;
+using Api.Security;
 using FluentValidation;
 
 namespace Api.Validators;
@@ -23,11 +26,10 @@ public class AddResourceCapabilityRequestValidator : AbstractValidator<AddResour
 
 public class CreateReportingTokenRequestValidator : AbstractValidator<CreateReportingTokenRequest>
 {
-    public const int NameMaxLength = 200;
-
     public CreateReportingTokenRequestValidator(TimeProvider time)
     {
-        RuleFor(x => x.Name).NotEmpty().MaximumLength(NameMaxLength);
+        // The API-access token's cap: both name columns are VARCHAR(255). This one used to stop at 200.
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(DomainLimits.TokenNameMaxLength);
         // A token minted already-expired is silently useless; reject it at the boundary.
         RuleFor(x => x.ExpiresAt!.Value).GreaterThan(time.GetUtcNow().UtcDateTime)
             .WithMessage("ExpiresAt must be in the future")
@@ -50,13 +52,29 @@ public class UpdateSettingsRequestValidator : AbstractValidator<UpdateSettingsRe
     }
 }
 
-/// <summary>Admin-surface twin of <see cref="UpdateSettingsRequestValidator"/>; same envelope rules.</summary>
-public class AdminUpdateSettingsRequestValidator : AbstractValidator<Api.Endpoints.Admin.UpdateSettingsRequest>
+public sealed class CreateApiAccessTokenRequestValidator : AbstractValidator<CreateApiAccessTokenRequest>
 {
-    public AdminUpdateSettingsRequestValidator()
+    private readonly TimeProvider _time;
+
+    public CreateApiAccessTokenRequestValidator(TimeProvider time)
     {
-        RuleFor(x => x.Settings).NotEmpty().WithMessage("Settings must contain at least one entry");
-        RuleForEach(x => x.Settings.Keys).NotEmpty().WithMessage("Setting keys must not be blank")
-            .When(x => x.Settings is not null);
+        _time = time;
+
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required.")
+            .MaximumLength(DomainLimits.TokenNameMaxLength);
+
+        RuleFor(x => x.Scopes)
+            .NotEmpty().WithMessage("At least one scope is required.");
+
+        // Rejected here as well as in the service: the endpoint gives a field-level validation
+        // error, which the settings form can show against the scope picker.
+        RuleForEach(x => x.Scopes)
+            .Must(PlatformApiScopes.All.Contains)
+            .WithMessage(s => $"Unknown scope. Valid scopes: {string.Join(", ", PlatformApiScopes.All)}");
+
+        RuleFor(x => x.ExpiresAt)
+            .Must(d => d is null || d > _time.GetUtcNow().UtcDateTime)
+            .WithMessage("Expiry must be in the future.");
     }
 }

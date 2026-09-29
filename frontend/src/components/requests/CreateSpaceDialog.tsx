@@ -125,7 +125,7 @@ export function CreateSpaceDialog({
           <p className="font-medium">Geometry: {geometryInfo}</p>
           <p className="text-xs text-muted-foreground mt-1">
             Coordinates: {JSON.stringify(geometry.coordinates.slice(0, 2))}
-            {geometry.coordinates.length > 2 && '...'}
+            {geometry.coordinates.length > 2 && '…'}
           </p>
         </div>
 
@@ -165,7 +165,7 @@ export function CreateSpaceDialog({
           <Label htmlFor="space-description">Description</Label>
           <Textarea
             id="space-description"
-            placeholder="Optional description..."
+            placeholder="Optional description…"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             disabled={isSubmitting}

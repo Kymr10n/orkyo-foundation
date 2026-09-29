@@ -9,12 +9,14 @@ import {
   useSaveAiDailyLimits,
 } from '@foundation/src/hooks/useAiAssistant';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
+import { toast } from 'sonner';
 
 vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
   useFeatureEnabled: vi.fn(() => true),
 }));
 
 const saveLimits = vi.fn();
+const testCredential = vi.fn();
 
 vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
   useAiCredential: vi.fn(),
@@ -22,19 +24,10 @@ vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
   useAiDailyLimits: vi.fn(),
   useSaveAiCredential: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteAiCredential: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useTestAiCredential: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useTestAiCredential: () => ({ mutateAsync: testCredential, isPending: false }),
   useSaveAiAllowance: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRevokeAiAllowance: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSaveAiDailyLimits: vi.fn(),
-}));
-
-const toastError = vi.fn();
-const toastSuccess = vi.fn();
-vi.mock('sonner', () => ({
-  toast: {
-    error: (...args: unknown[]) => toastError(...args),
-    success: (...args: unknown[]) => toastSuccess(...args),
-  },
 }));
 
 /** Sets the daily-limits query state; defaults to a configured workspace. */
@@ -48,7 +41,6 @@ function setLimits(over: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(useFeatureEnabled).mockReturnValue(true);
   vi.mocked(useAiCredential).mockReturnValue({
     data: { configured: true, keyHint: 'hAAA', lastVerifiedAt: null },
@@ -67,7 +59,7 @@ beforeEach(() => {
 });
 
 const perPerson = () => screen.getByLabelText(/interactions per person each day/i);
-const perWorkspace = () => screen.getByLabelText(/whole workspace each day/i);
+const perWorkspace = () => screen.getByLabelText(/whole organization each day/i);
 
 describe('AiAssistantSettings daily limits', () => {
   it('shows the limits the workspace already has', () => {
@@ -106,7 +98,7 @@ describe('AiAssistantSettings daily limits', () => {
     await user.click(screen.getByRole('button', { name: /save limits/i }));
 
     expect(saveLimits).not.toHaveBeenCalled();
-    expect(toastError).toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalled();
   });
 
   it('does not offer the form when the limits could not be read', () => {
@@ -128,6 +120,29 @@ describe('AiAssistantSettings daily limits', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /save limits/i }));
 
-    expect(toastSuccess).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
+  });
+});
+
+describe('AiAssistantSettings key test', () => {
+  it('reports the provider result', async () => {
+    testCredential.mockResolvedValue({ ok: true });
+    render(<AiAssistantSettings />);
+
+    await userEvent.click(screen.getByRole('button', { name: /test connection/i }));
+
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith('The key works.');
+  });
+
+  it('leaves a failed request to the mutation feedback and claims nothing', async () => {
+    // The rejection must not escape the click handler; the hook's meta toasts it.
+    testCredential.mockRejectedValue(new Error('offline'));
+    render(<AiAssistantSettings />);
+
+    await userEvent.click(screen.getByRole('button', { name: /test connection/i }));
+
+    expect(testCredential).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
   });
 });

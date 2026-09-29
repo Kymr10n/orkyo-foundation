@@ -99,7 +99,7 @@ public class RequestRepositorySearchTests
         var timedOnlyId = await CreateAsync($"{tag}-timed", start, end);
 
         var fullyScheduledId = await CreateAsync($"{tag}-full");
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
         var sched = await _client.PatchAsJsonAsync(
             $"/api/requests/{fullyScheduledId}/schedule",
             new ScheduleRequestRequest { ResourceId = spaceId, StartTs = start, EndTs = end });

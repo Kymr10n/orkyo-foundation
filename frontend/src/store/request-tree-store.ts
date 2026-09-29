@@ -1,46 +1,13 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
-
-const STORAGE_KEY_EXPANDED_IDS = STORAGE_KEYS.REQUEST_TREE_EXPANDED;
-const STORAGE_KEY_VIEW_MODE = STORAGE_KEYS.REQUEST_VIEW_MODE;
 
 export type RequestViewMode = "tree" | "list";
 
-function readExpandedIds(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_EXPANDED_IDS);
-    if (!raw) return new Set<string>();
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return new Set<string>();
-    return new Set(parsed.filter((id): id is string => typeof id === "string"));
-  } catch {
-    return new Set<string>();
-  }
-}
-
-function writeExpandedIds(ids: Set<string>) {
-  try {
-    localStorage.setItem(STORAGE_KEY_EXPANDED_IDS, JSON.stringify([...ids]));
-  } catch {
-    // Ignore persistence failures (private mode/quota).
-  }
-}
-
-function readViewMode(): RequestViewMode {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_VIEW_MODE);
-    return raw === "list" ? "list" : "tree";
-  } catch {
-    return "tree";
-  }
-}
-
-function writeViewMode(mode: RequestViewMode) {
-  try {
-    localStorage.setItem(STORAGE_KEY_VIEW_MODE, mode);
-  } catch {
-    // Ignore persistence failures (private mode/quota).
-  }
+/** What survives a reload. The selection does not: it names a row of the last visit. */
+interface PersistedTree {
+  expandedIds: string[];
+  viewMode: RequestViewMode;
 }
 
 interface RequestTreeState {
@@ -61,65 +28,71 @@ interface RequestTreeState {
   setViewMode: (mode: RequestViewMode) => void;
 }
 
-export const useRequestTreeStore = create<RequestTreeState>((set) => ({
-  expandedIds: readExpandedIds(),
-  selectedId: null,
-  viewMode: readViewMode(),
+export const useRequestTreeStore = create<RequestTreeState>()(
+  persist(
+    (set) => ({
+      expandedIds: new Set<string>(),
+      selectedId: null,
+      viewMode: "tree",
 
-  toggle: (id) =>
-    set((state) => {
-      const next = new Set(state.expandedIds);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      writeExpandedIds(next);
-      return { expandedIds: next };
+      toggle: (id) =>
+        set((state) => {
+          const next = new Set(state.expandedIds);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return { expandedIds: next };
+        }),
+
+      expand: (id) =>
+        set((state) => {
+          if (state.expandedIds.has(id)) return state;
+          const next = new Set(state.expandedIds);
+          next.add(id);
+          return { expandedIds: next };
+        }),
+
+      collapse: (id) =>
+        set((state) => {
+          if (!state.expandedIds.has(id)) return state;
+          const next = new Set(state.expandedIds);
+          next.delete(id);
+          return { expandedIds: next };
+        }),
+
+      expandAll: (ids) =>
+        set(() => {
+          const next = new Set(ids);
+          return { expandedIds: next };
+        }),
+
+      collapseAll: () =>
+        set(() => {
+          const next = new Set<string>();
+          return { expandedIds: next };
+        }),
+
+      expandAncestors: (ids) =>
+        set((state) => {
+          const next = new Set(state.expandedIds);
+          for (const id of ids) next.add(id);
+          return { expandedIds: next };
+        }),
+
+      setSelectedId: (id) => set({ selectedId: id }),
+
+      setViewMode: (mode) => set({ viewMode: mode }),
     }),
-
-  expand: (id) =>
-    set((state) => {
-      if (state.expandedIds.has(id)) return state;
-      const next = new Set(state.expandedIds);
-      next.add(id);
-      writeExpandedIds(next);
-      return { expandedIds: next };
-    }),
-
-  collapse: (id) =>
-    set((state) => {
-      if (!state.expandedIds.has(id)) return state;
-      const next = new Set(state.expandedIds);
-      next.delete(id);
-      writeExpandedIds(next);
-      return { expandedIds: next };
-    }),
-
-  expandAll: (ids) =>
-    set(() => {
-      const next = new Set(ids);
-      writeExpandedIds(next);
-      return { expandedIds: next };
-    }),
-
-  collapseAll: () =>
-    set(() => {
-      const next = new Set<string>();
-      writeExpandedIds(next);
-      return { expandedIds: next };
-    }),
-
-  expandAncestors: (ids) =>
-    set((state) => {
-      const next = new Set(state.expandedIds);
-      for (const id of ids) next.add(id);
-      writeExpandedIds(next);
-      return { expandedIds: next };
-    }),
-
-  setSelectedId: (id) => set({ selectedId: id }),
-
-  setViewMode: (mode) =>
-    set(() => {
-      writeViewMode(mode);
-      return { viewMode: mode };
-    }),
-}));
+    {
+      name: STORAGE_KEYS.REQUEST_TREE,
+      // A Set does not survive JSON, so the ids travel as an array.
+      partialize: (state): PersistedTree => ({ expandedIds: [...state.expandedIds], viewMode: state.viewMode }),
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<PersistedTree>;
+        const ids = Array.isArray(saved.expandedIds)
+          ? saved.expandedIds.filter((id): id is string => typeof id === "string")
+          : [];
+        return { ...current, expandedIds: new Set(ids), viewMode: saved.viewMode === "list" ? "list" : "tree" };
+      },
+    },
+  ),
+);

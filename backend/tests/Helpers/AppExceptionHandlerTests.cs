@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
+using static Orkyo.Foundation.Tests.Helpers.HttpContextTestHelpers;
+
 namespace Orkyo.Foundation.Tests.Helpers;
 
 public class AppExceptionHandlerTests
@@ -207,6 +209,22 @@ public class AppExceptionHandlerTests
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status400BadRequest);
     }
 
+    // Both derive from ArgumentException, so an arm order that lets the ArgumentException arm
+    // catch them echoes internal parameter names to the client as a 400 again (#96).
+    [Theory]
+    [InlineData(typeof(ArgumentNullException))]
+    [InlineData(typeof(ArgumentOutOfRangeException))]
+    public async Task GuardClauseException_FallsThrough_WithoutWritingResponse(Type exceptionType)
+    {
+        var ctx = CreateHttpContext();
+        var exception = (Exception)Activator.CreateInstance(exceptionType, "internalParameterName")!;
+
+        var handled = await Handler.TryHandleAsync(ctx, exception, default);
+
+        handled.Should().BeFalse();
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status200OK); // nothing written
+    }
+
     [Fact]
     public async Task UnhandledException_ReturnsFalse_WithoutWritingResponse()
     {
@@ -216,25 +234,5 @@ public class AppExceptionHandlerTests
 
         handled.Should().BeFalse();
         ctx.Response.StatusCode.Should().Be(StatusCodes.Status200OK); // nothing written
-    }
-
-    private static DefaultHttpContext CreateHttpContext()
-    {
-        var services = new ServiceCollection()
-            .AddLogging()
-            .BuildServiceProvider();
-
-        return new DefaultHttpContext
-        {
-            RequestServices = services,
-            Response = { Body = new MemoryStream() }
-        };
-    }
-
-    private static async Task<JsonElement> ReadJsonAsync(HttpContext context)
-    {
-        context.Response.Body.Position = 0;
-        using var json = await JsonDocument.ParseAsync(context.Response.Body);
-        return json.RootElement.Clone();
     }
 }

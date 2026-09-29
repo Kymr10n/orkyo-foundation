@@ -6,9 +6,7 @@ import { RoutingSettings, describeSteps } from './RoutingSettings';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { getRoutings, deleteRouting } from '@foundation/src/lib/api/routing-api';
 import type { Routing } from '@foundation/src/types/routings';
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+import { toast } from 'sonner';
 
 vi.mock('@foundation/src/lib/api/routing-api', () => ({
   getRoutings: vi.fn(() => Promise.resolve([])),
@@ -52,7 +50,6 @@ describe('describeSteps', () => {
 
 describe('RoutingSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetRoutings.mockResolvedValue([]);
   });
 
@@ -92,7 +89,8 @@ describe('RoutingSettings', () => {
     mockGetRoutings.mockResolvedValue([bracket]);
     renderSettings();
     await screen.findByText('Bracket BR-100');
-    await user.click(screen.getAllByRole('button', { name: 'Edit Bracket BR-100' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Bracket BR-100' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit/ }));
     expect(screen.getByTestId('routing-dialog')).toHaveTextContent('Bracket BR-100');
   });
 
@@ -101,7 +99,8 @@ describe('RoutingSettings', () => {
     mockGetRoutings.mockResolvedValue([bracket]);
     renderSettings();
     await screen.findByText('Bracket BR-100');
-    await user.click(screen.getAllByRole('button', { name: 'Delete Bracket BR-100' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Bracket BR-100' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     expect(await screen.findByText('Delete "Bracket BR-100"?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(mockDeleteRouting).toHaveBeenCalledWith('r1'));
@@ -112,7 +111,8 @@ describe('RoutingSettings', () => {
     mockGetRoutings.mockResolvedValue([bracket]);
     renderSettings();
     await screen.findByText('Bracket BR-100');
-    await user.click(screen.getAllByRole('button', { name: 'Delete Bracket BR-100' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Bracket BR-100' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockDeleteRouting).not.toHaveBeenCalled();
   });
@@ -123,10 +123,11 @@ describe('RoutingSettings', () => {
     mockDeleteRouting.mockRejectedValueOnce(new Error('In use'));
     renderSettings();
     await screen.findByText('Bracket BR-100');
-    await user.click(screen.getAllByRole('button', { name: 'Delete Bracket BR-100' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Bracket BR-100' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Failed to delete routing', expect.objectContaining({ description: 'In use' }));
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete routing', expect.objectContaining({ description: 'In use' }));
     });
   });
 });

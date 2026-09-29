@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { FeedbackButton } from './FeedbackButton';
@@ -10,7 +11,7 @@ vi.mock('@foundation/src/lib/api/feedback-api', () => ({
 }));
 
 function renderFeedbackButton() {
-  return render(
+  return renderWithQuery(
     <MemoryRouter>
       <FeedbackButton />
     </MemoryRouter>,
@@ -26,10 +27,6 @@ async function openDialog() {
 }
 
 describe('FeedbackButton', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders the feedback trigger button', () => {
     renderFeedbackButton();
     expect(screen.getByRole('button', { name: /send feedback/i })).toBeInTheDocument();

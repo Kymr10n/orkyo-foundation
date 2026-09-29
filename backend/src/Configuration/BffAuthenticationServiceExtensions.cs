@@ -3,6 +3,8 @@ using Api.Security;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
+using Microsoft.AspNetCore.DataProtection.StackExchangeRedis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Orkyo.Shared;
@@ -20,6 +22,20 @@ namespace Api.Configuration;
 /// </summary>
 public static class BffAuthenticationServiceExtensions
 {
+    /// <summary>The one reading of <c>BFF_ENABLED</c> (registration, the scheme selector, the endpoints).</summary>
+    internal static bool IsBffEnabled(IConfiguration configuration) =>
+        string.Equals(configuration[ConfigKeys.BffEnabled], "true", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The one reading of <c>BFF_COOKIE_NAME</c>. Empty counts as absent: the deploy pipeline
+    /// writes <c>KEY=</c> for an unset key, and a <c>??</c> fallback would then look for a cookie
+    /// named "" (the documented cookie-name bug).
+    /// </summary>
+    internal static string CookieName(IConfiguration configuration) =>
+        string.IsNullOrEmpty(configuration[ConfigKeys.BffCookieName])
+            ? BffOptions.DefaultCookieName
+            : configuration[ConfigKeys.BffCookieName]!;
+
     public static IServiceCollection AddBffAuthentication(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -28,9 +44,7 @@ public static class BffAuthenticationServiceExtensions
         services.AddOptions<BffOptions>()
             .Configure<IConfiguration, IHostEnvironment>((opts, config, env) =>
             {
-                var cookieName = config[ConfigKeys.BffCookieName];
-                if (!string.IsNullOrEmpty(cookieName))
-                    opts.CookieName = cookieName;
+                opts.CookieName = CookieName(config);
 
                 // Treat empty string as null — omit Domain attribute so the cookie
                 // defaults to the exact request host (required for localhost dev).
@@ -90,18 +104,22 @@ public static class BffAuthenticationServiceExtensions
         // Persist keys to Valkey when Valkey is configured so they survive container
         // restarts and are shared across blue/green deployment slots. SetApplicationName
         // ensures keys are scoped to this app regardless of the host process name.
-        var dpBuilder = services.AddDataProtection()
+        // The keys go through the process's one IConnectionMultiplexer (AddOrkyoValkey), resolved
+        // when Data Protection first needs them — not a second connection opened here, eagerly,
+        // at registration.
+        services.AddDataProtection()
             .SetApplicationName("orkyo");
         if (!string.IsNullOrEmpty(valkeyConnection))
-            dpBuilder.PersistKeysToStackExchangeRedis(
-                ConnectionMultiplexer.Connect(valkeyConnection),
-                "DataProtection-Keys");
+            services.AddOptions<KeyManagementOptions>()
+                .Configure<IConnectionMultiplexer>((options, valkey) =>
+                    options.XmlRepository = new RedisXmlRepository(() => valkey.GetDatabase(), "DataProtection-Keys"));
 
-        // Named HttpClient for Keycloak token exchange
-        services.AddHttpClient("BffKeycloak");
+        // Keycloak token endpoint: login code exchange and session refresh.
+        services.AddHttpClient(KeycloakTokenClient.HttpClientName);
+        services.AddSingleton<KeycloakTokenClient>();
 
         // Only register the BFF cookie auth scheme when enabled
-        if (string.Equals(configuration[ConfigKeys.BffEnabled], "true", StringComparison.OrdinalIgnoreCase))
+        if (IsBffEnabled(configuration))
         {
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, BffCookieAuthenticationHandler>(

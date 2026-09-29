@@ -18,7 +18,6 @@ const defaultProps = {
 
 describe('TosPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockAcceptTos.mockResolvedValue(undefined);
     defaultProps.onAccept.mockResolvedValue(undefined);
   });

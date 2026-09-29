@@ -4,12 +4,7 @@
 
     <!-- NuGet packaging -->
     <PackageId>Orkyo.Foundation.Core</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Orkyo</Authors>
     <Description>Orkyo Foundation Core — domain models, services, repositories, validators, and interfaces shared across Orkyo product variants. No ASP.NET Core dependency; suitable for worker and CLI hosts.</Description>
-    <PackageTags>orkyo;scheduling;booking;foundation</PackageTags>
-    <RepositoryUrl>https://github.com/Kymr10n/orkyo-foundation</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 

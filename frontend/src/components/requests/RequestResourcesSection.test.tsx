@@ -80,7 +80,6 @@ function renderSection(withWindow = true) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (getResources as Mock).mockResolvedValue(MILLS);
   (getUtilizationByResource as Mock).mockResolvedValue([
     { resourceId: "m-1", buckets: [bucket({ isExclusiveOccupied: true })] },

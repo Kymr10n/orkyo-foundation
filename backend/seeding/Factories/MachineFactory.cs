@@ -122,7 +122,6 @@ public static class MachineFactory
         IReadOnlyDictionary<string, Guid> typeIds,
         IReadOnlyList<SeededMachine> machines)
     {
-        var now = DateTime.UtcNow;
         var machineById = MachineCatalog.All.ToDictionary(m => m.Code, m => m);
 
         // (type key, group name) in catalog order, so the ids line up with how the floor reads.
@@ -131,45 +130,16 @@ public static class MachineFactory
             .Distinct()
             .ToList();
 
+        var ids = await ResourceGroupSeedHelpers.CopyGroupsAsync(
+            conn, cells.Select(c => (c.GroupName, typeIds[c.TypeKey])).ToList());
         var groupIds = new Dictionary<(string TypeKey, string GroupName), Guid>();
+        for (var i = 0; i < cells.Count; i++) groupIds[cells[i]] = ids[i];
 
-        using (var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_groups (id, name, description, color, display_order, resource_type_id, created_at, updated_at) " +
-            "FROM STDIN (FORMAT BINARY)"))
+        var members = await ResourceGroupSeedHelpers.CopyMembersAsync(conn, machines.Select(machine =>
         {
-            for (var i = 0; i < cells.Count; i++)
-            {
-                var id = Guid.NewGuid();
-                groupIds[cells[i]] = id;
-                await writer.StartRowAsync();
-                await writer.WriteAsync(id, NpgsqlDbType.Uuid);
-                await writer.WriteAsync(cells[i].GroupName, NpgsqlDbType.Varchar);
-                await writer.WriteNullAsync();                              // description
-                await writer.WriteNullAsync();                              // color
-                await writer.WriteAsync(i, NpgsqlDbType.Integer);
-                await writer.WriteAsync(typeIds[cells[i].TypeKey], NpgsqlDbType.Uuid);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-                await writer.WriteAsync(now, NpgsqlDbType.TimestampTz);
-            }
-            await writer.CompleteAsync();
-        }
-
-        var members = 0;
-        using (var writer = await conn.BeginBinaryImportAsync(
-            "COPY public.resource_group_members (resource_group_id, resource_id, resource_type_id) " +
-            "FROM STDIN (FORMAT BINARY)"))
-        {
-            foreach (var machine in machines)
-            {
-                var spec = machineById[machine.Code];
-                await writer.StartRowAsync();
-                await writer.WriteAsync(groupIds[(spec.TypeKey, spec.GroupName)], NpgsqlDbType.Uuid);
-                await writer.WriteAsync(machine.Id, NpgsqlDbType.Uuid);
-                await writer.WriteAsync(typeIds[spec.TypeKey], NpgsqlDbType.Uuid);
-                members++;
-            }
-            await writer.CompleteAsync();
-        }
+            var spec = machineById[machine.Code];
+            return (groupIds[(spec.TypeKey, spec.GroupName)], machine.Id, typeIds[spec.TypeKey]);
+        }));
 
         return (cells.Count, members);
     }

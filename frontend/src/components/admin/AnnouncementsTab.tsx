@@ -12,6 +12,7 @@ import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { Input } from '@foundation/src/components/ui/input';
 import { Label } from '@foundation/src/components/ui/label';
 import { Textarea } from '@foundation/src/components/ui/textarea';
@@ -21,12 +22,7 @@ import { DateTimePicker } from '@foundation/src/components/ui/date-time-picker';
 import { FormDialog } from '@foundation/src/components/ui/FormDialog';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { Plus, Pencil, Trash2, Megaphone, AlertTriangle } from 'lucide-react';
-import {
-  type Announcement,
-  type AnnouncementChannel,
-  type CreateAnnouncementRequest,
-  type UpdateAnnouncementRequest,
-} from '@foundation/src/lib/api/announcement-api';
+import type { Announcement, AnnouncementChannel } from '@foundation/src/lib/api/announcement-api';
 import {
   useAdminAnnouncements,
   useDeleteAnnouncement,
@@ -34,6 +30,7 @@ import {
 } from '@foundation/src/hooks/usePlatformAdmin';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
+import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 
 /** Selectable delivery channels for new announcements (label + hint). */
@@ -52,7 +49,7 @@ function announcementStatus(a: Announcement): 'Expired' | 'Important' | 'Active'
 // ============================================================================
 
 export function AnnouncementsTab() {
-  const { data, isLoading, error: loadError } = useAdminAnnouncements();
+  const { data, isLoading, error: loadError, refetch } = useAdminAnnouncements();
   const announcements = data?.announcements ?? [];
   const [error, setError] = useState<string | null>(null);
 
@@ -73,6 +70,17 @@ export function AnnouncementsTab() {
     if (!deletingAnnouncement) return;
     deleteMutation.mutate(deletingAnnouncement.id);
   };
+
+  // Shared row actions — desktop table cell and phone card.
+  const renderActions = (a: Announcement) => (
+    <RowActions
+      triggerLabel={`Actions for ${a.title}`}
+      actions={[
+        { label: 'Edit', icon: Pencil, onSelect: () => setEditingAnnouncement(a) },
+        { label: 'Delete', icon: Trash2, onSelect: () => setDeletingAnnouncement(a), destructive: true },
+      ]}
+    />
+  );
 
   const columns: ColumnDef<Announcement>[] = [
     {
@@ -146,31 +154,7 @@ export function AnnouncementsTab() {
       id: 'actions',
       header: () => null,
       size: 96,
-      cell: ({ row }) => {
-        const a = row.original;
-        return (
-          <div className="flex items-center justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={(e) => { e.stopPropagation(); setEditingAnnouncement(a); }}
-              aria-label={`Edit ${a.title}`}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:text-destructive"
-              onClick={(e) => { e.stopPropagation(); setDeletingAnnouncement(a); }}
-              aria-label={`Delete ${a.title}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        );
-      },
+      cell: ({ row }) => renderActions(row.original),
     },
   ];
 
@@ -198,26 +182,7 @@ export function AnnouncementsTab() {
           {formatDateDisplay(a.createdAt)} · expires {formatDateDisplay(a.expiresAt)}
         </p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          onClick={(e) => { e.stopPropagation(); setEditingAnnouncement(a); }}
-          aria-label={`Edit ${a.title}`}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-destructive hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); setDeletingAnnouncement(a); }}
-          aria-label={`Delete ${a.title}`}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
+      <div className="shrink-0">{renderActions(a)}</div>
     </div>
   );
 
@@ -251,7 +216,7 @@ export function AnnouncementsTab() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 empty:mb-0">
-            <ErrorAlert message={error ?? (loadError instanceof Error ? loadError.message : null)} />
+            <ErrorAlert message={error} />
           </div>
 
           <OrkyoDataTable
@@ -259,6 +224,9 @@ export function AnnouncementsTab() {
             onRowClick={(a) => setEditingAnnouncement(a)}
             columns={columns}
             data={announcements}
+            error={loadError}
+            errorFallback="Failed to load announcements"
+            onRetry={() => void refetch()}
             emptyMessage="No announcements yet. Create one to get started."
             renderCard={renderCard}
           />
@@ -300,6 +268,16 @@ export function AnnouncementsTab() {
 // Form Dialog (Create + Edit)
 // ============================================================================
 
+interface AnnouncementForm {
+  title: string;
+  body: string;
+  isImportant: boolean;
+  channels: AnnouncementChannel[];
+  /** Raw input text, so an emptied box is not read as 0 while retyping. */
+  retentionDays: string;
+  expiresAt: string;
+}
+
 function AnnouncementFormDialog({
   open,
   announcement,
@@ -313,73 +291,65 @@ function AnnouncementFormDialog({
 }) {
   const isEdit = !!announcement;
 
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [isImportant, setIsImportant] = useState(false);
-  const [channels, setChannels] = useState<AnnouncementChannel[]>(['site']);
-  const [retentionDays, setRetentionDays] = useState('90');
-  const [expiresAt, setExpiresAt] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  const saveMutation = useSaveAnnouncement(announcement, {
-    onSuccess: onSaved,
-    onError: (err) => setError(errorMessage(err)),
+  const mutation = useSaveAnnouncement();
+  const { form, set, setForm, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
+    open,
+    onOpenChange,
+    entity: announcement,
+    emptyForm: (): AnnouncementForm => ({
+      title: '',
+      body: '',
+      isImportant: false,
+      channels: ['site'],
+      retentionDays: '90',
+      expiresAt: '',
+    }),
+    toForm: (a: Announcement): AnnouncementForm => ({
+      title: a.title,
+      body: a.body,
+      isImportant: a.isImportant,
+      // Channels and retention are chosen at creation only; the edit form does not show them.
+      channels: ['site'],
+      retentionDays: '90',
+      // Format for datetime-local input
+      expiresAt: a.expiresAt ? toDateTimeLocalValue(a.expiresAt) : '',
+    }),
+    mutation,
+    toVariables: (f: AnnouncementForm, a: Announcement | null) => {
+      if (a) {
+        return {
+          id: a.id,
+          data: {
+            title: f.title,
+            body: f.body,
+            isImportant: f.isImportant,
+            expiresAt: f.expiresAt ? new Date(f.expiresAt).toISOString() : undefined,
+          },
+        };
+      }
+      const days = parseInt(f.retentionDays, 10);
+      return {
+        id: null,
+        data: {
+          title: f.title,
+          body: f.body,
+          isImportant: f.isImportant,
+          retentionDays: isNaN(days) ? 90 : days,
+          channels: f.channels,
+        },
+      };
+    },
+    onSaved,
   });
+  const { title, body, isImportant, channels, retentionDays, expiresAt } = form;
 
   const toggleChannel = (channel: AnnouncementChannel, checked: boolean) =>
-    setChannels((prev) =>
-      checked ? [...new Set([...prev, channel])] : prev.filter((c) => c !== channel),
-    );
-
-  // Populate the form on open — a render-phase update, not an effect (see useEntityFormDialog.ts).
-  const [synced, setSynced] = useState<{
-    open: boolean;
-    announcement: Announcement | null;
-  } | null>(null);
-  if (synced?.open !== open || synced.announcement !== announcement) {
-    setSynced({ open, announcement });
-    if (open) {
-      if (announcement) {
-        setTitle(announcement.title);
-        setBody(announcement.body);
-        setIsImportant(announcement.isImportant);
-        // Format for datetime-local input
-        setExpiresAt(announcement.expiresAt ? toDateTimeLocalValue(announcement.expiresAt) : '');
-      } else {
-        setTitle('');
-        setBody('');
-        setIsImportant(false);
-        setChannels(['site']);
-        setRetentionDays('90');
-        setExpiresAt('');
-      }
-      setError(null);
-    }
-  }
-
-  const handleSubmit = () => {
-    setError(null);
-
-    if (isEdit) {
-      const data: UpdateAnnouncementRequest = {
-        title,
-        body,
-        isImportant,
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-      };
-      saveMutation.mutate(data);
-    } else {
-      const days = parseInt(retentionDays, 10);
-      const data: CreateAnnouncementRequest = {
-        title,
-        body,
-        isImportant,
-        retentionDays: isNaN(days) ? 90 : days,
-        channels,
-      };
-      saveMutation.mutate(data);
-    }
-  };
+    setForm((prev) => ({
+      ...prev,
+      channels: checked
+        ? [...new Set([...prev.channels, channel])]
+        : prev.channels.filter((c) => c !== channel),
+    }));
 
   return (
     <FormDialog
@@ -392,8 +362,9 @@ function AnnouncementFormDialog({
           : 'Create a platform-wide announcement visible to all users.'
       }
       error={error}
-      onSubmit={handleSubmit}
-      isSubmitting={saveMutation.isPending}
+      dirty={isDirty}
+      onSubmit={submit}
+      isSubmitting={isSubmitting}
       submitLabel={isEdit ? 'Save Changes' : 'Create'}
       submittingLabel="Saving…"
       submitDisabled={!title.trim() || !body.trim() || (!isEdit && channels.length === 0)}
@@ -404,7 +375,7 @@ function AnnouncementFormDialog({
         <Input
           id="ann-title"
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => set({ title: e.target.value })}
           placeholder="Scheduled maintenance on Friday"
           maxLength={200}
         />
@@ -415,8 +386,8 @@ function AnnouncementFormDialog({
         <Textarea
           id="ann-body"
           value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="Details about the announcement..."
+          onChange={(e) => set({ body: e.target.value })}
+          placeholder="Details about the announcement…"
           rows={5}
           maxLength={5000}
         />
@@ -427,7 +398,7 @@ function AnnouncementFormDialog({
         <Switch
           id="ann-important"
           checked={isImportant}
-          onCheckedChange={setIsImportant}
+          onCheckedChange={(checked) => set({ isImportant: checked })}
           className="mt-0.5"
         />
         <Label htmlFor="ann-important" className="cursor-pointer font-normal">
@@ -463,7 +434,7 @@ function AnnouncementFormDialog({
           <DateTimePicker
             id="ann-expires"
             value={expiresAt}
-            onChange={setExpiresAt}
+            onChange={(value) => set({ expiresAt: value })}
             placeholder="Pick expiration date & time"
           />
         </div>
@@ -476,7 +447,7 @@ function AnnouncementFormDialog({
             min={1}
             max={3650}
             value={retentionDays}
-            onChange={(e) => setRetentionDays(e.target.value)}
+            onChange={(e) => set({ retentionDays: e.target.value })}
           />
           <p className="text-xs text-muted-foreground">
             Announcement expires after this many days. Default: 90.

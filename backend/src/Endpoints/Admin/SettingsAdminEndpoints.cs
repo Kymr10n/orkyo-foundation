@@ -17,12 +17,10 @@ public static class SettingsAdminEndpoints
         var group = app.MapSiteAdminGroup();
 
         group.MapGet("/settings", GetSettings)
-            .RequireSiteAdmin()
             .WithName("AdminGetSettings")
             .WithSummary("Get platform settings: editable runtime config and read-only deployment info");
 
         group.MapPut("/settings", UpdateSettings)
-            .RequireSiteAdmin()
             .WithName("AdminUpdateSettings")
             .WithSummary("Update runtime settings");
     }
@@ -169,9 +167,4 @@ public sealed class SystemInfo
     public required bool SmtpConfigured { get; init; }
     public required string AuthProvider { get; init; }
     public required string AuthRealm { get; init; }
-}
-
-public sealed class UpdateSettingsRequest
-{
-    public required Dictionary<string, string> Settings { get; init; }
 }

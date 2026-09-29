@@ -58,7 +58,7 @@ public class KeycloakAdminServiceTests
         var handler = new StubHttpMessageHandler(Dispatch(routes));
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         return new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
-            TimeProvider.System);
+            TimeProvider.System, new KeycloakAdminTokenCache());
     }
 
     /// <summary>
@@ -72,7 +72,7 @@ public class KeycloakAdminServiceTests
         var handler = new StubHttpMessageHandler(responder);
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
         return (new KeycloakAdminService(client, DefaultConfiguration, NullLogger<KeycloakAdminService>.Instance, DefaultOptions,
-            TimeProvider.System), handler);
+            TimeProvider.System, new KeycloakAdminTokenCache()), handler);
     }
 
     // Token + user lookup preamble that every method needs.
@@ -302,12 +302,71 @@ public class KeycloakAdminServiceTests
         await act.Should().NotThrowAsync();
     }
 
+    // ── VerifyCurrentPasswordAsync ───────────────────────────────────────
+
+    /// <summary>Admin token, user lookup, and a password grant that succeeds only for the given
+    /// password and (when required) the given TOTP code — the realm's conditional-OTP step.</summary>
+    /// <summary>The credential the fake realm accepts and the tests send; a fixture, not a real value.</summary>
+    private const string CurrentCredential = "fixture-value";
+    private const string KcUserId = "kc-user-id";
+
+    private static HttpResponseMessage PasswordGrantResponder(HttpRequestMessage req, string? requiredTotp)
+    {
+        var url = req.RequestUri!.ToString();
+        if (url.Contains("openid-connect/token"))
+        {
+            var form = req.Content!.ReadAsStringAsync().Result;
+            if (!form.Contains("grant_type=password"))
+                return Json(HttpStatusCode.OK, TokenJson());
+            var ok = form.Contains($"password={CurrentCredential}")
+                && (requiredTotp is null || form.Contains($"totp={requiredTotp}"));
+            return Json(ok ? HttpStatusCode.OK : HttpStatusCode.Unauthorized, ok ? TokenJson() : """{"error":"invalid_grant"}""");
+        }
+        return Json(HttpStatusCode.OK, UserJson());
+    }
+
+    private static HttpResponseMessage Json(HttpStatusCode status, string body) =>
+        new(status) { Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json") };
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_SendsTheTotpCode_WhenGiven()
+    {
+        var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
+
+        await svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential, totp: "654321");
+
+        var grant = handler.Bodies.Single(b => b.Contains("grant_type=password"));
+        grant.Should().Contain("totp=654321");
+    }
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_OmitsTotp_WhenNotGiven()
+    {
+        var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: null));
+
+        await svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential);
+
+        handler.Bodies.Single(b => b.Contains("grant_type=password")).Should().NotContain("totp=");
+    }
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_ARejectedGrant_IsTheIncorrectPasswordError()
+    {
+        // A TOTP user without the code and a wrong password come back the same way from Keycloak.
+        var (svc, _) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
+
+        var act = () => svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential);
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(400);
+    }
+
     [Fact]
     public async Task CreateUserAsync_SetsPassword_ViaResetPasswordEndpoint()
     {
         var (svc, handler) = BuildCapturing(req => CreateUserResponder(req));
 
-        await svc.CreateUserAsync("new@example.com", "s3cret-pass", emailVerified: true);
+        await svc.CreateUserAsync("new@example.com", CurrentCredential, emailVerified: true);
 
         // Keycloak 26 ignores inline credentials on creation, so the password must be set by a
         // dedicated reset-password PUT for the newly created user, carrying a non-temporary credential.
@@ -315,7 +374,7 @@ public class KeycloakAdminServiceTests
             r.Method == HttpMethod.Put &&
             r.RequestUri!.ToString().Contains("/users/new-user-id/reset-password"));
         pwIndex.Should().BeGreaterThanOrEqualTo(0, "the password must be set via reset-password");
-        handler.Bodies[pwIndex].Should().Contain("s3cret-pass");
+        handler.Bodies[pwIndex].Should().Contain(CurrentCredential);
         handler.Bodies[pwIndex].Should().Contain("\"temporary\":false");
     }
 
@@ -351,7 +410,7 @@ public class KeycloakAdminServiceTests
             return resp;
         });
 
-        var act = () => svc.CreateUserAsync("new@example.com", "s3cret-pass", emailVerified: true, ct: cts.Token);
+        var act = () => svc.CreateUserAsync("new@example.com", CurrentCredential, emailVerified: true, ct: cts.Token);
 
         await act.Should().NotThrowAsync();
         handler.Requests.Should().Contain(r =>
@@ -540,6 +599,37 @@ public class KeycloakAdminServiceTests
         var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "missing-cred");
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+    }
+
+    [Fact]
+    public async Task DeleteUserCredentialAsync_FailsClosed_WhenOwnershipCheckFails()
+    {
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(new[]
+        {
+            ("/users/kc-user-id/credentials", HttpStatusCode.InternalServerError, "")
+        })));
+
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc");
+
+        await act.Should().ThrowAsync<KeycloakAdminException>();
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Delete,
+            "an unverifiable credential must not be deleted");
+    }
+
+    [Fact]
+    public async Task CallerSuppliedPathSegments_AreEscaped()
+    {
+        var (svc, handler) = BuildCapturing(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(TokenJson())
+        });
+
+        await svc.DisableUserAsync("a/../b?x=1");
+        await svc.RevokeSessionAsync("s/../../users");
+
+        var paths = handler.Requests.Select(r => r.RequestUri!.AbsoluteUri).ToList();
+        paths.Should().Contain(u => u.EndsWith("/users/a%2F..%2Fb%3Fx%3D1"));
+        paths.Should().Contain(u => u.EndsWith("/sessions/s%2F..%2F..%2Fusers"));
     }
 
     // ── GetUserProfileAsync ────────────────────────────────────────────────
@@ -764,16 +854,17 @@ public class KeycloakAdminServiceTests
         });
 
         var client = new HttpClient(handler) { BaseAddress = new Uri("http://keycloak:8080") };
-        var svc = new KeycloakAdminService(client, DefaultConfiguration,
-            NullLogger<KeycloakAdminService>.Instance, DefaultOptions, TimeProvider.System);
+        var cache = new KeycloakAdminTokenCache();
+        KeycloakAdminService NewService() => new(client, DefaultConfiguration,
+            NullLogger<KeycloakAdminService>.Instance, DefaultOptions, TimeProvider.System, cache);
 
-        // Two calls — token should only be fetched once
-        await svc.UserExistsAsync("a@a.com");
+        // Two instances, as two requests get from the transient typed client — token fetched once.
+        await NewService().UserExistsAsync("a@a.com");
         var requestsAfterFirstCall = handler.Requests.Count; // token + users-search
 
         // If the token is cached the only HTTP request sent for this call
         // is the actual user-search request (not another token request).
-        await svc.UserExistsAsync("b@b.com");
+        await NewService().UserExistsAsync("b@b.com");
 
         (handler.Requests.Count - requestsAfterFirstCall).Should().Be(1);
     }

@@ -21,12 +21,15 @@ public sealed class KeycloakOptions
 
     /// <summary>
     /// Optional internal base URL (e.g. http://keycloak:8080).
-    /// Falls back to <see cref="BaseUrl"/> when unset (local dev).
+    /// Falls back to <see cref="BaseUrl"/> when unset or empty (local dev).
     /// </summary>
     public string? InternalBaseUrl { get; init; }
 
-    /// <summary>Effective base URL for server-to-server calls.</summary>
-    public string EffectiveInternalBaseUrl => InternalBaseUrl ?? BaseUrl;
+    /// <summary>
+    /// Effective base URL for server-to-server calls. Empty counts as unset: an empty internal
+    /// URL would otherwise turn every token and admin URL into a relative one.
+    /// </summary>
+    public string EffectiveInternalBaseUrl => string.IsNullOrEmpty(InternalBaseUrl) ? BaseUrl : InternalBaseUrl;
 
     /// <summary>Internal OIDC authority (for backchannel token requests).</summary>
     public string InternalAuthority => $"{EffectiveInternalBaseUrl}/realms/{Realm}";
@@ -52,14 +55,20 @@ public sealed class KeycloakOptions
     /// </summary>
     public static KeycloakOptions FromConfiguration(IConfiguration configuration)
     {
+        // Empty counts as absent, as in GetRequired/IsSet (which this assembly cannot reference):
+        // the deploy pipeline writes `KEY=` for every unset key, and `?? throw` let "" through.
         string Require(string key) =>
-            configuration[key]
-            ?? throw new InvalidOperationException($"{key} is not configured");
+            configuration[key] is { Length: > 0 } value
+                ? value
+                : throw new InvalidOperationException($"{key} is not configured");
+
+        string? Optional(string key) =>
+            configuration[key] is { Length: > 0 } value ? value : null;
 
         return new KeycloakOptions
         {
             BaseUrl = Require(ConfigKeys.KeycloakUrl),
-            InternalBaseUrl = configuration[ConfigKeys.KeycloakInternalUrl],
+            InternalBaseUrl = Optional(ConfigKeys.KeycloakInternalUrl),
             Realm = Require(ConfigKeys.KeycloakRealm),
             BackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
             BackendClientSecret = Require(ConfigKeys.KeycloakBackendClientSecret),

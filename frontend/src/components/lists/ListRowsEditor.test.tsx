@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { ListRowsEditor } from './ListRowsEditor';
 import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { toast } from 'sonner';
 
 const getListRows = vi.fn();
 const createListRow = vi.fn();
@@ -64,7 +65,6 @@ function renderEditor(props: Partial<React.ComponentProps<typeof ListRowsEditor>
 
 describe('ListRowsEditor', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     getListRows.mockResolvedValue([existingRow]);
     createListRow.mockResolvedValue({ ...existingRow, id: 'r2' });
     updateListRow.mockResolvedValue(existingRow);
@@ -97,6 +97,21 @@ describe('ListRowsEditor', () => {
     expect(createListRow).toHaveBeenCalledWith('created-1', { values: { note: 'first' } });
   });
 
+  it('does not open the dialog when the instance cannot be created', async () => {
+    // The mutation's meta toasts the failure; the rejection must not escape the click handler.
+    const ensureInstanceId = vi.fn().mockRejectedValue(new Error('boom'));
+    getListRows.mockResolvedValue([]);
+
+    const user = userEvent.setup();
+    renderEditor({ instanceId: null, ensureInstanceId });
+
+    await user.click(screen.getByRole('button', { name: /add row/i }));
+
+    await waitFor(() => expect(ensureInstanceId).toHaveBeenCalledTimes(1));
+    expect(screen.queryByLabelText('Note')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /add row/i })).toBeEnabled();
+  });
+
   it('does not create an instance when one already exists', async () => {
     const ensureInstanceId = vi.fn();
     const user = userEvent.setup();
@@ -119,6 +134,24 @@ describe('ListRowsEditor', () => {
 
     await waitFor(() => expect(updateListRow).toHaveBeenCalled());
     expect(updateListRow).toHaveBeenCalledWith('i1', 'r1', { values: { note: 'new brakes' } });
+  });
+
+  it('reports a save once: one success toast, and a failure inline only', async () => {
+    // The dialog used to wrap the row mutation in a second one, so each save toasted twice
+    // and a failure showed inline and as a toast.
+    const user = userEvent.setup();
+    renderWithQuery(<ListRowsEditor columns={columns} instanceId="i1" />, { feedback: true });
+
+    await user.click(await screen.findByRole('button', { name: 'Edit row' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Row updated'));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+
+    updateListRow.mockRejectedValueOnce(new Error('Row is locked'));
+    await user.click(await screen.findByRole('button', { name: 'Edit row' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Row is locked')).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('opens the edit dialog from the row itself, not only the pencil', async () => {

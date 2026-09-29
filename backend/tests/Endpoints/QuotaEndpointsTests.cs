@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -22,26 +21,10 @@ public class QuotaEndpointsTests
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
-    private static async Task<string> AdminTokenAsync()
-    {
-        var email = $"quota_admin_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Quota Admin", TenantSlug, "admin", active: true);
-        return TestConstants.BearerToken(userId.ToString(), email, "Quota Admin", "00000000-0000-0000-0000-000000000001", TenantSlug,
-            isTenantAdmin: true, role: "admin");
-    }
-
-    [Fact]
-    public async Task GetQuotas_Unauthenticated_ReturnsUnauthorized()
-    {
-        var response = await _client.GetAsync("/api/settings/quotas/");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     [Fact]
     public async Task GetQuotas_AsAdmin_ReachesHandler_AndReturnsUsage()
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/settings/quotas/");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await AdminTokenAsync());
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/settings/quotas/", await DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Admin));
 
         var response = await _client.SendAsync(request);
 

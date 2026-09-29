@@ -17,7 +17,18 @@ export const API_ERROR_CODES = {
   ACCOUNT_LOCKED: 'account_locked',
   /** Tier/plan quota for a resource (sites, spaces, seats) has been reached. */
   QUOTA_EXCEEDED: 'quota_exceeded',
+  /** The server could not deliver a mail the action depends on (e.g. an email-change confirmation). */
+  EMAIL_DELIVERY_FAILED: 'email_delivery_failed',
 } as const;
+
+/**
+ * User-facing text for a code, used in place of the server's `detail`. `handleApiError` puts
+ * it on the thrown `ApiError`, so every surface (inline alert or toast) shows the same text.
+ */
+export const API_ERROR_MESSAGES: Partial<Record<string, string>> = {
+  [API_ERROR_CODES.EMAIL_DELIVERY_FAILED]:
+    'We could not send the confirmation email. Check the address and try again later.',
+};
 
 /**
  * The single error body shape the application API returns: RFC 7807 ProblemDetails plus the

@@ -177,7 +177,7 @@ public class SchedulingEngineTests
     public void CalculateSchedule_WithoutSettings_ReturnsPlainElapsedTime()
     {
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, false, null, null);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, null, null);
 
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start.AddMinutes(120));
@@ -185,20 +185,11 @@ public class SchedulingEngineTests
     }
 
     [Fact]
-    public void CalculateSchedule_SettingsApplyButNull_ReturnsPlainElapsedTime()
-    {
-        var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, null, null);
-
-        result.ActualEnd.Should().Be(start.AddMinutes(60));
-    }
-
-    [Fact]
     public void CalculateSchedule_WorkingHoursDisabled_ReturnsPlainElapsedTime()
     {
         var settings = MakeSettings(workingHoursEnabled: false);
         var start = new DateTime(2026, 4, 1, 22, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, null);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, null);
 
         result.ActualEnd.Should().Be(start.AddMinutes(60));
     }
@@ -211,7 +202,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Wednesday 2026-04-01 10:00 UTC
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start.AddMinutes(60));
@@ -224,7 +215,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Wednesday 2026-04-01 16:00 UTC — 60 min left in day, requesting 120min
         var start = new DateTime(2026, 4, 1, 16, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, []);
 
         result.ActualStart.Should().Be(start);
         // 60 min consumed on day 1 (16:00-17:00), then 60 min on day 2 (08:00-09:00)
@@ -238,7 +229,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Wednesday 2026-04-01 05:00 UTC — before working hours
         var start = new DateTime(2026, 4, 1, 5, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         // Should snap to 08:00
         result.ActualStart.Should().Be(new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc));
@@ -251,7 +242,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Wednesday 2026-04-01 20:00 UTC — after working hours
         var start = new DateTime(2026, 4, 1, 20, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         result.ActualStart.Should().Be(new DateTime(2026, 4, 2, 8, 0, 0, DateTimeKind.Utc));
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 2, 9, 0, 0, DateTimeKind.Utc));
@@ -265,7 +256,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(weekendsEnabled: false); // 08:00-17:00, no weekends
         // Friday 2026-04-03 16:00 UTC — 60 min left, requesting 120
         var start = new DateTime(2026, 4, 3, 16, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, []);
 
         // 60 min Friday 16:00-17:00, skip Sat+Sun, 60 min Monday 08:00-09:00
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 6, 9, 0, 0, DateTimeKind.Utc));
@@ -277,7 +268,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(weekendsEnabled: false);
         // Saturday 2026-04-04 10:00 UTC
         var start = new DateTime(2026, 4, 4, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         result.ActualStart.Should().Be(new DateTime(2026, 4, 6, 8, 0, 0, DateTimeKind.Utc));
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 6, 9, 0, 0, DateTimeKind.Utc));
@@ -289,7 +280,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(weekendsEnabled: true);
         // Saturday 2026-04-04 10:00 UTC
         var start = new DateTime(2026, 4, 4, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start.AddMinutes(60));
@@ -311,7 +302,7 @@ public class SchedulingEngineTests
 
         // Start at 09:00, request 120 min
         var start = new DateTime(2026, 4, 1, 9, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, offTimes);
 
         // 60 min: 09:00-10:00, then skip 10:00-12:00, then 60 min: 12:00-13:00
         result.ActualStart.Should().Be(start);
@@ -330,7 +321,7 @@ public class SchedulingEngineTests
         };
 
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, offTimes);
 
         result.ActualStart.Should().Be(new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc));
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 1, 13, 0, 0, DateTimeKind.Utc));
@@ -344,7 +335,7 @@ public class SchedulingEngineTests
         var offTimes = new List<BlockedPeriod>();
 
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, offTimes);
 
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start.AddMinutes(60));
@@ -359,7 +350,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(timeZone: "Europe/Berlin");
         // 05:00 UTC = 07:00 Berlin → before working hours
         var start = new DateTime(2026, 4, 1, 5, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         // Should snap to 08:00 Berlin = 06:00 UTC
         result.ActualStart.Should().Be(new DateTime(2026, 4, 1, 6, 0, 0, DateTimeKind.Utc));
@@ -467,7 +458,7 @@ public class SchedulingEngineTests
     {
         var settings = MakeSettings();
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 0, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 0, settings, []);
 
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start);
@@ -490,7 +481,7 @@ public class SchedulingEngineTests
 
         // Start at 09:00, request 120 min
         var start = new DateTime(2026, 4, 1, 9, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, offTimes);
 
         // 60 min: 09:00-10:00, skip 10:00-14:00 (off-time), then 60 min: 14:00-15:00
         result.ActualStart.Should().Be(start);
@@ -509,7 +500,7 @@ public class SchedulingEngineTests
         };
 
         var start = new DateTime(2026, 4, 1, 10, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, offTimes);
 
         result.ActualStart.Should().Be(new DateTime(2026, 4, 1, 12, 0, 0, DateTimeKind.Utc));
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 1, 13, 0, 0, DateTimeKind.Utc));
@@ -521,7 +512,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(workingHoursEnabled: false);
         // Midnight on a Saturday — should still work because weekends + hours both disabled in effect
         var start = new DateTime(2026, 4, 4, 3, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, []);
 
         result.ActualStart.Should().Be(start);
         result.ActualEnd.Should().Be(start.AddMinutes(120));
@@ -545,7 +536,7 @@ public class SchedulingEngineTests
 
         // Start at 08:00, request 180 min (3h)
         var start = new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 180, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 180, settings, offTimes);
 
         // 60 min: 08:00-09:00, skip 09:00-10:00, 60 min: 10:00-11:00, skip 11:00-12:00, 60 min: 12:00-13:00
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 1, 13, 0, 0, DateTimeKind.Utc));
@@ -559,7 +550,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC → 540 min/day
         // Wednesday 2026-04-01 08:00 UTC, request 3 working days + 2h
         var start = new DateTime(2026, 4, 1, 8, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 3 * 540 + 120, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 3 * 540 + 120, settings, []);
 
         result.ActualStart.Should().Be(start);
         // Full days Wed/Thu/Fri, then 120 min Saturday 08:00-10:00 (weekends enabled)
@@ -580,7 +571,7 @@ public class SchedulingEngineTests
 
         // Start Wed 14:00, request 120 min
         var start = new DateTime(2026, 4, 1, 14, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, offTimes);
 
         // 60 min Wed 14:00-15:00, skip to Thu 10:00, 60 min Thu 10:00-11:00
         result.ActualStart.Should().Be(start);
@@ -601,7 +592,7 @@ public class SchedulingEngineTests
 
         // Start Wed 15:00, request 120 min
         var start = new DateTime(2026, 4, 1, 15, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 120, true, settings, offTimes);
+        var result = SchedulingEngine.CalculateSchedule(start, 120, settings, offTimes);
 
         // 60 min Wed 15:00-16:00, off-time ends 20:00 (after hours), 60 min Thu 08:00-09:00
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 2, 9, 0, 0, DateTimeKind.Utc));
@@ -613,7 +604,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Wednesday 2026-04-01 16:00 UTC, request exactly the 60 min left in the day
         var start = new DateTime(2026, 4, 1, 16, 0, 0, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         result.ActualEnd.Should().Be(new DateTime(2026, 4, 1, 17, 0, 0, DateTimeKind.Utc));
         result.ActualDurationMinutes.Should().Be(60);
@@ -625,7 +616,7 @@ public class SchedulingEngineTests
         var settings = MakeSettings(); // 08:00-17:00 UTC
         // Start at 16:30:30 — the minute grid is anchored at the start instant
         var start = new DateTime(2026, 4, 1, 16, 30, 30, DateTimeKind.Utc);
-        var result = SchedulingEngine.CalculateSchedule(start, 60, true, settings, []);
+        var result = SchedulingEngine.CalculateSchedule(start, 60, settings, []);
 
         // 30 grid minutes fit before 17:00 (16:30:30 .. 16:59:30), the instant
         // 17:00:30 is outside working hours → remaining 30 min on day 2
@@ -668,7 +659,7 @@ public class SchedulingEngineTests
             var duration = rng.Next(0, 3000);
 
             var expected = MinuteSteppingReference(start, duration, settings, offTimes);
-            var actual = SchedulingEngine.CalculateSchedule(start, duration, true, settings, offTimes);
+            var actual = SchedulingEngine.CalculateSchedule(start, duration, settings, offTimes);
 
             actual.Should().Be(expected,
                 $"case {i}: start={start:O}, duration={duration}, tz={settings.TimeZone}, " +

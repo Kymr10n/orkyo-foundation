@@ -61,22 +61,14 @@ public static class AiAllowanceEndpoints
         ICurrentPrincipal principal,
         CancellationToken ct)
     {
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
-        try
+        // The ranges are the validator's; the service's own guard is a programming-error check.
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             await access.SetDailyLimitsAsync(
                 request.UserDailyTurns, request.TenantDailyTurns,
                 principal.UserIdOrNull, ct);
             return Results.NoContent();
-        }
-        catch (ArgumentOutOfRangeException ex)
-        {
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
-        }
+        }, ct);
     }
 
     private static async Task<IResult> ListAllowances(
@@ -92,22 +84,13 @@ public static class AiAllowanceEndpoints
         ICurrentPrincipal principal,
         CancellationToken ct)
     {
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
-        try
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             await access.SetAllowanceAsync(
                 userId, request.MonthlyTokenLimit,
                 principal.UserIdOrNull, ct);
             return Results.NoContent();
-        }
-        catch (ArgumentOutOfRangeException ex)
-        {
-            return ProblemResults.Problem(StatusCodes.Status400BadRequest,
-                Api.Constants.ApiErrorCodes.ValidationError, detail: ex.Message);
-        }
+        }, ct);
     }
 
     private static async Task<IResult> RevokeAllowance(

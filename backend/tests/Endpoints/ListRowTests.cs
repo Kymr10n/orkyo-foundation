@@ -25,9 +25,6 @@ public class ListRowTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
     private static Dictionary<string, JsonElement> Values(params (string Key, string Raw)[] cells) =>
@@ -37,7 +34,7 @@ public class ListRowTests
     private async Task<ListDefinitionInfo> CreateLogDefinitionAsync(bool noteRequired = false)
     {
         var created = await _client.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Maintenance log") });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Maintenance log") });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
 
@@ -58,7 +55,7 @@ public class ListRowTests
     private async Task<ListInstanceInfo> CreateSharedInstanceAsync(Guid definitionId)
     {
         var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definitionId}/instances",
-            new CreateListInstanceRequest { Name = UniqueName("Standard") });
+            new CreateListInstanceRequest { Name = TestHelpers.UniqueName("Standard") });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ListInstanceInfo>())!;
     }
@@ -67,7 +64,7 @@ public class ListRowTests
     private async Task<ListDefinitionInfo> CreateTreeDefinitionAsync()
     {
         var created = await _client.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Departments") });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Departments") });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
 
@@ -99,18 +96,6 @@ public class ListRowTests
         {
             Values = Values(("name", $"\"{row.Values["name"].GetString()}\""), ("parent", $"\"{parentId}\"")),
         });
-
-    private async Task<ResourceTypeInfo> CreateResourceTypeAsync()
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = UniqueKey("machine"),
-            DisplayName = "Machine",
-            DisplayNamePlural = "Machines",
-        });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
-    }
 
     private async Task<ResourceCustomFieldInfo> CreateListFieldAsync(Guid typeId, Guid definitionId)
     {
@@ -144,7 +129,7 @@ public class ListRowTests
     public async Task ResolverGet_BeforeAnyWrite_IsNull_AndCreatesNothing()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateListFieldAsync(type.Id, definition.Id);
         var resource = await CreateResourceAsync(type.Key);
 
@@ -163,7 +148,7 @@ public class ListRowTests
     public async Task ResolverPost_IsIdempotent()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateListFieldAsync(type.Id, definition.Id);
         var resource = await CreateResourceAsync(type.Key);
 
@@ -183,8 +168,8 @@ public class ListRowTests
     public async Task ResolverPost_ForAFieldOfAnotherType_IsNotFound()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
-        var otherType = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
+        var otherType = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateListFieldAsync(otherType.Id, definition.Id);
         var resource = await CreateResourceAsync(type.Key);
 
@@ -198,7 +183,7 @@ public class ListRowTests
     [Fact]
     public async Task ResolverPost_ForAScalarField_IsNotFound()
     {
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var scalar = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
             {
@@ -272,7 +257,7 @@ public class ListRowTests
     public async Task SelectCell_MustBeOneOfTheDeclaredOptions()
     {
         var created = await _client.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Components") });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Components") });
         var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
         await _client.PostAsJsonAsync($"/api/list-definitions/{definition.Id}/columns",
             new CreateListColumnRequest
@@ -316,7 +301,7 @@ public class ListRowTests
     public async Task DeletingTheResource_KeepsItsListData_BecauseTheDeleteIsSoft()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateListFieldAsync(type.Id, definition.Id);
         var resource = await CreateResourceAsync(type.Key);
 
@@ -346,7 +331,7 @@ public class ListRowTests
     public async Task DeletingTheField_TakesThePerResourceInstanceWithIt()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateListFieldAsync(type.Id, definition.Id);
         var resource = await CreateResourceAsync(type.Key);
 
@@ -366,7 +351,7 @@ public class ListRowTests
     public async Task AListField_CannotBeRequired()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
@@ -384,7 +369,7 @@ public class ListRowTests
     [Fact]
     public async Task AListField_NeedsADefinition()
     {
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
@@ -401,7 +386,7 @@ public class ListRowTests
     public async Task AScalarField_CannotCarryABinding()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
@@ -419,7 +404,7 @@ public class ListRowTests
     public async Task AListField_TakesNoValueOnTheResource()
     {
         var definition = await CreateLogDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateListFieldAsync(type.Id, definition.Id);
 
         // Rows are addressed by (resource, field), so a value here would be written into a slot
@@ -450,7 +435,7 @@ public class ListRowTests
         var created = await _client.PostAsJsonAsync($"/api/resource-types/{personType.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
             {
-                Key = UniqueKey("certs"),
+                Key = TestHelpers.UniqueKey("certs"),
                 Label = "Certifications",
                 DataType = CustomFieldDataTypes.List,
                 ListDefinitionId = definition.Id,
@@ -458,7 +443,7 @@ public class ListRowTests
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var field = (await created.Content.ReadFromJsonAsync<ResourceCustomFieldInfo>())!;
 
-        var person = await CreateResourceAsync(personType.Key, UniqueName("Alex"));
+        var person = await CreateResourceAsync(personType.Key, TestHelpers.UniqueName("Alex"));
 
         var ensured = await _client.PostAsync($"/api/resources/{person.Id}/list-fields/{field.Id}/instance", null);
         Assert.Equal(HttpStatusCode.OK, ensured.StatusCode);

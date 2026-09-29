@@ -1,6 +1,8 @@
 using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
+using Api.Repositories;
+using Api.Security;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
 
@@ -71,9 +73,10 @@ public sealed class UserLifecycleService
     {
         var nextCount = currentWarningCount + 1;
 
-        var cmd = currentWarningCount == 0
+        await using var cmd = currentWarningCount == 0
             ? new Npgsql.NpgsqlCommand($@"
-                SELECT id, email, display_name, keycloak_id
+                SELECT id, email, display_name,
+                       {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
                 FROM users
                 WHERE lifecycle_status IS NULL
                   AND status = 'active'
@@ -83,7 +86,8 @@ public sealed class UserLifecycleService
                     (last_login_at IS NULL AND created_at < NOW() - INTERVAL '{LifecyclePolicyConstants.UserInactiveWarningSqlInterval}')
                   )", db)
             : new Npgsql.NpgsqlCommand($@"
-                SELECT id, email, display_name, keycloak_id
+                SELECT id, email, display_name,
+                       {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
                 FROM users
                 WHERE lifecycle_status = 'warned'
                   AND lifecycle_warning_count = @count
@@ -100,14 +104,21 @@ public sealed class UserLifecycleService
             if (ct.IsCancellationRequested) break;
             try
             {
-                var token = Guid.NewGuid().ToString();
+                var token = SecureTokens.Generate();
 
+                // The step is committed only once the mail is out: a failed send rolls back and
+                // leaves the user where they were, so an SMTP outage cannot advance them unwarned.
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "warned", warningCount: nextCount,
-                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: token, ct);
-                await tx.CommitAsync(ct);
+                    lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: SecureTokens.LifecycleConfirmTokenHash(token), ct);
 
-                await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct);
+                if (!await emailService.SendLifecycleWarningEmailAsync(user.Email, user.DisplayName, token, warningNumber: nextCount, ct))
+                {
+                    _logger.LogError("Warning #{NextCount} for user {UserId} not sent; state left unchanged", nextCount, user.Id);
+                    continue;
+                }
+
+                await tx.CommitAsync(ct);
                 _logger.LogInformation("Warning #{NextCount} sent to user {UserId}", nextCount, user.Id);
             }
             catch (Exception ex)
@@ -120,8 +131,9 @@ public sealed class UserLifecycleService
     private async Task DeactivatePersistentlyInactiveUsersAsync(
         Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, IEmailService emailService, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand($@"
-            SELECT id, email, display_name, keycloak_id
+        await using var cmd = new Npgsql.NpgsqlCommand($@"
+            SELECT id, email, display_name,
+                   {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
             FROM users
             WHERE lifecycle_status = 'warned'
               AND lifecycle_warning_count = 3
@@ -136,6 +148,27 @@ public sealed class UserLifecycleService
             if (ct.IsCancellationRequested) break;
             try
             {
+                // Order matters: rows, then mail, then commit, then Keycloak. Disabling Keycloak
+                // before the commit locked out a user whose notice failed to send (the rollback
+                // kept them 'warned', and nothing re-enabled the Keycloak account).
+                await using var tx = await db.BeginTransactionAsync(ct);
+                await UpdateLifecycleAsync(db, user.Id, status: "dormant", warningCount: 3,
+                    lastWarnedAt: null, dormantSince: _time.GetUtcNow().UtcDateTime, confirmToken: null, ct);
+                await SetUserDbStatusAsync(db, user.Id, UserStatusConstants.Disabled, ct);
+
+                // Not dormant until told so: the purge clock starts only after a successful send.
+                if (!await emailService.SendDormancyNoticeEmailAsync(user.Email, user.DisplayName, ct))
+                {
+                    _logger.LogError("Dormancy notice for user {UserId} not sent; state left unchanged", user.Id);
+                    continue;
+                }
+
+                await tx.CommitAsync(ct);
+                _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
+
+                // A Keycloak failure here is logged, not retried: the committed status = 'disabled'
+                // already refuses the user everywhere the app resolves them (identity lookup and
+                // tenant roles both check it), and the purge deletes the Keycloak account anyway.
                 if (!string.IsNullOrEmpty(user.KeycloakId))
                 {
                     try
@@ -144,19 +177,9 @@ public sealed class UserLifecycleService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Failed to disable Keycloak user {KeycloakId}", user.KeycloakId);
-                        continue;
+                        _logger.LogError(ex, "Failed to disable Keycloak user {KeycloakId}; user {UserId} stays dormant", user.KeycloakId, user.Id);
                     }
                 }
-
-                await using var tx = await db.BeginTransactionAsync(ct);
-                await UpdateLifecycleAsync(db, user.Id, status: "dormant", warningCount: 3,
-                    lastWarnedAt: null, dormantSince: _time.GetUtcNow().UtcDateTime, confirmToken: null, ct);
-                await SetUserDbStatusAsync(db, user.Id, UserStatusConstants.Disabled, ct);
-                await tx.CommitAsync(ct);
-
-                await emailService.SendDormancyNoticeEmailAsync(user.Email, user.DisplayName, ct);
-                _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
             }
             catch (Exception ex)
             {
@@ -168,8 +191,9 @@ public sealed class UserLifecycleService
     private async Task PurgeDormantUsersAsync(
         Npgsql.NpgsqlConnection db, IKeycloakAdminService keycloakAdmin, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand($@"
-            SELECT id, email, display_name, keycloak_id
+        await using var cmd = new Npgsql.NpgsqlCommand($@"
+            SELECT id, email, display_name,
+                   {PlatformUserRepository.KeycloakSubjectSubquery()} AS keycloak_id
             FROM users
             WHERE lifecycle_status = 'dormant'
               AND lifecycle_dormant_since < NOW() - INTERVAL '{LifecyclePolicyConstants.UserPurgeAfterDormantSqlInterval}'
@@ -198,12 +222,12 @@ public sealed class UserLifecycleService
                 }
 
                 await using var tx = await db.BeginTransactionAsync(ct);
-                var deleteCmd = new Npgsql.NpgsqlCommand("DELETE FROM users WHERE id = @id", db);
+                await using var deleteCmd = new Npgsql.NpgsqlCommand("DELETE FROM users WHERE id = @id", db);
                 deleteCmd.Parameters.AddWithValue("id", user.Id);
                 await deleteCmd.ExecuteNonQueryAsync(ct);
                 await tx.CommitAsync(ct);
 
-                _logger.LogWarning("GDPR purge: user {UserId} ({Email}) permanently deleted", user.Id, user.Email);
+                _logger.LogWarning("GDPR purge: user {UserId} permanently deleted", user.Id);
             }
             catch (Exception ex)
             {
@@ -227,7 +251,7 @@ public sealed class UserLifecycleService
         Npgsql.NpgsqlConnection db, Guid userId, string? status, int warningCount,
         DateTime? lastWarnedAt, DateTime? dormantSince, string? confirmToken, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand($@"
+        await using var cmd = new Npgsql.NpgsqlCommand($@"
             UPDATE users
             SET lifecycle_status = @status,
                 lifecycle_warning_count = @warningCount,
@@ -257,7 +281,7 @@ public sealed class UserLifecycleService
 
     private static async Task SetUserDbStatusAsync(Npgsql.NpgsqlConnection db, Guid userId, string status, CancellationToken ct)
     {
-        var cmd = new Npgsql.NpgsqlCommand("UPDATE users SET status = @status, updated_at = NOW() WHERE id = @id", db);
+        await using var cmd = new Npgsql.NpgsqlCommand("UPDATE users SET status = @status, updated_at = NOW() WHERE id = @id", db);
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync(ct);

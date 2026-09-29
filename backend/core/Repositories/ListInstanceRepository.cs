@@ -48,7 +48,8 @@ public interface IListInstanceRepository
     Task<ListRowInfo?> GetRowAsync(Guid rowId, CancellationToken ct = default);
     /// <summary>
     /// Inserts a row, or returns null when the instance already holds <paramref name="maxRows"/>.
-    /// The cap is part of the insert, so two concurrent writers cannot both pass it.
+    /// The instance row is locked before the counted insert, so concurrent writers to one
+    /// instance take turns and cannot both pass the cap.
     /// </summary>
     Task<ListRowInfo?> CreateRowAsync(
         Guid instanceId, IReadOnlyDictionary<string, JsonElement> values, int maxRows,
@@ -110,17 +111,7 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             + "ORDER BY list_definition_id, name",
             p => p.AddWithValue("ids", definitionIds.ToArray()), MapInstance, ct);
 
-        var map = new Dictionary<Guid, List<ListInstanceInfo>>();
-        foreach (var row in rows)
-        {
-            if (!map.TryGetValue(row.ListDefinitionId, out var list))
-            {
-                list = [];
-                map[row.ListDefinitionId] = list;
-            }
-            list.Add(row);
-        }
-        return map;
+        return rows.GroupBy(x => x.ListDefinitionId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<ListInstanceInfo> CreateSharedAsync(
@@ -237,17 +228,7 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
             + "ORDER BY list_instance_id, created_at, id",
             p => p.AddWithValue("ids", instanceIds.ToArray()), MapRow, ct);
 
-        var map = new Dictionary<Guid, List<ListRowInfo>>();
-        foreach (var row in rows)
-        {
-            if (!map.TryGetValue(row.ListInstanceId, out var list))
-            {
-                list = [];
-                map[row.ListInstanceId] = list;
-            }
-            list.Add(row);
-        }
-        return map;
+        return rows.GroupBy(x => x.ListInstanceId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<ListRowInfo?> GetRowAsync(Guid rowId, CancellationToken ct = default)
@@ -263,10 +244,19 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
         CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        // The count rides inside the INSERT rather than preceding it: counted separately, two
-        // writers both see room and both insert, and the cap the row-reference walk relies on
-        // drifts under a scripted import. No row inserted means the cap was reached.
-        return await db.QuerySingleOrDefaultAsync(
+        await db.OpenAsync(ct);
+        await using var tx = await db.BeginTransactionAsync(ct);
+
+        // A count inside the INSERT alone does not hold the cap: under READ COMMITTED each
+        // writer's snapshot misses the other's uncommitted row, so both see room, both insert,
+        // and the cap the row-reference walk relies on drifts under a scripted import. Locking
+        // the instance row first makes writers to one instance take turns, and the counted
+        // INSERT is its own statement so its snapshot is taken after the lock is held — it sees
+        // the row the previous holder committed. No row inserted means the cap was reached.
+        await db.ExecuteAsync(
+            "SELECT 1 FROM list_instances WHERE id = @instanceId FOR UPDATE",
+            p => p.AddWithValue("instanceId", instanceId), ct);
+        var row = await db.QuerySingleOrDefaultAsync(
             $@"INSERT INTO list_rows (list_instance_id, values)
                SELECT @instanceId, @values
                 WHERE (SELECT count(*) FROM list_rows WHERE list_instance_id = @instanceId) < @maxRows
@@ -277,6 +267,8 @@ public class ListInstanceRepository(OrgContext orgContext, IOrgDbConnectionFacto
                 p.AddJsonb("values", JsonSerializer.Serialize(values));
                 p.AddWithValue("maxRows", maxRows);
             }, MapRow, ct);
+        await tx.CommitAsync(ct);
+        return row;
     }
 
     public async Task<ListRowInfo?> UpdateRowAsync(

@@ -241,7 +241,7 @@ export function ResourceList({ resourceType }: ResourceListProps) {
         data={rows}
         isLoading={isLoading}
         error={errorMsg}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage={`No ${resourceType.displayName.toLowerCase()} recorded yet.`}
         renderCard={renderCard}
       />

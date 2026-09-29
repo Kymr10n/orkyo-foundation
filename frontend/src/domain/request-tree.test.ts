@@ -11,6 +11,7 @@ import {
   getDirectChildren,
   canHaveChildren,
   getNextSortOrder,
+  nextSortOrder,
   computeDerivedValues,
   buildDerivedMap,
   resolveDuration,
@@ -176,6 +177,23 @@ describe("getNextSortOrder", () => {
   it("returns 0 for a request with no children", () => {
     expect(getNextSortOrder("grandchild-1", flat)).toBe(0);
   });
+
+  it("counts only the root rows when the parent is null", () => {
+    const roots = [
+      makeRequest({ id: "a", parentRequestId: null, sortOrder: 3 }),
+      makeRequest({ id: "b", parentRequestId: "a", sortOrder: 9 }),
+      makeRequest({ id: "c", parentRequestId: null, sortOrder: 1 }),
+    ];
+    expect(getNextSortOrder(null, roots)).toBe(4);
+    expect(getNextSortOrder(null, [])).toBe(0);
+  });
+});
+
+describe("nextSortOrder", () => {
+  it("is max + 1 over the given siblings, 0 for none", () => {
+    expect(nextSortOrder([{ sortOrder: 2 }, { sortOrder: 5 }])).toBe(6);
+    expect(nextSortOrder([])).toBe(0);
+  });
 });
 
 describe("computeDerivedValues", () => {
@@ -276,6 +294,21 @@ describe("buildDerivedMap", () => {
       makeRequest({ id: "empty-parent", planningMode: "summary" }),
     ]);
     expect(map.get("empty-parent")).toBeNull();
+  });
+
+  it("rolls dates up from grandchildren, the same window the dialog shows", () => {
+    const nested: Request[] = [
+      makeRequest({ id: "root", planningMode: "summary" }),
+      makeRequest({ id: "mid", parentRequestId: "root", planningMode: "summary", sortOrder: 0 }),
+      makeRequest({
+        id: "deep", parentRequestId: "mid", sortOrder: 0,
+        startTs: "2025-01-01T00:00:00Z", endTs: "2025-12-31T23:59:59Z",
+      }),
+    ];
+    const map = buildDerivedMap(nested);
+    expect(map.get("root")?.startTs).toBe("2025-01-01T00:00:00Z");
+    expect(map.get("root")?.endTs).toBe("2025-12-31T23:59:59Z");
+    expect(map.get("root")).toEqual(computeDerivedValues("root", nested));
   });
 
   it("matches computeDerivedValues for a parent with children", () => {

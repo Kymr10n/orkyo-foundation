@@ -32,7 +32,6 @@ public sealed class ContextEnrichmentMiddleware
     // Key prefixes on the shared cache. Conventional middleware is constructed once for the
     // pipeline, so these entries are process-wide, as the three static caches they replace were.
     private const string PrincipalKeyPrefix = "identity:principal:";   // externalSubject → PrincipalContext
-    private const string RoleKeyPrefix = "identity:role:";             // "userId:tenantId" → TenantRole
     // Track which user stubs have already been created (INSERT ON CONFLICT is idempotent, so the
     // worst case of a stale entry is one redundant no-op INSERT after an eviction).
     private const string StubKeyPrefix = "identity:stub:";             // "userId:tenantId" → true
@@ -88,12 +87,7 @@ public sealed class ContextEnrichmentMiddleware
                     var stubKey = $"{StubKeyPrefix}{principal.UserId}:{tenantContext.TenantId}";
                     if (!_cache.TryGet<bool>(stubKey, out _))
                     {
-                        var orgContext = new OrgContext
-                        {
-                            OrgId = tenantContext.TenantId,
-                            OrgSlug = tenantContext.TenantSlug,
-                            DbConnectionString = tenantContext.TenantDbConnectionString,
-                        };
+                        var orgContext = tenantContext.ToOrgContext();
                         await tenantUserService.CreateUserStubInTenantDatabaseAsync(
                             orgContext, principal.UserId, principal.Email);
                         // Cache only after the INSERT succeeds: a positive entry written
@@ -317,7 +311,8 @@ public sealed class ContextEnrichmentMiddleware
         }
 
         // Check role cache
-        var cacheKey = $"{RoleKeyPrefix}{userId}:{tenant.TenantId}";
+        // Evicted by the membership writes (role change, removal) through the same key builder.
+        var cacheKey = IdentityCacheKeys.Role(userId, tenant.TenantId);
         if (_cache.TryGet<TenantRole>(cacheKey, out var cachedRole))
         {
             return new AuthorizationContext

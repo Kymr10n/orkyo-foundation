@@ -3,10 +3,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router';
 import { TenantAdminPage } from './TenantAdminPage';
+import { mockAuth } from '@foundation/src/test-utils/auth';
+import type { PlanCode } from '@foundation/contracts/plans';
 
-const authState = { tier: 'professional' as string };
+const authState = { tier: 'professional' as PlanCode };
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: { isTenantAdmin: true, tier: authState.tier } }),
+  useAuth: () => mockAuth({ membership: { isTenantAdmin: true, tier: authState.tier } }),
 }));
 
 const sitesState = { data: [{ id: 's1', name: 'HQ' }, { id: 's2', name: 'Branch' }] as { id: string; name: string }[] };
@@ -38,7 +40,6 @@ function renderAt(initialPath: string) {
 
 describe('TenantAdminPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.tier = 'professional';
     sitesState.data = [{ id: 's1', name: 'HQ' }, { id: 's2', name: 'Branch' }];
   });

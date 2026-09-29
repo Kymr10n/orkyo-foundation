@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services;
+using Api.Services.BffSession;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
@@ -34,8 +35,8 @@ public class SecurityEndpointsTests
 
     private string GetAuthToken(string? keycloakSub = null, string? sessionId = null, Guid? userId = null)
     {
-        return TestConstants.BearerToken((userId ?? Guid.NewGuid()).ToString(), $"securitytest_{Guid.NewGuid()}@example.com", "Security Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user", sub: keycloakSub ?? _testKeycloakSub, sid: sessionId ?? _testSessionId);
+        return TestConstants.BearerToken((userId ?? Guid.NewGuid()).ToString(), $"securitytest_{Guid.NewGuid()}@example.com", "Security Test User", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "admin", sub: keycloakSub ?? _testKeycloakSub, sid: sessionId ?? _testSessionId);
     }
 
     /// <summary>
@@ -74,16 +75,12 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.ChangePasswordSuccess = true;
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "OldPass123!",
-                newPassword = "NewPass456!",
-                confirmPassword = "NewPass456!"
-            })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            currentPassword = "OldPass123!",
+            newPassword = "NewPass456!",
+            confirmPassword = "NewPass456!"
+        });
 
         // Act
         var response = await _client.SendAsync(request);
@@ -103,15 +100,11 @@ public class SecurityEndpointsTests
         // Arrange
         var token = GetAuthToken();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                newPassword = "NewPass456!",
-                confirmPassword = "NewPass456!"
-            })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            newPassword = "NewPass456!",
+            confirmPassword = "NewPass456!"
+        });
 
         // Act
         var response = await _client.SendAsync(request);
@@ -132,14 +125,10 @@ public class SecurityEndpointsTests
         // Arrange
         var token = GetAuthToken();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "OldPass123!"
-            })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            currentPassword = "OldPass123!"
+        });
 
         // Act
         var response = await _client.SendAsync(request);
@@ -159,16 +148,12 @@ public class SecurityEndpointsTests
         // Arrange
         var token = GetAuthToken();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "OldPass123!",
-                newPassword = "Short1!",
-                confirmPassword = "Short1!"
-            })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            currentPassword = "OldPass123!",
+            newPassword = "Short1!",
+            confirmPassword = "Short1!"
+        });
 
         // Act
         var response = await _client.SendAsync(request);
@@ -188,16 +173,12 @@ public class SecurityEndpointsTests
         // Arrange
         var token = GetAuthToken();
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "OldPass123!",
-                newPassword = "NewPass456!",
-                confirmPassword = "DifferentPass789!"
-            })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            currentPassword = "OldPass123!",
+            newPassword = "NewPass456!",
+            confirmPassword = "DifferentPass789!"
+        });
 
         // Act
         var response = await _client.SendAsync(request);
@@ -219,16 +200,12 @@ public class SecurityEndpointsTests
         _mockKeycloak.ChangePasswordSuccess = false;
         _mockKeycloak.ChangePasswordError = "Current password is incorrect";
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", token, new
         {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "WrongPass123!",
-                newPassword = "NewPass456!",
-                confirmPassword = "NewPass456!"
-            })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            currentPassword = "WrongPass123!",
+            newPassword = "NewPass456!",
+            confirmPassword = "NewPass456!"
+        });
 
         // Act
         var response = await _client.SendAsync(request);
@@ -237,27 +214,6 @@ public class SecurityEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
         content.GetProperty("detail").GetString().Should().Contain("incorrect");
-    }
-
-    [Fact]
-    public async Task ChangePassword_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange - no auth token
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/password")
-        {
-            Content = JsonContent.Create(new
-            {
-                currentPassword = "OldPass123!",
-                newPassword = "NewPass456!",
-                confirmPassword = "NewPass456!"
-            })
-        };
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -271,8 +227,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.MockSessions.Clear();
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/sessions", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -297,8 +252,7 @@ public class SecurityEndpointsTests
             MockKeycloakAdminService.CreateMockSession(Guid.NewGuid().ToString(), "172.16.0.1")
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/sessions", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -339,8 +293,7 @@ public class SecurityEndpointsTests
             MockKeycloakAdminService.CreateMockSession(otherSid, "10.0.0.1")      // no captured row
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/sessions", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -367,19 +320,6 @@ public class SecurityEndpointsTests
         remaining.Should().NotContain(staleSid);
     }
 
-    [Fact]
-    public async Task GetSessions_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/sessions");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     #endregion
 
     #region Revoke Session Tests
@@ -397,8 +337,7 @@ public class SecurityEndpointsTests
             MockKeycloakAdminService.CreateMockSession(sessionToRevoke, "10.0.0.1")
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/account/sessions/{sessionToRevoke}");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/account/sessions/{sessionToRevoke}", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -424,8 +363,7 @@ public class SecurityEndpointsTests
             MockKeycloakAdminService.CreateMockSession(_testSessionId, "192.168.1.1")
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, $"/api/account/sessions/{nonExistentSessionId}");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/account/sessions/{nonExistentSessionId}", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -434,19 +372,6 @@ public class SecurityEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var content = await response.Content.ReadFromJsonAsync<JsonElement>();
         content.GetProperty("detail").GetString().Should().Contain("not found");
-    }
-
-    [Fact]
-    public async Task RevokeSession_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/sessions/some-session-id");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -464,8 +389,7 @@ public class SecurityEndpointsTests
             MockKeycloakAdminService.CreateMockSession(Guid.NewGuid().ToString(), "10.0.0.1")
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/logout-all", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -476,19 +400,6 @@ public class SecurityEndpointsTests
         content.GetProperty("message").GetString().Should().Contain("Logged out");
 
         _mockKeycloak.LogoutAllCallCount.Should().Be(1);
-    }
-
-    [Fact]
-    public async Task LogoutAll_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -502,8 +413,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.IsFederatedUser = false;
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/security-info");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/security-info", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -524,8 +434,7 @@ public class SecurityEndpointsTests
         _mockKeycloak.IsFederatedUser = true;
         _mockKeycloak.FederatedIdentityProvider = "google";
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/security-info");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/security-info", token);
 
         // Act
         var response = await _client.SendAsync(request);
@@ -538,19 +447,6 @@ public class SecurityEndpointsTests
         content.GetProperty("identityProvider").GetString().Should().Be("google");
     }
 
-    [Fact]
-    public async Task GetSecurityInfo_WithoutAuth_ShouldReturn401()
-    {
-        // Arrange
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/security-info");
-
-        // Act
-        var response = await _client.SendAsync(request);
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
     #endregion
 
     #region MFA Status Tests
@@ -561,8 +457,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = false, RecoveryCodesConfigured = false };
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/mfa-status");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/mfa-status", token);
 
         var response = await _client.SendAsync(request);
 
@@ -585,8 +480,7 @@ public class SecurityEndpointsTests
             RecoveryCodesConfigured = true,
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/mfa-status");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/mfa-status", token);
 
         var response = await _client.SendAsync(request);
 
@@ -596,16 +490,6 @@ public class SecurityEndpointsTests
         content.GetProperty("totpCredentialId").GetString().Should().Be("cred-123");
         content.GetProperty("totpLabel").GetString().Should().Be("Google Authenticator");
         content.GetProperty("recoveryCodesConfigured").GetBoolean().Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetMfaStatus_WithoutAuth_ShouldReturn401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/mfa-status");
-
-        var response = await _client.SendAsync(request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -618,8 +502,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = false };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/mfa");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/mfa", token);
 
         var response = await _client.SendAsync(request);
 
@@ -633,8 +516,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "cred-1" };
 
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/mfa");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/mfa", token);
 
         var response = await _client.SendAsync(request);
 
@@ -648,6 +530,95 @@ public class SecurityEndpointsTests
 
     #region Remove MFA Tests
 
+    private static HttpRequestMessage RemoveMfaRequest(string? currentPassword, string? currentCode = "123456") =>
+        new(HttpMethod.Delete, "/api/account/mfa") { Content = JsonContent.Create(new { currentPassword, currentCode }) };
+
+    [Fact]
+    public async Task RemoveMfa_WithoutCurrentPassword_Returns400AndKeepsMfa()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+
+        foreach (var request in new[] { new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa"), RemoveMfaRequest(null) })
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await _client.SendAsync(request);
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        }
+
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_WithWrongPassword_Returns400AndKeepsMfa()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+        _mockKeycloak.VerifyPasswordSuccess = false;
+
+        var request = RemoveMfaRequest("wrong-password");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_TotpUser_WithPasswordAndCurrentCode_RemovesMfa()
+    {
+        // The realm's direct-grant flow rejects a TOTP user's password grant without the code;
+        // the endpoint must hand the code through or MFA removal can never succeed.
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+        _mockKeycloak.RequireTotpForPasswordGrant = true;
+        _mockKeycloak.AcceptedTotp = "654321";
+
+        var request = RemoveMfaRequest("current-password", "654321");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _mockKeycloak.LastVerifiedTotp.Should().Be("654321");
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_TotpUser_WithWrongCode_Returns400AndKeepsMfa()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+        _mockKeycloak.RequireTotpForPasswordGrant = true;
+        _mockKeycloak.AcceptedTotp = "654321";
+
+        var request = RemoveMfaRequest("current-password", "111111");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_WithoutCurrentCode_Returns400BeforeKeycloak()
+    {
+        var token = GetAuthToken();
+        _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = true, TotpCredentialId = "totp-cred-id" };
+
+        foreach (var code in new[] { null, "", "12345", "abcdef" })
+        {
+            var request = RemoveMfaRequest("current-password", code);
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            var response = await _client.SendAsync(request);
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest, $"code '{code}' must fail validation");
+        }
+
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(0);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
     [Fact]
     public async Task RemoveMfa_WhenEnabled_ShouldDeleteTotpCredential()
     {
@@ -659,7 +630,7 @@ public class SecurityEndpointsTests
             RecoveryCodesConfigured = false,
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa");
+        var request = RemoveMfaRequest("current-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.SendAsync(request);
@@ -681,7 +652,7 @@ public class SecurityEndpointsTests
             RecoveryCodesCredentialId = "recovery-cred-id",
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa");
+        var request = RemoveMfaRequest("current-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.SendAsync(request);
@@ -696,7 +667,7 @@ public class SecurityEndpointsTests
         var token = GetAuthToken();
         _mockKeycloak.MockMfaStatus = new MfaStatus { TotpEnabled = false };
 
-        var request = new HttpRequestMessage(HttpMethod.Delete, "/api/account/mfa");
+        var request = RemoveMfaRequest("current-password");
         request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         var response = await _client.SendAsync(request);
@@ -721,8 +692,7 @@ public class SecurityEndpointsTests
             EmailVerified = true,
         };
 
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/profile");
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/account/profile", token);
 
         var response = await _client.SendAsync(request);
 
@@ -732,16 +702,6 @@ public class SecurityEndpointsTests
         content.GetProperty("firstName").GetString().Should().Be("Alice");
         content.GetProperty("lastName").GetString().Should().Be("Smith");
         content.GetProperty("emailVerified").GetBoolean().Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task GetProfile_WithoutAuth_ShouldReturn401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/account/profile");
-
-        var response = await _client.SendAsync(request);
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     #endregion
@@ -754,11 +714,7 @@ public class SecurityEndpointsTests
         var (userId, sub) = await CreateLinkedTestUserAsync();
         var token = GetAuthToken(keycloakSub: sub, userId: userId);
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/account/profile")
-        {
-            Content = JsonContent.Create(new { firstName = "Alice", lastName = "Smith" })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/account/profile", token, new { firstName = "Alice", lastName = "Smith" });
 
         var response = await _client.SendAsync(request);
 
@@ -776,11 +732,7 @@ public class SecurityEndpointsTests
     {
         var token = GetAuthToken();
 
-        var request = new HttpRequestMessage(HttpMethod.Put, "/api/account/profile")
-        {
-            Content = JsonContent.Create(new { firstName = "   ", lastName = "" })
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, "/api/account/profile", token, new { firstName = "   ", lastName = "" });
 
         var response = await _client.SendAsync(request);
 
@@ -903,6 +855,39 @@ public class SecurityEndpointsTests
             _mockKeycloak.LastRevokedSessionId.Should().Be(currentSid);
         }
         finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    [Fact]
+    public async Task LogoutAll_NormalAccount_EndsEveryBffSessionOfTheCaller()
+    {
+        // The BFF sessions authenticate from their stored access token, so a Keycloak-side
+        // logout alone would leave the caller's other devices signed in.
+        var (userId, sub) = await CreateLinkedTestUserAsync();
+        var token = GetAuthToken(keycloakSub: sub, userId: userId);
+        var store = _factory.Services.GetRequiredService<IBffSessionStore>();
+        BffSessionRecord Session(Guid owner) => new()
+        {
+            SessionId = Guid.NewGuid().ToString("N"),
+            UserId = owner.ToString(),
+            ExternalSubject = sub,
+            AccessToken = "a",
+            RefreshToken = "r",
+            IdToken = "i",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        var otherDevice = Session(userId);
+        var someoneElse = Session(Guid.NewGuid());
+        await store.SetAsync(otherDevice);
+        await store.SetAsync(someoneElse);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/account/logout-all");
+        request.Headers.Authorization = Bearer(token);
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await store.GetAsync(otherDevice.SessionId)).Should().BeNull();
+        (await store.GetAsync(someoneElse.SessionId)).Should().NotBeNull();
     }
 
     [Fact]

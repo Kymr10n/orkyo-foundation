@@ -47,7 +47,6 @@ function renderDialog(props: Partial<DialogProps> = {}) {
 
 describe('ResourceGroupEditDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(createResourceGroup).mockResolvedValue(mockGroup);
     vi.mocked(updateResourceGroup).mockResolvedValue(mockGroup);
   });

@@ -9,7 +9,8 @@ import { TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import { apiGet, apiPost, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
-export interface TenantMembership {
+/** One row of the account page's organization list; not the auth session's `TenantMembership`. */
+export interface AccountMembership {
   tenantId: string;
   tenantSlug: string;
   tenantDisplayName: string;
@@ -27,13 +28,13 @@ interface CanCreateTenantResponse {
   maxAllowed?: number;
 }
 
-interface CreateTenantRequest {
+export interface CreateTenantRequest {
   slug: string;
   displayName: string;
   starterTemplate?: string;
 }
 
-interface CreateTenantResponse {
+export interface CreateTenantResponse {
   id: string;
   slug: string;
   displayName: string;
@@ -66,8 +67,8 @@ export async function getStarterTemplates(): Promise<StarterTemplateInfo[]> {
   return apiGet<StarterTemplateInfo[]>(API_PATHS.TENANTS.STARTER_TEMPLATES, tenantOptions);
 }
 
-export async function getTenantMemberships(): Promise<TenantMembership[]> {
-  return apiGet<TenantMembership[]>(API_PATHS.TENANTS.MEMBERSHIPS, tenantOptions);
+export async function getTenantMemberships(): Promise<AccountMembership[]> {
+  return apiGet<AccountMembership[]>(API_PATHS.TENANTS.MEMBERSHIPS, tenantOptions);
 }
 
 /**

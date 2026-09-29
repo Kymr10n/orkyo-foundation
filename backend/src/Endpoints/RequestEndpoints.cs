@@ -33,10 +33,15 @@ public static class RequestEndpoints
             }
             if (page.HasValue || pageSize.HasValue)
             {
-                var paged = await requestService.GetAllAsync(PageRequest.From(page, pageSize), includeRequirements, ct);
+                var paged = await requestService.GetAllAsync(PageRequest.From(page, pageSize), siteId, includeRequirements, ct);
                 return Results.Ok(paged);
             }
-            return Results.Ok(await requestService.GetAllAsync(includeRequirements, siteId, ct));
+
+            // Unpaged: capped at PageRequest.MaxUnpagedItems. The body stays the bare array the
+            // frontend reads; a client that needs the real total or the truncation flag pages,
+            // and gets the PagedResult body every capped list answers with.
+            var capped = await requestService.GetAllAsync(page: null, siteId, includeRequirements, ct);
+            return Results.Ok(capped.Items);
         })
         .WithName("GetRequests")
         .WithSummary("Get all requests");
@@ -55,7 +60,7 @@ public static class RequestEndpoints
             {
                 var adjusted = await schedulingService.ApplySchedulingToCreateAsync(request, ct);
                 var created = await requestService.CreateAsync(adjusted, ct);
-                return Results.Created($"/requests/{created.Id}", created);
+                return Results.Created($"/api/requests/{created.Id}", created);
             }, logger, "create request", new { name = request.Name });
         })
         .WithName("CreateRequest")
@@ -98,7 +103,7 @@ public static class RequestEndpoints
             await EndpointHelpers.ExecuteAsync(requirement, validator, async () =>
             {
                 var created = await requestService.AddRequirementAsync(id, requirement, ct);
-                return Results.Created($"/requests/{id}/requirements/{created.Id}", created);
+                return Results.Created($"/api/requests/{id}/requirements/{created.Id}", created);
             }))
         .WithName("AddRequestRequirement")
         .WithSummary("Add a requirement to a request");
@@ -158,7 +163,7 @@ public static class RequestEndpoints
                 var created = await dependencyService.CreateAsync(id, request, ct);
                 logger.LogInformation("Added dependency {DependencyId}: {Predecessor} precedes {Successor}",
                     created.Id, created.PredecessorRequestId, created.SuccessorRequestId);
-                return Results.Created($"/requests/{id}/dependencies/{created.Id}", created);
+                return Results.Created($"/api/requests/{id}/dependencies/{created.Id}", created);
             }, logger, "add request dependency", new { id }))
         .WithName("AddRequestDependency")
         .WithSummary("Make a request wait for another to finish");
@@ -211,8 +216,13 @@ public static class RequestEndpoints
         var siteRequests = app.MapGroup("/api/sites/{siteId:guid}/requests")
             .WithTags("Requests").RequireAuthorization().RequireMemberReadEditorWrite();
 
-        siteRequests.MapGet("/", async (Guid siteId, DateTime from, DateTime to, IRequestService requestService, CancellationToken ct) =>
-            Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, from, to, ct)))
+        siteRequests.MapGet("/", async (Guid siteId, DateTime? from, DateTime? to, IRequestService requestService,
+            IValidator<TimeWindowQuery> validator, CancellationToken ct) =>
+        {
+            var window = new TimeWindowQuery(from, to);
+            return await EndpointHelpers.ExecuteAsync(window, validator, async () =>
+                Results.Ok(await requestService.GetScheduledBySiteWindowAsync(siteId, window.FromValue, window.ToValue, ct)));
+        })
             .WithName("GetSiteScheduledRequests")
             .WithSummary("Scheduled requests for a site whose bar overlaps [from,to]");
     }

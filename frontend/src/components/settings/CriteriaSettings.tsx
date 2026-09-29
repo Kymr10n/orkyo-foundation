@@ -1,17 +1,10 @@
 import { useState, useCallback } from 'react';
 import { SettingsPageHeader } from './SettingsPageHeader';
-import { Plus, Edit, Trash2, AlertCircle } from 'lucide-react';
-import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { Badge } from '@foundation/src/components/ui/badge';
-import { EmptyState } from '@foundation/src/components/ui/EmptyState';
 import { OrkyoDataTable, type ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@foundation/src/components/ui/tooltip';
+import { RowActions } from '@foundation/src/components/ui/RowActions';
 import { CriterionEditDialog } from './CriterionEditDialog';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { getDataTypeColor } from '@foundation/src/lib/utils';
@@ -94,50 +87,21 @@ export function CriteriaSettings() {
   };
 
   // Shared row actions — desktop table cell and phone card. The delete is
-  // disabled (with an explaining tooltip) while the criterion is in use.
+  // disabled, and says why, while the criterion is in use.
   const renderActions = (criterion: Criterion) => (
-    <div className="flex justify-end gap-1">
-      <Button
-        variant="ghost"
-        size="icon"
-        disabled={!canEdit}
-        onClick={(e) => {
-          e.stopPropagation();
-          setEditingCriterion(criterion);
-        }}
-        aria-label={`Edit ${criterion.name}`}
-        title="Edit criterion"
-      >
-        <Edit className="h-4 w-4" />
-      </Button>
-      <TooltipProvider delayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            {/* Span wrapper so the tooltip still fires while the button is disabled */}
-            <span className="inline-flex">
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={criterion.inUse || !canEdit}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(criterion);
-                }}
-                className="text-destructive hover:text-destructive"
-                aria-label={`Delete ${criterion.name}`}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>
-            {criterion.inUse
-              ? 'Cannot delete: this criterion has existing values'
-              : 'Delete criterion'}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
+    <RowActions
+      triggerLabel={`Actions for ${criterion.name}`}
+      actions={[
+        { label: 'Edit', icon: Pencil, onSelect: () => setEditingCriterion(criterion), disabled: !canEdit },
+        {
+          label: criterion.inUse ? 'Delete (in use)' : 'Delete',
+          icon: Trash2,
+          onSelect: () => handleDelete(criterion),
+          disabled: criterion.inUse || !canEdit,
+          destructive: true,
+        },
+      ]}
+    />
   );
 
   // Phone presentation: name + type, applies-to, description, actions trailing.
@@ -277,40 +241,24 @@ export function CriteriaSettings() {
         </Button>
       </SettingsPageHeader>
 
-      {/* Error State */}
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error instanceof Error ? error.message : 'Failed to load criteria'}</span>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
-              Try again
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Criteria List */}
-      {criteria.length === 0 ? (
-        <EmptyState
-          message="No criteria defined yet"
-          action={
-            <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create your first criterion
-            </Button>
-          }
-        />
-      ) : (
-        <OrkyoDataTable
+      <OrkyoDataTable
         {...tableUrlState}
-          columns={columns}
-          data={criteria}
-          emptyMessage="No criteria match your search."
-          onRowClick={(criterion) => setEditingCriterion(criterion)}
-          renderCard={renderCard}
-        />
-      )}
+        columns={columns}
+        data={criteria}
+        error={error}
+        errorFallback="Failed to load criteria"
+        onRetry={() => void refetch()}
+        emptyMessage="No criteria match your search."
+        noDataMessage="No criteria defined yet"
+        noDataAction={
+          <Button onClick={() => setCreateDialogOpen(true)} variant="outline" disabled={!canEdit}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create your first criterion
+          </Button>
+        }
+        onRowClick={(criterion) => setEditingCriterion(criterion)}
+        renderCard={renderCard}
+      />
 
       {/* Dialogs */}
       <CriterionEditDialog

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { expandRecurrence, parseRRule } from "./recurrence";
 import type { OffTimeDefinition } from "./types";
-import { utc, TZ } from "./test-helpers";
+import { utc, TZ } from "@foundation/src/test-utils/scheduling-fixtures";
 
 function makeDef(overrides: Partial<OffTimeDefinition> = {}): OffTimeDefinition {
   return {

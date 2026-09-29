@@ -109,7 +109,7 @@ export function DiagnosticsTab() {
           <Separator />
           <InfoRow label="Migrations Applied" value={data.database.migrationsApplied} />
           <Separator />
-          <InfoRow label="Active Tenants" value={data.database.tenantCount} />
+          <InfoRow label="Active Organizations" value={data.database.tenantCount} />
         </CardContent>
       </Card>
 

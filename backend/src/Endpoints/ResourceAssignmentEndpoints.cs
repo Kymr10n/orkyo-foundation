@@ -26,16 +26,16 @@ public static class ResourceAssignmentEndpoints
             [FromQuery] DateTime? from,
             [FromQuery] DateTime? to,
             IResourceAssignmentRepository repo,
+            IValidator<TimeWindowQuery> windowValidator,
             CancellationToken ct) =>
         {
             // Bulk window query (drives the People grid in one request) takes
             // precedence over the per-request lookup.
             if (resourceTypeKey is not null)
             {
-                if (from is null || to is null)
-                    return ErrorResponses.BadRequest("from and to query parameters are required with resourceTypeKey");
-                var byType = await repo.GetByResourceTypeAsync(resourceTypeKey, from.Value, to.Value, ct);
-                return Results.Ok(byType);
+                var window = new TimeWindowQuery(from, to);
+                return await EndpointHelpers.ExecuteAsync(window, windowValidator, async () =>
+                    Results.Ok(await repo.GetByResourceTypeAsync(resourceTypeKey, window.FromValue, window.ToValue, ct)));
             }
             if (requestId is null)
                 return ErrorResponses.BadRequest("requestId query parameter is required");

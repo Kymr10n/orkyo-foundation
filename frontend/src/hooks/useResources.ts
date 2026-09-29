@@ -1,9 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  createResource,
   deleteResource,
   getResources,
   updateResource,
+  type CreateResourceRequest,
   type ResourceInfo,
+  type UpdateResourceRequest,
 } from "@foundation/src/lib/api/resources-api";
 import type { ResourceTypeInfo } from "@foundation/src/lib/api/resource-types-api";
 import {
@@ -15,6 +18,7 @@ import { diffCapabilityAssignments } from "@foundation/src/components/capabiliti
 import type { CriterionValue } from "@foundation/src/types/criterion";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 /**
  * One type's resources, scoped by the top-bar site picker. The backend reads site membership as
@@ -45,6 +49,29 @@ export const useResourcesForUtilizationGrid = (resourceTypeKey: string) =>
     queryKey: qk.resources.utilizationGrid(resourceTypeKey),
     queryFn: () => getResources({ resourceTypeKey, isActive: true }),
     staleTime: STALE.OPERATIONAL,
+  });
+
+/** Create (`id: null`) or update one resource of the type; the edit dialog shows a failure inline. */
+export const useSaveResource = (resourceType: ResourceTypeInfo) =>
+  useMutation({
+    mutationFn: (
+      v: SaveVariables<Omit<CreateResourceRequest, "resourceTypeKey">, UpdateResourceRequest>,
+    ) =>
+      v.id === null
+        ? createResource({ resourceTypeKey: resourceType.key, ...v.data })
+        : updateResource(v.id, v.data),
+    meta: {
+      successMessage: savedMessage(
+        `${resourceType.displayName} created`,
+        `${resourceType.displayName} updated`,
+      ),
+      suppressErrorToast: true,
+      // A placeable resource is also on the floorplan (`all()` reaches the per-site placeable
+      // key), and requests show where they are placed.
+      invalidates: resourceType.hasGeometry
+        ? [qk.resources.all(), qk.resources.allFlat(), qk.requests.all()]
+        : [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
+    },
   });
 
 /** Deactivation, not deletion: the row stops appearing in planning and its history is kept. */

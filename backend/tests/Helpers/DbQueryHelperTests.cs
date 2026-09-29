@@ -139,6 +139,43 @@ public class NpgsqlQueryExtensionsIntegrationTests
     }
 
     [Fact]
+    public async Task QueryCappedAsync_ReturnsTheFirstCapRows_WithTheRealTotal()
+    {
+        await using var conn = await OpenAsync();
+
+        // A cap above MaxPageSize must survive: QueryPagedAsync would sanitise it down to 100.
+        var cap = PageRequest.MaxPageSize + 1;
+        var result = await conn.QueryCappedAsync(
+            cap,
+            "SELECT COUNT(*) FROM criteria",
+            "SELECT name FROM criteria ORDER BY name LIMIT @limit OFFSET @offset",
+            bind: null,
+            map: r => r.GetString(0));
+
+        result.PageSize.Should().Be(cap);
+        result.Page.Should().Be(1);
+        result.TotalItems.Should().BeGreaterThanOrEqualTo(4);
+        result.Items.Should().HaveCount(Math.Min(cap, result.TotalItems));
+        result.HasNextPage.Should().Be(result.TotalItems > cap);
+    }
+
+    [Fact]
+    public async Task QueryCappedAsync_SaysSo_WhenTheListIsCut()
+    {
+        await using var conn = await OpenAsync();
+
+        var result = await conn.QueryCappedAsync(
+            2,
+            "SELECT COUNT(*) FROM criteria",
+            "SELECT name FROM criteria ORDER BY name LIMIT @limit OFFSET @offset",
+            bind: null,
+            map: r => r.GetString(0));
+
+        result.Items.Should().HaveCount(2);
+        result.HasNextPage.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task QueryPagedAsync_UsesBindCountParams_WhenProvided()
     {
         await using var conn = await OpenAsync();

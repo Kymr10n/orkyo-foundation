@@ -112,10 +112,20 @@ export async function getMfaStatus(): Promise<MfaStatus> {
 }
 
 /**
+ * Request to remove MFA: the server re-checks the current password and the current TOTP code
+ * first (Keycloak's direct grant needs both for a TOTP user).
+ */
+export interface RemoveMfaRequest {
+  currentPassword: string;
+  /** The current 6-digit TOTP code. */
+  currentCode: string;
+}
+
+/**
  * Remove MFA (TOTP + recovery codes). User will be re-prompted on next login.
  */
-export async function removeMfa(): Promise<void> {
-  return apiDelete(API_PATHS.ACCOUNT.MFA);
+export async function removeMfa(data: RemoveMfaRequest): Promise<void> {
+  return apiDelete(API_PATHS.ACCOUNT.MFA, undefined, data);
 }
 
 /**

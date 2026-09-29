@@ -20,8 +20,8 @@ public interface ISiteRepository
     /// <summary>Existence check that avoids materializing the row (for validation gates).</summary>
     Task<bool> ExistsAsync(Guid siteId, CancellationToken ct = default);
 
-    /// <summary>Returns an estimated count from the Postgres statistics table. Fast but not exact.</summary>
-    Task<int> GetEstimatedCountAsync(CancellationToken ct = default);
+    /// <summary>Returns the exact number of sites (the quota check counts against it).</summary>
+    Task<int> GetCountAsync(CancellationToken ct = default);
 
     /// <summary>Creates a new site. Throws <see cref="Helpers.ConflictException"/> if the code already exists.</summary>
     Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default);

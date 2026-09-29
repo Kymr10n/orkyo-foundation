@@ -2,6 +2,7 @@ import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { CreateRequestRequest, DurationUnit, PlanningMode, RequestFormData, UpdateRequestRequest } from "@foundation/src/types/requests"
 import { REQUEST_STATUS } from "@foundation/src/constants/request-status"
+import { DURATION_TO_MINUTES } from "@foundation/src/domain/constants"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -34,9 +35,6 @@ export function combineDateTimeToISO(date: string, time: string): string {
 }
 
 /**
- * Get Tailwind color classes for criterion data types
- */
-/**
  * Returns true if value contains only alphanumeric characters, underscores, and hyphens.
  * Used to validate codes and identifiers (site codes, criterion names, etc.)
  */
@@ -44,6 +42,9 @@ export function isValidSlug(value: string): boolean {
   return /^[a-zA-Z0-9_-]+$/.test(value);
 }
 
+/**
+ * Get Tailwind color classes for criterion data types
+ */
 export function getDataTypeColor(dataType: string): string {
   switch (dataType) {
     case "Boolean":
@@ -184,14 +185,7 @@ export function buildCreatePayload(data: RequestFormData): CreateRequestRequest 
 
 /** Converts a duration value+unit to minutes. Mirrors SchedulingEngine.DurationToMinutes on the backend. */
 export function durationToMinutes(value: number, unit: DurationUnit): number {
-  switch (unit) {
-    case 'minutes': return value;
-    case 'hours':   return value * 60;
-    case 'days':    return value * 60 * 24;
-    case 'weeks':   return value * 60 * 24 * 7;
-    case 'months':  return value * 60 * 24 * 30;
-    case 'years':   return value * 60 * 24 * 365;
-  }
+  return value * DURATION_TO_MINUTES[unit];
 }
 
 /**

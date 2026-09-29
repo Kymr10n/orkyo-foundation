@@ -4,16 +4,71 @@ import { RequestAccessPage } from './RequestAccessPage';
 
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: vi.fn(),
+  goToApex: vi.fn(),
 }));
 
 vi.mock('@foundation/src/lib/core/api-utils', () => ({
   API_BASE_URL: 'http://localhost:5000',
 }));
 
+// The real widget loads Cloudflare's script; this one hands over a token when the test asks.
+const widgetToken = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock('@foundation/src/components/security/TurnstileWidget', async () => {
+  const { useEffect } = await import('react');
+  return {
+    TurnstileWidget: ({ onToken }: { onToken: (t: string | null) => void }) => {
+      useEffect(() => {
+        if (widgetToken.value) onToken(widgetToken.value);
+      }, [onToken]);
+      return null;
+    },
+  };
+});
+
+function fillValidForm() {
+  fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'test@example.com' } });
+  const passwordInputs = screen.getAllByLabelText(/password/i);
+  fireEvent.change(passwordInputs[0], { target: { value: 'password123' } });
+  fireEvent.change(passwordInputs[1], { target: { value: 'password123' } });
+  fireEvent.submit(passwordInputs[0].closest('form')!);
+}
+
+function sentBody() {
+  const init = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+  return JSON.parse(init.body as string) as Record<string, unknown>;
+}
+
 describe('RequestAccessPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    widgetToken.value = null;
     vi.stubGlobal('fetch', vi.fn());
+  });
+
+  it('sends the challenge token the widget produced', async () => {
+    widgetToken.value = 'turnstile-token';
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true }),
+    });
+
+    render(<RequestAccessPage />);
+    fillValidForm();
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(sentBody()).toMatchObject({ email: 'test@example.com', challengeToken: 'turnstile-token' });
+  });
+
+  it('sends a null challenge token when no challenge is configured', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ success: true }),
+    });
+
+    render(<RequestAccessPage />);
+    fillValidForm();
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(sentBody().challengeToken).toBeNull();
   });
 
   it('renders the create account form', () => {

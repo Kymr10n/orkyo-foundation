@@ -6,8 +6,6 @@ import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
 import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { machineResourceType } from '@foundation/src/test-utils/resource-fixtures';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 vi.mock('@foundation/src/lib/api/resources-api', () => ({
   createResource: vi.fn(),
 }));
@@ -53,18 +51,16 @@ async function fireImport() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   useUiActionsStore.setState({
     exportTick: 0,
     importTick: 0,
-    commandPaletteTick: 0,
-    tourTick: 0,
     lastExport: null,
     lastImport: null,
     exportRegistry: new Map(),
     importRegistry: new Map(),
   });
-  wrapper = createTestQueryWrapper();
+  // Import feedback runs through the central MutationCache, as in production.
+  wrapper = createTestQueryWrapper({ feedback: true });
   vi.mocked(getResourceCustomFields).mockResolvedValue([]);
   vi.mocked(createResource).mockResolvedValue({ id: 'created' } as ResourceInfo);
   vi.mocked(importResources).mockResolvedValue([importRow('Lathe')]);

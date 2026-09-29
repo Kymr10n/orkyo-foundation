@@ -1,8 +1,8 @@
 /**
  * RequireTenantAdmin — route guard for the tenant Administration area.
  *
- * Renders children only for tenant admins (`membership.isTenantAdmin`, i.e.
- * tenant `role === "admin"`). Non-admins are redirected to the app root.
+ * Renders children only when `useIsTenantAdmin()` holds (tenant admin, or a
+ * site admin on break-glass). Everyone else is redirected to the app root.
  *
  * Assumes it sits inside <RequireAuth> (membership already resolved), so it
  * makes a synchronous role decision without re-deriving auth state. This is
@@ -13,16 +13,15 @@
 import { useEffect } from "react";
 import { Navigate } from "react-router";
 import { toast } from "sonner";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
 import { ROUTE_HOME } from "@foundation/src/constants/auth";
 
 export function RequireTenantAdmin({ children }: { children: React.ReactNode }) {
-  const { membership } = useAuth();
-  const isTenantAdmin = membership?.isTenantAdmin === true;
+  const isTenantAdmin = useIsTenantAdmin();
 
   useEffect(() => {
     if (!isTenantAdmin) {
-      toast.error("Administration is available to tenant administrators only.");
+      toast.error("Administration is available to organization administrators only.");
     }
   }, [isTenantAdmin]);
 

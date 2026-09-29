@@ -49,7 +49,7 @@ public class AutoScheduleServiceTests
             Guid.NewGuid(),
             new DateOnly(2026, 4, 14),
             new DateOnly(2026, 7, 14),
-            axis ?? WorkingTimeAxis.Identity(new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
+            axis ?? AutoScheduleTestHelpers.Identity(new DateOnly(2026, 4, 14), new DateOnly(2026, 7, 14)),
             [], [], [], null, withheld);
 
         mockProblemBuilder

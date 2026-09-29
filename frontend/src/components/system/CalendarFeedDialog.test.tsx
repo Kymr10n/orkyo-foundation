@@ -9,6 +9,8 @@ import {
   revokeCalendarSubscription,
 } from '@foundation/src/lib/api/calendar-feed-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { toast } from 'sonner';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
   getCalendarSubscriptions: vi.fn(),
@@ -16,17 +18,9 @@ vi.mock('@foundation/src/lib/api/calendar-feed-api', () => ({
   revokeCalendarSubscription: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 let mockAvailable = true;
 vi.mock('@foundation/src/hooks/useFeatureEnabled', () => ({
   useFeatureEnabled: (key: FeatureKey) => key === FeatureKeys.CalendarFeed && mockAvailable,
-}));
-
-let mockSelectedSiteId: string | null = 'site-1';
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: <T,>(selector: (state: { selectedSiteId: string | null }) => T) =>
-    selector({ selectedSiteId: mockSelectedSiteId }),
 }));
 
 function renderDialog(upgradeHref?: string) {
@@ -55,9 +49,8 @@ const subscription = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
   mockAvailable = true;
-  mockSelectedSiteId = 'site-1';
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
   vi.mocked(getCalendarSubscriptions).mockResolvedValue([]);
   // jsdom exposes navigator.clipboard as getter-only.
   writeText = vi.fn().mockResolvedValue(undefined);
@@ -103,7 +96,7 @@ describe('CalendarFeedDialog', () => {
   });
 
   it('will not create a site-less feed when no site is selected', async () => {
-    mockSelectedSiteId = null;
+    useSiteStore.setState({ selectedSiteId: null });
     renderDialog();
 
     expect(await screen.findByRole('button', { name: /create feed/i })).toBeDisabled();
@@ -159,6 +152,24 @@ describe('CalendarFeedDialog', () => {
     await userEvent.click(await screen.findByRole('button', { name: /copy/i }));
 
     expect(writeText).toHaveBeenCalledWith('https://acme.orkyo.com/api/calendar/feed/tok.ics');
+  });
+
+  it('says so when the browser refuses the copy', async () => {
+    writeText.mockRejectedValue(new Error('NotAllowedError'));
+    vi.mocked(createCalendarSubscription).mockResolvedValue({
+      id: 'sub-2',
+      feedUrl: 'https://acme.orkyo.com/api/calendar/feed/tok.ics',
+      label: null,
+      siteId: 'site-1',
+    });
+    renderDialog();
+
+    await userEvent.click(await screen.findByRole('button', { name: /create feed/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /copy/i }));
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not copy — copy the feed URL manually'));
+    expect(toast.success).not.toHaveBeenCalledWith('Feed URL copied');
   });
 
   describe('when the tenant plan does not include the feature', () => {

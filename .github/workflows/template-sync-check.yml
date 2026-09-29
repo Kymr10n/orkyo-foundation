@@ -15,13 +15,10 @@ on:
   push:
     branches: [main]
     paths:
-      # Foundation-sourced synced files + the checks themselves.
-      - 'scripts/ci/synced-files.manifest'
-      - 'scripts/ci/frontend-path-collision-allowlist.txt'
-      - 'scripts/ci/check-synced-files.sh'
-      - 'scripts/ci/check-frontend-path-collisions.sh'
-      - 'scripts/ci/lint-migration-headers.sh'
-      - 'scripts/ci/check-dead-registrations.py'
+      # Foundation-sourced synced files + the checks themselves
+      # (synced-files.manifest lists what is synced from scripts/ci and .claude).
+      - 'scripts/ci/**'
+      - '.claude/**'
       - 'global.json'
 
 permissions:

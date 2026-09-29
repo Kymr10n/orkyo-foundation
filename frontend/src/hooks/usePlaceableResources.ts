@@ -7,7 +7,6 @@ import {
   updateResource,
   type CreateResourceRequest,
   type ResourceInfo,
-  type UpdateResourceRequest,
 } from "@foundation/src/lib/api/resources-api";
 import type { ResourceGeometry } from "@foundation/src/types/geometry";
 import { qk } from "@foundation/src/lib/api/query-keys";
@@ -95,18 +94,6 @@ export function useCreatePlaceableResource(
   });
 }
 
-export function useUpdatePlaceableResource(siteId: string) {
-  return useMutation({
-    mutationFn: ({ resourceId, data }: { resourceId: string; data: UpdateResourceRequest }) =>
-      updateResource(resourceId, data),
-    meta: {
-      successMessage: "Resource updated",
-      suppressErrorToast: true,
-      invalidates: placeableInvalidates(siteId),
-    },
-  });
-}
-
 export function useDeletePlaceableResource(siteId: string) {
   // Optimistic: kept hand-rolled because the meta convention can't express onMutate
   // rollback. Invalidation is fired manually in onSettled to mirror the meta hooks.
@@ -114,7 +101,7 @@ export function useDeletePlaceableResource(siteId: string) {
   const key = qk.resources.placeable(siteId);
   const invalidate = () => {
     for (const queryKey of placeableInvalidates(siteId)) {
-      queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey });
     }
   };
   return useMutation({

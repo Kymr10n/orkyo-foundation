@@ -14,9 +14,10 @@ namespace Api.Repositories;
 /// </summary>
 /// <remarks>
 /// Public API since 0.8.0 so product repositories/services can use the same helpers instead
-/// of re-rolling the loops. The helpers never enlist in an explicit transaction — commands
-/// that must run inside a <c>NpgsqlTransaction</c> should be constructed by hand with
-/// <c>new NpgsqlCommand(sql, conn, tx)</c>.
+/// of re-rolling the loops. They work inside an explicit transaction too: Npgsql runs every
+/// command on a connection within that connection's open <c>NpgsqlTransaction</c>, so after
+/// <c>BeginTransactionAsync</c> the helpers' commands commit or roll back with it. There is no
+/// need to hand-build <c>new NpgsqlCommand(sql, conn, tx)</c> to join the transaction.
 /// </remarks>
 public static class NpgsqlQueryExtensions
 {
@@ -128,23 +129,66 @@ public static class NpgsqlQueryExtensions
         CancellationToken ct = default,
         Action<NpgsqlParameterCollection>? bindCount = null)
     {
-        await EnsureOpenAsync(conn, ct);
         var p = page.Sanitize();
+        var (items, totalItems) = await CountThenListAsync(conn, countSql, querySql, p.PageSize, p.Offset, bind, bindCount, map, ct);
+        return PagedResult<T>.Create(items, totalItems, p);
+    }
+
+    /// <summary>
+    /// The unpaged branch of a list: the COUNT then the first <paramref name="cap"/> rows of the
+    /// same SELECT (with <c>@limit</c> and <c>@offset</c>, as for <see cref="QueryPagedAsync"/>),
+    /// as a <see cref="PagedResult{T}.Capped"/> result so a list cut at the cap says so.
+    /// <see cref="QueryPagedAsync"/> cannot serve it: <see cref="PageRequest.Sanitize"/> would
+    /// shrink the cap to <see cref="PageRequest.MaxPageSize"/>.
+    /// </summary>
+    public static async Task<PagedResult<T>> QueryCappedAsync<T>(
+        this NpgsqlConnection conn,
+        int cap,
+        string countSql,
+        string querySql,
+        Action<NpgsqlParameterCollection>? bind,
+        Func<NpgsqlDataReader, T> map,
+        CancellationToken ct = default)
+    {
+        var (items, totalItems) = await CountThenListAsync(conn, countSql, querySql, cap, 0, bind, null, map, ct);
+        return PagedResult<T>.Capped(items, totalItems, cap);
+    }
+
+    private static async Task<(List<T> Items, int TotalItems)> CountThenListAsync<T>(
+        NpgsqlConnection conn,
+        string countSql,
+        string querySql,
+        int limit,
+        int offset,
+        Action<NpgsqlParameterCollection>? bind,
+        Action<NpgsqlParameterCollection>? bindCount,
+        Func<NpgsqlDataReader, T> map,
+        CancellationToken ct)
+    {
+        await EnsureOpenAsync(conn, ct);
 
         await using var countCmd = new NpgsqlCommand(countSql, conn);
         (bindCount ?? bind)?.Invoke(countCmd.Parameters);
         var totalItems = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
 
         await using var cmd = new NpgsqlCommand(querySql, conn);
-        cmd.Parameters.AddWithValue("limit", p.PageSize);
-        cmd.Parameters.AddWithValue("offset", p.Offset);
+        cmd.Parameters.AddWithValue("limit", limit);
+        cmd.Parameters.AddWithValue("offset", offset);
         bind?.Invoke(cmd.Parameters);
 
         var items = new List<T>();
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct)) items.Add(map(reader));
-        return PagedResult<T>.Create(items, totalItems, p);
+        return (items, totalItems);
     }
+
+    /// <summary>
+    /// Neutralises LIKE wildcards in user text so a search for <c>%</c> or <c>_</c> matches the
+    /// character literally. The backslash is the default LIKE/ILIKE escape character in Postgres.
+    /// Wrap the result in the pattern's own wildcards, e.g. <c>$"%{EscapeLike(term)}%"</c>.
+    /// </summary>
+    public static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     /// <summary>
     /// Add a parameter, substituting <see cref="DBNull"/> for a null value. Replaces the
@@ -184,12 +228,15 @@ public sealed class UpdateBuilder
     }
 
     /// <summary>
-    /// Add a raw SQL expression to the SET clause without a parameter (e.g. <c>"updated_at = NOW()"</c>).
-    /// Use this for server-side expressions that cannot be passed as a typed parameter.
+    /// Add a raw SQL expression to the SET clause (e.g. <c>"updated_at = NOW()"</c>), with the
+    /// parameters it reads, if any (a null value binds as NULL). Use this for server-side
+    /// expressions that cannot be passed as a single typed parameter.
     /// </summary>
-    public UpdateBuilder SetExpression(string sqlExpression)
+    public UpdateBuilder SetExpression(string sqlExpression, params (string Name, object? Value)[] parameters)
     {
         _sets.Add(sqlExpression);
+        foreach (var (name, value) in parameters)
+            _params.Add((name, value ?? DBNull.Value));
         return this;
     }
 

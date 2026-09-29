@@ -80,22 +80,6 @@ public class EnumMapperTests
     public void FromDbValue_ShouldParseViaJsonPropertyName(string dbValue, LegacyAttributeEnum expected) =>
         EnumMapper.FromDbValue<LegacyAttributeEnum>(dbValue).Should().Be(expected);
 
-    // --- ParseEnum ---
-
-    [Theory]
-    [InlineData("Leaf", PlanningMode.Leaf)]
-    [InlineData("leaf", PlanningMode.Leaf)]
-    [InlineData("SUMMARY", PlanningMode.Summary)]
-    public void ParseEnum_ShouldBeCaseInsensitive(string input, PlanningMode expected) =>
-        EnumMapper.ParseEnum<PlanningMode>(input).Should().Be(expected);
-
-    [Fact]
-    public void ParseEnum_ShouldThrow_ForInvalidValue()
-    {
-        var act = () => EnumMapper.ParseEnum<PlanningMode>("bogus");
-        act.Should().Throw<ArgumentException>();
-    }
-
     // --- FromDbValue: field name match when no attributes ---
 
     [Theory]

@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AvailabilityEventDialog } from './AvailabilityEventDialog';
-import type { AvailabilityEventInfo } from '@foundation/src/lib/api/availability-events-api';
+import {
+  createAvailabilityEvent,
+  type AvailabilityEventInfo,
+} from '@foundation/src/lib/api/availability-events-api';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
 
@@ -24,6 +27,8 @@ vi.mock('@foundation/src/lib/core/api-paths', () => ({
 vi.mock('@foundation/src/lib/api/availability-events-api', () => ({
   addAvailabilityEventScope: vi.fn(() => Promise.resolve()),
   deleteAvailabilityEventScope: vi.fn(() => Promise.resolve()),
+  createAvailabilityEvent: vi.fn(() => Promise.resolve({ id: 'evt-new' })),
+  updateAvailabilityEvent: vi.fn(() => Promise.resolve({ id: 'evt-1' })),
 }));
 
 // ── UI mocks ──────────────────────────────────────────────────────────────────
@@ -73,7 +78,6 @@ function renderDialog(props: Partial<Parameters<typeof AvailabilityEventDialog>[
         onOpenChange={vi.fn()}
         siteId="site-1"
         event={null}
-        onSave={vi.fn(() => Promise.resolve())}
         {...props}
       />
     </Wrapper>,
@@ -99,8 +103,6 @@ const existingEvent: AvailabilityEventInfo = {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('AvailabilityEventDialog — create mode', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('renders with "Add Availability Event" heading', () => {
     renderDialog();
     expect(screen.getByRole('heading', { name: /add availability event/i })).toBeInTheDocument();
@@ -145,23 +147,25 @@ describe('AvailabilityEventDialog — create mode', () => {
     expect(screen.getByText(/start must be before end/i)).toBeInTheDocument();
   });
 
-  it('calls onSave with correct payload on valid submit', async () => {
-    const onSave = vi.fn(() => Promise.resolve());
-    renderDialog({ onSave });
+  it('creates the event with the form values on a valid submit, and closes', async () => {
+    const onOpenChange = vi.fn();
+    renderDialog({ onOpenChange });
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Summer Break' } });
     fireEvent.change(screen.getByTestId('picker-ae-start'), { target: { value: '2026-07-01T00:00' } });
     fireEvent.change(screen.getByTestId('picker-ae-end'), { target: { value: '2026-07-15T00:00' } });
     fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
     await waitFor(() =>
-      expect(onSave).toHaveBeenCalledWith(
+      expect(createAvailabilityEvent).toHaveBeenCalledWith(
+        'site-1',
         expect.objectContaining({ title: 'Summer Break' }),
       ),
     );
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
-  it('shows error when onSave throws', async () => {
-    const onSave = vi.fn(() => Promise.reject(new Error('API error')));
-    renderDialog({ onSave });
+  it('shows the error inline when the save fails', async () => {
+    vi.mocked(createAvailabilityEvent).mockRejectedValueOnce(new Error('API error'));
+    renderDialog();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Break' } });
     fireEvent.change(screen.getByTestId('picker-ae-start'), { target: { value: '2026-07-01T00:00' } });
     fireEvent.change(screen.getByTestId('picker-ae-end'), { target: { value: '2026-07-15T00:00' } });
@@ -197,8 +201,6 @@ describe('AvailabilityEventDialog — create mode', () => {
 });
 
 describe('AvailabilityEventDialog — edit mode', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('renders with "Edit Availability Event" heading', () => {
     renderDialog({ event: existingEvent });
     expect(screen.getByRole('heading', { name: /edit availability event/i })).toBeInTheDocument();

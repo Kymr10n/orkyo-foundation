@@ -15,16 +15,17 @@ import { render, act } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { AUTH_STAGES } from "@foundation/src/constants/auth";
 
-const mockUseAuth = vi.fn();
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => mockUseAuth(),
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
 }));
 
 import { ApexGateway } from "./ApexGateway";
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 describe("ApexGateway — Router regression", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     Object.defineProperty(window, "location", {
       value: {
         pathname: "/site-admin",
@@ -42,14 +43,13 @@ describe("ApexGateway — Router regression", () => {
   });
 
   it("renders inside a Router without throwing", async () => {
-    mockUseAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue(mockAuth({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [] },
       isSiteAdmin: true,
       canAccessAdminPage: true,
       appUser: { displayName: "Admin", email: "admin@test.com" },
-      send: vi.fn(),
-    });
+    }));
 
     expect(() => {
       render(
@@ -63,14 +63,13 @@ describe("ApexGateway — Router regression", () => {
   });
 
   it("throws when rendered WITHOUT a Router (documents the invariant)", () => {
-    mockUseAuth.mockReturnValue({
+    vi.mocked(useAuth).mockReturnValue(mockAuth({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [] },
       isSiteAdmin: true,
       canAccessAdminPage: true,
       appUser: { displayName: "Admin", email: "admin@test.com" },
-      send: vi.fn(),
-    });
+    }));
 
     // Suppress console.error from React's error boundary.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});

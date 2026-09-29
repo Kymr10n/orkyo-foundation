@@ -11,13 +11,14 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
-import {
-  useCreateListDefinition,
-  useListDefinition,
-  useUpdateListDefinition,
-} from '@foundation/src/hooks/useListDefinitions';
-import { qk } from '@foundation/src/lib/api/query-keys';
-import type { ListDefinition, ListDefinitionScope } from '@foundation/src/lib/api/lists-api';
+import { useListDefinition, useSaveListDefinition } from '@foundation/src/hooks/useListDefinitions';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
+import type {
+  CreateListDefinitionRequest,
+  ListDefinition,
+  ListDefinitionScope,
+  UpdateListDefinitionRequest,
+} from '@foundation/src/lib/api/lists-api';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
 
 interface ListDefinitionEditDialogProps {
@@ -45,8 +46,7 @@ export function ListDefinitionEditDialog({
   definition,
 }: ListDefinitionEditDialogProps) {
   const { data: resourceTypes = [] } = useResourceTypes(true);
-  const createDefinition = useCreateListDefinition();
-  const updateDefinition = useUpdateListDefinition();
+  const mutation = useSaveListDefinition();
   // The collection response carries no columns, so the picker fetches the one definition. Only
   // while editing: a definition being created has no columns to choose from yet.
   const { data: loaded } = useListDefinition(open && definition ? definition.id : null);
@@ -57,7 +57,8 @@ export function ListDefinitionEditDialog({
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ListDefinition,
     FormState,
-    unknown
+    unknown,
+    SaveVariables<CreateListDefinitionRequest, UpdateListDefinitionRequest>
   >({
     open,
     onOpenChange,
@@ -78,11 +79,12 @@ export function ListDefinitionEditDialog({
       isActive: entity.isActive,
       displayColumnId: entity.displayColumnId ?? '',
     }),
-    save: (values, entity) =>
+    mutation,
+    toVariables: (values, entity) =>
       entity
-        ? updateDefinition.mutateAsync({
-            definitionId: entity.id,
-            request: {
+        ? {
+            id: entity.id,
+            data: {
               name: values.name.trim(),
               description: values.description.trim(),
               isActive: values.isActive,
@@ -90,16 +92,17 @@ export function ListDefinitionEditDialog({
                 ? { displayColumnId: values.displayColumnId }
                 : { clearDisplayColumn: true }),
             },
-          })
-        : createDefinition.mutateAsync({
-            name: values.name.trim(),
-            description: values.description.trim() || undefined,
-            scope: values.scope,
-            // The server rejects a type on any scope but `resource`, so it is sent only there.
-            ...(values.scope === 'resource' ? { resourceTypeId: values.resourceTypeId } : {}),
-          }),
-    entityLabel: 'List definition',
-    invalidates: [qk.lists.all()],
+          }
+        : {
+            id: null,
+            data: {
+              name: values.name.trim(),
+              description: values.description.trim() || undefined,
+              scope: values.scope,
+              // The server rejects a type on any scope but `resource`, so it is sent only there.
+              ...(values.scope === 'resource' ? { resourceTypeId: values.resourceTypeId } : {}),
+            },
+          },
   });
 
   return (

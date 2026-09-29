@@ -28,7 +28,7 @@ public class PresetModelsTests
     [Fact]
     public void PresetValidationResult_Success_IsValidWithEmptyErrors()
     {
-        var result = PresetValidationResult.Success();
+        var result = new PresetValidationResult(true, []);
 
         result.IsValid.Should().BeTrue();
         result.Errors.Should().BeEmpty();
@@ -37,7 +37,7 @@ public class PresetModelsTests
     [Fact]
     public void PresetValidationResult_Failure_SingleError_IsInvalidWithOneError()
     {
-        var result = PresetValidationResult.Failure("Criterion 'weight' is missing a name.");
+        var result = new PresetValidationResult(false, ["Criterion 'weight' is missing a name."]);
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().HaveCount(1);
@@ -54,7 +54,7 @@ public class PresetModelsTests
             "SpaceGroup 'sg1' has invalid color."
         };
 
-        var result = PresetValidationResult.Failure(errors);
+        var result = new PresetValidationResult(false, errors.ToList());
 
         result.IsValid.Should().BeFalse();
         result.Errors.Should().HaveCount(3);

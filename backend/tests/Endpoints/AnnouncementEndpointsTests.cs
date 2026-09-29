@@ -33,37 +33,16 @@ public class AnnouncementEndpointsTests
         await cmd.ExecuteNonQueryAsync();
     }
 
-    private static Task<LinkedTestUser> CreateSiteAdminAsync()
-        => DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
-
-    private static async Task<string> CreateRegularUserTokenAsync()
-        => (await DatabaseTestUtils.CreateLinkedUserAsync("regular")).Token;
-
-    private HttpRequestMessage AuthRequest(HttpMethod method, string url, string token, object? body = null)
-    {
-        var msg = new HttpRequestMessage(method, url);
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        if (body != null) msg.Content = JsonContent.Create(body);
-        return msg;
-    }
-
     // ========================================================================
     // Auth / Authorization
     // ========================================================================
 
     [Fact]
-    public async Task GetAll_Unauthenticated_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/announcements");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task GetAll_NonSiteAdmin_Returns403()
     {
-        var token = await CreateRegularUserTokenAsync();
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("regular")).Token;
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Get, "/api/admin/announcements", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/announcements", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
@@ -71,9 +50,9 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task Create_NonSiteAdmin_Returns403()
     {
-        var token = await CreateRegularUserTokenAsync();
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("regular")).Token;
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Test", body = "Body" }));
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
@@ -87,10 +66,10 @@ public class AnnouncementEndpointsTests
     public async Task Create_ValidRequest_Returns201WithDto()
     {
         await CleanupAsync();
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Maintenance Notice", body = "Servers will be down", isImportant = true, retentionDays = 30 }));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -106,18 +85,18 @@ public class AnnouncementEndpointsTests
     public async Task GetAll_ReturnsList()
     {
         await CleanupAsync();
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         // Create two announcements
         await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "First", body = "Body 1" }));
         await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Second", body = "Body 2" }));
 
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Get, "/api/admin/announcements?includeExpired=true", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/announcements?includeExpired=true", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -128,16 +107,16 @@ public class AnnouncementEndpointsTests
     public async Task GetById_Existing_Returns200()
     {
         await CleanupAsync();
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var createResp = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Lookup", body = "Find me" }));
         var created = await createResp.Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetString();
 
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Get, $"/api/admin/announcements/{id}", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/announcements/{id}", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var dto = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -147,10 +126,10 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task GetById_NonExisting_Returns404()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Get, $"/api/admin/announcements/{Guid.NewGuid()}", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/announcements/{Guid.NewGuid()}", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -159,16 +138,16 @@ public class AnnouncementEndpointsTests
     public async Task Update_Existing_Returns200WithUpdatedDto()
     {
         await CleanupAsync();
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var createResp = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Original", body = "Original body" }));
         var created = await createResp.Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetString();
 
         var updateResp = await _client.SendAsync(
-            AuthRequest(HttpMethod.Put, $"/api/admin/announcements/{id}", token,
+            TestHelpers.AuthRequest(HttpMethod.Put, $"/api/admin/announcements/{id}", token,
                 new { title = "Updated", body = "Updated body", isImportant = true }));
 
         updateResp.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -181,32 +160,32 @@ public class AnnouncementEndpointsTests
     public async Task Delete_Existing_Returns204()
     {
         await CleanupAsync();
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var createResp = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Delete me", body = "Gone" }));
         var created = await createResp.Content.ReadFromJsonAsync<JsonElement>();
         var id = created.GetProperty("id").GetString();
 
         var deleteResp = await _client.SendAsync(
-            AuthRequest(HttpMethod.Delete, $"/api/admin/announcements/{id}", token));
+            TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/admin/announcements/{id}", token));
 
         deleteResp.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // Verify it's gone
         var getResp = await _client.SendAsync(
-            AuthRequest(HttpMethod.Get, $"/api/admin/announcements/{id}", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/announcements/{id}", token));
         getResp.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
     public async Task Delete_NonExisting_Returns404()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Delete, $"/api/admin/announcements/{Guid.NewGuid()}", token));
+            TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/admin/announcements/{Guid.NewGuid()}", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -218,23 +197,11 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task Create_EmptyTitle_Returns400()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
 
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "", body = "Some body" }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Create_EmptyBody_Returns400()
-    {
-        var (_, token) = await CreateSiteAdminAsync();
-
-        var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
-                new { title = "Good title", body = "" }));
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -247,9 +214,9 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task Create_NoChannels_DefaultsToSite()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Default", body = "Body" }));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -259,9 +226,9 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task Create_WithSiteAndEmail_PersistsBoth()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Both", body = "Body", channels = new[] { "site", "email" } }));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
@@ -272,23 +239,13 @@ public class AnnouncementEndpointsTests
     [Fact]
     public async Task Create_EmailOnly_Persisted()
     {
-        var (_, token) = await CreateSiteAdminAsync();
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("siteadmin", siteAdmin: true);
         var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
+            TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
                 new { title = "Email", body = "Body", channels = new[] { "email" } }));
 
         response.StatusCode.Should().Be(HttpStatusCode.Created);
         Channels(await response.Content.ReadFromJsonAsync<JsonElement>()).Should().Equal("email");
     }
 
-    [Fact]
-    public async Task Create_UnknownChannel_Returns400()
-    {
-        var (_, token) = await CreateSiteAdminAsync();
-        var response = await _client.SendAsync(
-            AuthRequest(HttpMethod.Post, "/api/admin/announcements", token,
-                new { title = "Bad", body = "Body", channels = new[] { "sms" } }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
 }

@@ -50,7 +50,7 @@ public static class SiteEndpoints
                 await tenantAudit.RecordAuditEventAsync(
                     ctx.GetOrgContext(), TenantAuditActions.SiteCreated, principal.UserId, "site", site.Id.ToString(),
                     new { site.Code, site.Name }, ct);
-                return Results.Created($"/sites/{site.Id}", site);
+                return Results.Created($"/api/sites/{site.Id}", site);
             }, logger, "create site", new { code = request.Code });
         })
         .WithName("CreateSite")

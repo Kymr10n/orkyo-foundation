@@ -12,6 +12,13 @@ namespace Api.Repositories;
 
 public class RequestRepository : IRequestRepository
 {
+    /// <summary>
+    /// The list's site scoping, the same as the backlog in
+    /// <c>RequestScheduleReadRepository.GetUnscheduledAsync</c>: a site keeps its own rows plus
+    /// the site-neutral ones, which are schedulable anywhere.
+    /// </summary>
+    private const string SiteOrNeutralFilter = "WHERE (site_id = @siteId OR site_id IS NULL) ";
+
     // Single consumer, so it lives here rather than in RequestSql.
     private static async Task<List<RequestRequirementInfo>> LoadRequirements(Guid requestId, NpgsqlConnection conn, CancellationToken ct = default)
     {
@@ -35,13 +42,12 @@ public class RequestRepository : IRequestRepository
     }
 
     public async Task<List<RequestInfo>> GetAllAsync(
-        bool includeRequirements = false, Guid? siteId = null, CancellationToken ct = default)
+        Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        // Same scoping as the backlog above: a site keeps its own rows plus the site-neutral
-        // ones, which are schedulable anywhere. A null siteId keeps the tenant-wide list.
-        var siteFilter = siteId is null ? "" : "WHERE (site_id = @siteId OR site_id IS NULL) ";
+        // A null siteId keeps the tenant-wide list.
+        var siteFilter = siteId is null ? "" : SiteOrNeutralFilter;
 
         var requests = await db.QueryListAsync(
             $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
@@ -60,17 +66,45 @@ public class RequestRepository : IRequestRepository
         return requests;
     }
 
-    public async Task<PagedResult<RequestInfo>> GetAllAsync(PageRequest page, bool includeRequirements = false, CancellationToken ct = default)
+    public async Task<List<RequestInfo>> GetPlacedOnAsync(IReadOnlyCollection<Guid> resourceIds, CancellationToken ct = default)
+    {
+        if (resourceIds.Count == 0) return [];
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+
+        var requests = await db.QueryListAsync(
+            $"SELECT {SelectFromView} FROM v_requests_with_assignments " +
+            "WHERE id IN (SELECT request_id FROM resource_assignments " +
+            "             WHERE resource_id = ANY(@resourceIds) AND assignment_status <> @cancelled) " +
+            "ORDER BY name",
+            p =>
+            {
+                p.AddWithValue("resourceIds", resourceIds.ToArray());
+                p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
+            },
+            RequestMapper.MapFromReader,
+            ct);
+
+        await LoadRequirementsForRequests(requests, db, ct);
+        return requests;
+    }
+
+    public async Task<PagedResult<RequestInfo>> GetAllAsync(
+        PageRequest? page, Guid? siteId = null, bool includeRequirements = false, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
 
-        var result = await db.QueryPagedAsync(
-            page,
-            countSql: "SELECT COUNT(*) FROM v_requests_with_assignments",
-            querySql: $"SELECT {SelectFromView} FROM v_requests_with_assignments ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset",
-            bind: null,
-            map: RequestMapper.MapFromReader,
-            ct: ct);
+        var siteFilter = siteId is null ? "" : SiteOrNeutralFilter;
+        Action<NpgsqlParameterCollection> bind = p =>
+        {
+            if (siteId is not null) p.AddWithValue("siteId", siteId.Value);
+        };
+        var countSql = "SELECT COUNT(*) FROM v_requests_with_assignments " + siteFilter;
+        var querySql = $"SELECT {SelectFromView} FROM v_requests_with_assignments " + siteFilter
+            + "ORDER BY parent_request_id NULLS FIRST, sort_order, created_at DESC LIMIT @limit OFFSET @offset";
+
+        var result = page is not null
+            ? await db.QueryPagedAsync(page, countSql, querySql, bind, RequestMapper.MapFromReader, ct)
+            : await db.QueryCappedAsync(PageRequest.MaxUnpagedItems, countSql, querySql, bind, RequestMapper.MapFromReader, ct);
 
         if (includeRequirements && result.Items.Count > 0)
         {
@@ -103,10 +137,10 @@ public class RequestRepository : IRequestRepository
             LIMIT @limit",
             p =>
             {
-                p.AddWithValue("query", string.IsNullOrWhiteSpace(nameContains)
-                    ? DBNull.Value
-                    : $"%{EscapeLike(nameContains)}%");
-                p.AddWithValue("scheduled", scheduled.HasValue ? scheduled.Value : DBNull.Value);
+                p.AddNullable("query", string.IsNullOrWhiteSpace(nameContains)
+                    ? null
+                    : $"%{NpgsqlQueryExtensions.EscapeLike(nameContains)}%");
+                p.AddNullable("scheduled", scheduled);
                 p.AddWithValue("limit", limit);
                 p.AddWithValue("cancelled", AssignmentStatuses.Cancelled);
             },
@@ -131,13 +165,6 @@ public class RequestRepository : IRequestRepository
         RequestSort.Name => "name ASC",
         _ => "parent_request_id NULLS FIRST, sort_order, created_at DESC",
     };
-
-    /// <summary>
-    /// Neutralises LIKE wildcards in user text so a name containing % or _ matches literally.
-    /// The backslash is the default ILIKE escape character in Postgres.
-    /// </summary>
-    private static string EscapeLike(string value) =>
-        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     public async Task<RequestInfo?> GetByIdAsync(Guid id, bool includeRequirements = true, CancellationToken ct = default)
     {
@@ -214,39 +241,30 @@ public class RequestRepository : IRequestRepository
                 r => r.GetNullableGuid("home_site_id"), ct);
         }
 
+        // A failure before the commit rolls back when the transaction is disposed.
         await using var transaction = await db.BeginTransactionAsync(ct);
+        var requestId = await InsertRequestAsync(db, transaction, request, effectiveSiteId, ct);
+        await transaction.CommitAsync(ct);
 
-        try
+        // Re-read from view to get full object with assignments
+        var createdRequest = await ReadByIdAsync(db, requestId, ct);
+
+        if (request.Requirements is { Count: > 0 })
         {
-            var requestId = await InsertRequestAsync(db, transaction, request, effectiveSiteId, ct);
-
-            await transaction.CommitAsync(ct);
-
-            // Re-read from view to get full object with assignments
-            var createdRequest = await ReadByIdAsync(db, requestId, ct);
-
-            if (request.Requirements is { Count: > 0 })
+            createdRequest = createdRequest with
             {
-                createdRequest = createdRequest with
-                {
-                    Requirements = await LoadRequirements(requestId, db, ct),
-                };
-            }
-            else
-            {
-                createdRequest = createdRequest with
-                {
-                    Requirements = [],
-                };
-            }
-
-            return createdRequest;
+                Requirements = await LoadRequirements(requestId, db, ct),
+            };
         }
-        catch
+        else
         {
-            await transaction.RollbackAsync(ct);
-            throw;
+            createdRequest = createdRequest with
+            {
+                Requirements = [],
+            };
         }
+
+        return createdRequest;
     }
 
     /// <summary>
@@ -289,9 +307,9 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddWithValue("minimal_duration_value", request.MinimalDurationValue);
         cmd.Parameters.AddWithValue("minimal_duration_unit", EnumMapper.ToDbValue(request.MinimalDurationUnit));
         cmd.Parameters.AddNullable("actual_duration_value", request.ActualDurationValue);
-        cmd.Parameters.AddWithValue("actual_duration_unit", request.ActualDurationUnit.HasValue
+        cmd.Parameters.AddNullable("actual_duration_unit", request.ActualDurationUnit.HasValue
             ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value)
-            : (object)DBNull.Value);
+            : null);
         cmd.Parameters.AddWithValue("status", EnumMapper.ToDbValue(request.Status));
         cmd.Parameters.AddWithValue("scheduling_settings_apply", request.SchedulingSettingsApply);
 
@@ -333,7 +351,7 @@ public class RequestRepository : IRequestRepository
 
         if (request.Requirements is { Count: > 0 })
         {
-            await CreateRequirements(requestId, request.Requirements, db, transaction, ct);
+            await InsertRequirementsAsync(db, requestId, request.Requirements, ct);
             await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(db, transaction, requestId, ct);
         }
 
@@ -352,33 +370,26 @@ public class RequestRepository : IRequestRepository
         if (parent.SiteId.HasValue && !await db.ExistsAsync("sites", parent.SiteId.Value, ct))
             throw new ArgumentException("Invalid site_id: site does not exist");
 
+        // A failure before the commit rolls back when the transaction is disposed.
         await using var transaction = await db.BeginTransactionAsync(ct);
 
-        try
-        {
-            var parentId = await InsertRequestAsync(db, transaction, parent, parent.SiteId, ct);
+        var parentId = await InsertRequestAsync(db, transaction, parent, parent.SiteId, ct);
 
-            var childIds = new List<Guid>(children.Count);
-            foreach (var child in children)
-                childIds.Add(await InsertRequestAsync(
-                    db, transaction, child with { ParentRequestId = parentId }, child.SiteId, ct));
+        var childIds = new List<Guid>(children.Count);
+        foreach (var child in children)
+            childIds.Add(await InsertRequestAsync(
+                db, transaction, child with { ParentRequestId = parentId }, child.SiteId, ct));
 
-            // The edges are between rows that did not exist a moment ago, so the service-level
-            // rules (leaves only, no duplicate, no cycle) hold by construction of the chain.
-            foreach (var edge in edges)
-                await RequestDependencyRepository.InsertEdgeAsync(
-                    db, childIds[edge.PredecessorIndex], childIds[edge.SuccessorIndex],
-                    DependencyTypes.FinishToStart, edge.LagMinutes, ct);
+        // The edges are between rows that did not exist a moment ago, so the service-level
+        // rules (leaves only, no duplicate, no cycle) hold by construction of the chain.
+        foreach (var edge in edges)
+            await RequestDependencyRepository.InsertEdgeAsync(
+                db, childIds[edge.PredecessorIndex], childIds[edge.SuccessorIndex],
+                DependencyTypes.FinishToStart, edge.LagMinutes, ct);
 
-            await transaction.CommitAsync(ct);
+        await transaction.CommitAsync(ct);
 
-            return (await ReadByIdAsync(db, parentId, ct), childIds);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(ct);
-            throw;
-        }
+        return (await ReadByIdAsync(db, parentId, ct), childIds);
     }
 
     public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
@@ -417,11 +428,11 @@ public class RequestRepository : IRequestRepository
             update.Set("predecessor_logic", EnumMapper.ToDbValue(request.PredecessorLogic.Value));
             // k only for k_of_n; anything else writes NULL. A k_of_n with no k is refused by
             // the validator, and by the CHECK constraint if it ever gets past it.
-            object k = request.PredecessorLogic.Value == PredecessorLogic.KOfN
-                && request.PredecessorLogicK is { } value
-                    ? value
-                    : DBNull.Value;
-            update.Set("predecessor_logic_k", k);
+            if (request.PredecessorLogic.Value == PredecessorLogic.KOfN
+                && request.PredecessorLogicK is { } k)
+                update.Set("predecessor_logic_k", k);
+            else
+                update.SetExpression("predecessor_logic_k = NULL");
         }
         if (request.SiteId.HasValue) update.Set("site_id", request.SiteId.Value);
         else if (request.ChangeSiteId) update.Set("site_id", (object)DBNull.Value);
@@ -492,7 +503,7 @@ public class RequestRepository : IRequestRepository
             deleteCmd.Parameters.AddWithValue("request_id", id);
             await deleteCmd.ExecuteNonQueryAsync(ct);
             if (request.Requirements.Count > 0)
-                await CreateRequirements(id, request.Requirements, db, transaction, ct);
+                await InsertRequirementsAsync(db, id, request.Requirements, ct);
         }
 
         // Either side can invalidate the pairing: a new requirement, or targets narrowed away
@@ -528,15 +539,6 @@ public class RequestRepository : IRequestRepository
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
 
-        if (!await db.ExistsAsync("requests", id, ct))
-            return null;
-
-        if (request.ResourceId.HasValue
-            && !await db.ExistsAsync("resources", request.ResourceId.Value, ct))
-        {
-            throw new ArgumentException("Invalid resource_id: resource does not exist");
-        }
-
         int? actualDurationValue = request.ActualDurationValue;
         string? actualDurationUnit = request.ActualDurationUnit.HasValue
             ? EnumMapper.ToDbValue(request.ActualDurationUnit.Value)
@@ -571,11 +573,17 @@ public class RequestRepository : IRequestRepository
         cmd.Parameters.AddNullable("actual_duration_value", actualDurationValue);
         cmd.Parameters.AddNullable("actual_duration_unit", actualDurationUnit);
 
+        // No row updated means no such request; disposing the transaction rolls back. The
+        // UPDATE is the existence check, so a missing request still answers null (404) before
+        // an unknown resource is refused.
         var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
         if (!updatedId.HasValue)
-        {
-            await tx.RollbackAsync(ct);
             return null;
+
+        if (request.ResourceId.HasValue
+            && !await db.ExistsAsync("resources", request.ResourceId.Value, ct))
+        {
+            throw new ArgumentException("Invalid resource_id: resource does not exist");
         }
 
         // With a resource: replace the one occupying that type's slot. Without: this call is
@@ -939,37 +947,59 @@ public class RequestRepository : IRequestRepository
         }
     }
 
-    private static async Task<List<RequestRequirementInfo>> CreateRequirements(
+    /// <summary>
+    /// Writes a fresh requirement set, inside the caller's open transaction. Create and update
+    /// call this once the request has no rows (none yet, or just deleted), so a criterion listed
+    /// twice stays the unique violation it always was.
+    /// </summary>
+    private static Task<List<RequestRequirementInfo>> InsertRequirementsAsync(
+        NpgsqlConnection conn,
         Guid requestId,
-        List<CreateRequestRequirementRequest> requirements,
-        NpgsqlConnection db,
-        NpgsqlTransaction transaction,
-        CancellationToken ct = default)
+        IReadOnlyList<CreateRequestRequirementRequest> requirements,
+        CancellationToken ct)
+        => WriteRequirementsAsync(conn, requestId, requirements, onConflict: "", ct);
+
+    /// <summary>
+    /// The single-add contract: a criterion the request already has gets the new value.
+    /// </summary>
+    private static Task<List<RequestRequirementInfo>> UpsertRequirementsAsync(
+        NpgsqlConnection conn,
+        Guid requestId,
+        IReadOnlyList<CreateRequestRequirementRequest> requirements,
+        CancellationToken ct)
+        => WriteRequirementsAsync(conn, requestId, requirements, @"ON CONFLICT (request_id, criterion_id) DO UPDATE SET
+                value = EXCLUDED.value,
+                operator = EXCLUDED.operator,
+                allowed_values = EXCLUDED.allowed_values", ct);
+
+    private static Task<List<RequestRequirementInfo>> WriteRequirementsAsync(
+        NpgsqlConnection conn,
+        Guid requestId,
+        IReadOnlyList<CreateRequestRequirementRequest> requirements,
+        string onConflict,
+        CancellationToken ct)
     {
-        var valueClauses = new List<string>();
-        var cmd = new NpgsqlCommand { Connection = db, Transaction = transaction };
+        var valueClauses = requirements.Select((_, i) =>
+            $"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, @operator_{i}, @allowed_values_{i}::jsonb)");
 
-        for (var i = 0; i < requirements.Count; i++)
-        {
-            valueClauses.Add($"(@request_id, @criterion_id_{i}, @value_{i}::jsonb, @operator_{i}, @allowed_values_{i}::jsonb)");
-            var req = requirements[i];
-            cmd.Parameters.AddWithValue($"criterion_id_{i}", req.CriterionId);
-            cmd.Parameters.AddWithValue($"value_{i}", req.Value.GetRawText());
-            cmd.Parameters.AddWithValue($"operator_{i}", req.Operator is null ? (object)DBNull.Value : req.Operator);
-            cmd.Parameters.AddWithValue($"allowed_values_{i}", req.AllowedValues is null ? (object)DBNull.Value : req.AllowedValues.Value.GetRawText());
-        }
-
-        cmd.Parameters.AddWithValue("request_id", requestId);
-        cmd.CommandText = $@"
+        return conn.QueryListAsync($@"
             INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
             VALUES {string.Join(", ", valueClauses)}
-            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at";
-
-        var createdRequirements = new List<RequestRequirementInfo>();
-        using var reader = await cmd.ExecuteReaderAsync(ct);
-        while (await reader.ReadAsync(ct))
-            createdRequirements.Add(RequestMapper.MapRequirementFromReader(reader));
-        return createdRequirements;
+            {onConflict}
+            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at",
+            p =>
+            {
+                p.AddWithValue("request_id", requestId);
+                for (var i = 0; i < requirements.Count; i++)
+                {
+                    var req = requirements[i];
+                    p.AddWithValue($"criterion_id_{i}", req.CriterionId);
+                    p.AddWithValue($"value_{i}", req.Value.GetRawText());
+                    p.AddNullable($"operator_{i}", req.Operator);
+                    p.AddNullable($"allowed_values_{i}", req.AllowedValues?.GetRawText());
+                }
+            },
+            RequestMapper.MapRequirementFromReader, ct);
     }
 
     public async Task<PlanningMode?> GetPlanningModeAsync(Guid id, CancellationToken ct = default)
@@ -1031,24 +1061,7 @@ public class RequestRepository : IRequestRepository
         if (conn.State != ConnectionState.Open) await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
 
-        var created = (await conn.QuerySingleOrDefaultAsync(@"
-            INSERT INTO request_requirements (request_id, criterion_id, value, operator, allowed_values)
-            VALUES (@request_id, @criterion_id, @value::jsonb, @operator, @allowed_values::jsonb)
-            ON CONFLICT (request_id, criterion_id) DO UPDATE SET
-                value = EXCLUDED.value,
-                operator = EXCLUDED.operator,
-                allowed_values = EXCLUDED.allowed_values
-            RETURNING id, request_id, criterion_id, value, operator, allowed_values, created_at",
-            p =>
-            {
-                p.AddWithValue("request_id", requestId);
-                p.AddWithValue("criterion_id", requirement.CriterionId);
-                p.AddWithValue("value", requirement.Value.GetRawText());
-                p.AddWithValue("operator", requirement.Operator is null ? (object)DBNull.Value : requirement.Operator);
-                p.AddWithValue("allowed_values", requirement.AllowedValues is null ? (object)DBNull.Value : requirement.AllowedValues.Value.GetRawText());
-            },
-            RequestMapper.MapRequirementFromReader,
-            ct))!;
+        var created = (await UpsertRequirementsAsync(conn, requestId, [requirement], ct)).Single();
 
         await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(conn, tx, requestId, ct);
         await tx.CommitAsync(ct);

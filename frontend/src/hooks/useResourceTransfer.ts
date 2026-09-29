@@ -6,6 +6,7 @@ import { exportResources, importResources, type ResourceExportRow } from '@found
 import { resourceContext } from '@foundation/src/lib/utils/import-export';
 import { useExportHandler, useImportHandler } from './useImportExport';
 import { useResourceCustomFields } from './useResourceCustomFields';
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface ResourceTransferOptions {
   /**
@@ -75,7 +76,7 @@ export function useResourceTransfer(
       // Custom-field values are validated server-side, which makes a single bad cell likely.
       const failures: string[] = [];
       let imported = 0;
-      const reason = (err: unknown) => (err instanceof Error ? err.message : 'rejected');
+      const reason = (err: unknown) => errorMessage(err, 'rejected');
 
       for (const { request, source } of rows) {
         let created: ResourceInfo;

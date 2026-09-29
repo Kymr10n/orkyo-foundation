@@ -86,14 +86,8 @@ public sealed class AutoScheduleTools
         {
             throw new McpException(NotAvailable(ex));
         }
-        catch (ArgumentException ex)
-        {
-            // The service raises this to say exactly what the caller must supply — an unknown
-            // type key, named. Letting it escape as an unhandled exception would replace the one
-            // message that tells the agent how to succeed with a generic failure it can only
-            // retry blindly.
-            throw new McpException(ex.Message);
-        }
+        // An ArgumentException (an unknown type key, named) passes through McpToolPipeline with
+        // its message: it is the one that tells the agent how to succeed.
 
         // Echo the caller's own arguments back beside the fingerprint. ApplyAsync re-solves from
         // whatever it is given, so a fingerprint paired with a drifted horizon or a different
@@ -154,10 +148,6 @@ public sealed class AutoScheduleTools
         catch (FeatureNotAvailableException ex)
         {
             throw new McpException(NotAvailable(ex));
-        }
-        catch (ArgumentException ex)
-        {
-            throw new McpException(ex.Message);
         }
     }
 

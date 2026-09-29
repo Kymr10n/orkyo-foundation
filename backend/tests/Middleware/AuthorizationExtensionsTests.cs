@@ -7,6 +7,7 @@ using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
@@ -129,11 +130,42 @@ public class AuthorizationExtensionsTests
         return (int)response.StatusCode;
     }
 
-    private static async Task<HttpResponseMessage> InvokeFilteredEndpointResponseAsync(
+    private static Task<HttpResponseMessage> InvokeFilteredEndpointResponseAsync(
         Action<RouteHandlerBuilder> applyFilter,
         ICurrentPrincipal? principal = null,
         IAuthorizationContext? authContext = null,
         ICurrentTenant? currentTenant = null)
+        => SendAsync(app => applyFilter(app.MapGet("/test", () => Results.Ok())), HttpMethod.Get,
+            principal, authContext, currentTenant);
+
+    /// <summary>One route under a group carrying <paramref name="convention"/>, called with <paramref name="method"/>.</summary>
+    private static async Task<int> InvokeGroupEndpointAsync(
+        Func<RouteGroupBuilder, RouteGroupBuilder> convention,
+        HttpMethod method,
+        ICurrentPrincipal? principal = null,
+        IAuthorizationContext? authContext = null,
+        ICurrentTenant? currentTenant = null)
+    {
+        var response = await InvokeGroupEndpointResponseAsync(convention, method, principal, authContext, currentTenant);
+        return (int)response.StatusCode;
+    }
+
+    private static Task<HttpResponseMessage> InvokeGroupEndpointResponseAsync(
+        Func<RouteGroupBuilder, RouteGroupBuilder> convention,
+        HttpMethod method,
+        ICurrentPrincipal? principal = null,
+        IAuthorizationContext? authContext = null,
+        ICurrentTenant? currentTenant = null)
+        => SendAsync(
+            app => convention(app.MapGroup("/")).MapMethods("/test", [method.Method], () => Results.Ok()),
+            method, principal, authContext, currentTenant);
+
+    private static async Task<HttpResponseMessage> SendAsync(
+        Action<WebApplication> map,
+        HttpMethod method,
+        ICurrentPrincipal? principal,
+        IAuthorizationContext? authContext,
+        ICurrentTenant? currentTenant)
     {
         var builder = WebApplication.CreateBuilder(
             new WebApplicationOptions { EnvironmentName = EnvironmentNames.Test });
@@ -148,13 +180,12 @@ public class AuthorizationExtensionsTests
             builder.Services.AddSingleton<ICurrentTenant>(currentTenant);
 
         var app = builder.Build();
-        var route = app.MapGet("/test", () => Results.Ok());
-        applyFilter(route);
+        map(app);
 
         await app.StartAsync();
         try
         {
-            return await app.GetTestClient().GetAsync("/test");
+            return await app.GetTestClient().SendAsync(new HttpRequestMessage(method, "/test"));
         }
         finally
         {
@@ -236,20 +267,20 @@ public class AuthorizationExtensionsTests
         status.Should().Be((int)HttpStatusCode.OK);
     }
 
-    // ── RequireRole ────────────────────────────────────────────────────────
+    // ── RequireMemberReadEditorWrite: a write needs Editor ────────────────
 
     [Fact]
-    public async Task RequireRole_WhenNoAuthContext_Returns401()
+    public async Task EditorWrite_WhenNoAuthContext_Returns401()
     {
         // No principal, no auth context → BuildMembershipDenial → unauthenticated → 401
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireRole(TenantRole.Editor));
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireMemberReadEditorWrite(), HttpMethod.Post);
 
         status.Should().Be((int)HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task RequireRole_WhenNotMember_Returns403()
+    public async Task EditorWrite_WhenNotMember_Returns403()
     {
         var principal = new CurrentPrincipal();
         principal.SetContext(new PrincipalContext
@@ -261,8 +292,8 @@ public class AuthorizationExtensionsTests
         });
         var authCtx = new CurrentAuthorizationContext(); // no context set → IsMember = false
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireRole(TenantRole.Editor),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireMemberReadEditorWrite(), HttpMethod.Post,
             principal: principal,
             authContext: authCtx);
 
@@ -270,7 +301,7 @@ public class AuthorizationExtensionsTests
     }
 
     [Fact]
-    public async Task RequireRole_WhenRoleNotAllowed_Returns403()
+    public async Task EditorWrite_WhenRoleNotAllowed_Returns403()
     {
         var authCtx = new CurrentAuthorizationContext();
         authCtx.SetContext(new AuthorizationContext
@@ -280,15 +311,15 @@ public class AuthorizationExtensionsTests
             Role = TenantRole.Viewer,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireRole(TenantRole.Editor),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireMemberReadEditorWrite(), HttpMethod.Post,
             authContext: authCtx);
 
         status.Should().Be((int)HttpStatusCode.Forbidden);
     }
 
     [Fact]
-    public async Task RequireRole_WhenRoleAllowed_CallsNext()
+    public async Task EditorWrite_WhenRoleAllowed_CallsNext()
     {
         var authCtx = new CurrentAuthorizationContext();
         authCtx.SetContext(new AuthorizationContext
@@ -298,8 +329,8 @@ public class AuthorizationExtensionsTests
             Role = TenantRole.Editor,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireRole(TenantRole.Editor),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireMemberReadEditorWrite(), HttpMethod.Post,
             authContext: authCtx);
 
         status.Should().Be((int)HttpStatusCode.OK);
@@ -356,18 +387,18 @@ public class AuthorizationExtensionsTests
         status.Should().Be((int)HttpStatusCode.OK);
     }
 
-    // ── RequireAdminAccess ─────────────────────────────────────────────────
+    // ── RequireAdminArea ───────────────────────────────────────────────────
 
     [Fact]
-    public async Task RequireAdminAccess_WhenNoPrincipal_Returns401()
+    public async Task AdminArea_WhenNoPrincipal_Returns401()
     {
-        var status = await InvokeFilteredEndpointAsync(route => route.RequireAdminAccess());
+        var status = await InvokeGroupEndpointAsync(group => group.RequireAdminArea(), HttpMethod.Get);
 
         status.Should().Be((int)HttpStatusCode.Unauthorized);
     }
 
     [Fact]
-    public async Task RequireAdminAccess_WhenAuthenticatedWithNoAdminAccess_Returns403()
+    public async Task AdminArea_WhenAuthenticatedWithNoAdminAccess_Returns403()
     {
         var principal = new CurrentPrincipal();
         principal.SetContext(new PrincipalContext
@@ -379,8 +410,8 @@ public class AuthorizationExtensionsTests
         });
         var authCtx = new CurrentAuthorizationContext(); // no context → not tenant admin
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireAdminAccess(),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal,
             authContext: authCtx);
 
@@ -388,7 +419,7 @@ public class AuthorizationExtensionsTests
     }
 
     [Fact]
-    public async Task RequireAdminAccess_WhenSiteAdmin_CallsNext()
+    public async Task AdminArea_WhenSiteAdmin_CallsNext()
     {
         var principal = new CurrentPrincipal();
         principal.SetContext(new PrincipalContext
@@ -399,15 +430,15 @@ public class AuthorizationExtensionsTests
             IsSiteAdmin = true,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireAdminAccess(),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal);
 
         status.Should().Be((int)HttpStatusCode.OK);
     }
 
     [Fact]
-    public async Task RequireAdminAccess_WhenTenantAdmin_CallsNext()
+    public async Task AdminArea_WhenTenantAdmin_CallsNext()
     {
         var principal = new CurrentPrincipal();
         principal.SetContext(new PrincipalContext
@@ -425,8 +456,8 @@ public class AuthorizationExtensionsTests
             Role = TenantRole.Admin,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireAdminAccess(),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal,
             authContext: authCtx);
 
@@ -436,7 +467,7 @@ public class AuthorizationExtensionsTests
     // ── F001: site-admin tenant access requires break-glass ─────────────────
 
     [Fact]
-    public async Task RequireAdminAccess_WhenSiteAdminTenantScopedWithoutBreakGlass_Returns403BreakGlass()
+    public async Task AdminArea_WhenSiteAdminTenantScopedWithoutBreakGlass_Returns403BreakGlass()
     {
         // Site-admin on a tenant subdomain with no active break-glass session: the middleware leaves
         // the authorization context at Role=None, so the endpoint must deny and route back to /admin.
@@ -450,8 +481,8 @@ public class AuthorizationExtensionsTests
         });
         var authCtx = new CurrentAuthorizationContext(); // no break-glass → Role=None
 
-        var response = await InvokeFilteredEndpointResponseAsync(
-            route => route.RequireAdminAccess(),
+        var response = await InvokeGroupEndpointResponseAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal,
             authContext: authCtx,
             currentTenant: TenantScope());
@@ -462,7 +493,7 @@ public class AuthorizationExtensionsTests
     }
 
     [Fact]
-    public async Task RequireAdminAccess_WhenSiteAdminTenantScopedWithBreakGlass_CallsNext()
+    public async Task AdminArea_WhenSiteAdminTenantScopedWithBreakGlass_CallsNext()
     {
         // Active break-glass is folded into the authorization context as Role=Admin by the middleware.
         var principal = new CurrentPrincipal();
@@ -481,8 +512,8 @@ public class AuthorizationExtensionsTests
             Role = TenantRole.Admin,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireAdminAccess(),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal,
             authContext: authCtx,
             currentTenant: TenantScope());
@@ -491,7 +522,7 @@ public class AuthorizationExtensionsTests
     }
 
     [Fact]
-    public async Task RequireAdminAccess_WhenSiteAdminControlPlane_CallsNext()
+    public async Task AdminArea_WhenSiteAdminControlPlane_CallsNext()
     {
         // No tenant resolved (apex/admin host): bare site-admin access is preserved.
         var principal = new CurrentPrincipal();
@@ -503,8 +534,8 @@ public class AuthorizationExtensionsTests
             IsSiteAdmin = true,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireAdminAccess(),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal,
             currentTenant: new CurrentTenant()); // HasTenant == false
 
@@ -512,7 +543,7 @@ public class AuthorizationExtensionsTests
     }
 
     [Fact]
-    public async Task RequireAdminAccess_WhenGenuineTenantAdminTenantScoped_CallsNext()
+    public async Task AdminArea_WhenGenuineTenantAdminTenantScoped_CallsNext()
     {
         // A real tenant Admin (not a site-admin) needs no break-glass.
         var principal = new CurrentPrincipal();
@@ -531,8 +562,8 @@ public class AuthorizationExtensionsTests
             Role = TenantRole.Admin,
         });
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireAdminAccess(),
+        var status = await InvokeGroupEndpointAsync(
+            group => group.RequireAdminArea(), HttpMethod.Get,
             principal: principal,
             authContext: authCtx,
             currentTenant: TenantScope());

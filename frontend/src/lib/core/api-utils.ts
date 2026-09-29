@@ -6,15 +6,19 @@
  */
 
 import { runtimeConfig } from "@foundation/src/config/runtime";
-import { API_ERROR_CODES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
+import { API_ERROR_CODES, API_ERROR_MESSAGES, type ApiErrorBody } from "@foundation/src/constants/api-error-codes";
 import { CORRELATION_ID_HEADER_NAME, TENANT_HEADER_NAME } from "@foundation/src/constants/http";
-import { STORAGE_KEYS } from "@foundation/src/constants/storage";
+import { tenantStorage } from "@foundation/src/lib/core/tenant-storage";
 import { ROUTE_SITE_ADMIN } from "@foundation/src/constants/auth";
-import { getTenantSlugSync } from "@foundation/src/contexts/AuthContext";
 import { getCsrfToken, CSRF_HEADER_NAME, isMutatingMethod } from "@foundation/src/lib/core/csrf";
 import { logger } from "@foundation/src/lib/core/logger";
 import { randomId } from "@foundation/src/lib/core/ids";
-import { extractSlugFromHostname, navigateToApex, redirectToLogin } from "@foundation/src/lib/utils/tenant-navigation";
+import {
+  extractSlugFromHostname,
+  isSafeRelativePath,
+  goToApex,
+  redirectToLogin,
+} from "@foundation/src/lib/utils/tenant-navigation";
 import { takeSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
 
 /**
@@ -48,7 +52,7 @@ export function getApiHeaders(method = 'GET'): Record<string, string> {
 }
 
 /**
- * Get tenant slug from URL subdomain or localStorage
+ * Get tenant slug from URL subdomain or, without one, the remembered slug
  */
 export function getTenantSlug(): string {
   const slug = extractSlugFromHostname(window.location.hostname);
@@ -58,28 +62,9 @@ export function getTenantSlug(): string {
   }
 
   // For local development or single-tenant deployment, use stored tenant
-  const stored = getTenantSlugSync() || "";
-  if (stored) {
-    logger.debug("getTenantSlug() from storage:", stored);
-    return stored;
-  }
-
-  // Recover from older/local states where only active_membership was persisted.
-  try {
-    const rawMembership = localStorage.getItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP);
-    if (rawMembership) {
-      const parsed = JSON.parse(rawMembership) as { slug?: unknown };
-      if (typeof parsed.slug === "string" && parsed.slug.length > 0) {
-        logger.debug("getTenantSlug() from active membership:", parsed.slug);
-        return parsed.slug;
-      }
-    }
-  } catch {
-    // Ignore malformed storage data and return empty.
-  }
-
-  logger.debug("getTenantSlug() returning empty");
-  return "";
+  const stored = tenantStorage.slug();
+  logger.debug("getTenantSlug() from storage:", stored);
+  return stored;
 }
 
 /**
@@ -89,31 +74,22 @@ export const API_BASE_URL = runtimeConfig.apiBaseUrl;
 
 
 /**
- * Clear locally cached tenant identity. Used when session/break-glass ends.
- * The break-glass session id lives inside ACTIVE_MEMBERSHIP, so removing that
- * single key is enough to wipe the banner state on re-entry.
+ * An error response from the application API. `status` is the HTTP status and `code` the
+ * body's machine-readable code, so a caller switches on those instead of matching `message`,
+ * which is the human text meant for the user.
  */
-function clearTenantState(): void {
-  localStorage.removeItem(STORAGE_KEYS.ACTIVE_MEMBERSHIP);
-  localStorage.removeItem(STORAGE_KEYS.TENANT_SLUG);
+export class ApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
 }
 
-/**
- * Handle API errors consistently.
- *
- * The backend returns one canonical body for every error — RFC 7807 ProblemDetails plus a
- * machine-readable `code` (and `returnTo` where relevant) — so the frontend can react
- * differently per case rather than treating any 401/403 as "session expired":
- *
- *   - `session_expired` (401)               → clear state, redirect to apex /login
- *   - `break_glass_expired` (403/404)       → clear tenant state, navigate to apex /site-admin
- *   - `break_glass_hard_cap_reached` (410)  → same as above + show toast
- *   - `forbidden` (403) or no code          → throw, let the caller surface a toast
- *
- * Returning to /site-admin instead of /login matters: a site-admin whose break-glass
- * just timed out should land back on the admin console, not be sent through the
- * login flow as if their identity itself was invalid.
- */
 /**
  * Join RFC 7807 `errors` into one readable sentence, or null when the body carries none.
  * Without this a validation failure surfaces only the generic problem `detail`, which tells
@@ -124,6 +100,25 @@ function flattenFieldErrors(body: ApiErrorBody): string | null {
   return messages.length > 0 ? messages.join(" ") : null;
 }
 
+/**
+ * Handle API errors consistently.
+ *
+ * The backend returns one canonical body for every error — RFC 7807 ProblemDetails plus a
+ * machine-readable `code` (and `returnTo` where relevant) — so the frontend can react
+ * differently per case rather than treating any 401/403 as "session expired":
+ *
+ *   - `break_glass_expired`, `break_glass_hard_cap_reached` → clear the tenant slug, go to the
+ *     server's `returnTo` (same-origin only) or apex /site-admin
+ *   - any other 401 (`session_expired`)     → clear the tenant slug, go to apex /login (or,
+ *     for an ephemeral demo session, to where it ends)
+ *   - anything else                         → throw `ApiError`; the caller surfaces it
+ *
+ * Every branch throws `ApiError { status, code }` with the problem's message.
+ *
+ * Returning to /site-admin instead of /login matters: a site-admin whose break-glass
+ * just timed out should land back on the admin console, not be sent through the
+ * login flow as if their identity itself was invalid.
+ */
 export async function handleApiError(response: Response): Promise<never> {
   let errorMessage = response.statusText;
   let body: ApiErrorBody | null = null;
@@ -133,30 +128,31 @@ export async function handleApiError(response: Response): Promise<never> {
     // RFC 7807: `detail` explains this occurrence, `title` is the generic summary.
     // Field-level validation messages are flattened in so a 400 says what was wrong
     // rather than the useless generic "One or more fields failed validation."
-    errorMessage = flattenFieldErrors(body) ?? body.detail ?? body.title ?? errorMessage;
+    // A code with its own user-facing text wins over the server's wording.
+    errorMessage =
+      (body.code ? API_ERROR_MESSAGES[body.code] : undefined) ??
+      flattenFieldErrors(body) ?? body.detail ?? body.title ?? errorMessage;
   } catch {
     // Response might not be JSON
   }
 
   const code = body?.code;
-  const returnTo = body?.returnTo;
+  // The server names where to go next; only a same-origin path is honoured.
+  const returnTo = body?.returnTo && isSafeRelativePath(body.returnTo) ? body.returnTo : undefined;
 
   // Break-glass: route the admin back to /site-admin instead of /login.
   if (
     code === API_ERROR_CODES.BREAK_GLASS_EXPIRED ||
     code === API_ERROR_CODES.BREAK_GLASS_HARD_CAP_REACHED
   ) {
-    clearTenantState();
-    if (!navigateToApex(returnTo || ROUTE_SITE_ADMIN)) {
-      // Local dev / no apex — fall back to a same-origin nav.
-      window.location.href = returnTo || ROUTE_SITE_ADMIN;
-    }
-    throw new Error(errorMessage || "Break-glass session has ended.");
+    tenantStorage.clear();
+    goToApex(returnTo || ROUTE_SITE_ADMIN);
+    throw new ApiError(errorMessage || "Break-glass session has ended.", response.status, code);
   }
 
   if (response.status === 401) {
     // Session expired or unauthenticated — clear state and redirect.
-    clearTenantState();
+    tenantStorage.clear();
     // An ephemeral session (the public demo) ends on the marketing site, not at a credentials
     // form its visitor never had. Same shape as the break-glass branch above.
     const sessionEnd = takeSessionEndRedirect();
@@ -165,8 +161,12 @@ export async function handleApiError(response: Response): Promise<never> {
     } else {
       redirectToLogin();
     }
-    throw new Error(errorMessage || "Your session has expired. Please log in again.");
+    throw new ApiError(
+      errorMessage || "Your session has expired. Please log in again.",
+      response.status,
+      code,
+    );
   }
 
-  throw new Error(`API Error (${response.status}): ${errorMessage}`);
+  throw new ApiError(errorMessage || `Request failed (${response.status})`, response.status, code);
 }

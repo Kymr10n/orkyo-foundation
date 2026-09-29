@@ -39,7 +39,7 @@ vi.mock('@foundation/src/config/runtime', () => ({
 }));
 
 vi.mock('@foundation/src/constants/storage', () => ({
-  STORAGE_KEYS: { ACTIVE_MEMBERSHIP: 'membership', TENANT_SLUG: 'slug' },
+  STORAGE_KEYS: { TENANT_SLUG: 'slug' },
 }));
 
 vi.mock('@foundation/src/constants/auth', () => ({
@@ -55,7 +55,6 @@ vi.mock('@foundation/src/constants/auth', () => ({
     USER_UPDATED: 'USER_UPDATED',
     REFRESH: 'REFRESH',
     UNAUTHORIZED: 'UNAUTHORIZED',
-    SESSION_EXPIRED: 'SESSION_EXPIRED',
     REACTIVATE: 'REACTIVATE',
     RETRY: 'RETRY',
   },
@@ -121,10 +120,6 @@ function machineWithOutput(output: Record<string, unknown>) {
 }
 
 describe('authMachine', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('transitions to ready when session has resolved membership (local dev)', async () => {
     const machine = machineWithOutput({
       kind: 'loaded',
@@ -508,9 +503,8 @@ describe('authMachine', () => {
 // RequireAuth (and api-utils on a 401) send these while the user sits on one of
 // the "signed in but no workspace resolved" screens. Before the fix only `ready`
 // handled them, so the event vanished and any spinner waited forever.
-describe('authMachine — UNAUTHORIZED / SESSION_EXPIRED are never dropped', () => {
+describe('authMachine — UNAUTHORIZED is never dropped', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     setLocation({ pathname: '/about' });
   });
 
@@ -547,7 +541,7 @@ describe('authMachine — UNAUTHORIZED / SESSION_EXPIRED are never dropped', () 
   ];
 
   for (const { state, output } of cases) {
-    for (const event of ['UNAUTHORIZED', 'SESSION_EXPIRED'] as const) {
+    for (const event of ['UNAUTHORIZED'] as const) {
       it(`${state} handles ${event} → redirecting_login`, async () => {
         mockGetCurrentSubdomain.mockReturnValue('demo');
         const actor = createActor(machineWithOutput(output));
@@ -591,7 +585,6 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetCurrentSubdomain.mockReturnValue(null);
     mockConsumeBreakGlassCookie.mockReturnValue(null);
   });
@@ -730,10 +723,6 @@ describe('authMachine — break-glass cookie guard (integration)', () => {
 });
 
 describe('performLogin (redirecting_login entry)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('skips the BFF redirect on a public path (/signup)', async () => {
     setLocation({ pathname: '/signup', href: 'http://localhost:5173/signup' });
     const actor = createActor(machineWithOutput({ kind: 'empty' }));

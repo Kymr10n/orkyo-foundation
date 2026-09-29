@@ -21,18 +21,13 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
             SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
-    public async Task<ResourceAbsenceInfo?> GetByIdAsync(Guid id, CancellationToken ct = default)
-    {
-        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.QuerySingleOrDefaultAsync(
-            $"SELECT {Cols} FROM resource_absences WHERE id = @id",
-            p => p.AddWithValue("id", id),
-            SchedulingMapper.MapResourceAbsenceFromReader, ct);
-    }
-
     public async Task<ResourceAbsenceInfo> CreateAsync(Guid resourceId, CreateResourceAbsenceRequest request, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        // The HTTP endpoint and the MCP tool both rely on this: a missing resource is a 404, not
+        // a foreign-key violation.
+        if (!await conn.ExistsAsync("resources", resourceId, ct))
+            throw new NotFoundException("Resource", resourceId);
 
         return (await conn.QuerySingleOrDefaultAsync($@"
             INSERT INTO resource_absences
@@ -56,50 +51,35 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
             }, SchedulingMapper.MapResourceAbsenceFromReader, ct))!;
     }
 
-    public async Task<ResourceAbsenceInfo?> UpdateAsync(Guid id, UpdateResourceAbsenceRequest request, CancellationToken ct = default)
+    public async Task<ResourceAbsenceInfo?> UpdateAsync(Guid resourceId, Guid id, UpdateResourceAbsenceRequest request, CancellationToken ct = default)
     {
+        // Only the fields the request carries are written: a read-merge-write of the whole row
+        // would overwrite a concurrent update of another field with the value read before it.
+        var update = RecurringWindowUpdate.Build(request)
+            .SetIfNotNull("absence_type", request.AbsenceType is { } type ? EnumMapper.ToDbValue(type) : null)
+            .SetIfNotNull("notes", request.Notes);
+
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-
-        var existing = await conn.QuerySingleOrDefaultAsync(
-            $"SELECT {Cols} FROM resource_absences WHERE id = @id",
-            p => p.AddWithValue("id", id),
-            SchedulingMapper.MapResourceAbsenceFromReader, ct);
-        if (existing is null) return null;
-
-        var isRecurring = request.IsRecurring ?? existing.IsRecurring;
-        var recurrenceRule = isRecurring ? (request.RecurrenceRule ?? existing.RecurrenceRule) : null;
-
-        return await conn.QuerySingleOrDefaultAsync($@"
-            UPDATE resource_absences SET
-                absence_type    = @absenceType,
-                title           = @title,
-                notes           = @notes,
-                start_ts        = @startTs,
-                end_ts          = @endTs,
-                is_recurring    = @isRecurring,
-                recurrence_rule = @recurrenceRule,
-                enabled         = @enabled
-            WHERE id = @id
-            RETURNING {Cols}",
-            p =>
-            {
-                p.AddWithValue("id", id);
-                p.AddWithValue("absenceType", EnumMapper.ToDbValue(request.AbsenceType ?? existing.AbsenceType));
-                p.AddWithValue("title", request.Title ?? existing.Title);
-                p.AddNullable("notes", request.Notes ?? existing.Notes);
-                p.AddWithValue("startTs", request.StartTs ?? existing.StartTs);
-                p.AddWithValue("endTs", request.EndTs ?? existing.EndTs);
-                p.AddWithValue("isRecurring", isRecurring);
-                p.AddNullable("recurrenceRule", recurrenceRule);
-                p.AddWithValue("enabled", request.Enabled ?? existing.Enabled);
-            }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
+        return update.IsEmpty
+            ? await conn.QuerySingleOrDefaultAsync(
+                $"SELECT {Cols} FROM resource_absences WHERE id = @id AND resource_id = @resourceId",
+                p => { p.AddWithValue("id", id); p.AddWithValue("resourceId", resourceId); },
+                SchedulingMapper.MapResourceAbsenceFromReader, ct)
+            : await conn.QuerySingleOrDefaultAsync(
+                $"UPDATE resource_absences SET {update.SetClause} WHERE id = @id AND resource_id = @resourceId RETURNING {Cols}",
+                p =>
+                {
+                    p.AddWithValue("id", id);
+                    p.AddWithValue("resourceId", resourceId);
+                    update.Apply(p);
+                }, SchedulingMapper.MapResourceAbsenceFromReader, ct);
     }
 
-    public async Task<bool> DeleteAsync(Guid id, CancellationToken ct = default)
+    public async Task<bool> DeleteAsync(Guid resourceId, Guid id, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        return await conn.ExecuteAsync("DELETE FROM resource_absences WHERE id = @id",
-            p => p.AddWithValue("id", id), ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM resource_absences WHERE id = @id AND resource_id = @resourceId",
+            p => { p.AddWithValue("id", id); p.AddWithValue("resourceId", resourceId); }, ct) > 0;
     }
 
     public async Task<Dictionary<Guid, List<ResourceAbsenceInfo>>> GetEnabledByResourcesAsync(
@@ -113,16 +93,6 @@ public class ResourceAbsenceRepository(OrgContext orgContext, IOrgDbConnectionFa
             p => p.AddWithValue("ids", resourceIds.ToArray()),
             SchedulingMapper.MapResourceAbsenceFromReader, ct);
 
-        var map = new Dictionary<Guid, List<ResourceAbsenceInfo>>();
-        foreach (var absence in absences)
-        {
-            if (!map.TryGetValue(absence.ResourceId, out var list))
-            {
-                list = [];
-                map[absence.ResourceId] = list;
-            }
-            list.Add(absence);
-        }
-        return map;
+        return absences.GroupBy(x => x.ResourceId).ToDictionary(g => g.Key, g => g.ToList());
     }
 }

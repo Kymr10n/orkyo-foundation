@@ -6,14 +6,8 @@ namespace Orkyo.Migrations.Abstractions;
 /// </summary>
 public sealed record MigrationOptions
 {
-    /// <summary>Apply / DryRun / ValidateOnly. Defaults to <see cref="MigrationExecutionMode.Apply"/>.</summary>
+    /// <summary>Apply / ValidateOnly. Defaults to <see cref="MigrationExecutionMode.Apply"/>.</summary>
     public MigrationExecutionMode Mode { get; init; } = MigrationExecutionMode.Apply;
-
-    /// <summary>
-    /// Optional filter — when set, only migrations targeting this database are
-    /// executed. Useful for splitting CI jobs by target.
-    /// </summary>
-    public MigrationTargetDatabase? TargetFilter { get; init; }
 
     /// <summary>
     /// Per-attempt timeout (in seconds) for acquiring the per-database advisory lock

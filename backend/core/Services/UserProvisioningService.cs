@@ -95,9 +95,10 @@ public sealed class UserProvisioningService : IUserProvisioningService
 
     /// <summary>
     /// Lower-cased so the case-insensitive lookup and the case-sensitive unique index
-    /// agree; without this, two spellings of one mailbox can both be inserted.
+    /// agree; without this, two spellings of one mailbox can both be inserted. Every writer
+    /// of <c>users.email</c> and every lookup by it goes through here.
     /// </summary>
-    private static string Normalize(string email)
+    internal static string Normalize(string email)
     {
         var trimmed = email?.Trim() ?? string.Empty;
         if (!MailAddress.TryCreate(trimmed, out _))

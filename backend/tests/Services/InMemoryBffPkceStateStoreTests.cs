@@ -1,11 +1,15 @@
 using Api.Services.BffSession;
+using Microsoft.Extensions.Time.Testing;
 using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Services;
 
 public class InMemoryBffPkceStateStoreTests
 {
-    private readonly InMemoryBffPkceStateStore _store = new(TimeProvider.System);
+    private readonly FakeTimeProvider _time = new();
+    private readonly InMemoryBffPkceStateStore _store;
+
+    public InMemoryBffPkceStateStoreTests() => _store = new(_time);
 
     private static PkceStateData SampleState(string returnTo = "https://orkyo.com/")
         => new("verifier-abc", returnTo);
@@ -29,7 +33,7 @@ public class InMemoryBffPkceStateStoreTests
     public async Task GetAndRemove_ReturnsNull_WhenExpired()
     {
         await _store.SetAsync("expired-state", SampleState(), TimeSpan.FromMilliseconds(1));
-        await Task.Delay(10);
+        _time.Advance(TimeSpan.FromMilliseconds(10));
         (await _store.GetAndRemoveAsync("expired-state")).Should().BeNull();
     }
 

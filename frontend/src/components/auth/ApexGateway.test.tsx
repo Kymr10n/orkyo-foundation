@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from '@foundation/src/constants/auth';
@@ -39,13 +39,15 @@ vi.mock('@foundation/src/pages/SignupPage', () => ({
 // ── Mock useAuth ──────────────────────────────────────────────────────────────
 
 const mockSend = vi.fn();
-const mockUseAuth = vi.fn();
 
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockUseAuth(),
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
 }));
 
 import { ApexGateway, type TenantSelectPageRenderArgs } from './ApexGateway';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 // ── Slot stubs (Admin/TenantSelect are SaaS composition concerns; foundation
 //    tests inject minimal renderers that mirror the previous mock contracts) ──
@@ -62,15 +64,13 @@ const renderTenantSelectPageStub = (args: TenantSelectPageRenderArgs) => (
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function authState(overrides: Record<string, unknown> = {}) {
-  return {
+function authState(overrides: MockAuthOptions = {}) {
+  return mockAuth({
     authStage: AUTH_STAGES.INITIALIZING,
-    sessionData: null,
-    canAccessAdminPage: false,
     canAccessAccountPage: false,
     send: mockSend,
     ...overrides,
-  };
+  });
 }
 
 function renderGateway(path = '/') {
@@ -87,10 +87,6 @@ function renderGateway(path = '/') {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('ApexGateway', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -104,7 +100,7 @@ describe('ApexGateway', () => {
     [AUTH_STAGES.LOGGING_OUT,         AUTH_MESSAGES.SIGNING_OUT],
     [AUTH_STAGES.READY,               AUTH_MESSAGES.REDIRECTING],
   ])('shows correct spinner for %s stage', (authStage, expectedText) => {
-    mockUseAuth.mockReturnValue(authState({ authStage }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage }));
     renderGateway();
     expect(screen.getByText(expectedText)).toBeInTheDocument();
   });
@@ -116,7 +112,7 @@ describe('ApexGateway', () => {
     [AUTH_STAGES.NO_TENANTS,        'onboarding-page'],
     [AUTH_STAGES.NO_TENANTS_ADMIN,  'admin-page'],
   ])('renders correct page for %s stage', (authStage, testId) => {
-    mockUseAuth.mockReturnValue(authState({ authStage }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage }));
     renderGateway();
     expect(screen.getByTestId(testId)).toBeInTheDocument();
   });
@@ -124,7 +120,7 @@ describe('ApexGateway', () => {
   // ── TOS stage ────────────────────────────────────────────────────────────
 
   it('renders TosPage for tos_required stage', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.TOS_REQUIRED,
       sessionData: { requiredTosVersion: '2026-03', tenants: [] },
     }));
@@ -133,7 +129,7 @@ describe('ApexGateway', () => {
   });
 
   it('passes tosVersion to TosPage', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.TOS_REQUIRED,
       sessionData: { requiredTosVersion: '2026-03', tenants: [] },
     }));
@@ -142,7 +138,7 @@ describe('ApexGateway', () => {
   });
 
   it('passes tosText from the session data to TosPage', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.TOS_REQUIRED,
       sessionData: { requiredTosVersion: '2026-03', tosText: 'Custom terms body', tenants: [] },
     }));
@@ -153,7 +149,7 @@ describe('ApexGateway', () => {
   // ── Tenant selection stage ────────────────────────────────────────────────
 
   it('renders TenantSelectPage for selecting_tenant stage', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [{ slug: 'a' }, { slug: 'b' }] },
     }));
@@ -162,7 +158,7 @@ describe('ApexGateway', () => {
   });
 
   it('passes tenants to TenantSelectPage', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [{ slug: 'a' }, { slug: 'b' }] },
     }));
@@ -171,7 +167,7 @@ describe('ApexGateway', () => {
   });
 
   it('passes onAdminPage to TenantSelectPage when canAccessAdminPage is true', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [{ slug: 'a' }] },
       canAccessAdminPage: true,
@@ -181,7 +177,7 @@ describe('ApexGateway', () => {
   });
 
   it('does not pass onAdminPage to TenantSelectPage when canAccessAdminPage is false', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [{ slug: 'a' }] },
       canAccessAdminPage: false,
@@ -193,7 +189,7 @@ describe('ApexGateway', () => {
   // ── Error states ─────────────────────────────────────────────────────────
 
   it('renders backend error screen for error_backend stage', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_BACKEND }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_BACKEND }));
     renderGateway();
     expect(screen.getByText(AUTH_MESSAGES.BACKEND_ERROR_TITLE)).toBeInTheDocument();
     expect(screen.getByText(AUTH_MESSAGES.BACKEND_ERROR_DETAIL)).toBeInTheDocument();
@@ -201,7 +197,7 @@ describe('ApexGateway', () => {
   });
 
   it('renders network error screen for error_network stage', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_NETWORK }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_NETWORK }));
     renderGateway();
     expect(screen.getByText(AUTH_MESSAGES.NETWORK_ERROR_TITLE)).toBeInTheDocument();
     expect(screen.getByText(AUTH_MESSAGES.NETWORK_ERROR_DETAIL)).toBeInTheDocument();
@@ -211,7 +207,7 @@ describe('ApexGateway', () => {
   // ── /account direct URL access ────────────────────────────────────────────
 
   it('renders AccountPage at /account when canAccessAccountPage is true', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.READY,
       canAccessAccountPage: true,
     }));
@@ -220,7 +216,7 @@ describe('ApexGateway', () => {
   });
 
   it('renders AccountPage at /account for selecting_tenant when canAccessAccountPage is true', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       canAccessAccountPage: true,
       sessionData: { tenants: [] },
@@ -230,7 +226,7 @@ describe('ApexGateway', () => {
   });
 
   it('does not render AccountPage at /account when canAccessAccountPage is false', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.UNAUTHENTICATED,
       canAccessAccountPage: false,
     }));
@@ -240,7 +236,7 @@ describe('ApexGateway', () => {
   });
 
   it('does not render AccountPage at /account while initializing', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.INITIALIZING,
       canAccessAccountPage: false,
     }));
@@ -252,7 +248,7 @@ describe('ApexGateway', () => {
   // ── /site-admin direct URL access ──────────────────────────────────────────────
 
   it('renders AdminPage at /site-admin when canAccessAdminPage is true', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.READY,
       canAccessAdminPage: true,
     }));
@@ -261,7 +257,7 @@ describe('ApexGateway', () => {
   });
 
   it('does not render AdminPage at /site-admin when canAccessAdminPage is false', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.UNAUTHENTICATED,
       canAccessAdminPage: false,
     }));
@@ -270,7 +266,7 @@ describe('ApexGateway', () => {
   });
 
   it('does not render AdminPage at /site-admin while initializing', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.INITIALIZING,
       canAccessAdminPage: false,
     }));
@@ -279,7 +275,7 @@ describe('ApexGateway', () => {
   });
 
   it('renders AccountPage at /account/settings when canAccessAccountPage is true', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.READY,
       canAccessAccountPage: true,
     }));
@@ -288,7 +284,7 @@ describe('ApexGateway', () => {
   });
 
   it('renders AdminPage at /site-admin/users when canAccessAdminPage is true', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.READY,
       canAccessAdminPage: true,
     }));
@@ -299,13 +295,13 @@ describe('ApexGateway', () => {
   // ── Public routes (no auth required) ──────────────────────────────────────
 
   it('renders RequestAccessPage at /create-account regardless of auth stage', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.INITIALIZING }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.INITIALIZING }));
     renderGateway('/create-account');
     expect(screen.getByTestId('request-access-page')).toBeInTheDocument();
   });
 
   it('renders SignupPage at /signup regardless of auth stage', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.INITIALIZING }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.INITIALIZING }));
     renderGateway('/signup');
     expect(screen.getByTestId('signup-page')).toBeInTheDocument();
   });
@@ -313,7 +309,7 @@ describe('ApexGateway', () => {
   // ── TOS page callbacks ────────────────────────────────────────────────────
 
   it('TosPage onAccept fires TOS_ACCEPTED event', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.TOS_REQUIRED,
       sessionData: { requiredTosVersion: '2026-03', tenants: [] },
     }));
@@ -323,7 +319,7 @@ describe('ApexGateway', () => {
   });
 
   it('TosPage onCancel fires LOGOUT event', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.TOS_REQUIRED,
       sessionData: { requiredTosVersion: '2026-03', tenants: [] },
     }));
@@ -335,14 +331,14 @@ describe('ApexGateway', () => {
   // ── Onboarding page callbacks ─────────────────────────────────────────────
 
   it('OnboardingPage onComplete fires TENANT_CREATED event', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS }));
     renderGateway();
     fireEvent.click(screen.getByRole('button', { name: 'Complete' }));
     expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.TENANT_CREATED });
   });
 
   it('OnboardingPage onCancel fires LOGOUT event', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS }));
     renderGateway();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.LOGOUT });
@@ -351,7 +347,7 @@ describe('ApexGateway', () => {
   // ── Slot fallbacks ────────────────────────────────────────────────────────
 
   it('NO_TENANTS_ADMIN without renderAdminPage slot shows LoadingSpinner', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS_ADMIN }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.NO_TENANTS_ADMIN }));
     render(
       <MemoryRouter>
         <ApexGateway renderTenantSelectPage={renderTenantSelectPageStub} />
@@ -362,7 +358,7 @@ describe('ApexGateway', () => {
   });
 
   it('SELECTING_TENANT without renderTenantSelectPage slot shows LoadingSpinner', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       authStage: AUTH_STAGES.SELECTING_TENANT,
       sessionData: { tenants: [{ slug: 'a' }] },
     }));
@@ -378,14 +374,14 @@ describe('ApexGateway', () => {
   // ── Error retry buttons ───────────────────────────────────────────────────
 
   it('backend error retry button fires RETRY event', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_BACKEND }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_BACKEND }));
     renderGateway();
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
     expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.RETRY });
   });
 
   it('network error retry button fires RETRY event', () => {
-    mockUseAuth.mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_NETWORK }));
+    vi.mocked(useAuth).mockReturnValue(authState({ authStage: AUTH_STAGES.ERROR_NETWORK }));
     renderGateway();
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
     expect(mockSend).toHaveBeenCalledWith({ type: AUTH_EVENTS.RETRY });

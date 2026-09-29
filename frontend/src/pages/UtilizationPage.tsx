@@ -19,7 +19,7 @@ import { SchedulerGrid } from "@foundation/src/components/utilization/SchedulerG
 import { TimeNavigator } from "@foundation/src/components/utilization/TimeNavigator";
 import { TabsContent } from "@foundation/src/components/ui/tabs";
 import { PageLayout, PageHeader, PageTabs, type PageTab } from "@foundation/src/components/layout";
-import { RequestFormDialog, type RequestFormData } from "@foundation/src/components/requests/RequestFormDialog";
+import { RequestFormDialog } from "@foundation/src/components/requests/RequestFormDialog";
 import type { DefaultResource } from "@foundation/src/hooks/useRequestForm";
 import { useRequestEditor } from "@foundation/src/hooks/useRequestEditor";
 import { ConflictDetailsPopover } from "@foundation/src/components/utilization/ConflictDetailsPopover";
@@ -27,15 +27,16 @@ import { getPlacementResourceId, getTargetResourceTypeKeys } from "@foundation/s
 import { withEffectiveStatus } from "@foundation/src/domain/scheduling/effective-status";
 import { useNow } from "@foundation/src/hooks/useNow";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
-import { useScheduledRequests, useBacklogRequests, useScheduleRequest, usePlaceableResources } from "@foundation/src/hooks/useUtilization";
-import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
+import { useScheduledRequests, useBacklogRequests, useScheduleRequest } from "@foundation/src/hooks/useUtilization";
+import { usePlaceableResources, usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { generateTimeColumns, getFetchWindow, isAnchorStale } from "@foundation/src/components/utilization/time-grid-utils";
 import { useCalendarFeedHandler, useExportHandler } from "@foundation/src/hooks/useImportExport";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
 import { usePreferences, useUpdatePreferences } from "@foundation/src/hooks/usePreferences";
 import { useCanEdit } from "@foundation/src/hooks/usePermissions";
-import { useSchedulingSettings, useAvailabilityEvents } from "@foundation/src/hooks/useScheduling";
-import { useAutoScheduleAvailable, usePreviewAutoSchedule, useApplyAutoSchedule } from "@foundation/src/hooks/useAutoSchedule";
+import { useSchedulingSettings } from "@foundation/src/hooks/useScheduling";
+import { useOffTimeRanges } from "@foundation/src/hooks/useOffTimeRanges";
+import { useAutoScheduleFlow } from "@foundation/src/hooks/useAutoScheduleFlow";
 import { Button } from "@foundation/src/components/ui/button";
 import { AutoScheduleButton } from "@foundation/src/components/utilization/AutoScheduleButton";
 import { AutoSchedulePreviewDialog } from "@foundation/src/components/utilization/AutoSchedulePreviewDialog";
@@ -45,14 +46,9 @@ import { useBreakpoint } from "@foundation/src/hooks/useBreakpoint";
 import { RequestCalendar } from "@foundation/src/components/utilization/RequestCalendar";
 import { ScheduleSlotDialog } from "@foundation/src/components/utilization/ScheduleSlotDialog";
 import { requestsToCalendarEvents, scaleToCalendarView } from "@foundation/src/components/utilization/request-calendar-events";
-import type { AutoSchedulePreviewResponse } from "@foundation/src/lib/api/auto-schedule-api";
 import { exportUtilization } from "@foundation/src/lib/utils/export-handlers";
-import { createRequest, updateRequest } from "@foundation/src/lib/api/request-api";
 import { logger } from "@foundation/src/lib/core/logger";
-import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
-import { buildCreatePayload, buildUpdatePayload } from "@foundation/src/lib/utils/utils";
-import { expandRecurrence } from "@foundation/src/domain/scheduling/recurrence";
-import { generateWeekendRanges } from "@foundation/src/domain/scheduling/weekend-ranges";
+import { saveRequestVariables, useSaveRequest } from "@foundation/src/hooks/useRequests";
 import { RESOURCE_TYPE_KEY } from "@foundation/src/constants/resource-type-key";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { useSchedulerViewStore } from "@foundation/src/store/scheduler-view-store";
@@ -60,7 +56,6 @@ import { useLayoutStore } from "@foundation/src/store/layout-store";
 import { useSiteStore } from "@foundation/src/store/site-store";
 import { useSchedulerStore } from "@foundation/src/store/scheduler-store";
 import { useShallow } from "zustand/react/shallow";
-import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { Request } from "@foundation/src/types/requests";
 import type { ResourceInfo } from "@foundation/src/lib/api/resources-api";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
@@ -75,12 +70,8 @@ import {
   requestBarToneClass,
 } from "@foundation/src/components/utilization/RequestBarVisual";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { toast } from "sonner";
-import { addMonths, format, startOfMonth } from "date-fns";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useUiActionsStore } from "@foundation/src/store/ui-actions-store";
 import { CalendarOff } from "lucide-react";
 import {
   DropdownMenu,
@@ -90,7 +81,6 @@ import {
 } from "@foundation/src/components/ui/dropdown-menu";
 import { useTabParam } from "@foundation/src/hooks/useTabParam";
 import { navigateCalendarPeriod } from "@foundation/src/lib/utils/time-navigation";
-import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 /** "Mills", "Mills and Drills", "Mills, Drills and Presses". */
 function joinNames(names: string[]): string {
@@ -144,8 +134,9 @@ export function UtilizationPage() {
   // path resolves its target purely from element ids, so it is keyboard-correct.
   // Request cards / scheduled bars intercept Enter/Space for their own "open"
   // affordance, so they never start a keyboard drag onto the time grid (whose
-  // drop time is resolved from pointer coordinates); those users schedule via
-  // the "Schedule to…" dialog instead.
+  // drop time is resolved from pointer coordinates); those users schedule from
+  // the slot dialog (`ScheduleSlotDialog`, opened on an empty grid cell) or the
+  // request's own dates instead.
   const keyboardSensor = useSensor(KeyboardSensor, {
     coordinateGetter: sortableKeyboardCoordinates,
   });
@@ -288,22 +279,7 @@ export function UtilizationPage() {
   const { open: openRequestEditor, dialogs: requestEditorDialogs } = useRequestEditor();
   // On phone the drag-based scheduler grid is replaced by a drag-free agenda.
   const { isPhone } = useBreakpoint();
-  // Non-drag "Schedule to…" dialog target (keyboard-accessible scheduling path).
-  const invalidateRequests = useInvalidateRequestData();
 
-  // Auto-schedule
-  const autoScheduleAvailable = useAutoScheduleAvailable();
-  const previewMutation = usePreviewAutoSchedule();
-  const applyMutation = useApplyAutoSchedule();
-  const [autoSchedulePreview, setAutoSchedulePreview] = useState<AutoSchedulePreviewResponse | null>(null);
-  const [isPreviewDialogOpen, setIsPreviewDialogOpen] = useState(false);
-  /**
-   * Set when the run was scoped to specific requests (an accepted assistant proposal),
-   * null for the page's own whole-site run. Apply must repeat it, or the backend re-solves
-   * over a wider set than the preview showed.
-   */
-  const [autoScheduleRequestIds, setAutoScheduleRequestIds] = useState<string[] | null>(null);
-  const [autoScheduleError, setAutoScheduleError] = useState<string | null>(null);
 
 
   // Fetch data from API — scoped to the selected site + a buffered window for the grid bars, plus
@@ -358,44 +334,11 @@ export function UtilizationPage() {
   const { data: preferences } = usePreferences();
   const updatePreferencesMutation = useUpdatePreferences();
 
-  // Scheduling off-times for grid overlay
+  // Scheduling settings (working hours, weekends) and the off-time overlay for the grids
   const { data: schedulingSettings } = useSchedulingSettings(selectedSiteId ?? undefined);
-  const { data: availabilityEventDefs = [] } = useAvailabilityEvents(selectedSiteId ?? undefined);
-  // Key the expansion window on the anchor's month, not the raw anchor: edge-scroll
-  // updates anchorTs ~20×/s, and re-expanding recurrences on every tick made panning
-  // churn. Panning within a month reuses the same array; the ±1/+13-month slack
-  // around the month start still covers every visible window.
-  const monthAnchorMs = startOfMonth(anchorTs).getTime();
-  const offTimeRanges: readonly OffTimeRange[] = useMemo(() => {
-    const tz = schedulingSettings?.timeZone ?? "UTC";
-    const windowStart = addMonths(monthAnchorMs, -1).getTime();
-    const windowEnd = addMonths(monthAnchorMs, 13).getTime();
-    const expanded = availabilityEventDefs
-      .filter((e) => e.enabled && e.defaultEffect === "closed")
-      .flatMap((e) => expandRecurrence(
-        {
-          id: e.id,
-          siteId: e.siteId,
-          title: e.title,
-          type: "custom" as const,
-          appliesToAllSpaces: true,
-          resourceIds: [],
-          startMs: new Date(e.startTs).getTime(),
-          endMs: new Date(e.endTs).getTime(),
-          isRecurring: e.isRecurring,
-          recurrenceRule: e.recurrenceRule ?? null,
-          enabled: e.enabled,
-        },
-        windowStart, windowEnd, tz,
-      ));
-
-    // Weekends as off-time ranges (consistent with manual off-times)
-    if (schedulingSettings && !schedulingSettings.weekendsEnabled) {
-      expanded.push(...generateWeekendRanges(windowStart, windowEnd));
-    }
-
-    return expanded;
-  }, [availabilityEventDefs, schedulingSettings, monthAnchorMs]);
+  // The site setting says whether weekends are working days; the grids ask whether they are off.
+  const weekendsAreOff = schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined;
+  const offTimeRanges = useOffTimeRanges(selectedSiteId, anchorTs);
 
   // Initialize space order from preferences
   const spaceOrder = useSchedulerViewStore((state) => state.spaceOrder);
@@ -470,96 +413,11 @@ export function UtilizationPage() {
     description: 'Add this schedule to Outlook, Google Calendar or Apple Calendar. The calendar updates itself — you subscribe once and it stays current.',
   });
 
-  // Auto-schedule handlers
-  const AUTO_SCHEDULE_HORIZON_MONTHS = 3;
-  const horizonStart = format(anchorTs, DATE_FORMATS.DATE_ISO);
-  const horizonEnd = format(addMonths(anchorTs, AUTO_SCHEDULE_HORIZON_MONTHS), DATE_FORMATS.DATE_ISO);
-
-  const handleAutoScheduleClick = useCallback(async () => {
-    if (!selectedSiteId) return;
-    try {
-      const result = await previewMutation.mutateAsync({
-        siteId: selectedSiteId,
-        horizonStart,
-        horizonEnd,
-        resourceTypeKeys: autoScheduleTypeKeys,
-      });
-      setAutoScheduleRequestIds(null);
-      setAutoSchedulePreview(result);
-      setIsPreviewDialogOpen(true);
-    } catch {
-      // Error handled by mutation state
-    }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKeys, previewMutation]);
-
-  // An accepted auto-scheduling proposal lands here: preview exactly the requests the
-  // person approved and open the ordinary dialog. Keyed on the tick rather than the ids so
-  // accepting the same proposal twice still fires, and so a re-render never re-runs it.
-  const proposedRequestIds = useUiActionsStore((s) => s.autoScheduleRequestIds);
-  const clearAutoSchedule = useUiActionsStore((s) => s.clearAutoSchedule);
-
-  useEffect(() => {
-    if (!selectedSiteId || !proposedRequestIds?.length) return;
-    // Consumed here rather than remembered in a ref: a ref dies with the page, so coming
-    // back to the scheduler later would re-open the preview for requests already dealt
-    // with. Clearing the payload makes the request single-use wherever it is read.
-    clearAutoSchedule();
-
-    void (async () => {
-      try {
-        const result = await previewMutation.mutateAsync({
-          siteId: selectedSiteId,
-          horizonStart,
-          horizonEnd,
-          requestIds: proposedRequestIds,
-          resourceTypeKeys: autoScheduleTypeKeys,
-        });
-        setAutoScheduleRequestIds(proposedRequestIds);
-        setAutoSchedulePreview(result);
-        setIsPreviewDialogOpen(true);
-      } catch {
-        // Surfaced by the mutation's own error state, same as the toolbar run.
-      }
-    })();
-  }, [proposedRequestIds, clearAutoSchedule, selectedSiteId, horizonStart, horizonEnd, autoScheduleTypeKeys, previewMutation]);
-
-  // Deliberately hand-rolled toast/invalidate orchestration (not meta-mutation):
-  // the success toast interpolates the preview's dynamic count, and the catch
-  // classifies the preview-fingerprint 409 into an in-dialog error.
-  const handleAutoScheduleApply = useCallback(async () => {
-    if (!selectedSiteId) return;
-    setAutoScheduleError(null);
-    try {
-      // resourceTypeKeys must be the set the preview solved for — the fingerprint alone
-      // doesn't pin it, so a changed filter would re-solve for a different set.
-      await applyMutation.mutateAsync({
-        siteId: selectedSiteId,
-        horizonStart,
-        horizonEnd,
-        requestIds: autoScheduleRequestIds ?? undefined,
-        resourceTypeKeys: autoScheduleTypeKeys,
-        previewFingerprint: autoSchedulePreview?.fingerprint,
-      });
-      setIsPreviewDialogOpen(false);
-      const scheduledCount = autoSchedulePreview?.assignments.length ?? 0;
-      setAutoSchedulePreview(null);
-      invalidateRequests();
-      toast.success(
-        scheduledCount > 0
-          ? `Scheduled ${scheduledCount} request${scheduledCount === 1 ? "" : "s"}`
-          : "Auto-schedule applied",
-      );
-    } catch (err) {
-      const message = errorMessage(err);
-      if (message.startsWith("API Error (409)")) {
-        setAutoScheduleError(
-          "The scheduling data has changed since this preview was generated. Please close and re-run the auto-schedule."
-        );
-      } else {
-        setAutoScheduleError(message);
-      }
-    }
-  }, [selectedSiteId, horizonStart, horizonEnd, autoScheduleRequestIds, autoScheduleTypeKeys, applyMutation, autoSchedulePreview, invalidateRequests]);
+  const autoSchedule = useAutoScheduleFlow({
+    siteId: selectedSiteId,
+    anchorTs,
+    resourceTypeKeys: autoScheduleTypeKeys,
+  });
 
   // One click = one whole period, on every tab. The grids used to pan by a sub-period, which
   // read as a broken control: on a week scale the arrow moved a day, so reaching next week took
@@ -632,13 +490,18 @@ export function UtilizationPage() {
     }
     const endTs = new Date(startTs.getTime() + durationMs);
 
-    await scheduleMutation.mutateAsync({
-      requestId: draggedData.id,
-      data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
-      // Client-side only: the optimistic bar must be tagged with the row's real type, or it
-      // would vanish on refetch for any placeable type other than space.
-      resourceTypeKey: spaces.find((r) => r.id === resourceId)?.resourceTypeKey,
-    });
+    try {
+      await scheduleMutation.mutateAsync({
+        requestId: draggedData.id,
+        data: { resourceId, startTs: startTs.toISOString(), endTs: endTs.toISOString() },
+        // Client-side only: the optimistic bar must be tagged with the row's real type, or it
+        // would vanish on refetch for any placeable type other than space.
+        resourceTypeKey: spaces.find((r) => r.id === resourceId)?.resourceTypeKey,
+      });
+    } catch {
+      // The mutation's onError has rolled the bar back and toasted the failure.
+      return;
+    }
 
     logger.debug(`[Drag & Drop] Request "${draggedData.name}" scheduled to resource "${resourceId}"`);
   }, [scheduleMutation, spaces]);
@@ -662,7 +525,7 @@ export function UtilizationPage() {
 
     // Only a scheduled bar is draggable onto a track, so it always carries its own
     // bounds — the drag is a move of an existing placement, never a first placement
-    // (backlog reaches the grid through the "Schedule to…" dialog instead).
+    // (backlog reaches the grid through the slot dialog, `ScheduleSlotDialog`, instead).
     if (
       dropData?.type === "space-track" && dropData.resourceId && selectedSiteId &&
       dropData.viewStartMs !== undefined && dropData.viewEndMs !== undefined &&
@@ -788,20 +651,11 @@ export function UtilizationPage() {
   }, [slotSelection, handleScheduleToGrid]);
 
   // Both chooser paths reuse RequestFormDialog (space picker + validation) and
-  // persist via the existing create/update request APIs. The form pre-selects
+  // persist via useSaveRequest, as the Requests page does. The form pre-selects
   // the calendar's site (scheduleSiteId) so the scheduled request lands on this
   // site's calendar — but the user stays in control and the form warns if they
   // pick a site that won't show here. So persist exactly what they chose.
-  const handleCalendarFormSave = useCallback(async (data: RequestFormData) => {
-    if (!calendarForm) return;
-    // Returned so the dialog can say when the scheduler moved the dates that were typed.
-    const saved = calendarForm.mode === "edit" && calendarForm.request
-      ? await updateRequest(calendarForm.request.id, buildUpdatePayload(data, calendarForm.request.planningMode, calendarForm.request.siteId))
-      : await createRequest(buildCreatePayload(data));
-    invalidateRequests();
-    setCalendarForm(null);
-    return saved;
-  }, [calendarForm, invalidateRequests]);
+  const { mutateAsync: saveRequest } = useSaveRequest({ onSuccess: () => setCalendarForm(null) });
 
   // The calendar is driven by the page's scale selector + date navigator (shared
   // with the Spaces/People tabs), so scale is page-owned; the calendar only
@@ -825,10 +679,10 @@ export function UtilizationPage() {
   // controls wrap onto their own line under the title instead of a bespoke row.
   const schedulingControls = (
     <>
-      {autoScheduleAvailable && canEdit && !isRequestCentricTab && (
+      {autoSchedule.available && canEdit && !isRequestCentricTab && (
         <AutoScheduleButton
-          onClick={handleAutoScheduleClick}
-          loading={previewMutation.isPending}
+          onClick={() => void autoSchedule.start()}
+          loading={autoSchedule.isPreviewing}
           disabled={!selectedSiteId}
         />
       )}
@@ -901,7 +755,7 @@ export function UtilizationPage() {
           <DndContext
             sensors={sensors}
             onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
+            onDragEnd={(event) => void handleDragEnd(event)}
             onDragCancel={() => setActiveDragRequest(null)}
             collisionDetection={collisionDetection}
           >
@@ -968,7 +822,7 @@ export function UtilizationPage() {
                     onTimeCursorClick={setTimeCursorTs}
                     onAnchorChange={setAnchorTs}
                     offTimeRanges={offTimeRanges}
-                    weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+                    weekendsAreOff={weekendsAreOff}
                     workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
                     workingDayStart={schedulingSettings?.workingDayStart}
                     workingDayEnd={schedulingSettings?.workingDayEnd}
@@ -1033,7 +887,7 @@ export function UtilizationPage() {
                     anchorTs={anchorTs}
                     scale={scale}
                     offTimeRanges={offTimeRanges}
-                    weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+                    weekendsAreOff={weekendsAreOff}
                     siteId={selectedSiteId}
                     filter={assetFilter}
                   />
@@ -1078,14 +932,14 @@ export function UtilizationPage() {
               anchorTs={anchorTs}
               nowMs={nowMs}
               offTimeRanges={offTimeRanges}
-              weekendsEnabled={schedulingSettings ? !schedulingSettings.weekendsEnabled : undefined}
+              weekendsAreOff={weekendsAreOff}
               workingHoursEnabled={schedulingSettings?.workingHoursEnabled}
               workingDayStart={schedulingSettings?.workingDayStart}
               workingDayEnd={schedulingSettings?.workingDayEnd}
               // The deep link, not the page's in-memory lookup: the canvas shows tasks from any
               // point in time, and the page's feeds only hold the visible window plus backlog.
-              onOpenRequest={(id) => navigate(`/requests?edit=${id}`)}
-              onOpenGroupPlanner={(groupId) => navigate(`/requests/${groupId}/plan`)}
+              onOpenRequest={(id) => void navigate(`/requests?edit=${id}`)}
+              onOpenGroupPlanner={(groupId) => void navigate(`/requests/${groupId}/plan`)}
             />
           </div>
         </TabsContent>
@@ -1159,21 +1013,13 @@ export function UtilizationPage() {
         defaultSchedule={calendarForm ? { startTs: calendarForm.startTs, endTs: calendarForm.endTs } : undefined}
         defaultResource={calendarForm?.resource}
         scheduleSiteId={selectedSiteId ?? undefined}
-        onSave={handleCalendarFormSave}
+        // Returned so the dialog can say when the scheduler moved the dates that were typed.
+        onSave={(data) =>
+          saveRequest(saveRequestVariables(data, calendarForm?.mode === "edit" ? (calendarForm.request ?? null) : null))
+        }
       />
 
-      <AutoSchedulePreviewDialog
-        open={isPreviewDialogOpen}
-        preview={autoSchedulePreview}
-        isApplying={applyMutation.isPending}
-        applyError={autoScheduleError}
-        onApply={handleAutoScheduleApply}
-        onClose={() => {
-          setIsPreviewDialogOpen(false);
-          setAutoSchedulePreview(null);
-          setAutoScheduleError(null);
-        }}
-      />
+      <AutoSchedulePreviewDialog {...autoSchedule.dialog} />
     </PageLayout>
   );
 }

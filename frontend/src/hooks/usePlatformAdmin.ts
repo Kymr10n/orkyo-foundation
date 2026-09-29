@@ -6,7 +6,6 @@ import {
   updateAdminSettings,
 } from '@foundation/src/lib/api/admin-api';
 import {
-  type Announcement,
   type CreateAnnouncementRequest,
   type UpdateAnnouncementRequest,
   createAnnouncement,
@@ -15,6 +14,8 @@ import {
   updateAnnouncement,
 } from '@foundation/src/lib/api/announcement-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
+import type { AuditEventPage } from '@foundation/src/lib/api/audit-api';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
 
 /**
  * The platform-operator surfaces (diagnostics, runtime settings, announcements, audit).
@@ -74,17 +75,17 @@ export const useAdminAnnouncements = () =>
  * Create or update, by whether an existing announcement was handed in. No success toast:
  * the dialog closes on success and reports failures inline, as it always has.
  */
-export const useSaveAnnouncement = (
-  announcement: Announcement | null,
-  options: { onSuccess: () => void; onError: (err: Error) => void },
-) =>
+/**
+ * Create (`id: null`) or update an announcement — the form dialog's save. No toast: the list
+ * shows the result, and the dialog shows a failure inline.
+ */
+export const useSaveAnnouncement = () =>
   useMutation({
-    mutationFn: async (data: CreateAnnouncementRequest | UpdateAnnouncementRequest) => {
-      if (announcement) await updateAnnouncement(announcement.id, data as UpdateAnnouncementRequest);
-      else await createAnnouncement(data as CreateAnnouncementRequest);
+    mutationFn: async (v: SaveVariables<CreateAnnouncementRequest, UpdateAnnouncementRequest>) => {
+      if (v.id === null) await createAnnouncement(v.data);
+      else await updateAnnouncement(v.id, v.data);
     },
-    meta: { invalidates: [qk.announcements.adminAll()] },
-    ...options,
+    meta: { suppressErrorToast: true, invalidates: [qk.announcements.adminAll()] },
   });
 
 export const useDeleteAnnouncement = (
@@ -97,12 +98,6 @@ export const useDeleteAnnouncement = (
   });
 
 // ── Audit ────────────────────────────────────────────────────────────────────
-
-/** Wire shape both audit endpoints return (grandfathered `events`/`totalCount`). */
-export interface AuditEventPage<T> {
-  events: T[];
-  totalCount: number;
-}
 
 /**
  * One page of an audit log. The caller owns the key and the fetcher, because the tenant log

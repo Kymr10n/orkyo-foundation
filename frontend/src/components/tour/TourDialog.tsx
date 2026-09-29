@@ -60,7 +60,7 @@ const STEPS: TourStep[] = [
   {
     icon: Boxes,
     title: "Your resource types",
-    description: "Decide what this workspace schedules.",
+    description: "Decide what this organization schedules.",
     detail:
       "Nothing is built in. Switch on the kinds you run — mills, benches, people, forklifts — from the catalog, or define one nobody thought of. Each type carries its own fields and the lists it needs, and every step after this one works with whatever you chose here.",
     path: ROUTE_CONFIGURATION_CATALOG,
@@ -105,7 +105,7 @@ const STEPS: TourStep[] = [
   {
     icon: Building2,
     title: "Organization",
-    description: "The reference data your workspace keeps about itself.",
+    description: "The reference data your organization keeps about itself.",
     detail:
       "Departments, job titles and any other shared list you define. Departments form a real tree — each one points at its parent — and people reference these values rather than repeating them.",
     path: ROUTE_ORGANIZATION,
@@ -203,7 +203,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
     }
     if (current?.path && navigatedForStep.current !== step) {
       navigatedForStep.current = step;
-      navigate(current.path);
+      void navigate(current.path);
     }
   }, [open, step, current?.path, navigate]);
 
@@ -232,7 +232,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={handleClose}
+          onClick={() => void handleClose()}
           aria-label="Close tour"
         >
           <X className="h-4 w-4" />
@@ -276,7 +276,7 @@ export function TourDialog({ open, onClose }: TourDialogProps) {
           Back
         </Button>
         {isLast ? (
-          <Button size="sm" onClick={handleClose}>
+          <Button size="sm" onClick={() => void handleClose()}>
             <X className="h-4 w-4 mr-1" />
             Done
           </Button>

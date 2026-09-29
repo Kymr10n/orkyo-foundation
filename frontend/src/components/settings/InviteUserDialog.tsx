@@ -87,11 +87,11 @@ export function InviteUserDialog({
           Invite User
         </span>
       }
-      description="Send an invitation email to add a new user to your workspace. They'll receive a link to set up their account."
+      description="Send an invitation email to add a new user to your organization. They'll receive a link to set up their account."
       onSubmit={handleSubmit}
       isSubmitting={mutation.isPending}
       submitLabel="Send Invitation"
-      submittingLabel="Sending..."
+      submittingLabel="Sending…"
       error={error}
       dirty={!!email.trim() || role !== TENANT_ROLE.Viewer}
     >

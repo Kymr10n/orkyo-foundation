@@ -1,24 +1,24 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BreakGlassBanner } from './BreakGlassBanner';
+import { mockAuth } from '@foundation/src/test-utils/auth';
+import type { TenantMembership } from '@foundation/src/contexts/AuthContext';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
-const { mockClearMembership, mockRenew, mockGetStatus, mockExit, mockNavigateToApex } = vi.hoisted(() => ({
+const { mockClearMembership, mockRenew, mockGetStatus, mockExit, mockGoToApex } = vi.hoisted(() => ({
   mockClearMembership: vi.fn(),
   mockRenew: vi.fn(),
   mockGetStatus: vi.fn(),
   mockExit: vi.fn(),
-  mockNavigateToApex: vi.fn(() => true),
+  mockGoToApex: vi.fn(),
 }));
 
-let mockMembership: Record<string, unknown> | null = null;
+let mockMembership: Partial<TenantMembership> | null = null;
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    membership: mockMembership,
-    clearMembership: mockClearMembership,
-  }),
+  useAuth: () => mockAuth({ membership: mockMembership, clearMembership: mockClearMembership }),
 }));
 
 vi.mock('@foundation/src/lib/api/admin-api', () => ({
@@ -28,14 +28,14 @@ vi.mock('@foundation/src/lib/api/admin-api', () => ({
 }));
 
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
-  navigateToApex: mockNavigateToApex,
+  goToApex: mockGoToApex,
 }));
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const BASE_TIME = new Date('2026-04-18T12:00:00Z').getTime();
 
-function breakGlassMembership(overrides: Record<string, unknown> = {}) {
+function breakGlassMembership(overrides: Partial<TenantMembership> = {}): Partial<TenantMembership> {
   return {
     tenantId: 'tid',
     slug: 'acme',
@@ -63,7 +63,6 @@ function sessionStatus(overrides: Record<string, unknown> = {}) {
 
 describe('BreakGlassBanner', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockMembership = null;
     mockGetStatus.mockResolvedValue(sessionStatus());
     mockRenew.mockResolvedValue(sessionStatus({ expiresAt: '2026-04-18T14:00:00Z' }));
@@ -77,13 +76,13 @@ describe('BreakGlassBanner', () => {
 
   it('renders nothing when membership is not break-glass', () => {
     mockMembership = { slug: 'acme', isBreakGlass: false };
-    const { container } = render(<BreakGlassBanner now={() => BASE_TIME} />);
+    const { container } = renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
     expect(container.innerHTML).toBe('');
   });
 
   it('renders the banner when membership is break-glass', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-banner')).toBeInTheDocument();
@@ -93,7 +92,7 @@ describe('BreakGlassBanner', () => {
 
   it('fetches session status on mount', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(mockGetStatus).toHaveBeenCalledWith('acme');
@@ -104,7 +103,7 @@ describe('BreakGlassBanner', () => {
     mockMembership = breakGlassMembership();
     // 30 minutes remaining
     const now = new Date('2026-04-18T12:30:00Z').getTime();
-    render(<BreakGlassBanner now={() => now} />);
+    renderWithQuery(<BreakGlassBanner now={() => now} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('30:00 remaining');
@@ -113,7 +112,7 @@ describe('BreakGlassBanner', () => {
 
   it('calls renewBreakGlassSession when Extend is clicked', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -126,9 +125,27 @@ describe('BreakGlassBanner', () => {
     });
   });
 
+  it('shows the renewed expiry, and keeps the old one when renewal fails', async () => {
+    mockMembership = breakGlassMembership();
+    mockRenew.mockRejectedValueOnce(new Error('Gone'));
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('1:00:00 remaining'),
+    );
+    fireEvent.click(screen.getByTestId('break-glass-extend'));
+    await waitFor(() => expect(screen.getByTestId('break-glass-extend')).toBeEnabled());
+    expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('1:00:00 remaining');
+
+    fireEvent.click(screen.getByTestId('break-glass-extend'));
+    await waitFor(() =>
+      expect(screen.getByTestId('break-glass-remaining')).toHaveTextContent('2:00:00 remaining'),
+    );
+  });
+
   it('calls clearMembership and navigates on Exit click', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -137,27 +154,12 @@ describe('BreakGlassBanner', () => {
     fireEvent.click(screen.getByTestId('break-glass-exit'));
 
     expect(mockClearMembership).toHaveBeenCalled();
-    expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
-  });
-
-  it('falls back to a hard navigation to /site-admin in local dev (no apex)', async () => {
-    // navigateToApex returns false when baseDomain is not configured (local dev).
-    mockNavigateToApex.mockReturnValue(false);
-    mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('break-glass-exit'));
-
-    expect(window.location.href).toBe('/site-admin');
+    expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
   });
 
   it('fires audit exit on Exit click', async () => {
     mockMembership = breakGlassMembership();
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-remaining')).toBeInTheDocument();
@@ -177,7 +179,7 @@ describe('BreakGlassBanner', () => {
     mockGetStatus.mockResolvedValue(
       sessionStatus({ expiresAt: '2026-04-18T20:00:00Z' }),
     );
-    render(<BreakGlassBanner now={() => pastCap} />);
+    renderWithQuery(<BreakGlassBanner now={() => pastCap} />);
 
     await waitFor(() => {
       expect(screen.getByTestId('break-glass-extend')).toBeDisabled();
@@ -189,7 +191,7 @@ describe('BreakGlassBanner', () => {
     mockMembership = breakGlassMembership();
     // 2 minutes before expiry
     const nearExpiry = new Date('2026-04-18T12:58:00Z').getTime();
-    render(<BreakGlassBanner now={() => nearExpiry} />);
+    renderWithQuery(<BreakGlassBanner now={() => nearExpiry} />);
 
     await waitFor(() => {
       const banner = screen.getByTestId('break-glass-banner');
@@ -201,22 +203,33 @@ describe('BreakGlassBanner', () => {
     mockMembership = breakGlassMembership();
     // Already expired
     const expired = new Date('2026-04-18T13:01:00Z').getTime();
-    render(<BreakGlassBanner now={() => expired} />);
+    renderWithQuery(<BreakGlassBanner now={() => expired} />);
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 
   it('auto-exits when server returns no active session', async () => {
     mockMembership = breakGlassMembership();
     mockGetStatus.mockResolvedValue(null);
-    render(<BreakGlassBanner now={() => BASE_TIME} />);
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
 
     await waitFor(() => {
       expect(mockClearMembership).toHaveBeenCalled();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
     });
+  });
+
+  it('stays in the session when the status read fails for another reason', async () => {
+    mockMembership = breakGlassMembership();
+    mockGetStatus.mockRejectedValue(new Error('Internal Server Error'));
+    renderWithQuery(<BreakGlassBanner now={() => BASE_TIME} />);
+
+    await waitFor(() => expect(mockGetStatus).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockClearMembership).not.toHaveBeenCalled();
+    expect(mockGoToApex).not.toHaveBeenCalled();
   });
 });

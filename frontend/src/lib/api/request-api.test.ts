@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getRequest,
   getRequests,
@@ -31,10 +31,6 @@ const mockRequest = {
 };
 
 describe('request-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('getRequests', () => {
     it('calls apiGet with correct endpoint', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockRequest]);

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { createFeedbackMutationCache } from './query-client';
 
@@ -30,8 +30,6 @@ async function runMutation(
 }
 
 describe('createFeedbackMutationCache', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('fires a success toast when meta.successMessage is set', async () => {
     const client = makeClient();
     await runMutation(client, () => Promise.resolve('ok'), { successMessage: 'Saved' });
@@ -75,6 +73,16 @@ describe('createFeedbackMutationCache', () => {
       errorMessage: 'Failed to save',
     });
     expect(toastError).toHaveBeenCalledWith('Failed to save', { description: 'Boom' });
+  });
+
+  it('resolves a function errorMessage with the mutation variables', async () => {
+    const client = makeClient();
+    const mutation = client.getMutationCache().build(client, {
+      mutationFn: (_name: string) => Promise.reject(new Error('Boom')),
+      meta: { errorMessage: (variables: unknown) => `Failed to create "${variables}"` } as never,
+    });
+    await mutation.execute('Bracket').catch(() => undefined);
+    expect(toastError).toHaveBeenCalledWith('Failed to create "Bracket"', { description: 'Boom' });
   });
 
   it('uses a default error title when only successMessage is set', async () => {

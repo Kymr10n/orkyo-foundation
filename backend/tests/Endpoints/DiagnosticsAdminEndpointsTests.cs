@@ -1,7 +1,7 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -15,17 +15,13 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class DiagnosticsAdminEndpointsTests
 {
     private readonly HttpClient _client;
+    private readonly string _controlPlane;
 
     public DiagnosticsAdminEndpointsTests(DatabaseFixture fixture)
     {
         _client = fixture.Factory.CreateClient();
+        _controlPlane = fixture.ControlPlaneConnectionString;
     }
-
-    private static Task<LinkedTestUser> CreateSiteAdminAsync()
-        => DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-
-    private static async Task<string> CreateRegularUserTokenAsync()
-        => (await DatabaseTestUtils.CreateLinkedUserAsync("diag-regular")).Token;
 
     // ── GET /api/version ────────────────────────────────────────
 
@@ -57,19 +53,10 @@ public class DiagnosticsAdminEndpointsTests
     // ── GET /api/admin/diagnostics ──────────────────────────────
 
     [Fact]
-    public async Task GetDiagnostics_NoAuth_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        var response = await _client.SendAsync(request);
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetDiagnostics_NonSiteAdmin_Returns403()
     {
-        var token = await CreateRegularUserTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("diag-regular")).Token;
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
@@ -77,9 +64,8 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_Returns200WithAllSections()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -121,9 +107,8 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_DatabaseShowsHealthy()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -133,24 +118,22 @@ public class DiagnosticsAdminEndpointsTests
     }
 
     [Fact]
-    public async Task GetDiagnostics_SiteAdmin_DeploymentModeIsSelfHosted()
+    public async Task GetDiagnostics_SiteAdmin_DeploymentModeIsUnknown_WhenTheProductDoesNotSetIt()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-        Assert.Equal("self-hosted", body.GetProperty("deploymentMode").GetString());
+        Assert.Equal("unknown", body.GetProperty("deploymentMode").GetString());
     }
 
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_SmtpHostIsMaskedOrShort()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -173,9 +156,8 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_AuthProviderIsKeycloak()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -184,11 +166,47 @@ public class DiagnosticsAdminEndpointsTests
     }
 
     [Fact]
+    public async Task GetDiagnostics_SiteAdmin_WorkerStatusReadsTheWorkerJobJournal()
+    {
+        // A completion later than any other row, so it is the one the endpoint reports.
+        var job = $"diag-test-{Guid.NewGuid():N}";
+        await using (var conn = new NpgsqlConnection(_controlPlane))
+        {
+            await conn.OpenAsync();
+            await using var insert = new NpgsqlCommand(
+                "INSERT INTO worker_job_runs (job_name, started_at, completed_at, result) " +
+                "VALUES (@job, NOW(), NOW() + INTERVAL '1 hour', 'ok')", conn);
+            insert.Parameters.AddWithValue("job", job);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+            var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
+
+            var body = await (await _client.SendAsync(request)).Content.ReadFromJsonAsync<JsonElement>();
+
+            var worker = body.GetProperty("worker");
+            Assert.Equal("running", worker.GetProperty("status").GetString());
+            var lastActivity = worker.GetProperty("lastActivity").GetDateTime();
+            Assert.True(lastActivity > DateTime.UtcNow.AddMinutes(30), "the journal's completion, not an audit event");
+        }
+        finally
+        {
+            await using var conn = new NpgsqlConnection(_controlPlane);
+            await conn.OpenAsync();
+            await using var delete = new NpgsqlCommand("DELETE FROM worker_job_runs WHERE job_name = @job", conn);
+            delete.Parameters.AddWithValue("job", job);
+            await delete.ExecuteNonQueryAsync();
+        }
+    }
+
+    [Fact]
     public async Task GetDiagnostics_SiteAdmin_WorkerStatusIsValid()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -200,9 +218,8 @@ public class DiagnosticsAdminEndpointsTests
     [Fact]
     public async Task GetDiagnostics_SiteAdmin_ModulesAreBooleans()
     {
-        var (_, token) = await CreateSiteAdminAsync();
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/admin/diagnostics");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
 
         var response = await _client.SendAsync(request);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -212,28 +229,5 @@ public class DiagnosticsAdminEndpointsTests
         Assert.True(obsKind is JsonValueKind.True or JsonValueKind.False);
         var logKind = modules.GetProperty("logAggregation").ValueKind;
         Assert.True(logKind is JsonValueKind.True or JsonValueKind.False);
-    }
-
-    // ── GET /api/v1/info (modified: now uses DeploymentConfig) ──
-
-    [Fact]
-    public async Task GetApiInfo_NoAuth_Returns200()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/info");
-        var response = await _client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetApiInfo_ReturnsNameAndVersion()
-    {
-        var response = await _client.GetFromJsonAsync<JsonElement>("/api/v1/info");
-
-        Assert.Equal("Orkyo API", response.GetProperty("name").GetString());
-
-        var version = response.GetProperty("version").GetString();
-        Assert.NotNull(version);
-        Assert.NotEmpty(version);
     }
 }

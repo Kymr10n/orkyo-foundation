@@ -8,24 +8,12 @@ import type { Request } from '@foundation/src/types/requests';
 import { makeRequest } from '@foundation/src/test-utils/request-fixtures';
 import type { FlatTreeEntry } from '@foundation/src/domain/request-tree';
 import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
+import { useRequestTreeStore } from '@foundation/src/store/request-tree-store';
 
-// Mock request-tree-store (used by TreeRow for expandedIds)
-const mockExpandedIds = new Set<string>();
-const mockExpandAll = vi.fn();
-const mockCollapseAll = vi.fn();
-vi.mock('@foundation/src/store/request-tree-store', () => ({
-  useRequestTreeStore: vi.fn((selector: (s: {
-    expandedIds: Set<string>;
-    expandAll: (ids: string[]) => void;
-    collapseAll: () => void;
-  }) => unknown) =>
-    selector({
-      expandedIds: mockExpandedIds,
-      expandAll: mockExpandAll,
-      collapseAll: mockCollapseAll,
-    }),
-  ),
-}));
+const initialTreeState = useRequestTreeStore.getState();
+const expandParent = () =>
+  useRequestTreeStore.setState({ ...initialTreeState, expandedIds: new Set(['parent-1']) }, true);
+const collapseEverything = () => useRequestTreeStore.setState({ expandedIds: new Set<string>() });
 
 // Mock virtualizer so all items render in jsdom (no DOM measurements)
 vi.mock('@tanstack/react-virtual', () => ({
@@ -107,11 +95,7 @@ function renderTreeView(
 
 describe('RequestTreeView', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockExpandedIds.clear();
-    mockExpandedIds.add('parent-1');
-    mockExpandAll.mockClear();
-    mockCollapseAll.mockClear();
+    expandParent();
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
@@ -232,10 +216,10 @@ describe('RequestTreeView', () => {
   });
 
   it('expands all groups with * keyboard shortcut', () => {
-    mockExpandedIds.clear();
+    collapseEverything();
     renderTreeView();
     fireEvent.keyDown(screen.getByRole('tree'), { key: '*' });
-    expect(mockExpandAll).toHaveBeenCalledWith(['parent-1']);
+    expect([...useRequestTreeStore.getState().expandedIds]).toEqual(['parent-1']);
   });
 
   it('collapses current expanded group with - keyboard shortcut', () => {
@@ -245,7 +229,7 @@ describe('RequestTreeView', () => {
   });
 
   it('expands current collapsed group with + keyboard shortcut', () => {
-    mockExpandedIds.clear();
+    collapseEverything();
     renderTreeView();
     fireEvent.keyDown(screen.getByRole('tree'), { key: '+' });
     expect(defaultHandlers.onToggle).toHaveBeenCalledWith('parent-1');
@@ -285,8 +269,7 @@ describe('RequestTreeView', () => {
 
 describe('RequestTreeView — touch affordances', () => {
   beforeEach(() => {
-    mockExpandedIds.clear();
-    mockExpandedIds.add('parent-1');
+    expandParent();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 

@@ -1,7 +1,8 @@
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import type { ResourceTypeInfo } from '@foundation/src/lib/api/resource-types-api';
-import { logger } from '@foundation/src/lib/core/logger';
+import { safeStorage } from '@foundation/src/lib/core/safe-storage';
+import { STORAGE_KEYS } from '@foundation/src/constants/storage';
 
 /**
  * The set of resource types a grid tab is showing, held in `?stationTypes=mill,drill`.
@@ -24,7 +25,7 @@ export function useTypeFilter(
   available: readonly ResourceTypeInfo[],
 ): [string[], (keys: string[]) => void] {
   const [searchParams, setSearchParams] = useSearchParams();
-  const storageKey = `orkyo.typeFilter.${paramName}`;
+  const storageKey = `${STORAGE_KEYS.TYPE_FILTER_PREFIX}${paramName}`;
 
   const raw = searchParams.get(paramName);
 
@@ -46,10 +47,10 @@ export function useTypeFilter(
       // pinned list — see the note above.
       if (isEverything) {
         next.delete(paramName);
-        clearStored(storageKey);
+        safeStorage.remove(storageKey);
       } else {
         next.set(paramName, keys.join(','));
-        writeStored(storageKey, keys);
+        safeStorage.set(storageKey, JSON.stringify(keys));
       }
       setSearchParams(next, { replace: true });
     },
@@ -60,30 +61,13 @@ export function useTypeFilter(
 }
 
 function readStored(key: string): string[] | null {
+  const raw = safeStorage.get(key);
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : null;
-  } catch (error) {
-    // A private-mode browser or a corrupted entry must not take the page down for a preference.
-    logger.error('Could not read the stored type filter:', error);
+  } catch {
+    // A corrupted entry falls back to "every type" rather than taking the page down.
     return null;
-  }
-}
-
-function clearStored(key: string) {
-  try {
-    localStorage.removeItem(key);
-  } catch (error) {
-    logger.error('Could not clear the stored type filter:', error);
-  }
-}
-
-function writeStored(key: string, keys: string[]) {
-  try {
-    localStorage.setItem(key, JSON.stringify(keys));
-  } catch (error) {
-    logger.error('Could not store the type filter:', error);
   }
 }

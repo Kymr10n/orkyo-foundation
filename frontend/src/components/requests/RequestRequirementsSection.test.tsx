@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import { RequestRequirementsSection } from './RequestRequirementsSection';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { RequirementEntry } from '@foundation/src/hooks/useRequestForm';
@@ -58,7 +59,6 @@ const baseState = {
   durationUnit: 'hours' as const,
   schedulingSettingsApply: false,
   requirements: new Map<string, RequirementEntry>(),
-  selectedCriterionId: '',
 };
 
 describe('RequestRequirementsSection', () => {
@@ -75,13 +75,13 @@ describe('RequestRequirementsSection', () => {
   };
 
   it('renders heading and badge', () => {
-    render(<RequestRequirementsSection {...defaultProps} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} />);
     expect(screen.getByText('Requirements')).toBeInTheDocument();
     expect(screen.getByText('0 active')).toBeInTheDocument();
   });
 
   it('shows empty state when no requirements', () => {
-    render(<RequestRequirementsSection {...defaultProps} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} />);
     expect(screen.getByText(/no requirements added yet/i)).toBeInTheDocument();
   });
 
@@ -90,34 +90,32 @@ describe('RequestRequirementsSection', () => {
       ...baseState,
       requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
     };
-    render(<RequestRequirementsSection {...defaultProps} state={stateWithReqs} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithReqs} />);
     expect(screen.getByText('1 active')).toBeInTheDocument();
     expect(screen.getByTestId('input-c1')).toBeInTheDocument();
   });
 
   it('calls onAddRequirement when add button clicked', () => {
     const onAdd = vi.fn();
-    render(
+    renderWithQuery(
       <RequestRequirementsSection
         {...defaultProps}
         selectedCriterionId="c1"
         onAddRequirement={onAdd}
       />,
     );
-    const addBtn = screen.getAllByRole('button').find(b => !b.textContent?.includes('Requirements'));
-    fireEvent.click(addBtn!);
+    fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
     expect(onAdd).toHaveBeenCalled();
   });
 
   it('add button is disabled when no criterion is selected', () => {
-    render(
+    renderWithQuery(
       <RequestRequirementsSection
         {...defaultProps}
         selectedCriterionId=""
       />,
     );
-    const addBtn = screen.getAllByRole('button').find(b => !b.textContent?.includes('Requirements'));
-    expect(addBtn).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add requirement' })).toBeDisabled();
   });
 
   it('calls onRemoveRequirement when trash button clicked', () => {
@@ -126,23 +124,20 @@ describe('RequestRequirementsSection', () => {
       ...baseState,
       requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
     };
-    render(
+    renderWithQuery(
       <RequestRequirementsSection
         {...defaultProps}
         state={stateWithReqs}
         onRemoveRequirement={onRemove}
       />,
     );
-    // Buttons: add (+) and the remove trash button
-    const buttons = screen.getAllByRole('button');
-    // Remove button is the last one (after add)
-    const removeBtn = buttons[buttons.length - 1];
-    fireEvent.click(removeBtn);
+    // The icon buttons are named for a screen reader: the remove names its criterion.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Power' }));
     expect(onRemove).toHaveBeenCalledWith('c1');
   });
 
   it('offers only criteria that apply to a type the request can hold', () => {
-    render(<RequestRequirementsSection {...defaultProps} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} />);
     // Space criteria are offered; the person skill is not, because people are not a target type here.
     expect(screen.getByText('Power')).toBeInTheDocument();
     expect(screen.getByText('Load')).toBeInTheDocument();
@@ -150,7 +145,7 @@ describe('RequestRequirementsSection', () => {
   });
 
   it('offers a person skill once people are among the requirement types', () => {
-    render(
+    renderWithQuery(
       <RequestRequirementsSection {...defaultProps} requirementTypeKeys={new Set(['space', 'person'])} />,
     );
     expect(screen.getByText('Forklift license')).toBeInTheDocument();
@@ -161,14 +156,28 @@ describe('RequestRequirementsSection', () => {
       ...baseState,
       requirements: new Map<string, RequirementEntry>([['c3', { value: true }]]),
     };
-    render(<RequestRequirementsSection {...defaultProps} state={stateWithPersonSkill} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithPersonSkill} />);
     // Already added → still shown as a row (with its input), even though the dropdown would not offer it.
     expect(screen.getByText('1 active')).toBeInTheDocument();
     expect(screen.getByTestId('input-c3')).toBeInTheDocument();
   });
 
+  it('counts a requirement whose criterion has not loaded yet, but renders no row for it', () => {
+    const stateWithUnknown = {
+      ...baseState,
+      requirements: new Map<string, RequirementEntry>([
+        ['c1', { value: true }],
+        ['not-loaded', { value: 1 }],
+      ]),
+    };
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithUnknown} />);
+    expect(screen.getByText('2 active')).toBeInTheDocument();
+    expect(screen.getByTestId('input-c1')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Remove / })).toHaveLength(1);
+  });
+
   it('hides add row when no criterion applies to any requirement type', () => {
-    render(<RequestRequirementsSection {...defaultProps} requirementTypeKeys={new Set()} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} requirementTypeKeys={new Set()} />);
     expect(screen.queryByText('Select a criterion to add')).not.toBeInTheDocument();
   });
 
@@ -180,7 +189,7 @@ describe('RequestRequirementsSection', () => {
         ['c2', { value: 5 }],
       ]),
     };
-    render(<RequestRequirementsSection {...defaultProps} state={stateWithAll} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithAll} />);
     // Both criteria used — no unused criteria → add row not rendered
     expect(screen.queryByText('Select a criterion to add')).not.toBeInTheDocument();
   });
@@ -193,7 +202,7 @@ describe('RequestRequirementsSection', () => {
     const conflictsByCriterionId = new Map<string, Conflict[]>([
       ['c1', [{ id: 'x', kind: 'connector_mismatch', severity: 'error', message: "No assigned resource provides 'Power'" }]],
     ]);
-    render(
+    renderWithQuery(
       <RequestRequirementsSection
         {...defaultProps}
         state={stateWithReqs}
@@ -208,7 +217,7 @@ describe('RequestRequirementsSection', () => {
       ...baseState,
       requirements: new Map<string, RequirementEntry>([['c-missing', { value: true }]]),
     };
-    render(<RequestRequirementsSection {...defaultProps} state={stateWithUnknown} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithUnknown} />);
     // c-missing isn't in availableCriteria → the row is skipped (no input rendered).
     expect(screen.queryByTestId('input-c-missing')).not.toBeInTheDocument();
     expect(screen.getByText('1 active')).toBeInTheDocument();
@@ -219,7 +228,7 @@ describe('RequestRequirementsSection', () => {
       ...baseState,
       requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
     };
-    render(<RequestRequirementsSection {...defaultProps} state={stateWithReqs} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithReqs} />);
     expect(screen.queryByTestId('conflict-indicator')).not.toBeInTheDocument();
   });
 
@@ -228,7 +237,7 @@ describe('RequestRequirementsSection', () => {
       ...baseState,
       requirements: new Map<string, RequirementEntry>([['c1', { value: true }]]),
     };
-    const { container } = render(
+    const { container } = renderWithQuery(
       <RequestRequirementsSection {...defaultProps} state={stateWithReqs} readOnly />,
     );
     // Value still shown…
@@ -248,7 +257,7 @@ describe('RequestRequirementsSection', () => {
         ['c2', { value: 10 }],
       ]),
     };
-    render(<RequestRequirementsSection {...defaultProps} state={stateWithTwo} />);
+    renderWithQuery(<RequestRequirementsSection {...defaultProps} state={stateWithTwo} />);
     expect(screen.getByText('2 active')).toBeInTheDocument();
     expect(screen.getByTestId('input-c1')).toBeInTheDocument();
     expect(screen.getByTestId('input-c2')).toBeInTheDocument();

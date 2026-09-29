@@ -22,6 +22,13 @@ public interface IKeycloakAdminService
     Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default);
 
     /// <summary>
+    /// Verify a user's current password. Throws <see cref="KeycloakAdminException"/> with
+    /// status 400 when it is wrong. The realm's direct-grant flow asks a TOTP user for the
+    /// code too, so <paramref name="totp"/> must carry it for such a user — the same 400 otherwise.
+    /// </summary>
+    Task VerifyCurrentPasswordAsync(string keycloakSub, string password, string? totp = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Get all active sessions for a user.
     /// </summary>
     Task<List<KeycloakSession>> GetUserSessionsAsync(string keycloakSub, CancellationToken ct = default);
@@ -98,11 +105,6 @@ public interface IKeycloakAdminService
     Task UpdateUserProfileAsync(string keycloakSub, string firstName, string lastName, CancellationToken ct = default);
 
     /// <summary>
-    /// Update the user's email in Keycloak and mark it as verified.
-    /// </summary>
-    Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default);
-
-    /// <summary>
     /// Update a user's email in Keycloak, preferring the subject when available
     /// and falling back to the current email address.
     /// </summary>
@@ -132,6 +134,12 @@ public interface IKeycloakAdminService
     /// Count users who have a specific realm role.
     /// </summary>
     Task<int> CountRealmRoleMembersAsync(string roleName, CancellationToken ct = default);
+
+    /// <summary>
+    /// The Keycloak ids of every user holding a realm role, in one paged read — for flagging a
+    /// whole list instead of one <see cref="HasRealmRoleAsync"/> call per user.
+    /// </summary>
+    Task<IReadOnlySet<string>> GetRealmRoleMemberIdsAsync(string roleName, CancellationToken ct = default);
 }
 
 /// <summary>

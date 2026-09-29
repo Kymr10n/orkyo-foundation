@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render as rtlRender, screen, fireEvent, waitFor, type RenderOptions } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { TemplateDialogBase } from './TemplateDialogBase';
@@ -73,10 +73,6 @@ vi.mock('@foundation/src/lib/utils', async (importOriginal) => {
   return { ...actual, getDataTypeColor: () => 'bg-blue-100 text-blue-800' };
 });
 
-const toastSuccess = vi.fn();
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
-
 // The dialog now saves via useMutation; render under a QueryClientProvider whose
 // MutationCache mirrors production so meta-driven toasts/invalidation fire.
 const render = (ui: ReactElement, options?: RenderOptions) =>
@@ -107,10 +103,6 @@ function submit() {
 }
 
 describe('TemplateDialogBase', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   // ── Rendering ─────────────────────────────────────────
   it('renders create mode title', async () => {
     render(<TemplateDialogBase {...defaultProps} />);

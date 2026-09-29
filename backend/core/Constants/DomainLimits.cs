@@ -58,6 +58,9 @@ public static class DomainLimits
     /// <summary>Maximum length for preset IDs</summary>
     public const int PresetIdMaxLength = 100;
 
+    /// <summary>Maximum length for preset names</summary>
+    public const int PresetNameMaxLength = 255;
+
     /// <summary>Maximum length for preset descriptions</summary>
     public const int PresetDescriptionMaxLength = 1000;
 
@@ -69,4 +72,16 @@ public static class DomainLimits
 
     /// <summary>Maximum length for feedback titles</summary>
     public const int FeedbackTitleMaxLength = 200;
+
+    /// <summary>Maximum length for an email address — matches users.email VARCHAR(320).</summary>
+    public const int EmailMaxLength = 320;
+
+    /// <summary>
+    /// Maximum length for a first or a last name. The display name is "first last" in
+    /// users.display_name VARCHAR(255), so each half gets 127.
+    /// </summary>
+    public const int PersonNamePartMaxLength = 127;
+
+    /// <summary>Maximum length for an API access or reporting token name — matches both name columns, VARCHAR(255).</summary>
+    public const int TokenNameMaxLength = 255;
 }

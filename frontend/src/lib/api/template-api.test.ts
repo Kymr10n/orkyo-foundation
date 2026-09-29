@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getTemplates,
   createTemplate,
@@ -23,10 +23,6 @@ const mockTemplate = {
 };
 
 describe('template-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('getTemplates', () => {
     it('calls apiGet with correct endpoint for request templates', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockTemplate]);

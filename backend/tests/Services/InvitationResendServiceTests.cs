@@ -10,7 +10,8 @@ using Orkyo.Shared;
 namespace Orkyo.Foundation.Tests.Services;
 
 /// <summary>
-/// DB-backed tests for <see cref="InvitationService.ResendInvitationAsync"/>.
+/// DB-backed tests for <see cref="InvitationService.ResendInvitationAsync"/> and
+/// <see cref="InvitationService.InviteAsync"/>.
 ///
 /// <para>These are service-level, not endpoint-level, on purpose:
 /// <see cref="FoundationWebApplicationFactory"/> registers
@@ -130,7 +131,80 @@ public sealed class InvitationResendServiceTests
         email.VerifyNoOtherCalls();
     }
 
+    // ── InviteAsync ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Invite_ExistingAccount_AddsMembershipDirectly_ThenReportsAlreadyMember()
+    {
+        var (userId, email) = await SeedUserAsync();
+        var (service, mail, tenantUsers) = BuildService();
+
+        var first = await service.InviteAsync(Tenant(), TestUserId, email, UserRole.Editor);
+        var second = await service.InviteAsync(Tenant(), TestUserId, email, UserRole.Viewer);
+
+        // "Added" is a success and "already a member" is not: the two must be distinguishable.
+        first.Should().Be(new InviteUserResult.AddedDirectly(userId, email, UserRole.Editor));
+        second.Should().BeOfType<InviteUserResult.AlreadyMember>();
+        (await ReadMembershipRoleAsync(userId)).Should().Be("editor", "the second invite changes nothing");
+        tenantUsers.Verify(t => t.CreateUserStubInTenantDatabaseAsync(
+            It.IsAny<OrgContext>(), userId, email, It.IsAny<CancellationToken>()), Times.Once);
+        mail.Verify(e => e.SendInvitationEmailAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Invite_MatchesAnExistingAccountRegardlessOfCase()
+    {
+        // "Bob@x.com" and "bob@x.com" are one mailbox, so one user: inviting the other spelling
+        // must add that user, not mail an invitation that would provision a second account.
+        var (userId, email) = await SeedUserAsync();
+        var (service, mail, _) = BuildService();
+
+        var result = await service.InviteAsync(Tenant(), TestUserId, "  " + email.ToUpperInvariant(), UserRole.Viewer);
+
+        result.Should().Be(new InviteUserResult.AddedDirectly(userId, email, UserRole.Viewer));
+        mail.Verify(e => e.SendInvitationEmailAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Invite_NewEmail_RecordsAndMailsAnInvitation()
+    {
+        var (service, mail, _) = BuildService();
+
+        var result = await service.InviteAsync(Tenant(), TestUserId, $"invitee-{Guid.NewGuid():N}@example.com", UserRole.Viewer);
+
+        result.Should().BeOfType<InviteUserResult.Invited>();
+        mail.Verify(e => e.SendInvitationEmailAsync(
+            It.IsAny<string>(), ((InviteUserResult.Invited)result).Token, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     // ── seed / read helpers ───────────────────────────────────────────────────
+
+    private async Task<(Guid Id, string Email)> SeedUserAsync()
+    {
+        var id = Guid.NewGuid();
+        var email = $"invite-direct-{id:N}@example.com";
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "INSERT INTO users (id, email, display_name, status) VALUES (@id, @email, 'Invitee', 'active')", conn);
+        cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddWithValue("email", email);
+        await cmd.ExecuteNonQueryAsync();
+        return (id, email);
+    }
+
+    private async Task<string?> ReadMembershipRoleAsync(Guid userId)
+    {
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT role FROM tenant_memberships WHERE user_id = @uid AND tenant_id = @tid", conn);
+        cmd.Parameters.AddWithValue("uid", userId);
+        cmd.Parameters.AddWithValue("tid", TestTenantId);
+        return await cmd.ExecuteScalarAsync() as string;
+    }
 
     private async Task<(Guid Id, string TokenHash, DateTime ExpiresAt)> SeedInvitationAsync(
         bool accepted = false, int expiresInDays = 3)

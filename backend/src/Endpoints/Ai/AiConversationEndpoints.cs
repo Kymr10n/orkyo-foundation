@@ -78,18 +78,16 @@ public static class AiConversationEndpoints
         IAiConversationService conversations,
         CancellationToken ct)
     {
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
-        await conversations.SaveAsync(
-            id,
-            request.Title,
-            request.Entries.GetRawText(),
-            request.Transcript.GetRawText(),
-            ct);
-
-        return Results.NoContent();
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            await conversations.SaveAsync(
+                id,
+                request.Title,
+                request.Entries.GetRawText(),
+                request.Transcript.GetRawText(),
+                ct);
+            return Results.NoContent();
+        }, ct);
     }
 
     private static async Task<IResult> Delete(Guid id, IAiConversationService conversations, CancellationToken ct)

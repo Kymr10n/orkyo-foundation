@@ -1,30 +1,16 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeToggle } from './ThemeToggle';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
 
-// Track setTheme calls
-const mockSetTheme = vi.fn();
-let mockTheme = 'system' as 'dark' | 'light' | 'system';
-let mockResolvedTheme = 'dark' as 'dark' | 'light';
-
-vi.mock('@foundation/src/store/layout-store', () => ({
-  useLayoutStore: vi.fn((selector: (state: Record<string, unknown>) => unknown) => {
-    const state = {
-      theme: mockTheme,
-      resolvedTheme: mockResolvedTheme,
-      setTheme: mockSetTheme,
-    };
-    return selector(state);
-  }),
-}));
+const initialLayoutState = useLayoutStore.getState();
+const theme = () => useLayoutStore.getState().theme;
 
 describe('ThemeToggle', () => {
   beforeEach(() => {
-    mockTheme = 'system';
-    mockResolvedTheme = 'dark';
-    mockSetTheme.mockClear();
+    useLayoutStore.setState({ ...initialLayoutState, theme: 'system', resolvedTheme: 'dark' }, true);
   });
 
   it('should render the toggle button', () => {
@@ -65,7 +51,8 @@ describe('ThemeToggle', () => {
     await user.click(screen.getByRole('button', { name: /toggle theme/i }));
     await user.click(screen.getByText('Light'));
 
-    expect(mockSetTheme).toHaveBeenCalledWith('light');
+    expect(theme()).toBe('light');
+    expect(useLayoutStore.getState().resolvedTheme).toBe('light');
   });
 
   it('should call setTheme("dark") when Dark is selected', async () => {
@@ -75,36 +62,39 @@ describe('ThemeToggle', () => {
     await user.click(screen.getByRole('button', { name: /toggle theme/i }));
     await user.click(screen.getByText('Dark'));
 
-    expect(mockSetTheme).toHaveBeenCalledWith('dark');
+    expect(theme()).toBe('dark');
   });
 
   it('should call setTheme("system") when System is selected', async () => {
+    useLayoutStore.setState({ theme: 'light', resolvedTheme: 'light' });
     const user = userEvent.setup();
     render(<ThemeToggle />);
 
     await user.click(screen.getByRole('button', { name: /toggle theme/i }));
     await user.click(screen.getByText('System'));
 
-    expect(mockSetTheme).toHaveBeenCalledWith('system');
+    expect(theme()).toBe('system');
   });
 
   it('should show Sun icon when resolved theme is dark', () => {
-    mockResolvedTheme = 'dark';
+    useLayoutStore.setState({ resolvedTheme: 'dark' });
     render(<ThemeToggle />);
     // Sun icon is shown when dark (to indicate "switch to light")
     const button = screen.getByRole('button', { name: /toggle theme/i });
-    expect(button).toBeInTheDocument();
+    expect(button.querySelector('.lucide-sun')).not.toBeNull();
+    expect(button.querySelector('.lucide-moon')).toBeNull();
   });
 
   it('should show Moon icon when resolved theme is light', () => {
-    mockResolvedTheme = 'light';
+    useLayoutStore.setState({ resolvedTheme: 'light' });
     render(<ThemeToggle />);
     const button = screen.getByRole('button', { name: /toggle theme/i });
-    expect(button).toBeInTheDocument();
+    expect(button.querySelector('.lucide-moon')).not.toBeNull();
+    expect(button.querySelector('.lucide-sun')).toBeNull();
   });
 
   it('should highlight the currently active theme option', async () => {
-    mockTheme = 'dark';
+    useLayoutStore.setState({ theme: 'dark' });
     const user = userEvent.setup();
     render(<ThemeToggle />);
 
@@ -132,7 +122,7 @@ describe('ThemeToggle', () => {
     await user.click(screen.getByRole('button', { name: /toggle theme/i }));
     await user.click(screen.getByText('Dark'));
 
-    expect(mockSetTheme).toHaveBeenCalledWith('dark');
+    expect(theme()).toBe('dark');
   });
 
   it('should apply floating-specific button styling', () => {

@@ -25,7 +25,6 @@ import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { toast } from 'sonner';
 import { renderWithQuery } from '@foundation/src/test-utils';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@foundation/src/lib/api/criteria-api', () => ({
   getCriteria: vi.fn().mockResolvedValue([]),
 }));
@@ -80,11 +79,21 @@ async function openRowMenu(user: ReturnType<typeof userEvent.setup>, name: strin
 
 describe('ResourceGroupList', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getResourceGroups).mockResolvedValue(mockGroups);
     vi.mocked(deleteResourceGroup).mockResolvedValue(undefined);
     // useCanEdit is globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);
+  });
+
+  it('shows a failed load with a retry that refetches', async () => {
+    vi.mocked(getResourceGroups).mockRejectedValueOnce(new Error('Groups unavailable'));
+    const user = userEvent.setup();
+    renderList();
+
+    expect(await screen.findByText('Groups unavailable')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Engineering')).toBeInTheDocument();
   });
 
   it('disables all edit affordances for a viewer who cannot edit', async () => {

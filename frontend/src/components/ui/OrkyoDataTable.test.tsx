@@ -76,6 +76,59 @@ describe('OrkyoDataTable', () => {
     expect(screen.getByText('No tenants yet.')).toBeInTheDocument();
   });
 
+  it('shows the message of an Error passed as-is', () => {
+    render(<OrkyoDataTable columns={columns} data={[]} error={new Error('Boom')} errorFallback="Failed to load" />);
+    expect(screen.getByText('Boom')).toBeInTheDocument();
+  });
+
+  it('shows errorFallback for a non-Error rejection and for an Error without a message', () => {
+    const { rerender } = render(
+      <OrkyoDataTable columns={columns} data={[]} error={{ status: 500 }} errorFallback="Failed to load" />,
+    );
+    expect(screen.getByText('Failed to load')).toBeInTheDocument();
+    rerender(<OrkyoDataTable columns={columns} data={[]} error={new Error('')} errorFallback="Failed to load" />);
+    expect(screen.getByText('Failed to load')).toBeInTheDocument();
+  });
+
+  it('renders no error for a null or undefined query error', () => {
+    render(<OrkyoDataTable columns={columns} data={makeRows(1)} error={null} errorFallback="Failed to load" />);
+    expect(screen.queryByText('Failed to load')).not.toBeInTheDocument();
+    expect(screen.getByText('Item 1')).toBeInTheDocument();
+  });
+
+  it('shows noDataMessage and noDataAction when nothing exists yet', () => {
+    render(
+      <OrkyoDataTable
+        columns={columns}
+        data={[]}
+        emptyMessage="No match."
+        noDataMessage="No sites defined yet"
+        noDataAction={<button>Create your first site</button>}
+      />,
+    );
+    expect(screen.getByText('No sites defined yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create your first site' })).toBeInTheDocument();
+    expect(screen.queryByText('No match.')).not.toBeInTheDocument();
+  });
+
+  it('shows emptyMessage, not noDataMessage, when the filter hides every row', async () => {
+    const user = userEvent.setup();
+    render(
+      <OrkyoDataTable
+        columns={columns}
+        data={makeRows(3)}
+        filterColumn="name"
+        emptyMessage="No match."
+        noDataMessage="No sites defined yet"
+        noDataAction={<button>Create your first site</button>}
+      />,
+    );
+    await user.type(screen.getByPlaceholderText('Search…'), 'zzz');
+    expect(screen.getByText('No match.')).toBeInTheDocument();
+    expect(screen.queryByText('No sites defined yet')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create your first site' })).not.toBeInTheDocument();
+  });
+
   // ── Data rendering ───────────────────────────────────────────────────────
 
   it('renders column headers', () => {
@@ -385,6 +438,40 @@ describe('OrkyoDataTable', () => {
     expect(clickableRow?.className).toContain('cursor-pointer');
   });
 
+  it('lets the keyboard reach a clickable row and open it with Enter or Space', async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(<OrkyoDataTable columns={columns} data={makeRows(2)} onRowClick={onRowClick} />);
+
+    const first = screen.getByText('Item 1').closest('tr')!;
+    expect(first).toHaveAttribute('tabindex', '0');
+    first.focus();
+    await user.keyboard('{Enter}');
+    expect(onRowClick).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Item 1' }));
+
+    await user.tab();
+    expect(screen.getByText('Item 2').closest('tr')).toHaveFocus();
+    await user.keyboard(' ');
+    expect(onRowClick).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Item 2' }));
+    expect(onRowClick).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves rows out of the tab order when they are not clickable', () => {
+    render(<OrkyoDataTable columns={columns} data={makeRows(1)} />);
+    expect(screen.getByText('Item 1').closest('tr')).not.toHaveAttribute('tabindex');
+  });
+
+  it('does not open the row when Enter is pressed on a control inside it', () => {
+    const onRowClick = vi.fn();
+    const cols: ColumnDef<Row>[] = [
+      { accessorKey: 'name', header: 'Name' },
+      { id: 'actions', header: 'Actions', cell: () => <button>Act</button> },
+    ];
+    render(<OrkyoDataTable columns={cols} data={makeRows(1)} onRowClick={onRowClick} />);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Act' }), { key: 'Enter' });
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it('does not fire onRowClick when an action cell stops propagation', async () => {
     const user = userEvent.setup();
     const onRowClick = vi.fn();
@@ -454,6 +541,19 @@ describe('OrkyoDataTable — card mode', () => {
     );
     fireEvent.click(screen.getByText('Item 2'));
     expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1', name: 'Item 2' }));
+  });
+
+  it('opens a card from the keyboard', async () => {
+    setViewport(500);
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(
+      <OrkyoDataTable columns={columns} data={makeRows(1)} renderCard={renderCard} onRowClick={onRowClick} />,
+    );
+    await user.tab();
+    expect(screen.getByTestId('card').parentElement).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(onRowClick).toHaveBeenCalledWith(expect.objectContaining({ name: 'Item 1' }));
   });
 
   it('an action inside a card can stop propagation to suppress onRowClick', async () => {

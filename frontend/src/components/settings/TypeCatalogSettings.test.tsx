@@ -12,10 +12,6 @@ vi.mock('@foundation/src/lib/api/resource-type-catalog-api', () => ({
   purgeCatalogType: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 import {
   getResourceTypeCatalog,
   activateCatalogType,
@@ -102,7 +98,6 @@ const switchFor = (plural: string) => screen.findByRole('switch', { name: `Activ
 
 describe('TypeCatalogSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getResourceTypeCatalog).mockResolvedValue(catalog);
     vi.mocked(activateCatalogType).mockResolvedValue({ displayName: 'Drill' } as never);
     vi.mocked(deactivateCatalogType).mockResolvedValue(undefined);
@@ -228,6 +223,6 @@ describe('TypeCatalogSettings', () => {
     renderCatalog();
 
     expect(await screen.findByText('boom')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

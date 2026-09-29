@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getCriteria, createCriterion, updateCriterion, deleteCriterion, updateCriterionApplicability } from './criteria-api';
 import type { UpdateCriterionApplicabilityRequest } from '@foundation/src/types/criterion';
 import * as apiClient from '../core/api-client';
@@ -16,10 +16,6 @@ const mockCriterion = {
 };
 
 describe('criteria-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('getCriteria', () => {
     it('calls apiGet with correct endpoint', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockCriterion]);

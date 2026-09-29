@@ -1,10 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { InsightsFilters, resolveRange } from "./InsightsFilters";
 
 describe("InsightsFilters", () => {
-  beforeEach(() => vi.clearAllMocks());
-
   const props = {
     range: "window" as const,
     onRangeChange: vi.fn(),

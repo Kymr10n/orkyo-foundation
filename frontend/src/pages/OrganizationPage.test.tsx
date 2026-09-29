@@ -39,7 +39,6 @@ function definition(over: Partial<ListDefinition> & { id: string; name: string }
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   definitions = [
     definition({ id: 'd-dept', name: 'Departments' }),
     definition({ id: 'd-job', name: 'Job Titles' }),

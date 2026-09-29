@@ -73,7 +73,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
     return (
       <Alert>
         <AlertDescription>
-          The AI assistant is not available for this workspace.
+          The AI assistant is not available for this organization.
         </AlertDescription>
       </Alert>
     );
@@ -101,7 +101,12 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
   };
 
   const handleTest = async () => {
-    const result = await testCredential.mutateAsync();
+    let result;
+    try {
+      result = await testCredential.mutateAsync();
+    } catch {
+      return; /* toasted by the MutationCache */
+    }
     if (result.ok) {
       toast.success("The key works.");
       return;
@@ -155,7 +160,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={handleTest}
+                  onClick={() => void handleTest()}
                   loading={testCredential.isPending}
                 >
                   {!testCredential.isPending && <Check className="h-4 w-4" />}
@@ -175,7 +180,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
           <Alert>
             <AlertDescription>
               No key is configured, so the assistant is switched off for everyone in this
-              workspace.
+              organization.
             </AlertDescription>
           </Alert>
         )}
@@ -193,12 +198,12 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
-            <Button onClick={handleSave} disabled={!apiKey.trim()} loading={saveCredential.isPending}>
+            <Button onClick={() => void handleSave()} disabled={!apiKey.trim()} loading={saveCredential.isPending}>
               Save
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Chat messages and the workspace data the assistant reads are sent to Anthropic
+            Chat messages and the organization data the assistant reads are sent to Anthropic
             under your own agreement with them. Usage is billed to this key.
           </p>
         </div>
@@ -232,7 +237,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
         <p className="text-sm text-muted-foreground">
           A ceiling on interactions rather than tokens, useful when many people share one
           login. Both counts reset at the start of each day, in UTC. Leave a field empty
-          for no limit — most workspaces need neither.
+          for no limit — most organizations need neither.
         </p>
 
         {limitsLoading ? (
@@ -257,7 +262,7 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
         open={removeOpen}
         onOpenChange={setRemoveOpen}
         title="Remove the AI key?"
-        description="The assistant stops working for everyone in this workspace until a new key is saved."
+        description="The assistant stops working for everyone in this organization until a new key is saved."
         confirmLabel="Remove key"
         destructive
         onConfirm={handleRemove}
@@ -335,7 +340,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="ai-per-workspace">Interactions for the whole workspace each day</Label>
+          <Label htmlFor="ai-per-workspace">Interactions for the whole organization each day</Label>
           <Input
             id="ai-per-workspace"
             type="number"
@@ -353,7 +358,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
         </div>
       </div>
 
-      <Button onClick={handleSave} loading={save.isPending}>
+      <Button onClick={() => void handleSave()} loading={save.isPending}>
         Save limits
       </Button>
     </div>
@@ -429,14 +434,14 @@ function AllowanceRow({ row }: { row: AiUserAllowance }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
-        <Button size="sm" variant="outline" onClick={handleGrant} disabled={save.isPending}>
+        <Button size="sm" variant="outline" onClick={() => void handleGrant()} disabled={save.isPending}>
           {row.granted ? "Update" : "Grant"}
         </Button>
         {row.granted && (
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleRevoke}
+            onClick={() => void handleRevoke()}
             disabled={revoke.isPending}
             aria-label={`Remove assistant access for ${row.displayName || row.email || "this member"}`}
           >

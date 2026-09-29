@@ -68,10 +68,39 @@ public class DeploymentConfigTests
         result.OidcInternalAuthority.Should().Be("http://keycloak:8080/realms/orkyo");
     }
 
+    [Theory]
+    [InlineData("cloud", "cloud")]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void FromConfiguration_ReadsTheDeploymentMode_EmptyCountsAsUnset(string? value, string? expected)
+    {
+        var config = BuildConfig(RequiredValues(new Dictionary<string, string?>
+        {
+            [ConfigKeys.DeploymentMode] = value,
+        }));
+
+        DeploymentConfig.FromConfiguration(config).DeploymentMode.Should().Be(expected);
+    }
+
     [Fact]
     public void FromConfiguration_LeavesOidcInternalAuthorityNull_WhenKeyIsAbsent()
     {
         var config = BuildConfig(RequiredValues());
+
+        var result = DeploymentConfig.FromConfiguration(config);
+
+        result.OidcInternalAuthority.Should().BeNull();
+    }
+
+    [Fact]
+    public void FromConfiguration_LeavesOidcInternalAuthorityNull_WhenKeyIsEmpty()
+    {
+        // KEY= from the deploy pipeline: the diagnostics probe must fall back to the public
+        // authority, not probe an empty one.
+        var config = BuildConfig(RequiredValues(new Dictionary<string, string?>
+        {
+            [ConfigKeys.OidcInternalAuthority] = "",
+        }));
 
         var result = DeploymentConfig.FromConfiguration(config);
 

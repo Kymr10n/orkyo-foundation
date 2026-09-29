@@ -24,8 +24,9 @@ public class UpsertSchedulingSettingsRequestValidator : AbstractValidator<Upsert
             .Must(BeValidTime).WithMessage("WorkingDayEnd must be a valid time (HH:mm)");
 
         RuleFor(x => x)
-            .Must(x => !BeValidTime(x.WorkingDayStart) || !BeValidTime(x.WorkingDayEnd) ||
-                        TimeSpan.Parse(x.WorkingDayStart) < TimeSpan.Parse(x.WorkingDayEnd))
+            .Must(x => !WorkingTime.TryParse(x.WorkingDayStart, out var start)
+                       || !WorkingTime.TryParse(x.WorkingDayEnd, out var end)
+                       || start < end)
             .WithName("WorkingDayEnd")
             .WithMessage("WorkingDayEnd must be after WorkingDayStart");
 
@@ -38,7 +39,7 @@ public class UpsertSchedulingSettingsRequestValidator : AbstractValidator<Upsert
             .WithMessage("PublicHolidayRegion is required when public holidays are enabled");
     }
 
-    private static bool BeValidTime(string time) => TimeSpan.TryParse(time, out _);
+    private static bool BeValidTime(string time) => WorkingTime.TryParse(time, out _);
 }
 
 public class CreateAvailabilityEventRequestValidator : AbstractValidator<CreateAvailabilityEventRequest>

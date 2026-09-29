@@ -30,11 +30,6 @@ import { STALE } from "@foundation/src/lib/core/query-client";
 // time-derived lifecycle live between fetches (each page applies withEffectiveStatus to its feed).
 const REQUESTS_REFETCH_MS = 30_000;
 
-// Canonical placeable-resource hook lives in usePlaceableResources.ts. Re-exported here (not
-// redefined) so existing `useUtilization` importers (e.g. UtilizationPage) keep resolving against
-// the single source of truth. See F051 dedup.
-export { usePlaceableResources } from "@foundation/src/hooks/usePlaceableResources";
-
 // Scheduled requests for the selected site within a buffered window — the grid's bar feed.
 export function useScheduledRequests(siteId: string | null, from: Date, to: Date) {
   return useQuery({

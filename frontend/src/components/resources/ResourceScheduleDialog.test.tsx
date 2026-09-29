@@ -22,7 +22,6 @@ vi.mock("@foundation/src/lib/api/resource-absences-api", () => ({
   updateResourceAbsence: vi.fn(),
 }));
 vi.mock("@foundation/src/lib/api/request-api", () => ({ getRequests: vi.fn() }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const canEdit = vi.fn(() => true);
 vi.mock("@foundation/src/hooks/usePermissions", () => ({ useCanEdit: () => canEdit() }));
@@ -71,7 +70,6 @@ function renderDialog() {
 const latest = () => calendarProps[calendarProps.length - 1];
 
 beforeEach(() => {
-  vi.clearAllMocks();
   calendarProps.length = 0;
   canEdit.mockReturnValue(true);
   (getAssignmentsByResource as Mock).mockResolvedValue([ASSIGNMENT]);

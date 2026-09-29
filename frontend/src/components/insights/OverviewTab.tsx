@@ -1,5 +1,4 @@
-import { format, parseISO } from 'date-fns';
-import { DATE_FORMATS } from '@foundation/src/lib/formatters';
+import { formatDateTimeDisplay } from '@foundation/src/lib/formatters';
 import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { KpiCard } from '@foundation/src/components/insights/KpiCard';
@@ -58,7 +57,7 @@ export function OverviewTab() {
       {/* Admin transparency: where the numbers came from. */}
       {o && (
         <div className="pt-1 text-right text-xs text-muted-foreground">
-          Calculated at {format(parseISO(o.metadata.calculatedAt), DATE_FORMATS.DATETIME_MEDIUM)} · Source: {o.metadata.sourceMode}
+          Calculated at {formatDateTimeDisplay(o.metadata.calculatedAt)} · Source: {o.metadata.sourceMode}
         </div>
       )}
     </div>

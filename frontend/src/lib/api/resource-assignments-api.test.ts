@@ -40,7 +40,6 @@ const result = (blockers: ValidationIssue[]): ValidationResult => ({
 });
 
 beforeEach(() => {
-  vi.clearAllMocks();
   apiMocks.apiGet.mockResolvedValue([]);
   apiMocks.apiPost.mockResolvedValue({});
   apiMocks.apiDelete.mockResolvedValue(undefined);
@@ -53,6 +52,7 @@ describe('hardBlockers / softBlockers', () => {
       issue('capability.missing'), // soft
       issue('assignment.overbooked'), // soft
       issue('site.cross-not-allowed'), // hard
+      issue('assignment.capacity-exceeded'), // soft: fractional over-capacity
     ];
     const r = result(blockers);
 
@@ -63,6 +63,7 @@ describe('hardBlockers / softBlockers', () => {
     expect(softBlockers(r).map((b) => b.code)).toEqual([
       'capability.missing',
       'assignment.overbooked',
+      'assignment.capacity-exceeded',
     ]);
   });
 
@@ -74,7 +75,6 @@ describe('hardBlockers / softBlockers', () => {
 });
 
 describe('assignment queries', () => {
-
   it('queries all resources of a type in one round-trip', async () => {
     await getAssignmentsByResourceType(
       'person',
@@ -133,7 +133,6 @@ describe('mutations', () => {
     await cancelAssignment('asg-1');
     expect(apiMocks.apiDelete).toHaveBeenCalledWith(expect.stringContaining('asg-1'));
   });
-
 
   it('reads one resource window with an explicit from/to', async () => {
     apiMocks.apiGet.mockResolvedValue([]);

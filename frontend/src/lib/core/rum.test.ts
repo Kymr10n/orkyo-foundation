@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { initRUM, getMetrics } from "./rum";
+import { initRUM } from "./rum";
 
 // Control isDev so we can cover both dev and non-dev record() paths
 const { mockRuntimeConfig } = vi.hoisted(() => ({
-  mockRuntimeConfig: { isDev: false },
+  mockRuntimeConfig: { isDev: true },
 }));
 vi.mock("@foundation/src/config/runtime", () => ({
   runtimeConfig: mockRuntimeConfig,
@@ -27,8 +27,17 @@ class MockPerformanceObserver {
   ];
 }
 
+/** The vitals reported so far, read back from the dev console lines `record()` writes. */
+function reported(): { name: string; value: number; rating: string }[] {
+  return vi.mocked(console.log).mock.calls.flatMap(([line]) => {
+    const m = /^%c\[RUM\] (\w+): ([\d.]+)ms \(([\w-]+)\)$/.exec(String(line));
+    return m ? [{ name: m[1], value: Number(m[2]), rating: m[3] }] : [];
+  });
+}
+
 describe("rum", () => {
   beforeEach(() => {
+    mockRuntimeConfig.isDev = true;
     capturedCallbacks = {};
     vi.spyOn(console, "log").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -58,9 +67,11 @@ describe("rum", () => {
     });
   });
 
-  describe("getMetrics", () => {
-    it("returns an array", () => {
-      expect(Array.isArray(getMetrics())).toBe(true);
+  describe("production build", () => {
+    it("registers no observer, so nothing runs and nothing is kept", () => {
+      mockRuntimeConfig.isDev = false;
+      initRUM();
+      expect(capturedCallbacks).toEqual({});
     });
   });
 
@@ -72,7 +83,7 @@ describe("rum", () => {
       capturedCallbacks["largest-contentful-paint"]?.({
         getEntries: () => [{ startTime: 1000 }],
       });
-      const lcp = getMetrics().find((m) => m.name === "LCP");
+      const lcp = reported().find((m) => m.name === "LCP");
       expect(lcp).toBeDefined();
       expect(lcp?.rating).toBe("good");
     });
@@ -82,7 +93,7 @@ describe("rum", () => {
       capturedCallbacks["largest-contentful-paint"]?.({
         getEntries: () => [{ startTime: 3000 }],
       });
-      const lcp = getMetrics().find((m) => m.name === "LCP" && m.value === 3000);
+      const lcp = reported().find((m) => m.name === "LCP" && m.value === 3000);
       expect(lcp?.rating).toBe("needs-improvement");
     });
 
@@ -91,15 +102,15 @@ describe("rum", () => {
       capturedCallbacks["largest-contentful-paint"]?.({
         getEntries: () => [{ startTime: 5000 }],
       });
-      const lcp = getMetrics().find((m) => m.name === "LCP" && m.value === 5000);
+      const lcp = reported().find((m) => m.name === "LCP" && m.value === 5000);
       expect(lcp?.rating).toBe("poor");
     });
 
     it("does nothing when entry list is empty", () => {
       initRUM();
-      const before = getMetrics().length;
+      const before = reported().length;
       capturedCallbacks["largest-contentful-paint"]?.({ getEntries: () => [] });
-      expect(getMetrics().length).toBe(before);
+      expect(reported().length).toBe(before);
     });
   });
 
@@ -111,7 +122,7 @@ describe("rum", () => {
       capturedCallbacks["first-input"]?.({
         getEntries: () => [{ startTime: 0, processingStart: 50 }],
       });
-      const fid = getMetrics().find((m) => m.name === "FID");
+      const fid = reported().find((m) => m.name === "FID");
       expect(fid?.rating).toBe("good");
     });
 
@@ -120,7 +131,7 @@ describe("rum", () => {
       capturedCallbacks["first-input"]?.({
         getEntries: () => [{ startTime: 0, processingStart: 400 }],
       });
-      const fid = getMetrics().find((m) => m.name === "FID" && m.value === 400);
+      const fid = reported().find((m) => m.name === "FID" && m.value === 400);
       expect(fid?.rating).toBe("poor");
     });
   });
@@ -143,21 +154,22 @@ describe("rum", () => {
       });
       document.dispatchEvent(new Event("visibilitychange"));
       // Use the LAST CLS metric (earlier initRUM() calls also have listeners with clsValue=0)
-      const all = getMetrics().filter((m) => m.name === "CLS");
+      const all = reported().filter((m) => m.name === "CLS");
       const cls = all.at(-1);
       expect(cls).toBeDefined();
-      expect(cls?.value).toBeCloseTo(0.09);
+      // The console line carries one decimal: 0.09 prints as 0.1.
+      expect(cls?.value).toBeCloseTo(0.09, 1);
       expect(cls?.rating).toBe("good");
     });
 
     it("ignores shifts that had recent input", () => {
       initRUM();
-      const before = getMetrics().filter((m) => m.name === "CLS").length;
+      const before = reported().filter((m) => m.name === "CLS").length;
       capturedCallbacks["layout-shift"]?.({
         getEntries: () => [{ hadRecentInput: true, value: 0.5 }],
       });
       // Should not flush yet (visibilitychange hasn't fired)
-      expect(getMetrics().filter((m) => m.name === "CLS").length).toBe(before);
+      expect(reported().filter((m) => m.name === "CLS").length).toBe(before);
     });
   });
 
@@ -165,7 +177,6 @@ describe("rum", () => {
 
   describe("record() dev-mode logging", () => {
     it("logs with green colour in dev mode for 'good' vitals", () => {
-      mockRuntimeConfig.isDev = true;
       initRUM();
       capturedCallbacks["largest-contentful-paint"]?.({
         getEntries: () => [{ startTime: 500 }],
@@ -174,11 +185,9 @@ describe("rum", () => {
         expect.stringContaining("[RUM]"),
         "color: green",
       );
-      mockRuntimeConfig.isDev = false;
     });
 
     it("logs with red colour for 'poor' vitals in dev mode", () => {
-      mockRuntimeConfig.isDev = true;
       initRUM();
       capturedCallbacks["largest-contentful-paint"]?.({
         getEntries: () => [{ startTime: 5000 }],
@@ -187,16 +196,6 @@ describe("rum", () => {
         expect.stringContaining("[RUM]"),
         "color: red",
       );
-      mockRuntimeConfig.isDev = false;
-    });
-
-    it("does not log in production mode", () => {
-      mockRuntimeConfig.isDev = false;
-      initRUM();
-      capturedCallbacks["largest-contentful-paint"]?.({
-        getEntries: () => [{ startTime: 500 }],
-      });
-      expect(console.log).not.toHaveBeenCalled();
     });
   });
 
@@ -204,7 +203,6 @@ describe("rum", () => {
 
   describe("Long tasks observer", () => {
     it("warns in dev mode for tasks > 100ms", () => {
-      mockRuntimeConfig.isDev = true;
       vi.spyOn(console, "warn").mockImplementation(() => {});
       initRUM();
       capturedCallbacks.longtask?.({
@@ -214,17 +212,7 @@ describe("rum", () => {
         expect.stringContaining("[RUM] Long task:"),
         expect.anything(),
       );
-      mockRuntimeConfig.isDev = false;
     });
 
-    it("does not warn in production mode", () => {
-      mockRuntimeConfig.isDev = false;
-      vi.spyOn(console, "warn").mockImplementation(() => {});
-      initRUM();
-      capturedCallbacks.longtask?.({
-        getEntries: () => [{ duration: 150 }],
-      });
-      expect(console.warn).not.toHaveBeenCalled();
-    });
   });
 });

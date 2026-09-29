@@ -12,14 +12,14 @@ vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: vi.fn(),
   useDeleteSite: vi.fn(),
   useCreateSite: vi.fn(),
-  useUpdateSite: vi.fn(),
+  useSaveSite: vi.fn(),
 }));
 vi.mock('@foundation/src/hooks/useImportExport', () => ({
   useExportHandler: vi.fn(() => ({ handleExport: vi.fn() })),
   useImportHandler: vi.fn(() => ({ handleImport: vi.fn(), isImporting: false })),
 }));
 
-import { useSites, useDeleteSite, useCreateSite, useUpdateSite } from '@foundation/src/hooks/useSites';
+import { useSites, useDeleteSite, useCreateSite, useSaveSite } from '@foundation/src/hooks/useSites';
 import { useImportHandler } from '@foundation/src/hooks/useImportExport';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 
@@ -57,7 +57,7 @@ describe('SiteSettings', () => {
     isPending: false,
   };
 
-  const mockUpdateMutation = {
+  const mockSaveMutation = {
     mutateAsync: vi.fn().mockResolvedValue({ id: 1, name: 'Updated Site', code: 'UPD', tenantId: '1' }),
     isPending: false,
   };
@@ -65,7 +65,6 @@ describe('SiteSettings', () => {
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
     ({ queryClient } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
 
     vi.mocked(useSites).mockReturnValue({
       data: mockSites,
@@ -79,7 +78,7 @@ describe('SiteSettings', () => {
 
     vi.mocked(useDeleteSite).mockReturnValue(mockDeleteMutation as any);
     vi.mocked(useCreateSite).mockReturnValue(mockCreateMutation as any);
-    vi.mocked(useUpdateSite).mockReturnValue(mockUpdateMutation as any);
+    vi.mocked(useSaveSite).mockReturnValue(mockSaveMutation as any);
 
     global.confirm = vi.fn(() => true);
   });
@@ -162,7 +161,8 @@ describe('SiteSettings', () => {
     });
 
     // Delete now opens the shared ConfirmDialog instead of a native confirm().
-    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('Building A');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
@@ -185,7 +185,8 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
 
@@ -243,10 +244,8 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building B')).toBeInTheDocument();
     });
 
-    // Both sites rendered, each should have edit and delete buttons (2 per site = 4 icon buttons total)
-    const allButtons = screen.getAllByRole('button');
-    const iconButtons = allButtons.filter(btn => !btn.textContent?.includes('Add Site') && !btn.textContent?.includes('Import') && !btn.textContent?.includes('Export'));
-    expect(iconButtons.length).toBeGreaterThanOrEqual(4); // 2 sites × 2 buttons each
+    expect(screen.getByRole('button', { name: 'Actions for Building A' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Building B' })).toBeInTheDocument();
   });
 
   it('displays site codes', async () => {
@@ -276,7 +275,8 @@ describe('SiteSettings', () => {
       expect(screen.getByText('Building A')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: 'Delete Building A' }));
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
 
@@ -382,9 +382,8 @@ describe('SiteSettings', () => {
 
     await waitFor(() => screen.getByText('Building A'));
 
-    // Icon-only buttons (no text): first per site is Edit, second is Delete
-    const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
-    await user.click(iconButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Building A' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Edit/ }));
 
     await waitFor(() => {
       expect(screen.getByTestId('edit-site-dialog')).toBeInTheDocument();
@@ -430,6 +429,6 @@ describe('SiteSettings', () => {
       }),
     );
     const [, , options] = vi.mocked(useImportHandler).mock.calls[0];
-    expect((options!.successMessage as (n: number) => string)(3)).toBe('Successfully imported 3 sites');
+    expect((options!.successMessage as (n: number) => string)(3)).toBe('Imported 3 sites');
   });
 });

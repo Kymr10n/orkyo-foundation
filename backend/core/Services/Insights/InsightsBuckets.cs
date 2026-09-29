@@ -75,12 +75,4 @@ public static class InsightsBuckets
         }
         return buckets;
     }
-
-    /// <summary>Index of the bucket containing <paramref name="ts"/>, or -1 if outside the range.</summary>
-    public static int IndexOf(IReadOnlyList<(DateTime Start, DateTime End)> buckets, DateTime ts)
-    {
-        for (var i = 0; i < buckets.Count; i++)
-            if (ts >= buckets[i].Start && ts < buckets[i].End) return i;
-        return -1;
-    }
 }

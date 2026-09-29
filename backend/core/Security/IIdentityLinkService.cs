@@ -96,29 +96,10 @@ public interface IIdentityLinkService
     Task<IdentityLinkResult> LinkIdentityAsync(ExternalIdentityToken token, CancellationToken ct = default);
 
     /// <summary>
-    /// Get the user's memberships across all tenants.
-    /// </summary>
-    /// <param name="userId">The internal user ID</param>
-    /// <returns>List of tenant memberships</returns>
-    Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(Guid userId, CancellationToken ct = default);
-
-    /// <summary>
     /// Get the user's role in a specific tenant.
     /// </summary>
     /// <param name="userId">The internal user ID</param>
     /// <param name="tenantId">The tenant ID</param>
     /// <returns>The user's role, or None if not a member</returns>
     Task<TenantRole> GetUserTenantRoleAsync(Guid userId, Guid tenantId, CancellationToken ct = default);
-}
-
-/// <summary>
-/// Tenant membership information.
-/// </summary>
-public sealed class TenantMembership
-{
-    public required Guid TenantId { get; init; }
-    public required string TenantSlug { get; init; }
-    public required string TenantName { get; init; }
-    public required TenantRole Role { get; init; }
-    public required string Status { get; init; }
 }

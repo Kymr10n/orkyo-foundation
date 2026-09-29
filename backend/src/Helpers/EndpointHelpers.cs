@@ -94,12 +94,24 @@ public static class EndpointHelpers
     /// <see cref="IResult"/>. Overload resolution prefers this over the <c>TResult</c> version,
     /// which would otherwise wrap an IResult inside <c>Results.Ok</c> and serialise the wrapper.
     /// </summary>
-    public static async Task<IResult> ExecuteAsync<TRequest>(
+    public static Task<IResult> ExecuteAsync<TRequest>(
         TRequest request,
         IValidator<TRequest> validator,
         Func<Task<IResult>> handler)
+        => ExecuteAsync(request, validator, handler, CancellationToken.None);
+
+    /// <summary>
+    /// <see cref="ExecuteAsync{TRequest}(TRequest, IValidator{TRequest}, Func{Task{IResult}})"/>
+    /// with the request's token, for a validator that reads (an async rule). Six handlers used to
+    /// validate by hand for want of this overload.
+    /// </summary>
+    public static async Task<IResult> ExecuteAsync<TRequest>(
+        TRequest request,
+        IValidator<TRequest> validator,
+        Func<Task<IResult>> handler,
+        CancellationToken ct)
     {
-        var validationResult = await validator.ValidateAsync(request);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             return ValidationFailed(validationResult);
 

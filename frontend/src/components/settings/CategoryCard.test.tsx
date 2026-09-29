@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { CategoryCard } from './CategoryCard';
 
@@ -36,10 +36,6 @@ const mockSettings = [
 ];
 
 describe('CategoryCard', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders category label from CATEGORY_META', () => {
     render(
       <CategoryCard

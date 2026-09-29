@@ -19,9 +19,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Building2, Plus, LogOut, AlertCircle, ArrowLeft, CheckCircle2, RotateCcw } from "lucide-react";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { createTenant, cancelTenantDeletion } from "@foundation/src/lib/api/tenant-account-api";
 import { StarterTemplatePicker } from "@foundation/src/components/onboarding/StarterTemplatePicker";
-import { useOnboardingData } from "@foundation/src/hooks/useOnboarding";
+import {
+  useCancelTenantDeletion,
+  useCreateTenant,
+  useOnboardingData,
+} from "@foundation/src/hooks/useOnboarding";
 import { logger } from "@foundation/src/lib/core/logger";
 import { runtimeConfig } from "@foundation/src/config/runtime";
 import { getTenantHostname } from "@foundation/src/lib/utils/tenant-navigation";
@@ -92,6 +95,8 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
   const [step, setStep] = useState<WizardStep>("form");
   const [selectedTemplate, setSelectedTemplate] = useState("empty");
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const { mutateAsync: createTenant } = useCreateTenant();
+  const { mutateAsync: cancelTenantDeletion } = useCancelTenantDeletion();
 
   const handleCancelDeletion = async (tenantId: string) => {
     setRestoringId(tenantId);
@@ -178,7 +183,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
             {!canCreate
               ? "You don't have access to any organizations yet."
               : step === "template" && showCreateForm
-                ? "Choose how to set up your workspace."
+                ? "Choose how to set up your organization."
                 : "Get started by creating your organization."}
           </CardDescription>
 
@@ -212,7 +217,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => handleCancelDeletion(t.tenantId)}
+                    onClick={() => void handleCancelDeletion(t.tenantId)}
                     loading={restoringId === t.tenantId}
                     disabled={restoringId === t.tenantId}
                   >
@@ -291,7 +296,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                         prefix here read "orkyo.app/<slug>" — the wrong domain AND the wrong
                         shape, since workspaces are subdomains, not paths. */}
                     {workspaceHostname && (
-                      <> Your workspace: <span className="font-medium">{workspaceHostname}</span></>
+                      <> Your organization: <span className="font-medium">{workspaceHostname}</span></>
                     )}
                   </p>
                 )}
@@ -329,7 +334,7 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
 
               {templatesError ? (
                 <p className="text-sm text-muted-foreground text-center">
-                  Could not load templates — you can still continue with an empty workspace.
+                  Could not load templates — you can still continue with an empty organization.
                 </p>
               ) : templates.length > 0 ? (
                 <StarterTemplatePicker
@@ -352,8 +357,8 @@ export function OnboardingPage({ onComplete, onCancel, renderExtraContent }: Onb
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
-                <Button onClick={handleCreateTenant} loading={submitting} disabled={submitting} className="flex-1">
-                  {submitting ? "Creating workspace…" : "Create"}
+                <Button onClick={() => void handleCreateTenant()} loading={submitting} disabled={submitting} className="flex-1">
+                  {submitting ? "Creating organization…" : "Create"}
                 </Button>
               </div>
             </div>

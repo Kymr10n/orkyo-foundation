@@ -62,23 +62,6 @@ public class SecurityContextImplTests
     }
 
     [Fact]
-    public void CurrentAuthorizationContext_ShouldThrow_WhenRoleInsufficient()
-    {
-        var context = new CurrentAuthorizationContext();
-        context.SetContext(new AuthorizationContext
-        {
-            TenantId = Guid.NewGuid(),
-            TenantSlug = "acme",
-            Role = TenantRole.Viewer
-        });
-
-        var act = () => context.RequireRole(TenantRole.Admin);
-
-        act.Should().Throw<UnauthorizedAccessException>()
-            .WithMessage("Role Admin required, but user has Viewer");
-    }
-
-    [Fact]
     public void CurrentAuthorizationContext_ShouldAllow_WhenRoleMeetsRequirement()
     {
         var context = new CurrentAuthorizationContext();
@@ -92,10 +75,6 @@ public class SecurityContextImplTests
         context.IsMember.Should().BeTrue();
         context.IsAdmin.Should().BeTrue();
         context.CanEdit.Should().BeTrue();
-        context.CanView.Should().BeTrue();
-
-        var act = () => context.RequireRole(TenantRole.Editor);
-        act.Should().NotThrow();
     }
 
     // ── CurrentPrincipal.DisplayName ───────────────────────────────────────

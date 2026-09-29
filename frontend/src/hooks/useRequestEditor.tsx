@@ -1,18 +1,14 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
-import { TENANT_ROLE } from "@foundation/src/hooks/usePermissions";
 import {
   RequestFormDialog,
   type RequestFormData,
 } from "@foundation/src/components/requests/RequestFormDialog";
-import { updateRequest } from "@foundation/src/lib/api/request-api";
-import { buildUpdatePayload } from "@foundation/src/lib/utils/utils";
-import { useInvalidateRequestData } from "@foundation/src/hooks/useRequests";
+import { saveRequestVariables, useSaveRequest } from "@foundation/src/hooks/useRequests";
 import type { Conflict, Request } from "@foundation/src/types/requests";
 
 interface UseRequestEditorResult {
-  /** Open the request dialog — edit mode for admin/editor, read-only view mode
-   *  otherwise. Pass the request's conflicts (from the registry) to surface
+  /** Open the request dialog — the dialog itself decides edit or read-only view
+   *  mode (`useCanEdit()`). Pass the request's conflicts (from the registry) to surface
    *  indicators in the edit form. */
   open: (request: Request, conflicts?: Conflict[]) => void;
   /**
@@ -26,22 +22,14 @@ interface UseRequestEditorResult {
  * Centralises the open / edit / view-request dialog flow shared by
  * UtilizationPage and ConflictsPage.
  *
- * Owns: dialog state, role gate (admin|editor → edit, otherwise → read-only
- * view), save handler, and React Query invalidation. Always opens
- * `RequestFormDialog` — `canEdit` decides edit vs. view mode. These callers
+ * Owns: dialog state and the save, through `useSaveRequest` like every request save. Always opens
+ * `RequestFormDialog`, which decides edit vs. view mode from `useCanEdit()`. These callers
  * open a single request by id (no tree), so `allRequests`/`onNavigate` are
  * omitted and the dialog's breadcrumb, Children tab, Dependencies tab, and derived
  * rollups hide. The Dependencies tab needs `allRequests` to offer predecessors, so it
  * stays hidden here rather than opening onto an empty picker.
  */
 export function useRequestEditor(): UseRequestEditorResult {
-  const invalidateRequestData = useInvalidateRequestData();
-  const { membership } = useAuth();
-  // Deliberately NOT useCanEdit(): that hook also grants site admins (break-glass)
-  // and tenant admins whose membership role differs — this gate is role-only.
-  const userCanEdit =
-    membership?.role === TENANT_ROLE.Admin || membership?.role === TENANT_ROLE.Editor;
-
   const [request, setRequest] = useState<Request | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -52,17 +40,20 @@ export function useRequestEditor(): UseRequestEditorResult {
     setIsOpen(true);
   }, []);
 
+  const { mutateAsync: saveRequest } = useSaveRequest({
+    onSuccess: () => {
+      setIsOpen(false);
+      setRequest(null);
+    },
+  });
+
   const handleSave = useCallback(
     async (data: RequestFormData) => {
       if (!request) return;
       // Returned so the dialog can say when the scheduler moved the dates that were typed.
-      const saved = await updateRequest(request.id, buildUpdatePayload(data, request.planningMode, request.siteId));
-      invalidateRequestData();
-      setIsOpen(false);
-      setRequest(null);
-      return saved;
+      return saveRequest(saveRequestVariables(data, request));
     },
-    [request, invalidateRequestData],
+    [request, saveRequest],
   );
 
   const dialogs = (
@@ -75,7 +66,6 @@ export function useRequestEditor(): UseRequestEditorResult {
       }}
       request={request}
       conflicts={conflicts}
-      canEdit={userCanEdit}
       onSave={handleSave}
     />
   );

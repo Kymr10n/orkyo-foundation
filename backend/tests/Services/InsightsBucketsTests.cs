@@ -57,17 +57,6 @@ public class InsightsBucketsTests
     }
 
     [Fact]
-    public void IndexOf_FindsContainingBucketAndReturnsMinusOneOutside()
-    {
-        var from = DateTime.Parse("2026-01-01T00:00:00Z").ToUniversalTime();
-        var to = DateTime.Parse("2026-04-01T00:00:00Z").ToUniversalTime();
-        var buckets = InsightsBuckets.Generate(from, to, "month");
-
-        Assert.Equal(1, InsightsBuckets.IndexOf(buckets, DateTime.Parse("2026-02-14T08:00:00Z").ToUniversalTime()));
-        Assert.Equal(-1, InsightsBuckets.IndexOf(buckets, DateTime.Parse("2025-12-31T23:00:00Z").ToUniversalTime()));
-    }
-
-    [Fact]
     public void MaxRangeDays_GrowsWithBucketCoarseness()
     {
         Assert.True(InsightsBuckets.MaxRangeDays("week") < InsightsBuckets.MaxRangeDays("month"));

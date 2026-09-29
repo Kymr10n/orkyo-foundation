@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import {
+  createResourceGroup,
   deleteResourceGroup,
   getResourceGroups,
+  updateResourceGroup,
   getResourceGroupMembers,
   setResourceGroupMembers,
   type ResourceGroupInfo,
@@ -12,6 +14,7 @@ import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { STALE } from "@foundation/src/lib/core/query-client";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { errorMessage, savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 /** Groups of one resource type (person teams, space groups, …). */
 export const useResourceGroups = (resourceTypeKey: string) =>
@@ -52,6 +55,27 @@ export const useResourceGroupMemberQueries = (groups: readonly ResourceGroupInfo
       queryFn: () => getResourceGroupMembers(g.id),
       staleTime: STALE.OPERATIONAL,
     })),
+  });
+
+/** The fields a group's edit dialog writes; create adds the type the dialog belongs to. */
+export interface ResourceGroupFields {
+  name: string;
+  description?: string;
+  defaultAvailabilityPercent: number;
+}
+
+/** Create (`id: null`) or update one group of a type. */
+export const useSaveResourceGroup = (resourceTypeKey: string, entityLabel: string) =>
+  useMutation({
+    mutationFn: (v: SaveVariables<ResourceGroupFields>) =>
+      v.id === null
+        ? createResourceGroup({ resourceTypeKey, ...v.data })
+        : updateResourceGroup(v.id, v.data),
+    meta: {
+      successMessage: savedMessage(`${entityLabel} created`, `${entityLabel} updated`),
+      suppressErrorToast: true,
+      invalidates: [qk.resourceGroups.byType(resourceTypeKey)],
+    },
   });
 
 export const useDeleteResourceGroup = (resourceTypeKey: string, entityLabel: string) =>
@@ -138,12 +162,12 @@ export function useResourceGroupMembershipRoster(
       } catch (err) {
         if (cancelled) return;
         logger.error("Failed to load resources / group members:", err);
-        setError(err instanceof Error ? err.message : "Failed to load");
+        setError(errorMessage(err, "Failed to load"));
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     };
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [open, groupId, resourceTypeKey, singleGroup]);
 

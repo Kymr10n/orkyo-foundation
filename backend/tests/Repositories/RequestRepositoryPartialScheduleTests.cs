@@ -60,7 +60,7 @@ public class RequestRepositoryPartialScheduleTests
 
         // C: fully scheduled (start + end + Space assignment) — IsScheduled, must NOT appear.
         var fullyScheduledId = await CreateLeafAsync(null, null);
-        var spaceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var spaceId = DatabaseFixture.SpaceId;
         var sched = await _client.PatchAsJsonAsync(
             $"/api/requests/{fullyScheduledId}/schedule",
             new ScheduleRequestRequest { ResourceId = spaceId, StartTs = start, EndTs = end });

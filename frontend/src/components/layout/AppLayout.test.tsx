@@ -1,15 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { act, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AppLayout } from './AppLayout';
 import { getSites } from '@foundation/src/lib/api/site-api';
 import { setViewport, restoreViewport } from '@foundation/src/test-utils/viewport';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
+import { mockAuth } from '@foundation/src/test-utils/auth';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
-    selector({ selectedSiteId: 'site-1', setSelectedSiteId: vi.fn() }),
-  ),
-}));
+const initialSiteState = useSiteStore.getState();
+beforeEach(() => {
+  useSiteStore.setState({ ...initialSiteState, selectedSiteId: 'site-1' }, true);
+});
 
 vi.mock('@foundation/src/lib/api/site-api', () => ({
   getSites: vi.fn(() =>
@@ -17,26 +19,13 @@ vi.mock('@foundation/src/lib/api/site-api', () => ({
   ),
 }));
 
-const mockAppUser = { isSuperAdmin: false, hasSeenTour: true };
+const authState = { hasSeenTour: true };
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ appUser: mockAppUser }),
-}));
-
-const mockOpenCommandPalette = vi.fn();
-vi.mock('@foundation/src/hooks/useCommandPalette', () => ({
-  useCommandPalette: () => ({ isOpen: false, setIsOpen: vi.fn(), open: mockOpenCommandPalette }),
-}));
-
-// ui-actions-store: default to tick = 0; individual tests override via mockReturnValue
-const mockUiActionsStore = vi.fn((sel: (s: Record<string, unknown>) => unknown) =>
-  sel({ commandPaletteTick: 0, tourTick: 0 }),
-);
-vi.mock('@foundation/src/store/ui-actions-store', () => ({
-  useUiActionsStore: (sel: (s: Record<string, unknown>) => unknown) => mockUiActionsStore(sel),
+  useAuth: () => mockAuth({ appUser: { hasSeenTour: authState.hasSeenTour } }),
 }));
 
 vi.mock('./CommandPalette', () => ({
-  CommandPalette: () => null,
+  CommandPalette: ({ open }: { open: boolean }) => <div data-testid="command-palette" data-open={String(open)} />,
 }));
 
 vi.mock('./FeedbackButton', () => ({
@@ -82,8 +71,12 @@ function renderLayout() {
 
 describe('AppLayout', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0 }));
+    useUiActionsStore.setState({
+      commandPaletteOpen: false,
+      tourOpen: false,
+      assistantOpen: false,
+      scannerOpen: false,
+    });
   });
 
   it('shows loading initially then renders layout', async () => {
@@ -103,13 +96,37 @@ describe('AppLayout', () => {
   });
 
   it('opens the scanner when Scan is pressed', async () => {
-    const { rerenderLayout } = renderLayout();
+    renderLayout();
     expect(await screen.findByTestId('scan-flow')).toHaveAttribute('data-open', 'false');
 
-    mockUiActionsStore.mockImplementation((sel) => sel({ commandPaletteTick: 0, tourTick: 0, scanTick: 1 }));
-    rerenderLayout();
+    act(() => useUiActionsStore.getState().openScanner());
 
-    await waitFor(() => expect(screen.getByTestId('scan-flow')).toHaveAttribute('data-open', 'true'));
+    expect(screen.getByTestId('scan-flow')).toHaveAttribute('data-open', 'true');
+  });
+
+  it('toggles the command palette on Ctrl+K and Cmd+K, not on a bare K', async () => {
+    renderLayout();
+    const palette = await screen.findByTestId('command-palette');
+    expect(palette).toHaveAttribute('data-open', 'false');
+
+    fireEvent.keyDown(document, { key: 'k' });
+    expect(palette).toHaveAttribute('data-open', 'false');
+
+    fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    expect(palette).toHaveAttribute('data-open', 'true');
+
+    fireEvent.keyDown(document, { key: 'k', metaKey: true });
+    expect(palette).toHaveAttribute('data-open', 'false');
+  });
+
+  it('opens the tour when the TopBar asks for it', async () => {
+    renderLayout();
+    await screen.findByTestId('topbar');
+    expect(screen.queryByTestId('tour-dialog')).not.toBeInTheDocument();
+
+    act(() => useUiActionsStore.getState().openTour());
+
+    expect(screen.getByTestId('tour-dialog')).toBeInTheDocument();
   });
 
   it('still validates when getSites returns an empty array', async () => {
@@ -131,14 +148,12 @@ describe('AppLayout', () => {
   });
 
   it('auto-shows tour for users who have not seen it', async () => {
-    // Override hasSeenTour to false for this test
-    (mockAppUser as Record<string, unknown>).hasSeenTour = false;
+    authState.hasSeenTour = false;
     renderLayout();
     await waitFor(() => {
       expect(screen.getByTestId('tour-dialog')).toBeInTheDocument();
     });
-    // Restore
-    (mockAppUser as Record<string, unknown>).hasSeenTour = true;
+    authState.hasSeenTour = true;
   });
 
   it('does not auto-show tour when user has already seen it', async () => {
@@ -149,10 +164,6 @@ describe('AppLayout', () => {
 });
 
 describe('AppLayout — responsive shell', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   afterEach(restoreViewport);
 
   it('desktop: inline sidebar (store-driven), no hamburger', async () => {

@@ -75,9 +75,14 @@ const mockCriteria = [
   { id: 'c3', name: 'PersonSkill', dataType: 'Boolean', description: 'A person skill', unit: null, enumValues: [], resourceTypeKeys: ['person'], createdAt: '2024-03-01T00:00:00Z' },
 ];
 
+/** Opens a row's actions menu and picks one item. */
+async function rowAction(user: ReturnType<typeof userEvent.setup>, name: string, item: RegExp) {
+  await user.click(screen.getByRole('button', { name: `Actions for ${name}` }));
+  await user.click(await screen.findByRole('menuitem', { name: item }));
+}
+
 describe('CriteriaSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockCriteriaData = { data: mockCriteria, isLoading: false, error: null };
     mockCriteriaData.refetch = mockRefetch;
     global.alert = vi.fn();
@@ -125,12 +130,13 @@ describe('CriteriaSettings', () => {
     expect(screen.getByText('Create your first criterion')).toBeInTheDocument();
   });
 
-  it('shows error state', () => {
+  it('shows error state in place of the empty state', () => {
     mockCriteriaData = { data: [], isLoading: false, error: new Error('Network error') };
     mockCriteriaData.refetch = mockRefetch;
     render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
     expect(screen.getByText('Network error')).toBeInTheDocument();
     expect(screen.getByText('Try again')).toBeInTheDocument();
+    expect(screen.queryByText('No criteria defined yet')).not.toBeInTheDocument();
   });
 
   it('shows unit for Number criteria', () => {
@@ -153,8 +159,7 @@ describe('CriteriaSettings', () => {
   it('deletes a criterion with confirmation', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await rowAction(user, 'Capacity', /Delete/);
     await waitFor(() => {
       expect(screen.getByText('Delete "Capacity"?')).toBeInTheDocument();
     });
@@ -167,8 +172,7 @@ describe('CriteriaSettings', () => {
   it('does not delete when confirmation is declined', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await rowAction(user, 'Capacity', /Delete/);
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockDeleteMutateAsync).not.toHaveBeenCalled();
   });
@@ -177,8 +181,7 @@ describe('CriteriaSettings', () => {
     mockDeleteMutateAsync.mockRejectedValueOnce(new Error('Delete failed'));
     const user = userEvent.setup();
     render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await rowAction(user, 'Capacity', /Delete/);
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
       expect(mockDeleteMutateAsync).toHaveBeenCalled();
@@ -209,21 +212,14 @@ describe('CriteriaSettings', () => {
   it('clicking edit icon opens edit dialog (setEditingCriterion)', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-    // Find edit buttons (pencil/edit icon, not delete)
-    const nonDestructiveIconBtns = screen.getAllByRole('button').filter(
-      b => !b.querySelector('.text-destructive') && !b.textContent?.trim() && b.querySelector('svg'),
-    );
-    if (nonDestructiveIconBtns.length > 0) await user.click(nonDestructiveIconBtns[0]);
+    await rowAction(user, 'Capacity', /Edit/);
     await waitFor(() => expect(screen.getByTestId('edit-success-btn')).toBeInTheDocument());
   });
 
   it('handleUpdateSuccess closes edit dialog when onSuccess called', async () => {
     const user = userEvent.setup();
     render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-    const editBtns = screen.getAllByRole('button').filter(
-      b => !b.querySelector('.text-destructive') && !b.textContent?.trim() && b.querySelector('svg'),
-    );
-    if (editBtns.length > 0) await user.click(editBtns[0]);
+    await rowAction(user, 'Capacity', /Edit/);
     await waitFor(() => screen.getByTestId('edit-success-btn'));
     await user.click(screen.getByTestId('edit-success-btn'));
     expect(screen.queryByTestId('edit-success-btn')).not.toBeInTheDocument();
@@ -295,30 +291,18 @@ describe('CriteriaSettings', () => {
       };
     });
 
-    it('disables the delete button for an in-use criterion and enables it otherwise', () => {
-      render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      expect(screen.getByLabelText('Delete Locked')).toBeDisabled();
-      expect(screen.getByLabelText('Delete Deletable')).not.toBeDisabled();
-    });
-
-    it('explains why deletion is blocked via tooltip for an in-use criterion', async () => {
+    it('disables and names the delete action for an in-use criterion', async () => {
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.hover(screen.getByLabelText('Delete Locked').closest('span')!);
-      await waitFor(() =>
-        expect(
-          screen.getAllByText('Cannot delete: this criterion has existing values').length,
-        ).toBeGreaterThan(0),
-      );
+      await user.click(screen.getByRole('button', { name: 'Actions for Locked' }));
+      expect(await screen.findByRole('menuitem', { name: /Delete \(in use\)/ })).toHaveAttribute('data-disabled');
     });
 
-    it('shows the default delete tooltip for a deletable criterion', async () => {
+    it('enables the delete action for a deletable criterion', async () => {
       const user = userEvent.setup();
       render(<MemoryRouter><CriteriaSettings /></MemoryRouter>);
-      await user.hover(screen.getByLabelText('Delete Deletable').closest('span')!);
-      await waitFor(() =>
-        expect(screen.getAllByText('Delete criterion').length).toBeGreaterThan(0),
-      );
+      await user.click(screen.getByRole('button', { name: 'Actions for Deletable' }));
+      expect(await screen.findByRole('menuitem', { name: /^Delete$/ })).not.toHaveAttribute('data-disabled');
     });
   });
 

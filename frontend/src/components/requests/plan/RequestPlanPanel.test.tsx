@@ -18,7 +18,6 @@ import {
   PLAN_ROW_GAP,
 } from "@foundation/src/domain/plan-layout";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@foundation/src/lib/api/request-plan-api", () => ({ getRequestPlan: vi.fn() }));
 vi.mock("@foundation/src/lib/api/request-api", () => ({ createChildRequest: vi.fn() }));
 vi.mock("@foundation/src/lib/api/request-dependency-api", () => ({
@@ -109,7 +108,6 @@ function renderPanel(onOpenRequest?: (id: string) => void) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (useCanEdit as Mock).mockReturnValue(true);
   (useBreakpoint as Mock).mockReturnValue({ isPhone: false });
   (useConflictRegistry as Mock).mockReturnValue({ conflictsByRequest: new Map() });

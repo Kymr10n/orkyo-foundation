@@ -61,7 +61,20 @@ jobs:
             exit 1
           fi
 
-          BASELINE="backend/migrations-foundation/sql/.classification-baseline"
+          SQL_DIR="backend/migrations-foundation/sql"
+          BASELINE="${SQL_DIR}/.classification-baseline"
+
+          # Advance only when the migrations changed. An unchanged SQL tree
+          # classifies the same against the old and the new baseline, so a
+          # commit would only add a no-op "advance" to main's history.
+          OLD=$(tr -d '[:space:]' < "${BASELINE}" 2>/dev/null || true)
+          if [[ "${OLD}" =~ ^[0-9a-f]{40}$ ]] && git fetch --depth 1 origin "${OLD}"; then
+            if git diff --quiet "${OLD}" "${SHA}" -- "${SQL_DIR}" ":(exclude)${BASELINE}"; then
+              echo "No migration changes between ${OLD:0:7} and ${SHA:0:7} — baseline stays at ${OLD:0:7}"
+              exit 0
+            fi
+          fi
+
           echo "${SHA}" > "${BASELINE}"
           git add "${BASELINE}"
           if git diff --cached --quiet; then

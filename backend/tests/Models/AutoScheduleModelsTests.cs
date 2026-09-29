@@ -224,7 +224,7 @@ public class AutoScheduleModelsTests
     [Fact]
     public void ComputeFingerprint_IsOrderIndependent()
     {
-        var req1 = new Guid("00000000-0000-0000-0000-000000000001");
+        var req1 = TestConstants.TenantId;
         var req2 = new Guid("00000000-0000-0000-0000-000000000002");
         var resourceId = Guid.NewGuid();
         var start = 0;

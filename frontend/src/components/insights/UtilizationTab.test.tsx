@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, type Mock } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { UtilizationTab } from "./UtilizationTab";
 import { getInsightsUtilization } from "@foundation/src/lib/api/insights-api";
@@ -46,8 +46,6 @@ function response(resourceType: string, resourceCount: number): InsightsUtilizat
 function renderTab() {
   return renderWithQuery(<UtilizationTab />);
 }
-
-beforeEach(() => vi.clearAllMocks());
 
 describe("UtilizationTab", () => {
   it("renders one chart per type the site holds, including tenant-defined ones", async () => {

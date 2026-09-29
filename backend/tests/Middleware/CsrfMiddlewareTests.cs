@@ -33,10 +33,10 @@ public class CsrfMiddlewareTests
         }
 
         if (csrfCookie is not null)
-            context.Request.Headers.Cookie = $"{_options.CsrfCookieName}={csrfCookie}";
+            context.Request.Headers.Cookie = $"{BffOptions.CsrfCookieName}={csrfCookie}";
 
         if (csrfHeader is not null)
-            context.Request.Headers[_options.CsrfHeaderName] = csrfHeader;
+            context.Request.Headers[BffOptions.CsrfHeaderName] = csrfHeader;
 
         var services = new ServiceCollection();
         // ProblemResults bottoms out in Results.Json, which resolves ILoggerFactory.
@@ -57,7 +57,7 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext(method, BffCookieAuthenticationHandler.SchemeName);
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
 
         called.Should().BeTrue();
     }
@@ -69,7 +69,7 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext("POST", "Bearer");
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
 
         called.Should().BeTrue();
     }
@@ -81,7 +81,20 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName, "token-abc", "token-abc");
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
+
+        called.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Post_WithBffAuth_ToACsrfExemptEndpoint_PassesThrough()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
+        var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName);
+        context.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(new CsrfExemptAttribute()), "unsubscribe"));
+
+        await middleware.InvokeAsync(context);
 
         called.Should().BeTrue();
     }
@@ -93,7 +106,7 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName);
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
 
         called.Should().BeFalse();
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
@@ -106,7 +119,7 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName, "token-abc", "token-wrong");
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
 
         called.Should().BeFalse();
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
@@ -119,7 +132,7 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext("POST");
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
 
         called.Should().BeTrue();
     }
@@ -134,7 +147,7 @@ public class CsrfMiddlewareTests
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext(method, BffCookieAuthenticationHandler.SchemeName);
 
-        await middleware.InvokeAsync(context, Options.Create(_options));
+        await middleware.InvokeAsync(context);
 
         called.Should().BeFalse();
         context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);

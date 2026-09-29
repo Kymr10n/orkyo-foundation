@@ -264,7 +264,7 @@ export function ResourceGroupMembersEditor({
                 Back
               </Button>
               <Button onClick={() => commit()} disabled={isSubmitting || !canEdit}>
-                {isSubmitting ? "Saving..." : `Move & Save`}
+                {isSubmitting ? "Saving…" : `Move & Save`}
               </Button>
             </>
           ) : (
@@ -278,7 +278,7 @@ export function ResourceGroupMembersEditor({
                 Cancel
               </Button>
               <Button onClick={handleSave} disabled={isSubmitting || isLoading || !canEdit}>
-                {isSubmitting ? "Saving..." : "Save Changes"}
+                {isSubmitting ? "Saving…" : "Save Changes"}
               </Button>
             </>
           )}

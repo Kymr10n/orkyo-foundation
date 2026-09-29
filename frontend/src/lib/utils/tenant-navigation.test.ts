@@ -19,6 +19,8 @@ import {
   getApexOrigin,
   navigateToTenantSubdomain,
   navigateToApex,
+  goToApex,
+  isSafeRelativePath,
   redirectToLogin,
   setBreakGlassCookie,
   consumeBreakGlassCookie,
@@ -190,6 +192,35 @@ describe('tenant-navigation', () => {
 
   // ── navigateToApex ───────────────────────────────────────────────────
 
+  describe('goToApex', () => {
+    it('goes to the apex when there is one', () => {
+      mockConfig.baseDomain = 'orkyo.com';
+      stubLocation('demo.orkyo.com');
+
+      goToApex('/site-admin');
+
+      expect(window.location.href).toBe('https://orkyo.com/site-admin');
+    });
+
+    it('loads the same path on this origin when there is no apex', () => {
+      mockConfig.baseDomain = '';
+      stubLocation('localhost');
+
+      goToApex('/login?auto=1');
+
+      expect(window.location.href).toBe('/login?auto=1');
+    });
+
+    it('never leaves the origin through the fallback', () => {
+      mockConfig.baseDomain = '';
+      stubLocation('localhost');
+
+      goToApex('//evil.com');
+
+      expect(window.location.href).toBe('/');
+    });
+  });
+
   describe('navigateToApex', () => {
     it('returns false when baseDomain is not configured', () => {
       mockConfig.baseDomain = '';
@@ -232,12 +263,39 @@ describe('tenant-navigation', () => {
       expect(window.location.href).toBe('https://staging.orkyo.com/admin');
     });
 
+    it.each(['@evil.com', '//evil.com', '/\\evil.com', 'evil.com/x'])(
+      'never leaves the apex origin for the path %s',
+      (path) => {
+        mockConfig.baseDomain = 'orkyo.com';
+        stubLocation('demo.orkyo.com');
+
+        navigateToApex(path);
+
+        expect(window.location.href).toBe('https://orkyo.com/');
+      },
+    );
+
     it('returns false when already on the staging apex', () => {
       mockConfig.baseDomain = 'orkyo.com';
       mockConfig.subdomainPrefix = 'staging-';
       stubLocation('staging.orkyo.com');
 
       expect(navigateToApex('/admin')).toBe(false);
+    });
+  });
+
+  describe('isSafeRelativePath', () => {
+    it('accepts a same-origin absolute path', () => {
+      expect(isSafeRelativePath('/site-admin')).toBe(true);
+      expect(isSafeRelativePath('/login?auto=1')).toBe(true);
+    });
+
+    it('rejects protocol-relative, backslash, userinfo and bare paths', () => {
+      expect(isSafeRelativePath('//evil.com')).toBe(false);
+      expect(isSafeRelativePath('/\\evil.com')).toBe(false);
+      expect(isSafeRelativePath('@evil.com')).toBe(false);
+      expect(isSafeRelativePath('https://evil.com')).toBe(false);
+      expect(isSafeRelativePath('')).toBe(false);
     });
   });
 

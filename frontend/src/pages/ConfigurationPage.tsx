@@ -36,12 +36,12 @@ export function ConfigurationPage() {
     <PageLayout>
       <PageHeader
         title="Resources"
-        description="Define the kinds of resource this tenant schedules, and the lists they carry"
+        description="Define the kinds of resource this organization schedules, and the lists they carry"
       />
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`${ROUTE_CONFIGURATION}/${v}`, { replace: true })}
+        onChange={(v) => void navigate(`${ROUTE_CONFIGURATION}/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>

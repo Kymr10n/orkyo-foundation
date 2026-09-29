@@ -11,13 +11,15 @@ import {
 } from '@foundation/src/components/ui/select';
 import { EnumValueEditor } from './EnumValueEditor';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
-import { useCreateListColumn, useUpdateListColumn } from '@foundation/src/hooks/useListDefinitions';
+import { useSaveListColumn } from '@foundation/src/hooks/useListDefinitions';
+import type { SaveVariables } from '@foundation/src/hooks/mutation-utils';
 import { keyFromLabel } from '@foundation/src/lib/key-from-label';
-import { qk } from '@foundation/src/lib/api/query-keys';
 import {
   LIST_COLUMN_DATA_TYPES,
+  type CreateListColumnRequest,
   type ListColumn,
   type ListColumnDataType,
+  type UpdateListColumnRequest,
 } from '@foundation/src/lib/api/lists-api';
 
 interface ListColumnEditDialogProps {
@@ -51,13 +53,13 @@ export function ListColumnEditDialog({
   definitionId,
   column,
 }: ListColumnEditDialogProps) {
-  const createColumn = useCreateListColumn(definitionId);
-  const updateColumn = useUpdateListColumn(definitionId);
+  const mutation = useSaveListColumn(definitionId);
 
   const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
     ListColumn,
     FormState,
-    unknown
+    unknown,
+    SaveVariables<CreateListColumnRequest, UpdateListColumnRequest>
   >({
     open,
     onOpenChange,
@@ -80,28 +82,30 @@ export function ListColumnEditDialog({
       isRequired: entity.isRequired,
       isActive: entity.isActive,
     }),
-    save: (values, entity) =>
+    mutation,
+    toVariables: (values, entity) =>
       entity
-        ? updateColumn.mutateAsync({
-            columnId: entity.id,
-            request: {
+        ? {
+            id: entity.id,
+            data: {
               label: values.label.trim(),
               description: values.description.trim(),
               isRequired: values.isRequired,
               isActive: values.isActive,
               ...(entity.dataType === 'select' ? { options: values.options } : {}),
             },
-          })
-        : createColumn.mutateAsync({
-            key: values.key || keyFromLabel(values.label),
-            label: values.label.trim(),
-            description: values.description.trim() || undefined,
-            dataType: values.dataType,
-            ...(values.dataType === 'select' ? { options: values.options } : {}),
-            isRequired: values.isRequired,
-          }),
-    entityLabel: 'Column',
-    invalidates: [qk.lists.all()],
+          }
+        : {
+            id: null,
+            data: {
+              key: values.key || keyFromLabel(values.label),
+              label: values.label.trim(),
+              description: values.description.trim() || undefined,
+              dataType: values.dataType,
+              ...(values.dataType === 'select' ? { options: values.options } : {}),
+              isRequired: values.isRequired,
+            },
+          },
   });
 
   const isSelect = form.dataType === 'select';

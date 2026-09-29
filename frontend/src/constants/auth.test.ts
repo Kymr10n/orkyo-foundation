@@ -143,8 +143,8 @@ describe("SUSPENSION_REASON", () => {
 // ── AUTH_EVENTS ───────────────────────────────────────────────────────────────
 
 describe("AUTH_EVENTS", () => {
-  it("has 14 event types", () => {
-    expect(Object.keys(AUTH_EVENTS)).toHaveLength(14);
+  it("has 13 event types", () => {
+    expect(Object.keys(AUTH_EVENTS)).toHaveLength(13);
   });
 
   it("values are all SCREAMING_SNAKE_CASE", () => {

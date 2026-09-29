@@ -59,7 +59,7 @@ public class RoutingRepository(OrgContext orgContext, IOrgDbConnectionFactory co
     public async Task<List<RoutingInfo>> GetAllAsync(CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
-        var headers = await conn.QueryListAsync(SelectRoutings + " ORDER BY name LIMIT 500", null, MapHeader, ct);
+        var headers = await conn.QueryListAsync(SelectRoutings + " ORDER BY name", null, MapHeader, ct);
         if (headers.Count == 0) return [];
 
         var ids = headers.Select(h => h.Id).ToArray();

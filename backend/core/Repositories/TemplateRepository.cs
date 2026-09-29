@@ -20,7 +20,7 @@ public interface ITemplateRepository
     /// Per-template lists carry the same criterion-name ordering as <see cref="GetTemplateItemsAsync"/>.</summary>
     Task<Dictionary<Guid, List<TemplateItem>>> GetTemplateItemsByTemplatesAsync(IReadOnlyList<Guid> templateIds, CancellationToken ct = default);
     Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default);
-    Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default);
+    Task<bool> DeleteTemplateItemAsync(Guid templateId, Guid id, CancellationToken ct = default);
 }
 
 public class TemplateRepository : ITemplateRepository
@@ -67,7 +67,7 @@ public class TemplateRepository : ITemplateRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return await conn.QueryListAsync(
-            $"SELECT {TemplateCols} FROM templates WHERE entity_type = @EntityType ORDER BY name LIMIT 500",
+            $"SELECT {TemplateCols} FROM templates WHERE entity_type = @EntityType ORDER BY name",
             p => p.AddWithValue("EntityType", entityType), MapTemplate, ct);
     }
 
@@ -124,15 +124,6 @@ public class TemplateRepository : ITemplateRepository
 
     public async Task<Template> CreateAsync(CreateTemplateRequest request, CancellationToken ct = default)
     {
-        if (!TemplateEntityTypes.IsKnown(request.EntityType))
-            throw new ArgumentException($"Invalid entity type: {request.EntityType}");
-        if (string.IsNullOrWhiteSpace(request.Name))
-            throw new ArgumentException("Name is required");
-        if (request.Name.Length > 255)
-            throw new ArgumentException("Name must be 255 characters or fewer");
-        if (request.Description?.Length > 255)
-            throw new ArgumentException("Description must be 255 characters or fewer");
-
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
@@ -249,24 +240,14 @@ public class TemplateRepository : ITemplateRepository
             p => p.AddWithValue("ids", templateIds.ToArray()),
             MapTemplateItem, ct);
 
-        var map = new Dictionary<Guid, List<TemplateItem>>();
-        foreach (var item in items)
-        {
-            if (!map.TryGetValue(item.TemplateId, out var list))
-            {
-                list = [];
-                map[item.TemplateId] = list;
-            }
-            list.Add(item);
-        }
-        return map;
+        return items.GroupBy(x => x.TemplateId).ToDictionary(g => g.Key, g => g.ToList());
     }
 
     public async Task<TemplateItem> CreateTemplateItemAsync(TemplateItem item, CancellationToken ct = default)
     {
         var template = await GetByIdAsync(item.TemplateId, ct);
         if (template is null)
-            throw new ArgumentException($"Template not found: {item.TemplateId}");
+            throw new NotFoundException("Template", item.TemplateId);
         if (string.IsNullOrEmpty(item.Value))
             throw new ArgumentException("Value is required");
         try { using var _ = JsonDocument.Parse(item.Value); }
@@ -319,10 +300,14 @@ public class TemplateRepository : ITemplateRepository
         return created;
     }
 
-    public async Task<bool> DeleteTemplateItemAsync(Guid id, CancellationToken ct = default)
+    public async Task<bool> DeleteTemplateItemAsync(Guid templateId, Guid id, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        return await conn.ExecuteAsync("DELETE FROM template_items WHERE id = @Id",
-            p => p.AddWithValue("Id", id), ct) > 0;
+        return await conn.ExecuteAsync("DELETE FROM template_items WHERE id = @Id AND template_id = @TemplateId",
+            p =>
+            {
+                p.AddWithValue("Id", id);
+                p.AddWithValue("TemplateId", templateId);
+            }, ct) > 0;
     }
 }

@@ -1,6 +1,7 @@
 import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import type { PagedResult } from '../core/paged-result';
+import { logger } from '../core/logger';
 import type { CustomFieldValue } from './resource-custom-fields-api';
 import type { ResourceGeometry } from '../../types/geometry';
 
@@ -123,7 +124,16 @@ export async function getResources(
     page: filter?.page || undefined,
     pageSize: filter?.pageSize || undefined,
   };
-  return apiGet<PagedResult<ResourceInfo>>(API_PATHS.RESOURCES, { params });
+  const result = await apiGet<PagedResult<ResourceInfo>>(API_PATHS.RESOURCES, { params });
+  // An unpaged call gets the whole list up to the backend's cap. `hasNextPage` then means rows
+  // were cut off; every picker built on this call would silently miss them, so say so once here.
+  if (!filter?.page && result.hasNextPage) {
+    logger.warn(
+      `getResources: list truncated at ${result.items.length} of ${result.totalItems} resources`,
+      params,
+    );
+  }
+  return result;
 }
 
 export async function getResource(id: string): Promise<ResourceInfo> {

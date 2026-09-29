@@ -22,20 +22,21 @@ public class ResourceAssignmentService(
     IResourceAssignmentRepository assignmentRepository,
     IResourceAssignmentValidator validator) : IResourceAssignmentService
 {
-    // Single source of truth for ValidationReasonCode → ResourceConflictType mapping.
-    // Adding a new ValidationReasonCode requires adding a row here (compile-time guard
-    // via the explicit dictionary keys; unknown codes throw rather than silently mapping
-    // to a wrong default like the old switch did).
     // Soft constraints — surfaced to the planner but never block a manual assignment.
     // capability.missing: a resource may be assigned despite lacking a required skill.
-    // assignment.overbooked: overbooking is a deliberate, first-class state (the grid,
-    // conflict registry, and reporting all surface it), so the planner may create it.
-    // The validator still emits these as blockers for the solver/conflict-detection paths.
+    // assignment.overbooked / assignment.capacity-exceeded: overbooking is a deliberate,
+    // first-class state (the grid, conflict registry, and reporting all surface it), so the
+    // planner may create it. The validator still emits these as blockers for the
+    // solver/conflict-detection paths.
     private static readonly HashSet<ValidationReasonCode> SoftBlockerCodes =
     [
         ValidationReasonCode.CapabilityMissing,
         ValidationReasonCode.AssignmentOverbooked,
+        ValidationReasonCode.AssignmentCapacityExceeded,
     ];
+
+    // Single source of truth for ValidationReasonCode → ResourceConflictType mapping. A code
+    // missing here throws in ToConflict rather than silently mapping to a wrong default.
 
     private static readonly Dictionary<ValidationReasonCode, ResourceConflictType> ConflictTypeByCode = new()
     {
@@ -44,7 +45,8 @@ public class ResourceAssignmentService(
         [ValidationReasonCode.ResourceTypeMismatch] = ResourceConflictType.CapabilityNotApplicable,
         [ValidationReasonCode.CapabilityMissing] = ResourceConflictType.CapabilityMissing,
         [ValidationReasonCode.OffTimeOverlap] = ResourceConflictType.OffTimeOverlap,
-        [ValidationReasonCode.AssignmentOverbooked] = ResourceConflictType.ExclusiveOverlap, // refined below
+        [ValidationReasonCode.AssignmentOverbooked] = ResourceConflictType.ExclusiveOverlap,
+        [ValidationReasonCode.AssignmentCapacityExceeded] = ResourceConflictType.FractionalCapacityExceeded,
         [ValidationReasonCode.InvalidAllocationMode] = ResourceConflictType.InvalidAllocationMode,
         [ValidationReasonCode.InvalidAllocationPercent] = ResourceConflictType.InvalidAllocationPercent,
         [ValidationReasonCode.SiteCrossNotAllowed] = ResourceConflictType.CrossSiteNotAllowed,
@@ -93,14 +95,6 @@ public class ResourceAssignmentService(
         if (!ConflictTypeByCode.TryGetValue(issue.Code, out var type))
             throw new InvalidOperationException(
                 $"Unmapped ValidationReasonCode '{issue.Code}'. Add it to ConflictTypeByCode.");
-
-        // AssignmentOverbooked covers both exclusive collision and fractional over-capacity.
-        // The latter is identified by its message; refine the conflict type for callers.
-        if (issue.Code == ValidationReasonCode.AssignmentOverbooked
-            && issue.Message.Contains("exceeds available capacity"))
-        {
-            type = ResourceConflictType.FractionalCapacityExceeded;
-        }
 
         return new ResourceConflict
         {

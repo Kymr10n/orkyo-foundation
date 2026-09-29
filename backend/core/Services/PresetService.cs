@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Models;
 using Api.Models.Preset;
 using Api.Repositories;
+using Api.Validators;
 using Npgsql;
 
 using static Api.Helpers.KeyHelpers;
@@ -19,6 +20,7 @@ public class PresetService : IPresetService
     private readonly ITemplateRepository _templateRepo;
     private readonly ILogger<PresetService> _logger;
     private readonly TimeProvider _time;
+    private readonly FluentValidation.IValidator<Preset> _validator;
 
     public PresetService(
         OrgContext orgContext,
@@ -28,7 +30,8 @@ public class PresetService : IPresetService
         IResourceTypeRepository resourceTypeRepo,
         ITemplateRepository templateRepo,
         ILogger<PresetService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        FluentValidation.IValidator<Preset> validator)
     {
         _orgContext = orgContext;
         _connectionFactory = connectionFactory;
@@ -38,10 +41,14 @@ public class PresetService : IPresetService
         _templateRepo = templateRepo;
         _logger = logger;
         _time = time;
+        _validator = validator;
     }
 
     public async Task<PresetValidationResult> ValidateAsync(Preset preset, CancellationToken ct = default)
-        => await Task.FromResult(PresetValidator.Validate(preset));
+    {
+        var result = await _validator.ValidateAsync(preset, ct);
+        return new PresetValidationResult(result.IsValid, result.Errors.Select(e => e.ErrorMessage).ToList());
+    }
 
     public async Task<PresetApplicationResult> ApplyAsync(Preset preset, Guid userId, CancellationToken ct = default)
     {
@@ -51,29 +58,23 @@ public class PresetService : IPresetService
 
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         await conn.OpenAsync(ct);
+        // A failure rolls back on dispose and reaches AppExceptionHandler, which answers with a
+        // code and without the exception text: the message used to carry Npgsql's table and
+        // constraint names to the client.
         await using var transaction = await conn.BeginTransactionAsync(ct);
 
-        try
-        {
-            var stats = await PresetApplier.ApplyAsync(conn, transaction, preset, userId);
-            await transaction.CommitAsync(ct);
+        var stats = await PresetApplier.ApplyAsync(conn, transaction, preset, userId);
+        await transaction.CommitAsync(ct);
 
-            _logger.LogInformation(
-                "Applied preset {PresetId} v{Version}: {CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
-                "{GroupsCreated} groups created, {GroupsUpdated} updated, {TemplatesCreated} templates created, {TemplatesUpdated} updated",
-                preset.PresetId, preset.Version,
-                stats.CriteriaCreated, stats.CriteriaUpdated,
-                stats.SpaceGroupsCreated, stats.SpaceGroupsUpdated,
-                stats.TemplatesCreated, stats.TemplatesUpdated);
+        _logger.LogInformation(
+            "Applied preset {PresetId} v{Version}: {CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
+            "{GroupsCreated} groups created, {GroupsUpdated} updated, {TemplatesCreated} templates created, {TemplatesUpdated} updated",
+            preset.PresetId, preset.Version,
+            stats.CriteriaCreated, stats.CriteriaUpdated,
+            stats.SpaceGroupsCreated, stats.SpaceGroupsUpdated,
+            stats.TemplatesCreated, stats.TemplatesUpdated);
 
-            return new PresetApplicationResult { Success = true, Stats = stats };
-        }
-        catch (Exception ex)
-        {
-            await transaction.RollbackAsync(ct);
-            _logger.LogError(ex, "Failed to apply preset {PresetId}", preset.PresetId);
-            return new PresetApplicationResult { Success = false, Error = $"Failed to apply preset: {ex.Message}" };
-        }
+        return new PresetApplicationResult { Success = true, Stats = stats };
     }
 
     public async Task<Preset> ExportAsync(string presetId, string name, string? description = null, CancellationToken ct = default)
@@ -107,9 +108,9 @@ public class PresetService : IPresetService
 
         var presetTemplates = new PresetTemplates
         {
-            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space, ct), criterionIdToKey),
-            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group, ct), criterionIdToKey),
-            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request, ct), criterionIdToKey)
+            Space = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Space, ct), criterionIdToKey, ct),
+            Group = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Group, ct), criterionIdToKey, ct),
+            Request = await ConvertTemplatesAsync(await _templateRepo.GetAllAsync(TemplateEntityTypes.Request, ct), criterionIdToKey, ct)
         };
 
         return new Preset
@@ -117,7 +118,7 @@ public class PresetService : IPresetService
             PresetId = presetId,
             Name = name,
             Description = description,
-            Version = "1.0.0",
+            Version = PresetValidator.CurrentVersion,
             CreatedAt = _time.GetUtcNow().UtcDateTime,
             Contents = new PresetContents
             {
@@ -156,31 +157,18 @@ public class PresetService : IPresetService
         return applications;
     }
 
-    private async Task<List<PresetTemplate>> ConvertTemplatesAsync(List<Template> templates, Dictionary<Guid, string> criterionIdToKey)
-    {
-        // Bulk-fetch items for all templates in one query (was one query per template).
-        var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(templates.Select(t => t.Id).ToList());
-
-        var result = new List<PresetTemplate>();
-        foreach (var template in templates)
+    private Task<List<PresetTemplate>> ConvertTemplatesAsync(
+        List<Template> templates, Dictionary<Guid, string> criterionIdToKey, CancellationToken ct) =>
+        TemplateProjection.ProjectAsync(_templateRepo, templates, criterionIdToKey, (template, items) => new PresetTemplate
         {
-            var items = itemsByTemplate.GetValueOrDefault(template.Id, []);
-            result.Add(new PresetTemplate
-            {
-                Key = GenerateKey(template.Name),
-                Name = template.Name,
-                Description = template.Description,
-                DurationValue = template.DurationValue,
-                DurationUnit = template.DurationUnit,
-                FixedStart = template.FixedStart,
-                FixedEnd = template.FixedEnd,
-                FixedDuration = template.FixedDuration,
-                Items = items
-                    .Where(i => criterionIdToKey.ContainsKey(i.CriterionId))
-                    .Select(i => new PresetTemplateItem { CriterionKey = criterionIdToKey[i.CriterionId], Value = i.Value })
-                    .ToList()
-            });
-        }
-        return result;
-    }
+            Key = GenerateKey(template.Name),
+            Name = template.Name,
+            Description = template.Description,
+            DurationValue = template.DurationValue,
+            DurationUnit = template.DurationUnit,
+            FixedStart = template.FixedStart,
+            FixedEnd = template.FixedEnd,
+            FixedDuration = template.FixedDuration,
+            Items = items.Select(i => new PresetTemplateItem { CriterionKey = i.CriterionKey, Value = i.Value }).ToList()
+        }, ct);
 }

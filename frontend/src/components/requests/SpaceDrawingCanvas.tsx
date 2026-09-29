@@ -12,6 +12,7 @@ import { cn } from "@foundation/src/lib/utils";
 import type { Coordinate, DrawingMode, ResourceGeometry } from "@foundation/src/types/geometry";
 import {
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useRef,
   useState,
@@ -192,7 +193,7 @@ export function SpaceDrawingCanvas({
     };
   };
 
-  const handleMouseMove = (e: ReactMouseEvent<HTMLDivElement>) => {
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const pos = screenToCanvas(e.clientX, e.clientY);
 
     // A press becomes a drag here, once it has travelled far enough to be one. Measured on
@@ -221,7 +222,7 @@ export function SpaceDrawingCanvas({
     }
   };
 
-  const handleMouseDown = (e: ReactMouseEvent<HTMLDivElement>) => {
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     // Check for resize handle click (handles only render while editing)
     if (editEnabled) {
       const target = e.target as HTMLElement;
@@ -266,7 +267,7 @@ export function SpaceDrawingCanvas({
         if (selectedResourceId !== space.id) onSpaceClick?.(space.id);
         if (onSpaceMove) {
           const pos = screenToCanvas(e.clientX, e.clientY);
-          // Held, not yet moved. handleMouseMove decides whether this becomes a drag.
+          // Held, not yet moved. handlePointerMove decides whether this becomes a drag.
           setPendingDrag({
             id: space.id,
             startPos: pos,
@@ -278,7 +279,7 @@ export function SpaceDrawingCanvas({
     }
   };
 
-  const handleMouseUp = (e: ReactMouseEvent<HTMLDivElement>) => {
+  const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     // Handle resize completion
     if (resizingSpace && onSpaceResize && mousePosition) {
       const space = existingSpaces.find((s) => s.id === resizingSpace.id);
@@ -350,14 +351,14 @@ export function SpaceDrawingCanvas({
     }
   };
 
-  const handleMouseLeave = () => {
+  const handlePointerLeave = () => {
     setMousePosition(null);
     setPendingDrag(null);
-    // Cancel drag if mouse leaves canvas
+    // Cancel drag if the pointer leaves canvas
     if (draggingSpace) {
       setDraggingSpace(null);
     }
-    // Cancel resize if mouse leaves canvas
+    // Cancel resize if the pointer leaves canvas
     if (resizingSpace) {
       setResizingSpace(null);
     }
@@ -490,14 +491,17 @@ export function SpaceDrawingCanvas({
             top: 0,
             left: 0,
             cursor: getCanvasCursor(),
+            // While shapes can be drawn or moved, a touch drag edits instead of scrolling.
+            touchAction: editEnabled || !isPassiveMode ? "none" : undefined,
           }}
           onClick={handleClick}
           onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
-          onMouseMove={handleMouseMove}
-          onMouseDown={handleMouseDown}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
+          // Pointer, not mouse, events: a tablet's pen and finger get the same edit tools.
+          onPointerMove={handlePointerMove}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerLeave}
         >
         {/* Floorplan background - use SVG image for perfect alignment */}
         <svg

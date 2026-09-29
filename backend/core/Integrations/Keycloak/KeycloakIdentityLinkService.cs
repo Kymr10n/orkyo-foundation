@@ -15,20 +15,20 @@ namespace Api.Integrations.Keycloak;
 public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 {
     private readonly IDbConnectionFactory _connectionFactory;
-    private readonly IEmailService _emailService;
     private readonly IdentityProvisioningOptions _identityProvisioning;
     private readonly ILogger<KeycloakIdentityLinkService> _logger;
+    private readonly IBackgroundDispatcher _background;
 
     public KeycloakIdentityLinkService(
         IDbConnectionFactory connectionFactory,
-        IEmailService emailService,
         IOptions<IdentityProvisioningOptions> identityProvisioning,
-        ILogger<KeycloakIdentityLinkService> logger)
+        ILogger<KeycloakIdentityLinkService> logger,
+        IBackgroundDispatcher background)
     {
         _connectionFactory = connectionFactory;
-        _emailService = emailService;
         _identityProvisioning = identityProvisioning.Value;
         _logger = logger;
+        _background = background;
     }
 
     public async Task<PrincipalContext?> FindByExternalIdentityAsync(AuthProvider provider, string externalSubject, CancellationToken ct = default)
@@ -93,18 +93,42 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
                 isNew: false);
         }
 
+        // Every path below hands this identity an account by its address — an invited row, a
+        // row a concurrent sign-in created, or a fresh one — so the address must be proven first.
+        // An unverified claim would let anyone who can register (or federate) the victim's
+        // address in Keycloak take over the invited or existing account.
+        if (!token.EmailVerified)
+        {
+            _logger.LogWarning(
+                "Refused to link Keycloak identity {Subject}: email not verified", token.Subject);
+            return IdentityLinkResult.Failed(
+                "Verify your email address before signing in.",
+                ApiErrorCodes.Auth.EmailNotVerified);
+        }
+
+        // One normalized spelling for the lookup and the insert; both compare against LOWER(email).
+        string email;
+        try
+        {
+            email = UserProvisioningService.Normalize(token.Email ?? string.Empty);
+        }
+        catch (ArgumentException)
+        {
+            return IdentityLinkResult.Failed("Token email is required", ApiErrorCodes.Auth.InvalidToken);
+        }
+
         // Check if there's a user with this email (from invitation)
         await using var findByEmailCmd = new NpgsqlCommand(@"
             SELECT id, email, display_name, status
             FROM users
-            WHERE LOWER(email) = LOWER(@email)", conn);
-        findByEmailCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+            WHERE LOWER(email) = @email", conn);
+        findByEmailCmd.Parameters.AddWithValue("email", email);
 
         await using var emailReader = await findByEmailCmd.ExecuteReaderAsync(ct);
         if (await emailReader.ReadAsync(ct))
         {
             var userId = emailReader.GetGuid("id");
-            var email = emailReader.GetString("email");
+            var storedEmail = emailReader.GetString("email");
             var displayName = emailReader.GetNullableString("display_name");
             var status = emailReader.GetString("status");
 
@@ -123,9 +147,9 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
 
             _logger.LogInformation(
                 "Linked Keycloak identity {Subject} to existing user {UserId} ({Email})",
-                token.Subject, userId, email);
+                token.Subject, userId, storedEmail);
 
-            return IdentityLinkResult.Linked(userId, email, displayName, isNew: false);
+            return IdentityLinkResult.Linked(userId, storedEmail, displayName, isNew: false);
         }
 
         // Close reader before starting transaction
@@ -154,18 +178,22 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             "Creating new user for Keycloak identity {Subject} with email {Email}",
             token.Subject, token.Email);
 
-        var newUser = await CreateUserFromKeycloakAsync(conn, token, ct);
+        var newUser = await CreateUserFromKeycloakAsync(conn, token, email, ct);
         if (newUser == null)
         {
             return IdentityLinkResult.Failed("Failed to create user account", ApiErrorCodes.Auth.IdentityNotLinked);
         }
 
-        _ = _emailService.SendNewUserAlertAsync(newUser.Email, newUser.DisplayName ?? newUser.Email, ct);
+        // Best-effort, after the response.
+        var (alertEmail, alertName) = (newUser.Email, newUser.DisplayName ?? newUser.Email);
+        _background.Dispatch<IEmailService>("new-user alert",
+            (mail, mailCt) => mail.SendNewUserAlertAsync(alertEmail, alertName, mailCt));
 
         return IdentityLinkResult.Linked(newUser.UserId, newUser.Email, newUser.DisplayName, isNew: true);
     }
 
-    private async Task<PrincipalContext?> CreateUserFromKeycloakAsync(NpgsqlConnection conn, ExternalIdentityToken token, CancellationToken ct = default)
+    private async Task<PrincipalContext?> CreateUserFromKeycloakAsync(
+        NpgsqlConnection conn, ExternalIdentityToken token, string email, CancellationToken ct = default)
     {
         await using var transaction = await conn.BeginTransactionAsync(ct);
 
@@ -185,7 +213,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
                 RETURNING id",
                 conn, transaction);
             createUserCmd.Parameters.AddWithValue("id", userId);
-            createUserCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+            createUserCmd.Parameters.AddWithValue("email", email);
             createUserCmd.Parameters.AddWithValue("displayName", displayName);
 
             if (await createUserCmd.ExecuteScalarAsync(ct) is Guid insertedId)
@@ -197,12 +225,12 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
                 // A concurrent sign-in created the same address between our lookup and our
                 // write. Theirs is as good as ours — link this identity to their row.
                 await using var findCmd = new NpgsqlCommand(
-                    "SELECT id FROM users WHERE LOWER(email) = LOWER(@email)", conn, transaction);
-                findCmd.Parameters.AddWithValue("email", token.Email ?? string.Empty);
+                    "SELECT id FROM users WHERE LOWER(email) = @email", conn, transaction);
+                findCmd.Parameters.AddWithValue("email", email);
                 userId = await findCmd.ExecuteScalarAsync(ct) is Guid winner
                     ? winner
                     : throw new InvalidOperationException(
-                        $"users row for {token.Email} vanished between insert conflict and re-read");
+                        $"users row for {email} vanished between insert conflict and re-read");
             }
 
             await using var linkCmd = new NpgsqlCommand(@"
@@ -225,7 +253,7 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             return new PrincipalContext
             {
                 UserId = userId,
-                Email = token.Email ?? string.Empty,
+                Email = email,
                 DisplayName = displayName,
                 AuthProvider = AuthProvider.Keycloak,
                 ExternalSubject = token.Subject ?? string.Empty
@@ -239,62 +267,27 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         }
     }
 
-    public async Task<IReadOnlyList<TenantMembership>> GetUserMembershipsAsync(Guid userId, CancellationToken ct = default)
-    {
-        await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT
-                t.id,
-                t.slug,
-                t.display_name,
-                tm.role,
-                tm.status
-            FROM tenant_memberships tm
-            INNER JOIN tenants t ON tm.tenant_id = t.id
-            WHERE tm.user_id = @userId
-              AND tm.status = 'active'
-              AND t.status = 'active'
-            ORDER BY t.display_name",
-            conn);
-        cmd.Parameters.AddWithValue("userId", userId);
-
-        var memberships = new List<TenantMembership>();
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-
-        while (await reader.ReadAsync(ct))
-        {
-            var roleString = reader.GetString("role");
-            var role = RoleConstants.ParseRoleString(roleString);
-
-            memberships.Add(new TenantMembership
-            {
-                TenantId = reader.GetGuid("id"),
-                TenantSlug = reader.GetString("slug"),
-                TenantName = reader.GetString("display_name"),
-                Role = role,
-                Status = reader.GetString("status")
-            });
-        }
-
-        return memberships;
-    }
-
     public async Task<TenantRole> GetUserTenantRoleAsync(Guid userId, Guid tenantId, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
+        // A disabled user keeps their membership rows (the lifecycle deactivation and the
+        // admin "deactivate" both set users.status only), so the user's own status is part
+        // of the answer: anything that authorizes by this role — a calendar feed token,
+        // above all — stops working the moment the account is disabled.
         await using var cmd = new NpgsqlCommand(@"
-            SELECT role
-            FROM tenant_memberships
-            WHERE user_id = @userId
-              AND tenant_id = @tenantId
-              AND status = 'active'",
+            SELECT tm.role
+            FROM tenant_memberships tm
+            JOIN users u ON u.id = tm.user_id
+            WHERE tm.user_id = @userId
+              AND tm.tenant_id = @tenantId
+              AND tm.status = 'active'
+              AND u.status <> @disabled",
             conn);
         cmd.Parameters.AddWithValue("userId", userId);
         cmd.Parameters.AddWithValue("tenantId", tenantId);
+        cmd.Parameters.AddWithValue("disabled", UserStatusConstants.Disabled);
 
         var roleString = await cmd.ExecuteScalarAsync(ct) as string;
         return RoleConstants.ParseRoleString(roleString);

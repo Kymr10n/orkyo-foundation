@@ -17,7 +17,7 @@ namespace Api.PlatformApi.Mcp;
 ///
 /// 1. <b>Authorization is not re-implemented.</b> The endpoint group already required tenant
 ///    membership; a write tool additionally calls <see cref="McpToolGuards.RequireWrite"/>, which
-///    reads the same Role &gt;= Editor threshold <c>RequireEditAccess</c> enforces over HTTP. It is
+///    reads the same Role &gt;= Editor threshold the HTTP write gate (<c>RequireMemberReadEditorWrite</c>) enforces. It is
 ///    checked per tool rather than by the group's verb-aware write gate because MCP puts every call,
 ///    read and write alike, behind one POST: gating on the verb would demand Editor to list tools.
 /// 2. <b>Conflicts are surfaced, never swallowed.</b> A scheduling call that produces a conflict

@@ -14,4 +14,11 @@ public static class SecurityAuditActions
     public const string BreakGlassGranted = "break_glass.granted";
     public const string BreakGlassRevoked = "break_glass.revoked";
     public const string BreakGlassRenewed = "break_glass.renewed";
+
+    // Site-admin actions on a platform user (no tenant: recorded with a NULL tenant_id).
+    public const string UserDeactivated = "user.deactivated";
+    public const string UserReactivated = "user.reactivated";
+    public const string UserDeleted = "user.deleted";
+    public const string SiteAdminGranted = "site_admin.granted";
+    public const string SiteAdminRevoked = "site_admin.revoked";
 }

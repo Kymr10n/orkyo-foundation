@@ -89,7 +89,6 @@ function renderAt(path: string, resourceClass: 'station' | 'asset' = 'station') 
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   types = [
     type({ key: 'mill', displayNamePlural: 'Mills', hasGeometry: true }),
     type({ key: 'drill', displayNamePlural: 'Drills', hasGeometry: true }),

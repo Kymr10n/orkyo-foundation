@@ -215,3 +215,40 @@ public record InsightsRequests
     public required IReadOnlyList<RequestSeriesPoint> Series { get; init; }
     public required InsightsMetadata Metadata { get; init; }
 }
+
+/// <summary>Which Insights read a query serves; it decides the bucket rule and the range cap.</summary>
+public enum InsightsView
+{
+    /// <summary>KPI cards; month-bucketed internally, so the month cap applies.</summary>
+    Overview,
+
+    /// <summary>The overbooking ranking; measured per day, so the tightest (week) cap applies.</summary>
+    Bottlenecks,
+
+    /// <summary>A bucketed trend; the bucket is required and sets the cap.</summary>
+    Trend,
+}
+
+/// <summary>
+/// An Insights query as a caller sends it: every field optional, so that
+/// <c>InsightsQueryValidator</c> can refuse a missing one. HTTP and MCP both validate this shape
+/// and then call <see cref="ToFilter"/>.
+/// </summary>
+public sealed record InsightsQuery(
+    InsightsView View,
+    DateTime? From,
+    DateTime? To,
+    Guid? SiteId = null,
+    string? Bucket = null,
+    string? ResourceType = null)
+{
+    /// <summary>The service filter. Call it only after the validator has passed.</summary>
+    public InsightsFilter ToFilter() => new()
+    {
+        SiteId = SiteId,
+        From = From!.Value,
+        To = To!.Value,
+        Bucket = Bucket,
+        ResourceType = ResourceType,
+    };
+}

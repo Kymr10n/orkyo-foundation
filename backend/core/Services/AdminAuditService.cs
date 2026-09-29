@@ -1,19 +1,12 @@
-using System.Text.Json;
+using Api.Repositories;
 using Api.Security;
-using Npgsql;
-using NpgsqlTypes;
 
 namespace Api.Services;
 
 /// <summary>
 /// Default <see cref="IAdminAuditService"/> that writes to <c>control_plane.audit_events</c>.
 /// Failures are logged but don't break the calling operation — audit logging is best-effort.
-/// The table-not-found path lets foundation-only deployments that haven't yet applied the
-/// audit migration still operate.
-///
-/// The control-plane table requires an explicit <c>id</c> column (tenant-DB audit rows rely
-/// on a database default); actor-type semantics match the tenant-side writer in
-/// <see cref="TenantUserService"/>: a present actor user-id → <c>"user"</c>, else <c>"system"</c>.
+/// The row itself is written by <see cref="AuditEventWriter"/>, shared with the tenant-side writer.
 /// </summary>
 public sealed class AdminAuditService : IAdminAuditService
 {
@@ -44,27 +37,8 @@ public sealed class AdminAuditService : IAdminAuditService
             await using var conn = _connectionFactory.CreateControlPlaneConnection();
             await conn.OpenAsync(ct);
 
-            await using var cmd = new NpgsqlCommand(@"
-                INSERT INTO audit_events (id, tenant_id, actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
-                VALUES (@id, @tenantId, @actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())", conn);
-
-            cmd.Parameters.AddWithValue("id", Guid.NewGuid());
-            cmd.Parameters.AddWithValue("tenantId", tenantId.HasValue ? tenantId.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("actorUserId", actorUserId.HasValue ? actorUserId.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("actorType", actorUserId.HasValue ? "user" : "system");
-            cmd.Parameters.AddWithValue("action", action);
-            cmd.Parameters.AddWithValue("targetType", (object?)targetType ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("targetId", (object?)targetId ?? DBNull.Value);
-            cmd.Parameters.Add(new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb)
-            {
-                Value = metadata != null ? JsonSerializer.Serialize(metadata) : DBNull.Value,
-            });
-
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
-        catch (PostgresException ex) when (ex.SqlState == "42P01")
-        {
-            _logger.LogWarning("audit_events table does not exist — skipping audit");
+            await AuditEventWriter.InsertControlPlaneAsync(
+                conn, tenantId, actorUserId, action, targetType, targetId, metadata, ct);
         }
         catch (Exception ex)
         {

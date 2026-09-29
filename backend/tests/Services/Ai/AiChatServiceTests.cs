@@ -29,7 +29,6 @@ public class AiChatServiceTests
     public AiChatServiceTests()
     {
         _credentials.Setup(c => c.GetApiKeyAsync(It.IsAny<CancellationToken>())).ReturnsAsync("sk-ant-test-key");
-        _credentials.Setup(c => c.GetModelAsync(It.IsAny<CancellationToken>())).ReturnsAsync(AiDefaults.Model);
         _access.Setup(a => a.EvaluateAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(new AiAccessDecision { Allowed = true });
         _authorization.SetupGet(a => a.CanEdit).Returns(true);
@@ -383,7 +382,7 @@ public class AiChatServiceTests
     public async Task OverlongTranscript_IsRefusedBeforeSpendingAnything()
     {
         var transcript = Enumerable.Range(0, AiDefaults.MaxTranscriptMessages + 1)
-            .Select(_ => AiMessage.User(AiBlock.TextBlock("x")))
+            .Select(_ => new AiMessage { Role = AiMessage.Roles.User, Blocks = [AiBlock.TextBlock("x")] })
             .ToList();
 
         var events = await RunAsync(new AiChatRequest { Message = "hi", Transcript = transcript });

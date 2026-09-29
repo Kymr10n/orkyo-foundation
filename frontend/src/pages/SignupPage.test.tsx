@@ -36,7 +36,6 @@ function renderSignup(search = '') {
 
 describe('SignupPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.stubGlobal('fetch', vi.fn());
     // Stub window.location so handleBackToLogin's full-page navigations are
     // assertable instead of triggering a jsdom "navigation not implemented" error.
@@ -99,7 +98,6 @@ describe('SignupPage', () => {
 
     renderSignup('?invitation=expired-token');
     await waitFor(() => {
-      // handleApiError wraps the body.error as "API Error (status): {message}"
       expect(screen.getByText(/Invitation expired/)).toBeInTheDocument();
     });
   });

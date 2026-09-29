@@ -11,14 +11,13 @@ import { generateTimeColumns, parseTimeToHour, type WorkingHoursConfig } from ".
  * Assets, the Requests canvas — asks this exact question, and each used to answer it with its own
  * copy of the same memo. One copy means the column semantics cannot drift between tabs.
  *
- * `weekendsEnabled` marks weekends as non-working (the callers pass the negation of the site
- * setting of the same name). The working-hours config is built inside the memo, so the
- * dependencies are the raw props and no exhaustive-deps exception is needed.
+ * `weekendsAreOff` marks weekends as non-working. The working-hours config is built inside the
+ * memo, so the dependencies are the raw props and no exhaustive-deps exception is needed.
  */
 export function useTimeColumns({
   scale,
   anchorTs,
-  weekendsEnabled = false,
+  weekendsAreOff = false,
   workingHoursEnabled = false,
   workingDayStart = "08:00",
   workingDayEnd = "17:00",
@@ -26,7 +25,7 @@ export function useTimeColumns({
 }: {
   scale: TimeScale;
   anchorTs: Date;
-  weekendsEnabled?: boolean;
+  weekendsAreOff?: boolean;
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
   workingDayEnd?: string;
@@ -37,8 +36,8 @@ export function useTimeColumns({
       ? { enabled: true, start: parseTimeToHour(workingDayStart), end: parseTimeToHour(workingDayEnd) }
       : null;
     return enrichColumnsWithOffTime(
-      generateTimeColumns(scale, anchorTs, weekendsEnabled, workingHours),
+      generateTimeColumns(scale, anchorTs, weekendsAreOff, workingHours),
       offTimeRanges,
     );
-  }, [scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges]);
+  }, [scale, anchorTs, weekendsAreOff, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges]);
 }

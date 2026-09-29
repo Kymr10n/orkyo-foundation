@@ -5,10 +5,9 @@
  * edit admin notes, and attach a GitHub issue URL. Mirrors the AnnouncementsTab pattern.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { formatDateDisplay } from '@foundation/src/lib/formatters';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@foundation/src/components/ui/card';
-import { ErrorAlert } from '@foundation/src/components/ui/ErrorAlert';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { Button } from '@foundation/src/components/ui/button';
 import { Input } from '@foundation/src/components/ui/input';
@@ -35,14 +34,17 @@ import { MessageSquare, Eye } from 'lucide-react';
 import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 import { toast } from 'sonner';
-import {
-  type FeedbackSummary,
-  type FeedbackDetail,
-  type FeedbackStatus,
-  getFeedback,
-  getFeedbackItem,
+import type {
+  FeedbackSummary,
+  FeedbackDetail,
+  FeedbackStatus,
 } from '@foundation/src/lib/api/feedback-admin-api';
-import { useUpdateFeedback } from '@foundation/src/hooks/useFeedbackAdmin';
+import {
+  useFeedbackList,
+  useFetchFeedbackItem,
+  useUpdateFeedback,
+} from '@foundation/src/hooks/useFeedbackAdmin';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 const STATUSES: FeedbackStatus[] = ['new', 'reviewed', 'resolved', 'wont_fix'];
 
@@ -70,36 +72,19 @@ function Field({ label, value }: { label: string; value: string | null }) {
 }
 
 export function FeedbackTab() {
-  const [items, setItems] = useState<FeedbackSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selected, setSelected] = useState<FeedbackDetail | null>(null);
-
-  // Deliberate manual load (not useQuery) for this operator surface — see dialog-feedback.md rule 3.
-  const load = useCallback(async (status: string) => {
-    try {
-      setError(null);
-      const response = await getFeedback(status === 'all' ? undefined : { status });
-      setItems(response.items);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load feedback');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // Manual load by design on this operator surface — see docs/dialog-feedback.md.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load(statusFilter);
-  }, [load, statusFilter]);
+  const feedbackList = useFeedbackList(statusFilter === 'all' ? null : (statusFilter as FeedbackStatus));
+  const items = feedbackList.data?.items ?? [];
+  const loading = feedbackList.isLoading;
+  const error = feedbackList.error ? errorMessage(feedbackList.error, 'Failed to load feedback') : null;
+  const fetchFeedbackItem = useFetchFeedbackItem();
 
   const openDetail = async (id: string) => {
     try {
-      setSelected(await getFeedbackItem(id));
+      setSelected(await fetchFeedbackItem(id));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load feedback');
+      toast.error(errorMessage(err, 'Failed to load feedback'));
     }
   };
 
@@ -157,7 +142,7 @@ export function FeedbackTab() {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={(e) => { e.stopPropagation(); openDetail(row.original.id); }}
+            onClick={(e) => { e.stopPropagation(); void openDetail(row.original.id); }}
             aria-label={`Review ${row.original.title}`}
           >
             <Eye className="h-4 w-4" />
@@ -187,7 +172,7 @@ export function FeedbackTab() {
         variant="ghost"
         size="icon"
         className="h-8 w-8 shrink-0"
-        onClick={(e) => { e.stopPropagation(); openDetail(item.id); }}
+        onClick={(e) => { e.stopPropagation(); void openDetail(item.id); }}
         aria-label={`Review ${item.title}`}
       >
         <Eye className="h-4 w-4" />
@@ -229,13 +214,12 @@ export function FeedbackTab() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 empty:mb-0">
-            <ErrorAlert message={error ?? null} />
-          </div>
           <OrkyoDataTable
-        {...tableUrlState}
+            {...tableUrlState}
             columns={columns}
             data={items}
+            error={error}
+            onRetry={() => void feedbackList.refetch()}
             emptyMessage="No feedback yet."
             renderCard={renderCard}
           />
@@ -245,7 +229,7 @@ export function FeedbackTab() {
       <FeedbackDetailDialog
         feedback={selected}
         onClose={() => setSelected(null)}
-        onSaved={() => { setSelected(null); load(statusFilter); }}
+        onSaved={() => setSelected(null)}
       />
     </div>
   );

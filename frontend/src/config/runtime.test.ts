@@ -26,19 +26,19 @@ describe('runtime config', () => {
 
       const { runtimeConfig } = await import('./runtime');
 
-      // VITE_DEFAULT_TENANT is not in __RUNTIME_CONFIG__ → fallback ''
-      expect(runtimeConfig.defaultTenant).toBe('');
+      // VITE_API_BASE_URL is not in __RUNTIME_CONFIG__ → fallback ''
+      expect(runtimeConfig.apiBaseUrl).toBe('');
     });
 
     it('returns the configured value when present', async () => {
       window.__RUNTIME_CONFIG__ = {
-        DEFAULT_TENANT: 'acme',
+        API_BASE_URL: 'https://api.example.test',
       };
       vi.resetModules();
 
       const { runtimeConfig } = await import('./runtime');
 
-      expect(runtimeConfig.defaultTenant).toBe('acme');
+      expect(runtimeConfig.apiBaseUrl).toBe('https://api.example.test');
     });
   });
 

@@ -130,7 +130,7 @@ export function ResourceTypeSettings() {
         data={types}
         isLoading={isLoading}
         error={errorMsg}
-        onRetry={() => refetch()}
+        onRetry={() => void refetch()}
         emptyMessage="No resource types defined yet."
         renderCard={renderCard}
       />

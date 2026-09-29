@@ -3,29 +3,31 @@ import { render, screen, fireEvent } from '@testing-library/react';
 
 // Mock useAuth — the page reads sessionData/isSiteAdmin and sends LOGOUT.
 const mockSend = vi.fn();
-const mockAuthState = {
-  sessionData: null as Record<string, unknown> | null,
+const mockAuthState: MockAuthOptions = {
+  sessionData: null,
   isSiteAdmin: false,
   send: mockSend,
 };
 
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockAuthState,
+  useAuth: () => mockAuth(mockAuthState),
 }));
 
 const mockNavigateToApex = vi.fn<(path?: string) => boolean>(() => true);
+const mockGoToApex = vi.fn<(path?: string) => void>();
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: (...args: unknown[]) => mockNavigateToApex(...(args as [string])),
+  goToApex: (...args: unknown[]) => mockGoToApex(...(args as [string])),
 }));
 
 const { configMock } = vi.hoisted(() => ({ configMock: { supportEmail: 'support@example.test' } }));
 vi.mock('@foundation/src/config/runtime', () => ({ runtimeConfig: configMock }));
 
 import { TenantNoAccessPage } from '@foundation/src/pages/TenantNoAccessPage';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 describe('TenantNoAccessPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockAuthState.sessionData = { tenants: [{ slug: 'acme' }] };
     mockAuthState.isSiteAdmin = false;
     configMock.supportEmail = 'support@example.test';
@@ -35,17 +37,17 @@ describe('TenantNoAccessPage', () => {
   it('explains the lack of access rather than showing a redirect spinner', () => {
     render(<TenantNoAccessPage />);
 
-    expect(screen.getByRole('heading', { name: /no access to this workspace/i })).toBeInTheDocument();
-    expect(screen.getByText(/isn't a member of this workspace/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /no access to this organization/i })).toBeInTheDocument();
+    expect(screen.getByText(/isn't a member of this organization/i)).toBeInTheDocument();
   });
 
   it('offers the apex workspace selector when the user has other workspaces', () => {
     render(<TenantNoAccessPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /go to my workspaces/i }));
+    fireEvent.click(screen.getByRole('button', { name: /go to my organizations/i }));
 
     // Apex "/" is the marketing page — the SPA entry point must be used.
-    expect(mockNavigateToApex).toHaveBeenCalledWith('/login?auto=1');
+    expect(mockGoToApex).toHaveBeenCalledWith('/login?auto=1');
   });
 
   it('hides the workspace switcher when the user belongs to no workspace', () => {
@@ -53,8 +55,8 @@ describe('TenantNoAccessPage', () => {
 
     render(<TenantNoAccessPage />);
 
-    expect(screen.queryByRole('button', { name: /go to my workspaces/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/ask this workspace's administrator/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /go to my organizations/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/ask this organization's administrator/i)).toBeInTheDocument();
   });
 
   it('shows the site-admin shortcut only for site admins', () => {
@@ -89,27 +91,5 @@ describe('TenantNoAccessPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }));
 
     expect(mockSend).toHaveBeenCalledWith({ type: 'LOGOUT' });
-  });
-
-  it('falls back to a same-origin navigation when there is no apex to go to', () => {
-    // Local dev / no baseDomain: navigateToApex returns false.
-    mockNavigateToApex.mockReturnValue(false);
-    const originalLocation = window.location;
-    Object.defineProperty(window, 'location', {
-      value: { href: 'http://localhost:5173/about', origin: 'http://localhost:5173', pathname: '/about' },
-      writable: true,
-      configurable: true,
-    });
-
-    render(<TenantNoAccessPage />);
-    fireEvent.click(screen.getByRole('button', { name: /go to my workspaces/i }));
-
-    expect(window.location.href).toBe('/login?auto=1');
-
-    Object.defineProperty(window, 'location', {
-      value: originalLocation,
-      writable: true,
-      configurable: true,
-    });
   });
 });

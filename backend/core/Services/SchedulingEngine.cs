@@ -24,19 +24,18 @@ public static class SchedulingEngine
     /// and requested working-time duration, respecting the site's scheduling
     /// settings (working hours, weekends, off-times).
     ///
-    /// If <paramref name="schedulingSettingsApply"/> is false, the result is
+    /// Without settings, or with working hours off and no off-times, the result is
     /// a simple elapsed-time calculation (start + duration).
     /// </summary>
     public static ScheduleResult CalculateSchedule(
         DateTime desiredStart,
         int requestedDurationMinutes,
-        bool schedulingSettingsApply,
         SchedulingSettingsInfo? settings,
         List<BlockedPeriod>? offTimes)
     {
         var hasActiveOffTimes = offTimes != null && offTimes.Count > 0;
 
-        if (!schedulingSettingsApply || settings == null ||
+        if (settings == null ||
             (!settings.WorkingHoursEnabled && !hasActiveOffTimes))
         {
             var plainEnd = desiredStart.AddMinutes(requestedDurationMinutes);
@@ -118,8 +117,9 @@ public static class SchedulingEngine
     /// is byte-identical to the behaviour callers had before this mask existed.
     ///
     /// Off-times and absences are deliberately NOT applied here. Callers subtract
-    /// blocked periods by passing each blocked overlap back through this same
-    /// function, so a blocked night never subtracts capacity that was never open.
+    /// them with <see cref="BlockedWorkingMinutes"/>, which measures the merged
+    /// blocked runs through this same function, so a blocked night never subtracts
+    /// capacity that was never open.
     /// </summary>
     public static double WorkingMinutesInWindow(
         DateTime fromUtc,
@@ -127,6 +127,50 @@ public static class SchedulingEngine
         SchedulingSettingsInfo? settings)
         => WorkingSegments(fromUtc, toUtc, settings)
             .Sum(s => (s.EndUtc - s.StartUtc).TotalMinutes);
+
+    /// <summary>
+    /// Working minutes inside [<paramref name="bucketStart"/>, <paramref name="bucketEnd"/>) that
+    /// a blocked period removes.
+    /// </summary>
+    /// <remarks>
+    /// Periods are clipped to the bucket and merged before measuring, so two absences on the same
+    /// day — or an absence and a closure that overlap — subtract that day once rather than twice.
+    /// Each merged run is measured with <see cref="WorkingMinutesInWindow"/>, the
+    /// same currency as the bucket's own span, so a closure overnight or at a weekend removes no
+    /// capacity that was never open.
+    /// Utilization and Insights both measure blocked time through this one method.
+    /// </remarks>
+    public static double BlockedWorkingMinutes(
+        IEnumerable<BlockedPeriod> blockedPeriods,
+        SchedulingSettingsInfo? settings,
+        DateTime bucketStart,
+        DateTime bucketEnd)
+    {
+        var clipped = blockedPeriods
+            .Select(p => (
+                Start: p.StartTs > bucketStart ? p.StartTs : bucketStart,
+                End: p.EndTs < bucketEnd ? p.EndTs : bucketEnd))
+            .Where(p => p.End > p.Start)
+            .OrderBy(p => p.Start)
+            .ToList();
+        if (clipped.Count == 0) return 0d;
+
+        var total = 0d;
+        var runStart = clipped[0].Start;
+        var runEnd = clipped[0].End;
+        foreach (var p in clipped.Skip(1))
+        {
+            if (p.Start <= runEnd)
+            {
+                if (p.End > runEnd) runEnd = p.End;
+                continue;
+            }
+            total += WorkingMinutesInWindow(runStart, runEnd, settings);
+            runStart = p.Start;
+            runEnd = p.End;
+        }
+        return total + WorkingMinutesInWindow(runStart, runEnd, settings);
+    }
 
     /// <summary>
     /// The working time inside <c>[fromUtc, toUtc)</c> as sorted, disjoint, half-open UTC

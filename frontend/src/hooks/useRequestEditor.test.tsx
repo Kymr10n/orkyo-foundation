@@ -3,20 +3,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { useRequestEditor } from '@foundation/src/hooks/useRequestEditor';
 import type { Request } from '@foundation/src/types/requests';
-import type { RequestFormData } from '@foundation/src/components/requests/RequestFormDialog';
+import { makeRequestFormData } from '@foundation/src/test-utils/request-fixtures';
 import { renderWithQuery } from '@foundation/src/test-utils';
+import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
-
-let mockRole: string | undefined = 'admin';
-
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({
-    membership: mockRole ? { role: mockRole } : null,
-  }),
-}));
 
 const mockUpdateRequest = vi.fn();
 vi.mock('@foundation/src/lib/api/request-api', () => ({
@@ -24,10 +17,11 @@ vi.mock('@foundation/src/lib/api/request-api', () => ({
 }));
 
 vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, canEdit }: any) =>
+  RequestFormDialog: ({ open, onSave, onOpenChange }: any) =>
     open ? (
-      <div data-testid="form-dialog" data-can-edit={String(canEdit)}>
-        <button data-testid="save-btn" onClick={() => onSave(mockFormData)}>Save</button>
+      <div data-testid="form-dialog">
+        {/* The real dialog catches a rejected save and shows it inline. */}
+        <button data-testid="save-btn" onClick={() => { void Promise.resolve(onSave(mockFormData)).catch(() => {}); }}>Save</button>
         <button data-testid="close-edit-btn" onClick={() => onOpenChange(false)}>Cancel</button>
       </div>
     ) : null,
@@ -45,14 +39,7 @@ const mockRequest = {
   updatedAt: '2026-01-01T00:00Z',
 } as Request;
 
-const mockFormData: RequestFormData = {
-  name: 'Updated Name',
-  planningMode: 'leaf',
-  targetResourceTypeKeys: ['space'],
-  duration: { value: 60, unit: 'minutes' },
-  schedulingSettingsApply: false,
-  requirements: [],
-};
+const mockFormData = makeRequestFormData({ name: 'Updated Name' });
 
 // ---------------------------------------------------------------------------
 // Test component
@@ -72,7 +59,8 @@ function TestHookComponent() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const renderEditor = () => renderWithQuery(<TestHookComponent />);
+// The production feedback cache: the save's toast and invalidation come from its meta.
+const renderEditor = () => renderWithQuery(<TestHookComponent />, { feedback: true });
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -80,38 +68,7 @@ const renderEditor = () => renderWithQuery(<TestHookComponent />);
 
 describe('useRequestEditor', () => {
   beforeEach(() => {
-    mockRole = 'admin';
     mockUpdateRequest.mockResolvedValue(undefined);
-  });
-
-  describe('role gate', () => {
-    it('opens the form dialog in edit mode for admin role', () => {
-      mockRole = 'admin';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-
-    it('opens the form dialog in edit mode for editor role', () => {
-      mockRole = 'editor';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-
-    it('opens the form dialog in view mode for member role', () => {
-      mockRole = 'member';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
-    });
-
-    it('opens the form dialog in view mode when membership is null', () => {
-      mockRole = undefined;
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
-    });
   });
 
   describe('save handler', () => {
@@ -131,9 +88,23 @@ describe('useRequestEditor', () => {
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'] });
-        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['conflicts'] });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
+        expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['conflicts'], exact: false });
       });
+    });
+
+    it('toasts the save as the Requests page does, and leaves a failure to the dialog', async () => {
+      renderEditor();
+      fireEvent.click(screen.getByTestId('open-btn'));
+      fireEvent.click(screen.getByTestId('save-btn'));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Request updated'));
+
+      // The dialog shows a rejected save inline, so the cache must not toast it as well.
+      mockUpdateRequest.mockRejectedValueOnce(new Error('Conflict'));
+      fireEvent.click(screen.getByTestId('open-btn'));
+      fireEvent.click(screen.getByTestId('save-btn'));
+      await waitFor(() => expect(mockUpdateRequest).toHaveBeenCalledTimes(2));
+      expect(toast.error).not.toHaveBeenCalled();
     });
 
     it('closes the edit dialog after save', async () => {
@@ -163,15 +134,6 @@ describe('useRequestEditor', () => {
       renderEditor();
       fireEvent.click(screen.getByTestId('open-btn'));
       expect(screen.getByTestId('form-dialog')).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId('close-edit-btn'));
-      expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
-    });
-
-    it('closes the view-mode form dialog when onOpenChange fires false', () => {
-      mockRole = 'member';
-      renderEditor();
-      fireEvent.click(screen.getByTestId('open-btn'));
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
       fireEvent.click(screen.getByTestId('close-edit-btn'));
       expect(screen.queryByTestId('form-dialog')).not.toBeInTheDocument();
     });

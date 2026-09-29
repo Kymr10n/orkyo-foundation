@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getTenantSettings,
   updateTenantSettings,
@@ -39,10 +39,6 @@ const mockSettingsResponse = {
 };
 
 describe("tenant-settings-api", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("getTenantSettings", () => {
     it("calls apiGet with correct endpoint", async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockSettingsResponse);

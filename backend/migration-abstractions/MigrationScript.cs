@@ -19,10 +19,6 @@ namespace Orkyo.Migrations.Abstractions;
 /// SHA-256 (or equivalent) hash of the normalized SQL. Computed once at module load;
 /// the runner verifies an applied migration's stored checksum matches before re-applying.
 /// </param>
-/// <param name="DependsOn">
-/// Optional list of <see cref="Id"/>s that must apply before this one. Empty for the
-/// common case where ordering is implied by lexical id within a module.
-/// </param>
 /// <param name="SupersededChecksums">
 /// Checksums this migration's earlier text is known to have had, declared in the file with
 /// <c>-- @supersedes-checksum: &lt;sha&gt;</c>. Applied migrations are immutable, so editing one
@@ -37,8 +33,8 @@ namespace Orkyo.Migrations.Abstractions;
 /// </para>
 /// </param>
 /// <param name="Scope">
-/// Which deployment shapes this migration runs in; <see cref="MigrationScope.Default"/> unless the
-/// file carries <c>-- @scope: tenant-database-only</c> or its module marks the id. See
+/// Which deployment shapes this migration runs in; <see cref="MigrationScope.Default"/> unless its
+/// module marks the id. See
 /// <see cref="MigrationScope"/>.
 /// </param>
 public sealed record MigrationScript(
@@ -47,6 +43,5 @@ public sealed record MigrationScript(
     MigrationTargetDatabase TargetDatabase,
     string Sql,
     string Checksum,
-    IReadOnlyCollection<string> DependsOn,
     IReadOnlyCollection<string> SupersededChecksums,
     MigrationScope Scope = MigrationScope.Default);

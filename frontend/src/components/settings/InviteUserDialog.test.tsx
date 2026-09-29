@@ -7,11 +7,9 @@ import { InviteUserDialog } from './InviteUserDialog';
 import * as userApi from '@foundation/src/lib/api/user-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { createTestQueryClient } from '@foundation/src/test-utils';
+import { ApiError } from '@foundation/src/lib/core/api-utils';
 
 vi.mock('@foundation/src/lib/api/user-api');
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
 
 describe('InviteUserDialog', () => {
   let queryClient: QueryClient;
@@ -23,15 +21,14 @@ describe('InviteUserDialog', () => {
     // The dialog's mutation declares `meta` (successMessage/errorMessage/invalidates),
     // so tests wire the same feedback MutationCache as production (dialog-feedback.md).
     ({ queryClient, spy: invalidateSpy } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
     vi.mocked(userApi.createInvitation).mockResolvedValue({
-      id: 'inv-1',
-      email: 'test@example.com',
-      role: 'viewer',
-      invitedBy: 'user-1',
-      tokenHash: 'hash-123',
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      invitation: {
+        id: 'inv-1',
+        email: 'test@example.com',
+        role: 'viewer',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      },
+      message: 'Invitation sent successfully',
     });
   });
 
@@ -190,6 +187,49 @@ describe('InviteUserDialog', () => {
     });
   });
 
+  it('reports a direct add for an existing account and refreshes the member list', async () => {
+    vi.mocked(userApi.createInvitation).mockResolvedValue({
+      member: { userId: 'u-2', email: 'known@example.com', role: 'viewer' },
+      message: 'User added to the organization',
+    });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InviteUserDialog open={true} onOpenChange={mockOnOpenChange} onSuccess={mockOnSuccess} />
+      </QueryClientProvider>
+    );
+
+    await user.type(screen.getByLabelText(/Email Address/), 'known@example.com');
+    await user.click(screen.getByRole('button', { name: /Send Invitation/i }));
+
+    await waitFor(() => expect(mockOnSuccess).toHaveBeenCalled());
+    expect(toast.success).toHaveBeenCalledWith('Added to the organization');
+    expect(toast.success).not.toHaveBeenCalledWith('Invitation sent');
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: qk.users.all(), exact: false });
+  });
+
+  it('shows a 409 for a current member inline and stays open', async () => {
+    vi.mocked(userApi.createInvitation).mockRejectedValue(
+      new ApiError('This user is already a member of the organization', 409, 'CONFLICT'),
+    );
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <InviteUserDialog open={true} onOpenChange={mockOnOpenChange} onSuccess={mockOnSuccess} />
+      </QueryClientProvider>
+    );
+
+    await user.type(screen.getByLabelText(/Email Address/), 'member@example.com');
+    await user.click(screen.getByRole('button', { name: /Send Invitation/i }));
+
+    expect(
+      await screen.findByText('This user is already a member of the organization'),
+    ).toBeInTheDocument();
+    expect(mockOnSuccess).not.toHaveBeenCalled();
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
   it('changes role selection', async () => {
     const user = userEvent.setup();
     render(
@@ -337,7 +377,7 @@ describe('InviteUserDialog', () => {
     await user.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Sending...')).toBeInTheDocument();
+      expect(screen.getByText('Sending…')).toBeInTheDocument();
       expect(emailInput).toBeDisabled();
       expect(submitButton).toBeDisabled();
     });

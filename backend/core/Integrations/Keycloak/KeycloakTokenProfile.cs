@@ -51,9 +51,6 @@ public sealed class KeycloakTokenProfile
     /// <summary>Token audience</summary>
     public string? Audience => GetClaim(KeycloakClaims.Audience);
 
-    /// <summary>Authorized party (client ID)</summary>
-    public string? AuthorizedParty => GetClaim(KeycloakClaims.AuthorizedParty);
-
     /// <summary>Session ID</summary>
     public string? SessionId => GetClaim(KeycloakClaims.SessionId);
 
@@ -66,9 +63,6 @@ public sealed class KeycloakTokenProfile
 
     /// <summary>Whether this appears to be a valid Keycloak token</summary>
     public bool IsValid => !string.IsNullOrEmpty(Subject);
-
-    /// <summary>Whether the principal is authenticated</summary>
-    public bool IsAuthenticated => _principal.Identity?.IsAuthenticated ?? false;
 
     /// <summary>
     /// Create a token profile from a ClaimsPrincipal.

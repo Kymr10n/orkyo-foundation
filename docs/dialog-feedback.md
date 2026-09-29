@@ -19,18 +19,18 @@ central `MutationCache` do it once, in one place.
   diff-and-batch save logic lives in [`capability-diff.ts`](../frontend/src/components/capabilities/capability-diff.ts)
   (`diffCapabilityAssignments(existing, desired, mode)`); `mode` is `upsert` (person/space) or
   `add-new` (group, backend insert-only).
-- **Genuinely special dialogs are exempt** — multi-tab/wizard (RequestFormDialog, TourDialog,
-  the preset import preview and export dialogs in PresetSettings, SpreadsheetImportWizard),
-  list/multi-select pickers and choosers (MoveToDialog, AddExistingRequestsDialog,
-  ResourceGroupMembersEditor, ScheduleSlotDialog — it mutates nothing, both actions open
-  RequestFormDialog), read-only/per-item-state-machine views (RequestDetailsDialog,
-  AutoSchedulePreviewDialog, ResourceAssignmentDialog, the feedback detail view in FeedbackTab,
-  `RawTokenDialog` in api-tokens — a one-time secret display with no form), upload flows with
-  progress (FloorplanUploadDialog), and compound in-place sub-forms (AvailabilityEventDialog,
-  TemplateDialogBase, PersonEditDialog). Forcing these onto `FormDialog` would hurt clarity, not
-  help it. A dialog with a title, fields, an inline error and a Cancel/Save footer is not on this
-  list; the announcement editor in AnnouncementsTab moved onto `FormDialog` in 2026-09 for that
-  reason.
+- **Genuinely special dialogs are exempt.** The `frontend/eslint.config.js` allowlist of the
+  raw-`Dialog` ban is the exemption list. This list copies it:
+  - Command palette: `CommandPalette`.
+  - Shared assignment editor: `CriterionAssignmentEditor`.
+  - List pickers: `ResourceGroupMembersEditor`.
+  - Read-only or per-item state-machine views: `ResourceAssignmentDialog`, `ScheduleSlotDialog`,
+    `RawTokenDialog` in `api-tokens/token-ui.tsx`, and the feedback detail view in `FeedbackTab`.
+  - Compound sub-forms and special flows: `FeedbackButton`, `PasswordSection`, `PresetSettings`,
+    `ImportExportDialog` and `FloorplanUploadDialog`.
+
+  A new exemption needs the same triage and an entry in both lists. A dialog with a title,
+  fields, an inline error and a Cancel/Save footer is not exempt. It uses `FormDialog`.
 
 ## The mechanism
 
@@ -62,6 +62,9 @@ hand-rolled `onSuccess` toast:
 meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. Check your inbox.` },
 ```
 
+`errorMessage` can also be a function `(variables) => string`. The error toast title then names
+the item that failed, for example one queued child request of a new group.
+
 ## Rules
 
 1. A mutation that wants feedback declares `meta`; it must **not** also call `toast.*` itself
@@ -76,7 +79,8 @@ meta: { successMessage: (_data, email) => `Confirmation email sent to ${email}. 
    `meta.suppressErrorToast: true`, because the person is already looking at the dialog;
    its `onError` keeps `setError(...)` and drops nothing else. A dialog that closes itself
    on failure keeps the toast, because its inline alert goes away with it.
-   `useEntityFormDialog` sets the suppression for every dialog built on it. The full rule,
+   A dialog on `useEntityFormDialog` gets its save mutation from a domain hook. That hook
+   declares the suppression. The full rule,
    including the query case, is in [frontend/ARCHITECTURE.md](../frontend/ARCHITECTURE.md).
 5. Client-side validation that never calls the mutation (e.g. "email required") may toast directly —
    it isn't a mutation result.

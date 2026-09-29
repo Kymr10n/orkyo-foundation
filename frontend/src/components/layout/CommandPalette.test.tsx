@@ -1,9 +1,11 @@
 /** @jsxImportSource react */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router';
 import { CommandPalette } from './CommandPalette';
+import { useSiteStore } from '@foundation/src/store/site-store';
 import { useCanEdit, useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
 import * as searchApi from '@foundation/src/lib/api/search-api';
 import type { SearchResponse, SearchResult } from '@foundation/src/lib/api/search-api';
@@ -21,17 +23,6 @@ vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
       { key: 'tool', displayNamePlural: 'Tools', hasGeometry: false },
       { key: 'delivery_van', displayNamePlural: 'Vans', hasGeometry: false },
     ],
-  }),
-}));
-
-// Mock the store
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector) => {
-    const state = {
-      selectedSiteId: 'site-1',
-      setSelectedSiteId: vi.fn(),
-    };
-    return selector(state);
   }),
 }));
 
@@ -66,7 +57,7 @@ const mockSearchResponse: SearchResponse = {
 };
 
 function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: boolean) => void }) {
-  return render(
+  return renderWithQuery(
       <BrowserRouter>
       <CommandPalette open={props.open} onOpenChange={props.onOpenChange ?? vi.fn()} />
     </BrowserRouter>
@@ -75,7 +66,7 @@ function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: bool
 
 describe('CommandPalette', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    useSiteStore.setState({ selectedSiteId: 'site-1' });
     vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: '', results: [] });
     // usePermissions hooks are globally mocked to true (src/test/setup.ts); reset each test.
     vi.mocked(useCanEdit).mockReturnValue(true);
@@ -147,6 +138,48 @@ describe('CommandPalette', () => {
           limit: 20,
         });
       }, { timeout: 500 });
+    });
+
+    it('shows no results, rather than a stale list, when the search fails', async () => {
+      vi.mocked(searchApi.globalSearch).mockRejectedValue(new Error('Search down'));
+      renderCommandPalette({ open: true });
+
+      await userEvent.type(screen.getByPlaceholderText(/search/i), 'conference');
+
+      await waitFor(() => expect(searchApi.globalSearch).toHaveBeenCalled());
+      await waitFor(() => expect(screen.queryByLabelText(/loading/i)).not.toBeInTheDocument());
+      expect(await screen.findByText(/No results found for "conference"/)).toBeInTheDocument();
+    });
+
+    it('clears the results at once when the query is emptied', async () => {
+      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
+      renderCommandPalette({ open: true });
+      const input = screen.getByPlaceholderText(/search/i);
+
+      await userEvent.type(input, 'conference');
+      expect(await screen.findByText('Conference Room A')).toBeInTheDocument();
+
+      await userEvent.clear(input);
+      expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
+    });
+
+    it('does not show the previous answer under a new query while its debounce runs', async () => {
+      vi.mocked(searchApi.globalSearch).mockResolvedValue(mockSearchResponse);
+      renderCommandPalette({ open: true });
+      const input = screen.getByPlaceholderText(/search/i);
+
+      await userEvent.type(input, 'conference');
+      expect(await screen.findByText('Conference Room A')).toBeInTheDocument();
+      await userEvent.clear(input);
+
+      vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: 'x', results: [] });
+      await userEvent.type(input, 'x');
+      // Before the 200 ms debounce: nothing, not the cached "conference" list.
+      expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(searchApi.globalSearch).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'x' })),
+      );
+      expect(await screen.findByText(/No results found for "x"/)).toBeInTheDocument();
     });
 
     it('displays search results', async () => {
@@ -376,7 +409,7 @@ describe('CommandPalette', () => {
   describe('search persistence', () => {
     it('preserves search query when dialog reopens', async () => {
       const onOpenChange = vi.fn();
-      const { rerender } = render(
+      const { rerender } = renderWithQuery(
         <BrowserRouter>
           <CommandPalette open={true} onOpenChange={onOpenChange} />
         </BrowserRouter>

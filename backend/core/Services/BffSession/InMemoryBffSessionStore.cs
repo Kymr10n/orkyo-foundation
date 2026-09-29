@@ -34,7 +34,6 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
             return Task.FromResult<BffSessionRecord?>(null);
         }
 
-        session.LastActivityAt = _time.GetUtcNow();
         return Task.FromResult<BffSessionRecord?>(session);
     }
 
@@ -53,6 +52,14 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         return Task.CompletedTask;
     }
 
+    public Task RemoveAllForUserAsync(string userId, CancellationToken ct = default)
+    {
+        foreach (var key in _sessions.Where(kvp => kvp.Value.UserId == userId).Select(kvp => kvp.Key).ToList())
+            _sessions.TryRemove(key, out _);
+
+        return Task.CompletedTask;
+    }
+
     public Task RefreshTokensAsync(string sessionId, string accessToken, string refreshToken, DateTimeOffset tokenExpiresAt, CancellationToken ct = default)
     {
         if (!_sessions.TryGetValue(sessionId, out var existing))
@@ -63,7 +70,6 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             TokenExpiresAt = tokenExpiresAt,
-            LastActivityAt = _time.GetUtcNow(),
         };
 
         _sessions[sessionId] = updated;
@@ -80,11 +86,7 @@ public sealed class InMemoryBffSessionStore : IBffSessionStore
         if (expiresAt <= existing.ExpiresAt)
             return Task.CompletedTask;
 
-        _sessions[sessionId] = existing with
-        {
-            ExpiresAt = expiresAt,
-            LastActivityAt = _time.GetUtcNow(),
-        };
+        _sessions[sessionId] = existing with { ExpiresAt = expiresAt };
 
         _logger.LogDebug("BFF session expiry slid: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
             sessionId[..8], expiresAt);

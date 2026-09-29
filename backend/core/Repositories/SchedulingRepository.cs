@@ -122,8 +122,8 @@ public class SchedulingRepository : ISchedulingRepository
                 p.AddWithValue("siteId", siteId);
                 p.AddWithValue("timeZone", request.TimeZone);
                 p.AddWithValue("workingHoursEnabled", request.WorkingHoursEnabled);
-                p.AddWithValue("workingDayStart", TimeSpan.Parse(request.WorkingDayStart));
-                p.AddWithValue("workingDayEnd", TimeSpan.Parse(request.WorkingDayEnd));
+                p.AddWithValue("workingDayStart", WorkingTime.Parse(request.WorkingDayStart).ToTimeSpan());
+                p.AddWithValue("workingDayEnd", WorkingTime.Parse(request.WorkingDayEnd).ToTimeSpan());
                 p.AddWithValue("weekendsEnabled", request.WeekendsEnabled);
                 p.AddWithValue("publicHolidaysEnabled", request.PublicHolidaysEnabled);
                 p.AddNullable("publicHolidayRegion", request.PublicHolidayRegion);

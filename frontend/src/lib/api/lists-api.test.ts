@@ -39,7 +39,6 @@ const ROW = 'row-1';
 
 describe('getListDefinitions', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(apiGet).mockResolvedValue([]);
   });
 
@@ -101,7 +100,6 @@ describe('LIST_COLUMN_DATA_TYPES', () => {
  */
 describe('lists-api routes', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(apiGet).mockResolvedValue([]);
     vi.mocked(apiPost).mockResolvedValue({});
     vi.mocked(apiPut).mockResolvedValue({});

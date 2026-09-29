@@ -12,10 +12,6 @@ import type * as ResourceAssignmentsApi from "@foundation/src/lib/api/resource-a
 import type { ResourceAssignmentOption } from "@foundation/src/lib/api/resource-candidate-requests-api";
 import type { ResourceAssignmentInfo, ValidationResult } from "@foundation/src/lib/api/resource-assignments-api";
 
-vi.mock("sonner", () => ({
-  toast: { error: vi.fn(), success: vi.fn() },
-}));
-
 vi.mock("@foundation/src/lib/api/resource-candidate-requests-api", () => ({
   getResourceAssignmentOptions: vi.fn(),
   mismatchCount: vi.fn((o: ResourceAssignmentOption) =>
@@ -44,6 +40,7 @@ import {
   validateAssignmentsBatch,
 } from "@foundation/src/lib/api/resource-assignments-api";
 import { renderWithQuery } from "@foundation/src/test-utils";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 const START = "2026-01-06T08:00:00Z";
 const END = "2026-01-06T10:00:00Z";
@@ -137,15 +134,17 @@ function renderDialog(
       end={END}
       {...overrides}
     />,
+    // A create or cancel invalidates through its mutation's meta, run by the feedback cache.
+    { feedback: true },
   );
 }
 
 describe("ResourceAssignmentDialog", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     // Default: assigned rows have no conflicts on load. Tests that assert the conflict
     // indicator override this with a non-empty batch result.
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([]);
+    vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
   it("shows loading then renders assigned and candidate rows", async () => {
@@ -262,6 +261,22 @@ describe("ResourceAssignmentDialog", () => {
     expect(msg.textContent).toMatch(/already passed/i);
   });
 
+  it("a Viewer sees the rows read-only: checkboxes disabled and a row click assigns nothing", async () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
+    vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION, CLEAN_CANDIDATE]);
+    renderDialog();
+    await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
+
+    for (const checkbox of screen.getAllByTestId("assignment-checkbox")) {
+      expect(checkbox).toBeDisabled();
+    }
+    await userEvent.click(screen.getByText("Request Gamma"));
+    await userEvent.click(screen.getByText("Request Alpha"));
+    expect(validateAssignment).not.toHaveBeenCalled();
+    expect(createAssignment).not.toHaveBeenCalled();
+    expect(cancelAssignment).not.toHaveBeenCalled();
+  });
+
   it("remove: unchecking an assigned row calls cancelAssignment and invalidates cache", async () => {
     vi.mocked(getResourceAssignmentOptions).mockResolvedValue([ASSIGNED_OPTION]);
     vi.mocked(cancelAssignment).mockResolvedValue(undefined);
@@ -270,8 +285,8 @@ describe("ResourceAssignmentDialog", () => {
     const checkbox = screen.getByTestId("assignment-checkbox");
     await userEvent.click(checkbox);
     expect(cancelAssignment).toHaveBeenCalledWith("asgn-1");
-    // Cancelling an assignment routes through invalidateRequestData — refreshes the full
-    // request-derived set (occupancy grids, request lists, conflicts, insights).
+    // Cancelling an assignment refreshes the full request-derived set (occupancy grids,
+    // request lists, conflicts, insights).
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith(
         expect.objectContaining({ queryKey: ["utilization-by-resource"] }),
@@ -441,11 +456,13 @@ describe("ResourceAssignmentDialog", () => {
     await waitFor(() => expect(screen.getByText("Request Gamma")).toBeInTheDocument());
     await userEvent.click(screen.getByTestId("assignment-checkbox"));
     await waitFor(() => expect(createAssignment).toHaveBeenCalled());
-    // Routed through invalidateRequestData, so an assignment change now refreshes the request lists,
-    // conflict badges, and insights charts too — not just the occupancy grids it used to.
-    for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
-      expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
-    }
+    // An assignment change refreshes the request lists, conflict badges, and insights charts
+    // too — not just the occupancy grids it used to.
+    await waitFor(() => {
+      for (const queryKey of REQUEST_DERIVED_QUERY_KEYS) {
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey }));
+      }
+    });
   });
 
   it("filters the list by search input", async () => {

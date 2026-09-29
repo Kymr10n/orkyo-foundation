@@ -3,16 +3,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SchedulingSettings } from './SchedulingSettings';
-import { useIsTenantAdmin } from '@foundation/src/hooks/usePermissions';
+import { useCanEdit } from '@foundation/src/hooks/usePermissions';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
-const mockUseAppStore = vi.fn();
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: (sel: any) => mockUseAppStore(sel),
-}));
-
-// Availability-event write actions are admin-gated; useIsTenantAdmin is globally mocked
-// to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
-// affordances and the two read-only tests below override it.
+// Availability-event write actions are gated on useCanEdit (Editor+), which is globally
+// mocked to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
+// affordances and the two Viewer tests below override it.
 
 const mockSettings = {
   timeZone: 'Europe/Berlin',
@@ -28,8 +24,6 @@ const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: mockSettings,
 const mockUseAvailabilityEvents = vi.fn((_?: any): any => ({ data: [], isLoading: false }));
 const mockUpsertMutateAsync = vi.fn();
 const mockDeleteSettingsMutateAsync = vi.fn();
-const mockCreateEventMutateAsync = vi.fn();
-const mockUpdateEventMutateAsync = vi.fn();
 const mockDeleteEventMutateAsync = vi.fn();
 
 vi.mock('@foundation/src/hooks/useScheduling', () => ({
@@ -37,29 +31,15 @@ vi.mock('@foundation/src/hooks/useScheduling', () => ({
   useUpsertSchedulingSettings: () => ({ mutateAsync: mockUpsertMutateAsync }),
   useDeleteSchedulingSettings: () => ({ mutateAsync: mockDeleteSettingsMutateAsync }),
   useAvailabilityEvents: (siteId: any) => mockUseAvailabilityEvents(siteId),
-  useCreateAvailabilityEvent: () => ({ mutateAsync: mockCreateEventMutateAsync }),
-  useUpdateAvailabilityEvent: () => ({ mutateAsync: mockUpdateEventMutateAsync }),
   useDeleteAvailabilityEvent: () => ({ mutateAsync: mockDeleteEventMutateAsync }),
 }));
 
-// AvailabilityEventDialog mock exposes onSave so handleSaveEvent can be tested
+// The dialog saves through its own hook; the mock shows which event it was opened for and
+// closes the way the real one does after a save.
 vi.mock('./AvailabilityEventDialog', () => ({
-  AvailabilityEventDialog: ({ open, onSave }: any) =>
+  AvailabilityEventDialog: ({ open, event, onOpenChange }: any) =>
     open ? (
-      <button
-        data-testid="mock-event-save"
-        onClick={() =>
-          onSave({
-            title: 'Test Availability Event',
-            eventType: 'shutdown',
-            defaultEffect: 'closed',
-            startTs: '2026-12-24T00:00:00.000Z',
-            endTs: '2026-12-26T00:00:00.000Z',
-            enabled: true,
-            isRecurring: false,
-          })
-        }
-      >
+      <button data-testid="mock-event-save" data-event-id={event?.id ?? 'new'} onClick={() => onOpenChange(false)}>
         Save Availability Event
       </button>
     ) : null,
@@ -83,17 +63,12 @@ const mockAvailabilityEvent = {
 };
 
 function setup() {
-  vi.clearAllMocks();
-  vi.mocked(useIsTenantAdmin).mockReturnValue(true);
-  mockUseAppStore.mockImplementation((selector: any) =>
-    selector({ selectedSiteId: 'site-1' }),
-  );
+  vi.mocked(useCanEdit).mockReturnValue(true);
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
   mockUseSchedulingSettings.mockReturnValue({ data: mockSettings, isLoading: false });
   mockUseAvailabilityEvents.mockReturnValue({ data: [], isLoading: false });
   mockUpsertMutateAsync.mockResolvedValue(undefined);
   mockDeleteSettingsMutateAsync.mockResolvedValue(undefined);
-  mockCreateEventMutateAsync.mockResolvedValue(undefined);
-  mockUpdateEventMutateAsync.mockResolvedValue(undefined);
   mockDeleteEventMutateAsync.mockResolvedValue(undefined);
 }
 
@@ -128,15 +103,15 @@ describe('SchedulingSettings', () => {
     expect(screen.getByText('Add')).toBeInTheDocument();
   });
 
-  it('hides the Add button for non-admin editors', () => {
-    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
+  it('hides the Add button for Viewers', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
     render(<SchedulingSettings />);
     expect(screen.getByText('Availability Events')).toBeInTheDocument();
     expect(screen.queryByText('Add')).not.toBeInTheDocument();
   });
 
-  it('hides per-event edit/delete actions for non-admin editors', () => {
-    vi.mocked(useIsTenantAdmin).mockReturnValue(false);
+  it('hides per-event edit/delete actions for Viewers', () => {
+    vi.mocked(useCanEdit).mockReturnValue(false);
     mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
     // The event is still listed (read-only) but carries no action buttons.
@@ -146,9 +121,7 @@ describe('SchedulingSettings', () => {
   });
 
   it('shows "Select a site" when no site selected', () => {
-    mockUseAppStore.mockImplementation((selector: any) =>
-      selector({ selectedSiteId: null }),
-    );
+    useSiteStore.setState({ selectedSiteId: null });
     render(<SchedulingSettings />);
     expect(screen.getByText('Select a site to configure scheduling.')).toBeInTheDocument();
   });
@@ -273,19 +246,16 @@ describe('SchedulingSettings — interactions', () => {
     });
   });
 
-  it('saving from dialog creates an availability event', async () => {
+  it('opens the dialog for a new event, and closes it after the save', async () => {
     const user = userEvent.setup();
     render(<SchedulingSettings />);
 
     await user.click(screen.getByRole('button', { name: /^Add$/i }));
-    await waitFor(() => screen.getByTestId('mock-event-save'));
-    await user.click(screen.getByTestId('mock-event-save'));
+    const dialog = await screen.findByTestId('mock-event-save');
+    expect(dialog).toHaveAttribute('data-event-id', 'new');
+    await user.click(dialog);
 
-    await waitFor(() => {
-      expect(mockCreateEventMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Test Availability Event', eventType: 'shutdown' }),
-      );
-    });
+    expect(screen.queryByTestId('mock-event-save')).not.toBeInTheDocument();
   });
 
   it('clicking edit on an availability event opens dialog', async () => {
@@ -301,21 +271,18 @@ describe('SchedulingSettings — interactions', () => {
     });
   });
 
-  it('saving from edit dialog updates availability event', async () => {
+  it('opens the dialog on the event being edited', async () => {
     const user = userEvent.setup();
     mockUseAvailabilityEvents.mockReturnValue({ data: [mockAvailabilityEvent], isLoading: false });
     render(<SchedulingSettings />);
 
     const iconButtons = screen.getAllByRole('button').filter((b) => !b.textContent?.trim());
     await user.click(iconButtons[0]);
-    await waitFor(() => screen.getByTestId('mock-event-save'));
-    await user.click(screen.getByTestId('mock-event-save'));
 
-    await waitFor(() => {
-      expect(mockUpdateEventMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ eventId: mockAvailabilityEvent.id }),
-      );
-    });
+    expect(await screen.findByTestId('mock-event-save')).toHaveAttribute(
+      'data-event-id',
+      mockAvailabilityEvent.id,
+    );
   });
 
   it('deleting an availability event through confirm dialog fires handleDeleteEvent', async () => {

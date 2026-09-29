@@ -35,6 +35,7 @@
  */
 
 import type { ReactNode } from 'react';
+import { TooltipProvider } from "@foundation/src/components/ui/tooltip";
 import { useLocation, useNavigate } from 'react-router';
 import { useAuth, type TenantMembership } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, ROUTE_SIGNUP, ROUTE_CREATE_ACCOUNT, ROUTE_SITE_ADMIN, isPublicPath } from '@foundation/src/constants/auth';
@@ -67,12 +68,13 @@ export interface ApexGatewayProps {
   renderOnboardingExtraContent?: () => ReactNode;
 }
 
+/** Owns the apex pages' one `TooltipProvider` (UI-GUIDELINES §6) and toaster. */
 export function ApexGateway(props: ApexGatewayProps = {}) {
   return (
-    <>
+    <TooltipProvider delayDuration={300}>
       <ApexGatewayInner {...props} />
       <Toaster />
-    </>
+    </TooltipProvider>
   );
 }
 
@@ -173,7 +175,7 @@ function ApexGatewayInner({
               send({ type: AUTH_EVENTS.TENANT_SELECTED, membership }),
             onCancel: () => send({ type: AUTH_EVENTS.LOGOUT }),
             onAdminPage: canAccessAdminPage && renderAdminPage
-              ? () => navigate(ROUTE_SITE_ADMIN)
+              ? () => void navigate(ROUTE_SITE_ADMIN)
               : undefined,
           })}</>
         : <LoadingSpinner message={AUTH_MESSAGES.LOADING} />;

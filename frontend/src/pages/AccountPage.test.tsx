@@ -4,18 +4,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { AccountPage } from "@foundation/src/pages/AccountPage";
 import { createTestQueryClient } from "@foundation/src/test-utils";
+import { toast } from "sonner";
+import { mockAuth } from "@foundation/src/test-utils/auth";
+import type { TenantMembership } from "@foundation/src/contexts/AuthContext";
 
-const { mockToastSuccess, mockToastError, mockRefresh } = vi.hoisted(() => ({
-  mockToastSuccess: vi.fn(),
-  mockToastError: vi.fn(),
+const { mockRefresh } = vi.hoisted(() => ({
   mockRefresh: vi.fn(),
-}));
-
-vi.mock("sonner", () => ({
-  toast: {
-    success: mockToastSuccess,
-    error: mockToastError,
-  },
 }));
 
 // Mock navigate
@@ -31,35 +25,29 @@ vi.mock("react-router", async () => {
 // Mock AuthContext
 const mockSetMembership = vi.fn();
 const mockLogout = vi.fn();
-let mockMembership: { tenantId: string; slug: string } | null = null;
+let mockMembership: Partial<TenantMembership> | null = null;
 let mockIsSiteAdmin = false;
 const mockSend = vi.fn();
 const mockSetAppUser = vi.fn();
 
 vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => ({
-    membership: mockMembership,
-    setMembership: mockSetMembership,
-    logout: mockLogout,
-    send: mockSend,
-    refresh: mockRefresh,
-    user: { sub: "test-user", email: "test@example.com" },
-    appUser: {
-      id: "test-user",
-      email: "test@example.com",
-      displayName: "Alex Johnson",
-    },
-    isSiteAdmin: mockIsSiteAdmin,
-    setAppUser: mockSetAppUser,
-  }),
-  getAuthTokenSync: () => "test-token",
-  getTenantSlugSync: () => mockMembership?.slug || "demo",
+  useAuth: () =>
+    mockAuth({
+      membership: mockMembership,
+      setMembership: mockSetMembership,
+      logout: mockLogout,
+      send: mockSend,
+      refresh: mockRefresh,
+      appUser: { id: "test-user", email: "test@example.com", displayName: "Alex Johnson" },
+      isSiteAdmin: mockIsSiteAdmin,
+      setAppUser: mockSetAppUser,
+    }),
 }));
 
 // Mock tenant navigation
 vi.mock("@foundation/src/lib/utils/tenant-navigation", () => ({
   navigateToTenantSubdomain: vi.fn(() => false),
-  navigateToApex: vi.fn(() => false),
+  goToApex: vi.fn(),
 }));
 
 // Mock tenants-api
@@ -138,7 +126,6 @@ const createWrapper = (initialPath = "/account") => {
 
 describe("AccountPage", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockMembership = {
       tenantId: "tenant-1",
       slug: "acme-corp",
@@ -233,10 +220,10 @@ describe("AccountPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("admin")).toBeInTheDocument();
+      expect(screen.getByText("Admin")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("editor")).toBeInTheDocument();
+    expect(screen.getByText("Editor")).toBeInTheDocument();
   });
 
   it("marks active tenant", async () => {
@@ -377,7 +364,8 @@ describe("AccountPage", () => {
 
     // Verify the page renders with both tenants
     expect(screen.getByText("ACME Corporation")).toBeInTheDocument();
-    expect(screen.getByText("editor")).toBeInTheDocument(); // role badge
+    expect(screen.getByText("Editor")).toBeInTheDocument(); // role badge
+    expect(screen.getByRole("button", { name: "Leave Test Organization" })).toBeInTheDocument();
   });
 
   it("has delete button for owned tenant", async () => {
@@ -394,25 +382,8 @@ describe("AccountPage", () => {
     });
 
     // Verify owner badge is shown
-    expect(screen.getByText("admin")).toBeInTheDocument(); // role badge for owned tenant
-  });
-
-  it("sends UNAUTHORIZED to the machine when API returns 401", async () => {
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mockGetTenantMemberships.mockRejectedValue(new Error("401 Unauthorized"));
-
-    const Wrapper = createWrapper();
-
-    render(
-      <Wrapper>
-        <AccountPage />
-      </Wrapper>,
-    );
-
-    await waitFor(() => {
-      expect(mockSend).toHaveBeenCalledWith({ type: "UNAUTHORIZED" });
-    });
-    consoleSpy.mockRestore();
+    expect(screen.getByText("Admin")).toBeInTheDocument(); // role badge for owned tenant
+    expect(screen.getByRole("button", { name: "Delete ACME Corporation" })).toBeInTheDocument();
   });
 
   it("shows error when API fails", async () => {
@@ -634,11 +605,11 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastSuccess).toHaveBeenCalledWith("Your email address has been updated successfully.", {
+      expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Your email address has been updated.", {
         id: "email-change-confirmed",
       });
     });
-    expect(screen.queryByText("Your email address has been updated successfully.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Your email address has been updated.")).not.toBeInTheDocument();
     // refresh() must NOT be called on confirmed — it causes the auth machine to
     // cycle back through `initializing`, unmounting TenantApp's Toaster before
     // the toast can render (regression guard for the confirmed-toast bug fix).
@@ -650,7 +621,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith("Could not confirm email change", {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith("Could not confirm email change", {
         id: "email-change-error",
         description: "Please try again.",
       });
@@ -667,7 +638,7 @@ describe("AccountPage", () => {
     render(<Wrapper><AccountPage /></Wrapper>);
 
     await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(title, {
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(title, {
         id: `email-change-${status}`,
         description,
       });
@@ -873,6 +844,10 @@ describe("AccountPage", () => {
     });
 
     const confirmDeleteBtn = screen.getByRole("button", { name: /delete organization/i });
+    // Type-to-confirm, as on the organization settings page: the slug unlocks the button.
+    expect(confirmDeleteBtn).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: "acme-corp" } });
+    expect(confirmDeleteBtn).toBeEnabled();
     fireEvent.click(confirmDeleteBtn);
 
     await waitFor(() => {
@@ -901,6 +876,7 @@ describe("AccountPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Delete Organization?")).toBeInTheDocument();
     });
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: "acme-corp" } });
     fireEvent.click(screen.getByRole("button", { name: /delete organization/i }));
 
     await waitFor(() => {

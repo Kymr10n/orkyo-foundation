@@ -7,7 +7,7 @@
  * cleanly back to /site-admin.
  *
  * The banner reconciles with the backend on mount via
- * `getBreakGlassSessionStatus` so the absolute hard cap and createdAt are
+ * `useBreakGlassSessionStatus` so the absolute hard cap and createdAt are
  * authoritative even when the page was reloaded mid-session.
  */
 import { useCallback, useEffect, useState } from 'react';
@@ -17,14 +17,13 @@ import { Clock, RefreshCw, Shield, X } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { ROUTE_SITE_ADMIN } from '@foundation/src/constants/auth';
+import type { BreakGlassSessionStatus } from '@foundation/src/lib/api/admin-api';
 import {
-  type BreakGlassSessionStatus,
-  auditBreakGlassExit,
-  getBreakGlassSessionStatus,
-  renewBreakGlassSession,
-} from '@foundation/src/lib/api/admin-api';
-import { navigateToApex } from '@foundation/src/lib/utils/tenant-navigation';
-import { logger } from '@foundation/src/lib/core/logger';
+  useAuditBreakGlassExit,
+  useBreakGlassSessionStatus,
+  useRenewBreakGlassSession,
+} from '@foundation/src/hooks/useBreakGlassSession';
+import { goToApex } from '@foundation/src/lib/utils/tenant-navigation';
 
 /**
  * Below this threshold we switch the banner to a destructive treatment to
@@ -52,12 +51,15 @@ interface BannerProps {
 
 export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
   const { membership, clearMembership } = useAuth();
-  const [session, setSession] = useState<BreakGlassSessionStatus | null>(null);
-  const [renewing, setRenewing] = useState(false);
+  const [renewed, setRenewed] = useState<BreakGlassSessionStatus | null>(null);
   const [tick, setTick] = useState(now());
 
   const sessionId = membership?.breakGlassSessionId;
   const tenantSlug = membership?.slug;
+  const status = useBreakGlassSessionStatus(membership?.isBreakGlass && tenantSlug ? tenantSlug : null);
+  const session = renewed ?? status.data ?? null;
+  const { mutate: renew, isPending: renewing } = useRenewBreakGlassSession();
+  const { mutate: auditExit } = useAuditBreakGlassExit();
 
   const handleExit = useCallback(() => {
     const id = sessionId;
@@ -67,34 +69,16 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
     // auth machine in a transitional state that produces a blank screen. The flash
     // prevention is handled by the inline theme script in index.html, so a
     // full reload is now flash-free.
-    if (!navigateToApex(ROUTE_SITE_ADMIN)) {
-      window.location.href = ROUTE_SITE_ADMIN;
-    }
-    if (id) {
-      auditBreakGlassExit(id).catch((err: unknown) => {
-        logger.warn('Failed to audit break-glass exit:', err);
-      });
-    }
-  }, [clearMembership, sessionId]);
+    goToApex(ROUTE_SITE_ADMIN);
+    if (id) auditExit(id);
+  }, [clearMembership, sessionId, auditExit]);
 
-  // Initial reconciliation with the backend so we have the authoritative hard cap.
+  // Server says no active session — the session expired or was revoked externally
+  // (e.g. server restart, another admin). Exit gracefully. A failed read leaves `data`
+  // undefined: it says nothing about the session, so the admin stays in without the hard cap.
   useEffect(() => {
-    if (!membership?.isBreakGlass || !tenantSlug) return;
-    let cancelled = false;
-    getBreakGlassSessionStatus(tenantSlug).then((status) => {
-      if (cancelled) return;
-      if (status) {
-        setSession(status);
-      } else {
-        // Server says no active session — the session expired or was revoked
-        // externally (e.g. server restart, another admin). Exit gracefully.
-        handleExit();
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [membership?.isBreakGlass, tenantSlug, handleExit]);
+    if (status.data === null) handleExit();
+  }, [status.data, handleExit]);
 
   // 1Hz tick for the countdown text.
   useEffect(() => {
@@ -111,18 +95,9 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
   const canExtend = absoluteExpiresAtMs != null ? tick < absoluteExpiresAtMs : true;
   const isUrgent = remainingMs != null && remainingMs <= URGENT_THRESHOLD_MS;
 
-  const handleExtend = async () => {
+  const handleExtend = () => {
     if (!sessionId || renewing) return;
-    setRenewing(true);
-    try {
-      const renewed = await renewBreakGlassSession(sessionId);
-      setSession(renewed);
-    } catch (err) {
-      // handleApiError already routes 410 / 404 cases. Anything else is a no-op.
-      logger.warn('Break-glass renewal failed:', err);
-    } finally {
-      setRenewing(false);
-    }
+    renew(sessionId, { onSuccess: setRenewed });
   };
 
   // Auto-exit when the local clock crosses ExpiresAt with no successful renewal.
@@ -163,9 +138,7 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
           variant="outline"
           size="sm"
           disabled={renewing || !canExtend || !sessionId}
-          onClick={() => {
-            void handleExtend();
-          }}
+          onClick={handleExtend}
           data-testid="break-glass-extend"
         >
           <RefreshCw className={`h-3.5 w-3.5 mr-1 ${renewing ? 'animate-spin' : ''}`} />
@@ -179,7 +152,7 @@ export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
           data-testid="break-glass-exit"
         >
           <X className="h-3.5 w-3.5 mr-1" />
-          Exit tenant
+          Exit organization
         </Button>
       </div>
     </div>

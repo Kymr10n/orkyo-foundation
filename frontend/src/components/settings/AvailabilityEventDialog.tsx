@@ -34,16 +34,14 @@ import {
   type CreateAvailabilityEventRequest,
   type UpdateAvailabilityEventRequest,
 } from "@foundation/src/lib/api/availability-events-api";
-import { errorMessage } from "@foundation/src/hooks/mutation-utils";
-
-type EventFormData = CreateAvailabilityEventRequest | UpdateAvailabilityEventRequest;
+import { useEntityFormDialog } from "@foundation/src/hooks/useEntityFormDialog";
+import { useSaveAvailabilityEvent } from "@foundation/src/hooks/useScheduling";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   siteId: string;
   event: AvailabilityEventInfo | null;
-  onSave: (data: EventFormData) => Promise<void>;
 }
 
 const EVENT_TYPES: { value: AvailabilityEventType; label: string }[] = [
@@ -348,120 +346,107 @@ function ServerAddScopeForm({
 
 // ── Main dialog ──────────────────────────────────────────────────────────────
 
-export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onSave }: Props) {
+interface EventForm {
+  title: string;
+  eventType: AvailabilityEventType;
+  defaultEffect: DefaultEffect;
+  startLocal: string;
+  endLocal: string;
+  isRecurring: boolean;
+  recurrenceRule: string;
+  enabled: boolean;
+  /** Overrides gathered while creating; sent with the create. Editing writes each at once. */
+  draftScopes: ScopeDraft[];
+}
 
-  const [title, setTitle] = useState("");
-  const [eventType, setEventType] = useState<AvailabilityEventType>("public_holiday");
-  const [defaultEffect, setDefaultEffect] = useState<DefaultEffect>("closed");
-  const [startLocal, setStartLocal] = useState("");
-  const [endLocal, setEndLocal] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [recurrenceRule, setRecurrenceRule] = useState("");
-  const [enabled, setEnabled] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const EMPTY_EVENT: EventForm = {
+  title: "",
+  eventType: "public_holiday",
+  defaultEffect: "closed",
+  startLocal: "",
+  endLocal: "",
+  isRecurring: false,
+  recurrenceRule: "",
+  enabled: true,
+  draftScopes: [],
+};
+
+function fromEvent(event: AvailabilityEventInfo): EventForm {
+  return {
+    title: event.title,
+    eventType: event.eventType,
+    defaultEffect: event.defaultEffect,
+    startLocal: toDateTimeLocalValue(event.startTs),
+    endLocal: toDateTimeLocalValue(event.endTs),
+    isRecurring: event.isRecurring,
+    recurrenceRule: event.recurrenceRule ?? "",
+    enabled: event.enabled,
+    draftScopes: [],
+  };
+}
+
+/** The rules the dialog states as a message; the first one broken is shown. */
+function validateEvent(form: EventForm): string | null {
+  if (!form.title.trim()) return "Title is required.";
+  if (!form.startLocal || !form.endLocal) return "Start and end dates are required.";
+  const start = new Date(form.startLocal).getTime();
+  const end = new Date(form.endLocal).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) {
+    return "Start must be before end.";
+  }
+  if (form.isRecurring && !form.recurrenceRule.trim()) {
+    return "Recurrence rule is required when recurring is enabled.";
+  }
+  return null;
+}
+
+export function AvailabilityEventDialog({ open, onOpenChange, siteId, event }: Props) {
+  // The add-override form is transient: it closes whenever the dialog does.
   const [showAddScope, setShowAddScope] = useState(false);
-  const [draftScopes, setDraftScopes] = useState<ScopeDraft[]>([]);
-  // JSON snapshot of the form as last synced from the event/defaults; the dirty
-  // guard compares the live fields against it to detect unsaved edits.
-  const [baseline, setBaseline] = useState("");
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setShowAddScope(false);
+    onOpenChange(next);
+  };
+
+  const mutation = useSaveAvailabilityEvent(siteId);
+  const { form, set, setForm, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
+    open,
+    onOpenChange: handleOpenChange,
+    entity: event,
+    emptyForm: () => EMPTY_EVENT,
+    toForm: fromEvent,
+    mutation,
+    validate: validateEvent,
+    toVariables: (f: EventForm, e: AvailabilityEventInfo | null) => {
+      const data: CreateAvailabilityEventRequest & UpdateAvailabilityEventRequest = {
+        title: f.title.trim(),
+        eventType: f.eventType,
+        defaultEffect: f.defaultEffect,
+        startTs: new Date(f.startLocal).toISOString(),
+        endTs: new Date(f.endLocal).toISOString(),
+        isRecurring: f.isRecurring,
+        recurrenceRule: f.isRecurring ? f.recurrenceRule.trim() : undefined,
+        enabled: f.enabled,
+      };
+      // Only attach draft scopes when creating; in edit mode scopes are
+      // managed server-side via add/delete mutations.
+      if (!e && f.draftScopes.length > 0) data.scopes = f.draftScopes;
+      return e ? { id: e.id, data } : { id: null, data };
+    },
+  });
+  const { title, eventType, defaultEffect, startLocal, endLocal, isRecurring, recurrenceRule, enabled, draftScopes } = form;
 
   // Live scopes state (optimistic-ish: re-read from event prop, refreshed via query invalidation)
   const serverScopes = event?.scopes ?? [];
 
-  // Reseed on open / event swap — a render-phase update, not an effect (see useEntityFormDialog.ts).
-  const [synced, setSynced] = useState<{ open: boolean; event: typeof event } | null>(null);
-  if (synced?.open !== open || synced.event !== event) {
-    setSynced({ open, event });
-    if (open) {
-      setTitle(event?.title ?? "");
-      setEventType(event?.eventType ?? "public_holiday");
-      setDefaultEffect(event?.defaultEffect ?? "closed");
-      setStartLocal(event ? toDateTimeLocalValue(event.startTs) : "");
-      setEndLocal(event ? toDateTimeLocalValue(event.endTs) : "");
-      setIsRecurring(event?.isRecurring ?? false);
-      setRecurrenceRule(event?.recurrenceRule ?? "");
-      setEnabled(event?.enabled ?? true);
-      setError(null);
-      setShowAddScope(false);
-      setDraftScopes([]);
-      setBaseline(
-        JSON.stringify({
-          title: event?.title ?? "",
-          eventType: event?.eventType ?? "public_holiday",
-          defaultEffect: event?.defaultEffect ?? "closed",
-          startLocal: event ? toDateTimeLocalValue(event.startTs) : "",
-          endLocal: event ? toDateTimeLocalValue(event.endTs) : "",
-          isRecurring: event?.isRecurring ?? false,
-          recurrenceRule: event?.recurrenceRule ?? "",
-          enabled: event?.enabled ?? true,
-          draftScopes: [] as ScopeDraft[],
-        }),
-      );
-    }
-  }
-
-  const isDirty = useMemo(
-    () =>
-      JSON.stringify({
-        title,
-        eventType,
-        defaultEffect,
-        startLocal,
-        endLocal,
-        isRecurring,
-        recurrenceRule,
-        enabled,
-        draftScopes,
-      }) !== baseline,
-    [title, eventType, defaultEffect, startLocal, endLocal, isRecurring, recurrenceRule, enabled, draftScopes, baseline],
-  );
-
-  const handleSubmit = async () => {
-    setError(null);
-    if (!title.trim()) { setError("Title is required."); return; }
-    if (!startLocal || !endLocal) { setError("Start and end dates are required."); return; }
-    const start = new Date(startLocal).getTime();
-    const end = new Date(endLocal).getTime();
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) {
-      setError("Start must be before end."); return;
-    }
-    if (isRecurring && !recurrenceRule.trim()) {
-      setError("Recurrence rule is required when recurring is enabled."); return;
-    }
-    setSaving(true);
-    try {
-      const payload: CreateAvailabilityEventRequest & UpdateAvailabilityEventRequest = {
-        title: title.trim(),
-        eventType,
-        defaultEffect,
-        startTs: new Date(startLocal).toISOString(),
-        endTs: new Date(endLocal).toISOString(),
-        isRecurring,
-        recurrenceRule: isRecurring ? recurrenceRule.trim() : undefined,
-        enabled,
-      };
-      // Only attach draft scopes when creating; in edit mode scopes are
-      // managed server-side via add/delete mutations.
-      if (!event && draftScopes.length > 0) {
-        payload.scopes = draftScopes;
-      }
-      await onSave(payload);
-    } catch (err) {
-      setError(errorMessage(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title={event ? "Edit Availability Event" : "Add Availability Event"}
       description="Define a period that changes resource availability for this site."
-      onSubmit={handleSubmit}
-      isSubmitting={saving}
+      onSubmit={submit}
+      isSubmitting={isSubmitting}
       submitLabel={event ? "Update" : "Create"}
       error={error}
       dirty={isDirty}
@@ -472,7 +457,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
             <Input
               id="ae-title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => set({ title: e.target.value })}
               placeholder="e.g., Christmas shutdown"
             />
           </div>
@@ -481,7 +466,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="ae-type">Type</Label>
-              <Select value={eventType} onValueChange={(v) => setEventType(v as AvailabilityEventType)}>
+              <Select value={eventType} onValueChange={(v) => set({ eventType: v as AvailabilityEventType })}>
                 <SelectTrigger id="ae-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {EVENT_TYPES.map((t) => (
@@ -492,7 +477,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="ae-effect">Default effect</Label>
-              <Select value={defaultEffect} onValueChange={(v) => setDefaultEffect(v as DefaultEffect)}>
+              <Select value={defaultEffect} onValueChange={(v) => set({ defaultEffect: v as DefaultEffect })}>
                 <SelectTrigger id="ae-effect"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {DEFAULT_EFFECTS.map((e) => (
@@ -515,7 +500,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
               <DateTimePicker
                 id="ae-start"
                 value={startLocal}
-                onChange={setStartLocal}
+                onChange={(value) => set({ startLocal: value })}
                 placeholder="Pick start time"
               />
             </div>
@@ -524,7 +509,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
               <DateTimePicker
                 id="ae-end"
                 value={endLocal}
-                onChange={setEndLocal}
+                onChange={(value) => set({ endLocal: value })}
                 placeholder="Pick end time"
               />
             </div>
@@ -533,11 +518,11 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
           {/* Toggles */}
           <div className="flex items-center justify-between">
             <Label htmlFor="ae-enabled" className="cursor-pointer">Enabled</Label>
-            <Switch id="ae-enabled" checked={enabled} onCheckedChange={setEnabled} />
+            <Switch id="ae-enabled" checked={enabled} onCheckedChange={(checked) => set({ enabled: checked })} />
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="ae-recurring" className="cursor-pointer">Recurring</Label>
-            <Switch id="ae-recurring" checked={isRecurring} onCheckedChange={setIsRecurring} />
+            <Switch id="ae-recurring" checked={isRecurring} onCheckedChange={(checked) => set({ isRecurring: checked })} />
           </div>
           {isRecurring && (
             <div className="space-y-1.5">
@@ -545,7 +530,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
               <Input
                 id="ae-rrule"
                 value={recurrenceRule}
-                onChange={(e) => setRecurrenceRule(e.target.value)}
+                onChange={(e) => set({ recurrenceRule: e.target.value })}
                 placeholder="FREQ=YEARLY;BYMONTH=12;BYMONTHDAY=24"
               />
             </div>
@@ -582,7 +567,7 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
               ) : (
                 <AddScopeForm
                   onAdd={(req) => {
-                    setDraftScopes((prev) => [...prev, req]);
+                    setForm((prev) => ({ ...prev, draftScopes: [...prev.draftScopes, req] }));
                     setShowAddScope(false);
                   }}
                 />
@@ -618,7 +603,10 @@ export function AvailabilityEventDialog({ open, onOpenChange, siteId, event, onS
                       key={`${scope.targetType}:${scope.targetId}:${idx}`}
                       scope={scope}
                       onDelete={() =>
-                        setDraftScopes((prev) => prev.filter((_, i) => i !== idx))
+                        setForm((prev) => ({
+                          ...prev,
+                          draftScopes: prev.draftScopes.filter((_, i) => i !== idx),
+                        }))
                       }
                     />
                   ))}

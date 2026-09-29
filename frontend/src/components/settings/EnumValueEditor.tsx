@@ -54,6 +54,7 @@ export function EnumValueEditor({
           variant="outline"
           onClick={handleAdd}
           disabled={disabled || !input.trim()}
+          aria-label="Add value"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -68,6 +69,7 @@ export function EnumValueEditor({
                 onClick={() => handleRemove(value)}
                 disabled={disabled}
                 className="ml-1 hover:text-destructive"
+                aria-label={`Remove ${value}`}
               >
                 <X className="h-3 w-3" />
               </button>

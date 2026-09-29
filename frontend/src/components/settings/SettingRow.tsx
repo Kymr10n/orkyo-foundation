@@ -7,7 +7,6 @@ import { Switch } from "@foundation/src/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
 import { RotateCcw, Info } from "lucide-react";
@@ -48,7 +47,6 @@ export function SettingRow({
             </Badge>
           )}
           {modified && (
-            <TooltipProvider delayDuration={300}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -65,7 +63,6 @@ export function SettingRow({
                 </TooltipTrigger>
                 <TooltipContent>Reset to default</TooltipContent>
               </Tooltip>
-            </TooltipProvider>
           )}
         </div>
         <p className="text-xs text-muted-foreground">{descriptor.description}</p>
@@ -92,7 +89,6 @@ export function SettingRow({
               modified
             </Badge>
           )}
-          <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
@@ -109,7 +105,6 @@ export function SettingRow({
                 </p>
               </TooltipContent>
             </Tooltip>
-          </TooltipProvider>
         </div>
         <p className="text-xs text-muted-foreground">{descriptor.description}</p>
       </div>
@@ -164,7 +159,6 @@ export function SettingRow({
         </div>
 
         {modified && (
-          <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -181,7 +175,6 @@ export function SettingRow({
               </TooltipTrigger>
               <TooltipContent>Reset to default ({descriptor.defaultValue})</TooltipContent>
             </Tooltip>
-          </TooltipProvider>
         )}
       </div>
     </div>

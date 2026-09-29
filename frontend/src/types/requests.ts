@@ -56,6 +56,7 @@ export interface Conflict {
     | "after_latest_end"
     | "starts_in_off_time"
     | "resource_unavailable"
+    | "site_mismatch"
     | "insufficient_working_time"
     | "capacity_exceeded"
     | "dependency_violation";

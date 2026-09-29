@@ -1,22 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     API_BASE_URL,
+    ApiError,
     getApiHeaders,
     getTenantSlug,
     handleApiError,
 } from './api-utils';
 import { runtimeConfig } from '../../config/runtime';
-import * as AuthContext from '../../contexts/AuthContext';
 
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  getAuthTokenSync: vi.fn(),
-  getTenantSlugSync: vi.fn(),
-}));
-
-const { mockRedirectToLogin, mockNavigateToApex } = vi.hoisted(() => ({
+const { mockRedirectToLogin, mockGoToApex } = vi.hoisted(() => ({
   mockRedirectToLogin: vi.fn(),
-  mockNavigateToApex: vi.fn(() => true),
+  mockGoToApex: vi.fn(),
 }));
 
 vi.mock(import('@foundation/src/lib/utils/tenant-navigation'), async (importOriginal) => {
@@ -24,7 +19,7 @@ vi.mock(import('@foundation/src/lib/utils/tenant-navigation'), async (importOrig
   return {
     ...actual,
     redirectToLogin: () => mockRedirectToLogin(),
-    navigateToApex: mockNavigateToApex,
+    goToApex: mockGoToApex,
   };
 });
 
@@ -37,10 +32,6 @@ vi.mock('@foundation/src/lib/core/csrf', () => ({
 describe('api-utils', () => {
   const originalLocation = window.location;
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   afterEach(() => {
     Object.defineProperty(window, 'location', {
       writable: true,
@@ -50,7 +41,7 @@ describe('api-utils', () => {
 
   describe('getApiHeaders', () => {
     it('includes Content-Type and tenant slug', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
 
       const headers = getApiHeaders();
 
@@ -59,7 +50,7 @@ describe('api-utils', () => {
     });
 
     it('includes tenant slug when available', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('acme');
+      localStorage.setItem('tenant_slug', 'acme');
 
       const headers = getApiHeaders();
 
@@ -67,7 +58,7 @@ describe('api-utils', () => {
     });
 
     it('includes X-Correlation-ID as a valid UUID', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
 
       const headers = getApiHeaders();
 
@@ -79,7 +70,7 @@ describe('api-utils', () => {
     });
 
     it('generates unique correlation IDs per call', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
 
       const id1 = getApiHeaders()['X-Correlation-ID'];
       const id2 = getApiHeaders()['X-Correlation-ID'];
@@ -97,7 +88,7 @@ describe('api-utils', () => {
     });
 
     it('extracts tenant from subdomain when baseDomain is set', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('default');
+      localStorage.setItem('tenant_slug', 'default');
       delete (window as any).location;
       (window as any).location = { hostname: 'acme.orkyo.app' };
       // Set baseDomain via runtimeConfig for testing
@@ -109,7 +100,7 @@ describe('api-utils', () => {
     });
 
     it('uses auth store for localhost', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
       delete (window as any).location;
       (window as any).location = { hostname: 'localhost' };
       (runtimeConfig as any).baseDomain = '';
@@ -120,7 +111,7 @@ describe('api-utils', () => {
     });
 
     it('uses auth store when baseDomain is not set', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue('demo');
+      localStorage.setItem('tenant_slug', 'demo');
       delete (window as any).location;
       (window as any).location = { hostname: 'orkyo.endpoint.servebeer.com' };
       (runtimeConfig as any).baseDomain = '';
@@ -131,16 +122,14 @@ describe('api-utils', () => {
       expect(slug).toBe('demo');
     });
 
-    it('falls back to active_membership slug when tenant_slug is missing', () => {
-      vi.mocked(AuthContext.getTenantSlugSync).mockReturnValue(null);
+    it('no longer reads the legacy active_membership entry', () => {
+      localStorage.removeItem('tenant_slug');
       delete (window as any).location;
       (window as any).location = { hostname: 'localhost' };
       (runtimeConfig as any).baseDomain = '';
       localStorage.setItem('active_membership', JSON.stringify({ slug: 'demo' }));
 
-      const slug = getTenantSlug();
-
-      expect(slug).toBe('demo');
+      expect(getTenantSlug()).toBe('');
     });
   });
 
@@ -152,16 +141,48 @@ describe('api-utils', () => {
   });
 
   describe('handleApiError', () => {
-    it('throws error with status and message', async () => {
+    it('throws an ApiError carrying status, code and the plain message', async () => {
       const response = {
         status: 500,
         statusText: 'Internal Server Error',
-        json: async () => ({ detail: 'Database connection failed' }),
+        json: async () => ({ detail: 'Database connection failed', code: 'internal_error' }),
       } as Response;
 
-      await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (500): Database connection failed'
-      );
+      const err = await handleApiError(response).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect(err).toMatchObject({
+        status: 500,
+        code: 'internal_error',
+        message: 'Database connection failed',
+      });
+    });
+
+    it('shows the frontend text for a code that has one, not the server detail', async () => {
+      const response = {
+        status: 502,
+        statusText: 'Bad Gateway',
+        json: async () => ({
+          detail: 'Could not send the confirmation email. Please try again later.',
+          code: 'email_delivery_failed',
+        }),
+      } as Response;
+
+      const err = await handleApiError(response).catch((e: unknown) => e);
+      expect(err).toMatchObject({
+        status: 502,
+        code: 'email_delivery_failed',
+        message: 'We could not send the confirmation email. Check the address and try again later.',
+      });
+    });
+
+    it('falls back to the status when the response carries no message at all', async () => {
+      const response = {
+        status: 502,
+        statusText: '',
+        json: async () => ({}),
+      } as Response;
+
+      await expect(handleApiError(response)).rejects.toThrow('Request failed (502)');
     });
 
     it('uses statusText when JSON parsing fails', async () => {
@@ -174,12 +195,11 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (404): Not Found'
+        'Not Found'
       );
     });
 
     it('handles 401 token error by clearing app state and redirecting', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
       localStorage.setItem('oidc.user:test', '{"access_token":"token"}');
 
@@ -195,7 +215,6 @@ describe('api-utils', () => {
       );
 
       // App keys cleared
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
       // oidc.* keys left intact — UserManager owns those
       expect(localStorage.getItem('oidc.user:test')).toBe('{"access_token":"token"}');
@@ -232,7 +251,6 @@ describe('api-utils', () => {
     });
 
     it('handles 401 API key error by clearing session', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
       localStorage.setItem('oidc.user:test', '{"access_token":"token"}');
 
@@ -248,7 +266,6 @@ describe('api-utils', () => {
       );
 
       // Session state cleared
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
       // oidc.* keys left intact — UserManager owns those
       expect(localStorage.getItem('oidc.user:test')).toBe('{"access_token":"token"}');
@@ -256,8 +273,6 @@ describe('api-utils', () => {
     });
 
     it('handles 401 invalid API key by clearing session', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
-
       const response = {
         status: 401,
         statusText: 'Unauthorized',
@@ -268,8 +283,6 @@ describe('api-utils', () => {
       await expect(handleApiError(response)).rejects.toThrow(
         'Invalid API key'
       );
-
-      expect(localStorage.getItem('active_membership')).toBeNull();
     });
 
     it('prefers RFC 7807 detail over the generic title', async () => {
@@ -280,7 +293,7 @@ describe('api-utils', () => {
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (400): Validation failed'
+        'Validation failed'
       );
     });
 
@@ -291,7 +304,7 @@ describe('api-utils', () => {
         json: async () => ({ title: 'Conflict', code: 'conflict' }),
       } as Response;
 
-      await expect(handleApiError(response)).rejects.toThrow('API Error (409): Conflict');
+      await expect(handleApiError(response)).rejects.toThrow('Conflict');
     });
 
     it('surfaces field-level validation messages instead of the generic detail', async () => {
@@ -309,12 +322,11 @@ describe('api-utils', () => {
       } as Response;
 
       await expect(handleApiError(response)).rejects.toThrow(
-        'API Error (400): Name must not be empty. EndUtc must be after StartUtc'
+        'Name must not be empty. EndUtc must be after StartUtc'
       );
     });
 
     it('handles break_glass_expired by clearing state and navigating to /site-admin', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
       localStorage.setItem('tenant_slug', 'test');
 
       const response = {
@@ -330,16 +342,12 @@ describe('api-utils', () => {
       await expect(handleApiError(response)).rejects.toThrow(
         'Break-glass session ended'
       );
-
-      expect(localStorage.getItem('active_membership')).toBeNull();
       expect(localStorage.getItem('tenant_slug')).toBeNull();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
 
     it('handles break_glass_hard_cap_reached by navigating to /site-admin', async () => {
-      localStorage.setItem('active_membership', '{"tenantId":"test"}');
-
       const response = {
         status: 410,
         statusText: 'Gone',
@@ -351,11 +359,23 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow('Hard cap reached');
-
-      expect(localStorage.getItem('active_membership')).toBeNull();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
     });
+
+    it.each(['@evil.com', '//evil.com', 'https://evil.com'])(
+      'ignores a returnTo of %s that would leave the origin',
+      async (returnTo) => {
+        const response = {
+          status: 403,
+          statusText: 'Forbidden',
+          json: async () => ({ detail: 'Ended', code: 'break_glass_expired', returnTo }),
+        } as unknown as Response;
+
+        await expect(handleApiError(response)).rejects.toThrow();
+        expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
+      },
+    );
 
     it('falls back to /site-admin when break-glass response has no returnTo', async () => {
       const response = {
@@ -368,7 +388,7 @@ describe('api-utils', () => {
       } as unknown as Response;
 
       await expect(handleApiError(response)).rejects.toThrow();
-      expect(mockNavigateToApex).toHaveBeenCalledWith('/site-admin');
+      expect(mockGoToApex).toHaveBeenCalledWith('/site-admin');
     });
   });
 });

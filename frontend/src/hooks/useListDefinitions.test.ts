@@ -3,18 +3,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import {
   useAllSharedListInstances,
-  useCreateListColumn,
-  useCreateListDefinition,
-  useCreateSharedListInstance,
   useDeleteListColumn,
   useDeleteListDefinition,
   useDeleteSharedListInstance,
   useListDefinition,
   useListDefinitions,
+  useSaveListColumn,
+  useSaveListDefinition,
+  useSaveSharedListInstance,
   useSharedListInstances,
-  useUpdateListColumn,
-  useUpdateListDefinition,
-  useUpdateSharedListInstance,
 } from './useListDefinitions';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
@@ -61,7 +58,6 @@ let wrapper: ReturnType<typeof createTestQueryWrapper>;
  */
 describe('useListDefinitions', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     wrapper = createTestQueryWrapper();
     api.getListDefinitions.mockResolvedValue([]);
     api.getListDefinition.mockResolvedValue({ id: DEF });
@@ -117,14 +113,11 @@ describe('useListDefinitions', () => {
   });
 
   it('creates, updates and deletes a definition', async () => {
-    const create = renderHook(() => useCreateListDefinition(), { wrapper });
-    await act(() => create.result.current.mutateAsync({ name: 'Departments' }));
+    const save = renderHook(() => useSaveListDefinition(), { wrapper });
+    await act(() => save.result.current.mutateAsync({ id: null, data: { name: 'Departments' } }));
     expect(api.createListDefinition).toHaveBeenCalledWith({ name: 'Departments' });
 
-    const update = renderHook(() => useUpdateListDefinition(), { wrapper });
-    await act(() =>
-      update.result.current.mutateAsync({ definitionId: DEF, request: { name: 'Units' } }),
-    );
+    await act(() => save.result.current.mutateAsync({ id: DEF, data: { name: 'Units' } }));
     expect(api.updateListDefinition).toHaveBeenCalledWith(DEF, { name: 'Units' });
 
     const remove = renderHook(() => useDeleteListDefinition(), { wrapper });
@@ -133,9 +126,12 @@ describe('useListDefinitions', () => {
   });
 
   it('binds column mutations to the definition they were created for', async () => {
-    const create = renderHook(() => useCreateListColumn(DEF), { wrapper });
+    const save = renderHook(() => useSaveListColumn(DEF), { wrapper });
     await act(() =>
-      create.result.current.mutateAsync({ key: 'name', label: 'Name', dataType: 'text' }),
+      save.result.current.mutateAsync({
+        id: null,
+        data: { key: 'name', label: 'Name', dataType: 'text' },
+      }),
     );
     expect(api.createListColumn).toHaveBeenCalledWith(DEF, {
       key: 'name',
@@ -143,10 +139,7 @@ describe('useListDefinitions', () => {
       dataType: 'text',
     });
 
-    const update = renderHook(() => useUpdateListColumn(DEF), { wrapper });
-    await act(() =>
-      update.result.current.mutateAsync({ columnId: COL, request: { label: 'Renamed' } }),
-    );
+    await act(() => save.result.current.mutateAsync({ id: COL, data: { label: 'Renamed' } }));
     expect(api.updateListColumn).toHaveBeenCalledWith(DEF, COL, { label: 'Renamed' });
 
     const remove = renderHook(() => useDeleteListColumn(DEF), { wrapper });
@@ -155,14 +148,11 @@ describe('useListDefinitions', () => {
   });
 
   it('binds instance mutations to their definition', async () => {
-    const create = renderHook(() => useCreateSharedListInstance(DEF), { wrapper });
-    await act(() => create.result.current.mutateAsync({ name: 'Departments' }));
+    const save = renderHook(() => useSaveSharedListInstance(DEF), { wrapper });
+    await act(() => save.result.current.mutateAsync({ id: null, data: { name: 'Departments' } }));
     expect(api.createSharedListInstance).toHaveBeenCalledWith(DEF, { name: 'Departments' });
 
-    const update = renderHook(() => useUpdateSharedListInstance(DEF), { wrapper });
-    await act(() =>
-      update.result.current.mutateAsync({ instanceId: INST, request: { name: 'Units' } }),
-    );
+    await act(() => save.result.current.mutateAsync({ id: INST, data: { name: 'Units' } }));
     expect(api.updateSharedListInstance).toHaveBeenCalledWith(DEF, INST, { name: 'Units' });
 
     const remove = renderHook(() => useDeleteSharedListInstance(DEF), { wrapper });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { getSites, createSite, updateSite, deleteSite } from './site-api';
 import * as apiClient from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
@@ -8,10 +8,6 @@ vi.mock('../core/api-client');
 const mockSite = { id: 's1', name: 'HQ', address: '123 Main St' };
 
 describe('site-api', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('getSites calls apiGet with SITES path', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([mockSite]);
     const result = await getSites();

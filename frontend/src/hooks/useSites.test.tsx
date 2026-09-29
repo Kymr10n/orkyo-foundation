@@ -1,13 +1,12 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useSites, useCreateSite, useUpdateSite, useDeleteSite } from './useSites';
+import { useSites, useCreateSite, useSaveSite, useDeleteSite } from './useSites';
 import * as siteApi from '@foundation/src/lib/api/site-api';
 import type { Site } from '@foundation/src/lib/api/site-api';
 import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/site-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockSite: Site = {
   id: 'site-1',
@@ -20,10 +19,6 @@ const mockSite: Site = {
 };
 
 describe('useSites', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('useSites query', () => {
     it('fetches all sites', async () => {
       const sites = [mockSite];
@@ -73,7 +68,18 @@ describe('useSites', () => {
     });
   });
 
-  describe('useUpdateSite', () => {
+  describe('useSaveSite', () => {
+    it('creates a site when there is no id', async () => {
+      vi.mocked(siteApi.createSite).mockResolvedValue(mockSite);
+      const { wrapper } = createTestQueryClient({ feedback: true });
+      const { result } = renderHook(() => useSaveSite(), { wrapper });
+
+      await result.current.mutateAsync({ id: null, data: { code: 'HQ', name: 'Headquarters' } });
+
+      expect(siteApi.createSite).toHaveBeenCalledWith({ code: 'HQ', name: 'Headquarters' });
+      expect(siteApi.updateSite).not.toHaveBeenCalled();
+    });
+
     it('updates a site and invalidates cache', async () => {
       const updatedSite = { ...mockSite, name: 'Updated HQ' };
       vi.mocked(siteApi.updateSite).mockResolvedValue(updatedSite);
@@ -82,7 +88,7 @@ describe('useSites', () => {
         .mockResolvedValueOnce([updatedSite]);  // After update
 
       const { wrapper } = createTestQueryClient({ feedback: true });
-      const { result: updateResult } = renderHook(() => useUpdateSite(), { wrapper });
+      const { result: updateResult } = renderHook(() => useSaveSite(), { wrapper });
       const { result: queryResult } = renderHook(() => useSites(), { wrapper });
 
       await waitFor(() => expect(queryResult.current.isSuccess).toBe(true));

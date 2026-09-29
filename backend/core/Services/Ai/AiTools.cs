@@ -82,15 +82,25 @@ public static class AiProposalTools
 }
 
 /// <summary>Reads the conflicts the workspace currently has.</summary>
-public sealed class GetConflictsTool(IConflictService conflicts, IRequestService requests) : IAiTool
+public sealed class GetConflictsTool(IConflictService conflicts, IRequestService requests, TimeProvider time) : IAiTool
 {
+    private const int DefaultLimit = 25;
+
+    /// <summary>
+    /// The window the tool reads: recent past to a year ahead. Computing conflicts is a
+    /// tenant-wide validation pass; all-time on every chat turn grew with the tenant's history.
+    /// </summary>
+    internal static (DateTime From, DateTime To) Window(DateTime nowUtc) =>
+        (nowUtc.Date.AddDays(-30), nowUtc.Date.AddDays(366));
+
     public AiToolDefinition Definition { get; } = new()
     {
         Name = "get_conflicts",
         Description =
             "List scheduling conflicts in this workspace: overlaps, capacity and load problems, capability " +
             "mismatches, and placements outside their allowed window. Call this whenever the person asks what " +
-            "is wrong with the plan, or before proposing a fix, so the advice matches the current state.",
+            "is wrong with the plan, or before proposing a fix, so the advice matches the current state. " +
+            "Covers work scheduled from 30 days ago to a year ahead.",
         InputSchemaJson = """
         {
           "type": "object",
@@ -104,10 +114,11 @@ public sealed class GetConflictsTool(IConflictService conflicts, IRequestService
 
     public async Task<string> ExecuteAsync(JsonElement input, CancellationToken ct)
     {
-        var limit = AiToolInput.Int(input, "limit") ?? 25;
+        var limit = PageRequest.ClampLimit(AiToolInput.Int(input, "limit"), DefaultLimit, PageRequest.MaxPageSize);
         var requestFilter = AiToolInput.Guid(input, "requestId");
 
-        var all = await conflicts.GetAllAsync(ct: ct);
+        var (from, to) = Window(time.GetUtcNow().UtcDateTime);
+        var all = await conflicts.GetAllAsync(from, to, ct);
         var scoped = requestFilter is { } id
             ? all.Where(c => c.RequestId == id).ToList()
             : all;

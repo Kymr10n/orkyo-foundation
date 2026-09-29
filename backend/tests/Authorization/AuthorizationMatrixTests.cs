@@ -19,9 +19,11 @@ public class AuthorizationMatrixTests
     private readonly HttpClient _viewer;
     private readonly HttpClient _editor;
     private readonly HttpClient _admin;
+    private readonly DatabaseFixture _fixture;
 
     public AuthorizationMatrixTests(DatabaseFixture fixture)
     {
+        _fixture = fixture;
         _viewer = fixture.CreateClientWithRole(RoleConstants.Viewer);
         _editor = fixture.CreateClientWithRole(RoleConstants.Editor);
         _admin = fixture.CreateClientWithRole(RoleConstants.Admin);
@@ -76,6 +78,22 @@ public class AuthorizationMatrixTests
     public async Task AdminAreaWrite_AsAdmin_IsAllowed() =>
         AssertNotForbidden(await _admin.DeleteAsync($"/api/users/{Guid.NewGuid()}"));
 
+    // AuthorizationContractTests reads the metadata; this pins that the pipeline enforces it.
+    [Fact]
+    public async Task ADeclaredRoute_AnswersAnAnonymousCaller401()
+    {
+        using var anonymous = _fixture.Factory.CreateClient();
+        anonymous.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/sites")).StatusCode);
+    }
+
+    // The test host maps an unknown role claim to no membership, never to a default role, so a
+    // mistyped role in a test token cannot pass an Admin gate for the wrong reason.
+    [Fact]
+    public async Task AdminAreaRead_WithAMistypedRole_IsForbidden() =>
+        AssertForbidden(await _fixture.CreateClientWithRole("admn").GetAsync("/api/users"));
+
     // ── Sites: read = member, write = Admin ───────────────────────────────────
 
     [Fact]
@@ -104,6 +122,11 @@ public class AuthorizationMatrixTests
     [Fact]
     public async Task SettingsWrite_AsEditor_IsForbidden() =>
         AssertForbidden(await _editor.DeleteAsync("/api/settings/some-key"));
+
+    [Fact]
+    public async Task SettingsUpdate_AsEditor_IsForbidden() =>
+        AssertForbidden(await _editor.PutAsJsonAsync("/api/settings",
+            new { settings = new Dictionary<string, string> { ["working_day_start"] = "08:00" } }));
 
     [Fact]
     public async Task SettingsWrite_AsAdmin_IsAllowed() =>

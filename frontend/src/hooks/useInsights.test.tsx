@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createTestQueryWrapper } from "@foundation/src/test-utils";
 import {
@@ -19,8 +19,6 @@ const from = new Date("2026-01-01T00:00:00Z");
 const to = new Date("2026-12-31T00:00:00Z");
 
 describe("useInsights hooks", () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it("useInsightsOverview calls the API with (from, to, siteId)", async () => {
     const { result } = renderHook(() => useInsightsOverview("site-1", from, to), {
       wrapper: createTestQueryWrapper(),

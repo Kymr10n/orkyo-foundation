@@ -1,5 +1,7 @@
 using Api.Helpers;
+using Api.Models;
 using Api.Models.Admin;
+using Api.Security;
 using Api.Services;
 using Npgsql;
 
@@ -8,6 +10,15 @@ namespace Api.Repositories;
 public class PlatformUserRepository : IPlatformUserRepository
 {
     private const string PgUniqueViolation = "23505";
+
+    /// <summary>
+    /// The one rule for a user's Keycloak subject: the <c>keycloak</c> row of
+    /// <c>user_identities</c>. Nothing writes <c>users.keycloak_id</c> any more, so that column
+    /// is never consulted. The subquery is correlated to the <c>users</c> row the caller names
+    /// with <paramref name="usersAlias"/>.
+    /// </summary>
+    internal static string KeycloakSubjectSubquery(string usersAlias = "users") =>
+        $"(SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = {usersAlias}.id AND ui.provider = 'keycloak' LIMIT 1)";
 
     private readonly IDbConnectionFactory _connectionFactory;
 
@@ -22,7 +33,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         return await conn.ExistsAsync("users", userId, ct);
     }
 
-    public async Task<List<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default)
+    public async Task<PagedResult<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
@@ -32,13 +43,13 @@ public class PlatformUserRepository : IPlatformUserRepository
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            whereClauses.Add("(LOWER(email) LIKE @search OR LOWER(display_name) LIKE @search)");
-            parameters.Add(new NpgsqlParameter("search", $"%{search.ToLower()}%"));
+            whereClauses.Add("(LOWER(u.email) LIKE @search OR LOWER(u.display_name) LIKE @search)");
+            parameters.Add(new NpgsqlParameter("search", $"%{NpgsqlQueryExtensions.EscapeLike(search.ToLower())}%"));
         }
 
         if (!string.IsNullOrWhiteSpace(status))
         {
-            whereClauses.Add("status = @status");
+            whereClauses.Add("u.status = @status");
             parameters.Add(new NpgsqlParameter("status", status));
         }
 
@@ -49,19 +60,22 @@ public class PlatformUserRepository : IPlatformUserRepository
                 u.id, u.email, u.display_name, u.status, u.created_at, u.updated_at, u.last_login_at,
                 (SELECT COUNT(*) FROM tenant_memberships tm WHERE tm.user_id = u.id AND tm.status = 'active') as membership_count,
                 (SELECT COUNT(*) FROM user_identities ui WHERE ui.user_id = u.id) as identity_count,
-                (SELECT ui.provider_subject FROM user_identities ui WHERE ui.user_id = u.id AND ui.provider = 'keycloak' LIMIT 1) as keycloak_sub,
-                ot.id as owned_tenant_id
+                {KeycloakSubjectSubquery("u")} as keycloak_sub,
+                ot.id as owned_tenant_id,
+                COUNT(*) OVER () AS total_count
             FROM users u
             LEFT JOIN tenants ot ON ot.owner_user_id = u.id AND ot.status != 'deleting'
             {whereClause}
             ORDER BY u.email
-            LIMIT 500";
+            LIMIT @cap";
 
         await using var cmd = new NpgsqlCommand(sql, conn);
         foreach (var param in parameters)
             cmd.Parameters.Add(param);
+        cmd.Parameters.AddWithValue("cap", PageRequest.MaxUnpagedItems);
 
         var rows = new List<AdminUserListRow>();
+        var total = 0;
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         while (await reader.ReadAsync(ct))
         {
@@ -82,8 +96,9 @@ public class PlatformUserRepository : IPlatformUserRepository
                 OwnedTenantTier = null, // resolved by the caller via the edition's plan provider
             };
             rows.Add(new AdminUserListRow(summary, keycloakSub));
+            total = (int)reader.GetInt64("total_count");
         }
-        return rows;
+        return PagedResult<AdminUserListRow>.Capped(rows, total, PageRequest.MaxUnpagedItems);
     }
 
     public async Task<AdminUserCoreDto?> GetAdminUserCoreAsync(Guid userId, CancellationToken ct = default)
@@ -175,20 +190,13 @@ public class PlatformUserRepository : IPlatformUserRepository
         Guid userId;
         string currentEmail;
         string? pendingEmail;
-        await using (var findCmd = new NpgsqlCommand(@"
+        string? displayName;
+        await using (var findCmd = new NpgsqlCommand($@"
             SELECT u.id,
-                   COALESCE(
-                       u.keycloak_id,
-                       (
-                           SELECT ui.provider_subject
-                           FROM user_identities ui
-                           WHERE ui.user_id = u.id
-                             AND ui.provider = 'keycloak'
-                           LIMIT 1
-                       )
-                   ) AS keycloak_id,
+                   {KeycloakSubjectSubquery("u")} AS keycloak_id,
                    u.email,
-                   u.pending_email
+                   u.pending_email,
+                   u.display_name
             FROM users u
             WHERE u.email_change_token = @token
               AND u.email_change_requested_at > NOW() - INTERVAL '24 hours'
@@ -203,6 +211,7 @@ public class PlatformUserRepository : IPlatformUserRepository
             keycloakId = reader.GetNullableString("keycloak_id");
             currentEmail = reader.GetString("email");
             pendingEmail = reader.GetNullableString("pending_email");
+            displayName = reader.GetNullableString("display_name");
         }
 
         if (string.IsNullOrEmpty(pendingEmail))
@@ -265,19 +274,21 @@ public class PlatformUserRepository : IPlatformUserRepository
         await updateKeycloakEmailAsync(keycloakId, currentEmail, pendingEmail, ct);
         await tx.CommitAsync(ct);
 
-        return new EmailChangeConfirmResult(EmailChangeConfirmStatus.Confirmed, userId, pendingEmail);
+        return new EmailChangeConfirmResult(EmailChangeConfirmStatus.Confirmed, userId, pendingEmail, displayName);
     }
 
     public async Task<AccountLifecycleConfirmRecord?> FindActiveLifecycleConfirmAsync(string token, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        return await conn.QuerySingleOrDefaultAsync(@"
-            SELECT id, keycloak_id, display_name, lifecycle_status
+        return await conn.QuerySingleOrDefaultAsync($@"
+            SELECT id,
+                   {KeycloakSubjectSubquery()} AS keycloak_id,
+                   display_name, lifecycle_status
             FROM users
             WHERE lifecycle_confirm_token = @token
               AND lifecycle_status IS NOT NULL
               AND lifecycle_confirm_token_expires_at > NOW()",
-            p => p.AddWithValue("token", token),
+            p => p.AddWithValue("token", SecureTokens.LifecycleConfirmTokenHash(token)),
             reader =>
             {
                 var userId = reader.GetGuid("id");
@@ -384,7 +395,7 @@ public class PlatformUserRepository : IPlatformUserRepository
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         return await conn.ExecuteScalarAsync<string?>(
-            "SELECT provider_subject FROM user_identities WHERE user_id = @userId AND provider = 'keycloak' LIMIT 1",
+            $"SELECT {KeycloakSubjectSubquery()} FROM users WHERE id = @userId",
             p => p.AddWithValue("userId", userId), ct);
     }
 }

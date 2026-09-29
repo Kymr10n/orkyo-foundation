@@ -18,25 +18,18 @@ public static class ConfigurationAdminEndpoints
 {
     public static void MapConfigurationAdminEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/api/admin/configuration")
-            .RequireAuthorization()
-            .RequireRateLimiting(FoundationRateLimitPolicies.AdminOperations)
-            .WithTags("Admin")
-            .WithMetadata(new SkipTenantResolutionAttribute());
+        var group = app.MapSiteAdminGroup("/configuration", "Admin");
 
         group.MapGet("/", SettingsEndpointHandlers.GetSettings)
-            .RequireSiteAdmin()
             .WithName("AdminGetConfiguration")
             .WithSummary("Get site-scoped platform settings with current values and metadata");
 
         group.MapPut("/", SettingsEndpointHandlers.UpdateSettings)
-            .RequireSiteAdmin()
             .WithName("AdminUpdateConfiguration")
             .WithSummary("Update one or more site-scoped platform settings")
             .Accepts<UpdateSettingsRequest>("application/json");
 
         group.MapDelete("/{key}", SettingsEndpointHandlers.ResetSetting)
-            .RequireSiteAdmin()
             .WithName("AdminResetConfiguration")
             .WithSummary("Reset a site-scoped setting to its compiled default");
     }

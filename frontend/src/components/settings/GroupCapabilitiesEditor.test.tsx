@@ -8,16 +8,13 @@ import { createTestQueryWrapper } from "@foundation/src/test-utils";
 import * as criteriaApi from "@foundation/src/lib/api/criteria-api";
 import * as groupCapApi from "@foundation/src/lib/api/group-capability-api";
 import type { Criterion } from "@foundation/src/types/criterion";
+import { toast } from "sonner";
 
 vi.mock("@foundation/src/lib/api/criteria-api");
 vi.mock("@foundation/src/lib/api/group-capability-api");
 vi.mock("@foundation/src/lib/core/logger", () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-
-const toastSuccess = vi.fn();
-const toastError = vi.fn();
-vi.mock("sonner", () => ({ toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) } }));
 
 // The editor now saves via useMutation; render under a QueryClientProvider whose
 // MutationCache mirrors production so meta-driven toasts fire in tests.
@@ -44,7 +41,6 @@ describe("GroupCapabilitiesEditor", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(criteriaApi.getCriteria).mockResolvedValue(mockCriteria);
     vi.mocked(groupCapApi.getGroupCapabilities).mockResolvedValue(mockExistingCaps);
     vi.mocked(groupCapApi.addGroupCapability).mockResolvedValue({
@@ -166,7 +162,7 @@ describe("GroupCapabilitiesEditor", () => {
       expect(defaultProps.onSuccess).toHaveBeenCalled();
       expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
     });
-    expect(toastSuccess).toHaveBeenCalledWith("Capabilities saved");
+    expect(vi.mocked(toast.success)).toHaveBeenCalledWith("Capabilities saved");
   });
 
   it("shows a save failure inline, and does not also toast it", async () => {
@@ -188,6 +184,6 @@ describe("GroupCapabilitiesEditor", () => {
     });
     // One surface per error: the editor stays open with the message inline, so its mutation
     // sets meta.suppressErrorToast and the central MutationCache stays quiet.
-    expect(toastError).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled();
   });
 });

@@ -115,6 +115,15 @@ export function buildBffLoginUrl(opts: { returnTo: string; loginHint?: string })
 // ── Navigation (side-effects — redirect the browser) ─────────────────────────
 
 /**
+ * Whether `path` is a same-origin absolute path: it starts with one `/`. A path that starts
+ * with `//` or `/\` is protocol-relative to a browser, and one without the leading `/`
+ * (e.g. `@evil.com`) joins onto the host as userinfo, so either would leave the origin.
+ */
+export function isSafeRelativePath(path: string): boolean {
+  return path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\");
+}
+
+/**
  * Navigate to a tenant's subdomain. Does a full-page redirect.
  *
  * Returns true if a redirect was initiated, false if subdomain routing is
@@ -126,7 +135,7 @@ export function navigateToTenantSubdomain(slug: string, path = "/"): boolean {
   if (!targetHost) return false;
   if (window.location.hostname === targetHost) return false;
 
-  window.location.href = `${window.location.protocol}//${targetHost}${path}`;
+  window.location.href = `${window.location.protocol}//${targetHost}${isSafeRelativePath(path) ? path : "/"}`;
   return true;
 }
 
@@ -164,8 +173,16 @@ export function navigateToApex(path = "/"): boolean {
   if (!apex) return false;
   if (window.location.hostname === apex) return false;
 
-  window.location.href = `${window.location.protocol}//${apex}${path}`;
+  window.location.href = `${window.location.protocol}//${apex}${isSafeRelativePath(path) ? path : "/"}`;
   return true;
+}
+
+/**
+ * {@link navigateToApex}, or a full-page load of the same path on this origin when there is no
+ * apex to go to (local dev, or already on it). For callers whose fallback is that same path.
+ */
+export function goToApex(path = "/"): void {
+  if (!navigateToApex(path)) window.location.href = isSafeRelativePath(path) ? path : "/";
 }
 
 // ── Break-glass cookie ───────────────────────────────────────────────────────

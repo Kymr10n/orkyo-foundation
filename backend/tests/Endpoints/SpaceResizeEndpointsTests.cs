@@ -25,7 +25,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeRectangle_EnlargeByDraggingCorner_UpdatesSuccessfully()
     {
         // Arrange - Create a rectangle space
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room A", 100, 100, 300, 300);
 
         // Act - Resize by moving bottom-right corner
@@ -59,7 +59,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeRectangle_ShrinkByDraggingCorner_UpdatesSuccessfully()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room B", 0, 0, 500, 500);
 
         // Act - Shrink rectangle
@@ -91,7 +91,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeRectangle_MoveTopLeftCorner_UpdatesSuccessfully()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room C", 100, 100, 300, 300);
 
         // Act - Resize by moving top-left corner
@@ -125,7 +125,7 @@ public class SpaceResizeEndpointsTests
     {
         // A circle resizes by its rim alone. If a resize ever wrote the centre, the shape would
         // drift across the floorplan while the user thought they were only changing its size.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var createResponse = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
@@ -168,7 +168,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizePolygon_MoveOneVertex_UpdatesSuccessfully()
     {
         // Arrange - Create triangle
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreatePolygonSpace(siteId, "Triangle Area", new[]
         {
             (0.0, 0.0),
@@ -207,7 +207,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizePolygon_MoveMultipleVertices_UpdatesSuccessfully()
     {
         // Arrange - Create pentagon
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreatePolygonSpace(siteId, "Pentagon", new[]
         {
             (50.0, 0.0),
@@ -253,7 +253,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeSpace_WithInvalidGeometry_ReturnsBadRequest()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room D", 0, 0, 100, 100);
 
         // Act - Try to resize with invalid geometry (only 1 coordinate)
@@ -281,7 +281,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeSpace_ToZeroArea_IsAllowed()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room E", 0, 0, 100, 100);
 
         // Act - Resize to zero area (same point)
@@ -310,7 +310,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeSpace_WithNegativeCoordinates_IsAllowed()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room F", 0, 0, 100, 100);
 
         // Act - Resize with negative coordinates
@@ -341,7 +341,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeSpace_PreservesOtherFields_WhenOnlyGeometryChanged()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var originalCode = $"PRESERVE-{Guid.NewGuid():N}".Substring(0, 15);
         var space = await CreateRectangleSpace(siteId, "Original Name", 0, 0, 100, 100, originalCode);
 
@@ -379,7 +379,7 @@ public class SpaceResizeEndpointsTests
     public async Task ResizeSpace_MultipleSequentialResizes_AllSucceed()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room G", 0, 0, 100, 100);
 
         // Act - Perform multiple resizes in sequence
@@ -422,7 +422,7 @@ public class SpaceResizeEndpointsTests
     public async Task UpdateSpace_WithDescriptionAndResize_BothUpdate()
     {
         // Arrange
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room H", 0, 0, 100, 100);
 
         // Act - Update both description and geometry
@@ -456,7 +456,7 @@ public class SpaceResizeEndpointsTests
     public async Task UpdateSpace_ClearDescription_WithResize()
     {
         // Arrange - Create space with description
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var space = await CreateRectangleSpace(siteId, "Room I", 0, 0, 100, 100);
 
         // First, add a description

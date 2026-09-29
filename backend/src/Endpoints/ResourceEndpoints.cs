@@ -133,34 +133,16 @@ public static class ResourceEndpoints
 
         group.MapGet("/{id:guid}/candidate-requests", async (
             Guid id,
-            IRequestRepository requestRepository,
-            IResourceService resourceService,
-            ICapabilityMatcher capabilityMatcher,
-            DateTime start,
-            DateTime end,
+            ICandidateRequestService candidates,
+            IValidator<TimeWindowQuery> windowValidator,
+            DateTime? start,
+            DateTime? end,
             CancellationToken ct) =>
         {
-            var resource = await resourceService.GetByIdAsync(id, ct);
-            if (resource is null)
-                return ErrorResponses.NotFound("Resource", id);
-
-            var candidates = await requestRepository.GetCandidatesOverlappingAsync(id, start, end, ct);
-
-            var result = new List<CandidateRequestInfo>(candidates.Count);
-            foreach (var (req, assignmentId) in candidates)
-            {
-                var requirements = new List<CandidateRequirementInfo>(req.Requirements?.Count ?? 0);
-                foreach (var r in req.Requirements ?? [])
-                {
-                    // A requirement scoped to another resource type is not this resource's to satisfy.
-                    if (!r.AppliesTo(resource.ResourceTypeKey)) continue;
-
-                    var satisfied = await capabilityMatcher.ResourceSatisfiesRequirementAsync(id, r, ct);
-                    requirements.Add(new CandidateRequirementInfo(r.Criterion?.Name ?? r.CriterionId.ToString(), satisfied));
-                }
-                result.Add(new CandidateRequestInfo(req.Id, req.Name, req.StartTs, req.EndTs, requirements, assignmentId));
-            }
-            return Results.Ok(result);
+            var window = new TimeWindowQuery(start, end);
+            return await EndpointHelpers.ExecuteAsync(window, windowValidator, async () =>
+                EndpointHelpers.OkOrNotFound(
+                    await candidates.GetForResourceAsync(id, window.FromValue, window.ToValue, ct), "Resource", id));
         })
             .WithName("GetResourceCandidateRequests")
             .WithSummary("Get active requests overlapping a period that are not yet assigned to this resource");
@@ -184,31 +166,11 @@ public static class ResourceEndpoints
             Guid id,
             AddResourceCapabilityRequest request,
             IValidator<AddResourceCapabilityRequest> validator,
-            IResourceService service,
-            IResourceCapabilityRepository repository,
-            ICriteriaRepository criteriaRepository,
-            ICriterionValueValidator valueValidator,
+            ICapabilityAssignmentService capabilities,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
-            var resource = await service.GetByIdAsync(id, ct);
-            if (resource is null)
-                return ErrorResponses.NotFound("Resource", id);
-
-            var criterion = await criteriaRepository.GetByIdAsync(request.CriterionId, ct);
-            if (criterion is null)
-                return ErrorResponses.NotFound("Criterion", request.CriterionId);
-
-            if (!criterion.ResourceTypeKeys.Contains(resource.ResourceTypeKey, StringComparer.Ordinal))
-                return ErrorResponses.BadRequest(
-                    $"Criterion '{criterion.Name}' is not applicable to resource type '{resource.ResourceTypeKey}'.");
-
-            // Values used to be stored as raw JSONB with no type check: a Number criterion would
-            // accept "banana" and only misbehave later, as a silent non-match in the solver.
-            if (valueValidator.Validate(criterion, request.Value) is { } invalid)
-                return ErrorResponses.BadRequest(invalid);
-
-            var capability = await repository.UpsertAsync(id, request.CriterionId, request.Value, ct);
+            var capability = await capabilities.SetResourceCapabilityAsync(id, request.CriterionId, request.Value, ct);
             return Results.Created($"/api/resources/{id}/capabilities/{capability.Id}", capability);
         }))
             .WithName("AddResourceCapability")
@@ -239,14 +201,12 @@ public static class ResourceEndpoints
         group.MapPost("/{id:guid}/absences", async (
             Guid id,
             [FromBody] CreateResourceAbsenceRequest request,
-            IResourceService resourceService,
             IResourceAbsenceRepository absenceRepo,
             IValidator<CreateResourceAbsenceRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var resource = await resourceService.GetByIdAsync(id);
-                if (resource is null) return ErrorResponses.NotFound("Resource", id);
+                // A missing resource is the repository's NotFoundException (404).
                 var absence = await absenceRepo.CreateAsync(id, request, ct);
                 return Results.Created($"/api/resources/{id}/absences/{absence.Id}", absence);
             }, logger, "create resource absence", new { id }))
@@ -262,10 +222,7 @@ public static class ResourceEndpoints
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var existing = await absenceRepo.GetByIdAsync(absenceId, ct);
-                if (existing is null || existing.ResourceId != id)
-                    return ErrorResponses.NotFound("Absence", absenceId);
-                var updated = await absenceRepo.UpdateAsync(absenceId, request, ct);
+                var updated = await absenceRepo.UpdateAsync(id, absenceId, request, ct);
                 return EndpointHelpers.OkOrNotFound(updated, "Absence", absenceId);
             }, logger, "update resource absence", new { id, absenceId }))
             .WithName("UpdateResourceAbsence")
@@ -277,10 +234,7 @@ public static class ResourceEndpoints
             IResourceAbsenceRepository absenceRepo,
             CancellationToken ct) =>
         {
-            var existing = await absenceRepo.GetByIdAsync(absenceId, ct);
-            if (existing is null || existing.ResourceId != id)
-                return ErrorResponses.NotFound("Absence", absenceId);
-            var deleted = await absenceRepo.DeleteAsync(absenceId, ct);
+            var deleted = await absenceRepo.DeleteAsync(id, absenceId, ct);
             return EndpointHelpers.NoContentOrNotFound(deleted, "Absence", absenceId);
         })
             .WithName("DeleteResourceAbsence")

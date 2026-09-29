@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import { ResourceScanCodesSection } from './ResourceScanCodesSection';
+import { toast } from 'sonner';
 
 const api = vi.hoisted(() => ({
   getResourceScanCodes: vi.fn(),
@@ -12,9 +13,6 @@ const api = vi.hoisted(() => ({
   unlinkResourceScanCode: vi.fn(),
 }));
 vi.mock('@foundation/src/lib/api/resource-scan-codes-api', () => api);
-
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }));
-vi.mock('sonner', () => ({ toast }));
 
 // The camera is the scanner's own concern (QrScannerDialog.test); here a button stands in for a scan.
 vi.mock('@foundation/src/components/scan/QrScannerDialog', () => ({
@@ -46,7 +44,6 @@ describe('ResourceScanCodesSection', () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
@@ -114,7 +111,7 @@ describe('ResourceScanCodesSection', () => {
   it('closes the confirmation and reports a failed move', async () => {
     const user = userEvent.setup();
     api.lookupScanCode.mockResolvedValue({ status: 'type_disabled' });
-    api.linkResourceScanCode.mockRejectedValue(new Error('API Error (409): taken'));
+    api.linkResourceScanCode.mockRejectedValue(new Error('taken'));
     renderSection();
 
     await scan(user);

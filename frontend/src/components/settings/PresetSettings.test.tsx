@@ -5,9 +5,7 @@ import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PresetSettings } from './PresetSettings';
 import * as presetApi from '@foundation/src/lib/api/preset-api';
 import { createTestQueryClient } from '@foundation/src/test-utils';
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+import { toast } from 'sonner';
 
 vi.mock('@foundation/src/lib/api/preset-api');
 
@@ -113,7 +111,6 @@ describe('PresetSettings', () => {
   beforeEach(() => {
     // Production-identical feedback MutationCache (dialog-feedback.md).
     ({ queryClient } = createTestQueryClient({ feedback: true }));
-    vi.clearAllMocks();
 
     vi.mocked(presetApi.getPresetApplications).mockResolvedValue(mockApplications);
     vi.mocked(presetApi.parsePresetFile).mockReturnValue(mockPreset);
@@ -137,7 +134,7 @@ describe('PresetSettings', () => {
       renderComponent();
 
       expect(screen.getAllByRole('heading', { name: 'Presets' })[0]).toBeInTheDocument();
-      expect(screen.getByText(/Import or export tenant configuration presets/)).toBeInTheDocument();
+      expect(screen.getByText(/Import or export organization configuration presets/)).toBeInTheDocument();
     });
 
     it('renders import and export buttons', async () => {
@@ -151,7 +148,7 @@ describe('PresetSettings', () => {
       renderComponent();
 
       expect(screen.getByText('Application History')).toBeInTheDocument();
-      expect(screen.getByText(/Presets that have been applied to this tenant/)).toBeInTheDocument();
+      expect(screen.getByText(/Presets that have been applied to this organization/)).toBeInTheDocument();
     });
   });
 
@@ -173,7 +170,7 @@ describe('PresetSettings', () => {
       renderComponent();
 
       await waitFor(() => {
-        expect(screen.getByText(/No presets have been applied to this tenant yet/)).toBeInTheDocument();
+        expect(screen.getByText(/No presets have been applied to this organization yet/)).toBeInTheDocument();
       });
     });
 
@@ -290,7 +287,7 @@ describe('PresetSettings', () => {
       simulateFileUpload('not valid json', 'invalid.json');
 
       await waitFor(() => {
-        expect(toastError).toHaveBeenCalledWith(
+        expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
           'Failed to read preset file',
           expect.objectContaining({ description: 'Invalid JSON format' }),
         );
@@ -330,7 +327,7 @@ describe('PresetSettings', () => {
       await user.click(applyButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Successfully Applied')).toBeInTheDocument();
+        expect(screen.getByText('Applied')).toBeInTheDocument();
         expect(screen.getByText(/Criteria created: 5/)).toBeInTheDocument();
         expect(screen.getByText(/Criteria updated: 2/)).toBeInTheDocument();
         expect(screen.getByText(/Groups created: 3/)).toBeInTheDocument();
@@ -382,14 +379,14 @@ describe('PresetSettings', () => {
       await user.click(screen.getByRole('button', { name: /Apply Preset/i }));
 
       await waitFor(() => {
-        expect(screen.getByText('Successfully Applied')).toBeInTheDocument();
+        expect(screen.getByText('Applied')).toBeInTheDocument();
       });
 
       await user.click(screen.getByRole('button', { name: 'Done' }));
 
       await waitFor(() => {
         expect(screen.queryByText('Preview Preset')).not.toBeInTheDocument();
-        expect(screen.queryByText('Successfully Applied')).not.toBeInTheDocument();
+        expect(screen.queryByText('Applied')).not.toBeInTheDocument();
       });
     });
   });

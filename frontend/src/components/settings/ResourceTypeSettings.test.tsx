@@ -84,7 +84,6 @@ async function openRowMenu(name: string) {
 
 describe('ResourceTypeSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(getResourceTypes).mockResolvedValue(types);
     vi.mocked(deleteResourceType).mockResolvedValue(undefined);
   });

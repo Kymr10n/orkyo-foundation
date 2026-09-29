@@ -31,7 +31,7 @@ public class SiteModelFactoryTests
         await using var tx = await conn.BeginTransactionAsync();
 
         var spaceTypeId = await SpaceFactories.ResolveSpaceResourceTypeIdAsync(conn, tx);
-        var personTypeId = await ScalarGuid(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
+        var personTypeId = await TestHelpers.ScalarGuidAsync(conn, tx, "SELECT id FROM resource_types WHERE key='person' LIMIT 1");
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         await Exec(conn, tx,
@@ -62,12 +62,6 @@ public class SiteModelFactoryTests
     {
         await using var cmd = new NpgsqlCommand(sql, conn, tx);
         await cmd.ExecuteNonQueryAsync();
-    }
-
-    private static async Task<Guid> ScalarGuid(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)
-    {
-        await using var cmd = new NpgsqlCommand(sql, conn, tx);
-        return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
 
     private static async Task<bool> ScalarBool(NpgsqlConnection conn, NpgsqlTransaction tx, string sql)

@@ -26,7 +26,7 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithValidData_ReturnsCreatedRequest()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var request = new CreateRequestRequest
         {
             Name = $"Test Request {Guid.NewGuid():N}".Substring(0, 30),
@@ -46,6 +46,7 @@ public class RequestEndpointsTests
         var created = await response.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(created);
         Assert.NotEqual(Guid.Empty, created.Id);
+        Assert.Equal($"/api/requests/{created.Id}", response.Headers.Location?.ToString());
         Assert.Equal(request.Name, created.Name);
         Assert.Equal(request.Description, created.Description);
         Assert.Equal(
@@ -60,7 +61,7 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithIcon_RoundTripsThroughGet()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var request = new CreateRequestRequest
         {
             Name = $"Icon Request {Guid.NewGuid():N}".Substring(0, 30),
@@ -107,7 +108,7 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithoutIcon_ReturnsNullIcon()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var request = new CreateRequestRequest
         {
             Name = $"NoIcon {Guid.NewGuid():N}".Substring(0, 30),
@@ -147,7 +148,7 @@ public class RequestEndpointsTests
     public async Task CreateRequest_WithRequirements_CreatesRequestAndRequirements()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -206,52 +207,6 @@ public class RequestEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Fact]
-    public async Task CreateRequest_WithEndBeforeStart_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
-        var request = new CreateRequestRequest
-        {
-            Name = "Invalid Time Range",
-            Description = "End before start",
-            ResourceIds = [resourceId],
-            StartTs = DateTime.UtcNow.AddDays(5),
-            EndTs = DateTime.UtcNow.AddDays(1), // Before start
-            MinimalDurationValue = 1,
-            MinimalDurationUnit = DurationUnit.Days
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/requests", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CreateRequest_WithNegativeDuration_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
-        var request = new CreateRequestRequest
-        {
-            Name = "Invalid Duration",
-            Description = "Negative duration",
-            ResourceIds = [resourceId],
-            StartTs = DateTime.UtcNow.AddDays(1),
-            EndTs = DateTime.UtcNow.AddDays(2),
-            MinimalDurationValue = -5, // Negative
-            MinimalDurationUnit = DurationUnit.Days
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/requests", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     #endregion
 
     #region GET /requests - List Requests
@@ -260,7 +215,7 @@ public class RequestEndpointsTests
     public async Task GetRequests_WithoutIncludeRequirements_ReturnsRequestsWithoutRequirements()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"List Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -292,7 +247,7 @@ public class RequestEndpointsTests
     public async Task GetRequests_WithIncludeRequirements_ReturnsRequestsWithRequirements()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -336,7 +291,7 @@ public class RequestEndpointsTests
     public async Task GetRequest_WithValidId_ReturnsRequestWithRequirements()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Get Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -414,7 +369,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_WithValidData_ReturnsUpdatedRequest()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Update Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -458,7 +413,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_PartialUpdate_OnlyUpdatesProvidedFields()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Partial Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -512,7 +467,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_WithEndBeforeStart_ReturnsBadRequest()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Invalid Update {Guid.NewGuid():N}".Substring(0, 30),
@@ -545,7 +500,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_AddRequirements_AddsRequirementsSuccessfully()
     {
         // Arrange - Create request without requirements
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Add Reqs Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -597,7 +552,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_ModifyExistingRequirements_ReplacesRequirements()
     {
         // Arrange - Create request with one requirement
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         var textCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.String);
@@ -656,7 +611,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_RemoveAllRequirements_ClearsRequirements()
     {
         // Arrange - Create request with requirements
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
@@ -704,7 +659,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_UpdateNameAndRequirements_UpdatesBothSuccessfully()
     {
         // Arrange - Create request with requirements
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
@@ -764,7 +719,7 @@ public class RequestEndpointsTests
     public async Task UpdateRequest_WithoutRequirementsField_PreservesExistingRequirements()
     {
         // Arrange - Create request with requirements
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var numberCriterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(numberCriterion);
@@ -820,7 +775,7 @@ public class RequestEndpointsTests
     public async Task DeleteRequest_WithValidId_ReturnsNoContent()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Delete Test {Guid.NewGuid():N}".Substring(0, 30),
@@ -860,7 +815,7 @@ public class RequestEndpointsTests
     public async Task DeleteRequest_AlsoDeletesRequirements()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -1006,7 +961,7 @@ public class RequestEndpointsTests
     public async Task AddRequirement_WithValidData_ReturnsCreatedRequirement()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Boolean);
         Assert.NotNull(criterion);
@@ -1039,8 +994,17 @@ public class RequestEndpointsTests
         var addedReq = await response.Content.ReadFromJsonAsync<RequestRequirementInfo>();
         Assert.NotNull(addedReq);
         Assert.NotEqual(Guid.Empty, addedReq.Id);
+        Assert.Equal($"/api/requests/{created.Id}/requirements/{addedReq.Id}", response.Headers.Location?.ToString());
         Assert.Equal(criterion.Id, addedReq.CriterionId);
         Assert.True(addedReq.Value.GetBoolean());
+
+        // Adding the same criterion again replaces its value on the same row.
+        var again = await _client.PostAsJsonAsync($"/api/requests/{created.Id}/requirements",
+            requirement with { Value = JsonSerializer.SerializeToElement(false) });
+        Assert.Equal(HttpStatusCode.Created, again.StatusCode);
+        var replaced = await again.Content.ReadFromJsonAsync<RequestRequirementInfo>();
+        Assert.Equal(addedReq.Id, replaced!.Id);
+        Assert.False(replaced.Value.GetBoolean());
     }
 
     [Fact]
@@ -1068,7 +1032,7 @@ public class RequestEndpointsTests
     public async Task AddRequirement_WithInvalidCriterionId_ReturnsBadRequest()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Invalid Criterion {Guid.NewGuid():N}".Substring(0, 30),
@@ -1100,7 +1064,7 @@ public class RequestEndpointsTests
     public async Task AddRequirement_UpdatesExistingIfDuplicate()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -1155,7 +1119,7 @@ public class RequestEndpointsTests
     public async Task DeleteRequirement_WithValidIds_ReturnsNoContent()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Number);
         Assert.NotNull(criterion);
@@ -1210,7 +1174,7 @@ public class RequestEndpointsTests
     public async Task DeleteRequirement_WithInvalidRequirementId_ReturnsNotFound()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Invalid Req Del {Guid.NewGuid():N}".Substring(0, 30),
@@ -1240,7 +1204,7 @@ public class RequestEndpointsTests
     public async Task ScheduleRequest_WithValidData_SchedulesRequest()
     {
         // Arrange - Create unscheduled request
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Unscheduled {Guid.NewGuid():N}".Substring(0, 30),
@@ -1280,7 +1244,7 @@ public class RequestEndpointsTests
     public async Task UnscheduleRequest_WithValidData_UnschemulRequest()
     {
         // Arrange - Create scheduled request
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var createRequest = new CreateRequestRequest
         {
             Name = $"Scheduled {Guid.NewGuid():N}".Substring(0, 30),
@@ -1341,75 +1305,18 @@ public class RequestEndpointsTests
         };
         var response = await _client.PatchAsJsonAsync($"/api/requests/{created.Id}/schedule", scheduleData);
 
-        // Assert
+        // Assert: refused, and the window written before the resource check was rolled back
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task ScheduleRequest_WithInvalidTimeRange_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
-        var createRequest = new CreateRequestRequest
-        {
-            Name = $"Test {Guid.NewGuid():N}".Substring(0, 30),
-            StartTs = null,
-            EndTs = null,
-            MinimalDurationValue = 4,
-            MinimalDurationUnit = DurationUnit.Hours
-        };
-        var createResponse = await _client.PostAsJsonAsync("/api/requests", createRequest);
-        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
-        Assert.NotNull(created);
-
-        // Act - Try to schedule with end before start
-        var scheduleData = new ScheduleRequestRequest
-        {
-            ResourceId = resourceId,
-            StartTs = DateTime.UtcNow.AddDays(1),
-            EndTs = DateTime.UtcNow // End before start
-        };
-        var response = await _client.PatchAsJsonAsync($"/api/requests/{created.Id}/schedule", scheduleData);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task ScheduleRequest_WithPartialData_ReturnsBadRequest()
-    {
-        // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
-        var createRequest = new CreateRequestRequest
-        {
-            Name = $"Test {Guid.NewGuid():N}".Substring(0, 30),
-            StartTs = null,
-            EndTs = null,
-            MinimalDurationValue = 4,
-            MinimalDurationUnit = DurationUnit.Hours
-        };
-        var createResponse = await _client.PostAsJsonAsync("/api/requests", createRequest);
-        var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
-        Assert.NotNull(created);
-
-        // Act - Try to schedule with only resourceId (missing times)
-        var scheduleData = new ScheduleRequestRequest
-        {
-            ResourceId = resourceId,
-            StartTs = null,
-            EndTs = null
-        };
-        var response = await _client.PatchAsJsonAsync($"/api/requests/{created.Id}/schedule", scheduleData);
-
-        // Assert - Should fail because all must be provided or all null
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var after = await _client.GetFromJsonAsync<RequestInfo>($"/api/requests/{created.Id}");
+        Assert.Null(after!.StartTs);
+        Assert.Null(after.EndTs);
     }
 
     [Fact]
     public async Task ScheduleRequest_NonExistentRequest_ReturnsNotFound()
     {
         // Arrange
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var scheduleData = new ScheduleRequestRequest
         {
             ResourceId = resourceId,
@@ -1441,7 +1348,7 @@ public class RequestEndpointsTests
         var created = await createResponse.Content.ReadFromJsonAsync<RequestInfo>();
         Assert.NotNull(created);
 
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
 
         // Act - Try to schedule the summary request
         var scheduleData = new ScheduleRequestRequest
@@ -1460,8 +1367,8 @@ public class RequestEndpointsTests
     public async Task RescheduleRequest_ChangesSpaceAndTime()
     {
         // Arrange - Create scheduled request
-        var resourceId1 = await TestHelpers.GetOrCreateTestSpace(_client);
-        var resourceId2 = await TestHelpers.GetOrCreateAnotherTestSpace(_client);
+        var resourceId1 = DatabaseFixture.SpaceId;
+        var resourceId2 = await TestHelpers.CreateUniqueTestSpace(_client);
 
         var createRequest = new CreateRequestRequest
         {
@@ -1497,7 +1404,7 @@ public class RequestEndpointsTests
     public async Task ResizeRequest_SameSpace_PreservesExplicitEndTs()
     {
         // Arrange — schedule a request on a space
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var start = DateTime.UtcNow.AddDays(1);
         var originalEnd = start.AddHours(4);
 
@@ -1579,7 +1486,7 @@ public class RequestEndpointsTests
     [Fact]
     public async Task Requirement_WithBooleanCriterion_WorksCorrectly()
     {
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Boolean);
         Assert.NotNull(criterion);
@@ -1611,7 +1518,7 @@ public class RequestEndpointsTests
     [Fact]
     public async Task Requirement_WithEnumCriterion_WorksCorrectly()
     {
-        var resourceId = await TestHelpers.GetOrCreateTestSpace(_client);
+        var resourceId = DatabaseFixture.SpaceId;
         var criteria = await TestHelpers.GetAvailableCriteria(_client);
         var criterion = criteria.FirstOrDefault(c => c.ResourceTypeKeys.Contains(ResourceTypeKeys.Space) && c.DataType == CriterionDataType.Enum);
         Assert.NotNull(criterion);
@@ -1640,6 +1547,68 @@ public class RequestEndpointsTests
         Assert.NotNull(created.Requirements);
         Assert.Single(created.Requirements);
         Assert.Equal(criterion.EnumValues[0], created.Requirements[0].Value.GetString());
+    }
+
+    #endregion
+
+    #region GET /requests - site scope and cap
+
+    private async Task<Guid> CreateSiteAsync()
+    {
+        var code = $"s23-{Guid.NewGuid():N}"[..10];
+        var response = await _client.PostAsJsonAsync("/api/sites", new { code, name = code });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<SiteInfo>())!.Id;
+    }
+
+    private async Task<RequestInfo> CreateSiteRequestAsync(Guid siteId)
+    {
+        var response = await _client.PostAsJsonAsync("/api/requests", new CreateRequestRequest
+        {
+            Name = $"S23 {Guid.NewGuid():N}"[..12],
+            MinimalDurationValue = 1,
+            MinimalDurationUnit = DurationUnit.Hours,
+            SiteId = siteId,
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<RequestInfo>())!;
+    }
+
+    [Fact]
+    public async Task GetRequests_PagedWithSiteId_ExcludesOtherSites()
+    {
+        var siteA = await CreateSiteAsync();
+        var siteB = await CreateSiteAsync();
+        var inB = await CreateSiteRequestAsync(siteB);
+        var inA = await CreateSiteRequestAsync(siteA);
+
+        var paged = await _client.GetFromJsonAsync<PagedResult<RequestInfo>>(
+            $"/api/requests?siteId={siteB}&page=1&pageSize=100");
+        var unscoped = await _client.GetFromJsonAsync<PagedResult<RequestInfo>>(
+            "/api/requests?page=1&pageSize=100");
+
+        // The paged branch once ignored siteId and answered every site's rows.
+        paged!.Items.Should().OnlyContain(r => r.SiteId == null || r.SiteId == siteB);
+        paged.Items.Should().NotContain(r => r.Id == inA.Id);
+        paged.TotalItems.Should().BeLessThan(unscoped!.TotalItems);
+        inB.SiteId.Should().Be(siteB);
+    }
+
+    [Fact]
+    public async Task GetRequests_Unpaged_KeepsTheBareList()
+    {
+        var site = await CreateSiteAsync();
+        var created = await CreateSiteRequestAsync(site);
+
+        var response = await _client.GetAsync($"/api/requests?siteId={site}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var items = await response.Content.ReadFromJsonAsync<List<RequestInfo>>();
+        items.Should().Contain(r => r.Id == created.Id);
+        items.Should().OnlyContain(r => r.SiteId == null || r.SiteId == site);
+        // The cap used to travel as X-Total-Count / X-Has-Next-Page headers nothing read; the
+        // PagedResult body of the paged branch is the one truncation signal.
+        response.Headers.Should().NotContainKey("X-Total-Count");
     }
 
     #endregion

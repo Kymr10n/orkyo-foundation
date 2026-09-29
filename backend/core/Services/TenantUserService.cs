@@ -1,6 +1,5 @@
-using System.Text.Json;
+using Api.Repositories;
 using Npgsql;
-using NpgsqlTypes;
 
 namespace Api.Services;
 
@@ -75,29 +74,7 @@ public class TenantUserService : ITenantUserService
         {
             await using var conn = _connectionFactory.CreateOrgConnection(org);
             await conn.OpenAsync(ct);
-            await using var transaction = await conn.BeginTransactionAsync(ct);
-
-            await using var cmd = new NpgsqlCommand(@"
-                INSERT INTO audit_events (actor_user_id, actor_type, action, target_type, target_id, metadata, created_at)
-                VALUES (@actorUserId, @actorType, @action, @targetType, @targetId, @metadata, NOW())",
-                conn, transaction);
-
-            cmd.Parameters.AddWithValue("actorUserId", actorUserId.HasValue ? actorUserId.Value : DBNull.Value);
-            cmd.Parameters.AddWithValue("actorType", actorUserId.HasValue ? "user" : "system");
-            cmd.Parameters.AddWithValue("action", action);
-            cmd.Parameters.AddWithValue("targetType", (object?)targetType ?? DBNull.Value);
-            cmd.Parameters.AddWithValue("targetId", (object?)targetId ?? DBNull.Value);
-            cmd.Parameters.Add(new NpgsqlParameter("metadata", NpgsqlDbType.Jsonb)
-            {
-                Value = metadata != null ? JsonSerializer.Serialize(metadata) : DBNull.Value,
-            });
-
-            await cmd.ExecuteNonQueryAsync(ct);
-            await transaction.CommitAsync(ct);
-        }
-        catch (PostgresException ex) when (ex.SqlState == "42P01")
-        {
-            _logger.LogWarning("Audit events table does not exist - skipping audit logging");
+            await AuditEventWriter.InsertTenantAsync(conn, actorUserId, action, targetType, targetId, metadata, ct);
         }
         catch (Exception ex)
         {

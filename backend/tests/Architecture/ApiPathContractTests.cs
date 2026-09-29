@@ -25,12 +25,8 @@ namespace Orkyo.Foundation.Tests.Architecture;
 /// <see cref="SaasOwnedPaths"/> entry that Foundation starts serving (or that leaves api-paths.ts)
 /// also fails, so the escape hatch cannot quietly outlive its reason.</para>
 /// </summary>
-[Collection("Database collection")]
 public partial class ApiPathContractTests
 {
-    private readonly DatabaseFixture _fixture;
-
-    public ApiPathContractTests(DatabaseFixture fixture) => _fixture = fixture;
 
     /// <summary>
     /// Normalized paths that api-paths.ts owns but Foundation's backend does not register, because
@@ -159,7 +155,7 @@ public partial class ApiPathContractTests
             "api-paths.ts declares well over 100 /api literals — a smaller count means the file "
             + "moved or the extraction regex no longer matches its literal style");
 
-        normalized.Should().Contain("/api/session/me", "plain string literals must be extracted verbatim");
+        normalized.Should().Contain("/api/session/tos/accept", "plain string literals must be extracted verbatim");
         normalized.Should().Contain("/api/sites/{}/requests", "interpolated paths must normalize to the parameterized form");
         normalized.Should().NotContain(s => s.Contains('?') || s.Contains('$'),
             "normalization must strip query strings and TypeScript interpolation");
@@ -187,7 +183,7 @@ public partial class ApiPathContractTests
 
     private HashSet<string> BackendRoutePaths()
     {
-        var dataSource = _fixture.Factory.Services.GetRequiredService<EndpointDataSource>();
+        var dataSource = FoundationWebApplicationFactory.RouteTable;
         var paths = dataSource.Endpoints
             .OfType<RouteEndpoint>()
             .Select(e => "/" + (e.RoutePattern.RawText ?? string.Empty).TrimStart('/'))

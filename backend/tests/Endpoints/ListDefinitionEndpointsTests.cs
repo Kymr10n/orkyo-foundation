@@ -24,13 +24,10 @@ public class ListDefinitionEndpointsTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
     private async Task<ListDefinitionInfo> CreateDefinitionAsync(string? name = null)
     {
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = name ?? UniqueName("Maintenance log") });
+            new CreateListDefinitionRequest { Name = name ?? TestHelpers.UniqueName("Maintenance log") });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
     }
@@ -43,7 +40,7 @@ public class ListDefinitionEndpointsTests
             $"/api/list-definitions/{definitionId}/columns",
             new CreateListColumnRequest
             {
-                Key = key ?? UniqueKey("col"),
+                Key = key ?? TestHelpers.UniqueKey("col"),
                 Label = "Column",
                 DataType = dataType,
                 Options = options,
@@ -101,7 +98,7 @@ public class ListDefinitionEndpointsTests
     [Fact]
     public async Task CreateDefinition_RejectsADuplicateName()
     {
-        var name = UniqueName("Components");
+        var name = TestHelpers.UniqueName("Components");
         await CreateDefinitionAsync(name);
 
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
@@ -361,7 +358,7 @@ public class ListDefinitionEndpointsTests
         var definition = await CreateDefinitionAsync();
         await CreateColumnAsync(definition.Id);
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
             {
@@ -417,7 +414,7 @@ public class ListDefinitionEndpointsTests
 
         var read = await member.GetAsync("/api/list-definitions");
         var write = await member.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Nope") });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Nope") });
 
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
@@ -431,28 +428,16 @@ public class ListDefinitionEndpointsTests
         // Reshaping a list is governance even for an editor: they fill lists in, they do not
         // decide what a list consists of.
         var response = await editor.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Nope") });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Nope") });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-    }
-
-    private async Task<ResourceTypeInfo> CreateResourceTypeAsync()
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = UniqueKey("machine"),
-            DisplayName = "Machine",
-            DisplayNamePlural = "Machines",
-        });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
     }
 
     private async Task<ListInstanceInfo> CreateSharedInstanceAsync(Guid definitionId)
     {
         var response = await _client.PostAsJsonAsync(
             $"/api/list-definitions/{definitionId}/instances",
-            new CreateListInstanceRequest { Name = UniqueName("Standard") });
+            new CreateListInstanceRequest { Name = TestHelpers.UniqueName("Standard") });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ListInstanceInfo>())!;
     }
@@ -466,7 +451,7 @@ public class ListDefinitionEndpointsTests
         var orgResponse = await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Cost centres"),
+                Name = TestHelpers.UniqueName("Cost centres"),
                 Scope = ListDefinitionScopes.Organization,
             });
         Assert.Equal(HttpStatusCode.Created, orgResponse.StatusCode);
@@ -487,7 +472,7 @@ public class ListDefinitionEndpointsTests
         var org = (await (await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Retired org list"),
+                Name = TestHelpers.UniqueName("Retired org list"),
                 Scope = ListDefinitionScopes.Organization,
             })).Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
         var deactivate = await _client.PutAsJsonAsync($"/api/list-definitions/{org.Id}",
@@ -524,12 +509,12 @@ public class ListDefinitionEndpointsTests
     [Fact]
     public async Task CreateDefinition_AcceptsAResourceScopeWithItsType()
     {
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Tooling"),
+                Name = TestHelpers.UniqueName("Tooling"),
                 Scope = ListDefinitionScopes.Resource,
                 ResourceTypeId = type.Id,
             });
@@ -546,7 +531,7 @@ public class ListDefinitionEndpointsTests
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Tooling"),
+                Name = TestHelpers.UniqueName("Tooling"),
                 Scope = ListDefinitionScopes.Resource,
             });
 
@@ -558,12 +543,12 @@ public class ListDefinitionEndpointsTests
     [InlineData(ListDefinitionScopes.Common)]
     public async Task CreateDefinition_RejectsATypeOnAScopeThatOwnsNone(string scope)
     {
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Departments"),
+                Name = TestHelpers.UniqueName("Departments"),
                 Scope = scope,
                 ResourceTypeId = type.Id,
             });
@@ -575,7 +560,7 @@ public class ListDefinitionEndpointsTests
     public async Task CreateDefinition_RejectsAnUnknownScope()
     {
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Odd"), Scope = "tenant" });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Odd"), Scope = "tenant" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -586,7 +571,7 @@ public class ListDefinitionEndpointsTests
         var response = await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Tooling"),
+                Name = TestHelpers.UniqueName("Tooling"),
                 Scope = ListDefinitionScopes.Resource,
                 ResourceTypeId = Guid.NewGuid(),
             });
@@ -599,9 +584,9 @@ public class ListDefinitionEndpointsTests
     {
         // The point of scoping the namespace: "Certification" means different things on a mill
         // and on a person, and both tenants of the name must be able to exist.
-        var first = await CreateResourceTypeAsync();
-        var second = await CreateResourceTypeAsync();
-        var name = UniqueName("Certification");
+        var first = await TestHelpers.CreateResourceTypeAsync(_client);
+        var second = await TestHelpers.CreateResourceTypeAsync(_client);
+        var name = TestHelpers.UniqueName("Certification");
 
         foreach (var type in new[] { first, second })
         {
@@ -619,8 +604,8 @@ public class ListDefinitionEndpointsTests
     [Fact]
     public async Task CreateDefinition_StillRejectsADuplicateNameWithinOneType()
     {
-        var type = await CreateResourceTypeAsync();
-        var name = UniqueName("Certification");
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
+        var name = TestHelpers.UniqueName("Certification");
         CreateListDefinitionRequest Request() => new()
         {
             Name = name,
@@ -639,7 +624,7 @@ public class ListDefinitionEndpointsTests
     {
         // Postgres treats NULLs as distinct in a unique constraint, so the owner-less scopes need
         // a partial index rather than a plain UNIQUE. This is the test that would catch its loss.
-        var name = UniqueName("Countries");
+        var name = TestHelpers.UniqueName("Countries");
 
         Assert.Equal(HttpStatusCode.Created,
             (await _client.PostAsJsonAsync("/api/list-definitions",
@@ -652,7 +637,7 @@ public class ListDefinitionEndpointsTests
     [Fact]
     public async Task CreateDefinition_AllowsTheSameNameInCommonAndOrganization()
     {
-        var name = UniqueName("Countries");
+        var name = TestHelpers.UniqueName("Countries");
 
         Assert.Equal(HttpStatusCode.Created,
             (await _client.PostAsJsonAsync("/api/list-definitions",
@@ -747,7 +732,7 @@ public class ListDefinitionEndpointsTests
         var organization = (await (await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Org"),
+                Name = TestHelpers.UniqueName("Org"),
                 Scope = ListDefinitionScopes.Organization,
             })).Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
 

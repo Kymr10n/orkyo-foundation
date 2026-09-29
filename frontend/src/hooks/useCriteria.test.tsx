@@ -1,17 +1,19 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import { toast } from 'sonner';
 import {
   useCriteria,
   useCreateCriterion,
   useDeleteCriterion,
+  useSaveCriterion,
+  type CriterionDraft,
 } from './useCriteria';
 import * as criteriaApi from '@foundation/src/lib/api/criteria-api';
 import type { Criterion } from '@foundation/src/types/criterion';
 import { createTestQueryWrapper, createTestQueryClient } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/criteria-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockCriterion: Criterion = {
   id: 'criterion-1',
@@ -25,10 +27,6 @@ const mockCriterion: Criterion = {
 };
 
 describe('useCriteria', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('useCriteria query', () => {
     it('fetches criteria (tenant-wide)', async () => {
       const criteria = [mockCriterion];
@@ -65,6 +63,54 @@ describe('useCriteria', () => {
         expect(spy).toHaveBeenCalledWith({ queryKey: ['criteria'], exact: false });
         expect(spy).toHaveBeenCalledWith({ queryKey: ['requests'], exact: false });
       });
+    });
+  });
+
+  describe('useSaveCriterion', () => {
+    const draft: CriterionDraft = {
+      name: 'capacity',
+      dataType: 'Number',
+      description: 'Room capacity',
+      unit: 'people',
+      enumValues: [],
+      resourceTypeKeys: ['space'],
+    };
+
+    it('creates from a draft with no id', async () => {
+      const { wrapper } = createTestQueryClient({ feedback: true });
+      vi.mocked(criteriaApi.createCriterion).mockResolvedValue(mockCriterion);
+      const { result } = renderHook(() => useSaveCriterion(), { wrapper });
+
+      await result.current.mutateAsync({ id: null, data: draft });
+
+      expect(criteriaApi.createCriterion).toHaveBeenCalledWith({
+        name: 'capacity',
+        description: 'Room capacity',
+        dataType: 'Number',
+        enumValues: undefined,
+        unit: 'people',
+        resourceTypeKeys: ['space'],
+      });
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Criterion created'));
+    });
+
+    it('updates against the previous criterion, sending only what changed', async () => {
+      const { wrapper } = createTestQueryClient({ feedback: true });
+      vi.mocked(criteriaApi.updateCriterion).mockResolvedValue(mockCriterion);
+      const { result } = renderHook(() => useSaveCriterion(), { wrapper });
+
+      await result.current.mutateAsync({
+        id: mockCriterion.id,
+        data: { draft: { ...draft, description: 'Seats' }, previous: mockCriterion },
+      });
+
+      expect(criteriaApi.updateCriterion).toHaveBeenCalledWith(mockCriterion.id, {
+        description: 'Seats',
+        enumValues: undefined,
+        unit: 'people',
+      });
+      expect(criteriaApi.updateCriterionApplicability).not.toHaveBeenCalled();
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Criterion updated'));
     });
   });
 

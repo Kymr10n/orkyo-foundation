@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Api.Constants;
 using Api.Helpers;
 using Api.Integrations.Keycloak;
@@ -21,7 +19,13 @@ public sealed class InvitationService : IInvitationService
     private readonly IQuotaEnforcer _quotaEnforcer;
     private readonly ILogger<InvitationService> _logger;
     private readonly TimeProvider _time;
+    private readonly IBackgroundDispatcher _background;
 
+    /// <param name="background">
+    /// Runs the welcome mail after the response. Optional only because orkyo-saas's
+    /// <c>InvitationServiceIntegrationTests</c> composes this service by hand: such an instance
+    /// sends the mail inline through its own <paramref name="emailService"/>. DI always supplies it.
+    /// </param>
     public InvitationService(
         IDbConnectionFactory connectionFactory,
         IEmailService emailService,
@@ -30,7 +34,8 @@ public sealed class InvitationService : IInvitationService
         ITenantSettingsService settingsService,
         IQuotaEnforcer quotaEnforcer,
         ILogger<InvitationService> logger,
-        TimeProvider time)
+        TimeProvider time,
+        IBackgroundDispatcher? background = null)
     {
         _connectionFactory = connectionFactory;
         _emailService = emailService;
@@ -40,11 +45,20 @@ public sealed class InvitationService : IInvitationService
         _quotaEnforcer = quotaEnforcer;
         _logger = logger;
         _time = time;
+        _background = background ?? new InlineMailDispatcher(emailService);
     }
 
     public async Task<(Models.Invitation invitation, string token)?> InviteUserAsync(
+        TenantContext tenant, Guid invitedBy, string email, Models.UserRole role, CancellationToken ct = default) =>
+        await InviteAsync(tenant, invitedBy, email, role, ct) is InviteUserResult.Invited invited
+            ? (invited.Invitation, invited.Token)
+            : null;
+
+    public async Task<InviteUserResult> InviteAsync(
         TenantContext tenant, Guid invitedBy, string email, Models.UserRole role, CancellationToken ct = default)
     {
+        email = UserProvisioningService.Normalize(email);
+
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
 
@@ -57,21 +71,8 @@ public sealed class InvitationService : IInvitationService
         var currentCount = Convert.ToInt32(await countCmd.ExecuteScalarAsync(ct));
         await _quotaEnforcer.EnsureWithinLimitAsync(QuotaResourceTypes.ActiveSeats, currentCount, 1, ct);
 
-        // Check if already a member
-        await using var checkCmd = new NpgsqlCommand(@"
-            SELECT COUNT(*) FROM tenant_memberships tm
-            INNER JOIN users u ON tm.user_id = u.id
-            WHERE u.email = @email AND tm.tenant_id = @tenantId", conn);
-        checkCmd.Parameters.AddWithValue("email", email);
-        checkCmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
-        if (Convert.ToInt32(await checkCmd.ExecuteScalarAsync(ct)) > 0)
-        {
-            _logger.LogWarning("Cannot invite {Email}: already a member", email);
-            return null;
-        }
-
         // If the user already exists globally, grant membership directly (no token needed)
-        await using var checkUserCmd = new NpgsqlCommand("SELECT id FROM users WHERE email = @email", conn);
+        await using var checkUserCmd = new NpgsqlCommand("SELECT id FROM users WHERE LOWER(email) = @email", conn);
         checkUserCmd.Parameters.AddWithValue("email", email);
         var existingUserId = await checkUserCmd.ExecuteScalarAsync(ct) as Guid?;
 
@@ -79,19 +80,29 @@ public sealed class InvitationService : IInvitationService
 
         if (existingUserId.HasValue)
         {
+            // ON CONFLICT decides "already a member", so two concurrent invites cannot both insert.
+            // No invited_by: that column is a SaaS-only extension (foundation's table has none);
+            // the audit event below records the inviter in both editions.
+            await using var tx = await conn.BeginTransactionAsync(ct);
             await using var membershipCmd = new NpgsqlCommand(@"
-                INSERT INTO tenant_memberships (user_id, tenant_id, role, status, invited_by, created_at, updated_at)
-                VALUES (@userId, @tenantId, @role, 'active', @invitedBy, NOW(), NOW())", conn);
+                INSERT INTO tenant_memberships (user_id, tenant_id, role, status, created_at, updated_at)
+                VALUES (@userId, @tenantId, @role, 'active', NOW(), NOW())
+                ON CONFLICT (user_id, tenant_id) DO NOTHING", conn, tx);
             membershipCmd.Parameters.AddWithValue("userId", existingUserId.Value);
             membershipCmd.Parameters.AddWithValue("tenantId", tenant.TenantId);
             membershipCmd.Parameters.AddWithValue("role", role.ToString().ToLowerInvariant());
-            membershipCmd.Parameters.AddWithValue("invitedBy", invitedBy);
-            await membershipCmd.ExecuteNonQueryAsync(ct);
+            if (await membershipCmd.ExecuteNonQueryAsync(ct) == 0)
+            {
+                _logger.LogInformation("Did not invite user {UserId}: already a member of tenant {TenantId}", existingUserId.Value, tenant.TenantId);
+                return new InviteUserResult.AlreadyMember();
+            }
 
             await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, existingUserId.Value, email, ct);
+            await tx.CommitAsync(ct);
+
             _logger.LogInformation("Added existing user {Email} to tenant {TenantId} with role {Role}", email, tenant.TenantId, role);
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserAddedToTenant, invitedBy, "user", existingUserId.Value.ToString(), new { email, role = role.ToString() }, ct);
-            return null;
+            return new InviteUserResult.AddedDirectly(existingUserId.Value, email, role);
         }
 
         var token = GenerateSecureToken();
@@ -117,7 +128,7 @@ public sealed class InvitationService : IInvitationService
         await _emailService.SendInvitationEmailAsync(email, token, invitation.ExpiresAt, ct);
         await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvited, invitedBy, "invitation", invitation.Id.ToString(), new { email, role = role.ToString() }, ct);
 
-        return (invitation, token);
+        return new InviteUserResult.Invited(invitation, token);
     }
 
     public async Task<(string? email, DateTime? expiresAt, string? tenantName, string? error)> ValidateInvitationAsync(
@@ -237,8 +248,9 @@ public sealed class InvitationService : IInvitationService
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvitationAccepted, userId, "user", userId.ToString(), ct: ct);
 
             _logger.LogInformation("User {Email} accepted invitation and joined tenant {TenantId}", email, tenantId);
-            // Welcome the new member (best-effort).
-            _ = _emailService.SendWelcomeEmailAsync(email, displayName, ct);
+            // Welcome the new member (best-effort), after the response.
+            _background.Dispatch<IEmailService>("welcome mail",
+                (mail, mailCt) => mail.SendWelcomeEmailAsync(email, displayName, mailCt));
             return (user, null);
         }
         catch (Exception ex)
@@ -341,11 +353,17 @@ public sealed class InvitationService : IInvitationService
 
     /// <summary>
     /// Base64, and it has to stay base64: these hashes are compared against rows written by
-    /// earlier releases. Calendar feeds hash the same way into hex for the same reason.
+    /// earlier releases (<see cref="SecureTokens"/> says why the encodings differ).
     /// </summary>
-    private static string HashToken(string token)
+    private static string HashToken(string token) => SecureTokens.Sha256Base64(token);
+
+    /// <summary>
+    /// The dispatcher of a hand-composed instance: no scope factory to resolve a service from,
+    /// so the work runs against the instance's own mail service before the caller returns.
+    /// </summary>
+    private sealed class InlineMailDispatcher(IEmailService mail) : IBackgroundDispatcher
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return Convert.ToBase64String(hash);
+        public void Dispatch<TService>(string what, Func<TService, CancellationToken, Task> work) where TService : notnull
+            => work((TService)(object)mail, CancellationToken.None).GetAwaiter().GetResult();
     }
 }

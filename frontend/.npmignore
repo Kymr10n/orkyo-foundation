@@ -1,14 +1,9 @@
-# Foundation publishes only the compiled output in .tsbuild/. The `files`
-# whitelist in package.json restricts the tarball to that directory. This
-# .npmignore further trims dev-only artifacts that tsc emits alongside the
-# real output (test files, vitest config, tsbuildinfo).
+# Foundation publishes only the compiled output in .tsbuild/. The `files` list in
+# package.json both whitelists that directory and, with `!` entries, drops what tsc emits
+# beside the real output: test files, the test support (test-utils, test/setup, which import
+# vitest), vitest.config and the tsbuildinfo. Those exclusions must live in `files`: a root
+# .npmignore cannot exclude a path that `files` includes.
 #
 # .gitignore would otherwise be used as a fallback by npm pack — and it
 # excludes .tsbuild/ — so this file must exist (even if empty) to prevent
 # the published tarball from losing its types.
-.tsbuild/**/*.test.js
-.tsbuild/**/*.test.d.ts
-.tsbuild/**/*.test.d.ts.map
-.tsbuild/vitest.config.js
-.tsbuild/vitest.config.d.ts
-.tsbuild/.tsbuildinfo

@@ -11,6 +11,45 @@ public class UserValidatorTests
     private readonly IValidator<AcceptInvitationRequest> _acceptValidator = new AcceptInvitationRequestValidator();
     private readonly IValidator<UpdateUserRoleRequest> _roleValidator = new UpdateUserRoleRequestValidator();
 
+    #region Profile and email change
+
+    [Fact]
+    public void Profile_ANameOverTheDisplayNameColumn_Fails()
+    {
+        // Keycloak is updated before users.display_name; an overlong name changed the one and 500ed on the other.
+        var validator = new UpdateProfileRequestValidator();
+        var tooLong = new string('a', Api.Constants.DomainLimits.PersonNamePartMaxLength + 1);
+
+        Assert.False(validator.Validate(new UpdateProfileRequest { FirstName = tooLong }).IsValid);
+        Assert.False(validator.Validate(new UpdateProfileRequest { FirstName = "Ann", LastName = tooLong }).IsValid);
+        Assert.True(validator.Validate(new UpdateProfileRequest { FirstName = "Ann", LastName = "Lee" }).IsValid);
+    }
+
+    [Fact]
+    public void EmailChange_AnAddressOverTheColumn_Fails()
+    {
+        var validator = new RequestEmailChangeRequestValidator();
+        var local = new string('a', 64);
+        var domain = string.Join('.', Enumerable.Repeat(new string('b', 60), 5)) + ".com";
+
+        Assert.False(validator.Validate(new RequestEmailChangeRequest($"{local}@{domain}")).IsValid);
+    }
+
+    [Fact]
+    public void RemoveMfa_RequiresThePasswordAndASixDigitCode()
+    {
+        var validator = new RemoveMfaRequestValidator();
+
+        Assert.True(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "123456" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "12345" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "1234567" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentPassword = "pw", CurrentCode = "12345a" }).IsValid);
+        Assert.False(validator.Validate(new RemoveMfaRequest { CurrentCode = "123456" }).IsValid);
+    }
+
+    #endregion
+
     #region InviteUserRequest
 
     [Fact]

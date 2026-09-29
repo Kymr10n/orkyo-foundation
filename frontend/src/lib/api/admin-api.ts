@@ -7,7 +7,9 @@
 
 import { apiGet, apiPost, apiPatch, apiDelete, apiPut } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { ApiError } from '../core/api-utils';
 import type { PlanCode } from '@foundation/contracts/plans';
+import type { AuditEventPage } from './audit-api';
 
 // ============================================================================
 // Types
@@ -16,11 +18,8 @@ import type { PlanCode } from '@foundation/contracts/plans';
 /** Mirrors backend TenantStatusConstants and the DB check constraint. */
 export type TenantStatus = 'active' | 'suspended' | 'deleting';
 
-export const TENANT_STATUS = {
-  ACTIVE: 'active',
-  SUSPENDED: 'suspended',
-  DELETING: 'deleting',
-} as const satisfies Record<string, TenantStatus>;
+/** Re-exported from `constants/auth` so saas's admin tabs keep their import path. */
+export { TENANT_STATUS } from '@foundation/src/constants/auth';
 
 export interface AdminTenant {
   id: string;
@@ -281,18 +280,19 @@ export async function renewBreakGlassSession(sessionId: string): Promise<BreakGl
 /**
  * Read the current break-glass session for a tenant. Used to drive the countdown
  * banner and to detect external revocation. Returns null when there is no active
- * session for this admin / tenant pair (404 with `break_glass_expired`).
+ * session for this admin / tenant pair (404, with or without `break_glass_expired`).
+ * Any other failure is rethrown: a 500 while the session is live must not read as
+ * "no session".
  */
 export async function getBreakGlassSessionStatus(
   tenantSlug: string,
 ): Promise<BreakGlassSessionStatus | null> {
   try {
     return await apiGet<BreakGlassSessionStatus>(API_PATHS.ADMIN.breakGlassSession(tenantSlug));
-  } catch {
+  } catch (err) {
     // handleApiError already handled the redirect case for `break_glass_expired`.
-    // For other errors (network, etc.) fall back to "no session known" so the UI
-    // can render without the banner instead of crashing.
-    return null;
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
   }
 }
 
@@ -464,13 +464,7 @@ export interface PlatformAuditEvent {
   createdAt: string;
 }
 
-export interface PlatformAuditPage {
-  events: PlatformAuditEvent[];
-  page: number;
-  pageSize: number;
-  totalCount: number;
-  totalPages: number;
-}
+export type PlatformAuditPage = AuditEventPage<PlatformAuditEvent>;
 
 export interface PlatformAuditFilters {
   action?: string;

@@ -5,13 +5,13 @@
  */
 
 import { useEffect, useEffectEvent, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useMutation } from '@tanstack/react-query';
 import { qk } from '@foundation/src/lib/api/query-keys';
 import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
 import type { ExportFormat, ImportFormat, ExportContext } from '@foundation/src/lib/utils/import-export';
 import { useUiActionsStore, type CalendarFeedCapability, type ExportCapability } from '@foundation/src/store/ui-actions-store';
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 
 /**
  * What the page tells the TopBar about itself when it registers — the store's
@@ -30,9 +30,16 @@ export function useExportHandler(
   const registerExport = useUiActionsStore((s) => s.registerExport);
   const unregisterExport = useUiActionsStore((s) => s.unregisterExport);
   const lastTickRef = useRef(tick);
-  // Effect event, not a ref: read only from the effect below, and must see the latest
-  // handler without retriggering on every render that passes a new inline closure.
-  const runExport = useEffectEvent((format: ExportFormat) => handler(format));
+  // A mutation, so a failed export reaches the central error toast instead of an unhandled
+  // rejection. `mutationFn` is re-read on every render, so it always calls the latest handler.
+  const exportMutation = useMutation({
+    mutationFn: async (format: ExportFormat) => {
+      await handler(format);
+    },
+    meta: { errorMessage: 'Export failed' },
+  });
+  // Effect event, not a ref: read only from the effect below, and must not retrigger it.
+  const runExport = useEffectEvent((format: ExportFormat) => exportMutation.mutate(format));
 
   // Registering IS the offer: the TopBar enables Export for exactly as long as
   // this component is mounted, so a moved route can never silently orphan it.
@@ -48,7 +55,7 @@ export function useExportHandler(
     if (tick === lastTickRef.current) return;
     lastTickRef.current = tick;
     if (payload?.context === context) {
-      void runExport(payload.format);
+      runExport(payload.format);
     }
   }, [tick, payload, context]);
 }
@@ -76,9 +83,9 @@ export function useCalendarFeedHandler(
 }
 
 /**
- * Centralized import feedback, mirroring the mutation `meta` convention
- * (docs/dialog-feedback.md): the handler does the work and throws on failure;
- * the hook fires the toast + query invalidation once, in one place.
+ * Import feedback, carried into the import mutation's `meta` (docs/dialog-feedback.md):
+ * the handler does the work and throws on failure; the central MutationCache fires the
+ * toast + query invalidation once, in one place.
  */
 export interface ImportFeedbackOptions<T> {
   /** Success toast. A function receives the handler's return value (e.g. an imported count). */
@@ -96,43 +103,46 @@ export function useImportHandler<T = void>(
   handler: (file: File, format: ImportFormat) => T | Promise<T>,
   options: ImportFeedbackOptions<T>,
 ) {
-  const queryClient = useQueryClient();
+  // An import writes records, so a Viewer is never offered one: the page does not register,
+  // and the TopBar has no Import entry to show.
+  const canEdit = useCanEdit();
   const tick = useUiActionsStore((s) => s.importTick);
   const payload = useUiActionsStore((s) => s.lastImport);
   const registerImport = useUiActionsStore((s) => s.registerImport);
   const unregisterImport = useUiActionsStore((s) => s.unregisterImport);
   const lastTickRef = useRef(tick);
-  // The whole import run is an effect event: it must see the latest handler and options
-  // without either becoming a dependency of the tick effect below.
-  const runImport = useEffectEvent(async (file: File, format: ImportFormat) => {
-    try {
-      const result = await handler(file, format);
-      options.invalidates?.forEach((queryKey) => {
-        void queryClient.invalidateQueries({ queryKey, exact: false });
-      });
-      const successMessage =
-        typeof options.successMessage === 'function' ? options.successMessage(result) : options.successMessage;
-      if (successMessage) toast.success(successMessage);
-    } catch (error) {
-      toast.error(options.errorMessage ?? 'Import failed', {
-        description: error instanceof Error ? error.message : undefined,
-      });
-    }
+  // The central MutationCache fires the toast and the invalidation from `meta`
+  // (docs/dialog-feedback.md); the options only translate into it.
+  const { successMessage } = options;
+  const importMutation = useMutation({
+    mutationFn: ({ file, format }: { file: File; format: ImportFormat }) =>
+      Promise.resolve(handler(file, format)),
+    meta: {
+      successMessage:
+        typeof successMessage === 'function' ? (data) => successMessage(data as T) : successMessage,
+      errorMessage: options.errorMessage ?? 'Import failed',
+      invalidates: options.invalidates,
+    },
   });
+  // Effect event: the tick effect below must not depend on the mutation object.
+  const runImport = useEffectEvent((file: File, format: ImportFormat) =>
+    importMutation.mutate({ file, format }),
+  );
 
   const importFormatsKey = (options.formats ?? ['csv']).join(',');
   useEffect(() => {
+    if (!canEdit) return;
     registerImport(context, { formats: importFormatsKey.split(',') as ImportFormat[] });
     return () => unregisterImport(context);
-  }, [context, importFormatsKey, registerImport, unregisterImport]);
+  }, [canEdit, context, importFormatsKey, registerImport, unregisterImport]);
 
   useEffect(() => {
     if (tick === lastTickRef.current) return;
     lastTickRef.current = tick;
-    if (payload?.context !== context) return;
+    if (!canEdit || payload?.context !== context) return;
 
-    void runImport(payload.file, payload.format);
-  }, [tick, payload, context]);
+    runImport(payload.file, payload.format);
+  }, [canEdit, tick, payload, context]);
 }
 
 /**
@@ -142,6 +152,6 @@ export function useImportHandler<T = void>(
  * there is no `meta` to carry the invalidation. It runs after a partial failure too — whatever
  * was written before the error is real, and the screen has to show it.
  */
-export function useInvalidateImportedData(): () => void {
+export function useInvalidateImportedData(): () => Promise<void> {
   return useInvalidateKeys(qk.resources.all(), ...REQUEST_DERIVED_QUERY_KEYS);
 }

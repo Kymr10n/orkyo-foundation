@@ -3,6 +3,7 @@ import {
   toDateTimeLocalValue,
   formatCompactTime,
   formatDateDisplay,
+  formatDateTimeDisplay,
   formatDateTimeShort,
   formatLocalized,
   formatPeriod,
@@ -32,6 +33,21 @@ describe("formatDateDisplay", () => {
   it("renders a locale-aware medium date for a valid ISO string", () => {
     const iso = "2026-04-02T10:30:00Z";
     expect(formatDateDisplay(iso)).toBe(formatLocalized(new Date(iso), { dateStyle: "medium" }));
+  });
+  it("takes a Date and a caller's empty text", () => {
+    const d = new Date(2026, 3, 2);
+    expect(formatDateDisplay(d)).toBe(formatLocalized(d, { dateStyle: "medium" }));
+    expect(formatDateDisplay(null, "—")).toBe("—");
+  });
+});
+
+describe("formatDateTimeDisplay", () => {
+  it("renders date, year and 24h time in the user's locale", () => {
+    const d = new Date(2026, 3, 2, 14, 30);
+    const text = formatDateTimeDisplay(d);
+    expect(text).toContain("2026");
+    expect(text).toContain("14:30");
+    expect(formatDateTimeDisplay(d.toISOString())).toBe(text);
   });
 });
 

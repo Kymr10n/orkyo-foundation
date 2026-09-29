@@ -12,8 +12,6 @@ import {
 import { updateRequest } from "@foundation/src/lib/api/request-api";
 import type { Request } from "@foundation/src/types/requests";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-
 vi.mock("@foundation/src/lib/api/request-dependency-api", () => ({
   getRequestDependencies: vi.fn(),
   addRequestDependency: vi.fn(),
@@ -62,7 +60,6 @@ function twoPredecessors() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   (getRequestDependencies as Mock).mockResolvedValue({ predecessors: [], successors: [] });
 });
 

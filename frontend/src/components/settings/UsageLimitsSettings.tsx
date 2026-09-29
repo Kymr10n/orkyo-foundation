@@ -57,7 +57,7 @@ function UsageHeader() {
   return (
     <SettingsPageHeader
       title="Usage & Limits"
-      description="What this workspace is using, and the limits its plan allows. Read-only — limits change with the plan."
+      description="What this organization is using, and the limits its plan allows. Read-only — limits change with the plan."
     />
   );
 }

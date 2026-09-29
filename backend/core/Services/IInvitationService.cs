@@ -9,8 +9,19 @@ namespace Api.Services;
 public interface IInvitationService
 {
     /// <summary>
-    /// Sends an invitation email to <paramref name="email"/> and records it.
-    /// Returns <c>null</c> if the email already has an active account.
+    /// Invites <paramref name="email"/> to the tenant. A person with no account gets an invitation
+    /// email (<see cref="InviteUserResult.Invited"/>); an existing account is made a member at once
+    /// (<see cref="InviteUserResult.AddedDirectly"/>); a current member is left as is
+    /// (<see cref="InviteUserResult.AlreadyMember"/>).
+    /// </summary>
+    Task<InviteUserResult> InviteAsync(
+        TenantContext tenant, Guid invitedBy, string email, UserRole role, CancellationToken ct = default);
+
+    /// <summary>
+    /// <see cref="InviteAsync"/> flattened to the pre-2026-09 shape: <c>null</c> for both
+    /// "added directly" and "already a member". Kept only for orkyo-saas's
+    /// <c>InvitationServiceIntegrationTests</c> (<c>InviteUserAsync_*</c>); it goes with the next
+    /// TestSupport/major bump, once that test moves to <see cref="InviteAsync"/>.
     /// </summary>
     Task<(Invitation invitation, string token)?> InviteUserAsync(
         TenantContext tenant, Guid invitedBy, string email, UserRole role, CancellationToken ct = default);
@@ -40,4 +51,19 @@ public interface IInvitationService
     /// tenant. The stored token is only a hash, so the original can never be re-sent as-is.
     /// </summary>
     Task<bool> ResendInvitationAsync(TenantContext tenant, Guid invitationId, Guid resentBy, CancellationToken ct = default);
+}
+
+/// <summary>The outcome of <see cref="IInvitationService.InviteAsync"/>.</summary>
+public abstract record InviteUserResult
+{
+    private InviteUserResult() { }
+
+    /// <summary>No account yet: an invitation was recorded and mailed.</summary>
+    public sealed record Invited(Invitation Invitation, string Token) : InviteUserResult;
+
+    /// <summary>The account existed: it is now an active member with the requested role.</summary>
+    public sealed record AddedDirectly(Guid UserId, string Email, UserRole Role) : InviteUserResult;
+
+    /// <summary>The account is already a member of the tenant; nothing changed.</summary>
+    public sealed record AlreadyMember : InviteUserResult;
 }

@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SecuritySettings } from './SecuritySettings';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 const mockSend = vi.fn();
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ send: mockSend }),
+  useAuth: () => mockAuth({ send: mockSend }),
 }));
 
 const mockQueryResult = vi.hoisted(() => ({
@@ -30,14 +31,11 @@ vi.mock('./SessionsSection', () => ({
 }));
 
 describe('SecuritySettings', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('shows loading spinner when loading', () => {
     mockQueryResult.current = { data: null, isLoading: true, error: null };
-    const { container } = render(<SecuritySettings />);
-    expect(container.querySelector('.animate-spin')).toBeTruthy();
+    render(<SecuritySettings />);
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByTestId('mfa-section')).not.toBeInTheDocument();
   });
 
   it('shows error alert when query fails', () => {

@@ -3,16 +3,13 @@ import type { ComponentProps } from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReportingApiSettings } from './ReportingApiSettings';
+import { toast } from 'sonner';
 import type { ReportingTokenSummary } from '@foundation/src/lib/api/reporting-tokens-api';
 
 vi.mock('@foundation/src/lib/api/reporting-tokens-api', () => ({
   listReportingTokens: vi.fn(),
   createReportingToken: vi.fn(),
   revokeReportingToken: vi.fn(),
-}));
-
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
 }));
 
 // Entitlement gate: ReportingApiSettings requires the server-reported api_access_enabled
@@ -30,7 +27,7 @@ const { authState, entitled, notEntitled } = vi.hoisted(() => {
   };
 });
 vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => ({ membership: authState.membership, isLoading: authState.isLoading, isSiteAdmin: false }),
+  useAuth: () => mockAuth({ membership: authState.membership, isLoading: authState.isLoading }),
 }));
 
 import {
@@ -41,6 +38,7 @@ import {
 } from '@foundation/src/lib/api/reporting-tokens-api';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import { formatDateForInput } from '@foundation/src/lib/utils';
+import { mockAuth } from '@foundation/src/test-utils/auth';
 
 const activeToken: ReportingTokenSummary = {
   id: 'tok-1',
@@ -95,7 +93,6 @@ function expectedPresetLabel(days: number): string {
 
 describe('ReportingApiSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     authState.membership = entitled;
     authState.isLoading = false;
     vi.mocked(listReportingTokens).mockResolvedValue([activeToken]);
@@ -119,7 +116,7 @@ describe('ReportingApiSettings', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('Reporting API access is not available for this workspace.'),
+        screen.getByText('Reporting API access is not available for this organization.'),
       ).toBeInTheDocument();
     });
     expect(listReportingTokens).not.toHaveBeenCalled();
@@ -137,7 +134,7 @@ describe('ReportingApiSettings', () => {
       expect(screen.getByText(/Available on Professional and Enterprise plans/i)).toBeInTheDocument();
     });
     expect(
-      screen.queryByText('Reporting API access is not available for this workspace.'),
+      screen.queryByText('Reporting API access is not available for this organization.'),
     ).not.toBeInTheDocument();
 
     // CTA is a link to the provided href; navigation happens only on click.
@@ -211,6 +208,31 @@ describe('ReportingApiSettings', () => {
     await waitFor(() => {
       expect(screen.getByText(/Failed to load reporting tokens/)).toBeInTheDocument();
     });
+  });
+
+  it('offers a retry that reloads the list after a failed load', async () => {
+    vi.mocked(listReportingTokens).mockRejectedValueOnce(new Error('Unauthorized'));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('Power BI Dashboard')).toBeInTheDocument();
+    expect(listReportingTokens).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the create dialog open with the failure inline, not a toast', async () => {
+    vi.mocked(createReportingToken).mockRejectedValueOnce(new Error('Token limit reached'));
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => screen.getByText('Power BI Dashboard'));
+    await user.click(screen.getByRole('button', { name: /New token/i }));
+    await user.type(screen.getByLabelText('Name'), 'Ops Dashboard');
+    await user.click(screen.getByRole('button', { name: 'Create token' }));
+
+    expect(await screen.findByText('Token limit reached')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Create Reporting Token' })).toBeInTheDocument();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('shows Power BI quick-start section', async () => {

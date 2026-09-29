@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   updateTenant,
   transferTenantOwnership,
@@ -16,10 +16,6 @@ const mockTenant = {
 };
 
 describe("tenant-api", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("updateTenant", () => {
     it("calls apiPatch with tenant ID and data", async () => {
       vi.mocked(apiClient.apiPatch).mockResolvedValue({

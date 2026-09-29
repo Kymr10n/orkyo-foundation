@@ -23,29 +23,8 @@ public class AiConversationEndpointsTests
         _client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
     }
 
-    private string? _cachedToken;
-
-    private async Task<string> GetTokenAsync()
-    {
-        if (_cachedToken != null) return _cachedToken;
-
-        var email = $"ai_convo_{Guid.NewGuid()}@example.com";
-        var userId = await DatabaseTestUtils.CreateTestUserAsync(
-            email, "AI Conversation User", TenantSlug, "editor", active: true);
-
-        _cachedToken = TestConstants.BearerToken(userId.ToString(), email, "AI Conversation User", "00000000-0000-0000-0000-000000000001", TenantSlug,
-            isTenantAdmin: false, role: "editor");
-        return _cachedToken;
-    }
-
-    private async Task<HttpRequestMessage> AuthRequest(
-        HttpMethod method, string url, object? content = null)
-    {
-        var msg = new HttpRequestMessage(method, url);
-        msg.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await GetTokenAsync());
-        if (content != null) msg.Content = JsonContent.Create(content);
-        return msg;
-    }
+    private Task<string>? _token;
+    private Task<string> Token => _token ??= DatabaseFixture.CreateMemberTokenAsync(RoleConstants.Editor);
 
     [Theory]
     [InlineData("\"not a list\"", "[]")]
@@ -57,7 +36,7 @@ public class AiConversationEndpointsTests
             {"title":"Shape check","entries":{{entriesJson}},"transcript":{{transcriptJson}}}
             """;
 
-        var request = await AuthRequest(HttpMethod.Put, $"/api/ai/conversations/{Guid.NewGuid()}");
+        var request = TestHelpers.AuthRequest(HttpMethod.Put, $"/api/ai/conversations/{Guid.NewGuid()}", await Token);
         request.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
         var response = await _client.SendAsync(request);
@@ -76,12 +55,12 @@ public class AiConversationEndpointsTests
             {"title":"Kept","entries":[{"role":"user"}],"transcript":[{"text":"hello"}]}
             """;
 
-        var save = await AuthRequest(HttpMethod.Put, $"/api/ai/conversations/{id}");
+        var save = TestHelpers.AuthRequest(HttpMethod.Put, $"/api/ai/conversations/{id}", await Token);
         save.Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
         (await _client.SendAsync(save)).StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         var read = await _client.SendAsync(
-            await AuthRequest(HttpMethod.Get, $"/api/ai/conversations/{id}"));
+            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/ai/conversations/{id}", await Token));
         read.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var conversation = JsonDocument.Parse(await read.Content.ReadAsStringAsync()).RootElement;
@@ -92,7 +71,7 @@ public class AiConversationEndpointsTests
     public async Task Get_ForSomebodyElsesConversation_IsIndistinguishableFromOneThatIsNotThere()
     {
         var response = await _client.SendAsync(
-            await AuthRequest(HttpMethod.Get, $"/api/ai/conversations/{Guid.NewGuid()}"));
+            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/ai/conversations/{Guid.NewGuid()}", await Token));
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }

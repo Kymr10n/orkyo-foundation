@@ -4,13 +4,8 @@ import { Button } from '@foundation/src/components/ui/button';
 import { ConfirmDialog } from '@foundation/src/components/ui/ConfirmDialog';
 import { ListRowEditDialog } from '@foundation/src/components/lists/ListRowEditDialog';
 import { ListRowsTable } from '@foundation/src/components/lists/ListRowsTable';
-import {
-  useCreateListRow,
-  useDeleteListRow,
-  useListRows,
-  useUpdateListRow,
-} from '@foundation/src/hooks/useListRows';
-import type { ListCellValue, ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
+import { useDeleteListRow, useListRows } from '@foundation/src/hooks/useListRows';
+import type { ListColumn, ListRow } from '@foundation/src/lib/api/lists-api';
 
 interface ListRowsEditorProps {
   columns: ListColumn[];
@@ -72,8 +67,6 @@ export function ListRowsEditor({
   const effectiveInstanceId = instanceId ?? createdInstanceId;
 
   const { data: rows, isLoading, error } = useListRows(effectiveInstanceId);
-  const createRow = useCreateListRow(effectiveInstanceId);
-  const updateRow = useUpdateListRow(effectiveInstanceId);
   const deleteRow = useDeleteListRow(effectiveInstanceId);
 
   /**
@@ -86,6 +79,9 @@ export function ListRowsEditor({
       setIsPreparing(true);
       try {
         setCreatedInstanceId(await ensureInstanceId());
+      } catch {
+        // The mutation's meta has toasted the failure; there is no list to add a row to.
+        return;
       } finally {
         setIsPreparing(false);
       }
@@ -93,11 +89,6 @@ export function ListRowsEditor({
     setEditing(null);
     setDialogOpen(true);
   };
-
-  const saveRow = (values: Record<string, ListCellValue>, row: ListRow | null) =>
-    row
-      ? updateRow.mutateAsync({ rowId: row.id, request: { values } })
-      : createRow.mutateAsync({ values });
 
   // Stable across renders on purpose: the table memoizes its column definitions on this, and an
   // inline arrow here would hand it a new identity every render — the memo would never hold, and
@@ -151,7 +142,7 @@ export function ListRowsEditor({
         <div className="flex items-center justify-end gap-2">
           {toolbar}
           {!readOnly && (
-            <Button type="button" onClick={openAddDialog} disabled={isPreparing}>
+            <Button type="button" onClick={() => void openAddDialog()} disabled={isPreparing}>
               <Plus className="mr-2 h-4 w-4" />
               Add {entityLabel}
             </Button>
@@ -179,7 +170,6 @@ export function ListRowsEditor({
           instanceId={effectiveInstanceId}
           displayColumnId={displayColumnId}
           entityLabel={entityLabel}
-          save={saveRow}
         />
       )}
 

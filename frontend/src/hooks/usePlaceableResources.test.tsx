@@ -1,10 +1,9 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import {
   usePlaceableResources,
   useCreatePlaceableResource,
-  useUpdatePlaceableResource,
   useDeletePlaceableResource,
   useMovePlaceableResource,
 } from './usePlaceableResources';
@@ -14,7 +13,6 @@ import type { ResourceGeometry } from '@foundation/src/types/geometry';
 import { qk } from '@foundation/src/lib/api/query-keys';
 
 vi.mock('@foundation/src/lib/api/resources-api');
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 import { toast } from 'sonner';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
 import { createTestQueryClient, createTestQueryWrapper } from '@foundation/src/test-utils';
@@ -54,10 +52,6 @@ function placeable(overrides: Partial<ResourceInfo> = {}): ResourceInfo {
 const listResponse = (items: ResourceInfo[]) => pagedResult(items);
 
 describe('usePlaceableResources', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('asks for every placeable resource at the site, whatever its type', async () => {
     // One floorplan holds them all, so the query is type-agnostic — a tenant-defined placeable
     // type appears without any per-type wiring.
@@ -120,18 +114,6 @@ describe('usePlaceableResources', () => {
       expect.objectContaining({ resourceTypeKey: 'space', homeSiteId: 'site-1' }),
     );
     expect(toast.success).toHaveBeenCalledWith('Resource created');
-  });
-
-  it('updates by resource id, with no site in the path', async () => {
-    vi.mocked(resourcesApi.updateResource).mockResolvedValue(placeable());
-    const { result } = renderHook(() => useUpdatePlaceableResource('site-1'), {
-      wrapper: feedbackWrapper(),
-    });
-
-    result.current.mutate({ resourceId: 'space-1', data: { name: 'Renamed' } });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(resourcesApi.updateResource).toHaveBeenCalledWith('space-1', { name: 'Renamed' });
   });
 
   it('sends geometry alone when moving', async () => {

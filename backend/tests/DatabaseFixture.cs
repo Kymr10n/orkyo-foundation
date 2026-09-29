@@ -16,6 +16,12 @@ public class DatabaseFixture : IAsyncLifetime
     /// <summary>Connection string for the shared test tenant database.</summary>
     public string TenantConnectionString { get; private set; } = null!;
 
+    /// <summary>The one site the fixture seeds into the test tenant.</summary>
+    public static readonly Guid SiteId = new("5e5e0000-0000-0000-0000-000000000001");
+
+    /// <summary>The one space the fixture seeds, homed at <see cref="SiteId"/>.</summary>
+    public static readonly Guid SpaceId = new("5e5e0000-0000-0000-0000-000000000002");
+
     /// <summary>Gets the shared web application factory for all tests.</summary>
     public FoundationWebApplicationFactory Factory { get; private set; } = null!;
 
@@ -45,6 +51,18 @@ public class DatabaseFixture : IAsyncLifetime
         client.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, tenantSlug);
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {bearerToken}");
         return client;
+    }
+
+    /// <summary>
+    /// Creates a new member of the test tenant with <paramref name="role"/> and returns a bearer
+    /// token for them: a distinct user, for tests whose rows must not land on the shared one.
+    /// </summary>
+    public static async Task<string> CreateMemberTokenAsync(string role)
+    {
+        var email = $"member_{Guid.NewGuid():N}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, "Test Member", TestConstants.TenantSlug, role, active: true);
+        return TestConstants.BearerToken(userId.ToString(), email, "Test Member", TestConstants.TenantId.ToString(),
+            TestConstants.TenantSlug, isTenantAdmin: role == RoleConstants.Admin, role: role);
     }
 
     public async Task InitializeAsync()
@@ -89,7 +107,7 @@ public class DatabaseFixture : IAsyncLifetime
             @"INSERT INTO tenants (id, slug, display_name, status, db_identifier, tier, created_at, updated_at)
               VALUES (@id, @slug, 'Test Organization', 'active', @db, 2, NOW(), NOW())
               ON CONFLICT (id) DO UPDATE SET slug = @slug, tier = 2, db_identifier = @db", seedConn);
-        tenantSeedCmd.Parameters.AddWithValue("id", new Guid("00000000-0000-0000-0000-000000000001"));
+        tenantSeedCmd.Parameters.AddWithValue("id", TestConstants.TenantId);
         tenantSeedCmd.Parameters.AddWithValue("slug", TestConstants.TenantSlug);
         tenantSeedCmd.Parameters.AddWithValue("db", TestConstants.TenantDatabase);
         await tenantSeedCmd.ExecuteNonQueryAsync();
@@ -99,7 +117,7 @@ public class DatabaseFixture : IAsyncLifetime
             @"INSERT INTO users (id, email, display_name, status, created_at, updated_at)
               VALUES (@id, @email, @name, 'active', NOW(), NOW())
               ON CONFLICT (id) DO NOTHING", seedConn);
-        userCmd.Parameters.AddWithValue("id", new Guid("11111111-1111-1111-1111-111111111111"));
+        userCmd.Parameters.AddWithValue("id", TestConstants.UserId);
         userCmd.Parameters.AddWithValue("email", "test@orkyo.example");
         userCmd.Parameters.AddWithValue("name", "Test User");
         await userCmd.ExecuteNonQueryAsync();
@@ -110,7 +128,7 @@ public class DatabaseFixture : IAsyncLifetime
               SELECT @userId, t.id, 'admin', 'active', NOW(), NOW()
               FROM tenants t WHERE t.slug = @slug
               ON CONFLICT DO NOTHING", seedConn);
-        memberCmd.Parameters.AddWithValue("userId", new Guid("11111111-1111-1111-1111-111111111111"));
+        memberCmd.Parameters.AddWithValue("userId", TestConstants.UserId);
         memberCmd.Parameters.AddWithValue("slug", TestConstants.TenantSlug);
         await memberCmd.ExecuteNonQueryAsync();
         Console.WriteLine($"    ✓ Test user seeded as admin of tenant '{TestConstants.TenantSlug}'");
@@ -147,13 +165,28 @@ public class DatabaseFixture : IAsyncLifetime
         await applicabilityCmd.ExecuteNonQueryAsync();
         Console.WriteLine("    ✓ Seed criteria applicability assigned for all resource types");
 
+        // One site and one space, so a test that needs "a site" or "a space" names a fixed id
+        // instead of depending on what an earlier test happened to create.
+        await using var placeCmd = new NpgsqlCommand(@"
+            INSERT INTO sites (id, name, code) VALUES (@site, 'Test Site', 'fixture-site')
+            ON CONFLICT (id) DO NOTHING;
+            INSERT INTO resources (id, resource_type_id, name, code, allocation_mode,
+                                   home_site_id, cross_site_allowed, is_physical)
+            SELECT @space, rt.id, 'Test Space', 'FIXTURE-SPACE', 'Exclusive', @site, false, false
+            FROM resource_types rt WHERE rt.key = 'space'
+            ON CONFLICT (id) DO NOTHING", tenantSeedConn);
+        placeCmd.Parameters.AddWithValue("site", SiteId);
+        placeCmd.Parameters.AddWithValue("space", SpaceId);
+        await placeCmd.ExecuteNonQueryAsync();
+        Console.WriteLine("    ✓ Fixture site and space seeded");
+
         // Mirror the shared test user into the tenant users table so FK constraints
         // on user_preferences, preset_applications, etc. are satisfied.
         await using var tenantUserCmd = new NpgsqlCommand(
             @"INSERT INTO users (id, email, display_name, created_at, synced_at)
               VALUES (@id, @email, @name, NOW(), NOW())
               ON CONFLICT (id) DO NOTHING", tenantSeedConn);
-        tenantUserCmd.Parameters.AddWithValue("id", new Guid("11111111-1111-1111-1111-111111111111"));
+        tenantUserCmd.Parameters.AddWithValue("id", TestConstants.UserId);
         tenantUserCmd.Parameters.AddWithValue("email", "test@orkyo.example");
         tenantUserCmd.Parameters.AddWithValue("name", "Test User");
         await tenantUserCmd.ExecuteNonQueryAsync();

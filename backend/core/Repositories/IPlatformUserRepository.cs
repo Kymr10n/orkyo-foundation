@@ -1,3 +1,4 @@
+using Api.Models;
 using Api.Models.Admin;
 
 namespace Api.Repositories;
@@ -37,7 +38,8 @@ public enum EmailChangeConfirmStatus
 public sealed record EmailChangeConfirmResult(
     EmailChangeConfirmStatus Status,
     Guid? UserId = null,
-    string? PendingEmail = null);
+    string? PendingEmail = null,
+    string? DisplayName = null);
 
 /// <summary>
 /// Data access for the control-plane <c>users</c> table. Consolidates the raw ADO.NET that used
@@ -48,8 +50,12 @@ public interface IPlatformUserRepository
     /// <summary>True when a user with <paramref name="userId"/> exists.</summary>
     Task<bool> ExistsAsync(Guid userId, CancellationToken ct = default);
 
-    /// <summary>Admin user list projection (optionally filtered by email/display-name search or status), capped at 500 rows.</summary>
-    Task<List<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default);
+    /// <summary>
+    /// Admin user list projection (optionally filtered by email/display-name search or status),
+    /// capped at <see cref="PageRequest.MaxUnpagedItems"/> rows; the result carries the real
+    /// total, so <see cref="PagedResult{T}.HasNextPage"/> reports a truncated list.
+    /// </summary>
+    Task<PagedResult<AdminUserListRow>> GetAdminUserListAsync(string? search, string? status, CancellationToken ct = default);
 
     /// <summary>Core admin user detail fields (identities/memberships are resolved separately).</summary>
     Task<AdminUserCoreDto?> GetAdminUserCoreAsync(Guid userId, CancellationToken ct = default);
@@ -77,7 +83,7 @@ public interface IPlatformUserRepository
         Func<string?, string, string, CancellationToken, Task> updateKeycloakEmailAsync,
         CancellationToken ct = default);
 
-    /// <summary>Finds the user matching an unexpired lifecycle confirm-activity token.</summary>
+    /// <summary>Finds the user matching an unexpired lifecycle confirm-activity token (the mailed token; it is hashed before the lookup).</summary>
     Task<AccountLifecycleConfirmRecord?> FindActiveLifecycleConfirmAsync(string token, CancellationToken ct = default);
 
     /// <summary>Clears lifecycle warning/dormancy state (the user confirmed activity).</summary>

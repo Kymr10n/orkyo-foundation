@@ -6,11 +6,8 @@ import {
   updateTemplate,
 } from "@foundation/src/lib/api/template-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import type {
-  CreateTemplateRequest,
-  Template,
-  UpdateTemplateRequest,
-} from "@foundation/src/types/templates";
+import type { CreateTemplateRequest, UpdateTemplateRequest } from "@foundation/src/types/templates";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 type TemplateEntityType = "request" | "space" | "group";
 
@@ -32,22 +29,23 @@ export const useDeleteTemplate = (entityType: TemplateEntityType) =>
     },
   });
 
+export type SaveTemplateVariables = SaveVariables<CreateTemplateRequest, UpdateTemplateRequest>;
+
 /**
- * Create or update, by whether an existing template was handed in. Both modes feed the
- * same `templates-${entityType}` list query (TemplateSettings).
+ * Create or update, by the variables' id. Both modes feed the same `templates-${entityType}`
+ * list query (TemplateSettings).
  */
 export const useSaveTemplate = (
-  template: Template | null,
   entityType: TemplateEntityType,
   options: { onSuccess: () => void; onError: (err: Error) => void },
 ) =>
   useMutation({
-    mutationFn: async (request: CreateTemplateRequest | UpdateTemplateRequest) => {
-      if (template) await updateTemplate(template.id, request);
-      else await createTemplate(request as CreateTemplateRequest);
+    mutationFn: async (v: SaveTemplateVariables) => {
+      if (v.id === null) await createTemplate(v.data);
+      else await updateTemplate(v.id, v.data);
     },
     meta: {
-      successMessage: template ? "Template updated" : "Template created",
+      successMessage: savedMessage("Template created", "Template updated"),
       suppressErrorToast: true,
       invalidates: [qk.templates(entityType)],
     },

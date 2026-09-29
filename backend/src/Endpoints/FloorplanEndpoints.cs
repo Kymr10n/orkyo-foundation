@@ -23,50 +23,31 @@ public static class FloorplanEndpoints
             ICurrentPrincipal principal,
             IAssetStorageService assetStorage,
             ITenantUserService tenantAudit,
-            CancellationToken ct,
-            ILogger<EndpointLoggerCategory> logger) =>
+            CancellationToken ct) =>
         {
+            // Failures are AppExceptionHandler's: a missing site is 404, a bad file 400, the rest 500.
             var tenant = ctx.GetTenantContext();
             var file = ctx.Request.Form.Files.GetFile("file");
             if (file is null || file.Length == 0)
                 return ErrorResponses.BadRequest("No file uploaded");
 
-            try
-            {
-                var userId = principal.UserIdOrNull;
-                var metadata = await assetStorage.UploadSiteFloorplanAsync(
-                    tenant.TenantId, siteId,
-                    new UploadFloorplanRequest
-                    {
-                        Content = file.OpenReadStream(),
-                        FileName = file.FileName,
-                        ContentType = file.ContentType,
-                        ContentLength = file.Length
-                    },
-                    userId, ct);
+            var userId = principal.UserIdOrNull;
+            var metadata = await assetStorage.UploadSiteFloorplanAsync(
+                tenant.TenantId, siteId,
+                new UploadFloorplanRequest
+                {
+                    Content = file.OpenReadStream(),
+                    FileName = file.FileName,
+                    ContentType = file.ContentType,
+                    ContentLength = file.Length
+                },
+                userId, ct);
 
-                await tenantAudit.RecordAuditEventAsync(
-                    ctx.GetOrgContext(), "floorplan.upload", userId, "site", siteId.ToString(),
-                    new { metadata.FileName, metadata.MimeType, metadata.FileSizeBytes }, ct);
+            await tenantAudit.RecordAuditEventAsync(
+                ctx.GetOrgContext(), "floorplan.upload", userId, "site", siteId.ToString(),
+                new { metadata.FileName, metadata.MimeType, metadata.FileSizeBytes }, ct);
 
-                return Results.Ok(new { success = true, metadata });
-            }
-            // These two catches stay although AppExceptionHandler maps both exceptions: the
-            // catch-all below would otherwise turn them into the generic 500.
-            catch (NotFoundException)
-            {
-                return ErrorResponses.NotFound("Site", siteId);
-            }
-            catch (ArgumentException ex)
-            {
-                logger.LogInformation(ex, "Invalid floorplan upload for site {SiteId}", siteId);
-                return ErrorResponses.BadRequest(ex.Message);
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Failed to upload floorplan for site {SiteId}", siteId);
-                return Results.Problem("Failed to upload floorplan");
-            }
+            return Results.Ok(new { success = true, metadata });
         })
         .DisableAntiforgery()
         .Accepts<IFormFile>("multipart/form-data")

@@ -22,8 +22,9 @@ export interface TenantAuditEvent {
   createdAt: string;
 }
 
-export interface AuditEventPage {
-  events: TenantAuditEvent[];
+/** Wire shape both audit endpoints return (grandfathered `events`/`totalCount`). */
+export interface AuditEventPage<T = TenantAuditEvent> {
+  events: T[];
   page: number;
   pageSize: number;
   totalCount: number;

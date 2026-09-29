@@ -31,17 +31,21 @@ public static class TimePolicyConstants
 public static class LifecyclePolicyConstants
 {
     public const int TenantDeleteGraceDays = 7;
+    public const int TenantSuspendAfterDormantDays = 30;
     // Warn the owner/admins this many days before auto-suspension kicks in.
     public const int TenantSuspendWarnBeforeDays = 7;
 
     public const int UserPurgeAfterDormantDays = 90;
 
-    public const string TenantSuspendAfterDormantSqlInterval = "30 days";
+    // The tenant and user-purge SQL intervals are derived from the day counts above, so the
+    // query and the number a notice quotes cannot drift apart.
+    public static readonly string TenantSuspendAfterDormantSqlInterval = $"{TenantSuspendAfterDormantDays} days";
     // Idle threshold at which the pre-suspension warning fires = (suspend - warn-before) days.
-    public const string TenantSuspendWarnAfterDormantSqlInterval = "23 days";
-    public const string TenantDeleteGraceSqlInterval = "7 days";
+    public static readonly string TenantSuspendWarnAfterDormantSqlInterval =
+        $"{TenantSuspendAfterDormantDays - TenantSuspendWarnBeforeDays} days";
+    public static readonly string TenantDeleteGraceSqlInterval = $"{TenantDeleteGraceDays} days";
     public const string UserInactiveWarningSqlInterval = "12 months";
     public const string UserWarningReminderSqlInterval = "14 days";
-    public const string UserPurgeAfterDormantSqlInterval = "90 days";
+    public static readonly string UserPurgeAfterDormantSqlInterval = $"{UserPurgeAfterDormantDays} days";
     public const string UserConfirmTokenValiditySqlInterval = "30 days";
 }

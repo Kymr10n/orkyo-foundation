@@ -28,9 +28,9 @@ interface SchedulerViewState {
    *
    * It is not server state and is deliberately not reconciled with one. The grid
    * sorts the rows it already has by this list and appends anything absent, so an
-   * id for a deleted space is inert and a new space lands at the end. Nothing
-   * persists it, so a reload returns to the server's order — which is the whole
-   * reason it can stay this simple.
+   * id for a deleted space is inert and a new space lands at the end. The store
+   * itself does not persist it: UtilizationPage seeds it from, and writes each
+   * reorder back to, the user's preferences (`spaceOrder`).
    */
   spaceOrder: string[];
   setScale: (scale: SchedulerScale) => void;

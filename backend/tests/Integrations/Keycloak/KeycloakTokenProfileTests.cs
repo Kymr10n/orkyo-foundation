@@ -19,7 +19,7 @@ public class KeycloakTokenProfileTests
         return $"{{\"roles\":[{rolesJson}]}}";
     }
 
-    // --- IsValid / IsAuthenticated ---
+    // --- IsValid ---
 
     [Fact]
     public void IsValid_ShouldBeTrue_WhenSubjectPresent()
@@ -35,22 +35,6 @@ public class KeycloakTokenProfileTests
         var profile = KeycloakTokenProfile.FromPrincipal(
             BuildPrincipal(new() { ["email"] = "a@b.com" }));
         profile.IsValid.Should().BeFalse();
-    }
-
-    [Fact]
-    public void IsAuthenticated_ShouldBeTrue_WhenIdentityAuthenticated()
-    {
-        var profile = KeycloakTokenProfile.FromPrincipal(
-            BuildPrincipal(new() { ["sub"] = "user-123" }, authenticated: true));
-        profile.IsAuthenticated.Should().BeTrue();
-    }
-
-    [Fact]
-    public void IsAuthenticated_ShouldBeFalse_WhenUnauthenticatedPrincipal()
-    {
-        var profile = KeycloakTokenProfile.FromPrincipal(
-            BuildPrincipal(new() { ["sub"] = "user-123" }, authenticated: false));
-        profile.IsAuthenticated.Should().BeFalse();
     }
 
     // --- Claim extraction ---

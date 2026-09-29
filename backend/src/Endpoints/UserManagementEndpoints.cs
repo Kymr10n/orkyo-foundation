@@ -82,8 +82,7 @@ public static class UserManagementEndpoints
 
     private static async Task<IResult> GetAllUsers(HttpContext context, IUserManagementService userManagementService, CancellationToken ct = default)
     {
-        var tc = context.GetTenantContext();
-        var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+        var org = context.GetTenantContext().ToOrgContext();
         var users = await userManagementService.GetAllUsersAsync(org, ct);
         return Results.Ok(new
         {
@@ -109,12 +108,19 @@ public static class UserManagementEndpoints
             {
                 var tc = context.GetTenantContext();
                 var userId = currentPrincipal.RequireUserId();
-                var result = await invitationService.InviteUserAsync(tc, userId, request.Email, request.Role, ct);
-                if (result == null) throw new ArgumentException("User with this email already exists");
-                return new
+                return await invitationService.InviteAsync(tc, userId, request.Email, request.Role, ct) switch
                 {
-                    invitation = new { id = result.Value.invitation.Id, email = result.Value.invitation.Email, role = result.Value.invitation.Role.ToString().ToLowerInvariant(), expiresAt = result.Value.invitation.ExpiresAt },
-                    message = "Invitation sent successfully"
+                    InviteUserResult.Invited(var invitation, _) => Results.Ok(new
+                    {
+                        invitation = new { id = invitation.Id, email = invitation.Email, role = invitation.Role.ToString().ToLowerInvariant(), expiresAt = invitation.ExpiresAt },
+                        message = "Invitation sent successfully"
+                    }),
+                    InviteUserResult.AddedDirectly added => Results.Ok(new
+                    {
+                        member = new { userId = added.UserId, email = added.Email, role = added.Role.ToString().ToLowerInvariant() },
+                        message = "User added to the organization"
+                    }),
+                    _ => ErrorResponses.Conflict("This user is already a member of the organization"),
                 };
             });
 
@@ -125,8 +131,7 @@ public static class UserManagementEndpoints
         CancellationToken ct = default) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var tc = context.GetTenantContext();
-                var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+                var org = context.GetTenantContext().ToOrgContext();
                 var currentUserId = currentPrincipal.RequireUserId();
                 if (userId == currentUserId) throw new ArgumentException("You cannot change your own role");
                 var result = await userManagementService.UpdateUserRoleAsync(org, userId, request.Role, currentUserId, ct);
@@ -140,8 +145,7 @@ public static class UserManagementEndpoints
         ICurrentPrincipal currentPrincipal, Guid userId,
         CancellationToken ct = default)
     {
-        var tc = context.GetTenantContext();
-        var org = new OrgContext { OrgId = tc.TenantId, OrgSlug = tc.TenantSlug, DbConnectionString = tc.TenantDbConnectionString };
+        var org = context.GetTenantContext().ToOrgContext();
         var currentUserId = currentPrincipal.RequireUserId();
         if (userId == currentUserId) throw new ArgumentException("You cannot delete your own account");
         var result = await userManagementService.DeleteUserAsync(org, userId, currentUserId, ct);

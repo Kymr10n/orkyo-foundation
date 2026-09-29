@@ -12,7 +12,7 @@ public class CapabilityMatcherTypedTests
 
     public CapabilityMatcherTypedTests()
     {
-        _matcher = new CapabilityMatcher(_repoMock.Object);
+        _matcher = new CapabilityMatcher();
     }
 
     private static JsonElement JsonValue(object value) => JsonDocument.Parse(JsonSerializer.Serialize(value)).RootElement;
@@ -54,7 +54,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.True(result);
     }
 
@@ -95,7 +95,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.True(result);
     }
 
@@ -137,7 +137,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.True(result);
     }
 
@@ -179,7 +179,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.False(result);
     }
 
@@ -220,7 +220,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.True(result);
     }
 
@@ -261,7 +261,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.False(result);
     }
 
@@ -302,7 +302,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.True(result);
     }
 
@@ -323,7 +323,7 @@ public class CapabilityMatcherTypedTests
         _repoMock.Setup(r => r.GetByResourceAsync(resourceId))
             .ReturnsAsync(new List<ResourceCapabilityInfo>());
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.False(result);
     }
 
@@ -364,7 +364,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.False(result);
     }
 
@@ -405,7 +405,7 @@ public class CapabilityMatcherTypedTests
                 }
             });
 
-        var result = await _matcher.ResourceSatisfiesRequirementAsync(resourceId, requirement);
+        var result = _matcher.Satisfies(await _repoMock.Object.GetByResourceAsync(resourceId), requirement);
         Assert.True(result);
     }
 }

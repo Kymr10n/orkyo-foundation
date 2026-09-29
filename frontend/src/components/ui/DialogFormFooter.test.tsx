@@ -28,13 +28,13 @@ describe('DialogFormFooter', () => {
   });
 
   it('shows submitting label when submitting', () => {
-    render(<DialogFormFooter onCancel={vi.fn()} isSubmitting submitLabel="Save" submittingLabel="Saving..." />);
-    expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();
+    render(<DialogFormFooter onCancel={vi.fn()} isSubmitting submitLabel="Save" submittingLabel="Saving…" />);
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
   });
 
   it('shows default submitting label when none provided', () => {
     render(<DialogFormFooter onCancel={vi.fn()} isSubmitting submitLabel="Save" />);
-    expect(screen.getByRole('button', { name: 'Saving...' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
   });
 
   it('disables cancel button when submitting', () => {

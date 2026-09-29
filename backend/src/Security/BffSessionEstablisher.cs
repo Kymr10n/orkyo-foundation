@@ -40,8 +40,6 @@ public interface IBffSessionEstablisher
 
 public sealed class BffSessionEstablisher : IBffSessionEstablisher
 {
-    // Must match the purpose used by BffCookieAuthenticationHandler to decrypt.
-    private const string DataProtectionPurpose = "BffSession";
     private const int CsrfTokenLength = 32;
 
     private readonly IBffSessionStore _sessionStore;
@@ -101,13 +99,12 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
             SlidingEnabled = slidingEnabled,
             TokenExpiresAt = now.AddSeconds(tokenResponse.ExpiresInSeconds),
             CreatedAt = now,
-            LastActivityAt = now,
             AuthClient = authClient,
         };
 
         await _sessionStore.SetAsync(session);
 
-        var protector = _dataProtection.CreateProtector(DataProtectionPurpose);
+        var protector = _dataProtection.CreateProtector(BffSessionCookies.DataProtectionPurpose);
         BffSessionCookies.WriteSessionCookie(ctx, _bffOptions, protector.Protect(sessionId), lifetime);
         BffSessionCookies.WriteCsrfCookie(ctx, _bffOptions,
             Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(CsrfTokenLength)), lifetime);

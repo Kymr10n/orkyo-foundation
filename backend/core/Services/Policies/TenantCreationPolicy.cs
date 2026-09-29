@@ -29,16 +29,18 @@ public static partial class TenantCreationPolicy
         "orkyo", "orkyo-admin", "orkyo-api", "orkyo-auth"
     };
 
-    [GeneratedRegex("^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]{3}$")]
+    // \A…\z, not ^…$: in .NET `$` also matches before a trailing newline.
+    [GeneratedRegex(@"\A(?:[a-z][a-z0-9-]*[a-z0-9]|[a-z]{3})\z")]
     private static partial Regex SlugRegex();
 
     public static TenantCreationDecision EvaluateSlug(string slug)
     {
-        if (ReservedSlugs.Contains(slug))
-            return TenantCreationDecision.ReservedSlug;
-
+        // Null first: the reserved set's comparer throws on a null key.
         if (string.IsNullOrEmpty(slug) || slug.Length < 3 || slug.Length > 63)
             return TenantCreationDecision.InvalidSlugFormat;
+
+        if (ReservedSlugs.Contains(slug))
+            return TenantCreationDecision.ReservedSlug;
 
         if (!SlugRegex().IsMatch(slug))
             return TenantCreationDecision.InvalidSlugFormat;

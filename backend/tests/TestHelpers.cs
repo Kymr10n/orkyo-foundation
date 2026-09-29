@@ -21,18 +21,66 @@ public static class TestHelpers
     };
 
 
-    public static async Task<Guid> GetOrCreateTestSite(HttpClient client)
+    private static readonly JsonSerializerOptions RequestJsonOpts = new(JsonSerializerDefaults.Web)
     {
-        var sitesResponse = await client.GetAsync("/api/sites");
-        if (sitesResponse.IsSuccessStatusCode)
-        {
-            var sites = await sitesResponse.Content.ReadFromJsonAsync<List<SiteInfo>>();
-            var testSite = sites?.FirstOrDefault();
-            if (testSite != null)
-                return testSite.Id;
-        }
+        Converters = { new JsonStringEnumConverter() }
+    };
 
-        return Guid.Parse("d533232d-6ead-4b11-a893-4721364a04c9");
+    /// <summary>
+    /// A request carrying <paramref name="token"/> as its bearer credential and
+    /// <paramref name="body"/>, when given, as camelCase JSON with enums as strings.
+    /// </summary>
+    public static HttpRequestMessage AuthRequest(HttpMethod method, string url, string token, object? body = null)
+    {
+        var request = new HttpRequestMessage(method, url);
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        if (body is not null)
+            request.Content = JsonContent.Create(body, options: RequestJsonOpts);
+        return request;
+    }
+
+    /// <summary>A key that no other test uses: <c>{prefix}_{guid}</c>.</summary>
+    public static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
+
+    /// <summary>A display name that no other test uses: <c>{prefix} {guid}</c>.</summary>
+    public static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
+
+    /// <summary>Creates a person resource through the API; fractional unless <paramref name="allocationMode"/> says otherwise.</summary>
+    public static async Task<ResourceInfo> CreatePersonAsync(
+        HttpClient client, string? name = null, int availabilityPercent = 100, string allocationMode = AllocationModes.Fractional)
+    {
+        var response = await client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Person,
+            Name = name ?? $"Person-{Guid.NewGuid():N}"[..20],
+            AllocationMode = allocationMode,
+            BaseAvailabilityPercent = availabilityPercent,
+        });
+        Assert.Equal(System.Net.HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ResourceInfo>(JsonOpts))!;
+    }
+
+    /// <summary>Creates a "Machine" resource type through the API.</summary>
+    public static async Task<ResourceTypeInfo> CreateResourceTypeAsync(
+        HttpClient client, string? key = null, bool hasGeometry = false, bool scanCodesEnabled = true)
+    {
+        var response = await client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
+        {
+            Key = key ?? UniqueKey("machine"),
+            DisplayName = "Machine",
+            DisplayNamePlural = "Machines",
+            HasGeometry = hasGeometry,
+            ScanCodesEnabled = scanCodesEnabled,
+        });
+        Assert.Equal(System.Net.HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>(JsonOpts))!;
+    }
+
+    /// <summary>The <see cref="Guid"/> a single-value query returns.</summary>
+    public static async Task<Guid> ScalarGuidAsync(Npgsql.NpgsqlConnection conn, Npgsql.NpgsqlTransaction tx, string sql)
+    {
+        await using var cmd = new Npgsql.NpgsqlCommand(sql, conn, tx);
+        return (Guid)(await cmd.ExecuteScalarAsync())!;
     }
 
     /// <summary>
@@ -52,15 +100,6 @@ public static class TestHelpers
         Geometry = null,
     };
 
-    private static async Task<List<ResourceInfo>> GetPlaceableAsync(HttpClient client, Guid siteId)
-    {
-        var response = await client.GetAsync(
-            $"/api/resources?hasGeometry=true&isActive=true&siteId={siteId}");
-        if (!response.IsSuccessStatusCode) return [];
-        var envelope = await response.Content.ReadFromJsonAsync<JsonElement>();
-        return envelope.GetProperty("items").Deserialize<List<ResourceInfo>>(JsonOpts) ?? [];
-    }
-
     private static async Task<Guid> CreatePlaceableAsync(HttpClient client, Guid siteId, string name, string code)
     {
         var response = await client.PostAsJsonAsync("/api/resources", PlaceableRequest(siteId, name, code));
@@ -69,33 +108,11 @@ public static class TestHelpers
         return created?.Id ?? throw new Exception($"Failed to create placeable resource '{name}'");
     }
 
-    public static async Task<Guid> GetOrCreateTestSpace(HttpClient client)
-    {
-        var siteId = await GetOrCreateTestSite(client);
-
-        var existing = await GetPlaceableAsync(client, siteId);
-        if (existing.Count > 0) return existing[0].Id;
-
-        var uniqueCode = $"TEST-{Guid.NewGuid():N}"[..15];
-        return await CreatePlaceableAsync(client, siteId, "Test Space for Requests", uniqueCode);
-    }
-
     public static async Task<Guid> CreateUniqueTestSpace(HttpClient client)
     {
-        var siteId = await GetOrCreateTestSite(client);
+        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"TEST-{Guid.NewGuid():N}"[..15];
         return await CreatePlaceableAsync(client, siteId, $"Test Space {uniqueCode}", uniqueCode);
-    }
-
-    public static async Task<Guid> GetOrCreateAnotherTestSpace(HttpClient client)
-    {
-        var siteId = await GetOrCreateTestSite(client);
-
-        var existing = await GetPlaceableAsync(client, siteId);
-        if (existing.Count >= 2) return existing[1].Id;
-
-        var uniqueCode = $"TEST2-{Guid.NewGuid():N}"[..15];
-        return await CreatePlaceableAsync(client, siteId, "Second Test Space", uniqueCode);
     }
 
     public static async Task<List<CriterionInfo>> GetAvailableCriteria(HttpClient client)

@@ -6,9 +6,11 @@ using Api.Models;
 using Api.Repositories;
 using Api.Security;
 using Api.Services;
+using Api.Services.BffSession;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 
 namespace Api.Endpoints;
@@ -25,7 +27,7 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             ChangePasswordRequest request,
             IValidator<ChangePasswordRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
@@ -38,7 +40,9 @@ public static class SecurityEndpoints
                 await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword!, ct);
                 logger.LogInformation("Password changed for user {Sub}", sub);
                 // Security confirmation (best-effort, non-blocking).
-                _ = emailService.SendPasswordChangedAsync(principal.Email, principal.DisplayName ?? principal.Email);
+                var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+                background.Dispatch<IEmailService>("password-changed mail",
+                    (mail, mailCt) => mail.SendPasswordChangedAsync(email, name, mailCt));
                 return Results.Ok(new { message = "Password changed successfully" });
             }, logger, "change password");
         })
@@ -134,6 +138,7 @@ public static class SecurityEndpoints
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
             IUserSessionService userSessionService,
+            IBffSessionStore bffSessionStore,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var sub = principal.RequireExternalSubject();
@@ -154,6 +159,9 @@ public static class SecurityEndpoints
 
             await keycloakService.LogoutAllSessionsAsync(sub, ct);
             await userSessionService.RemoveAllForUserAsync(principal.RequireUserId(), ct);
+            // The BFF sessions authenticate from their stored access token, not from Keycloak,
+            // so revoking the Keycloak sessions alone leaves every other device signed in.
+            await bffSessionStore.RemoveAllForUserAsync(principal.RequireUserId().ToString(), ct);
             logger.LogInformation("All sessions terminated for user {Sub}", sub);
             return Results.Ok(new { message = "Logged out from all sessions" });
         })
@@ -207,7 +215,7 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
             CancellationToken ct) =>
         {
             accountGuard.EnsureCanMutateOwnAccount(principal);
@@ -216,7 +224,9 @@ public static class SecurityEndpoints
             if (status.TotpEnabled)
                 return ErrorResponses.BadRequest("MFA is already enabled");
             await keycloakService.EnableMfaAsync(sub, ct);
-            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: true, ct: ct);
+            var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+            background.Dispatch<IEmailService>("MFA-enabled mail",
+                (mail, mailCt) => mail.SendMfaChangedAsync(email, name, enabled: true, ct: mailCt));
             return Results.Ok(new { message = "MFA enrollment enabled. You will be prompted to set up TOTP on your next login." });
         })
         .WithName("EnableMfa")
@@ -227,27 +237,40 @@ public static class SecurityEndpoints
             ICurrentPrincipal principal,
             IAccountMutationGuard accountGuard,
             IKeycloakAdminService keycloakService,
-            IEmailService emailService,
+            IBackgroundDispatcher background,
+            [FromBody] RemoveMfaRequest? body,
+            IValidator<RemoveMfaRequest> validator,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
+            // Optional body so the account guard answers first; the validator then refuses a missing password.
             accountGuard.EnsureCanMutateOwnAccount(principal);
-            var sub = principal.RequireExternalSubject();
-            var status = await keycloakService.GetMfaStatusAsync(sub, ct);
-            if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
-                return ErrorResponses.BadRequest("MFA is not enabled");
-            await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
-            if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
+            var request = body ?? new RemoveMfaRequest();
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
-                catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
-            }
-            logger.LogInformation("MFA removed for user {Sub}", sub);
-            _ = emailService.SendMfaChangedAsync(principal.Email, principal.DisplayName ?? principal.Email, enabled: false);
-            return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
+                var sub = principal.RequireExternalSubject();
+                // A session alone must not strip the second factor: a hijacked session would.
+                // The code goes with the password: the direct-grant flow refuses a TOTP user without it.
+                await keycloakService.VerifyCurrentPasswordAsync(sub, request.CurrentPassword!, request.CurrentCode, ct);
+                var status = await keycloakService.GetMfaStatusAsync(sub, ct);
+                if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
+                    return ErrorResponses.BadRequest("MFA is not enabled");
+                await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
+                if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
+                {
+                    try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
+                    catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
+                }
+                logger.LogInformation("MFA removed for user {Sub}", sub);
+                var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+                background.Dispatch<IEmailService>("MFA-removed mail",
+                    (mail, mailCt) => mail.SendMfaChangedAsync(email, name, enabled: false, ct: mailCt));
+                return Results.Ok(new { message = "MFA has been removed. You can re-enable it at any time from your security settings." });
+            }, logger, "remove MFA");
         })
         .WithName("RemoveMfa")
         .WithSummary("Remove MFA")
-        .WithTags("Security");
+        .WithTags("Security")
+        .RequireRateLimiting(FoundationRateLimitPolicies.PasswordChange);
 
         security.MapGet("/profile", async (
             ICurrentPrincipal principal,

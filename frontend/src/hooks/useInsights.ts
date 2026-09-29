@@ -7,12 +7,9 @@ import {
   type InsightsBucket,
 } from "@foundation/src/lib/api/insights-api";
 import { getCriticalPath } from "@foundation/src/lib/api/request-dependency-api";
-import { getRequest } from "@foundation/src/lib/api/request-api";
-import type { Request } from "@foundation/src/types/requests";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
-import { useCallback } from "react";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 // Analytics data changes slowly relative to operational data — STALE.ANALYTICS keeps
 // the dashboard snappy without hammering the aggregation endpoints.
@@ -95,25 +92,4 @@ export function useInsightsBottlenecksByType(
       staleTime: STALE.ANALYTICS,
     })),
   });
-}
-
-/**
- * Fetch one request on demand, through the cache.
- *
- * A critical-path node carries only an id and a name, so the request is read when the user asks
- * for it. Eagerly loading every node's request would cost a tenant-wide read to make rows
- * clickable that mostly never get clicked.
- */
-export function useFetchRequest() {
-  const queryClient = useQueryClient();
-
-  return useCallback(
-    (requestId: string): Promise<Request> =>
-      queryClient.fetchQuery({
-        queryKey: qk.requests.detail(requestId),
-        queryFn: () => getRequest(requestId),
-        staleTime: STALE.STANDARD,
-      }),
-    [queryClient],
-  );
 }

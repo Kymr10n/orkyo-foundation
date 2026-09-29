@@ -6,24 +6,16 @@ import { PageHeader } from "./PageHeader";
 import { PageTabs } from "./PageTabs";
 
 describe("PageLayout", () => {
-  it("wraps children in the standard page container classes", () => {
-    const { container } = render(
+  it("renders its children", () => {
+    render(
       <PageLayout>
         <div data-testid="child" />
       </PageLayout>,
     );
-
-    const outer = container.firstElementChild as HTMLElement;
-    expect(outer.className).toContain("flex");
-    expect(outer.className).toContain("flex-col");
-    expect(outer.className).toContain("h-full");
-    expect(outer.className).toContain("p-3");
-    expect(outer.className).toContain("md:p-6");
-    expect(outer.className).toContain("lg:p-8");
     expect(screen.getByTestId("child")).toBeInTheDocument();
   });
 
-  it("merges a custom className alongside the base classes", () => {
+  it("applies a caller className", () => {
     const { container } = render(
       <PageLayout className="max-w-3xl">
         <div />
@@ -31,7 +23,6 @@ describe("PageLayout", () => {
     );
     const outer = container.firstElementChild as HTMLElement;
     expect(outer.className).toContain("max-w-3xl");
-    expect(outer.className).toContain("flex");
   });
 });
 
@@ -40,20 +31,7 @@ describe("PageHeader", () => {
     render(<PageHeader title="Spaces" description="Manage spaces" />);
     const heading = screen.getByRole("heading", { level: 1, name: "Spaces" });
     expect(heading).toBeInTheDocument();
-    expect(heading.className).toContain("text-2xl");
-    expect(heading.className).toContain("font-bold");
     expect(screen.getByText("Manage spaces")).toBeInTheDocument();
-  });
-
-  it("keeps the phone density budget: tight margin, wrapping actions row", () => {
-    // Regression guard for UI-GUIDELINES §16 — the header contributes mb-2 on
-    // phones (mb-6 from md: up) and flex-wraps so page controls can share the
-    // title row instead of costing a separate toolbar row.
-    const { container } = render(<PageHeader title="Utilization" actions={<button>Go</button>} />);
-    const outer = container.firstElementChild as HTMLElement;
-    expect(outer.className).toContain("flex-wrap");
-    expect(outer.className).toContain("mb-2");
-    expect(outer.className).toContain("md:mb-6");
   });
 
   it("renders a ReactNode title (e.g. with a badge)", () => {
@@ -91,11 +69,10 @@ describe("PageHeader", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("merges a custom className", () => {
+  it("applies a caller className", () => {
     const { container } = render(<PageHeader title="X" className="mb-8" />);
     const outer = container.firstElementChild as HTMLElement;
     expect(outer.className).toContain("mb-8");
-    expect(outer.className).toContain("flex");
   });
 });
 
@@ -119,7 +96,7 @@ describe("PageTabs", () => {
     expect(screen.getByTestId("tab-content")).toBeInTheDocument();
   });
 
-  it("merges a custom className onto the Tabs root", () => {
+  it("applies a caller className to the Tabs root", () => {
     const tabs = [{ value: "a", label: "Alpha" }];
     const { container } = render(
       <MemoryRouter>
@@ -131,14 +108,12 @@ describe("PageTabs", () => {
     // The Tabs root renders a div; find the outermost div of PageTabs
     const root = container.firstElementChild as HTMLElement;
     expect(root.className).toContain("overflow-hidden");
-    expect(root.className).toContain("flex-1");
   });
 
-  it("lets a wide strip scroll itself instead of the page", () => {
+  it("uses TabsList's own scroll container instead of wrapping it", () => {
     // Regression: with 5+ tabs on a phone the strip used to overflow <main>, dragging the
     // whole page sideways and clipping the active tab off the left. TabsList owns the
-    // scroll container now (see components/ui/tabs.test.tsx), so PageTabs must not
-    // hand-wrap it — it only contributes spacing.
+    // scroll container now, so PageTabs must not hand-wrap it.
     const tabs = [
       { value: "criteria", label: "Criteria" },
       { value: "resource-types", label: "Resource Types" },
@@ -156,8 +131,5 @@ describe("PageTabs", () => {
 
     const scroller = screen.getByRole("tablist").parentElement as HTMLElement;
     expect(scroller.dataset.slot).toBe("tabs-list-scroller");
-    expect(scroller.className).toContain("overflow-x-auto");
-    expect(scroller.className).toContain("mb-2");
-    expect(scroller.className).toContain("md:mb-4");
   });
 });

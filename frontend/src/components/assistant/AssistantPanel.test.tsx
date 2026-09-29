@@ -215,7 +215,6 @@ describe('AssistantPanel conversation persistence', () => {
   beforeEach(() => {
     // Call history has to be cleared, not just implementations: an assertion that a
     // conversation was never opened would otherwise see the previous test's call.
-    vi.clearAllMocks();
     vi.mocked(listAiConversations).mockResolvedValue([]);
     vi.mocked(saveAiConversation).mockResolvedValue(undefined);
     vi.mocked(deleteAiConversation).mockResolvedValue(undefined);
@@ -353,7 +352,6 @@ describe('AssistantPanel conversation persistence', () => {
 
 describe('AssistantPanel daily interaction limit', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(listAiConversations).mockResolvedValue([]);
     sessionStorage.clear();
     aiStatus.value = {
@@ -391,7 +389,7 @@ describe('AssistantPanel daily interaction limit', () => {
     expect(screen.queryByText(/interactions remaining/i)).not.toBeInTheDocument();
   });
 
-  it('says when the countdown belongs to the whole workspace', () => {
+  it('says when the countdown belongs to the whole organization', () => {
     // The same number means something different then: everyone shares it, and it can fall
     // while this person is not using the assistant at all.
     aiStatus.value = {
@@ -403,7 +401,7 @@ describe('AssistantPanel daily interaction limit', () => {
 
     renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
 
-    expect(screen.getByText(/AI interactions remaining: 20 \(whole workspace\)/)).toBeInTheDocument();
+    expect(screen.getByText(/AI interactions remaining: 20 \(whole organization\)/)).toBeInTheDocument();
   });
 
   it('does not label a personal countdown', () => {

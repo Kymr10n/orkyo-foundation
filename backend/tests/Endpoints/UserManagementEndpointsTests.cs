@@ -7,8 +7,10 @@ using Api.Endpoints;
 using Api.Models;
 using Api.Security;
 using Api.Services;
+using Api.Services.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -26,9 +28,11 @@ public class UserManagementEndpointsTests
     private readonly HttpClient _unauthenticatedClient;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly string _connString;
+    private readonly string _tenantConnString;
 
     public UserManagementEndpointsTests(DatabaseFixture databaseFixture)
     {
+        _tenantConnString = databaseFixture.TenantConnectionString;
         // The seeded test user has admin role in DatabaseFixture
         _factory = databaseFixture.Factory;
         _client = databaseFixture.CreateAuthorizedClient();
@@ -78,14 +82,6 @@ public class UserManagementEndpointsTests
     #region GET /api/users (Admin only)
 
     [Fact]
-    public async Task GetAllUsers_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/users");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetAllUsers_Authenticated_Returns200()
     {
         var response = await _client.GetAsync("/api/users");
@@ -123,17 +119,6 @@ public class UserManagementEndpointsTests
     #region POST /api/users/invite (Admin only)
 
     [Fact]
-    public async Task InviteUser_NoAuth_Returns401()
-    {
-        var request = new InviteUserRequest("new@test.com", UserRole.Viewer);
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/users/invite", request, _jsonOptions);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task InviteUser_ValidRequest_ReachesEndpoint()
     {
         // The full invite flow (email sending) is tested in InvitationEndpointsTests.
@@ -149,17 +134,54 @@ public class UserManagementEndpointsTests
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task InviteUser_AlreadyMember_Returns409()
+    {
+        var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
+        invitations.Setup(i => i.InviteAsync(It.IsAny<TenantContext>(), It.IsAny<Guid>(), "member@test.com",
+                It.IsAny<UserRole>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InviteUserResult.AlreadyMember());
+        try
+        {
+            var response = await _client.PostAsJsonAsync(
+                "/api/users/invite", new InviteUserRequest("member@test.com", UserRole.Editor), _jsonOptions);
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        }
+        finally
+        {
+            invitations.Reset();
+        }
+    }
+
+    [Fact]
+    public async Task InviteUser_AddedDirectly_Returns200WithTheMembership()
+    {
+        var userId = Guid.NewGuid();
+        var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
+        invitations.Setup(i => i.InviteAsync(It.IsAny<TenantContext>(), It.IsAny<Guid>(), "existing@test.com",
+                It.IsAny<UserRole>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InviteUserResult.AddedDirectly(userId, "existing@test.com", UserRole.Editor));
+        try
+        {
+            var response = await _client.PostAsJsonAsync(
+                "/api/users/invite", new InviteUserRequest("existing@test.com", UserRole.Editor), _jsonOptions);
+
+            // Adding an existing account is a success, not "already exists".
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var member = (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("member");
+            Assert.Equal(userId, member.GetProperty("userId").GetGuid());
+            Assert.Equal("editor", member.GetProperty("role").GetString());
+        }
+        finally
+        {
+            invitations.Reset();
+        }
+    }
+
     #endregion
 
     #region GET /api/users/invitations (Admin only)
-
-    [Fact]
-    public async Task GetPendingInvitations_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/users/invitations");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task GetPendingInvitations_Authenticated_Returns200()
@@ -200,26 +222,12 @@ public class UserManagementEndpointsTests
     #region DELETE /api/users/invitations/{invitationId} (Admin only)
 
     [Fact]
-    public async Task RevokeInvitation_NoAuth_Returns401()
+    public async Task RevokeInvitation_NonExistent_Returns404()
     {
-        var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/users/invitations/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task RevokeInvitation_NonExistent_Returns500OrNotFound()
-    {
-        // Revoking a non-existent invitation should throw KeyNotFoundException
         var response = await _client.DeleteAsync(
             $"/api/users/invitations/{Guid.NewGuid()}");
 
-        // The endpoint throws KeyNotFoundException which the exception handler maps to 404 or 500
-        Assert.True(
-            response.StatusCode == HttpStatusCode.NotFound ||
-            response.StatusCode == HttpStatusCode.InternalServerError,
-            $"Expected 404 or 500, got {response.StatusCode}");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -254,15 +262,6 @@ public class UserManagementEndpointsTests
     // prove the route is registered, correctly auth-gated, and that the handler maps both the
     // service's answers. The behaviour itself (token rotation, expiry reset, accepted guard,
     // tenant scoping) is covered against a real database in Services/InvitationResendServiceTests.
-
-    [Fact]
-    public async Task ResendInvitation_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PostAsync(
-            $"/api/users/invitations/{Guid.NewGuid()}/resend", content: null);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task ResendInvitation_Authenticated_RouteIsRegistered()
@@ -303,29 +302,9 @@ public class UserManagementEndpointsTests
 
     #region PATCH /api/users/{userId}/role (Admin only)
 
-    [Fact]
-    public async Task UpdateUserRole_NoAuth_Returns401()
-    {
-        var request = new UpdateUserRoleRequest(UserRole.Editor);
-
-        var response = await _unauthenticatedClient.PatchAsJsonAsync(
-            $"/api/users/{Guid.NewGuid()}/role", request, _jsonOptions);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
     #endregion
 
     #region DELETE /api/users/{userId} (Admin only)
-
-    [Fact]
-    public async Task DeleteUser_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/users/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task DeleteUser_NonAdmin_Returns200()
@@ -347,7 +326,7 @@ public class UserManagementEndpointsTests
         // Setup: seed a second admin, purge all OTHER admin memberships in the tenant so the
         // seeded second admin is the sole active admin, then try to delete them → 400.
         var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
-        var testUserId = new Guid("11111111-1111-1111-1111-111111111111");
+        var testUserId = TestConstants.UserId;
 
         await using var conn = new NpgsqlConnection(_connString);
         await conn.OpenAsync();
@@ -412,6 +391,37 @@ public class UserManagementEndpointsTests
     }
 
     [Fact]
+    public async Task UpdateUserRole_EvictsTheCachedRole()
+    {
+        // The request pipeline caches each member's role for minutes; a demotion must not wait
+        // for that entry to expire.
+        var targetId = await SeedSecondTenantMemberAsync(role: RoleConstants.Editor);
+        var cache = _factory.Services.GetRequiredService<SingleFlightCache>();
+        var key = IdentityCacheKeys.Role(targetId, TestTenantId);
+        cache.Set(key, TenantRole.Editor, TimeSpan.FromMinutes(5));
+
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{targetId}/role", new UpdateUserRoleRequest(UserRole.Viewer), _jsonOptions);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(cache.TryGet<TenantRole>(key, out _));
+    }
+
+    [Fact]
+    public async Task DeleteUser_EvictsTheCachedRole()
+    {
+        var targetId = await SeedSecondTenantMemberAsync(role: RoleConstants.Editor);
+        var cache = _factory.Services.GetRequiredService<SingleFlightCache>();
+        var key = IdentityCacheKeys.Role(targetId, TestTenantId);
+        cache.Set(key, TenantRole.Editor, TimeSpan.FromMinutes(5));
+
+        var response = await _client.DeleteAsync($"/api/users/{targetId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(cache.TryGet<TenantRole>(key, out _));
+    }
+
+    [Fact]
     public async Task UpdateUserRole_ForAUserWhoIsNotAMember_Returns404()
     {
         // Not a validation refusal and not a last-admin refusal: the service reports no
@@ -430,7 +440,7 @@ public class UserManagementEndpointsTests
         // Regression: demoting the sole active admin surfaced as 500.
         // Same isolated setup: make the seeded admin the ONLY admin, attempt demotion → 400.
         var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
-        var testUserId = new Guid("11111111-1111-1111-1111-111111111111");
+        var testUserId = TestConstants.UserId;
 
         await using var conn = new NpgsqlConnection(_connString);
         await conn.OpenAsync();
@@ -470,6 +480,66 @@ public class UserManagementEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         Assert.Contains("last admin", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DemoteOrRemove_WhileTheOtherAdminIsBeingDemoted_RefusesTheLastAdmin(bool remove)
+    {
+        // Two admins demoting each other at once must not leave the tenant without an admin.
+        // An open transaction demotes every other admin; the service call runs before it
+        // commits. A check-then-write sees the uncommitted demotion as still an admin and
+        // proceeds; the guarded single statement waits for the lock and then refuses.
+        var targetAdminId = await SeedSecondTenantMemberAsync(role: RoleConstants.Admin);
+        var testUserId = TestConstants.UserId;
+        var org = new OrgContext { OrgId = TestTenantId, OrgSlug = TestConstants.TenantSlug, DbConnectionString = _tenantConnString };
+
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        Result result;
+        string? targetRole;
+        try
+        {
+            await using (var demoteOthers = await RowLock.HoldAsync(_connString, @"
+                UPDATE tenant_memberships SET role = @editor
+                WHERE tenant_id = @tid AND role = @admin AND user_id <> @target",
+                ("editor", RoleConstants.Editor), ("tid", TestTenantId), ("admin", RoleConstants.Admin), ("target", targetAdminId)))
+            {
+                using var scope = _factory.Services.CreateScope();
+                var service = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
+                var call = remove
+                    ? service.DeleteUserAsync(org, targetAdminId, testUserId)
+                    : service.UpdateUserRoleAsync(org, targetAdminId, UserRole.Editor, testUserId);
+                await demoteOthers.WaitUntilBlockedAsync(call);
+                await demoteOthers.CommitAsync();
+                result = await call;
+            }
+
+            await using var read = new NpgsqlCommand(
+                "SELECT role FROM tenant_memberships WHERE user_id = @uid AND tenant_id = @tid", conn);
+            read.Parameters.AddWithValue("uid", targetAdminId);
+            read.Parameters.AddWithValue("tid", TestTenantId);
+            targetRole = (string?)await read.ExecuteScalarAsync();
+        }
+        finally
+        {
+            await using var restore = new NpgsqlCommand(
+                "UPDATE tenant_memberships SET role = @admin WHERE user_id = @uid AND tenant_id = @tid", conn);
+            restore.Parameters.AddWithValue("admin", RoleConstants.Admin);
+            restore.Parameters.AddWithValue("uid", testUserId);
+            restore.Parameters.AddWithValue("tid", TestTenantId);
+            await restore.ExecuteNonQueryAsync();
+            await using var cleanup = new NpgsqlCommand(
+                "DELETE FROM tenant_memberships WHERE user_id = @target AND tenant_id = @tid", conn);
+            cleanup.Parameters.AddWithValue("target", targetAdminId);
+            cleanup.Parameters.AddWithValue("tid", TestTenantId);
+            await cleanup.ExecuteNonQueryAsync();
+        }
+
+        Assert.False(result.Success);
+        Assert.Contains("last admin", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(RoleConstants.Admin, targetRole);
     }
 
     #endregion

@@ -41,10 +41,25 @@ export async function getInvitations(): Promise<Invitation[]> {
   return data.invitations || [];
 }
 
+/**
+ * What `POST /api/users/invite` answers: an invitation for an address with no account, or the
+ * new membership when the address already has an account (added directly, no email). A current
+ * member is refused with 409.
+ */
+export type InviteUserResponse =
+  | {
+      invitation: { id: string; email: string; role: Invitation["role"]; expiresAt: string };
+      message: string;
+    }
+  | {
+      member: { userId: string; email: string; role: Invitation["role"] };
+      message: string;
+    };
+
 export async function createInvitation(
   data: CreateInvitationRequest
-): Promise<Invitation> {
-  return apiPost<Invitation>(API_PATHS.USER_INVITE, data);
+): Promise<InviteUserResponse> {
+  return apiPost<InviteUserResponse>(API_PATHS.USER_INVITE, data);
 }
 
 export async function resendInvitation(invitationId: string): Promise<void> {

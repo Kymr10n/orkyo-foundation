@@ -27,13 +27,13 @@ internal static class TestRepoPaths
         return null;
     }
 
-    private static readonly string[] BackendRoots = ["src", "core", "seeding"];
+    private static readonly string[] BackendRoots = ["src", "core", "seeding", "shared"];
 
     // Read once per test run: every source guard scans the same files.
     private static readonly Lazy<IReadOnlyList<SourceFile>> Sources = new(LoadBackendSources);
 
     /// <summary>
-    /// The <c>.cs</c> files under the given <c>backend/</c> roots ("src", "core", "seeding"),
+    /// The <c>.cs</c> files under the given <c>backend/</c> roots ("src", "core", "seeding", "shared"),
     /// without build output. Fails when a root has no files, so a moved layout cannot turn a
     /// guard into a scan of nothing.
     /// </summary>

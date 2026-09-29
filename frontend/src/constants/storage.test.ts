@@ -19,11 +19,11 @@ describe("STORAGE_KEYS", () => {
   });
 
   it("has expected keys", () => {
-    expect(STORAGE_KEYS.ACTIVE_MEMBERSHIP).toBe("active_membership");
     expect(STORAGE_KEYS.TENANT_SLUG).toBe("tenant_slug");
     expect(STORAGE_KEYS.LAYOUT).toBe("orkyo.layout");
     expect(STORAGE_KEYS.SELECTED_SITE_ID).toBe("orkyo.site");
-    expect(STORAGE_KEYS.REQUEST_TREE_EXPANDED).toBe("requestTree.expandedIds");
-    expect(STORAGE_KEYS.REQUEST_VIEW_MODE).toBe("requestTree.viewMode");
+    expect(STORAGE_KEYS.REQUEST_TREE).toBe("orkyo.requestTree");
+    expect(STORAGE_KEYS.ASSISTANT_WIDTH).toBe("orkyo.assistant.width");
+    expect(STORAGE_KEYS.TYPE_FILTER_PREFIX).toBe("orkyo.typeFilter.");
   });
 });

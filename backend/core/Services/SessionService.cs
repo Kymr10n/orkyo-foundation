@@ -1,6 +1,7 @@
 using Api.Constants;
 using Api.Helpers;
 using Api.Models;
+using Api.Repositories;
 using Api.Security.Features;
 using Npgsql;
 using Orkyo.Shared;
@@ -15,6 +16,7 @@ public class SessionService : ISessionService
     private readonly ITenantEntitlementProvider _entitlementProvider;
     private readonly ITenantMembershipEnricher _membershipEnricher;
     private readonly ITenantSettingsService _tenantSettingsService;
+    private readonly ITenantControlPlaneRepository _controlPlane;
     private readonly ILogger<SessionService> _logger;
 
     public SessionService(
@@ -24,6 +26,7 @@ public class SessionService : ISessionService
         ITenantEntitlementProvider entitlementProvider,
         ITenantMembershipEnricher membershipEnricher,
         ITenantSettingsService tenantSettingsService,
+        ITenantControlPlaneRepository controlPlane,
         ILogger<SessionService> logger)
     {
         _connectionFactory = connectionFactory;
@@ -32,6 +35,7 @@ public class SessionService : ISessionService
         _entitlementProvider = entitlementProvider;
         _membershipEnricher = membershipEnricher;
         _tenantSettingsService = tenantSettingsService;
+        _controlPlane = controlPlane;
         _logger = logger;
     }
 
@@ -48,7 +52,7 @@ public class SessionService : ISessionService
         var userInfo = await GetUserByIdInternalAsync(db, userId, ct);
         if (userInfo == null) return null;
 
-        var memberships = await GetTenantMembershipsAsync(db, userId, ct);
+        var memberships = await GetTenantMembershipsAsync(userId, ct);
         var requiredTosVersion = GetRequiredTosVersion();
         var tosRequired = false;
 
@@ -152,33 +156,12 @@ public class SessionService : ISessionService
         };
     }
 
-    private async Task<List<TenantMembershipInfo>> GetTenantMembershipsAsync(NpgsqlConnection db, Guid userId, CancellationToken ct = default)
+    private async Task<List<TenantMembershipInfo>> GetTenantMembershipsAsync(Guid userId, CancellationToken ct = default)
     {
-        await using var cmd = new NpgsqlCommand(@"
-            SELECT t.id, t.slug, t.display_name, tm.role, t.status AS tenant_status,
-                   t.owner_user_id
-            FROM tenant_memberships tm
-            JOIN tenants t ON t.id = tm.tenant_id
-            WHERE tm.user_id = @userId AND tm.status = 'active'
-            ORDER BY t.display_name
-        ", db);
-        cmd.Parameters.AddWithValue("userId", userId);
-
-        var rows = new List<(Guid TenantId, string Slug, string DisplayName, string Role, string State, bool IsOwner)>();
-        await using (var reader = await cmd.ExecuteReaderAsync(ct))
-        {
-            while (await reader.ReadAsync(ct))
-            {
-                var ownerUserId = reader.GetNullableGuid("owner_user_id");
-                rows.Add((
-                    reader.GetGuid("id"),
-                    reader.GetString("slug"),
-                    reader.GetString("display_name"),
-                    reader.GetString("role"),
-                    reader.GetString("tenant_status"),
-                    ownerUserId == userId));
-            }
-        }
+        var rows = (await _controlPlane.GetUserMembershipsAsync(userId, ct))
+            .Where(r => r.MembershipStatus == MembershipStatusConstants.Active)
+            .OrderBy(r => r.TenantDisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         // The plan and its entitlements are commercial concepts owned by the edition, not
         // foundation. Entitlements ship with the session so clients present features from the
@@ -190,11 +173,11 @@ public class SessionService : ISessionService
         var memberships = rows.Select(r => new TenantMembershipInfo
         {
             TenantId = r.TenantId,
-            Slug = r.Slug,
-            DisplayName = r.DisplayName,
+            Slug = r.TenantSlug,
+            DisplayName = r.TenantDisplayName,
             Role = r.Role,
-            State = r.State,
-            IsOwner = r.IsOwner,
+            State = r.TenantStatus,
+            IsOwner = r.OwnerUserId == userId,
             IsTenantAdmin = r.Role == RoleConstants.Admin,
             // Machine plan CODE, never the display label — the SPA compares this against literal
             // lowercase codes, so "Enterprise" would silently degrade every gate to Free.

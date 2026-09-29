@@ -1,13 +1,12 @@
-import { useState } from "react";
 import { FormDialog } from "@foundation/src/components/ui/FormDialog";
 import { FormField } from "@foundation/src/components/ui/FormField";
 import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
 import { Textarea } from "@foundation/src/components/ui/textarea";
-import { useCreateSite, useUpdateSite } from "@foundation/src/hooks/useSites";
+import { useSaveSite } from "@foundation/src/hooks/useSites";
+import { useEntityFormDialog } from "@foundation/src/hooks/useEntityFormDialog";
 import type { Site } from "@foundation/src/lib/api/site-api";
 import { isValidSlug } from "@foundation/src/lib/utils";
-import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 interface SiteEditDialogProps {
   site: Site | null;
@@ -35,73 +34,47 @@ function fromSite(site: Site): FormState {
   };
 }
 
-export function SiteEditDialog({ site, open, onOpenChange, onSaved }: SiteEditDialogProps) {
-  const [form, setForm] = useState<FormState>(empty);
-  // Snapshot of the form as last synced; the dirty guard compares against it.
-  const [baseline, setBaseline] = useState<FormState>(empty);
-  const [error, setError] = useState<string | null>(null);
-
-  const createMutation = useCreateSite();
-  const updateMutation = useUpdateSite();
-  const isSubmitting = site ? updateMutation.isPending : createMutation.isPending;
-
-  // Reseed when the dialog opens, or swaps site while open — a render-phase update, not an
-  // effect (see useEntityFormDialog.ts).
-  const [synced, setSynced] = useState<{ open: boolean; site: Site | null } | null>(null);
-  if (synced?.open !== open || synced.site !== site) {
-    setSynced({ open, site });
-    if (open) {
-      setError(null);
-      const next = site ? fromSite(site) : empty;
-      setForm(next);
-      setBaseline(next);
-    }
+/** Rules the dialog states as a message rather than a disabled Save button. */
+function validate(form: FormState): string | null {
+  if (!form.code.trim()) return "Code is required";
+  if (!isValidSlug(form.code)) {
+    return "Code must contain only alphanumeric characters, underscores, and hyphens";
   }
+  if (!form.name.trim()) return "Name is required";
+  return null;
+}
 
-  const isDirty = JSON.stringify(form) !== JSON.stringify(baseline);
-
-  const handleSubmit = async () => {
-    setError(null);
-
-    if (!form.code.trim()) {
-      setError("Code is required");
-      return;
-    }
-    if (!isValidSlug(form.code)) {
-      setError("Code must contain only alphanumeric characters, underscores, and hyphens");
-      return;
-    }
-    if (!form.name.trim()) {
-      setError("Name is required");
-      return;
-    }
-
-    try {
+export function SiteEditDialog({ site, open, onOpenChange, onSaved }: SiteEditDialogProps) {
+  const mutation = useSaveSite();
+  const { form, setForm, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
+    open,
+    onOpenChange,
+    entity: site,
+    emptyForm: () => empty,
+    toForm: fromSite,
+    mutation,
+    validate,
+    toVariables: (f: FormState, s: Site | null) => {
       const data = {
-        code: form.code.trim(),
-        name: form.name.trim(),
-        description: form.description.trim() || undefined,
-        address: form.address.trim() || undefined,
+        code: f.code.trim(),
+        name: f.name.trim(),
+        description: f.description.trim() || undefined,
+        address: f.address.trim() || undefined,
       };
-      const saved = site
-        ? await updateMutation.mutateAsync({ id: site.id, data })
-        : await createMutation.mutateAsync(data);
-      onSaved?.(saved);
-      onOpenChange(false);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  };
+      return s ? { id: s.id, data } : { id: null, data };
+    },
+    onSaved,
+  });
 
   return (
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
       title={site ? "Edit Site" : "Create Site"}
-      onSubmit={handleSubmit}
+      onSubmit={submit}
       isSubmitting={isSubmitting}
       submitLabel={site ? "Save Changes" : "Create Site"}
-      submittingLabel={site ? undefined : "Creating..."}
+      submittingLabel={site ? undefined : "Creating…"}
       error={error}
       dirty={isDirty}
     >

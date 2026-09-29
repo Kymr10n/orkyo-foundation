@@ -43,11 +43,35 @@ public class ClientIpAccessorTests
     }
 
     [Fact]
-    public void TrustedPeer_NoCfHeader_UsesLeftmostNonProxyXff()
+    public void TrustedPeer_NoCfHeader_UsesRightmostNonProxyXff()
     {
         var ip = New().GetClientIp(Ctx("10.0.0.5",
             ("X-Forwarded-For", "203.0.113.7, 10.0.0.5, 172.19.0.1")));
         ip.Should().Be("203.0.113.7");
+    }
+
+    [Theory]
+    [InlineData("198.51.100.1, 203.0.113.7")]
+    [InlineData("10.9.9.9, 198.51.100.1, 203.0.113.7")]
+    [InlineData("garbage, 203.0.113.7")]
+    public void TrustedPeer_SpoofedLeftmostXffHops_AreIgnored(string xff)
+    {
+        // The client wrote everything left of the hop the trusted proxy appended.
+        New().GetClientIp(Ctx("172.19.0.15", ("X-Forwarded-For", xff))).Should().Be("203.0.113.7");
+    }
+
+    [Fact]
+    public void TrustedPeer_MalformedHopBeforeAnyClient_FallsBackToPeer()
+    {
+        New().GetClientIp(Ctx("172.19.0.15", ("X-Forwarded-For", "203.0.113.7, garbage, 10.0.0.2")))
+            .Should().Be("172.19.0.15");
+    }
+
+    [Fact]
+    public void UntrustedPeer_IgnoresXff()
+    {
+        New().GetClientIp(Ctx("198.51.100.9", ("X-Forwarded-For", "203.0.113.7")))
+            .Should().Be("198.51.100.9");
     }
 
     [Fact]

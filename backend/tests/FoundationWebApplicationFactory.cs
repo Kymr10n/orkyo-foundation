@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
@@ -49,6 +50,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
     /// <summary>Toggleable account-lock guard — flip <c>Locked</c> to exercise shared/demo-account paths.</summary>
     public Mocks.TestAccountMutationGuard AccountGuard => _accountGuard;
+
+    /// <summary>The work queued after responses; await <see cref="BackgroundWorkTracker.WhenIdleAsync"/> before asserting on it.</summary>
+    public BackgroundWorkTracker BackgroundWork => Services.GetRequiredService<BackgroundWorkTracker>();
 
     /// <summary>Exposes the application's service provider for advanced test scenarios.</summary>
     public IServiceProvider Services => ((WebApplication)_host).Services;
@@ -103,6 +107,24 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         return new FoundationWebApplicationFactory(app, mockKeycloak, mockEmail, accountGuard);
     }
 
+    // Built once and never started: no hosted service runs and nothing connects, so the
+    // placeholder connection strings are never opened.
+    private static readonly Lazy<EndpointDataSource> RouteTableHost = new(() =>
+    {
+        const string placeholder = "Host=route-table.invalid;Database=none";
+        var app = BuildWebApplication(placeholder, placeholder,
+            new MockKeycloakAdminService(), new MockEmailService(), new Mocks.TestAccountMutationGuard());
+        // The route builder's own sources: the DI EndpointDataSource only sees them once the
+        // pipeline is built at start.
+        return new CompositeEndpointDataSource(((IEndpointRouteBuilder)app).DataSources);
+    });
+
+    /// <summary>
+    /// The endpoint graph this host maps, read without a database: the route-contract tests need
+    /// only the table, not a running server.
+    /// </summary>
+    public static EndpointDataSource RouteTable => RouteTableHost.Value;
+
     // ── App bootstrap ─────────────────────────────────────────────────────────
 
     private static WebApplication BuildWebApplication(
@@ -119,33 +141,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.WebHost.UseTestServer();
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
 
-        // In-memory config so services that read IConfiguration get sensible values
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        // The block every test host shares, plus what only foundation's host needs.
+        var configuration = new Dictionary<string, string?>(TestConfiguration.Shared)
         {
-            ["APP_BASE_URL"] = "http://localhost:5173",
-            ["SMTP_HOST"] = "localhost",
-            ["SMTP_PORT"] = "1025",
-            ["SMTP_USE_SSL"] = "false",
-            ["SMTP_FROM_EMAIL"] = "test@test.local",
-            ["SMTP_FROM_NAME"] = "Test",
+            [ConfigKeys.ConnectionStringPostgresPath] = controlPlaneCs,
             ["FEEDBACK_NOTIFICATION_EMAIL"] = "feedback@test.local",
-            // Keycloak / OIDC — AddFoundationServices reads these for KeycloakOptions and the
-            // JWT bearer scheme. The values match the DeploymentConfig singleton below; no
-            // test ever reaches Keycloak (the admin client is mocked and the default auth
-            // scheme is the test handler), so the host only has to be well-formed.
-            [ConfigKeys.OidcAuthority] = "http://localhost:8080/realms/orkyo",
-            [ConfigKeys.KeycloakUrl] = "http://localhost:8080",
-            [ConfigKeys.KeycloakRealm] = "orkyo",
-            [ConfigKeys.KeycloakBackendClientId] = "test-backend",
-            // ReportingTokenService refuses to start without a pepper source (no compiled
-            // fallback — fail-early rule); tests use the same stand-in secret as the
-            // DeploymentConfig singleton below.
-            ["KEYCLOAK_BACKEND_CLIENT_SECRET"] = "test-secret",
-            // BFF auth — enabled with test-friendly settings so BFF endpoints register.
-            ["BFF_ENABLED"] = "true",
-            ["BFF_COOKIE_SECURE"] = "false",
-            ["BFF_REDIRECT_URI"] = "http://localhost:5173/api/auth/bff/callback",
-            ["BFF_ALLOWED_HOSTS"] = "demo.orkyo.com,localhost:5173,orkyo.com,*.orkyo.com",
             // ToS — current required version. Tests assert against "2026-02".
             ["ToS:RequiredVersion"] = "2026-02",
             // Reporting token pepper — fixed for test repeatability.
@@ -154,7 +154,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["API_ACCESS_TOKEN_PEPPER"] = "test-api-access-pepper-do-not-use-in-prod",
             // Rate limiting disabled in tests to avoid spurious 429s.
             [ConfigKeys.DisableRateLimiting] = "true",
-        });
+        };
+        builder.Configuration.AddInMemoryCollection(configuration);
 
         // ── Production wiring ─────────────────────────────────────────────────
         builder.Services.AddFoundationServices(builder.Configuration);
@@ -172,28 +173,11 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestConstants.AuthScheme, _ => { });
 
         // ── Edition-owned registrations (what a product's Program.cs supplies) ─
-        var orgId = new Guid("00000000-0000-0000-0000-000000000001");
-        var tenantId = new Guid("00000000-0000-0000-0000-000000000001");
+        var orgId = TestConstants.TenantId;
+        var tenantId = TestConstants.TenantId;
 
-        builder.Services.AddSingleton(new DeploymentConfig
-        {
-            PublicUrl = "http://localhost:5000",
-            AuthPublicUrl = "http://localhost:8080",
-            AppBaseUrl = "http://localhost:5173",
-            CorsAllowedOrigins = "http://localhost:5173",
-            SmtpHost = "localhost",
-            SmtpPort = 1025,
-            SmtpUseSsl = false,
-            SmtpFromEmail = "test@test.local",
-            SmtpFromName = "Test",
-            OidcAuthority = "http://localhost:8080/realms/orkyo",
-            KeycloakUrl = "http://localhost:8080",
-            KeycloakRealm = "orkyo",
-            KeycloakBackendClientId = "test-backend",
-            KeycloakBackendClientSecret = "test-secret",
-            PostgresConnectionString = controlPlaneCs,
-            MasterEncryptionKey = TestConstants.MasterEncryptionKey,
-        });
+        // Built the way a product's Program.cs builds it, from the configuration above.
+        builder.Services.AddSingleton(DeploymentConfig.FromConfiguration(builder.Configuration));
 
         builder.Services.AddScoped(_ => new TenantContext
         {
@@ -238,6 +222,12 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         builder.Services.RemoveAll<IEmailService>();
         builder.Services.AddSingleton<IEmailService>(mockEmail);
+
+        // The production dispatcher, tracked so a test can await the work it queues.
+        builder.Services.AddSingleton<BackgroundWorkTracker>();
+        builder.Services.AddScoped<BackgroundDispatcher>();
+        builder.Services.RemoveAll<IBackgroundDispatcher>();
+        builder.Services.AddScoped<IBackgroundDispatcher, TrackedBackgroundDispatcher>();
 
         // Programmable, not Mock.Of: with every call returning default, the revoke and resend
         // SUCCESS paths were unreachable and only their not-found halves could be tested.
@@ -327,7 +317,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
             if (context.User.Identity?.IsAuthenticated == true)
             {
-                var userId = new Guid("11111111-1111-1111-1111-111111111111");
+                var userId = TestConstants.UserId;
 
                 // Derive IsSiteAdmin from the token's realm_access claim so tests that
                 // create site-admin tokens (with RealmRoles=["site-admin"]) are authorized
@@ -389,19 +379,14 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
                 context.Items["OrgContext"] = context.RequestServices.GetRequiredService<OrgContext>();
 
                 // Honour the role claim from the test token so tests can exercise
-                // role-based authorisation (admin vs editor vs viewer). Defaults to
-                // Admin when no role is supplied — matches the legacy hard-coded behaviour.
-                var roleClaim = context.User.FindFirst("role")?.Value;
-                var role = string.IsNullOrEmpty(roleClaim)
-                    ? TenantRole.Admin
-                    : Api.Constants.RoleConstants.ParseRoleString(roleClaim) is var parsed && parsed != TenantRole.None
-                        ? parsed
-                        : TenantRole.Admin;
+                // role-based authorisation (admin vs editor vs viewer). Anything else,
+                // a mistyped role included, is a signed-in user who is not a member.
+                var role = Api.Constants.RoleConstants.ParseRoleString(context.User.FindFirst("role")?.Value);
 
                 var authCtx = context.RequestServices.GetRequiredService<CurrentAuthorizationContext>();
                 authCtx.SetContext(new AuthorizationContext
                 {
-                    TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                    TenantId = TestConstants.TenantId,
                     TenantSlug = TestConstants.TenantSlug,
                     Role = role,
                 });

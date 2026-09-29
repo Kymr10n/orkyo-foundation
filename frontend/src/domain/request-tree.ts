@@ -182,9 +182,6 @@ export function getDescendantIds(
 }
 
 /**
- * Check if moving `requestId` under `newParentId` would create a cycle.
- */
-/**
  * Get direct children of a request from a flat list.
  */
 export function getDirectChildren(
@@ -217,19 +214,25 @@ export function canHaveChildren(planningMode: PlanningMode): boolean {
   return planningMode === PLANNING_MODE.SUMMARY || planningMode === PLANNING_MODE.CONTAINER;
 }
 
+/** The sort_order that puts a new row after every one of these siblings. */
+export function nextSortOrder(siblings: readonly { sortOrder: number }[]): number {
+  if (siblings.length === 0) return 0;
+  return Math.max(...siblings.map((s) => s.sortOrder)) + 1;
+}
+
 /**
- * Determine if a request can be scheduled (placed on the calendar).
- */
-/**
- * Compute the next sort_order for adding a child to a parent request.
+ * Compute the next sort_order for adding a child to a parent request, or to the root
+ * list when `parentRequestId` is null.
  */
 export function getNextSortOrder(
-  parentRequestId: string,
+  parentRequestId: string | null,
   requests: Request[],
 ): number {
-  const children = getDirectChildren(parentRequestId, requests);
-  if (children.length === 0) return 0;
-  return Math.max(...children.map((c) => c.sortOrder)) + 1;
+  return nextSortOrder(
+    parentRequestId === null
+      ? requests.filter((r) => !r.parentRequestId)
+      : getDirectChildren(parentRequestId, requests),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -275,18 +278,6 @@ export function computeDerivedValues(
   // Use all descendants for date roll-up (spec requirement)
   const descendants = getAllDescendants(requestId, requests);
   return computeDerivedValuesFromDescendants(children, descendants);
-}
-
-/**
- * Compute derived aggregate values from a pre-fetched list of children.
- * Use this when you already have the children array to avoid redundant lookups.
- * When descendants are provided, dates are derived from ALL descendants (spec compliant).
- */
-function computeDerivedValuesFromChildren(
-  children: Request[],
-  descendants?: Request[],
-): DerivedValues {
-  return computeDerivedValuesFromDescendants(children, descendants ?? children);
 }
 
 /**
@@ -360,19 +351,24 @@ function computeDerivedValuesFromDescendants(
  * per row.
  */
 export function buildDerivedMap(requests: Request[]): Map<string, DerivedValues | null> {
-  const childrenByParent = new Map<string, Request[]>();
-  for (const r of requests) {
-    if (r.parentRequestId) {
-      const siblings = childrenByParent.get(r.parentRequestId);
-      if (siblings) siblings.push(r);
-      else childrenByParent.set(r.parentRequestId, [r]);
-    }
-  }
+  // One children-id map for the whole list: dates roll up from ALL descendants and effort from
+  // direct children, exactly as computeDerivedValues does for the dialog.
+  const childrenById = buildChildrenIdMap(requests);
+  const byId = new Map(requests.map((r) => [r.id, r]));
+  const resolve = (ids: string[]) => ids.map((id) => byId.get(id)!);
   const map = new Map<string, DerivedValues | null>();
   for (const r of requests) {
     if (canHaveChildren(r.planningMode)) {
-      const children = childrenByParent.get(r.id);
-      map.set(r.id, children?.length ? computeDerivedValuesFromChildren(children) : null);
+      const childIds = childrenById.get(r.id);
+      map.set(
+        r.id,
+        childIds?.length
+          ? computeDerivedValuesFromDescendants(
+              resolve(childIds),
+              resolve(getDescendantIds(r.id, requests, childrenById)),
+            )
+          : null,
+      );
     }
   }
   return map;

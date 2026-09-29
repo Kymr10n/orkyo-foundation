@@ -6,13 +6,15 @@ import {
   updateUserProfile,
 } from "@foundation/src/lib/api/security-api";
 import {
+  deleteTenant,
   getTenantMemberships,
-  type TenantMembership,
+  leaveTenant,
+  type AccountMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
-import { useAuth } from "@foundation/src/contexts/AuthContext";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
+import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
 export const useUserProfile = () =>
   useQuery({
@@ -33,6 +35,8 @@ export const useRequestEmailChange = () =>
       successMessage: (_data: unknown, email: unknown) =>
         `Confirmation email sent to ${email as string}. Check your inbox.`,
       errorMessage: "Failed to request email change",
+      // The email editor stays open on failure and shows the message inline; one surface.
+      suppressErrorToast: true,
     },
   });
 
@@ -44,13 +48,13 @@ export const useRequestEmailChange = () =>
 export const useInvalidateUserProfile = () => useInvalidateKeys(qk.userProfile.all());
 
 /**
- * The caller's tenant memberships. Loaded manually by design on this operator
- * surface — see docs/dialog-feedback.md. A 401 signals the auth machine instead
- * of surfacing an error, and `reload` re-reads the list after leave/delete.
+ * The caller's tenant memberships, loaded on mount and re-read by `reload` rather than
+ * held in react-query. A 401 never reaches here as an error to
+ * show: `handleApiError` has already sent the browser to login. `reload` re-reads the
+ * list after leave/delete.
  */
 export const useTenantMemberships = () => {
-  const { send } = useAuth();
-  const [memberships, setMemberships] = useState<TenantMembership[]>([]);
+  const [memberships, setMemberships] = useState<AccountMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,25 +62,30 @@ export const useTenantMemberships = () => {
     try {
       const data = await getTenantMemberships();
       setMemberships(data);
+      setError(null);
     } catch (err) {
       logger.error("Failed to load memberships:", err);
-      // If unauthorized, signal the machine — it handles the redirect
-      if (err instanceof Error && err.message.includes("401")) {
-        send({ type: "UNAUTHORIZED" });
-        return;
-      }
-      setError(
-        err instanceof Error ? err.message : "Failed to load memberships",
-      );
+      setError(errorMessage(err, "Failed to load memberships"));
     } finally {
       setLoading(false);
     }
-  }, [send]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    reload();
+    void reload();
   }, [reload]);
 
   return { memberships, loading, error, setError, reload };
 };
+
+/** Leave one organization. No `meta`: the account page shows a failure inline. */
+export const useLeaveTenant = () =>
+  useMutation({ mutationFn: (tenantId: string) => leaveTenant(tenantId) });
+
+/**
+ * Start deleting one organization. Without `meta` the account page shows a failure inline;
+ * the organization settings page passes an `errorMessage` because its confirm closes on failure.
+ */
+export const useDeleteTenant = (meta?: { errorMessage: string }) =>
+  useMutation({ mutationFn: (tenantId: string) => deleteTenant(tenantId), meta });

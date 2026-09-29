@@ -3,7 +3,6 @@ import { Button } from "@foundation/src/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@foundation/src/components/ui/tooltip";
 
@@ -15,7 +14,6 @@ interface Props {
 
 export function AutoScheduleButton({ disabled, loading, onClick }: Props) {
   return (
-    <TooltipProvider delayDuration={300}>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
@@ -33,6 +31,5 @@ export function AutoScheduleButton({ disabled, loading, onClick }: Props) {
         </TooltipTrigger>
         <TooltipContent>Auto-schedule unscheduled requests</TooltipContent>
       </Tooltip>
-    </TooltipProvider>
   );
 }

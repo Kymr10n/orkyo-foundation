@@ -51,74 +51,57 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
         await db.OpenAsync(ct);
         await using var tx = await db.BeginTransactionAsync(ct);
 
-        try
+        // Existence and applicability in one read: no row means no such resource, false means
+        // the criterion is scoped to other types (CriterionScopeSql.AppliesTo is the rule).
+        await using var checkCmd = new NpgsqlCommand($@"
+            SELECT {CriterionScopeSql.AppliesTo("@criterionId", "crt.resource_type_id = r.resource_type_id")}
+            FROM resources r
+            WHERE r.id = @resourceId", db, tx);
+        checkCmd.Parameters.AddWithValue("resourceId", resourceId);
+        checkCmd.Parameters.AddWithValue("criterionId", criterionId);
+
+        var applies = await checkCmd.ExecuteScalarAsync(ct);
+        if (applies is null)
+            throw new NotFoundException("Resource", resourceId);
+        if (applies is false)
+            throw new CapabilityNotApplicableException(
+                resourceId, criterionId,
+                "Criterion is not applicable to this resource type");
+
+        var valueJson = value.GetRawText();
+
+        await using var cmd = new NpgsqlCommand(
+            $"INSERT INTO {TableName} (resource_id, criterion_id, value) " +
+            "VALUES (@resourceId, @criterionId, @value::jsonb) " +
+            "ON CONFLICT (resource_id, criterion_id) DO UPDATE " +
+            "SET value = EXCLUDED.value, updated_at = NOW() " +
+            "RETURNING id, created_at, updated_at", db, tx);
+        cmd.Parameters.AddWithValue("resourceId", resourceId);
+        cmd.Parameters.AddWithValue("criterionId", criterionId);
+        cmd.Parameters.AddWithValue("value", valueJson);
+
+        Guid newId;
+        DateTime createdAt, updatedAt;
+
+        await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
-            // Validate criterion exists and is applicable to this resource's type.
-            // If no criterion_resource_types entries exist for the resource type, all criteria
-            // are considered applicable (open-world assumption for new resource types).
-            await using var checkCmd = new NpgsqlCommand(@"
-                SELECT 1
-                FROM resources r
-                WHERE r.id = @resourceId
-                  AND (
-                    EXISTS (
-                        SELECT 1 FROM criterion_resource_types
-                        WHERE criterion_id = @criterionId AND resource_type_id = r.resource_type_id
-                    )
-                    OR NOT EXISTS (
-                        SELECT 1 FROM criterion_resource_types
-                        WHERE resource_type_id = r.resource_type_id
-                    )
-                  )", db, tx);
-            checkCmd.Parameters.AddWithValue("resourceId", resourceId);
-            checkCmd.Parameters.AddWithValue("criterionId", criterionId);
-
-            var isApplicable = await checkCmd.ExecuteScalarAsync(ct) != null;
-            if (!isApplicable)
-                throw new CapabilityNotApplicableException(
-                    resourceId, criterionId,
-                    "Criterion is not applicable to this resource type");
-
-            var valueJson = value.GetRawText();
-
-            await using var cmd = new NpgsqlCommand(
-                $"INSERT INTO {TableName} (resource_id, criterion_id, value) " +
-                "VALUES (@resourceId, @criterionId, @value::jsonb) " +
-                "ON CONFLICT (resource_id, criterion_id) DO UPDATE " +
-                "SET value = EXCLUDED.value, updated_at = NOW() " +
-                "RETURNING id, created_at, updated_at", db, tx);
-            cmd.Parameters.AddWithValue("resourceId", resourceId);
-            cmd.Parameters.AddWithValue("criterionId", criterionId);
-            cmd.Parameters.AddWithValue("value", valueJson);
-
-            Guid newId;
-            DateTime createdAt, updatedAt;
-
-            await using (var reader = await cmd.ExecuteReaderAsync(ct))
-            {
-                await reader.ReadAsync(ct);
-                newId = reader.GetGuid(reader.GetOrdinal("id"));
-                createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
-                updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
-            }
-
-            await tx.CommitAsync(ct);
-
-            return new ResourceCapabilityInfo
-            {
-                Id = newId,
-                ResourceId = resourceId,
-                CriterionId = criterionId,
-                Value = value,
-                CreatedAt = createdAt,
-                UpdatedAt = updatedAt,
-            };
+            await reader.ReadAsync(ct);
+            newId = reader.GetGuid(reader.GetOrdinal("id"));
+            createdAt = reader.GetDateTime(reader.GetOrdinal("created_at"));
+            updatedAt = reader.GetDateTime(reader.GetOrdinal("updated_at"));
         }
-        catch
+
+        await tx.CommitAsync(ct);
+
+        return new ResourceCapabilityInfo
         {
-            await tx.RollbackAsync(ct);
-            throw;
-        }
+            Id = newId,
+            ResourceId = resourceId,
+            CriterionId = criterionId,
+            Value = value,
+            CreatedAt = createdAt,
+            UpdatedAt = updatedAt,
+        };
     }
 
     public async Task<bool> DeleteAsync(Guid resourceId, Guid capabilityId, CancellationToken ct = default)
@@ -144,7 +127,7 @@ public class ResourceCapabilityRepository(OrgContext orgContext, IOrgDbConnectio
             {
                 Id = r.GetGuid(r.GetOrdinal("criterion_id")),
                 Name = r.GetString(r.GetOrdinal("criterion_name")),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(r.GetString(r.GetOrdinal("criterion_type"))),
+                DataType = EnumMapper.FromDbValue<CriterionDataType>(r.GetString(r.GetOrdinal("criterion_type"))),
                 Unit = r.IsDBNull(r.GetOrdinal("criterion_unit")) ? null : r.GetString(r.GetOrdinal("criterion_unit")),
             },
             CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),

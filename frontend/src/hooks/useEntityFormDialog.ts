@@ -1,18 +1,21 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { errorMessage } from './mutation-utils';
 import { stableStringify } from '@foundation/src/lib/utils/stable-stringify';
 
+/** A domain save mutation, as a component receives it: the type a dialog prop names. */
+export type SaveMutation<TSaved, TVariables> = UseMutationResult<TSaved, Error, TVariables, unknown>;
+
 /**
  * Shared scaffold for the standard entity edit dialog (see docs/dialog-feedback.md):
- * form + baseline state, reset-on-open, JSON dirty check, and a create-or-update
- * mutation wired to the central meta feedback (toast + invalidation) with the
- * inline setError kept for in-context display.
+ * form + baseline state, reset-on-open, JSON dirty check, and the submit that runs a
+ * domain save mutation with the inline setError kept for in-context display.
  *
- * The caller keeps: field rendering, validity (`submitDisabled`), and any
+ * The domain hook (`hooks/use*.ts`) owns the API call, the query keys and the `meta`
+ * feedback; the caller keeps field rendering, validity (`submitDisabled`), and any
  * entity-specific data fetching. `entity === null` means create mode.
  */
-export interface UseEntityFormDialogOptions<TEntity, TForm, TSaved> {
+export interface UseEntityFormDialogOptions<TEntity, TForm, TSaved, TVariables> {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The entity being edited, or null to create. */
@@ -21,12 +24,19 @@ export interface UseEntityFormDialogOptions<TEntity, TForm, TSaved> {
   emptyForm: () => TForm;
   /** Maps the entity to its form state for edit mode. */
   toForm: (entity: TEntity) => TForm;
-  /** Persists the form; receives the entity for update-vs-create branching. */
-  save: (form: TForm, entity: TEntity | null) => Promise<TSaved>;
-  /** Human label for the derived toasts, e.g. "Job title" → "Job title updated". */
-  entityLabel: string;
-  /** Query keys invalidated on success, prefix-style (exact: false). */
-  invalidates: readonly (readonly unknown[])[];
+  /**
+   * The domain save mutation (e.g. `useSaveSite()`). Its `meta` declares the success toast,
+   * the invalidation and `suppressErrorToast: true`: this dialog stays open on failure and
+   * shows the message inline, so a toast would report the same error twice.
+   */
+  mutation: SaveMutation<TSaved, TVariables>;
+  /** Builds the mutation's variables; receives the entity for update-vs-create branching. */
+  toVariables: (form: TForm, entity: TEntity | null) => TVariables;
+  /**
+   * Client-side check run on submit, for a rule a disabled Save button cannot explain. A
+   * returned message shows in the inline error and nothing is sent.
+   */
+  validate?: (form: TForm) => string | null;
   /** Invoked with the saved entity on success (inline-create flows). */
   onSaved?: (saved: TSaved) => void;
 }
@@ -43,17 +53,17 @@ export interface UseEntityFormDialogResult<TForm> {
   isSubmitting: boolean;
 }
 
-export function useEntityFormDialog<TEntity, TForm, TSaved>({
+export function useEntityFormDialog<TEntity, TForm, TSaved, TVariables>({
   open,
   onOpenChange,
   entity,
   emptyForm,
   toForm,
-  save,
-  entityLabel,
-  invalidates,
+  mutation,
+  toVariables,
+  validate,
   onSaved,
-}: UseEntityFormDialogOptions<TEntity, TForm, TSaved>): UseEntityFormDialogResult<TForm> {
+}: UseEntityFormDialogOptions<TEntity, TForm, TSaved, TVariables>): UseEntityFormDialogResult<TForm> {
   const [form, setForm] = useState<TForm>(() => (open && entity ? toForm(entity) : emptyForm()));
   // Snapshot of the form as last synced; the dirty guard compares against it.
   const [baseline, setBaseline] = useState<TForm>(form);
@@ -82,23 +92,23 @@ export function useEntityFormDialog<TEntity, TForm, TSaved>({
   // changes insertion order without changing the data.
   const isDirty = stableStringify(form) !== stableStringify(baseline);
 
-  const mutation = useMutation({
-    mutationFn: () => save(form, entity),
-    // The dialog stays open on failure and renders the message inline in its own
-    // ErrorAlert (see `onError` below), so the failure is not also toasted — one
-    // surface per error. See the error-display rule in ARCHITECTURE.md.
-    meta: {
-      successMessage: entity ? `${entityLabel} updated` : `${entityLabel} created`,
-      suppressErrorToast: true,
-      invalidates,
-    },
-    onSuccess: (saved) => {
-      setError(null);
-      onSaved?.(saved);
-      onOpenChange(false);
-    },
-    onError: (err) => setError(errorMessage(err)),
-  });
+  // Per-call callbacks, not the domain hook's: they close over this dialog's state. The
+  // toast and the invalidation come from the mutation's `meta` (see ARCHITECTURE.md).
+  const submit = () => {
+    const invalid = validate?.(form);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    mutation.mutate(toVariables(form, entity), {
+      onSuccess: (saved) => {
+        setError(null);
+        onSaved?.(saved);
+        onOpenChange(false);
+      },
+      onError: (err) => setError(errorMessage(err)),
+    });
+  };
 
   return {
     form,
@@ -106,7 +116,7 @@ export function useEntityFormDialog<TEntity, TForm, TSaved>({
     set: (patch) => setForm((prev) => ({ ...prev, ...patch })),
     isDirty,
     error,
-    submit: () => mutation.mutate(),
+    submit,
     isSubmitting: mutation.isPending,
   };
 }

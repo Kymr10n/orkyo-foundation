@@ -24,8 +24,10 @@ internal static class AutoScheduleTestHelpers
 
     internal static int Day(int n) => n * MinutesPerDay;
 
+    /// <summary>The 24x7 axis over the horizon: offsets are plain minutes since its start.</summary>
     internal static WorkingTimeAxis Identity(DateOnly? horizonStart = null, DateOnly? horizonEnd = null)
-        => WorkingTimeAxis.Identity(horizonStart ?? DefaultHorizonStart, horizonEnd ?? DefaultHorizonEnd);
+        => WorkingTimeAxis.Build(horizonStart ?? DefaultHorizonStart, horizonEnd ?? DefaultHorizonEnd,
+            settings: null, respectSchedulingSettings: false);
 
     internal static SchedulingProblem MakeProblem(
         IReadOnlyList<RequestNode> requests,

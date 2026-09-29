@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getInsightsOverview,
   getInsightsUtilization,
@@ -18,8 +18,6 @@ function lastCall() {
 }
 
 describe("insights-api", () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it("overview sends from/to and omits siteId when not given", async () => {
     await getInsightsOverview(from, to);
     const [path, opts] = lastCall();

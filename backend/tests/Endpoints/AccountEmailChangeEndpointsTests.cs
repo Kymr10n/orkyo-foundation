@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Services;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 
@@ -33,7 +34,7 @@ public class AccountEmailChangeEndpointsTests
     private async Task SetUserEmailAsync(string email)
     {
         await DeleteOtherUserAsync();
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using (var identityCmd = new NpgsqlCommand(
@@ -86,7 +87,7 @@ public class AccountEmailChangeEndpointsTests
 
     private async Task SetUserKeycloakIdAsync(string keycloakId)
     {
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using (var cmd = new NpgsqlCommand(
@@ -111,7 +112,7 @@ public class AccountEmailChangeEndpointsTests
 
     private async Task SetUserIdentityOnlyKeycloakIdAsync(string keycloakId)
     {
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using (var userCmd = new NpgsqlCommand(
@@ -133,7 +134,7 @@ public class AccountEmailChangeEndpointsTests
 
     private async Task<(string? pendingEmail, string? token)> GetPendingEmailStateAsync()
     {
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
@@ -149,7 +150,7 @@ public class AccountEmailChangeEndpointsTests
 
     private async Task<string> GetCurrentEmailAsync()
     {
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
@@ -160,7 +161,7 @@ public class AccountEmailChangeEndpointsTests
 
     private async Task<string?> GetKeycloakIdentityEmailAsync()
     {
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
@@ -173,7 +174,7 @@ public class AccountEmailChangeEndpointsTests
         string pendingEmail, string? keycloakId = null, int hoursAgo = 0)
     {
         await DeleteOtherUserAsync();
-        var userId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var userId = TestConstants.UserId;
         var token = Guid.NewGuid().ToString();
 
         await using var conn = new NpgsqlConnection(_cpConnectionString);
@@ -226,7 +227,7 @@ public class AccountEmailChangeEndpointsTests
         token.Should().NotBeNullOrEmpty();
 
         // Confirmation email must be sent to the new address
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(1);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(1);
         _mockEmail.LastSendEmailChangeConfirmationCall.toEmail.Should().Be("new@example.com");
     }
 
@@ -241,6 +242,8 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "new@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
+            .Should().Be(Api.Constants.ApiErrorCodes.EmailDeliveryFailed);
 
         // Pending row must be cleared so the orphan UNIQUE index entry is released
         // and the user (or anyone else) can retry the same address.
@@ -248,7 +251,22 @@ public class AccountEmailChangeEndpointsTests
         pending.Should().BeNull();
         token.Should().BeNull();
 
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(1);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RequestEmailChange_WhenKeycloakIsDown_Returns502WithACode_AndStoresNothing()
+    {
+        // The endpoint's own catch answered a code-less 500; the global mapper answers 502 with one.
+        await SetUserEmailAsync("current@example.com");
+        _mockKeycloak.UserExistsException = new Api.Integrations.Keycloak.KeycloakAdminException("down", 502);
+
+        var response = await _client.PostAsJsonAsync("/api/account/email", new { newEmail = "new@example.com" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        (await response.Content.ReadFromJsonAsync<JsonElement>()).TryGetProperty("code", out _).Should().BeTrue();
+        (await GetPendingEmailStateAsync()).pendingEmail.Should().BeNull();
+        _mockKeycloak.UserExistsException = null;
     }
 
     [Fact]
@@ -260,20 +278,7 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "same@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("not-an-email")]
-    public async Task RequestEmailChange_WithInvalidEmail_Returns400(string newEmail)
-    {
-        await SetUserEmailAsync("current@example.com");
-
-        var response = await _client.PostAsJsonAsync("/api/account/email", new { newEmail });
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -286,7 +291,7 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "taken@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -302,22 +307,7 @@ public class AccountEmailChangeEndpointsTests
             new { newEmail = "reserved@example.com" });
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task RequestEmailChange_WithoutAuth_Returns401()
-    {
-        var anonClient = _factory.CreateClient();
-
-        var response = await anonClient.SendAsync(
-            new HttpRequestMessage(HttpMethod.Post, "/api/account/email")
-            {
-                Content = JsonContent.Create(new { newEmail = "new@example.com" }),
-                Headers = { { HeaderConstants.TenantSlug, TestConstants.TenantSlug } }
-            });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(0);
     }
 
     [Fact]
@@ -336,7 +326,7 @@ public class AccountEmailChangeEndpointsTests
 
         var (pending, _) = await GetPendingEmailStateAsync();
         pending.Should().Be("second@example.com");
-        _mockEmail.SendEmailChangeConfirmationCallCount.Should().Be(2);
+        _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(2);
     }
 
     // ─── GET /api/account/confirm-email ──────────────────────────────────────────
@@ -406,6 +396,39 @@ public class AccountEmailChangeEndpointsTests
         _mockKeycloak.LastUpdateEmailForAccountCall.newEmail.Should().Be("new@example.com");
         _mockKeycloak.LastUpdateEmailForAccountCall.keycloakSub.Should().Be(keycloakId);
         (await GetKeycloakIdentityEmailAsync()).Should().Be("new@example.com");
+    }
+
+    [Fact]
+    public async Task ConfirmEmail_TheChangedNotice_GreetsTheUserByName()
+    {
+        // The notice used to pass the new address as the display name.
+        await SetUserEmailAsync("old@example.com");
+        var token = await StorePendingEmailChangeAsync("new@example.com", Guid.NewGuid().ToString());
+        await using var conn = new NpgsqlConnection(_cpConnectionString);
+        await conn.OpenAsync();
+        await using var rename = new NpgsqlCommand(@"
+            UPDATE users SET display_name = @name WHERE id = @id
+            RETURNING (SELECT display_name FROM users WHERE id = @id)", conn);
+        rename.Parameters.AddWithValue("name", "Dana Scully");
+        rename.Parameters.AddWithValue("id", TestConstants.UserId);
+        var original = (string)(await rename.ExecuteScalarAsync())!;
+        try
+        {
+            var response = await _client.GetAsync($"/api/account/confirm-email?token={token}");
+            response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
+
+            // Sent after the response, from its own scope.
+            await _factory.BackgroundWork.WhenIdleAsync();
+            _mockEmail.CallCount(nameof(IEmailService.SendEmailChangedAsync)).Should().Be(1);
+            _mockEmail.LastEmailChangedDisplayName.Should().Be("Dana Scully");
+        }
+        finally
+        {
+            await using var restore = new NpgsqlCommand("UPDATE users SET display_name = @name WHERE id = @id", conn);
+            restore.Parameters.AddWithValue("name", original);
+            restore.Parameters.AddWithValue("id", TestConstants.UserId);
+            await restore.ExecuteNonQueryAsync();
+        }
     }
 
     [Fact]

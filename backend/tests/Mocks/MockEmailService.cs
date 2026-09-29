@@ -8,190 +8,136 @@ namespace Orkyo.Foundation.Tests.Mocks;
 /// </summary>
 public class MockEmailService : IEmailService
 {
-    // ── General send ──────────────────────────────────────────────────────────
-    public int SendEmailCallCount { get; private set; }
+    // Broadcasts dispatch concurrently (Parallel.ForEachAsync), so every record takes the lock.
+    private readonly object _lock = new();
+    private readonly List<(string Method, string To)> _calls = new();
+
+    /// <summary>Every send so far, in order: the <see cref="IEmailService"/> method name and the recipient.</summary>
+    public IReadOnlyList<(string Method, string To)> Calls
+    {
+        get { lock (_lock) return _calls.ToList(); }
+    }
+
+    /// <summary>How many times <paramref name="method"/> (an <see cref="IEmailService"/> method name) was called.</summary>
+    public int CallCount(string method) => Calls.Count(c => c.Method == method);
+
+    /// <summary>The recipients of every send so far, in order.</summary>
+    public IReadOnlyList<string> Recipients => Calls.Select(c => c.To).ToList();
+
+    /// <summary>The confirm token last mailed to each recipient.</summary>
+    public Dictionary<string, string> LifecycleWarningTokens { get; } = new();
+
+    /// <summary>While set, every lifecycle warning send returns false (an SMTP outage).</summary>
+    public bool FailLifecycleWarnings { get; set; }
+
+    /// <summary>While set, every dormancy notice send returns false (an SMTP outage).</summary>
+    public bool FailDormancyNotices { get; set; }
+
+    /// <summary>When set, the next <see cref="SendEmailChangeConfirmationAsync"/> returns false (auto-resets).</summary>
+    public bool FailNextEmailChangeConfirmation { get; set; }
+
+    /// <summary>While set, <see cref="SendEmailAsync"/> throws, as a mail server that refuses the connection does.</summary>
+    public bool ThrowOnSendEmail { get; set; }
+
+    public (string toEmail, string displayName, string token) LastSendEmailChangeConfirmationCall { get; private set; }
+
+    public string? LastEmailChangedDisplayName { get; private set; }
+
+    private Task<bool> Record(string method, string to, bool result = true)
+    {
+        lock (_lock) _calls.Add((method, to));
+        return Task.FromResult(result);
+    }
 
     public Task<bool> SendEmailAsync(string toEmail, string toName, string subject,
         string htmlBody, string textBody, CancellationToken ct = default)
-    {
-        SendEmailCallCount++;
-        return Task.FromResult(true);
-    }
+        => ThrowOnSendEmail
+            ? throw new InvalidOperationException("SMTP connection refused")
+            : Record(nameof(SendEmailAsync), toEmail);
 
-    // ── Welcome ───────────────────────────────────────────────────────────────
-    public int SendWelcomeCallCount { get; private set; }
+    public Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
+        => Record(nameof(SendWelcomeEmailAsync), toEmail);
 
-    public Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName,
-        CancellationToken ct = default)
-    {
-        SendWelcomeCallCount++;
-        return Task.FromResult(true);
-    }
-
-    // ── Invitation ────────────────────────────────────────────────────────────
-    public int SendInvitationCallCount { get; private set; }
-
-    public Task<bool> SendInvitationEmailAsync(string toEmail, string token,
-        DateTime expiresAt, CancellationToken ct = default)
-    {
-        SendInvitationCallCount++;
-        return Task.FromResult(true);
-    }
-
-    // ── Lifecycle warning ─────────────────────────────────────────────────────
-    public int SendLifecycleWarningCallCount { get; private set; }
+    public Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default)
+        => Record(nameof(SendInvitationEmailAsync), toEmail);
 
     public Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName,
         string confirmToken, int warningNumber, CancellationToken ct = default)
     {
-        SendLifecycleWarningCallCount++;
-        return Task.FromResult(true);
+        lock (_lock) LifecycleWarningTokens[toEmail] = confirmToken;
+        return Record(nameof(SendLifecycleWarningEmailAsync), toEmail, !FailLifecycleWarnings);
     }
 
-    // ── Dormancy notice ───────────────────────────────────────────────────────
-    public int SendDormancyNoticeCallCount { get; private set; }
-
-    public Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName,
-        CancellationToken ct = default)
-    {
-        SendDormancyNoticeCallCount++;
-        return Task.FromResult(true);
-    }
-
-    // ── Email change confirmation ─────────────────────────────────────────────
-    public int SendEmailChangeConfirmationCallCount { get; private set; }
-    public (string toEmail, string displayName, string token) LastSendEmailChangeConfirmationCall { get; private set; }
-    /// <summary>When set, the next call to <see cref="SendEmailChangeConfirmationAsync"/> returns false (auto-resets).</summary>
-    public bool FailNextEmailChangeConfirmation { get; set; }
+    public Task<bool> SendDormancyNoticeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
+        => Record(nameof(SendDormancyNoticeEmailAsync), toEmail, !FailDormancyNotices);
 
     public Task<bool> SendEmailChangeConfirmationAsync(string toEmail, string displayName,
         string confirmationToken, CancellationToken ct = default)
     {
-        SendEmailChangeConfirmationCallCount++;
-        LastSendEmailChangeConfirmationCall = (toEmail, displayName, confirmationToken);
-        if (FailNextEmailChangeConfirmation)
-        {
-            FailNextEmailChangeConfirmation = false;
-            return Task.FromResult(false);
-        }
-        return Task.FromResult(true);
+        lock (_lock) LastSendEmailChangeConfirmationCall = (toEmail, displayName, confirmationToken);
+        var fail = FailNextEmailChangeConfirmation;
+        FailNextEmailChangeConfirmation = false;
+        return Record(nameof(SendEmailChangeConfirmationAsync), toEmail, !fail);
     }
 
-    // ── Alerts (fire-and-forget) ──────────────────────────────────────────────
-    public int SendNewUserAlertCallCount { get; private set; }
-
-    public Task SendNewUserAlertAsync(string userEmail, string displayName,
-        CancellationToken ct = default)
-    {
-        SendNewUserAlertCallCount++;
-        return Task.CompletedTask;
-    }
-
-    public int SendNewTenantAlertCallCount { get; private set; }
+    public Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default)
+        => Record(nameof(SendNewUserAlertAsync), userEmail);
 
     public Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName,
         string ownerEmail, CancellationToken ct = default)
-    {
-        SendNewTenantAlertCallCount++;
-        return Task.CompletedTask;
-    }
-
-    // ── Lifecycle / admin / security (added 2026-06) ──────────────────────────
-    public int SendTenantInactivityWarningCallCount { get; private set; }
-    public int SendTenantSuspendedCallCount { get; private set; }
-    public int SendTenantDeletingWarningCallCount { get; private set; }
-    public int SendTenantDeletedCallCount { get; private set; }
-    public int SendTenantWelcomeCallCount { get; private set; }
-    public int SendRoleChangedCallCount { get; private set; }
-    public int SendMemberRemovedCallCount { get; private set; }
-    public int SendOwnershipReceivedCallCount { get; private set; }
-    public int SendOwnershipTransferredCallCount { get; private set; }
-    public int SendQuotaLimitReachedCallCount { get; private set; }
-    public int SendTierChangedCallCount { get; private set; }
-    public int SendPasswordChangedCallCount { get; private set; }
-    public int SendMfaChangedCallCount { get; private set; }
-    public int SendEmailChangeRequestedOldAddressCallCount { get; private set; }
-    public int SendEmailChangedCallCount { get; private set; }
-    /// <summary>Recipient emails captured across the tenant/account notification sends, for assertions.</summary>
-    public List<string> Recipients { get; } = new();
+        => Record(nameof(SendNewTenantAlertAsync), ownerEmail);
 
     public Task<bool> SendTenantInactivityWarningAsync(string toEmail, string tenantName, string loginUrl, int daysUntilSuspend, CancellationToken ct = default)
-    { SendTenantInactivityWarningCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendTenantInactivityWarningAsync), toEmail);
     public Task<bool> SendTenantSuspendedAsync(string toEmail, string tenantName, string reactivateUrl, int deleteAfterDays, CancellationToken ct = default)
-    { SendTenantSuspendedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendTenantSuspendedAsync), toEmail);
     public Task<bool> SendTenantDeletingWarningAsync(string toEmail, string tenantName, string restoreUrl, int daysUntilDelete, CancellationToken ct = default)
-    { SendTenantDeletingWarningCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendTenantDeletingWarningAsync), toEmail);
     public Task<bool> SendTenantDeletedAsync(string toEmail, string tenantName, CancellationToken ct = default)
-    { SendTenantDeletedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendTenantDeletedAsync), toEmail);
     public Task<bool> SendTenantWelcomeAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
-    { SendTenantWelcomeCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendTenantWelcomeAsync), toEmail);
     public Task<bool> SendRoleChangedAsync(string toEmail, string tenantName, string newRole, string appUrl, CancellationToken ct = default)
-    { SendRoleChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendRoleChangedAsync), toEmail);
     public Task<bool> SendMemberRemovedAsync(string toEmail, string tenantName, CancellationToken ct = default)
-    { SendMemberRemovedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendMemberRemovedAsync), toEmail);
     public Task<bool> SendOwnershipReceivedAsync(string toEmail, string tenantName, string appUrl, CancellationToken ct = default)
-    { SendOwnershipReceivedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendOwnershipReceivedAsync), toEmail);
     public Task<bool> SendOwnershipTransferredAsync(string toEmail, string tenantName, string newOwnerEmail, CancellationToken ct = default)
-    { SendOwnershipTransferredCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendOwnershipTransferredAsync), toEmail);
     public Task<bool> SendQuotaLimitReachedAsync(string toEmail, string tenantName, string resourceLabel, long limit, string manageUrl, CancellationToken ct = default)
-    { SendQuotaLimitReachedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendQuotaLimitReachedAsync), toEmail);
     public Task<bool> SendTierChangedAsync(string toEmail, string tenantName, string newPlan, string appUrl, CancellationToken ct = default)
-    { SendTierChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendTierChangedAsync), toEmail);
     public Task<bool> SendPasswordChangedAsync(string toEmail, string displayName, CancellationToken ct = default)
-    { SendPasswordChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendPasswordChangedAsync), toEmail);
     public Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default)
-    { SendMfaChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendMfaChangedAsync), toEmail);
     public Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
-    { SendEmailChangeRequestedOldAddressCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
-    public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
-    { SendEmailChangedCallCount++; Recipients.Add(toEmail); return Task.FromResult(true); }
+        => Record(nameof(SendEmailChangeRequestedOldAddressAsync), toEmail);
 
-    // ── Announcements ─────────────────────────────────────────────────────────
-    // Broadcasts dispatch concurrently (Parallel.ForEachAsync), so guard the shared state.
-    private readonly object _announcementLock = new();
-    public int SendAnnouncementCallCount { get; private set; }
-    public bool FailNextAnnouncement { get; set; }
-    public Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default)
+    public Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
     {
-        lock (_announcementLock)
-        {
-            SendAnnouncementCallCount++;
-            Recipients.Add(toEmail);
-            if (FailNextAnnouncement) { FailNextAnnouncement = false; return Task.FromResult(false); }
-            return Task.FromResult(true);
-        }
+        lock (_lock) LastEmailChangedDisplayName = displayName;
+        return Record(nameof(SendEmailChangedAsync), toEmail);
     }
 
-    // ── Reset ─────────────────────────────────────────────────────────────────
+    public Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body,
+        bool isImportant, Guid unsubscribeToken, CancellationToken ct = default)
+        => Record(nameof(SendAnnouncementEmailAsync), toEmail);
+
     public void Reset()
     {
-        SendEmailCallCount = 0;
-        SendWelcomeCallCount = 0;
-        SendInvitationCallCount = 0;
-        SendLifecycleWarningCallCount = 0;
-        SendDormancyNoticeCallCount = 0;
-        SendEmailChangeConfirmationCallCount = 0;
-        LastSendEmailChangeConfirmationCall = default;
+        lock (_lock)
+        {
+            _calls.Clear();
+            LifecycleWarningTokens.Clear();
+        }
+        FailLifecycleWarnings = false;
+        FailDormancyNotices = false;
         FailNextEmailChangeConfirmation = false;
-        SendNewUserAlertCallCount = 0;
-        SendNewTenantAlertCallCount = 0;
-        SendTenantInactivityWarningCallCount = 0;
-        SendTenantSuspendedCallCount = 0;
-        SendTenantDeletingWarningCallCount = 0;
-        SendTenantDeletedCallCount = 0;
-        SendTenantWelcomeCallCount = 0;
-        SendRoleChangedCallCount = 0;
-        SendMemberRemovedCallCount = 0;
-        SendOwnershipReceivedCallCount = 0;
-        SendOwnershipTransferredCallCount = 0;
-        SendQuotaLimitReachedCallCount = 0;
-        SendTierChangedCallCount = 0;
-        SendPasswordChangedCallCount = 0;
-        SendMfaChangedCallCount = 0;
-        SendEmailChangeRequestedOldAddressCallCount = 0;
-        SendEmailChangedCallCount = 0;
-        SendAnnouncementCallCount = 0;
-        FailNextAnnouncement = false;
-        Recipients.Clear();
+        ThrowOnSendEmail = false;
+        LastSendEmailChangeConfirmationCall = default;
+        LastEmailChangedDisplayName = null;
     }
 }

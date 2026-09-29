@@ -61,4 +61,13 @@ public static class ConfigurationExtensions
     {
         return !string.IsNullOrEmpty(configuration[key]);
     }
+
+    /// <summary>
+    /// Gets an optional value, or null when it is missing or empty: the deploy pipeline writes
+    /// <c>KEY=</c> for unset keys, so an empty value counts as unset.
+    /// </summary>
+    public static string? GetNonEmptyOrNull(this IConfiguration configuration, string key)
+    {
+        return configuration.IsSet(key) ? configuration[key] : null;
+    }
 }

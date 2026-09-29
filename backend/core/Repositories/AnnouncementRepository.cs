@@ -47,7 +47,7 @@ public class AnnouncementRepository : IAnnouncementRepository
 
         var sql = $"SELECT {SelectColumns} {FromJoins} "
             + (includeExpired ? "" : "WHERE a.expires_at > now() ")
-            + "ORDER BY a.created_at DESC LIMIT 500";
+            + "ORDER BY a.created_at DESC";
 
         return await conn.QueryListAsync(sql, null, MapDto, ct);
     }

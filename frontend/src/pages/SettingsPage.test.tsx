@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router';
@@ -26,10 +26,6 @@ function renderAt(initialPath: string) {
 }
 
 describe('SettingsPage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders page title', () => {
     renderAt('/settings/criteria');
     expect(screen.getByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();

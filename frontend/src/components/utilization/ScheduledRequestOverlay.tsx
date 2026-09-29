@@ -236,8 +236,8 @@ export const ScheduledRequestOverlay = React.memo(function ScheduledRequestOverl
       onKeyDown={(e) => {
         // Enter/Space opens the request (details) rather than starting a keyboard
         // drag — grid drops resolve their time from pointer coordinates, so a
-        // keyboard drag can't land a valid slot. Rescheduling stays pointer-drag
-        // + the "Schedule to…" dialog for backlog. Overrides the dnd keydown.
+        // keyboard drag can't land a valid slot. Rescheduling stays pointer-drag,
+        // plus `ScheduleSlotDialog` for backlog. Overrides the dnd keydown.
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();

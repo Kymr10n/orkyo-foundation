@@ -104,15 +104,6 @@ public class AiCredentialServiceTests
         await act.Should().ThrowAsync<ArgumentException>();
     }
 
-    [Fact]
-    public async Task GetModel_FallsBackToTheApplicationDefault()
-    {
-        _repository.Setup(r => r.GetAsync(It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new AiCredentialRow { ApiKeyCiphertext = "x", KeyHint = "…A4Qz", Model = null });
-
-        (await CreateSut().GetModelAsync()).Should().Be(AiDefaults.Model);
-    }
-
     /// <summary>Makes the repository behave like a real one: what was written is what is read back.</summary>
     private void SetupRepositoryRoundTrip()
     {

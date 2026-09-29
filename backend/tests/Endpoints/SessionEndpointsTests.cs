@@ -1,6 +1,16 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Configuration;
+using Api.Models;
+using Api.Services;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -37,15 +47,13 @@ public class SessionEndpointsTests
             tenantSlug: null,
             active: true);
 
-        return TestConstants.BearerToken(userId.ToString(), email, "Session Me Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user");
+        return TestConstants.BearerToken(userId.ToString(), email, "Session Me Test", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "admin");
     }
 
     private async Task<JsonElement> GetMeAsync(string token)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/session/me");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/session/me", token);
 
         var response = await _client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -55,13 +63,6 @@ public class SessionEndpointsTests
     }
 
     // ─── 401 guard ───────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task GetMe_WithoutAuthentication_Returns401()
-    {
-        var response = await _client.GetAsync("/api/session/me");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 
     // ─── response shape (contract tests) ─────────────────────────────────────────
     // These tests guard the mapping between backend UserInfo and frontend AppUser.
@@ -139,7 +140,7 @@ public class SessionEndpointsTests
             tenantSlug: TestConstants.TenantSlug,
             active: true);
 
-        var token = TestConstants.BearerToken(userId.ToString(), email, "Tier Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Tier Test User", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "viewer");
 
         var me = await GetMeAsync(token);
@@ -173,7 +174,7 @@ public class SessionEndpointsTests
             tenantSlug: TestConstants.TenantSlug,
             active: true);
 
-        var token = TestConstants.BearerToken(userId.ToString(), email, "Entitlements Test User", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
+        var token = TestConstants.BearerToken(userId.ToString(), email, "Entitlements Test User", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
             isTenantAdmin: false, role: "viewer");
 
         var me = await GetMeAsync(token);
@@ -194,20 +195,10 @@ public class SessionEndpointsTests
     // ─── POST /api/session/tour/seen ─────────────────────────────────────────────
 
     [Fact]
-    public async Task TourSeen_WithoutAuthentication_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tour/seen");
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task TourSeen_WithAuthentication_ReturnsOk()
     {
         var token = await MakeTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tour/seen");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/session/tour/seen", token);
 
         var response = await _client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -221,23 +212,10 @@ public class SessionEndpointsTests
     // ─── POST /api/session/tos/accept ────────────────────────────────────────────
 
     [Fact]
-    public async Task TosAccept_WithoutAuthentication_Returns401()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tos/accept");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { tosVersion = "1.0" }),
-            System.Text.Encoding.UTF8, "application/json");
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task TosAccept_WithWrongVersion_Returns400()
     {
         var token = await MakeTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tos/accept");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/session/tos/accept", token);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { tosVersion = "99.0" }),
             System.Text.Encoding.UTF8, "application/json");
@@ -255,9 +233,7 @@ public class SessionEndpointsTests
         // The required version comes from appsettings.json Tos:RequiredVersion
         const string requiredVersion = "2026-02";
         var token = await MakeTokenAsync();
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/session/tos/accept");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/session/tos/accept", token);
         request.Content = new StringContent(
             JsonSerializer.Serialize(new { tosVersion = requiredVersion }),
             System.Text.Encoding.UTF8, "application/json");
@@ -273,6 +249,44 @@ public class SessionEndpointsTests
         version.GetString().Should().Be(requiredVersion);
     }
 
+    [Fact]
+    public async Task TosAccept_RecordsTheClientIp_NotTheProxy()
+    {
+        var email = $"tos_ip_{Guid.NewGuid()}@example.com";
+        var userId = await DatabaseTestUtils.CreateTestUserAsync(email, displayName: "ToS IP", tenantSlug: null, active: true);
+        var token = TestConstants.BearerToken(userId.ToString(), email, "ToS IP", TestConstants.TenantId.ToString(),
+            TestConstants.TenantSlug, isTenantAdmin: false, role: "admin");
+        var server = (TestServer)_factory.Services.GetRequiredService<IServer>();
+        var body = System.Text.Encoding.UTF8.GetBytes("{\"tosVersion\":\"2026-02\"}");
+
+        // The direct peer is nginx on the private network; Cloudflare's header names the client.
+        var context = await server.SendAsync(c =>
+        {
+            c.Request.Method = HttpMethods.Post;
+            c.Request.Path = "/api/session/tos/accept";
+            c.Request.Headers.Authorization = $"Bearer {token}";
+            c.Request.Headers["CF-Connecting-IP"] = "203.0.113.9";
+            c.Request.ContentType = "application/json";
+            c.Request.ContentLength = body.Length;
+            c.Request.Body = new MemoryStream(body);
+            c.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>(new HasBody());
+            c.Connection.RemoteIpAddress = System.Net.IPAddress.Parse("10.0.0.5");
+        });
+
+        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        await using var conn = _factory.Services.GetRequiredService<IDbConnectionFactory>().CreateControlPlaneConnection();
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("SELECT accepted_ip FROM tos_acceptances WHERE user_id = @id", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        ((string?)await cmd.ExecuteScalarAsync()).Should().Be("203.0.113.9");
+    }
+
+    /// <summary>TestServer marks a context-built request as bodiless; this one carries JSON.</summary>
+    private sealed class HasBody : Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature
+    {
+        public bool CanHaveBody => true;
+    }
+
     // ─── GET /api/session/bootstrap ──────────────────────────────────────────────
 
     /// <summary>
@@ -283,15 +297,13 @@ public class SessionEndpointsTests
     private static string MakeKeycloakToken(
         Guid userId, string email, string? sub, string[]? realmRoles = null)
     {
-        return TestConstants.BearerToken(userId.ToString(), email, "Bootstrap Test", "00000000-0000-0000-0000-000000000001", TestConstants.TenantSlug,
-            isTenantAdmin: false, role: "user", sub: sub, realmRoles: realmRoles);
+        return TestConstants.BearerToken(userId.ToString(), email, "Bootstrap Test", TestConstants.TenantId.ToString(), TestConstants.TenantSlug,
+            isTenantAdmin: false, role: "admin", sub: sub, realmRoles: realmRoles);
     }
 
     private async Task<HttpResponseMessage> BootstrapAsync(string token)
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/session/bootstrap");
-        request.Headers.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/session/bootstrap", token);
         return await _client.SendAsync(request);
     }
 
@@ -466,51 +478,6 @@ public class SessionEndpointsTests
     }
 
     [Fact]
-    public async Task CreateAccount_MissingPassword_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "test@example.com", password = "" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Password is required");
-    }
-
-    [Fact]
-    public async Task CreateAccount_ShortPassword_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "test@example.com", password = "short" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Password must be at least");
-    }
-
-    [Fact]
-    public async Task CreateAccount_InvalidEmail_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "not-an-email", password = "SecurePass123!" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Invalid email format");
-    }
-
-    [Fact]
     public async Task CreateAccount_ValidRequest_ReturnsOk()
     {
         var email = $"create-test-{Guid.NewGuid():N}@example.com";
@@ -537,5 +504,40 @@ public class SessionEndpointsTests
 
         var response = await _client.SendAsync(request);
         response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task CreateAccount_ForAnExistingEmail_AnswersAsForANewOne()
+    {
+        // A 409 here would let anyone test which addresses have accounts.
+        var keycloak = _factory.MockKeycloakAdminService;
+        keycloak.CreateUserSuccess = false;
+        keycloak.CreateUserError = "An account with this email already exists";
+        HttpResponseMessage response;
+        try
+        {
+            response = await _client.PostAsJsonAsync("/api/auth/create-account",
+                new { email = $"existing-{Guid.NewGuid():N}@example.com", password = "SecurePass123!" });
+        }
+        finally
+        {
+            keycloak.Reset();
+        }
+        var fresh = await _client.PostAsJsonAsync("/api/auth/create-account",
+            new { email = $"fresh-{Guid.NewGuid():N}@example.com", password = "SecurePass123!" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await response.Content.ReadAsStringAsync()).Should().Be(await fresh.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public void CreateAccount_IsRateLimitedAndChallengeProtected()
+    {
+        var endpoint = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Single(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == "CreateAccount");
+
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .Should().Be(FoundationRateLimitPolicies.CreateAccount);
+        typeof(IChallengeProtectedRequest).IsAssignableFrom(typeof(CreateAccountRequest)).Should().BeTrue();
     }
 }

@@ -18,9 +18,11 @@ public class TenantCreationPolicyTests
     [InlineData("AUpper")]
     [InlineData("has_underscore")]
     [InlineData("ends-with-")]
-    public void EvaluateSlug_ShouldReturnInvalidSlugFormat_WhenSlugIsInvalid(string slug)
+    [InlineData("tenant\n")]  // `$` matched before a trailing newline
+    [InlineData(null)]         // threw in the reserved-set lookup
+    public void EvaluateSlug_ShouldReturnInvalidSlugFormat_WhenSlugIsInvalid(string? slug)
     {
-        var decision = TenantCreationPolicy.EvaluateSlug(slug);
+        var decision = TenantCreationPolicy.EvaluateSlug(slug!);
 
         decision.Should().Be(TenantCreationDecision.InvalidSlugFormat);
     }

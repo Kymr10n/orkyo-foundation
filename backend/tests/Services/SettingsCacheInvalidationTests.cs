@@ -158,6 +158,57 @@ public class SettingsCacheInvalidationTests
         Assert.Equal(1, repo.GetAllCalls);
     }
 
+    private sealed class FixedOrgContextAccessor : IOrgContextAccessor
+    {
+        public OrgContext? Current { get; } = new()
+        {
+            OrgId = Guid.NewGuid(),
+            OrgSlug = "t",
+            DbConnectionString = "Host=unused",
+        };
+    }
+
+    [Fact]
+    public async Task AFailedTenantSettingsRead_Throws_AndIsNotCached()
+    {
+        // Caching compiled defaults after one failed read turned branding and auto-schedule
+        // off for the whole TTL. The failure must surface and the next read must retry.
+        var tenantRepo = new Moq.Mock<ITenantSettingsRepository>();
+        tenantRepo.SetupSequence(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("db blip"))
+            .ReturnsAsync(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+        var service = new TenantSettingsService(
+            tenantRepo.Object,
+            new StubSiteRepository(),
+            new FixedOrgContextAccessor(),
+            NullLogger<TenantSettingsService>.Instance,
+            new SingleFlightCache(new MemoryCache(new MemoryCacheOptions())));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.GetSettingsAsync());
+        await service.GetSettingsAsync();
+
+        tenantRepo.Verify(r => r.GetAllAsync(It.IsAny<CancellationToken>()), Moq.Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task ARuntimeConfigUpdate_WithOneInvalidValue_WritesNothing()
+    {
+        var repo = new StubSiteRepository();
+        var service = new SiteSettingsService(
+            repo,
+            NullLogger<SiteSettingsService>.Instance,
+            new SingleFlightCache(new MemoryCache(new MemoryCacheOptions())));
+
+        var updates = new Dictionary<string, string>
+        {
+            ["branding.branding_name"] = "Acme",
+            ["scheduling.holiday_provider_enabled"] = "not-a-bool",
+        };
+
+        await Assert.ThrowsAsync<ArgumentException>(() => service.UpdateRuntimeConfigAsync(updates, actorUserId: null));
+        Assert.Empty(repo.Overrides);
+    }
+
     /// <summary>A value the descriptor accepts that is not what it already defaults to.</summary>
     private static string NonDefaultValueFor(string key)
     {

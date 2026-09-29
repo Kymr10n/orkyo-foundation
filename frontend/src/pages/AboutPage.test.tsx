@@ -28,7 +28,6 @@ const renderAboutPage = () => {
 
 describe('AboutPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     configMock.supportEmail = 'support@example.test';
   });
 
@@ -103,9 +102,9 @@ describe('AboutPage', () => {
     expect(screen.getByText(new RegExp(`© ${currentYear}`))).toBeInTheDocument();
   });
 
-  it('shows privacy note in footer', () => {
+  it('makes no telemetry claim that depends on an unimplemented flag', () => {
     renderAboutPage();
-    expect(screen.getByText(/not shared with third parties/)).toBeInTheDocument();
+    expect(screen.queryByText(/telemetry/i)).not.toBeInTheDocument();
   });
 
   it('loads both logos from the bundle, not the domain root', () => {

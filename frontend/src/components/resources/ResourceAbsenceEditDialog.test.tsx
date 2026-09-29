@@ -44,7 +44,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof ResourceAbsence
 
 describe('ResourceAbsenceEditDialog', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(createResourceAbsence).mockResolvedValue({
       id: 'abs-1',
       resourceId: 'person-alice',

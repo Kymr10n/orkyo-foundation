@@ -1,16 +1,22 @@
+import { Legend, type LegendItem } from '@foundation/src/components/ui/Legend';
 import { STATUS_BORDER_CLASS, STATUS_CELL_CLASS, STATUS_PATTERN_CLASS } from './schedule-colors';
 import type { BucketStatus } from '@foundation/src/domain/scheduling/types';
 
-function LegendDot({ status, label, title }: { status: BucketStatus; label: string; title?: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5" title={title}>
-      <span
-        className={`inline-block h-2.5 w-4 rounded-sm border ${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${STATUS_PATTERN_CLASS[status]}`}
-      />
-      {label}
-    </span>
-  );
+function item(status: BucketStatus, label: string, title?: string): LegendItem {
+  return {
+    className: `${STATUS_CELL_CLASS[status]} ${STATUS_BORDER_CLASS[status]} ${STATUS_PATTERN_CLASS[status]}`,
+    label,
+    title,
+  };
 }
+
+const ASSET_LEGEND: readonly LegendItem[] = [
+  item('available', 'Available'),
+  item('partial', 'Booked', 'Booked % = share of this period the resource is allocated (time-weighted).'),
+  item('assigned', 'Assigned'),
+  item('overbooked', 'Overbooked', 'Allocated beyond capacity (>100%) in this period.'),
+  item('non-working', 'Off'),
+];
 
 /**
  * The key for the asset grids.
@@ -20,21 +26,5 @@ function LegendDot({ status, label, title }: { status: BucketStatus; label: stri
  * segments use, so the key cannot drift from what is on screen.
  */
 export function AssetGridLegend() {
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <LegendDot status="available" label="Available" />
-      <LegendDot
-        status="partial"
-        label="Booked"
-        title="Booked % = share of this period the resource is allocated (time-weighted)."
-      />
-      <LegendDot status="assigned" label="Assigned" />
-      <LegendDot
-        status="overbooked"
-        label="Overbooked"
-        title="Allocated beyond capacity (>100%) in this period."
-      />
-      <LegendDot status="non-working" label="Off" />
-    </div>
-  );
+  return <Legend items={ASSET_LEGEND} />;
 }

@@ -68,7 +68,7 @@ export function templateFormReducer(
         name: action.template.name,
         description: action.template.description || "",
         durationValue: action.template.durationValue?.toString() || "1",
-        durationUnit: (action.template.durationUnit || "hours") as DurationUnit,
+        durationUnit: (action.template.durationUnit || initialState.durationUnit) as DurationUnit,
         targetResourceTypeKeys: action.template.targetResourceTypeKeys ?? [],
         requirements: reqMap,
       };

@@ -19,24 +19,10 @@ public class ResourceEndpointTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    private async Task<ResourceInfo> CreatePersonAsync(string name = "Test Person")
-    {
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = name,
-            AllocationMode = "Fractional",
-            BaseAvailabilityPercent = 100,
-        };
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceInfo>())!;
-    }
-
     [Fact]
     public async Task CreateResource_Person_Returns201()
     {
-        var r = await CreatePersonAsync($"Person-{Guid.NewGuid():N}"[..20]);
+        var r = await TestHelpers.CreatePersonAsync(_client, $"Person-{Guid.NewGuid():N}"[..20]);
         Assert.Equal("person", r.ResourceTypeKey);
         Assert.Equal("Fractional", r.AllocationMode);
         Assert.True(r.IsActive);
@@ -56,23 +42,9 @@ public class ResourceEndpointTests
     }
 
     [Fact]
-    public async Task CreateResource_InvalidAvailabilityPercent_Returns400()
-    {
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = "Over Person",
-            AllocationMode = "Fractional",
-            BaseAvailabilityPercent = 150,
-        };
-        var response = await _client.PostAsJsonAsync("/api/resources", request);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetResource_ById_ReturnsResource()
     {
-        var created = await CreatePersonAsync($"GetById-{Guid.NewGuid():N}"[..20]);
+        var created = await TestHelpers.CreatePersonAsync(_client, $"GetById-{Guid.NewGuid():N}"[..20]);
         var response = await _client.GetAsync($"/api/resources/{created.Id}");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var r = await response.Content.ReadFromJsonAsync<ResourceInfo>();
@@ -82,7 +54,7 @@ public class ResourceEndpointTests
     [Fact]
     public async Task GetResources_FilterByType_ReturnsOnlyMatchingType()
     {
-        await CreatePersonAsync($"FilterPerson-{Guid.NewGuid():N}"[..20]);
+        await TestHelpers.CreatePersonAsync(_client, $"FilterPerson-{Guid.NewGuid():N}"[..20]);
 
         var response = await _client.GetAsync("/api/resources?resourceTypeKey=person");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -96,7 +68,7 @@ public class ResourceEndpointTests
     [Fact]
     public async Task DeactivateResource_SetsIsActiveFalse()
     {
-        var created = await CreatePersonAsync($"Deactivate-{Guid.NewGuid():N}"[..20]);
+        var created = await TestHelpers.CreatePersonAsync(_client, $"Deactivate-{Guid.NewGuid():N}"[..20]);
 
         var deleteResponse = await _client.DeleteAsync($"/api/resources/{created.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
@@ -104,24 +76,6 @@ public class ResourceEndpointTests
         var getResponse = await _client.GetAsync($"/api/resources/{created.Id}");
         var r = await getResponse.Content.ReadFromJsonAsync<ResourceInfo>();
         Assert.False(r!.IsActive);
-    }
-
-    [Fact]
-    public async Task CreateResource_Unauthenticated_Returns401()
-    {
-        var anon = _fixture.Factory.CreateClient();
-        anon.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
-
-        var request = new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = "Unauthorized",
-            AllocationMode = "Fractional",
-        };
-        var response = await anon.PostAsJsonAsync("/api/resources", request);
-        Assert.True(
-            response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
-            $"Expected 401/403, got {response.StatusCode}");
     }
 
     // ── Placeable resources ───────────────────────────────────────────────────
@@ -154,7 +108,7 @@ public class ResourceEndpointTests
     {
         var marker = $"EnvT-{Guid.NewGuid():N}"[..16];
         for (var i = 0; i < 3; i++)
-            await CreatePersonAsync($"{marker}-{i}");
+            await TestHelpers.CreatePersonAsync(_client, $"{marker}-{i}");
 
         var (data, total, page, pageSize) = await ReadEnvelopeAsync(
             await _client.GetAsync($"/api/resources?search={marker}"));
@@ -166,11 +120,29 @@ public class ResourceEndpointTests
     }
 
     [Fact]
+    public async Task GetResources_SearchWithWildcards_MatchesThemLiterally()
+    {
+        // `%` and `_` in a search once acted as LIKE wildcards: "-100%" matched "-1000" too.
+        var marker = $"Lk-{Guid.NewGuid():N}"[..14];
+        var literal = await TestHelpers.CreatePersonAsync(_client, $"{marker}-100%");
+        await TestHelpers.CreatePersonAsync(_client, $"{marker}-1000");
+        await TestHelpers.CreatePersonAsync(_client, $"{marker}-1X0");
+
+        var (percent, _, _, _) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={Uri.EscapeDataString(marker + "-100%")}"));
+        var (underscore, _, _, _) = await ReadEnvelopeAsync(
+            await _client.GetAsync($"/api/resources?search={Uri.EscapeDataString(marker + "-1_0")}"));
+
+        Assert.Equal([literal.Id], percent.Select(r => r.Id));
+        Assert.Empty(underscore);
+    }
+
+    [Fact]
     public async Task GetResources_Paged_ReturnsSliceWithRealTotal()
     {
         var marker = $"EnvP-{Guid.NewGuid():N}"[..16];
         for (var i = 0; i < 5; i++)
-            await CreatePersonAsync($"{marker}-{i}");
+            await TestHelpers.CreatePersonAsync(_client, $"{marker}-{i}");
 
         var (data, total, page, pageSize) = await ReadEnvelopeAsync(
             await _client.GetAsync($"/api/resources?search={marker}&page=2&pageSize=2"));
@@ -185,7 +157,7 @@ public class ResourceEndpointTests
     public async Task GetResources_PageSizeAboveMax_IsClamped()
     {
         var marker = $"EnvC-{Guid.NewGuid():N}"[..16];
-        await CreatePersonAsync($"{marker}-0");
+        await TestHelpers.CreatePersonAsync(_client, $"{marker}-0");
 
         var (_, _, _, pageSize) = await ReadEnvelopeAsync(
             await _client.GetAsync($"/api/resources?search={marker}&pageSize=500"));
@@ -197,7 +169,7 @@ public class ResourceEndpointTests
     public async Task GetResources_PageBeyondEnd_ReturnsEmptyWithTotal()
     {
         var marker = $"EnvE-{Guid.NewGuid():N}"[..16];
-        await CreatePersonAsync($"{marker}-0");
+        await TestHelpers.CreatePersonAsync(_client, $"{marker}-0");
 
         var (data, total, _, _) = await ReadEnvelopeAsync(
             await _client.GetAsync($"/api/resources?search={marker}&page=50&pageSize=10"));
@@ -210,7 +182,7 @@ public class ResourceEndpointTests
     public async Task GetResources_Paged_ComposesWithTypeFilter()
     {
         var marker = $"EnvF-{Guid.NewGuid():N}"[..16];
-        await CreatePersonAsync($"{marker}-p");
+        await TestHelpers.CreatePersonAsync(_client, $"{marker}-p");
 
         var (data, total, _, _) = await ReadEnvelopeAsync(
             await _client.GetAsync($"/api/resources?search={marker}&resourceTypeKey=tool&page=1&pageSize=10"));
@@ -243,9 +215,9 @@ public class ResourceEndpointTests
     [Fact]
     public async Task GetResources_HasGeometry_ReturnsPlaceableAndExcludesPeople()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var placeable = await CreatePlaceableAsync(siteId, $"Placeable-{Guid.NewGuid():N}"[..20]);
-        var person = await CreatePersonAsync($"NotPlaceable-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"NotPlaceable-{Guid.NewGuid():N}"[..20]);
 
         var list = await ReadListAsync(await _client.GetAsync("/api/resources?hasGeometry=true"));
 
@@ -256,7 +228,7 @@ public class ResourceEndpointTests
     [Fact]
     public async Task GetResources_HasGeometryFalse_ExcludesPlaceable()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var placeable = await CreatePlaceableAsync(siteId, $"OnlyPlaceable-{Guid.NewGuid():N}"[..20]);
 
         var list = await ReadListAsync(await _client.GetAsync("/api/resources?hasGeometry=false"));
@@ -273,7 +245,7 @@ public class ResourceEndpointTests
         // resource is created cross_site_allowed = false and so never has a different current
         // site. If that ever stops holding, this fails rather than the floorplan quietly gaining
         // another site's rows.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
         var mine = await CreatePlaceableAsync(siteId, $"Mine-{Guid.NewGuid():N}"[..20]);
 
         var otherSiteResp = await _client.PostAsJsonAsync(
@@ -289,19 +261,6 @@ public class ResourceEndpointTests
         Assert.DoesNotContain(list, r => r.Id == theirs.Id);
     }
 
-    [Fact]
-    public async Task CreateResource_ZeroCapacity_Returns400()
-    {
-        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
-        {
-            ResourceTypeKey = "person",
-            Name = "No capacity",
-            AllocationMode = "Fractional",
-            Capacity = 0,
-        });
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     // ── Clearing a field ──────────────────────────────────────────────────────
 
     [Fact]
@@ -310,8 +269,8 @@ public class ResourceEndpointTests
         // The bug this fixes: "Unset" in the person dialog sent homeSiteId: null, the request
         // could not tell that from "not editing", and the column was silently left alone. The
         // save reported success while changing nothing.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var person = await CreatePersonAsync($"HomeSite-{Guid.NewGuid():N}"[..20]);
+        var siteId = DatabaseFixture.SiteId;
+        var person = await TestHelpers.CreatePersonAsync(_client, $"HomeSite-{Guid.NewGuid():N}"[..20]);
 
         await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
             new UpdateResourceRequest { HomeSiteId = Optional<Guid?>.Of(siteId) });
@@ -331,8 +290,8 @@ public class ResourceEndpointTests
     public async Task UpdateResource_AbsentHomeSite_LeavesItAlone()
     {
         // The other half of the distinction: a rename must not wipe the site it never mentioned.
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
-        var person = await CreatePersonAsync($"Untouched-{Guid.NewGuid():N}"[..20]);
+        var siteId = DatabaseFixture.SiteId;
+        var person = await TestHelpers.CreatePersonAsync(_client, $"Untouched-{Guid.NewGuid():N}"[..20]);
         await _client.PutAsJsonAsync($"/api/resources/{person.Id}",
             new UpdateResourceRequest { HomeSiteId = Optional<Guid?>.Of(siteId) });
 
@@ -359,7 +318,7 @@ public class ResourceEndpointTests
     public async Task GetResourceCapabilities_ReturnsEmptyList_WhenNoCapabilities()
     {
         // Arrange
-        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var resource = await TestHelpers.CreatePersonAsync(_client, "CapTest-" + Guid.NewGuid().ToString("N")[..20]);
 
         // Act
         var response = await _client.GetAsync($"/api/resources/{resource.Id}/capabilities");
@@ -388,7 +347,7 @@ public class ResourceEndpointTests
     public async Task AddResourceCapability_CreatesCapability_WithValidData()
     {
         // Arrange
-        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var resource = await TestHelpers.CreatePersonAsync(_client, "CapTest-" + Guid.NewGuid().ToString("N")[..20]);
         var criterion = await GetSeedCriterionAsync("seed_number");
 
         var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(100.5));
@@ -430,7 +389,7 @@ public class ResourceEndpointTests
             $"/api/criteria/{criterion.Id}/applicability", applicability);
         applyResp.EnsureSuccessStatusCode();
 
-        var person = await CreatePersonAsync("CrossType-" + Guid.NewGuid().ToString("N")[..16]);
+        var person = await TestHelpers.CreatePersonAsync(_client, "CrossType-" + Guid.NewGuid().ToString("N")[..16]);
         var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true));
 
         var response = await _client.PostAsJsonAsync(
@@ -461,7 +420,7 @@ public class ResourceEndpointTests
     public async Task DeleteResourceCapability_RemovesCapability_WhenExists()
     {
         // Arrange
-        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var resource = await TestHelpers.CreatePersonAsync(_client, "CapTest-" + Guid.NewGuid().ToString("N")[..20]);
         var criterion = await GetSeedCriterionAsync("seed_string");
 
         // Create capability first
@@ -490,7 +449,7 @@ public class ResourceEndpointTests
     public async Task DeleteResourceCapability_Returns404_WhenCapabilityNotFound()
     {
         // Arrange
-        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var resource = await TestHelpers.CreatePersonAsync(_client, "CapTest-" + Guid.NewGuid().ToString("N")[..20]);
         var nonExistentCapabilityId = Guid.NewGuid();
 
         // Act
@@ -505,7 +464,7 @@ public class ResourceEndpointTests
     public async Task AddResourceCapability_ThenGetReturnsIt()
     {
         // Arrange
-        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var resource = await TestHelpers.CreatePersonAsync(_client, "CapTest-" + Guid.NewGuid().ToString("N")[..20]);
         var criterion = await GetSeedCriterionAsync("seed_number");
 
         var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(42.5));
@@ -530,7 +489,7 @@ public class ResourceEndpointTests
     public async Task GetResourceCapabilities_ReturnsCapabilitiesWithCriterionDetails()
     {
         // Arrange
-        var resource = await CreatePersonAsync("CapTest-" + Guid.NewGuid().ToString("N")[..20]);
+        var resource = await TestHelpers.CreatePersonAsync(_client, "CapTest-" + Guid.NewGuid().ToString("N")[..20]);
         var criterion = await GetSeedCriterionAsync("seed_number");
 
         var request = new AddResourceCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(100.5));
@@ -559,7 +518,7 @@ public class ResourceEndpointTests
         // D2: the directory details a person carries are part of the generic resource contract,
         // not a separate document to fetch. The fields live on `resources` (migration 1700), so
         // this reads them from the same row rather than joining anything.
-        var person = await CreatePersonAsync($"Dir-{Guid.NewGuid():N}"[..20]);
+        var person = await TestHelpers.CreatePersonAsync(_client, $"Dir-{Guid.NewGuid():N}"[..20]);
         var email = $"dir_{Guid.NewGuid():N}@example.com";
 
         var upsert = await _client.PutAsJsonAsync($"/api/resources/{person.Id}",

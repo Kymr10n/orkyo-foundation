@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { CalendarIcon, Copy, Check, Trash2 } from "lucide-react";
+import { CalendarIcon, Copy, Check, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
 import {
@@ -12,7 +12,12 @@ import {
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
+import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
+import { FormDialog } from "@foundation/src/components/ui/FormDialog";
+import { Input } from "@foundation/src/components/ui/input";
 import { Label } from "@foundation/src/components/ui/label";
+import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
+import { OrkyoDataTable } from "@foundation/src/components/ui/OrkyoDataTable";
 import { StatusBadge } from "@foundation/src/components/ui/status-badge";
 import { Calendar } from "@foundation/src/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@foundation/src/components/ui/popover";
@@ -23,10 +28,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@foundation/src/components/ui/select";
-import { formatLocalized } from "@foundation/src/lib/formatters";
+import { formatDateDisplay, formatLocalized } from "@foundation/src/lib/formatters";
 import { formatDateForInput } from "@foundation/src/lib/utils";
-import { useRevokeToken } from "@foundation/src/hooks/useApiTokens";
+import { useAuth } from "@foundation/src/contexts/AuthContext";
+import { useEntityFormDialog, type SaveMutation } from "@foundation/src/hooks/useEntityFormDialog";
+import { useTableUrlState } from "@foundation/src/hooks/useTableUrlState";
 import type { ColumnDef } from "@foundation/src/components/ui/OrkyoDataTable";
+import { SettingsPageHeader } from "../SettingsPageHeader";
 
 /**
  * The pieces shared by every API-token management screen.
@@ -84,11 +92,6 @@ function formatExpiryLabel(dateOnly: string): string {
   return formatLocalized(date, { month: "short", day: "2-digit", year: "numeric" });
 }
 
-export function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return formatLocalized(new Date(iso), { year: "numeric", month: "short", day: "numeric" });
-}
-
 /** Resolves the picker's state to the date string the API takes ("" means no expiry). */
 export function resolveExpiry(mode: ExpiryMode, customExpiresAt: string): string {
   if (mode === "custom") return customExpiresAt;
@@ -136,10 +139,14 @@ export function CopyButton({ text }: { text: string }) {
       toast.error("Clipboard unavailable — copy the token manually");
       return;
     }
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+    navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      },
+      // The browser can refuse (permission denied, document not focused).
+      () => toast.error("Could not copy — copy the token manually"),
+    );
   }
 
   return (
@@ -235,7 +242,7 @@ interface RawTokenDialogProps {
   warning: ReactNode;
 }
 
-export function RawTokenDialog({ token, onClose, warning }: RawTokenDialogProps) {
+function RawTokenDialog({ token, onClose, warning }: RawTokenDialogProps) {
   return (
     <Dialog open={!!token} onOpenChange={() => onClose()}>
       <DialogContent>
@@ -260,21 +267,20 @@ export function RawTokenDialog({ token, onClose, warning }: RawTokenDialogProps)
 
 // ── Revoke ───────────────────────────────────────────────────────────────────
 
+/** A token-class revoke mutation from hooks/useApiTokens (it owns the toast and the refresh). */
+type RevokeMutation = SaveMutation<void, string>;
+
 interface RevokeTokenDialogProps<T extends TokenSummaryLike> {
   token: T | null;
   onOpenChange: (open: boolean) => void;
-  revokeFn: (id: string) => Promise<void>;
-  invalidates: readonly unknown[];
+  mutation: RevokeMutation;
 }
 
-export function RevokeTokenDialog<T extends TokenSummaryLike>({
+function RevokeTokenDialog<T extends TokenSummaryLike>({
   token,
   onOpenChange,
-  revokeFn,
-  invalidates,
+  mutation,
 }: RevokeTokenDialogProps<T>) {
-  const mutation = useRevokeToken(revokeFn, invalidates, () => onOpenChange(false));
-
   return (
     <ConfirmDialog
       open={!!token}
@@ -285,7 +291,7 @@ export function RevokeTokenDialog<T extends TokenSummaryLike>({
       destructive
       isPending={mutation.isPending}
       onConfirm={() => {
-        if (token) mutation.mutate(token.id);
+        if (token) mutation.mutate(token.id, { onSuccess: () => onOpenChange(false) });
       }}
     />
   );
@@ -294,7 +300,7 @@ export function RevokeTokenDialog<T extends TokenSummaryLike>({
 // ── Table ────────────────────────────────────────────────────────────────────
 
 /** The columns every token table shares. A screen can splice in its own (e.g. scopes). */
-export function buildTokenColumns<T extends TokenSummaryLike>(
+function buildTokenColumns<T extends TokenSummaryLike>(
   onRevoke: (token: T) => void,
   extraColumns: ColumnDef<T>[] = [],
 ): ColumnDef<T>[] {
@@ -328,7 +334,7 @@ export function buildTokenColumns<T extends TokenSummaryLike>(
       header: "Created",
       meta: { filter: { type: "date" } },
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.createdAtUtc)}</span>
+        <span className="text-sm text-muted-foreground">{formatDateDisplay(row.original.createdAtUtc, "—")}</span>
       ),
     },
     {
@@ -337,7 +343,7 @@ export function buildTokenColumns<T extends TokenSummaryLike>(
       header: "Last used",
       meta: { filter: { type: "date" } },
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.lastUsedAtUtc)}</span>
+        <span className="text-sm text-muted-foreground">{formatDateDisplay(row.original.lastUsedAtUtc, "—")}</span>
       ),
     },
     {
@@ -346,7 +352,7 @@ export function buildTokenColumns<T extends TokenSummaryLike>(
       header: "Expires",
       meta: { filter: { type: "date" } },
       cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{formatDate(row.original.expiresAtUtc)}</span>
+        <span className="text-sm text-muted-foreground">{formatDateDisplay(row.original.expiresAtUtc, "—")}</span>
       ),
     },
     {
@@ -357,18 +363,7 @@ export function buildTokenColumns<T extends TokenSummaryLike>(
         const token = row.original;
         return token.isActive ? (
           <div className="flex justify-end">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRevoke(token);
-              }}
-              aria-label={`Revoke ${token.name}`}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <RevokeTokenButton token={token} onRevoke={onRevoke} />
           </div>
         ) : null;
       },
@@ -377,7 +372,7 @@ export function buildTokenColumns<T extends TokenSummaryLike>(
 }
 
 /** Phone presentation: name + status/prefix stacked, revoke trailing. */
-export function renderTokenCard<T extends TokenSummaryLike>(
+function renderTokenCard<T extends TokenSummaryLike>(
   token: T,
   onRevoke: (token: T) => void,
   subtitle?: ReactNode,
@@ -392,23 +387,256 @@ export function renderTokenCard<T extends TokenSummaryLike>(
         <p className="font-mono text-xs text-muted-foreground truncate">{token.tokenPrefix}…</p>
         {subtitle}
         <p className="text-xs text-muted-foreground truncate">
-          Created {formatDate(token.createdAtUtc)} · Last used {formatDate(token.lastUsedAtUtc)}
+          Created {formatDateDisplay(token.createdAtUtc, "—")} · Last used {formatDateDisplay(token.lastUsedAtUtc, "—")}
         </p>
       </div>
-      {token.isActive && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRevoke(token);
-          }}
-          aria-label={`Revoke ${token.name}`}
-        >
-          <Trash2 className="h-4 w-4" />
+      {token.isActive && <RevokeTokenButton token={token} onRevoke={onRevoke} />}
+    </div>
+  );
+}
+
+/** The trash icon of a table row or a card: stops propagation so the row click stays quiet. */
+function RevokeTokenButton<T extends TokenSummaryLike>({
+  token,
+  onRevoke,
+}: {
+  token: T;
+  onRevoke: (token: T) => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+      onClick={(e) => {
+        e.stopPropagation();
+        onRevoke(token);
+      }}
+      aria-label={`Revoke ${token.name}`}
+    >
+      <Trash2 className="h-4 w-4" />
+    </Button>
+  );
+}
+
+// ── Create ───────────────────────────────────────────────────────────────────
+
+/** Name and expiry: what creating any token asks for. */
+interface TokenForm {
+  name: string;
+  expiryMode: ExpiryMode;
+  customExpiresAt: string;
+}
+
+/** The request fields every token class takes. */
+interface TokenRequestBase {
+  name: string;
+  expiresAt?: string;
+}
+
+interface CreateTokenDialogProps<TExtra extends object, TRequest> {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: (rawToken: string) => void;
+  title: string;
+  description: string;
+  namePlaceholder: string;
+  defaultExpiry: ExpiryMode;
+  /** The token class's create mutation from hooks/useApiTokens. */
+  mutation: SaveMutation<{ rawToken: string }, TRequest>;
+  /** The screen's own fields beyond name and expiry (e.g. an access level), with defaults. */
+  initialExtra: TExtra;
+  renderExtra?: (form: TForm<TExtra>, set: (patch: Partial<TExtra>) => void) => ReactNode;
+  toRequest: (base: TokenRequestBase, form: TForm<TExtra>) => TRequest;
+}
+
+type TForm<TExtra> = TokenForm & TExtra;
+
+/**
+ * Name a token, pick its expiry, create it. The raw secret goes to `onCreated`, which shows it
+ * once. A failure stays in the dialog, inline.
+ */
+export function CreateTokenDialog<TExtra extends object, TRequest>({
+  open,
+  onOpenChange,
+  onCreated,
+  title,
+  description,
+  namePlaceholder,
+  defaultExpiry,
+  mutation,
+  initialExtra,
+  renderExtra,
+  toRequest,
+}: CreateTokenDialogProps<TExtra, TRequest>) {
+  // Create-only, so there is never an entity: the form reseeds each time the dialog opens.
+  const emptyForm = () => ({ name: "", expiryMode: defaultExpiry, customExpiresAt: "", ...initialExtra });
+  const { form, set, error, submit, isSubmitting } = useEntityFormDialog<
+    never,
+    TForm<TExtra>,
+    { rawToken: string },
+    TRequest
+  >({
+    open,
+    onOpenChange,
+    entity: null,
+    emptyForm,
+    toForm: emptyForm,
+    mutation,
+    toVariables: (f) => {
+      const expiresAt = resolveExpiry(f.expiryMode, f.customExpiresAt);
+      return toRequest({ name: f.name, ...(expiresAt ? { expiresAt } : {}) }, f);
+    },
+    onSaved: (created) => onCreated(created.rawToken),
+  });
+  const expiresAt = resolveExpiry(form.expiryMode, form.customExpiresAt);
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      description={description}
+      onSubmit={submit}
+      isSubmitting={isSubmitting}
+      submitLabel="Create token"
+      submitDisabled={!(form.name.trim() && (form.expiryMode !== "custom" || !!expiresAt))}
+      error={error}
+    >
+      <div className="space-y-1.5">
+        <Label htmlFor="token-name">Name</Label>
+        <Input
+          id="token-name"
+          placeholder={namePlaceholder}
+          value={form.name}
+          onChange={(e) => set({ name: e.target.value } as Partial<TForm<TExtra>>)}
+          autoFocus
+        />
+      </div>
+      {renderExtra?.(form, (patch) => set(patch as Partial<TForm<TExtra>>))}
+      <ExpiryFields
+        mode={form.expiryMode}
+        onModeChange={(expiryMode) => set({ expiryMode } as Partial<TForm<TExtra>>)}
+        customExpiresAt={form.customExpiresAt}
+        onCustomChange={(customExpiresAt) => set({ customExpiresAt } as Partial<TForm<TExtra>>)}
+      />
+    </FormDialog>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+interface TokenSettingsPageProps<T extends TokenSummaryLike> {
+  /** When set, the locked state shows a CTA linking here (e.g. the plans page). */
+  upgradeHref?: string;
+  /** The API-access entitlement; the list query runs only with it. */
+  apiAccessAllowed: boolean;
+  tokens: { data?: T[]; isLoading: boolean; error: unknown; refetch: () => unknown };
+  title: string;
+  description: string;
+  upsell: { title: string; description: string; points: ReactNode };
+  unavailableMessage: string;
+  loadErrorMessage: string;
+  emptyMessage: string;
+  /** The URL-state key of the table's sort and filters. */
+  tableKey: string;
+  extraColumns?: ColumnDef<T>[];
+  cardSubtitle?: (token: T) => ReactNode;
+  quickStart: ReactNode;
+  renderCreateDialog: (props: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onCreated: (rawToken: string) => void;
+  }) => ReactNode;
+  rawTokenWarning: ReactNode;
+  revokeMutation: RevokeMutation;
+}
+
+/**
+ * One API-token management screen: entitlement gate, list, create, show-once, revoke. Each token
+ * class passes only what differs — its copy, its extra column, its create fields and its hooks.
+ */
+export function TokenSettingsPage<T extends TokenSummaryLike>({
+  upgradeHref,
+  apiAccessAllowed,
+  tokens,
+  title,
+  description,
+  upsell,
+  unavailableMessage,
+  loadErrorMessage,
+  emptyMessage,
+  tableKey,
+  extraColumns,
+  cardSubtitle,
+  quickStart,
+  renderCreateDialog,
+  rawTokenWarning,
+  revokeMutation,
+}: TokenSettingsPageProps<T>) {
+  const { isLoading: authLoading } = useAuth();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [rawToken, setRawToken] = useState<string | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<T | null>(null);
+
+  const columns = buildTokenColumns<T>(setRevokeTarget, extraColumns);
+  // Header sort/filter state lives in the URL: bookmarkable, shareable, Back-safe.
+  const tableUrlState = useTableUrlState(tableKey, columns);
+
+  if (authLoading) {
+    return <LoadingSpinner fullScreen={false} className="py-12" />;
+  }
+
+  if (!apiAccessAllowed) {
+    // Paid-tier gate. Rather than silently redirecting, keep the user on the page and explain
+    // the feature and the upgrade path. With no upgrade target (e.g. Community, which has no
+    // plans), a plain unavailable notice.
+    if (upgradeHref) {
+      return (
+        <FeatureUpsell title={upsell.title} description={upsell.description} upgradeHref={upgradeHref}>
+          {upsell.points}
+        </FeatureUpsell>
+      );
+    }
+    return (
+      <Alert>
+        <AlertDescription>{unavailableMessage}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (tokens.isLoading) {
+    return <LoadingSpinner fullScreen={false} className="py-12" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      <SettingsPageHeader title={title} description={description}>
+        <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          New token
         </Button>
-      )}
+      </SettingsPageHeader>
+
+      <OrkyoDataTable
+        {...tableUrlState}
+        columns={columns}
+        data={tokens.data ?? []}
+        error={tokens.error ? loadErrorMessage : null}
+        onRetry={() => void tokens.refetch()}
+        emptyMessage={emptyMessage}
+        renderCard={(token) => renderTokenCard(token, setRevokeTarget, cardSubtitle?.(token))}
+      />
+
+      {quickStart}
+
+      {renderCreateDialog({ open: createOpen, onOpenChange: setCreateOpen, onCreated: setRawToken })}
+      <RawTokenDialog token={rawToken} onClose={() => setRawToken(null)} warning={rawTokenWarning} />
+      <RevokeTokenDialog
+        token={revokeTarget}
+        onOpenChange={(open) => !open && setRevokeTarget(null)}
+        mutation={revokeMutation}
+      />
     </div>
   );
 }

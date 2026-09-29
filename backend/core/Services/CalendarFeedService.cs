@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Api.Models;
 using Api.Repositories;
 using Api.Security;
@@ -37,8 +35,7 @@ public class CalendarFeedService(
     /// Lowercase hex, and it has to stay hex: live subscriptions are looked up by this value.
     /// Invitations hash the same way into base64 for the same reason.
     /// </summary>
-    public string HashToken(string token) =>
-        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
+    public string HashToken(string token) => SecureTokens.Sha256Hex(token);
 
     public string GenerateToken() => SecureTokens.Generate();
 

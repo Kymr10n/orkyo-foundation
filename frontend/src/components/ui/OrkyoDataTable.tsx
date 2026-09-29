@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useCallback, useMemo, type KeyboardEvent, type ReactNode } from 'react';
 import { useTable, flexRender } from '@tanstack/react-table';
 import type {
   ColumnFiltersState,
@@ -30,6 +30,7 @@ import { DataTableColumnHeader } from '@foundation/src/components/ui/DataTableCo
 import { filterFnFor } from '@foundation/src/lib/table/column-meta';
 import { useBreakpoint } from '@foundation/src/hooks/useBreakpoint';
 import { cn } from '@foundation/src/lib/utils';
+import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 // Re-export so callers don't need a separate @tanstack/react-table import for ColumnDef
 export type { ColumnDef, RowData };
@@ -49,14 +50,22 @@ export interface OrkyoDataTableProps<TData extends RowData> {
   columns: ColumnDef<TData>[];
   data: TData[];
   isLoading?: boolean;
-  error?: string | null;
+  /** A query's error as it comes (or a ready-made message); falsy renders no alert. */
+  error?: unknown;
+  /** Shown when `error` is not an `Error` or its message is empty, e.g. "Failed to load sites". */
+  errorFallback?: string;
   /** Shown as a "Try again" button next to the error alert. Omit to render no retry affordance. */
   onRetry?: () => void;
+  /** Shown when the rows are empty after filtering (or always, without noDataMessage). */
   emptyMessage?: string;
   /** Optional icon rendered above the empty message. */
   emptyIcon?: ReactNode;
   /** Optional CTA (e.g. a button) rendered below the empty message. */
   emptyAction?: ReactNode;
+  /** Shown instead of emptyMessage when `data` itself is empty, i.e. nothing exists yet. */
+  noDataMessage?: string;
+  /** Optional CTA below noDataMessage, e.g. "Create your first site". */
+  noDataAction?: ReactNode;
 
   // Filtering — choose one mode:
   // Client-side: provide filterColumn (accessor key). Filter fires on keystroke.
@@ -103,12 +112,15 @@ export function OrkyoDataTable<TData extends RowData>({
   data,
   isLoading,
   error,
+  errorFallback,
   onRetry,
   emptyMessage = 'No results found.',
   emptyIcon,
   emptyAction,
+  noDataMessage,
+  noDataAction,
   filterColumn,
-  filterPlaceholder = 'Search...',
+  filterPlaceholder = 'Search…',
   filterValue: controlledFilterValue,
   onFilterChange,
   filterOnSubmit,
@@ -124,6 +136,9 @@ export function OrkyoDataTable<TData extends RowData>({
   renderCard,
 }: OrkyoDataTableProps<TData>) {
   const isServerFilter = onFilterChange !== undefined;
+  // An Error with an empty message still gets the fallback, as the call sites used to do.
+  const errorText = error ? errorMessage(error, errorFallback) || errorFallback || null : null;
+  const showNoData = data.length === 0 && noDataMessage !== undefined;
   const isServerPagination = onPageChange !== undefined;
   const { isPhone } = useBreakpoint();
   const showCards = isPhone && renderCard !== undefined;
@@ -224,6 +239,25 @@ export function OrkyoDataTable<TData extends RowData>({
     else table.nextPage();
   };
 
+  // A clickable row or card is reachable and operable from the keyboard, once, here: it takes
+  // focus and Enter/Space act as the click. Keys pressed on a control inside the row (its
+  // actions menu) stay that control's. No role="button": a row holds its own buttons, and a
+  // button may not contain another (axe nested-interactive), so the row keeps its row role.
+  const rowInteraction = (item: TData) =>
+    onRowClick
+      ? {
+          tabIndex: 0,
+          onClick: () => onRowClick(item),
+          onKeyDown: (e: KeyboardEvent) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onRowClick(item);
+            }
+          },
+        }
+      : {};
+
   const canPrev = currentPage > 0;
   const canNext = currentPage < pageCount - 1;
 
@@ -288,11 +322,11 @@ export function OrkyoDataTable<TData extends RowData>({
             </div>
           ))}
         </div>
-      ) : error ? (
+      ) : errorText ? (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between gap-2">
-            <span>{error}</span>
+            <span>{errorText}</span>
             {onRetry && (
               <Button variant="outline" size="sm" onClick={onRetry}>
                 Try again
@@ -300,6 +334,8 @@ export function OrkyoDataTable<TData extends RowData>({
             )}
           </AlertDescription>
         </Alert>
+      ) : showNoData ? (
+        <EmptyState message={noDataMessage} icon={emptyIcon} action={noDataAction} />
       ) : table.getRowModel().rows.length === 0 ? (
         <EmptyState message={emptyMessage} icon={emptyIcon} action={emptyAction} />
       ) : showCards ? (
@@ -307,10 +343,10 @@ export function OrkyoDataTable<TData extends RowData>({
           {table.getRowModel().rows.map((row) => (
             <div
               key={row.id}
-              onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              {...rowInteraction(row.original)}
               className={cn(
                 'rounded-lg border bg-card p-3 shadow-xs',
-                onRowClick && 'cursor-pointer hover:bg-accent/40',
+                onRowClick && 'cursor-pointer hover:bg-accent/40 focus-visible:outline-2 focus-visible:outline-ring',
               )}
             >
               {renderCard!(row.original)}
@@ -356,10 +392,10 @@ export function OrkyoDataTable<TData extends RowData>({
             {table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                {...rowInteraction(row.original)}
                 className={
                   'bg-card shadow-xs hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
-                  (onRowClick ? ' cursor-pointer' : '')
+                  (onRowClick ? ' cursor-pointer focus-visible:outline-2 focus-visible:outline-ring' : '')
                 }
               >
                 {row.getVisibleCells().map((cell) => (
@@ -373,7 +409,7 @@ export function OrkyoDataTable<TData extends RowData>({
         </Table>
       )}
 
-      {pageSize && !isLoading && !error && table.getRowModel().rows.length > 0 && (
+      {pageSize && !isLoading && !errorText && table.getRowModel().rows.length > 0 && (
         <div className="flex items-center justify-between px-1">
           <p className="text-sm text-muted-foreground">
             Page {currentPage + 1} of {pageCount}

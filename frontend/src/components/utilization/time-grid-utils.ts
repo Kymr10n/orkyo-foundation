@@ -126,7 +126,7 @@ function isHourOutsideWorkingHours(hour: number, workingHours: WorkingHoursConfi
 export function generateTimeColumns(
   scale: TimeScale,
   anchorTs: Date,
-  weekendsEnabled = false,
+  weekendsAreOff = false,
   workingHours: WorkingHoursConfig | null = null,
 ): TimeColumn[] {
   const columns: TimeColumn[] = [];
@@ -159,7 +159,7 @@ export function generateTimeColumns(
           start,
           end,
           label: formatTimeColumn(start, "day"),
-          isWeekend: weekendsEnabled && isWeekend(start),
+          isWeekend: weekendsAreOff && isWeekend(start),
         });
       }
       break;

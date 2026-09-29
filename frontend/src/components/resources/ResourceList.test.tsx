@@ -138,7 +138,6 @@ function renderPeople() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
   isMultiSite = true;
   // getResources returns a paged envelope, not a bare array.
   (getResources as Mock).mockResolvedValue(pagedResult(cars));

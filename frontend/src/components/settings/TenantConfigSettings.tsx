@@ -157,7 +157,7 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Only tenant administrators can manage configuration settings.
+          Only organization administrators can manage configuration settings.
         </AlertDescription>
       </Alert>
     );
@@ -210,7 +210,7 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
           </span>
         )}
         <Button
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={
             dirtyKeys.length === 0 ||
             hasErrors ||
@@ -234,7 +234,7 @@ export function TenantConfigSettings({ tenantSlug, scope }: TenantConfigSettings
           settings={settings}
           editValues={editValues}
           onChange={handleChange}
-          onReset={handleReset}
+          onReset={(key) => void handleReset(key)}
           resettingKey={resettingKey}
         />
       ))}

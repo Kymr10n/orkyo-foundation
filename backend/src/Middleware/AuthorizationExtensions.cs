@@ -46,81 +46,63 @@ public static class AuthorizationExtensions
     public static RouteHandlerBuilder RequireSiteAdmin(this RouteHandlerBuilder builder)
     {
         builder.WithMetadata(new AuthorizationGoverned());
-        return builder.AddEndpointFilter(async (context, next) =>
-        {
-            var httpContext = context.HttpContext;
-            var logger = httpContext.RequestServices
-                .GetRequiredService<ILoggerFactory>()
-                .CreateLogger(typeof(AuthorizationExtensions));
-            var currentPrincipal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
-
-            if (currentPrincipal == null || !currentPrincipal.IsAuthenticated)
-            {
-                logger.LogWarning("Site admin check failed: user not authenticated");
-                return ErrorResponses.Unauthorized();
-            }
-
-            if (!currentPrincipal.IsSiteAdmin)
-            {
-                logger.LogWarning("Site admin check failed: user {UserId} is not a site admin",
-                    currentPrincipal.UserId);
-                return ErrorResponses.Forbidden();
-            }
-
-            logger.LogDebug("Site admin authorization passed for user {UserId}", currentPrincipal.UserId);
-            return await next(context);
-        });
+        return builder.AddEndpointFilter(SiteAdminFilter);
     }
 
     /// <summary>
-    /// Requires the user to have one of the specified roles in the current tenant.
-    /// Uses IAuthorizationContext populated during request processing.
+    /// The group form of <see cref="RequireSiteAdmin(RouteHandlerBuilder)"/>: every route in the
+    /// group, reads included, requires a site administrator. <c>MapSiteAdminGroup</c> applies it,
+    /// so an admin GET cannot be added without the gate.
     /// </summary>
-    public static RouteHandlerBuilder RequireRole(this RouteHandlerBuilder builder, params TenantRole[] roles)
+    public static RouteGroupBuilder RequireSiteAdmin(this RouteGroupBuilder group)
     {
-        builder.WithMetadata(new AuthorizationGoverned());
-        return builder.AddEndpointFilter(async (context, next) =>
-            EnforceRole(context.HttpContext, roles) ?? await next(context));
+        group.WithMetadata(new AuthorizationGoverned());
+        return group.AddEndpointFilter(SiteAdminFilter);
     }
 
-    /// <summary>
-    /// Core tenant-role check shared by <see cref="RequireRole"/> and the group conventions.
-    /// Returns a denial <see cref="IResult"/> when the caller is not allowed, or <c>null</c> to
-    /// continue. Mirrors the membership-vs-role split so the frontend can react to each.
-    /// </summary>
-    private static IResult? EnforceRole(HttpContext httpContext, params TenantRole[] roles)
+    private static async ValueTask<object?> SiteAdminFilter(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
+        var httpContext = context.HttpContext;
         var logger = httpContext.RequestServices
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(AuthorizationExtensions));
-        var authContext = httpContext.RequestServices.GetService<IAuthorizationContext>();
+        var currentPrincipal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
 
-        if (authContext == null || !authContext.IsMember || authContext.Role == TenantRole.None)
+        if (currentPrincipal == null || !currentPrincipal.IsAuthenticated)
         {
-            logger.LogWarning("User not a member of tenant or auth context missing");
-            return BuildMembershipDenial(httpContext);
+            logger.LogWarning("Site admin check failed: user not authenticated");
+            return ErrorResponses.Unauthorized();
         }
 
-        if (!AuthorizationPolicy.IsRoleAllowed(authContext.Role, roles))
+        if (!currentPrincipal.IsSiteAdmin)
         {
-            logger.LogWarning("User role {TenantRole} not in required roles: {RequiredRoles}",
-                authContext.Role, string.Join(",", roles));
+            logger.LogWarning("Site admin check failed: user {UserId} is not a site admin",
+                currentPrincipal.UserId);
             return ErrorResponses.Forbidden();
         }
 
-        return null;
+        logger.LogDebug("Site admin authorization passed for user {UserId}", currentPrincipal.UserId);
+        return await next(context);
     }
 
     /// <summary>
-    /// Requires Editor-or-Admin role in the current tenant — the standard gate for
-    /// write operations on tenant-editable content (settings criteria, templates,
-    /// presets, scheduling, …). Reads stay open to any member via
-    /// <see cref="RequireTenantMembership{TBuilder}"/>; this guards the writes.
-    /// Mirrors <see cref="IAuthorizationContext.CanEdit"/> (Role &gt;= Editor) and is
-    /// the single source of truth for that threshold across endpoints.
+    /// The write gate's role check. Membership is already settled: both conventions that call it
+    /// put <see cref="RequireTenantMembership{TBuilder}"/> first, so a non-member never gets here.
+    /// Returns a 403 when the role is not one of <paramref name="roles"/>, or <c>null</c> to
+    /// continue. Editor-or-Admin mirrors <see cref="IAuthorizationContext.CanEdit"/>.
     /// </summary>
-    public static RouteHandlerBuilder RequireEditAccess(this RouteHandlerBuilder builder)
-        => builder.RequireRole(TenantRole.Editor, TenantRole.Admin);
+    private static IResult? EnforceRole(HttpContext httpContext, params TenantRole[] roles)
+    {
+        var authContext = httpContext.RequestServices.GetRequiredService<IAuthorizationContext>();
+        if (AuthorizationPolicy.IsRoleAllowed(authContext.Role, roles)) return null;
+
+        httpContext.RequestServices
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger(typeof(AuthorizationExtensions))
+            .LogWarning("User role {TenantRole} not in required roles: {RequiredRoles}",
+                authContext.Role, string.Join(",", roles));
+        return ErrorResponses.Forbidden();
+    }
 
     // ── Verb-aware group conventions ──────────────────────────────────────────
     // Declare a group's authorization once; the filter gates by HTTP method so any new write
@@ -218,18 +200,7 @@ public static class AuthorizationExtensions
     }
 
     /// <summary>
-    /// Requires either site-admin access (no tenant needed) or Admin role in a tenant.
-    /// Use for endpoints that serve both site-scoped and tenant-scoped data.
-    /// </summary>
-    public static RouteHandlerBuilder RequireAdminAccess(this RouteHandlerBuilder builder)
-    {
-        builder.WithMetadata(new AuthorizationGoverned());
-        return builder.AddEndpointFilter(async (context, next) =>
-            EnforceAdmin(context.HttpContext) ?? await next(context));
-    }
-
-    /// <summary>
-    /// Core admin check (site-admin OR tenant Admin) shared by <see cref="RequireAdminAccess"/> and
+    /// Core admin check (site-admin OR tenant Admin) shared by
     /// the <see cref="RequireAdminArea"/> / <see cref="RequireMemberReadAdminWrite"/> conventions.
     /// Returns a denial <see cref="IResult"/> when the caller is not an admin, or <c>null</c>.
     /// </summary>

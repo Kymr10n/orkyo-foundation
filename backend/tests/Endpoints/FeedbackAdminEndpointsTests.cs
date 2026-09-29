@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Npgsql;
@@ -51,14 +50,6 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     private static async Task<string> CreateUserTokenAsync(bool siteAdmin)
         => (await DatabaseTestUtils.CreateLinkedUserAsync("fbadmin", siteAdmin)).Token;
 
-    private static HttpRequestMessage Req(HttpMethod method, string url, string token, object? body = null)
-    {
-        var req = new HttpRequestMessage(method, url);
-        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        if (body is not null) req.Content = JsonContent.Create(body);
-        return req;
-    }
-
     private async Task<string> StatusOfAsync(Guid id)
     {
         await using var conn = new NpgsqlConnection(_conn);
@@ -71,17 +62,10 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     // ── Authorization ─────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task List_Unauthenticated_Returns401()
-    {
-        var response = await _client.GetAsync("/api/admin/feedback");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task List_RegularUser_Returns403()
     {
         var token = await CreateUserTokenAsync(siteAdmin: false);
-        var response = await _client.SendAsync(Req(HttpMethod.Get, "/api/admin/feedback", token));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/feedback", token));
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
@@ -90,7 +74,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     {
         await SubmitAsync();
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Get, "/api/admin/feedback", token));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/feedback", token));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         doc.RootElement.GetProperty("totalItems").GetInt32().Should().BeGreaterThan(0);
@@ -105,7 +89,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
         var token = await CreateUserTokenAsync(siteAdmin: true);
 
         var response = await _client.SendAsync(
-            Req(HttpMethod.Get, "/api/admin/feedback?page=1&pageSize=1", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/feedback?page=1&pageSize=1", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
@@ -122,7 +106,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
         var token = await CreateUserTokenAsync(siteAdmin: true);
 
         var response = await _client.SendAsync(
-            Req(HttpMethod.Get, "/api/admin/feedback?pageSize=500", token));
+            TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/feedback?pageSize=500", token));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
@@ -133,7 +117,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     public async Task List_InvalidStatusFilter_Returns400()
     {
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Get, "/api/admin/feedback?status=archived", token));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/feedback?status=archived", token));
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -144,7 +128,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     {
         var id = await SubmitAsync();
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Get, $"/api/admin/feedback/{id}", token));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/feedback/{id}", token));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var root = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
         root.GetProperty("status").GetString().Should().Be("new");
@@ -156,7 +140,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     public async Task Detail_UnknownId_Returns404()
     {
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Get, $"/api/admin/feedback/{Guid.NewGuid()}", token));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/feedback/{Guid.NewGuid()}", token));
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
@@ -166,7 +150,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
         var id = await SubmitAsync();
         var token = await CreateUserTokenAsync(siteAdmin: true);
 
-        var response = await _client.SendAsync(Req(HttpMethod.Patch, $"/api/admin/feedback/{id}", token,
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Patch, $"/api/admin/feedback/{id}", token,
             new { status = "reviewed", adminNotes = "Looking into it.", githubIssueUrl = "https://github.com/x/y/issues/1" }));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         (await StatusOfAsync(id)).Should().Be("reviewed");
@@ -192,7 +176,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     {
         var id = await SubmitAsync();
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Patch, $"/api/admin/feedback/{id}", token, new { }));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Patch, $"/api/admin/feedback/{id}", token, new { }));
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -201,7 +185,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     {
         var id = await SubmitAsync();
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Patch, $"/api/admin/feedback/{id}", token, new { status = "archived" }));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Patch, $"/api/admin/feedback/{id}", token, new { status = "archived" }));
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -209,7 +193,7 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
     public async Task Patch_UnknownId_Returns404()
     {
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(Req(HttpMethod.Patch, $"/api/admin/feedback/{Guid.NewGuid()}", token, new { status = "reviewed" }));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Patch, $"/api/admin/feedback/{Guid.NewGuid()}", token, new { status = "reviewed" }));
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

@@ -10,13 +10,9 @@ import {
   SelectValue,
 } from '@foundation/src/components/ui/select';
 import { Textarea } from '@foundation/src/components/ui/textarea';
-import {
-  createResource,
-  updateResource,
-  type ResourceInfo,
-} from '@foundation/src/lib/api/resources-api';
-import { qk } from '@foundation/src/lib/api/query-keys';
+import type { ResourceInfo } from '@foundation/src/lib/api/resources-api';
 import { useEntityFormDialog } from '@foundation/src/hooks/useEntityFormDialog';
+import { useSaveResource } from '@foundation/src/hooks/useResources';
 import { useIsMultiSite, useSites } from '@foundation/src/hooks/useSites';
 import { useSiteStore } from '@foundation/src/store/site-store';
 import { ALLOCATION_MODE } from '@foundation/src/constants/allocation-mode';
@@ -45,6 +41,8 @@ interface FormState extends DirectoryFormValues {
   /** Empty string = unset. Select cannot hold an empty value, hence the sentinel below. */
   homeSiteId: string;
   crossSiteAllowed: boolean;
+  /** Concurrent occupants. Edited and sent only for a placeable type. */
+  capacity: number;
   /**
    * The resource's whole custom-field document, not just the fields on screen. Values for
    * retired fields ride along untouched, because a save replaces the document wholesale and
@@ -76,11 +74,8 @@ export function ResourceEditDialog({
 
   const customFields = useResourceCustomFieldForm(resourceType.id, open);
 
-  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog<
-    ResourceInfo,
-    FormState,
-    ResourceInfo
-  >({
+  const mutation = useSaveResource(resourceType);
+  const { form, set, isDirty, error, submit, isSubmitting } = useEntityFormDialog({
     open,
     onOpenChange,
     entity: resource,
@@ -97,11 +92,12 @@ export function ResourceEditDialog({
       // it the row was saved with no site and listed under none.
       homeSiteId: selectedSiteId ?? '',
       crossSiteAllowed: !isPlaceable,
+      capacity: 1,
       customFields: {},
       email: '',
       notes: '',
     }),
-    toForm: (r) => ({
+    toForm: (r: ResourceInfo): FormState => ({
       name: r.name,
       description: r.description ?? '',
       externalReference: r.externalReference ?? '',
@@ -109,11 +105,13 @@ export function ResourceEditDialog({
       baseAvailabilityPercent: r.baseAvailabilityPercent ?? 100,
       homeSiteId: r.homeSiteId ?? '',
       crossSiteAllowed: isPlaceable ? false : (r.crossSiteAllowed ?? true),
+      capacity: r.capacity ?? 1,
       customFields: { ...(r.customFields ?? {}) },
       email: r.email ?? '',
       notes: r.notes ?? '',
     }),
-    save: (form, r) => {
+    mutation,
+    toVariables: (form: FormState, r: ResourceInfo | null) => {
       const fields = {
         name: form.name,
         description: form.description || undefined,
@@ -122,6 +120,8 @@ export function ResourceEditDialog({
         baseAvailabilityPercent: form.baseAvailabilityPercent,
         homeSiteId: form.homeSiteId || null,
         crossSiteAllowed: isPlaceable ? false : form.crossSiteAllowed,
+        // Capacity is part of the placement a placeable type adds; other types have none.
+        ...(isPlaceable ? { capacity: form.capacity } : {}),
         customFields: customFields.forSave(form.customFields),
         // Sent only for a directory type. The backend rejects these fields on any other type,
         // so a stray empty string would turn every save into a 400.
@@ -132,12 +132,8 @@ export function ResourceEditDialog({
             }
           : {}),
       };
-      return r
-        ? updateResource(r.id, fields)
-        : createResource({ resourceTypeKey: resourceType.key, ...fields });
+      return r ? { id: r.id, data: fields } : { id: null, data: fields };
     },
-    entityLabel: resourceType.displayName,
-    invalidates: [qk.resources.byType(resourceType.key), qk.resources.allFlat()],
   });
 
   const setCustomField = (key: string, value: CustomFieldValue) =>
@@ -240,6 +236,22 @@ export function ResourceEditDialog({
           />
         </div>
       </div>
+
+      {isPlaceable && (
+        <div className="space-y-2">
+          <Label htmlFor="resource-capacity">Capacity</Label>
+          <Input
+            id="resource-capacity"
+            type="number"
+            min={1}
+            value={form.capacity}
+            onChange={(e) => set({ capacity: Math.max(1, parseInt(e.target.value) || 1) })}
+          />
+          <p className="text-xs text-muted-foreground">
+            Number of concurrent allocations allowed (e.g., 5 for a hot desk area with 5 desks)
+          </p>
+        </div>
+      )}
 
       {/* Home site is the administrative anchor and the idle-time location; where the
           resource actually is at a point in time is derived from its assignments. Only

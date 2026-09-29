@@ -9,8 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@foundation/src/components/ui/popover';
 import { Calendar } from '@foundation/src/components/ui/calendar';
-import { format } from 'date-fns';
-import { DATE_FORMATS } from '@foundation/src/lib/formatters';
+import { formatDateDisplay } from '@foundation/src/lib/formatters';
 
 interface PersonAbsenceEditDialogProps {
   resourceId: string;
@@ -55,20 +54,21 @@ export function ResourceAbsenceEditDialog({
     absence ? new Date(absence.endTs) : initialEnd,
   );
 
-  const saveMutation = useSaveResourceAbsence(resourceId, absence);
+  const saveMutation = useSaveResourceAbsence(resourceId);
 
   const handleSubmit = () => {
     if (!startDate || !endDate) return;
     // The times of day are preserved from the existing absence: this form edits dates, and a
     // drag on the schedule calendar is what sets times. Dropping them here would quietly
     // widen an absence to midnight-to-midnight on every save.
+    const payload = {
+      absenceType,
+      title: title || absenceType,
+      startTs: startDate.toISOString(),
+      endTs: endDate.toISOString(),
+    };
     saveMutation.mutate(
-      {
-        absenceType,
-        title: title || absenceType,
-        startTs: startDate.toISOString(),
-        endTs: endDate.toISOString(),
-      },
+      absence ? { id: absence.id, data: { payload, previous: absence } } : { id: null, data: payload },
       {
         onSuccess: () => {
           setAbsenceType(defaultAbsenceType);
@@ -125,7 +125,7 @@ export function ResourceAbsenceEditDialog({
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start text-left font-normal">
                 <CalendarIcon className="h-4 w-4 mr-2" />
-                {startDate ? format(startDate, DATE_FORMATS.DATE_LOCALE_SHORT) : 'Pick a date'}
+                {formatDateDisplay(startDate, 'Pick a date')}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
@@ -140,7 +140,7 @@ export function ResourceAbsenceEditDialog({
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start text-left font-normal">
                 <CalendarIcon className="h-4 w-4 mr-2" />
-                {endDate ? format(endDate, DATE_FORMATS.DATE_LOCALE_SHORT) : 'Pick a date'}
+                {formatDateDisplay(endDate, 'Pick a date')}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">

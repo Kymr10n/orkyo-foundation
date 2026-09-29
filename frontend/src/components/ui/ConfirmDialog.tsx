@@ -31,6 +31,14 @@ export interface ConfirmDialogProps {
    * button stays disabled until the user types this exact phrase.
    */
   confirmPhrase?: string;
+  /**
+   * Extra fields between the description and the actions (e.g. a password re-check).
+   * With fields, confirming does not close the dialog: the caller closes it on success,
+   * so a failure can be shown next to the fields that caused it.
+   */
+  children?: ReactNode;
+  /** Keeps the confirm action disabled while the caller's own fields are incomplete. */
+  confirmDisabled?: boolean;
 }
 
 /**
@@ -49,6 +57,8 @@ export function ConfirmDialog({
   onConfirm,
   isPending,
   confirmPhrase,
+  children,
+  confirmDisabled: callerDisabled,
 }: ConfirmDialogProps) {
   const [typed, setTyped] = useState("");
 
@@ -61,7 +71,7 @@ export function ConfirmDialog({
   }
 
   const phraseSatisfied = !confirmPhrase || typed === confirmPhrase;
-  const confirmDisabled = !!isPending || !phraseSatisfied;
+  const confirmDisabled = !!isPending || !phraseSatisfied || !!callerDisabled;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -85,6 +95,8 @@ export function ConfirmDialog({
           </div>
         )}
 
+        {children}
+
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
@@ -95,6 +107,7 @@ export function ConfirmDialog({
                 e.preventDefault();
                 return;
               }
+              if (children) e.preventDefault();
               void onConfirm();
             }}
             disabled={confirmDisabled}

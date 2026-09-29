@@ -6,7 +6,6 @@ import { getRequestPlan, getSitePlan } from './request-plan-api';
 vi.mock('../core/api-client');
 
 beforeEach(() => {
-  vi.clearAllMocks();
   vi.mocked(apiClient.apiGet).mockResolvedValue({ groups: [], children: [], edges: [] });
 });
 

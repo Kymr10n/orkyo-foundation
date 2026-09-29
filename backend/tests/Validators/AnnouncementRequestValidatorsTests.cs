@@ -38,6 +38,11 @@ public class AnnouncementRequestValidatorsTests
             .IsValid.Should().BeFalse();
 
     [Fact]
+    public void Create_UnknownChannel_Fails() =>
+        _create.TestValidate(new CreateAnnouncementRequest { Title = "T", Body = "B", Channels = ["sms"] })
+            .IsValid.Should().BeFalse();
+
+    [Fact]
     public void Create_TitleOverTheCap_Fails() =>
         _create.TestValidate(new CreateAnnouncementRequest { Title = new string('x', CreateAnnouncementRequestValidator.TitleMaxLength + 1), Body = "B" })
             .ShouldHaveValidationErrorFor(x => x.Title);

@@ -148,7 +148,7 @@ export function ConflictsTab() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => { refetchConflicts(); refetchRequests(); }}
+              onClick={() => { void refetchConflicts(); void refetchRequests(); }}
             >
               Try again
             </Button>

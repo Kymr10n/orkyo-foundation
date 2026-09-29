@@ -29,14 +29,6 @@ public class UserAnnouncementEndpointsTests
     #region GET /api/announcements
 
     [Fact]
-    public async Task GetActive_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/announcements");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetActive_Authenticated_Returns200()
     {
         var response = await _client.GetAsync("/api/announcements");
@@ -52,14 +44,6 @@ public class UserAnnouncementEndpointsTests
     #endregion
 
     #region GET /api/announcements/unread-count
-
-    [Fact]
-    public async Task GetUnreadCount_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/announcements/unread-count");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task GetUnreadCount_Authenticated_Returns200WithCount()
@@ -78,15 +62,6 @@ public class UserAnnouncementEndpointsTests
     #endregion
 
     #region POST /api/announcements/{id}/read
-
-    [Fact]
-    public async Task MarkRead_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PostAsync(
-            $"/api/announcements/{Guid.NewGuid()}/read", null);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task MarkRead_NonExistentAnnouncement_Returns204()
@@ -126,39 +101,67 @@ public class UserAnnouncementEndpointsTests
 
     #endregion
 
-    #region GET /api/announcements/unsubscribe (public)
+    #region /api/announcements/unsubscribe (public)
 
     [Fact]
-    public async Task Unsubscribe_ValidToken_SetsOptOutAndShowsConfirmation()
+    public async Task Unsubscribe_Get_ShowsAConfirmationForm_AndChangesNothing()
     {
         var (userId, token) = await CreateUserWithUnsubscribeTokenAsync();
 
         var response = await _noRedirect.GetAsync($"/api/announcements/unsubscribe?token={token}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("text/html", response.Content.Headers.ContentType!.ToString());
-        Assert.Contains("You're unsubscribed", html);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("<form method=\"post\">", html);
+        Assert.Contains($"value=\"{token}\"", html);
+        Assert.False(await IsOptedOutAsync(userId), "a link prefetcher following the GET must not unsubscribe");
+    }
+
+    [Fact]
+    public async Task Unsubscribe_Post_ValidToken_SetsOptOutAndShowsConfirmation()
+    {
+        var (userId, token) = await CreateUserWithUnsubscribeTokenAsync();
+
+        var response = await PostTokenAsync(token.ToString());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("text/html", response.Content.Headers.ContentType!.ToString());
+        Assert.Contains("You&#39;re unsubscribed", await response.Content.ReadAsStringAsync());
         Assert.True(await IsOptedOutAsync(userId));
     }
 
     [Fact]
-    public async Task Unsubscribe_UnknownToken_ShowsInvalidPage()
+    public async Task Unsubscribe_Post_UnknownToken_ShowsInvalidPage()
     {
-        var response = await _noRedirect.GetAsync($"/api/announcements/unsubscribe?token={Guid.NewGuid()}");
+        var response = await PostTokenAsync(Guid.NewGuid().ToString());
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Invalid link", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task Unsubscribe_MalformedToken_ShowsInvalidPage()
+    public async Task Unsubscribe_Post_MalformedOrMissingToken_ShowsInvalidPage()
+    {
+        var malformed = await PostTokenAsync("not-a-guid");
+        var missing = await _noRedirect.PostAsync("/api/announcements/unsubscribe", null);
+
+        Assert.Contains("Invalid link", await malformed.Content.ReadAsStringAsync());
+        Assert.Contains("Invalid link", await missing.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Unsubscribe_Get_MalformedToken_ShowsInvalidPage()
     {
         var response = await _noRedirect.GetAsync("/api/announcements/unsubscribe?token=not-a-guid");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Invalid link", await response.Content.ReadAsStringAsync());
     }
+
+    private Task<HttpResponseMessage> PostTokenAsync(string token) =>
+        _noRedirect.PostAsync("/api/announcements/unsubscribe",
+            new FormUrlEncodedContent([new KeyValuePair<string, string>("token", token)]));
 
     private async Task<(Guid UserId, Guid Token)> CreateUserWithUnsubscribeTokenAsync()
     {

@@ -1,7 +1,6 @@
 import { Bot } from "lucide-react";
-import { format } from "date-fns";
 import React from "react";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { formatPeriod } from "@foundation/src/lib/formatters";
 import { cn } from "@foundation/src/lib/utils";
 import { severityPresentation } from "@foundation/src/components/ui/status-indicator";
 import type { Conflict, Request } from "@foundation/src/types/requests";
@@ -26,6 +25,8 @@ export function getConflictKindLabel(kind: string): string {
       return "Capability Mismatch";
     case "resource_unavailable":
       return "Resource Unavailable";
+    case "site_mismatch":
+      return "Site Mismatch";
     case "starts_in_off_time":
       return "Outside Working Time";
     case "load_exceeded":
@@ -100,8 +101,7 @@ export const ConflictItem = React.memo(function ConflictItem({
               <span className="inline-flex items-center gap-1">
                 <span>Scheduled:</span>
                 <span className="font-medium">
-                  {format(new Date(item.request.startTs), DATE_FORMATS.DATETIME_HEADER)} –{" "}
-                  {format(new Date(item.request.endTs), DATE_FORMATS.DATETIME_HEADER)}
+                  {formatPeriod(item.request.startTs, item.request.endTs)}
                 </span>
               </span>
             </div>

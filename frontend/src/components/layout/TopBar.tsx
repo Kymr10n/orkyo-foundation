@@ -151,7 +151,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
     uiTriggerImport({ context: currentContext, format, file });
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     try {
       logout();
     } catch (error) {
@@ -210,7 +210,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
             disabled={isLoadingSites || sites.length === 0}
           >
             <SelectTrigger className="w-[140px] lg:w-[180px]">
-              <SelectValue placeholder="Select site..." />
+              <SelectValue placeholder="Select site…" />
             </SelectTrigger>
             <SelectContent>
               {sites.map((site) => (
@@ -318,7 +318,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
             variant="ghost"
             size="icon"
             className="relative"
-            onClick={() => navigate(ROUTE_MESSAGES)}
+            onClick={() => void navigate(ROUTE_MESSAGES)}
             title={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
             aria-label={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
           >
@@ -426,7 +426,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => navigate(ROUTE_ACCOUNT)}
+                  onClick={() => void navigate(ROUTE_ACCOUNT)}
                 >
                   <UserCog className="h-4 w-4 mr-2" />
                   Account
@@ -450,7 +450,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
                     className="w-full justify-start h-9"
                     data-testid="admin-panel-btn"
                     onClick={() => {
-                      if (!navigateToApex(ROUTE_SITE_ADMIN)) navigate(ROUTE_SITE_ADMIN);
+                      if (!navigateToApex(ROUTE_SITE_ADMIN)) void navigate(ROUTE_SITE_ADMIN);
                     }}
                   >
                     <Shield className="h-4 w-4 mr-2" />
@@ -461,7 +461,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => navigate(ROUTE_MESSAGES)}
+                  onClick={() => void navigate(ROUTE_MESSAGES)}
                 >
                   <Megaphone className="h-4 w-4 mr-2" />
                   Messages
@@ -479,7 +479,7 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
                 <Button
                   variant="ghost"
                   className="w-full justify-start h-9"
-                  onClick={() => navigate(ROUTE_ABOUT)}
+                  onClick={() => void navigate(ROUTE_ABOUT)}
                 >
                   <Info className="h-4 w-4 mr-2" />
                   About

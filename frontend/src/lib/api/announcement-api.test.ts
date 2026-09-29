@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getAnnouncements,
   createAnnouncement,
@@ -27,10 +27,6 @@ const mockAnnouncement = {
 };
 
 describe("announcement-api", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   // ========================================================================
   // getAnnouncements
   // ========================================================================

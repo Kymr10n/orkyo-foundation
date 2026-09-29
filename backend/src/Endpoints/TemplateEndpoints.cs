@@ -69,7 +69,7 @@ public static class TemplateEndpoints
 
         group.MapDelete("{templateId:guid}/items/{itemId:guid}", async (ITemplateRepository templateRepo, Guid templateId, Guid itemId) =>
         {
-            var deleted = await templateRepo.DeleteTemplateItemAsync(itemId);
+            var deleted = await templateRepo.DeleteTemplateItemAsync(templateId, itemId);
             return EndpointHelpers.NoContentOrNotFound(deleted, "Template item", itemId);
         });
     }

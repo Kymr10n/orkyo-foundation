@@ -1,5 +1,5 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import {
   useTenantSettings,
@@ -10,7 +10,6 @@ import * as settingsApi from "@foundation/src/lib/api/tenant-settings-api";
 import { createTestQueryWrapper, createTestQueryClient } from "@foundation/src/test-utils";
 
 vi.mock("@foundation/src/lib/api/tenant-settings-api");
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const mockResponse: settingsApi.TenantSettingsResponse = {
   settings: [
@@ -42,10 +41,6 @@ const mockResponse: settingsApi.TenantSettingsResponse = {
 };
 
 describe("useTenantSettings", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("useTenantSettings query", () => {
     it("fetches tenant settings", async () => {
       vi.mocked(settingsApi.getTenantSettings).mockResolvedValue(mockResponse);

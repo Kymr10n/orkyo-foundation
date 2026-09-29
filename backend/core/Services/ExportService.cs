@@ -136,7 +136,7 @@ public class ExportService : IExportService
                 Description = g.Description,
                 Color = g.Color,
                 DisplayOrder = g.DisplayOrder ?? 0,
-                Capabilities = MapCapabilities(groupCaps.Select(gc => (gc.CriterionId, gc.Value)), criterionIdToKey)
+                Capabilities = MapCapabilities(groupCaps.Select(gc => (gc.CriterionId, (object?)gc.Value)), criterionIdToKey)
             });
         }
 
@@ -369,43 +369,23 @@ public class ExportService : IExportService
     private async Task<List<ExportTemplate>> BuildTemplatesAsync(
         Dictionary<Guid, string> criterionIdToKey, CancellationToken ct)
     {
-        var templatesByType = new List<(string EntityType, List<Template> Templates)>();
+        var templates = new List<Template>();
         foreach (var entityType in new[] { TemplateEntityTypes.Space, TemplateEntityTypes.Group, TemplateEntityTypes.Request })
-            templatesByType.Add((entityType, await _templateRepo.GetAllAsync(entityType, ct)));
+            templates.AddRange((await _templateRepo.GetAllAsync(entityType, ct)).OrderBy(t => t.Name, StringComparer.Ordinal));
 
-        // Bulk-fetch items for all templates in one query (was one query per template).
-        var itemsByTemplate = await _templateRepo.GetTemplateItemsByTemplatesAsync(
-            templatesByType.SelectMany(t => t.Templates).Select(t => t.Id).ToList(), ct);
-
-        var allTemplates = new List<ExportTemplate>();
-        foreach (var (entityType, templates) in templatesByType)
+        return await TemplateProjection.ProjectAsync(_templateRepo, templates, criterionIdToKey, (template, items) => new ExportTemplate
         {
-            foreach (var template in templates.OrderBy(t => t.Name, StringComparer.Ordinal))
-            {
-                var items = itemsByTemplate.GetValueOrDefault(template.Id, []);
-                allTemplates.Add(new ExportTemplate
-                {
-                    Key = GenerateKey(template.Name),
-                    Name = template.Name,
-                    Description = template.Description,
-                    EntityType = entityType,
-                    DurationValue = template.DurationValue,
-                    DurationUnit = template.DurationUnit,
-                    FixedStart = template.FixedStart,
-                    FixedEnd = template.FixedEnd,
-                    FixedDuration = template.FixedDuration,
-                    Items = items
-                        .Where(i => criterionIdToKey.ContainsKey(i.CriterionId))
-                        .OrderBy(i => criterionIdToKey[i.CriterionId], StringComparer.Ordinal)
-                        .Select(i => new ExportTemplateItem
-                        {
-                            CriterionKey = criterionIdToKey[i.CriterionId],
-                            Value = i.Value
-                        }).ToList()
-                });
-            }
-        }
-        return allTemplates;
+            Key = GenerateKey(template.Name),
+            Name = template.Name,
+            Description = template.Description,
+            EntityType = template.EntityType,
+            DurationValue = template.DurationValue,
+            DurationUnit = template.DurationUnit,
+            FixedStart = template.FixedStart,
+            FixedEnd = template.FixedEnd,
+            FixedDuration = template.FixedDuration,
+            Items = items.Select(i => new ExportTemplateItem { CriterionKey = i.CriterionKey, Value = i.Value }).ToList()
+        }, ct);
     }
 
     private async Task<List<ExportRequestData>> BuildRequestDataAsync(
@@ -429,17 +409,19 @@ public class ExportService : IExportService
             }
         }
 
-        var allRequests = await _requestRepo.GetAllAsync(includeRequirements: true, ct: ct);
+        // Only the requests placed in an exported site, filtered in SQL. A request holds at most
+        // one live placeable resource, so the non-cancelled assignment to an allowed one is its
+        // placement — a cancelled one on another allowed space is history, as in the SQL.
+        var placed = await _requestRepo.GetPlacedOnAsync(allowedResourceIds, ct);
 
-        var placeableKeySet = (await _resourceTypeRepo.GetPlaceableKeysAsync(ct)).ToHashSet();
-        return allRequests
-            .Select(r => (Request: r, SpaceResourceId: r.GetPlacementResourceId(placeableKeySet)))
-            .Where(x => x.SpaceResourceId is { } id && allowedResourceIds.Contains(id))
+        return placed
+            .Select(r => (Request: r, SpaceResourceId: r.Assignments
+                .First(a => a.AssignmentStatus != AssignmentStatuses.Cancelled && allowedResourceIds.Contains(a.ResourceId)).ResourceId))
             .OrderBy(x => x.Request.Name, StringComparer.Ordinal)
             .Select(x =>
             {
                 var r = x.Request;
-                var spaceId = x.SpaceResourceId!.Value;
+                var spaceId = x.SpaceResourceId;
                 return new ExportRequestData
                 {
                     Name = r.Name,

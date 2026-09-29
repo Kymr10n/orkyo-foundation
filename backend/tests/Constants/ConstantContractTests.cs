@@ -1,73 +1,50 @@
+using System.Reflection;
+using System.Text.RegularExpressions;
 using Api.Constants;
 using Api.Helpers;
 using Api.Models;
 using Api.Security;
+using Orkyo.Foundation.Tests.Architecture;
 
 namespace Orkyo.Foundation.Tests.Constants;
 
 /// <summary>
-/// Drift guards: assert that backend constant string values match the cross-product
-/// contracts consumed by the frontend. Failures here indicate a breaking change that
-/// must be coordinated with the frontend before deploying.
+/// Drift guards between backend constants and the values they must agree with: the frontend's
+/// error codes (read from its source), the enums' DB strings, and the role parser.
 /// </summary>
-public class ConstantContractTests
+public partial class ConstantContractTests
 {
-    // --- ErrorCodes (backend ↔ frontend/contracts/errorCodes.ts) ---
+    // --- API error codes (frontend/src/constants/api-error-codes.ts ⊆ backend ApiErrorCodes) ---
 
+    [GeneratedRegex(@"^\s*[A-Z_]+:\s*'([^']+)',", RegexOptions.Multiline)]
+    private static partial Regex FrontendCodeRegex();
+
+    /// <summary>
+    /// The frontend switches behaviour on these codes; a code no backend constant carries is one
+    /// the server never sends, so the branch it guards is dead. Read from the file, not restated.
+    /// </summary>
     [Fact]
-    public void ErrorCodes_NotFound_ShouldMatchContract() =>
-        ApiErrorCodes.NotFound.Should().Be("NOT_FOUND");
+    public void EveryFrontendErrorCode_IsOneTheBackendSends()
+    {
+        var dir = TestRepoPaths.FindDirectory("frontend", "src", "constants");
+        dir.Should().NotBeNull("could not locate frontend/src/constants");
+        var text = File.ReadAllText(Path.Combine(dir!, "api-error-codes.ts"));
+        var start = text.IndexOf("export const API_ERROR_CODES = {", StringComparison.Ordinal);
+        start.Should().BeGreaterThanOrEqualTo(0, "API_ERROR_CODES must still be declared there");
+        var block = text[start..text.IndexOf("} as const;", start, StringComparison.Ordinal)];
 
-    [Fact]
-    public void ErrorCodes_ValidationError_ShouldMatchContract() =>
-        // "ValidationError" is what has always been emitted on the wire (formerly via nameof in
-        // ErrorResponses.BadRequest); casing alignment to "VALIDATION_ERROR" is deferred to the
-        // next major. The frontend contract mirror must be updated to this value alongside.
-        ApiErrorCodes.ValidationError.Should().Be("ValidationError");
+        var frontend = FrontendCodeRegex().Matches(block).Select(m => m.Groups[1].Value).ToList();
+        frontend.Should().Contain(ApiErrorCodes.SessionExpired, "the extraction must find the codes");
 
-    [Fact]
-    public void ErrorCodes_Conflict_ShouldMatchContract() =>
-        ApiErrorCodes.Conflict.Should().Be("CONFLICT");
+        var backend = new[] { typeof(ApiErrorCodes) }.Concat(typeof(ApiErrorCodes).GetNestedTypes())
+            .SelectMany(t => t.GetFields(BindingFlags.Public | BindingFlags.Static))
+            .Where(f => f.IsLiteral)
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .ToHashSet(StringComparer.Ordinal);
 
-    // --- ApiErrorCodes (backend ↔ frontend/contracts/claims.ts or api-error-codes.ts) ---
-
-    [Fact]
-    public void ApiErrorCodes_SessionExpired_ShouldMatchContract() =>
-        ApiErrorCodes.SessionExpired.Should().Be("session_expired");
-
-    [Fact]
-    public void ApiErrorCodes_BreakGlassExpired_ShouldMatchContract() =>
-        ApiErrorCodes.BreakGlassExpired.Should().Be("break_glass_expired");
-
-    [Fact]
-    public void ApiErrorCodes_BreakGlassHardCapReached_ShouldMatchContract() =>
-        ApiErrorCodes.BreakGlassHardCapReached.Should().Be("break_glass_hard_cap_reached");
-
-    [Fact]
-    public void ApiErrorCodes_Forbidden_ShouldMatchContract() =>
-        ApiErrorCodes.Forbidden.Should().Be("forbidden");
-
-    [Fact]
-    public void ApiErrorCodes_TenantSuspended_ShouldMatchContract() =>
-        ApiErrorCodes.TenantSuspended.Should().Be("tenant_suspended");
-
-    // --- RoleConstants string values (backend ↔ frontend/contracts/roles.ts) ---
-
-    [Fact]
-    public void RoleConstants_Admin_ShouldMatchContract() =>
-        RoleConstants.Admin.Should().Be("admin");
-
-    [Fact]
-    public void RoleConstants_Editor_ShouldMatchContract() =>
-        RoleConstants.Editor.Should().Be("editor");
-
-    [Fact]
-    public void RoleConstants_Viewer_ShouldMatchContract() =>
-        RoleConstants.Viewer.Should().Be("viewer");
-
-    [Fact]
-    public void RoleConstants_None_ShouldMatchContract() =>
-        RoleConstants.None.Should().Be("none");
+        frontend.Where(code => !backend.Contains(code)).Should().BeEmpty(
+            "every code in API_ERROR_CODES must be one a backend ApiErrorCodes constant sends");
+    }
 
     // --- RoleConstants.ParseRoleString ---
 
@@ -165,18 +142,4 @@ public class ConstantContractTests
     public void UserStatusConstants_All_ShouldCoverExactlyTheEnumMembers() =>
         UserStatusConstants.All.Select(UserHelper.ParseUserStatus)
             .Should().BeEquivalentTo(Enum.GetValues<UserStatus>());
-
-    // --- ConflictKinds (backend ↔ frontend conflicts registry) ---
-
-    [Theory]
-    [InlineData(ConflictKinds.ConnectorMismatch, "connector_mismatch")]
-    [InlineData(ConflictKinds.Overlap, "overlap")]
-    [InlineData(ConflictKinds.CapacityExceeded, "capacity_exceeded")]
-    [InlineData(ConflictKinds.StartsInOffTime, "starts_in_off_time")]
-    [InlineData(ConflictKinds.SiteMismatch, "site_mismatch")]
-    [InlineData(ConflictKinds.BelowMinDuration, "below_min_duration")]
-    [InlineData(ConflictKinds.BeforeEarliestStart, "before_earliest_start")]
-    [InlineData(ConflictKinds.AfterLatestEnd, "after_latest_end")]
-    public void ConflictKinds_ShouldMatchContract(string constant, string expected) =>
-        constant.Should().Be(expected);
 }

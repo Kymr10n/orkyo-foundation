@@ -8,14 +8,16 @@ import {
   resendInvitation,
   updateUserRole,
   type CreateInvitationRequest,
+  type InviteUserResponse,
   type UpdateUserRoleRequest,
 } from "@foundation/src/lib/api/user-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
 
-export const useUsers = () =>
+export const useUsers = (enabled = true) =>
   useQuery({
     queryKey: qk.users.all(),
     queryFn: getUsers,
+    enabled,
   });
 
 export const useInvitations = () =>
@@ -28,9 +30,11 @@ export const useCreateInvitation = () =>
   useMutation({
     mutationFn: (data: CreateInvitationRequest) => createInvitation(data),
     meta: {
-      successMessage: "Invitation sent",
+      // An existing account joins at once (no email); anyone else gets an invitation.
+      successMessage: (data) =>
+        "member" in (data as InviteUserResponse) ? "Added to the organization" : "Invitation sent",
       suppressErrorToast: true,
-      invalidates: [qk.invitations.all()],
+      invalidates: [qk.invitations.all(), qk.users.all()],
     },
   });
 
@@ -47,7 +51,7 @@ export const useResendInvitation = () =>
   useMutation({
     mutationFn: resendInvitation,
     meta: {
-      successMessage: "Invitation email resent successfully",
+      successMessage: "Invitation email resent",
       errorMessage: "Failed to resend invitation",
     },
   });

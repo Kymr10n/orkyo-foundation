@@ -88,14 +88,6 @@ public sealed class CurrentAuthorizationContext : IAuthorizationContext
 
     public bool CanEdit => _context?.CanEdit ?? false;
 
-    public bool CanView => _context?.CanView ?? false;
-
-    public void RequireRole(TenantRole minimumRole)
-    {
-        if (Role < minimumRole)
-            throw new UnauthorizedAccessException($"Role {minimumRole} required, but user has {Role}");
-    }
-
     /// <summary>Set the authorization context (called by middleware)</summary>
     public void SetContext(AuthorizationContext context) => _context = context;
 }

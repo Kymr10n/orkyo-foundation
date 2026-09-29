@@ -1,4 +1,6 @@
 using System.Net;
+using Api.Security;
+using Api.Services;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
 
@@ -26,7 +28,7 @@ public class AccountLifecycleEndpointsTests
 
     /// <summary>
     /// Creates a user in control_plane.users with lifecycle columns set and returns
-    /// the user's ID and confirm token. Optionally sets a keycloak_id (needed for
+    /// the user's ID and confirm token. Optionally links a Keycloak identity (needed for
     /// testing the dormant re-enable flow).
     /// </summary>
     private async Task<(Guid userId, string token)> CreateUserWithLifecycleTokenAsync(
@@ -50,7 +52,7 @@ public class AccountLifecycleEndpointsTests
         if (keycloakId != null)
         {
             await using var kcCmd = new NpgsqlCommand(
-                "UPDATE users SET keycloak_id = @kcId WHERE id = @id", conn);
+                "INSERT INTO user_identities (user_id, provider, provider_subject) VALUES (@id, 'keycloak', @kcId)", conn);
             kcCmd.Parameters.AddWithValue("kcId", keycloakId);
             kcCmd.Parameters.AddWithValue("id", userId);
             await kcCmd.ExecuteNonQueryAsync();
@@ -65,7 +67,7 @@ public class AccountLifecycleEndpointsTests
                 lifecycle_confirm_token_expires_at = NOW() + make_interval(days => @expiresInDays)
             WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("status", lifecycleStatus);
-        cmd.Parameters.AddWithValue("token", token);
+        cmd.Parameters.AddWithValue("token", SecureTokens.LifecycleConfirmTokenHash(token));
         cmd.Parameters.AddWithValue("expiresInDays", tokenExpiresInDays);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync();
@@ -223,7 +225,7 @@ public class AccountLifecycleEndpointsTests
         var (status, count, confirmToken) = await GetUserLifecycleStateAsync(userId);
         status.Should().Be("dormant");
         count.Should().Be(1);
-        confirmToken.Should().Be(token);
+        confirmToken.Should().Be(SecureTokens.LifecycleConfirmTokenHash(token));
     }
 
     // ─── idempotency guard ────────────────────────────────────────────────────────

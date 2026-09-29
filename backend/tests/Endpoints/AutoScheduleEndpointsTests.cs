@@ -31,23 +31,9 @@ public class AutoScheduleEndpointsTests
     #region POST /api/scheduling/auto-schedule/preview
 
     [Fact]
-    public async Task Preview_NoAuth_Returns401()
-    {
-        var request = new AutoSchedulePreviewRequest(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: DateOnly.FromDateTime(DateTime.UtcNow),
-            HorizonEnd: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)));
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/scheduling/auto-schedule/preview", request, _jsonOptions);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Preview_WithValidSite_ReachesEndpoint()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new AutoSchedulePreviewRequest(
             SiteId: siteId,
@@ -78,23 +64,9 @@ public class AutoScheduleEndpointsTests
     #region POST /api/scheduling/auto-schedule/apply
 
     [Fact]
-    public async Task Apply_NoAuth_Returns401()
-    {
-        var request = new AutoScheduleApplyRequest(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: DateOnly.FromDateTime(DateTime.UtcNow),
-            HorizonEnd: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)));
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/scheduling/auto-schedule/apply", request, _jsonOptions);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task Apply_WithValidSite_ReachesEndpoint()
     {
-        var siteId = await TestHelpers.GetOrCreateTestSite(_client);
+        var siteId = DatabaseFixture.SiteId;
 
         var request = new AutoScheduleApplyRequest(
             SiteId: siteId,

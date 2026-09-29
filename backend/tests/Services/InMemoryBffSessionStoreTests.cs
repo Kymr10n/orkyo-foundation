@@ -1,13 +1,17 @@
 using Api.Services.BffSession;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Orkyo.Foundation.Tests.Services;
 
 public class InMemoryBffSessionStoreTests
 {
-    private readonly InMemoryBffSessionStore _store =
-        new(new Mock<Microsoft.Extensions.Logging.ILogger<InMemoryBffSessionStore>>().Object, TimeProvider.System);
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2031, 3, 1, 8, 0, 0, TimeSpan.Zero));
+    private readonly InMemoryBffSessionStore _store;
 
-    private static BffSessionRecord CreateSession(string? sessionId = null, DateTimeOffset? expiresAt = null) =>
+    public InMemoryBffSessionStoreTests() =>
+        _store = new(new Mock<Microsoft.Extensions.Logging.ILogger<InMemoryBffSessionStore>>().Object, _time);
+
+    private BffSessionRecord CreateSession(string? sessionId = null, DateTimeOffset? expiresAt = null) =>
         new()
         {
             SessionId = sessionId ?? Guid.NewGuid().ToString("N"),
@@ -16,10 +20,9 @@ public class InMemoryBffSessionStoreTests
             AccessToken = "access-token",
             RefreshToken = "refresh-token",
             IdToken = "id-token",
-            ExpiresAt = expiresAt ?? DateTimeOffset.UtcNow.AddHours(8),
-            TokenExpiresAt = DateTimeOffset.UtcNow.AddMinutes(5),
-            CreatedAt = DateTimeOffset.UtcNow,
-            LastActivityAt = DateTimeOffset.UtcNow,
+            ExpiresAt = expiresAt ?? _time.GetUtcNow().AddHours(8),
+            TokenExpiresAt = _time.GetUtcNow().AddMinutes(5),
+            CreatedAt = _time.GetUtcNow(),
         };
 
     [Fact]
@@ -41,7 +44,7 @@ public class InMemoryBffSessionStoreTests
     [Fact]
     public async Task Get_ReturnsNull_WhenExpired()
     {
-        var session = CreateSession(expiresAt: DateTimeOffset.UtcNow.AddSeconds(-1));
+        var session = CreateSession(expiresAt: _time.GetUtcNow().AddSeconds(-1));
         await _store.SetAsync(session);
         (await _store.GetAsync(session.SessionId)).Should().BeNull();
     }
@@ -56,6 +59,23 @@ public class InMemoryBffSessionStoreTests
     }
 
     [Fact]
+    public async Task RemoveAllForUser_RemovesOnlyThatUsersSessions()
+    {
+        var mine1 = CreateSession();
+        var mine2 = CreateSession() with { UserId = mine1.UserId };
+        var theirs = CreateSession();
+        await _store.SetAsync(mine1);
+        await _store.SetAsync(mine2);
+        await _store.SetAsync(theirs);
+
+        await _store.RemoveAllForUserAsync(mine1.UserId);
+
+        (await _store.GetAsync(mine1.SessionId)).Should().BeNull();
+        (await _store.GetAsync(mine2.SessionId)).Should().BeNull();
+        (await _store.GetAsync(theirs.SessionId)).Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Remove_NoErrorWhenNotFound() =>
         await _store.RemoveAsync("nonexistent");
 
@@ -64,7 +84,7 @@ public class InMemoryBffSessionStoreTests
     {
         var session = CreateSession();
         await _store.SetAsync(session);
-        var newExpiry = DateTimeOffset.UtcNow.AddHours(1);
+        var newExpiry = _time.GetUtcNow().AddHours(1);
         await _store.RefreshTokensAsync(session.SessionId, "new-access", "new-refresh", newExpiry);
         var result = await _store.GetAsync(session.SessionId);
         result.Should().NotBeNull();
@@ -76,13 +96,13 @@ public class InMemoryBffSessionStoreTests
 
     [Fact]
     public async Task RefreshTokens_NoOpWhenSessionNotFound() =>
-        await _store.RefreshTokensAsync("nonexistent", "a", "b", DateTimeOffset.UtcNow.AddHours(1));
+        await _store.RefreshTokensAsync("nonexistent", "a", "b", _time.GetUtcNow().AddHours(1));
 
     [Fact]
     public async Task Get_PurgesExpiredSessions()
     {
-        var expired = CreateSession("expired-id", DateTimeOffset.UtcNow.AddSeconds(-1));
-        var valid = CreateSession("valid-id", DateTimeOffset.UtcNow.AddHours(1));
+        var expired = CreateSession("expired-id", _time.GetUtcNow().AddSeconds(-1));
+        var valid = CreateSession("valid-id", _time.GetUtcNow().AddHours(1));
         await _store.SetAsync(expired);
         await _store.SetAsync(valid);
         (await _store.GetAsync(valid.SessionId)).Should().NotBeNull();
@@ -109,7 +129,7 @@ public class InMemoryBffSessionStoreTests
     public async Task TryAcquireRefreshLock_ReacquirableAfterTtlExpires()
     {
         (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromMilliseconds(20))).Should().BeTrue();
-        await Task.Delay(40);
+        _time.Advance(TimeSpan.FromMilliseconds(40));
         (await _store.TryAcquireRefreshLockAsync("s1", TimeSpan.FromSeconds(30))).Should().BeTrue();
     }
 

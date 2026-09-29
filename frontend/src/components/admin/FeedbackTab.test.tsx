@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { FeedbackTab } from './FeedbackTab';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
+import { toast } from 'sonner';
 
 // The save mutation declares `meta.successMessage`, so render under the
 // production-identical feedback MutationCache (dialog-feedback.md).
@@ -20,9 +21,6 @@ vi.mock('@foundation/src/lib/api/feedback-admin-api', () => ({
   getFeedbackItem: (...args: unknown[]) => mockGetOne(...args),
   updateFeedback: (...args: unknown[]) => mockUpdate(...args),
 }));
-
-const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock('sonner', () => ({ toast: mockToast }));
 
 const summary = {
   id: 'fb-1',
@@ -46,7 +44,6 @@ const detail = {
 
 describe('FeedbackTab', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGet.mockResolvedValue(pagedResult([]));
   });
 
@@ -54,6 +51,17 @@ describe('FeedbackTab', () => {
     render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
     expect(screen.getByText(/Loading feedback/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/No feedback yet/i)).toBeInTheDocument());
+  });
+
+  it('shows a failed load inline', async () => {
+    mockGet.mockRejectedValue(new Error('Feedback service down'));
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
+    expect(await screen.findByText('Feedback service down')).toBeInTheDocument();
+  });
+
+  it('asks for every status by default', async () => {
+    render(<MemoryRouter><FeedbackTab /></MemoryRouter>);
+    await waitFor(() => expect(mockGet).toHaveBeenCalledWith(undefined));
   });
 
   it('renders feedback rows', async () => {
@@ -95,6 +103,8 @@ describe('FeedbackTab', () => {
       expect.objectContaining({ adminNotes: 'On it.' }),
     ));
     // The success toast now originates from the central MutationCache (meta).
-    await waitFor(() => expect(mockToast.success).toHaveBeenCalledWith('Feedback updated'));
+    await waitFor(() => expect(vi.mocked(toast.success)).toHaveBeenCalledWith('Feedback updated'));
+    // The save's meta invalidates the list, so the table re-reads the new status.
+    await waitFor(() => expect(mockGet).toHaveBeenCalledTimes(2));
   });
 });

@@ -99,4 +99,51 @@ public class KeycloakOptionsTests
         var act = () => KeycloakOptions.FromConfiguration(config);
         act.Should().Throw<InvalidOperationException>().WithMessage($"*{configKeyValue}*");
     }
+
+    [Theory]
+    [InlineData(nameof(ConfigKeys.KeycloakUrl))]
+    [InlineData(nameof(ConfigKeys.KeycloakRealm))]
+    [InlineData(nameof(ConfigKeys.KeycloakBackendClientId))]
+    [InlineData(nameof(ConfigKeys.KeycloakBackendClientSecret))]
+    public void FromConfiguration_Throws_WhenRequiredKeyIsEmpty(string keyToEmpty)
+    {
+        // The deploy pipeline writes KEY= for an unset key: empty must fail like absent.
+        var values = new Dictionary<string, string?>
+        {
+            [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
+            [ConfigKeys.KeycloakRealm] = "orkyo",
+            [ConfigKeys.KeycloakBackendClientId] = "backend",
+            [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+        };
+        var configKeyValue = (string)typeof(ConfigKeys).GetField(keyToEmpty)!.GetRawConstantValue()!;
+        values[configKeyValue] = "";
+
+        var act = () => KeycloakOptions.FromConfiguration(BuildConfig(values));
+
+        act.Should().Throw<InvalidOperationException>().WithMessage($"*{configKeyValue}*");
+    }
+
+    [Fact]
+    public void FromConfiguration_TreatsAnEmptyInternalUrlAsUnset()
+    {
+        // An empty KEYCLOAK_INTERNAL_URL used to become "" and turn every token and admin
+        // URL into a relative one.
+        var opts = KeycloakOptions.FromConfiguration(BuildConfig(new()
+        {
+            [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
+            [ConfigKeys.KeycloakInternalUrl] = "",
+            [ConfigKeys.KeycloakRealm] = "orkyo",
+            [ConfigKeys.KeycloakBackendClientId] = "backend",
+            [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+        }));
+
+        opts.InternalBaseUrl.Should().BeNull();
+        opts.InternalAuthority.Should().Be("https://auth.example.com/realms/orkyo");
+    }
+
+    [Fact]
+    public void EffectiveInternalBaseUrl_FallsBackToBaseUrl_WhenInternalEmpty()
+    {
+        BuildOptions(internalUrl: "").EffectiveInternalBaseUrl.Should().Be("https://auth.example.com");
+    }
 }

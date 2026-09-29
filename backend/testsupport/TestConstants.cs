@@ -3,6 +3,12 @@ namespace Orkyo.Foundation.TestSupport;
 public static class TestConstants
 {
     public const string TenantSlug = "test";
+
+    /// <summary>Id of the test tenant the fixtures seed under <see cref="TenantSlug"/>.</summary>
+    public static readonly Guid TenantId = new("00000000-0000-0000-0000-000000000001");
+
+    /// <summary>Id of the shared test user the fixtures seed as the tenant's admin.</summary>
+    public static readonly Guid UserId = new("11111111-1111-1111-1111-111111111111");
     public const string TenantDatabase = "tenant_test";
 
     /// <summary>Authentication scheme name registered by the test host + TestAuthHandler.</summary>
@@ -15,10 +21,10 @@ public static class TestConstants
     public static string MasterEncryptionKey { get; } = Convert.ToBase64String(new byte[32]);
 
     /// <summary>
-    /// Pre-encoded Bearer token for the shared test user carrying the default "user" role
-    /// (which the factory treats as tenant Admin). Decoded by <see cref="TestAuthHandler"/>.
+    /// Pre-encoded Bearer token for the shared test user as tenant "admin", the role the
+    /// fixtures seed for that user. Decoded by <see cref="TestAuthHandler"/>.
     /// </summary>
-    public static string TestBearerToken { get; } = BearerTokenForRole("user");
+    public static string TestBearerToken { get; } = BearerTokenForRole("admin");
 
     /// <summary>
     /// Builds a Bearer token for the shared test user carrying a specific tenant
@@ -26,10 +32,10 @@ public static class TestConstants
     /// boundary tests to exercise role-gated endpoints.
     /// </summary>
     public static string BearerTokenForRole(string role) => BearerToken(
-        userId: "11111111-1111-1111-1111-111111111111",
+        userId: UserId.ToString(),
         email: "test@orkyo.example",
         displayName: "Test User",
-        tenantId: "00000000-0000-0000-0000-000000000001",
+        tenantId: TenantId.ToString(),
         tenantSlug: TenantSlug,
         isTenantAdmin: false,
         role: role);

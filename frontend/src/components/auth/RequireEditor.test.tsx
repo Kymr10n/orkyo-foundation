@@ -4,15 +4,13 @@ import { MemoryRouter, Routes, Route } from 'react-router';
 import { RequireEditor } from './RequireEditor';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import type * as UsePermissions from '@foundation/src/hooks/usePermissions';
+import { toast } from 'sonner';
 
 // useCanEdit is globally mocked to true in src/test/setup.ts; override per-test below.
 vi.mock('@foundation/src/hooks/usePermissions', async (importOriginal) => {
   const actual = await importOriginal<typeof UsePermissions>();
   return { ...actual, useCanEdit: vi.fn(() => true) };
 });
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { error: (...a: unknown[]) => toastError(...a) } }));
 
 function renderGuard() {
   return render(
@@ -34,7 +32,6 @@ function renderGuard() {
 
 describe('RequireEditor', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 
@@ -49,6 +46,6 @@ describe('RequireEditor', () => {
     renderGuard();
     expect(screen.queryByTestId('settings-content')).not.toBeInTheDocument();
     expect(screen.getByTestId('home')).toBeInTheDocument();
-    expect(toastError).toHaveBeenCalledWith('Settings are available to editors and administrators only.');
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Settings are available to editors and administrators only.');
   });
 });

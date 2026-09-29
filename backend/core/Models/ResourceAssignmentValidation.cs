@@ -73,7 +73,14 @@ public enum ValidationReasonCode
 
     /// <summary>A resource is assigned outside its current site and cross-site is not allowed (hard blocker).</summary>
     [JsonStringEnumMemberName("site.cross-not-allowed")]
-    SiteCrossNotAllowed
+    SiteCrossNotAllowed,
+
+    /// <summary>
+    /// A Fractional resource's committed allocation plus this one exceeds its capacity. The
+    /// Exclusive collision is <see cref="AssignmentOverbooked"/>; both are soft for a manual assignment.
+    /// </summary>
+    [JsonStringEnumMemberName("assignment.capacity-exceeded")]
+    AssignmentCapacityExceeded
 }
 
 /// <summary>

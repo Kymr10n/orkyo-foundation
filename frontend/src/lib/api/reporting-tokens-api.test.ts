@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { listReportingTokens, createReportingToken, revokeReportingToken } from './reporting-tokens-api';
 import * as apiClient from '../core/api-client';
 
@@ -12,8 +12,6 @@ const mockToken = {
 };
 
 describe('reporting-tokens-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   describe('listReportingTokens', () => {
     it('calls apiGet on the tokens endpoint and returns list', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue([mockToken]);

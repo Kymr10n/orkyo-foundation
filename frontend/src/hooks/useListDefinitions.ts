@@ -20,6 +20,7 @@ import {
   type UpdateListDefinitionRequest,
 } from "@foundation/src/lib/api/lists-api";
 import { qk } from "@foundation/src/lib/api/query-keys";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 
 /**
  * A column change reshapes every row of every instance built from the definition, so the whole
@@ -42,28 +43,17 @@ export const useListDefinition = (definitionId: string | null) =>
     enabled: definitionId !== null,
   });
 
-export const useCreateListDefinition = () =>
+/**
+ * Create (`id: null`) or update a definition. The edit dialog shows a failure inline, so the
+ * error is not toasted as well.
+ */
+export const useSaveListDefinition = () =>
   useMutation({
-    mutationFn: (request: CreateListDefinitionRequest) => createListDefinition(request),
+    mutationFn: (v: SaveVariables<CreateListDefinitionRequest, UpdateListDefinitionRequest>) =>
+      v.id === null ? createListDefinition(v.data) : updateListDefinition(v.id, v.data),
     meta: {
-      successMessage: "List definition created",
-      errorMessage: "Failed to create list definition",
-      invalidates: LIST_INVALIDATES,
-    },
-  });
-
-export const useUpdateListDefinition = () =>
-  useMutation({
-    mutationFn: ({
-      definitionId,
-      request,
-    }: {
-      definitionId: string;
-      request: UpdateListDefinitionRequest;
-    }) => updateListDefinition(definitionId, request),
-    meta: {
-      successMessage: "List definition updated",
-      errorMessage: "Failed to update list definition",
+      successMessage: savedMessage("List definition created", "List definition updated"),
+      suppressErrorToast: true,
       invalidates: LIST_INVALIDATES,
     },
   });
@@ -79,23 +69,16 @@ export const useDeleteListDefinition = () =>
     },
   });
 
-export const useCreateListColumn = (definitionId: string) =>
+/** Create (`id: null`) or update one column; the edit dialog shows a failure inline. */
+export const useSaveListColumn = (definitionId: string) =>
   useMutation({
-    mutationFn: (request: CreateListColumnRequest) => createListColumn(definitionId, request),
+    mutationFn: (v: SaveVariables<CreateListColumnRequest, UpdateListColumnRequest>) =>
+      v.id === null
+        ? createListColumn(definitionId, v.data)
+        : updateListColumn(definitionId, v.id, v.data),
     meta: {
-      successMessage: "Column added",
-      errorMessage: "Failed to add column",
-      invalidates: LIST_INVALIDATES,
-    },
-  });
-
-export const useUpdateListColumn = (definitionId: string) =>
-  useMutation({
-    mutationFn: ({ columnId, request }: { columnId: string; request: UpdateListColumnRequest }) =>
-      updateListColumn(definitionId, columnId, request),
-    meta: {
-      successMessage: "Column updated",
-      errorMessage: "Failed to update column",
+      successMessage: savedMessage("Column added", "Column updated"),
+      suppressErrorToast: true,
       invalidates: LIST_INVALIDATES,
     },
   });
@@ -121,23 +104,16 @@ export const useSharedListInstances = (definitionId: string | null) =>
     enabled: definitionId !== null,
   });
 
-export const useCreateSharedListInstance = (definitionId: string) =>
+/** Create (`id: null`) or rename one shared instance; the dialog shows a failure inline. */
+export const useSaveSharedListInstance = (definitionId: string) =>
   useMutation({
-    mutationFn: (request: ListInstanceRequest) => createSharedListInstance(definitionId, request),
+    mutationFn: (v: SaveVariables<ListInstanceRequest>) =>
+      v.id === null
+        ? createSharedListInstance(definitionId, v.data)
+        : updateSharedListInstance(definitionId, v.id, v.data),
     meta: {
-      successMessage: "Shared list created",
-      errorMessage: "Failed to create shared list",
-      invalidates: LIST_INVALIDATES,
-    },
-  });
-
-export const useUpdateSharedListInstance = (definitionId: string) =>
-  useMutation({
-    mutationFn: ({ instanceId, request }: { instanceId: string; request: ListInstanceRequest }) =>
-      updateSharedListInstance(definitionId, instanceId, request),
-    meta: {
-      successMessage: "Shared list renamed",
-      errorMessage: "Failed to rename shared list",
+      successMessage: savedMessage("Shared list created", "Shared list renamed"),
+      suppressErrorToast: true,
       invalidates: LIST_INVALIDATES,
     },
   });

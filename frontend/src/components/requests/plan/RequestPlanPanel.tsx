@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ZoomIn, ZoomOut, Maximize, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
+import { useAnchoredZoom } from "@foundation/src/hooks/useAnchoredZoom";
+import { ZoomControls } from "./ZoomControls";
 import { Button } from "@foundation/src/components/ui/button";
 import { Combobox } from "@foundation/src/components/ui/combobox";
 import { Label } from "@foundation/src/components/ui/label";
@@ -25,12 +27,10 @@ import {
 } from "@foundation/src/domain/plan-layout";
 import { PlanEdgeLayer } from "./PlanEdgeLayer";
 import { collectViolatingEdgeIds } from "./plan-conflicts";
+import { nextSortOrder } from "@foundation/src/domain/request-tree";
 import { PlanNodeCard } from "./PlanNodeCard";
 import { PlanBacklogTray } from "./PlanBacklogTray";
 
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 2;
-const ZOOM_STEP = 0.25;
 const CANVAS_PADDING = 32;
 /** How long a just-linked pair stays ringed. Long enough to find, short enough not to linger. */
 const HIGHLIGHT_MS = 1600;
@@ -42,9 +42,8 @@ const HIGHLIGHT_MS = 1600;
  * and overloading it to also mean "sequence" would make every mis-drop ambiguous — containment
  * and precedence are different questions. Here drag means only "sequence".
  *
- * Pan/zoom and the press-versus-click threshold follow SpaceDrawingCanvas, the floorplan editor;
- * the mechanics are deliberately copied rather than shared, because two consumers is not yet a
- * reason to couple the two editors to one abstraction.
+ * The press-versus-click threshold follows SpaceDrawingCanvas, the floorplan editor. Zoom is
+ * `useAnchoredZoom` + `ZoomControls`, shared with the site plan.
  */
 export function RequestPlanPanel({
   requestId,
@@ -55,7 +54,6 @@ export function RequestPlanPanel({
 }) {
   const canEdit = useCanEdit();
   const { isPhone } = useBreakpoint();
-  const [zoom, setZoom] = useState(1);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [edgeToRemove, setEdgeToRemove] = useState<string | null>(null);
@@ -75,6 +73,8 @@ export function RequestPlanPanel({
 
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const zoomControl = useAnchoredZoom(scrollRef);
+  const { zoom } = zoomControl;
 
   const { data, isLoading, error } = useRequestPlan(requestId);
 
@@ -139,12 +139,9 @@ export function RequestPlanPanel({
   // only arrange what the Children tab had already created, so building a sequence meant leaving
   // for a dialog and coming back. Tasks are made where the sequence is drawn now.
   const children = data?.children;
-  const nextSortOrder = useMemo(
-    () => (children && children.length > 0 ? Math.max(...children.map((c) => c.sortOrder)) + 1 : 0),
-    [children],
-  );
+  const addTaskSortOrder = useMemo(() => nextSortOrder(children ?? []), [children]);
 
-  const addTaskMutation = useAddPlanTask(requestId, nextSortOrder, (created) => {
+  const addTaskMutation = useAddPlanTask(requestId, addTaskSortOrder, (created) => {
     // It has no dependencies yet, so the plan counts it as unsequenced and the tray would
     // swallow it. The user made it here, looking at the canvas; that is where it belongs.
     setStaged((current) => new Set(current).add(created.id));
@@ -181,32 +178,8 @@ export function RequestPlanPanel({
   }, []);
 
   // ── Keeping the change in view ────────────────────────────────────────────
-  // Zoom scales about the top-left corner, so without this the viewport lands somewhere else
-  // entirely on a tall plan; and a new link relayers the graph under a scroll position that
-  // still points at the old shape. Both are answered by moving the scroll offset deliberately.
-  const zoomAnchor = useRef<{ x: number; y: number } | null>(null);
-
-  const applyZoom = useCallback((next: number) => {
-    const el = scrollRef.current;
-    // Layout-space point currently at the middle of the viewport, to be put back there after.
-    if (el) {
-      zoomAnchor.current = {
-        x: (el.scrollLeft + el.clientWidth / 2) / zoom,
-        y: (el.scrollTop + el.clientHeight / 2) / zoom,
-      };
-    }
-    setZoom(next);
-  }, [zoom]);
-
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    const anchor = zoomAnchor.current;
-    zoomAnchor.current = null;
-    if (!el || !anchor) return;
-    el.scrollLeft = anchor.x * zoom - el.clientWidth / 2;
-    el.scrollTop = anchor.y * zoom - el.clientHeight / 2;
-  }, [zoom]);
-
+  // A new link relayers the graph under a scroll position that still points at the old shape,
+  // so the scroll offset is moved deliberately (zoom does the same inside useAnchoredZoom).
   // Bring the successor of a new link into view once the refetched plan has placed it, then let
   // the ring fade. Without this the task can land past the bottom of a plan the user is scrolled
   // into the middle of, and the link reads as having done nothing at all.
@@ -396,28 +369,7 @@ export function RequestPlanPanel({
           </form>
         )}
 
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="outline" size="icon" aria-label="Zoom out"
-            onClick={() => applyZoom(Math.max(ZOOM_MIN, zoom - ZOOM_STEP))}
-            disabled={zoom <= ZOOM_MIN}
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline" size="icon" aria-label="Reset zoom"
-            onClick={() => applyZoom(1)}
-          >
-            <Maximize className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline" size="icon" aria-label="Zoom in"
-            onClick={() => applyZoom(Math.min(ZOOM_MAX, zoom + ZOOM_STEP))}
-            disabled={zoom >= ZOOM_MAX}
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-        </div>
+        <ZoomControls zoom={zoomControl} className="ml-auto" />
       </div>
 
       {layout.hasCycle && (

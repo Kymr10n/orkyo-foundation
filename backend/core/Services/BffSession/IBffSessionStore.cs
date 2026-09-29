@@ -32,7 +32,6 @@ public sealed record BffSessionRecord
     /// <summary>When the current access token expires (based on KC's expires_in, e.g. 5m). Used to trigger proactive token refresh.</summary>
     public DateTimeOffset TokenExpiresAt { get; init; }
     public required DateTimeOffset CreatedAt { get; init; }
-    public DateTimeOffset LastActivityAt { get; set; }
     /// <summary>
     /// Name of the OAuth client this session's tokens were issued to, resolved to
     /// credentials by <c>IBffAuthClientRegistry</c> at refresh time. Null (the
@@ -60,6 +59,13 @@ public interface IBffSessionStore
 
     /// <summary>Removes a session by ID.</summary>
     Task RemoveAsync(string sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes every session of <paramref name="userId"/> (<see cref="BffSessionRecord.UserId"/>),
+    /// on every device. "Log out everywhere" calls it: revoking the Keycloak sessions alone leaves
+    /// each BFF session authenticating from its stored access token until the next refresh.
+    /// </summary>
+    Task RemoveAllForUserAsync(string userId, CancellationToken ct = default);
 
     /// <summary>Updates the tokens and token expiry for an existing session (after token refresh).</summary>
     Task RefreshTokensAsync(string sessionId, string accessToken, string refreshToken, DateTimeOffset tokenExpiresAt, CancellationToken ct = default);

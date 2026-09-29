@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { SessionsSection } from './SessionsSection';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
@@ -33,10 +33,6 @@ function renderSessions(props: Partial<typeof defaultProps> = {}) {
 }
 
 describe('SessionsSection', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('shows loading state', () => {
     vi.mocked(getSessions).mockReturnValue(new Promise(() => {}));
     renderSessions();

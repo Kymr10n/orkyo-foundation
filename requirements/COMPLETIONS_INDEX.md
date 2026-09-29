@@ -21,11 +21,21 @@ All items in `archive/` are fully shipped. This index is the entry point.
 
 ## Superseded documents
 
-[`archive/superseded-docs/`](archive/superseded-docs/) holds audits and inventories that left `docs/`
-in 2026-09. Each one describes a state of the code that no longer exists. They are historical records.
+[`archive/superseded-docs/`](archive/superseded-docs/) holds audits, plans and inventories that left `docs/`
+and `frontend/docs/` in 2026-09. Each one describes a state of the code that no longer exists. They are historical records.
 
 | Document | Written | Why it is here |
 |---|---|---|
 | `current-space-dependencies.md` | 2026-05 | Phase 0 inventory of the `spaces` side tables. Migrations 1700 and 1710 removed those tables. |
 | `reusable-ui-candidates.md` | 2026-05 | Candidate list for shared UI components. Its own status note marks it as partially stale. |
 | `main-branch-findings-2026-07.md` | 2026-07 | Review findings from 2026-07. Some files it names no longer exist. |
+| `placement-audit-2026-05.md` | 2026-05 | Candidate list of product code that can move into foundation. It made no moves itself. |
+| `data-model-schema-review-2026-06.md` | 2026-06 | Schema review. Migration 1570 still cites its §B2. |
+| `generic-resource-types-review-2026-08.md` | 2026-08 | Review of the generic-resource-types branch. The branch is merged. |
+| `calendar-feed-redesign-2026-08.md` | 2026-08 | Calendar feed redesign. It is implemented. Its open token-revocation item is closed by audit finding C1 (2026-09). |
+| `resource-navigation-and-lists-spec.md` | 2026-08 | Navigation and lists spec. It is implemented, and it names files that no longer exist. |
+| `lists-plan.md` | 2026-08 | Implementation plan for the spec above. Migration 1820 superseded part of it. |
+| `tenant-transfer-plan.md` | 2026-08 | Four-repo plan for tenant export/import. Its status line says "not yet implemented". It is a work plan, not a reference for the code. |
+| `design-review-2026-09.md`, `design-review-2026-09-plan.md`, `design-review-2026-09-progress.md` | 2026-09 | Design review, its remediation plan and the progress log. The plan and the log disagree about status. |
+| `qr-resource-linking-plan.md` | 2026-09 | Implementation plan for QR stickers. It is implemented. The spec stays in `docs/` because code comments cite it. |
+| `COVERAGE.md`, `UX-CONSISTENCY.md` | before 2026-09 | From `frontend/docs/`: coverage numbers and the UX friction audit. The coverage rule is now in `CLAUDE.md`. |

@@ -123,6 +123,95 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
     }
 
     [Fact]
+    public async Task LinkIdentity_MatchByEmail_RefusesAnUnverifiedAddress_AndLinksNothing()
+    {
+        // A Keycloak account that merely claims the victim's address must not take over the
+        // victim's (invited or existing) Orkyo account.
+        var service = BuildService();
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+        await CreateUserAsync(email, displayName: "Victim", status: "active");
+
+        var result = await service.LinkIdentityAsync(new ExternalIdentityToken
+        {
+            Provider = AuthProvider.Keycloak,
+            Subject = subject,
+            Email = email,
+            EmailVerified = false,
+            DisplayName = "Attacker",
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.EmailNotVerified);
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LinkIdentity_AutoProvision_RefusesAnUnverifiedAddress_AndCreatesNothing()
+    {
+        // The create path used to skip the check the invited-user path had: an unverified
+        // claim must neither create a row nor link to one a concurrent sign-in created.
+        var emailServiceMock = new Mock<IEmailService>(MockBehavior.Loose);
+        var service = BuildService(emailServiceMock.Object, allowSelfRegistration: true);
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(new ExternalIdentityToken
+        {
+            Provider = AuthProvider.Keycloak,
+            Subject = subject,
+            Email = email,
+            EmailVerified = false,
+            DisplayName = "Walk-in",
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.EmailNotVerified);
+        (await UserExistsWithEmailAsync(email)).Should().BeFalse();
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+        emailServiceMock.Verify(e => e.SendNewUserAlertAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LinkIdentity_UnlinkedIdentityWithoutAnEmail_IsAnInvalidToken()
+    {
+        // Nothing to match or create by: the address is normalized once, up front, and an
+        // unusable one is refused before any lookup.
+        var service = BuildService();
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(new ExternalIdentityToken
+        {
+            Provider = AuthProvider.Keycloak,
+            Subject = subject,
+            Email = null,
+            EmailVerified = true,
+        });
+
+        result.Success.Should().BeFalse();
+        result.ErrorCode.Should().Be(ApiErrorCodes.Auth.InvalidToken);
+        (await IdentityLinkExistsAsync(subject)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task LinkIdentity_MatchByEmail_FindsTheInvitedRowFromAPaddedMixedCaseClaim()
+    {
+        // The lookup normalizes the claim the way the insert does, so " Ann@Example.com " matches
+        // the invited row for ann@example.com instead of falling through to auto-provision.
+        var service = BuildService();
+        var email = UniqueEmail();
+        var subject = UniqueSubject();
+        var userId = await CreateUserAsync(email, displayName: "Invited", status: "active");
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, $"  {email.ToUpperInvariant()}  ", "Ann"));
+
+        result.Success.Should().BeTrue();
+        result.IsNewUser.Should().BeFalse();
+        result.UserId.Should().Be(userId);
+        (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task LinkIdentity_MatchByEmail_RejectsInactiveUser()
     {
         var service = BuildService();
@@ -152,6 +241,25 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         (await UserExistsWithEmailAsync(email)).Should().BeTrue();
         (await IdentityLinkExistsAsync(subject)).Should().BeTrue();
         emailServiceMock.Verify(e => e.SendNewUserAlertAsync(email, It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task LinkIdentity_AutoProvision_StoresTheAddressLowerCased()
+    {
+        // Stored as the token spells it, "Kil-…@Example.COM" and "kil-…@example.com" were two rows
+        // to the case-sensitive unique index: two racing sign-ins could create two users.
+        var service = BuildService(new Mock<IEmailService>(MockBehavior.Loose).Object);
+        var local = $"Kil-{Guid.NewGuid():N}";
+        var subject = UniqueSubject();
+
+        var result = await service.LinkIdentityAsync(BuildToken(subject, $"{local}@Example.COM", "Mixed Case"));
+
+        result.Success.Should().BeTrue();
+        result.Email.Should().Be($"{local.ToLowerInvariant()}@example.com");
+        await using var conn = await _fixture.OpenControlPlaneConnectionAsync();
+        await using var cmd = new NpgsqlCommand("SELECT email FROM users WHERE id = @id", conn);
+        cmd.Parameters.AddWithValue("id", result.UserId!.Value);
+        (await cmd.ExecuteScalarAsync()).Should().Be($"{local.ToLowerInvariant()}@example.com");
     }
 
     /// <summary>
@@ -267,30 +375,7 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         result.ErrorCode.Should().Be("invalid_token");
     }
 
-    // ── GetUserMembershipsAsync / GetUserTenantRoleAsync ─────────────────────
-
-    [Fact]
-    public async Task GetUserMemberships_ReturnsActiveMemberships()
-    {
-        var service = BuildService();
-        var userId = await CreateUserAsync(UniqueEmail(), displayName: null, status: "active");
-        var tenantId = await CreateActiveMembershipAsync(userId, "editor");
-
-        var memberships = await service.GetUserMembershipsAsync(userId);
-
-        memberships.Should().ContainSingle();
-        memberships[0].TenantId.Should().Be(tenantId);
-        memberships[0].TenantSlug.Should().NotBeNullOrEmpty();
-        memberships[0].Role.Should().Be(TenantRole.Editor);
-    }
-
-    [Fact]
-    public async Task GetUserMemberships_ReturnsEmpty_WhenUserHasNoMemberships()
-    {
-        var memberships = await BuildService().GetUserMembershipsAsync(Guid.NewGuid());
-
-        memberships.Should().BeEmpty();
-    }
+    // ── GetUserTenantRoleAsync ───────────────────────────────────────────────
 
     [Fact]
     public async Task GetUserTenantRole_ReturnsNone_WhenUserNotMember()
@@ -312,6 +397,18 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         role.Should().Be(TenantRole.Admin);
     }
 
+    [Fact]
+    public async Task GetUserTenantRole_ReturnsNone_WhenUserIsDisabled()
+    {
+        var service = BuildService();
+        var userId = await CreateUserAsync(UniqueEmail(), displayName: null, status: "disabled");
+        var tenantId = await CreateActiveMembershipAsync(userId, "admin");
+
+        var role = await service.GetUserTenantRoleAsync(userId, tenantId);
+
+        role.Should().Be(TenantRole.None, "deactivation keeps the membership row, so the user's own status decides");
+    }
+
     // ── composition ──────────────────────────────────────────────────────────
 
     private KeycloakIdentityLinkService BuildService(
@@ -320,9 +417,9 @@ public sealed class KeycloakIdentityLinkServiceIntegrationTests
         var factory = _fixture.CreateConnectionFactory();
         return new KeycloakIdentityLinkService(
             factory,
-            emailService ?? Mock.Of<IEmailService>(),
             Options.Create(new IdentityProvisioningOptions { AllowSelfRegistration = allowSelfRegistration }),
-            NullLogger<KeycloakIdentityLinkService>.Instance);
+            NullLogger<KeycloakIdentityLinkService>.Instance,
+            new InlineBackgroundDispatcher(emailService ?? Mock.Of<IEmailService>()));
     }
 
     private static ExternalIdentityToken BuildToken(string subject, string email, string? displayName) =>

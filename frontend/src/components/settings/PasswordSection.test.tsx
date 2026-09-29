@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PasswordSection } from './PasswordSection';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
@@ -20,10 +20,6 @@ function renderPassword(props: Partial<typeof defaultProps> = {}) {
 }
 
 describe('PasswordSection', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders card title', () => {
     renderPassword();
     expect(screen.getByText('Password')).toBeInTheDocument();
@@ -111,7 +107,7 @@ describe('PasswordSection', () => {
     fireEvent.submit(screen.getByLabelText('Current Password').closest('form')!);
 
     await waitFor(() => {
-      expect(screen.getByText('Password changed successfully!')).toBeInTheDocument();
+      expect(screen.getByText('Password changed')).toBeInTheDocument();
     });
   });
 

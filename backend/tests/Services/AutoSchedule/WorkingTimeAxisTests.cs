@@ -30,7 +30,7 @@ public class WorkingTimeAxisTests
     [Fact]
     public void Identity_IsPlainMinutesSinceTheHorizonStart()
     {
-        var axis = WorkingTimeAxis.Identity(Monday, Friday);
+        var axis = AutoScheduleTestHelpers.Identity(Monday, Friday);
 
         axis.Length.Should().Be(5 * 1440);
         axis.ToOffset(Utc(14, 9, 30)).Should().Be(1440 + 9 * 60 + 30);
@@ -96,7 +96,7 @@ public class WorkingTimeAxisTests
     [Fact]
     public void ToOffset_FloorsAndToOffsetEnd_CeilsWithinAMinute()
     {
-        var axis = WorkingTimeAxis.Identity(Monday, Friday);
+        var axis = AutoScheduleTestHelpers.Identity(Monday, Friday);
         var instant = Utc(13, 0).AddSeconds(90);
 
         axis.ToOffset(instant).Should().Be(1);
@@ -152,7 +152,7 @@ public class WorkingTimeAxisTests
     [Fact]
     public void AnOffsetOutsideTheAxis_IsAnError()
     {
-        var axis = WorkingTimeAxis.Identity(Monday, Friday);
+        var axis = AutoScheduleTestHelpers.Identity(Monday, Friday);
 
         var act = () => axis.StartAt(axis.Length + 1);
 

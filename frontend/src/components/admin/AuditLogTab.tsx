@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { format } from 'date-fns';
 
 import { useTableUrlState } from '@foundation/src/hooks/useTableUrlState';
 
@@ -7,7 +6,7 @@ import { FeatureKeys } from '@foundation/contracts/plans';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { getTenantAuditEvents, type TenantAuditEvent } from '@foundation/src/lib/api/audit-api';
 import { qk } from '@foundation/src/lib/api/query-keys';
-import { DATE_FORMATS } from '@foundation/src/lib/formatters';
+import { formatDateTimeDisplay } from '@foundation/src/lib/formatters';
 import type { ColumnDef } from '@foundation/src/components/ui/OrkyoDataTable';
 import { Badge } from '@foundation/src/components/ui/badge';
 import { FeatureUpsell } from '@foundation/src/components/ui/FeatureUpsell';
@@ -53,7 +52,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
       meta: { filter: { type: 'date' } },
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-sm text-muted-foreground">
-          {format(new Date(row.original.createdAt), DATE_FORMATS.DATETIME_MEDIUM)}
+          {formatDateTimeDisplay(row.original.createdAt)}
         </span>
       ),
     },
@@ -131,7 +130,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
         <p className="text-sm text-muted-foreground truncate">{actorLabel}</p>
         <p className="text-xs text-muted-foreground truncate">
           {e.targetType ? `${e.targetType}${e.targetId ? ` · ${e.targetId}` : ''} · ` : ''}
-          {format(new Date(e.createdAt), DATE_FORMATS.DATETIME_MEDIUM)}
+          {formatDateTimeDisplay(e.createdAt)}
         </p>
       </div>
     );
@@ -141,7 +140,7 @@ export function AuditLogTab({ upgradeHref }: AuditLogTabProps = {}) {
     return (
       <FeatureUpsell
         title="Audit Log"
-        description="Available on Professional and Enterprise plans. Review who did what across your workspace — sign-ins, admin changes, and break-glass access."
+        description="Available on Professional and Enterprise plans. Review who did what across your organization — sign-ins, admin changes, and break-glass access."
         upgradeHref={upgradeHref}
       />
     );

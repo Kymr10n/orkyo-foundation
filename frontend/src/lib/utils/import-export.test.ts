@@ -49,6 +49,34 @@ describe('Import/Export Utilities', () => {
       expect(arrayToCSV([])).toBe('');
     });
 
+    it('prefixes text cells a spreadsheet would run as a formula', () => {
+      const data = [
+        { v: '=HYPERLINK("http://evil")' },
+        { v: '+1' },
+        { v: '-2' },
+        { v: '@SUM(A1)' },
+        { v: '\tcmd' },
+        { v: 'plain' },
+      ];
+      const lines = arrayToCSV(data).split('\n');
+      expect(lines.slice(1, 5)).toEqual([
+        `"'=HYPERLINK(""http://evil"")"`,
+        "'+1",
+        "'-2",
+        "'@SUM(A1)",
+      ]);
+      expect(lines[5]).toBe("'\tcmd");
+      expect(lines[6]).toBe('plain');
+    });
+
+    it('does not prefix numbers', () => {
+      expect(arrayToCSV([{ n: -5 }])).toBe('n\n-5');
+    });
+
+    it('quotes a value with a carriage return', () => {
+      expect(arrayToCSV([{ v: 'a\rb' }])).toBe('v\n"a\rb"');
+    });
+
     it('should use custom headers if provided', () => {
       const data = [{ name: 'A', size: 10, unused: 'x' }];
       const csv = arrayToCSV(data, ['name', 'size']);
@@ -100,6 +128,30 @@ describe('Import/Export Utilities', () => {
 
     it('should return empty array for empty string', () => {
       expect(csvToArray('')).toEqual([]);
+    });
+
+    it('keeps a quoted multi-line value in one row', () => {
+      const csv = 'name,description\nRoom A,"line one\nline two"\nRoom B,short';
+      expect(csvToArray(csv)).toEqual([
+        { name: 'Room A', description: 'line one\nline two' },
+        { name: 'Room B', description: 'short' },
+      ]);
+    });
+
+    it('reads CRLF line endings without leaving a carriage return in the last field', () => {
+      const csv = 'name,capacity\r\nRoom A,10\r\nRoom B,20\r\n';
+      expect(csvToArray(csv)).toEqual([
+        { name: 'Room A', capacity: '10' },
+        { name: 'Room B', capacity: '20' },
+      ]);
+    });
+
+    it('round-trips an export with formulas, quotes and line breaks unchanged', () => {
+      const data = [
+        { name: '=cmd', notes: 'said "hi",\r\nthen left' },
+        { name: '-minus', notes: '' },
+      ];
+      expect(csvToArray(arrayToCSV(data))).toEqual(data);
     });
   });
 

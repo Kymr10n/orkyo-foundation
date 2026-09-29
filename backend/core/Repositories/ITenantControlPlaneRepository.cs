@@ -80,12 +80,15 @@ public interface ITenantControlPlaneRepository
     /// <summary>Soft-deletes the tenant: status → <c>deleting</c>, bumping <c>updated_at</c> (the purge grace clock).</summary>
     Task MarkDeletingAsync(Guid tenantId, CancellationToken ct = default);
 
-    /// <summary>Cancels a pending deletion: status → <c>active</c>.</summary>
+    /// <summary>Cancels a pending deletion: status <c>deleting</c> → <c>active</c>. Any other status is left as it is.</summary>
     Task MarkActiveAsync(Guid tenantId, CancellationToken ct = default);
 
     /// <summary>Sets the tenant's owner to <paramref name="newOwnerId"/> (eligibility is the caller's policy check).</summary>
     Task TransferOwnershipAsync(Guid tenantId, Guid newOwnerId, CancellationToken ct = default);
 
-    /// <summary>Deletes the user's membership row in the tenant.</summary>
+    /// <summary>
+    /// Deletes the user's membership row in the tenant, unless the user is its last active
+    /// admin: then the row stays and a <c>ConflictException</c> says so. No row is a no-op.
+    /// </summary>
     Task DeleteMembershipAsync(Guid tenantId, Guid userId, CancellationToken ct = default);
 }

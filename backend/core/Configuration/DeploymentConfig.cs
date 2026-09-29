@@ -54,6 +54,9 @@ public sealed record DeploymentConfig
     // ── Version ──────────────────────────────────────────────────────────
     public string? Version { get; init; }
 
+    /// <summary>The product's own name for how it is deployed; null when the product does not say.</summary>
+    public string? DeploymentMode { get; init; }
+
     // ── Required keys ────────────────────────────────────────────────────
 
     /// <summary>
@@ -119,7 +122,8 @@ public sealed record DeploymentConfig
             SmtpPassword = configuration[ConfigKeys.SmtpPassword],
 
             OidcAuthority = Require(ConfigKeys.OidcAuthority),
-            OidcInternalAuthority = configuration[ConfigKeys.OidcInternalAuthority],
+            // Empty counts as unset, so the diagnostics probe's `?? OidcAuthority` falls back.
+            OidcInternalAuthority = configuration.GetNonEmptyOrNull(ConfigKeys.OidcInternalAuthority),
             KeycloakUrl = Require(ConfigKeys.KeycloakUrl),
             KeycloakRealm = Require(ConfigKeys.KeycloakRealm),
             KeycloakBackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
@@ -134,6 +138,7 @@ public sealed record DeploymentConfig
             // reports as unset instead of claiming a level nobody chose.
             LogLevel = configuration.GetOptionalString(ConfigKeys.LoggingLevelDefault),
             Version = configuration[ConfigKeys.OrkyoVersion],
+            DeploymentMode = configuration.GetNonEmptyOrNull(ConfigKeys.DeploymentMode),
         };
 
         // Fail fast at startup on a malformed master key (invalid base64 / not 32 bytes) — matches the

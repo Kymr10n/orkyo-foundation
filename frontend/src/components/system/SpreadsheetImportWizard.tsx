@@ -19,17 +19,10 @@ import { FeatureKeys } from '@foundation/contracts/plans';
 import { useFeatureEnabled } from '@foundation/src/hooks/useFeatureEnabled';
 import { useSites } from '@foundation/src/hooks/useSites';
 import { useSiteStore } from '@foundation/src/store/site-store';
-import { createResource, getResources } from '@foundation/src/lib/api/resources-api';
-import { createRequest } from '@foundation/src/lib/api/request-api';
 import { useResourceTypes } from '@foundation/src/hooks/useResourceTypes';
-import { useInvalidateImportedData } from '@foundation/src/hooks/useImportExport';
+import { useSpreadsheetImport } from '@foundation/src/hooks/useSpreadsheetImport';
 import { readWorkbook } from '@foundation/src/lib/utils/spreadsheet-file';
-import {
-  jobToCreateRequest,
-  parseTemplateWorkbook,
-  workstationToCreateSpace,
-  type ParsedWorkbook,
-} from '@foundation/src/lib/utils/spreadsheet-import';
+import { parseTemplateWorkbook, type ParsedWorkbook } from '@foundation/src/lib/utils/spreadsheet-import';
 import { errorMessage } from '@foundation/src/hooks/mutation-utils';
 
 interface SpreadsheetImportWizardProps {
@@ -75,7 +68,7 @@ export function SpreadsheetImportWizard({
     placeableTypes.find((t) => t.key === 'space')?.key ?? placeableTypes[0]?.key ?? null;
 
   const available = useFeatureEnabled(FeatureKeys.DataExport);
-  const invalidateImportedData = useInvalidateImportedData();
+  const importer = useSpreadsheetImport();
   const { data: sites = [] } = useSites();
   const storeSiteId = useSiteStore((s) => s.selectedSiteId);
   const [siteId, setSiteId] = useState<string | null>(null);
@@ -105,10 +98,7 @@ export function SpreadsheetImportWizard({
     try {
       const sheets = await readWorkbook(file);
       const parsed = parseTemplateWorkbook(sheets);
-      const existing = (await getResources({ hasGeometry: true, isActive: true, siteId: effectiveSiteId })).items;
-      const existingCodes = new Map(
-        existing.filter((s) => s.code).map((s) => [s.code as string, s.id]),
-      );
+      const existingCodes = await importer.loadExistingCodes(effectiveSiteId);
       setStep({ kind: 'preview', parsed, existingCodes });
     } catch (err) {
       setLoadError(errorMessage(err));
@@ -119,47 +109,14 @@ export function SpreadsheetImportWizard({
 
   const commit = async (parsed: ParsedWorkbook, existingCodes: Map<string, string>) => {
     if (!effectiveSiteId || !workstationTypeKey) return;
-    const toCreate = parsed.workstations.filter((w) => !existingCodes.has(w.code));
-    const total = toCreate.length + parsed.jobs.length;
-    setStep({ kind: 'committing', done: 0, total });
-
-    const codeToResourceId = new Map(existingCodes);
-    let createdWorkstations = 0;
-    let createdJobs = 0;
-    let done = 0;
-
-    try {
-      // Workstations first, so a failure partway leaves a usable state — places
-      // without jobs, rather than jobs pointing at places that don't exist.
-      for (const workstation of toCreate) {
-        const space = await createResource(
-          workstationToCreateSpace(workstation, effectiveSiteId, workstationTypeKey));
-        codeToResourceId.set(workstation.code, space.id);
-        createdWorkstations++;
-        setStep({ kind: 'committing', done: ++done, total });
-      }
-      for (const job of parsed.jobs) {
-        await createRequest(jobToCreateRequest(job, codeToResourceId, effectiveSiteId));
-        createdJobs++;
-        setStep({ kind: 'committing', done: ++done, total });
-      }
-      setStep({
-        kind: 'result',
-        createdWorkstations,
-        reusedWorkstations: parsed.workstations.length - toCreate.length,
-        createdJobs,
-      });
-    } catch (err) {
-      setStep({
-        kind: 'result',
-        createdWorkstations,
-        reusedWorkstations: parsed.workstations.length - toCreate.length,
-        createdJobs,
-        failure: errorMessage(err),
-      });
-    } finally {
-      invalidateImportedData();
-    }
+    const result = await importer.commit(
+      parsed,
+      existingCodes,
+      effectiveSiteId,
+      workstationTypeKey,
+      (done, total) => setStep({ kind: 'committing', done, total }),
+    );
+    setStep({ kind: 'result', ...result });
   };
 
   const siteName = useMemo(
@@ -293,7 +250,7 @@ export function SpreadsheetImportWizard({
       <DialogFooter className="px-6 pb-6">
         {step.kind === 'pick' && available && (
           <Button
-            onClick={analyze}
+            onClick={() => void analyze()}
             disabled={!file || !effectiveSiteId || !workstationTypeKey}
             loading={busy}
           >
@@ -306,7 +263,7 @@ export function SpreadsheetImportWizard({
               Back
             </Button>
             <Button
-              onClick={() => commit(step.parsed, step.existingCodes)}
+              onClick={() => void commit(step.parsed, step.existingCodes)}
               disabled={step.parsed.workstations.length === 0 && step.parsed.jobs.length === 0}
             >
               Import

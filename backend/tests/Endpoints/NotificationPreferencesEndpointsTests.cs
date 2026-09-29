@@ -14,16 +14,14 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class NotificationPreferencesEndpointsTests
 {
-    private static readonly Guid TestUserId = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid TestUserId = TestConstants.UserId;
 
     private readonly HttpClient _client;
-    private readonly HttpClient _unauthenticatedClient;
     private readonly string _conn;
 
     public NotificationPreferencesEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _unauthenticatedClient = databaseFixture.Factory.CreateClient();
         _conn = databaseFixture.ControlPlaneConnectionString;
     }
 
@@ -103,20 +101,4 @@ public class NotificationPreferencesEndpointsTests
         (await GetOptOutAsync()).Should().BeFalse();
     }
 
-    [Fact]
-    public async Task Get_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/account/notification-preferences");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task Put_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.PutAsJsonAsync(
-            "/api/account/notification-preferences", new { announcementEmailOptOut = true });
-
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-    }
 }

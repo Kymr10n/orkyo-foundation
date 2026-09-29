@@ -19,22 +19,16 @@ import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { ConfirmDialog } from "@foundation/src/components/ui/ConfirmDialog";
 import { Clock, Globe, Calendar, Plus, Trash2, Check, AlertCircle, Pencil, RotateCcw } from "lucide-react";
 import { useSiteStore } from "@foundation/src/store/site-store";
-import { useIsTenantAdmin } from "@foundation/src/hooks/usePermissions";
+import { useCanEdit } from "@foundation/src/hooks/usePermissions";
 import {
   useSchedulingSettings,
   useUpsertSchedulingSettings,
   useDeleteSchedulingSettings,
   useAvailabilityEvents,
-  useCreateAvailabilityEvent,
-  useUpdateAvailabilityEvent,
   useDeleteAvailabilityEvent,
 } from "@foundation/src/hooks/useScheduling";
 import type { SchedulingSettings as SchedulingSettingsType } from "@foundation/src/domain/scheduling/types";
-import type {
-  AvailabilityEventInfo,
-  CreateAvailabilityEventRequest,
-  UpdateAvailabilityEventRequest,
-} from "@foundation/src/lib/api/availability-events-api";
+import type { AvailabilityEventInfo } from "@foundation/src/lib/api/availability-events-api";
 import { AvailabilityEventDialog } from "./AvailabilityEventDialog";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
 
@@ -127,18 +121,15 @@ function settingsFromApi(s: SchedulingSettingsType): SettingsFormState {
 
 export function SchedulingSettings() {
   const selectedSiteId = useSiteStore((s) => s.selectedSiteId);
-  // Scheduling settings are editor-writable, but availability-event mutations are
-  // RequireAdminAccess on the backend — gate those write affordances on admin so
-  // editors browse them read-only instead of hitting a 403.
-  const isAdmin = useIsTenantAdmin();
+  // Availability-event writes follow the backend group, `RequireMemberReadEditorWrite()`
+  // (Editor+; see docs/authorization.md): Viewers browse read-only, Editors and Admins write.
+  const canEdit = useCanEdit();
 
   const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
   const { data: availabilityEvents = [], isLoading: eventsLoading } = useAvailabilityEvents(selectedSiteId ?? undefined);
 
   const upsertMutation = useUpsertSchedulingSettings(selectedSiteId ?? "");
   const deleteMutation = useDeleteSchedulingSettings(selectedSiteId ?? "");
-  const createEventMutation = useCreateAvailabilityEvent(selectedSiteId ?? "");
-  const updateEventMutation = useUpdateAvailabilityEvent(selectedSiteId ?? "");
   const deleteEventMutation = useDeleteAvailabilityEvent(selectedSiteId ?? "");
 
   const [form, setForm] = useState(DEFAULT_SETTINGS);
@@ -239,21 +230,6 @@ export function SchedulingSettings() {
     setDeletingEvent(null);
   };
 
-  const handleSaveEvent = async (
-    data: CreateAvailabilityEventRequest | UpdateAvailabilityEventRequest,
-  ) => {
-    if (editingEvent) {
-      await updateEventMutation.mutateAsync({
-        eventId: editingEvent.id,
-        updates: data,
-      });
-    } else {
-      await createEventMutation.mutateAsync(data as CreateAvailabilityEventRequest);
-    }
-
-    setEventDialogOpen(false);
-    setEditingEvent(null);
-  };
 
   if (!selectedSiteId) {
     return (
@@ -462,7 +438,7 @@ export function SchedulingSettings() {
                 Define periods when no work should be scheduled (closures, maintenance, etc.).
               </CardDescription>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <Button size="sm" onClick={handleCreateEvent}>
                 <Plus className="h-4 w-4 mr-1" />
                 Add
@@ -505,7 +481,7 @@ export function SchedulingSettings() {
                       {ev.scopes.length > 0 && ` · ${ev.scopes.length} override(s)`}
                     </div>
                   </div>
-                  {isAdmin && (
+                  {canEdit && (
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"
@@ -534,10 +510,12 @@ export function SchedulingSettings() {
 
       <AvailabilityEventDialog
         open={eventDialogOpen}
-        onOpenChange={setEventDialogOpen}
+        onOpenChange={(open) => {
+          setEventDialogOpen(open);
+          if (!open) setEditingEvent(null);
+        }}
         siteId={selectedSiteId ?? ""}
         event={editingEvent}
-        onSave={handleSaveEvent}
       />
 
       <ConfirmDialog

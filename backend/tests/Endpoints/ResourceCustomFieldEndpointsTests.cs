@@ -24,21 +24,6 @@ public class ResourceCustomFieldEndpointsTests
 
     private readonly DatabaseFixture _fixture;
 
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
-    private async Task<ResourceTypeInfo> CreateTypeAsync(bool hasGeometry = false)
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = UniqueKey("machine"),
-            DisplayName = "Machine",
-            DisplayNamePlural = "Machines",
-            HasGeometry = hasGeometry,
-        });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
-    }
-
     private async Task<ResourceCustomFieldInfo> CreateFieldAsync(
         Guid typeId, string key, string dataType = CustomFieldDataTypes.Text,
         bool isRequired = false, int sortOrder = 0)
@@ -62,7 +47,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task CreateCustomField_ReturnsDefinitionWithDefaults()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var field = await CreateFieldAsync(type.Id, "serial_number");
 
@@ -75,7 +60,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task CreateCustomField_RejectsDuplicateKeyForSameType()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number");
 
         var response = await _client.PostAsJsonAsync(
@@ -93,7 +78,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task CreateCustomField_RejectsUnknownDataType()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-types/{type.Id}/custom-fields",
@@ -110,7 +95,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task GetCustomFields_ReturnsThemInFormOrder()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "second", sortOrder: 2);
         await CreateFieldAsync(type.Id, "first", sortOrder: 1);
 
@@ -131,7 +116,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateCustomField_ChangesLabelAndRequiredness()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
 
         var response = await _client.PutAsJsonAsync(
@@ -150,8 +135,8 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateCustomField_ReturnsNotFoundWhenFieldBelongsToAnotherType()
     {
-        var owningType = await CreateTypeAsync();
-        var otherType = await CreateTypeAsync();
+        var owningType = await TestHelpers.CreateResourceTypeAsync(_client);
+        var otherType = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(owningType.Id, "serial_number");
 
         var response = await _client.PutAsJsonAsync(
@@ -164,7 +149,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task DeleteCustomField_StripsTheValueFromResourcesOfThatType()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
 
         var created = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
@@ -189,7 +174,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task CreateCustomField_ReturnsALocationThatResolves()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-types/{type.Id}/custom-fields",
@@ -209,8 +194,8 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task GetCustomField_ReturnsNotFoundWhenItBelongsToAnotherType()
     {
-        var owningType = await CreateTypeAsync();
-        var otherType = await CreateTypeAsync();
+        var owningType = await TestHelpers.CreateResourceTypeAsync(_client);
+        var otherType = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(owningType.Id, "serial_number");
 
         var response = await _client.GetAsync(
@@ -237,7 +222,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task DeleteCustomField_ReturnsNotFoundForUnknownField()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.DeleteAsync(
             $"/api/resource-types/{type.Id}/custom-fields/{Guid.NewGuid()}");
@@ -248,8 +233,8 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task DeleteCustomField_ReturnsNotFoundWhenFieldBelongsToAnotherType()
     {
-        var owningType = await CreateTypeAsync();
-        var otherType = await CreateTypeAsync();
+        var owningType = await TestHelpers.CreateResourceTypeAsync(_client);
+        var otherType = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(owningType.Id, "serial_number");
 
         var response = await _client.DeleteAsync(
@@ -261,7 +246,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateCustomField_ChangesDescriptionAndOrder()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
 
         var response = await _client.PutAsJsonAsync(
@@ -276,7 +261,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateCustomField_WithNothingSetLeavesTheFieldAsItWas()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number", isRequired: true, sortOrder: 3);
 
         var response = await _client.PutAsJsonAsync(
@@ -299,7 +284,7 @@ public class ResourceCustomFieldEndpointsTests
     [InlineData("")]                // empty
     public async Task CreateCustomField_RejectsMalformedKey(string key)
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-types/{type.Id}/custom-fields",
@@ -316,7 +301,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task CreateCustomField_RejectsBlankLabel()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-types/{type.Id}/custom-fields",
@@ -333,7 +318,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateCustomField_RejectsBlankLabel()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
 
         var response = await _client.PutAsJsonAsync(
@@ -346,7 +331,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateCustomField_RejectsOverLongDescription()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
 
         var response = await _client.PutAsJsonAsync(
@@ -365,7 +350,7 @@ public class ResourceCustomFieldEndpointsTests
         // does not ask for them is a gap in that dialog, not a reason to refuse here.
         var directory = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("contractor"),
+            Key = TestHelpers.UniqueKey("contractor"),
             DisplayName = "Contractor",
             DisplayNamePlural = "Contractors",
             HasDirectoryProfile = true,
@@ -393,7 +378,7 @@ public class ResourceCustomFieldEndpointsTests
         // has a create form with nowhere to put them.
         var placeable = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
         {
-            Key = UniqueKey("bay"),
+            Key = TestHelpers.UniqueKey("bay"),
             DisplayName = "Bay",
             DisplayNamePlural = "Bays",
             HasGeometry = true,
@@ -423,13 +408,13 @@ public class ResourceCustomFieldEndpointsTests
         // Deliberately on a throwaway type rather than the shared `space` one: these tests commit,
         // and a required field left on a type other suites create bare resources of would fail
         // every one of them. That cascade is exactly what the old guard's comment described.
-        var placeable = await CreateTypeAsync(hasGeometry: true);
+        var placeable = await TestHelpers.CreateResourceTypeAsync(_client, hasGeometry: true);
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-types/{placeable.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
             {
-                Key = UniqueKey("floor_finish"),
+                Key = TestHelpers.UniqueKey("floor_finish"),
                 Label = "Floor finish",
                 DataType = CustomFieldDataTypes.Text,
                 IsRequired = true,
@@ -443,7 +428,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task CreateCustomField_IsForbiddenForEditors()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var editorClient = _fixture.CreateClientWithRole("editor");
 
         var response = await editorClient.PostAsJsonAsync(
@@ -461,7 +446,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task UpdateAndDeleteCustomField_AreForbiddenForEditors()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
         var editorClient = _fixture.CreateClientWithRole("editor");
 
@@ -478,7 +463,7 @@ public class ResourceCustomFieldEndpointsTests
     [Fact]
     public async Task GetOneCustomField_IsAllowedForEditors()
     {
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateFieldAsync(type.Id, "serial_number");
         var editorClient = _fixture.CreateClientWithRole("editor");
 
@@ -492,7 +477,7 @@ public class ResourceCustomFieldEndpointsTests
     public async Task GetCustomFields_IsAllowedForEditors()
     {
         // Editors fill the values in, so they must be able to see what the fields are.
-        var type = await CreateTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateFieldAsync(type.Id, "serial_number");
         var editorClient = _fixture.CreateClientWithRole("editor");
 

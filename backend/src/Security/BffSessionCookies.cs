@@ -12,13 +12,19 @@ namespace Api.Security;
 /// </summary>
 public static class BffSessionCookies
 {
+    /// <summary>
+    /// The Data Protection purpose the session cookie is sealed under. Login seals, the handler
+    /// and logout unseal, so all three must use this one value.
+    /// </summary>
+    public const string DataProtectionPurpose = "BffSession";
+
     /// <summary>The session cookie: HttpOnly, so JS can never read the session id.</summary>
     public static void WriteSessionCookie(HttpContext ctx, BffOptions options, string value, TimeSpan lifetime) =>
         ctx.Response.Cookies.Append(options.CookieName, value, Build(options, httpOnly: true, lifetime));
 
     /// <summary>The CSRF double-submit cookie: deliberately NOT HttpOnly — the SPA reads it.</summary>
     public static void WriteCsrfCookie(HttpContext ctx, BffOptions options, string value, TimeSpan lifetime) =>
-        ctx.Response.Cookies.Append(options.CsrfCookieName, value, Build(options, httpOnly: false, lifetime));
+        ctx.Response.Cookies.Append(BffOptions.CsrfCookieName, value, Build(options, httpOnly: false, lifetime));
 
     private static CookieOptions Build(BffOptions options, bool httpOnly, TimeSpan lifetime) => new()
     {

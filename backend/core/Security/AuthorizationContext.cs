@@ -42,10 +42,4 @@ public sealed class AuthorizationContext
 
     /// <summary>Whether the user can edit content</summary>
     public bool CanEdit => Role >= TenantRole.Editor;
-
-    /// <summary>Whether the user can view content</summary>
-    public bool CanView => Role >= TenantRole.Viewer;
-
-    /// <summary>Role as string (for compatibility with existing code)</summary>
-    public string RoleString => Role.ToString().ToLowerInvariant();
 }

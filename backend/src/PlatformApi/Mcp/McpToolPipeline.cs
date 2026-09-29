@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol;
 using ModelContextProtocol.Protocol;
@@ -14,10 +15,11 @@ namespace Api.PlatformApi.Mcp;
 ///    outcome. Scheduling has no domain audit trail, so for a non-human write-capable credential
 ///    this line is the non-repudiation story. Logging here rather than inside each tool means a
 ///    new tool cannot forget it.
-/// 2. <b>Containment.</b> A tool that throws anything but a deliberate <see cref="McpException"/>
-///    must not hand the raw message to a third-party LLM client — an <c>NpgsqlException</c>
-///    carries SQL text and column names. The real exception is logged; the client gets a generic
-///    failure, mirroring what <c>AppExceptionHandler</c> does for HTTP.
+/// 2. <b>Containment.</b> A domain exception (<see cref="DomainRefusal"/>) becomes an
+///    <see cref="McpException"/> with its own message, as <c>AppExceptionHandler</c> makes it a
+///    4xx for HTTP. Anything else must not hand the raw message to a third-party LLM client — an
+///    <c>NpgsqlException</c> carries SQL text and column names. The real exception is logged; the
+///    client gets a generic failure.
 /// </summary>
 public static class McpToolPipeline
 {
@@ -51,6 +53,14 @@ public static class McpToolPipeline
             {
                 throw; // The client went away; there is nobody to translate for.
             }
+            catch (Exception ex) when (DomainRefusal(ex) is { } reason)
+            {
+                // A domain refusal (not found, conflict, bad argument, feature off, quota) is the
+                // agent's to act on, exactly as AppExceptionHandler answers it with a 4xx for HTTP.
+                logger?.LogInformation(
+                    "MCP call: tool={Tool} actor={Actor} refused: {Reason}", tool, actor, reason);
+                throw new McpException(reason);
+            }
             catch (Exception ex)
             {
                 logger?.LogError(ex,
@@ -61,6 +71,15 @@ public static class McpToolPipeline
                     + "is unlikely to help.");
             }
         };
+
+    /// <summary>
+    /// The exceptions whose message is written for the caller — exactly the ones
+    /// <see cref="AppExceptionHandler"/> turns into a 4xx, so the two surfaces cannot drift.
+    /// Guard-clause failures (<see cref="ArgumentNullException"/>,
+    /// <see cref="ArgumentOutOfRangeException"/>) are programming errors that name internal
+    /// parameters, so they stay a generic failure there and here.
+    /// </summary>
+    internal static string? DomainRefusal(Exception ex) => AppExceptionHandler.ClientErrorDetail(ex);
 
     /// <summary>Arguments are small tool inputs, but nothing stops a client sending a novel.</summary>
     private static string Truncate(string? arguments)

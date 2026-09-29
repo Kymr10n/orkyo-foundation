@@ -1,33 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
-import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES } from "@foundation/src/constants/auth";
+import { AUTH_STAGES, AUTH_EVENTS, AUTH_MESSAGES, type AuthStage } from "@foundation/src/constants/auth";
 
 const mockSend = vi.fn();
-const mockUseAuth = vi.fn();
 
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  useAuth: () => mockUseAuth(),
-  debugAuth: vi.fn(),
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
 }));
 
 import { RequireAuth } from "./RequireAuth";
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function authState(overrides: Record<string, unknown> = {}) {
-  return {
-    authStage: AUTH_STAGES.READY,
-    error: null,
-    send: mockSend,
-    ...overrides,
-  };
+function authState(overrides: MockAuthOptions = {}) {
+  return mockAuth({ send: mockSend, ...overrides });
 }
 
 function renderGuard(
   requireMembership = true,
-  authStage = AUTH_STAGES.READY as string,
+  authStage: AuthStage = AUTH_STAGES.READY,
 ) {
-  mockUseAuth.mockReturnValue(authState({ authStage }));
+  vi.mocked(useAuth).mockReturnValue(authState({ authStage }));
   return render(
     <RequireAuth requireMembership={requireMembership}>
       <div data-testid="protected-content">protected</div>
@@ -39,7 +35,6 @@ function renderGuard(
 
 describe("RequireAuth", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.useFakeTimers();
   });
 
@@ -162,7 +157,7 @@ describe("RequireAuth", () => {
 
   describe("error states", () => {
     it("shows backend error screen for error_backend", () => {
-      mockUseAuth.mockReturnValue(
+      vi.mocked(useAuth).mockReturnValue(
         authState({
           authStage: AUTH_STAGES.ERROR_BACKEND,
           error: "Server error (500)",
@@ -181,7 +176,7 @@ describe("RequireAuth", () => {
     });
 
     it("shows network error screen for error_network", () => {
-      mockUseAuth.mockReturnValue(
+      vi.mocked(useAuth).mockReturnValue(
         authState({
           authStage: AUTH_STAGES.ERROR_NETWORK,
           error: AUTH_MESSAGES.NETWORK_ERROR_DETAIL,

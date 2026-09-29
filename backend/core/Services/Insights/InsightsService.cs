@@ -82,7 +82,7 @@ public class InsightsService(
     /// </summary>
     public async Task<InsightsBottlenecks> GetBottlenecksAsync(InsightsFilter filter, CancellationToken ct = default)
     {
-        // Never empty: every caller validates from < to first (InsightsEndpoints.ValidatePeriod),
+        // Never empty: every caller validates from < to first (InsightsQueryValidator),
         // and any such range covers at least one day. The indexing below relies on that.
         var buckets = DaySlices(filter.From, filter.To);
         var period = new InsightsPeriod { From = filter.From, To = filter.To };
@@ -427,18 +427,6 @@ public class InsightsService(
     /// </summary>
     private sealed record UtilSeries(List<UtilBucket> Buckets, int ResourceCount);
 
-    /// <summary>
-    /// Per-bucket capacity/used minutes for one resource type, computed as *time-based occupancy* — the
-    /// share of available time actually booked over the bucket. This deliberately differs from the
-    /// scheduler grid's per-slot view (<see cref="IUtilizationService"/>), where an Exclusive resource
-    /// reads 100% if occupied at all in a slot: at month/quarter granularity that pins utilization at
-    /// 100% for any month with a single booking. Here:
-    ///   capacity_r = base availability × the bucket's open (non-blocked) minutes
-    ///   used_r     = Σ (allocation% × overlap minutes), capped at capacity_r so overbooking surfaces
-    ///                as a conflict, not as &gt;100% utilization
-    /// Resource selection (incl. site resolution) and blocked periods reuse the same repositories the
-    /// grid uses, so only the metric — not the data sourcing — is bespoke.
-    /// </summary>
     /// <summary>The rows every utilization figure is computed from, read once for a window.</summary>
     private sealed record UtilizationInputs(
         IReadOnlyList<ResourceInfo> Resources,
@@ -540,7 +528,7 @@ public class InsightsService(
             // reported figure by the same factor.
             var span = SchedulingEngine.WorkingMinutesInWindow(bs, be, settings);
 
-            var blockedMin = blocked.Sum(p => OverlapMinutes(p.StartTs, p.EndTs, bs, be, settings));
+            var blockedMin = SchedulingEngine.BlockedWorkingMinutes(blocked, settings, bs, be);
             var openMin = Math.Max(0, span - blockedMin);
             capacity[i] = resource.BaseAvailabilityPercent / 100.0 * openMin;
 
@@ -561,6 +549,18 @@ public class InsightsService(
         return (capacity, occupied);
     }
 
+    /// <summary>
+    /// Per-bucket capacity/used minutes for one resource type, computed as *time-based occupancy* — the
+    /// share of available time actually booked over the bucket. This deliberately differs from the
+    /// scheduler grid's per-slot view (<see cref="IUtilizationService"/>), where an Exclusive resource
+    /// reads 100% if occupied at all in a slot: at month/quarter granularity that pins utilization at
+    /// 100% for any month with a single booking. Here:
+    ///   capacity_r = base availability × the bucket's open (non-blocked) minutes
+    ///   used_r     = Σ (allocation% × overlap minutes), capped at capacity_r so overbooking surfaces
+    ///                as a conflict, not as &gt;100% utilization
+    /// Resource selection (incl. site resolution) and blocked periods reuse the same repositories the
+    /// grid uses, so only the metric — not the data sourcing — is bespoke.
+    /// </summary>
     private async Task<UtilSeries> ComputeUtilizationSeriesAsync(
         string resourceType, DateTime from, DateTime to, string bucket, Guid? siteId, CancellationToken ct)
     {

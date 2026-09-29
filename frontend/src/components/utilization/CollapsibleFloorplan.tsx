@@ -1,4 +1,5 @@
 import { SpaceDrawingCanvas } from "@foundation/src/components/requests/SpaceDrawingCanvas";
+import { Legend } from "@foundation/src/components/ui/Legend";
 import { SPACE_CANVAS_COLORS, SPACE_LEGEND_CELL_CLASS, SPACE_LEGEND_BORDER_CLASS, type SpaceStatus } from "@foundation/src/components/utilization/schedule-colors";
 import { Button } from "@foundation/src/components/ui/button";
 import { ROUTE_STATIONS_FLOORPLAN } from "@foundation/src/constants/auth";
@@ -46,7 +47,6 @@ export function CollapsibleFloorplan({
 
   const {
     data: spaces = [],
-    isLoading: _isLoadingSpaces,
     error: spacesError,
   } = usePlaceableResources(selectedSiteId);
 
@@ -217,22 +217,25 @@ export function CollapsibleFloorplan({
                 />
 
                 {/* Space status legend */}
-                <div className="absolute top-2 right-2 flex items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <span className={`inline-block h-2.5 w-4 rounded-sm border ${SPACE_LEGEND_CELL_CLASS.available} ${SPACE_LEGEND_BORDER_CLASS.available}`} />
-                    Available ({spacesWithGeometry.length - occupiedResourceIds.size})
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className={`inline-block h-2.5 w-4 rounded-sm border ${SPACE_LEGEND_CELL_CLASS.occupied} ${SPACE_LEGEND_BORDER_CLASS.occupied}`} />
-                    Occupied ({occupiedResourceIds.size - conflictingResourceIds.size})
-                  </span>
-                  {conflictingResourceIds.size > 0 && (
-                    <span className="flex items-center gap-1">
-                      <span className={`inline-block h-2.5 w-4 rounded-sm border ${SPACE_LEGEND_CELL_CLASS.conflict} ${SPACE_LEGEND_BORDER_CLASS.conflict}`} />
-                      Conflict ({conflictingResourceIds.size})
-                    </span>
-                  )}
-                </div>
+                <Legend
+                  className="absolute top-2 right-2 gap-x-3 text-xs text-muted-foreground"
+                  items={[
+                    {
+                      className: `${SPACE_LEGEND_CELL_CLASS.available} ${SPACE_LEGEND_BORDER_CLASS.available}`,
+                      label: `Available (${spacesWithGeometry.length - occupiedResourceIds.size})`,
+                    },
+                    {
+                      className: `${SPACE_LEGEND_CELL_CLASS.occupied} ${SPACE_LEGEND_BORDER_CLASS.occupied}`,
+                      label: `Occupied (${occupiedResourceIds.size - conflictingResourceIds.size})`,
+                    },
+                    ...(conflictingResourceIds.size > 0
+                      ? [{
+                          className: `${SPACE_LEGEND_CELL_CLASS.conflict} ${SPACE_LEGEND_BORDER_CLASS.conflict}`,
+                          label: `Conflict (${conflictingResourceIds.size})`,
+                        }]
+                      : []),
+                  ]}
+                />
               </div>
             )}
           </div>

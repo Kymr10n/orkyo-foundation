@@ -15,36 +15,9 @@ public sealed class MigrationScopeTests
     public void AScriptIsDefaultScoped_UnlessDeclared()
     {
         var script = new MigrationScript("V001__x", "m", MigrationTargetDatabase.Tenant, "SELECT 1;", "abc",
-            Array.Empty<string>(), Array.Empty<string>());
+            Array.Empty<string>());
 
         script.Scope.Should().Be(MigrationScope.Default);
-    }
-
-    [Theory]
-    [InlineData("-- @scope: tenant-database-only")]
-    [InlineData("--@scope:TENANT-DATABASE-ONLY")]
-    [InlineData("   --  @scope:   tenant-database-only   ")]
-    public void TheDirective_IsParsedFromTheFile(string line)
-    {
-        EmbeddedSqlLoader.ParseScope($"{line}\nSELECT 1;").Should().Be(MigrationScope.TenantDatabaseOnly);
-    }
-
-    [Theory]
-    [InlineData("SELECT 1; -- @scope: tenant-database-only")]  // not a whole-line comment
-    [InlineData("-- scope: tenant-database-only")]              // missing the @
-    [InlineData("-- @scope: default")]
-    [InlineData("SELECT 1;")]
-    public void OtherLines_LeaveTheDefault(string line)
-    {
-        EmbeddedSqlLoader.ParseScope($"{line}\nSELECT 1;").Should().Be(MigrationScope.Default);
-    }
-
-    [Fact]
-    public void AnUnknownValue_IsRefused_NotIgnored()
-    {
-        var act = () => EmbeddedSqlLoader.ParseScope("-- @scope: tenant-only\nSELECT 1;");
-
-        act.Should().Throw<InvalidOperationException>().WithMessage("*Unknown @scope value*");
     }
 
     [Fact]

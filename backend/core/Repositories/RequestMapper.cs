@@ -21,7 +21,7 @@ public static class RequestMapper
             Name = reader.GetString("name"),
             Description = reader.GetNullableString("description"),
             ParentRequestId = reader.GetNullableGuid("parent_request_id"),
-            PlanningMode = EnumMapper.ParseEnum<PlanningMode>(reader.GetString("planning_mode")),
+            PlanningMode = EnumMapper.FromDbValue<PlanningMode>(reader.GetString("planning_mode")),
             SortOrder = reader.GetInt32("sort_order"),
             SiteId = reader.GetNullableGuid("site_id"),
             RequestItemId = reader.GetNullableString("request_item_id"),
@@ -33,14 +33,12 @@ public static class RequestMapper
             EarliestStartTs = reader.GetNullableDateTime("earliest_start_ts"),
             LatestEndTs = reader.GetNullableDateTime("latest_end_ts"),
             MinimalDurationValue = reader.GetInt32("minimal_duration_value"),
-            MinimalDurationUnit = EnumMapper.ParseEnum<DurationUnit>(reader.GetString("minimal_duration_unit")),
+            MinimalDurationUnit = EnumMapper.FromDbValue<DurationUnit>(reader.GetString("minimal_duration_unit")),
             ActualDurationValue = reader.GetNullableInt32("actual_duration_value"),
             ActualDurationUnit = reader.GetNullableString("actual_duration_unit") is { } actualUnit
-                ? EnumMapper.ParseEnum<DurationUnit>(actualUnit)
+                ? EnumMapper.FromDbValue<DurationUnit>(actualUnit)
                 : null,
             Status = RequestStatusCalculator.Effective(storedStatus, startTs, endTs, DateTime.UtcNow),
-            // FromDbValue, not ParseEnum: the DB strings follow JsonStringEnumMemberName, and
-            // "k_of_n" does not match the member name KOfN the way "leaf" matches Leaf.
             PredecessorLogic = EnumMapper.FromDbValue<PredecessorLogic>(reader.GetString("predecessor_logic")),
             PredecessorLogicK = reader.GetNullableInt32("predecessor_logic_k"),
             SchedulingSettingsApply = reader.GetBoolean("scheduling_settings_apply"),
@@ -81,7 +79,7 @@ public static class RequestMapper
             {
                 Id = reader.GetGuid("criterion_pk"),
                 Name = reader.GetString("criterion_name"),
-                DataType = EnumMapper.ParseEnum<CriterionDataType>(reader.GetString("criterion_data_type")),
+                DataType = EnumMapper.FromDbValue<CriterionDataType>(reader.GetString("criterion_data_type")),
                 Unit = reader.GetNullableString("criterion_unit"),
                 EnumValues = reader.GetNullableString("criterion_enum_values") is { } enumValues
                     ? JsonSerializer.Deserialize<List<string>>(enumValues)

@@ -16,7 +16,6 @@ import { createContext, useContext, useMemo } from 'react';
 import { useMachine } from '@xstate/react';
 import { authMachine } from '@foundation/src/machines/authMachine';
 import type { AuthMachineEvent } from '@foundation/src/machines/authMachine';
-import { STORAGE_KEYS } from '@foundation/src/constants/storage';
 import {
   AUTH_STAGES,
   AUTH_EVENTS,
@@ -182,11 +181,4 @@ export function useAuth(): AuthContextValue {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
-
-// ── Sync utilities for non-hook contexts ─────────────────────────────────────
-
-
-export function getTenantSlugSync(): string | null {
-  return localStorage.getItem(STORAGE_KEYS.TENANT_SLUG);
 }

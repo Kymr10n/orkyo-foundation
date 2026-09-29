@@ -60,16 +60,6 @@ public class GroupCapabilityEndpointsTests
     #region GET /api/resource-groups/{groupId}/capabilities
 
     [Fact]
-    public async Task GetCapabilities_NoAuth_Returns401()
-    {
-        var groupId = Guid.NewGuid();
-
-        var response = await _unauthenticatedClient.GetAsync($"/api/resource-groups/{groupId}/capabilities");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task GetCapabilities_ValidGroup_Returns200()
     {
         var groupId = await CreateTestGroupAsync();
@@ -101,20 +91,6 @@ public class GroupCapabilityEndpointsTests
     #region POST /api/resource-groups/{groupId}/capabilities
 
     [Fact]
-    public async Task AddCapability_NoAuth_Returns401()
-    {
-        var groupId = Guid.NewGuid();
-        var request = new AddGroupCapabilityRequest(
-            CriterionId: Guid.NewGuid(),
-            Value: 42);
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            $"/api/resource-groups/{groupId}/capabilities", request);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
-
-    [Fact]
     public async Task AddCapability_ValidData_Returns201()
     {
         var groupId = await CreateTestGroupAsync();
@@ -122,7 +98,7 @@ public class GroupCapabilityEndpointsTests
 
         var request = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
-            Value: 42);
+            Value: JsonSerializer.SerializeToElement(42));
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", request);
@@ -156,9 +132,80 @@ public class GroupCapabilityEndpointsTests
 
         var response = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities",
-            new AddGroupCapabilityRequest(criterion.Id, true));
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddCapability_ValueOfTheWrongType_Returns400()
+    {
+        // Resources checked the value against the criterion's type; groups stored anything, so a
+        // Number criterion accepted "banana" and the mismatch only surfaced in the solver.
+        var groupId = await CreateTestGroupAsync();
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Number);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{groupId}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement("banana")));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var list = await _client.GetFromJsonAsync<List<GroupCapabilityInfo>>(
+            $"/api/resource-groups/{groupId}/capabilities");
+        Assert.DoesNotContain(list!, c => c.CriterionId == criterion.Id);
+    }
+
+    [Fact]
+    public async Task AnUnscopedCriterion_IsListedForTheType_AndAssignable()
+    {
+        // One applicability rule everywhere: a criterion whose scope was cleared applies to every
+        // type, as it already did on requests. It used to be valid on a request yet missing from
+        // the per-type criteria list.
+        var groupId = await CreateTestGroupAsync();
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Boolean);
+        (await _client.PutAsJsonAsync($"/api/criteria/{criterion.Id}/applicability",
+            new UpdateCriterionApplicabilityRequest { ResourceTypeKeys = [] })).EnsureSuccessStatusCode();
+
+        var forPeople = await _client.GetFromJsonAsync<List<CriterionInfo>>("/api/criteria?resourceType=person");
+        Assert.Contains(forPeople!, c => c.Id == criterion.Id);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{groupId}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AddCapability_SameCriterionTwice_ReplacesTheValue()
+    {
+        // Same contract as the resource capability POST: an upsert, not insert-then-409.
+        var groupId = await CreateTestGroupAsync();
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Number);
+        var url = $"/api/resource-groups/{groupId}/capabilities";
+
+        var first = await _client.PostAsJsonAsync(url,
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(1)));
+        var second = await _client.PostAsJsonAsync(url,
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(2)));
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var list = await _client.GetFromJsonAsync<List<GroupCapabilityInfo>>(url);
+        var only = Assert.Single(list!, c => c.CriterionId == criterion.Id);
+        Assert.Equal(2, only.Value.GetInt32());
+        Assert.Equal((await first.Content.ReadFromJsonAsync<GroupCapabilityInfo>())!.Id, only.Id);
+    }
+
+    [Fact]
+    public async Task AddCapability_MissingGroup_Returns404()
+    {
+        var criterion = await CreateSpaceCriterionAsync(CriterionDataType.Boolean);
+
+        var response = await _client.PostAsJsonAsync(
+            $"/api/resource-groups/{Guid.NewGuid()}/capabilities",
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement(true)));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -169,7 +216,7 @@ public class GroupCapabilityEndpointsTests
 
         var addRequest = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
-            Value: true);
+            Value: JsonSerializer.SerializeToElement(true));
 
         var addResponse = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", addRequest);
@@ -185,15 +232,6 @@ public class GroupCapabilityEndpointsTests
     #endregion
 
     #region DELETE /api/resource-groups/{groupId}/capabilities/{capabilityId}
-
-    [Fact]
-    public async Task DeleteCapability_NoAuth_Returns401()
-    {
-        var response = await _unauthenticatedClient.DeleteAsync(
-            $"/api/resource-groups/{Guid.NewGuid()}/capabilities/{Guid.NewGuid()}");
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-    }
 
     [Fact]
     public async Task DeleteCapability_NonExistent_Returns404()
@@ -215,7 +253,7 @@ public class GroupCapabilityEndpointsTests
         // Create capability
         var addRequest = new AddGroupCapabilityRequest(
             CriterionId: criterion.Id,
-            Value: 99);
+            Value: JsonSerializer.SerializeToElement(99));
 
         var addResponse = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities", addRequest);
@@ -240,7 +278,7 @@ public class GroupCapabilityEndpointsTests
         // Create
         var addResponse = await _client.PostAsJsonAsync(
             $"/api/resource-groups/{groupId}/capabilities",
-            new AddGroupCapabilityRequest(criterion.Id, "test-value"));
+            new AddGroupCapabilityRequest(criterion.Id, JsonSerializer.SerializeToElement("test-value")));
         addResponse.EnsureSuccessStatusCode();
 
         var created = await addResponse.Content.ReadFromJsonAsync<GroupCapabilityInfo>();

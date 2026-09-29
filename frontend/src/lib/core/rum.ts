@@ -8,8 +8,8 @@
  *   - Cumulative Layout Shift (CLS)
  *   - Long tasks (> 50ms)
  *
- * All metrics are logged to the console in development.
- * To ship metrics to a backend collector, set `VITE_RUM_ENDPOINT`.
+ * Development only: the vitals are logged to the console and nowhere else. In a
+ * production build `initRUM` registers no observer, so nothing runs and nothing is kept.
  */
 
 import { runtimeConfig } from '@foundation/src/config/runtime';
@@ -39,25 +39,19 @@ function rate(
   return "poor";
 }
 
-// ── Collected metrics ───────────────────────────────────────────────────────
-
-const metrics: WebVital[] = [];
+// ── Reporting ───────────────────────────────────────────────────────────────
 
 function record(vital: WebVital) {
-  metrics.push(vital);
-
-  if (runtimeConfig.isDev) {
-    const colour =
-      vital.rating === "good"
-        ? "color: green"
-        : vital.rating === "poor"
-          ? "color: red"
-          : "color: orange";
-    console.log(
-      `%c[RUM] ${vital.name}: ${vital.value.toFixed(1)}ms (${vital.rating})`,
-      colour,
-    );
-  }
+  const colour =
+    vital.rating === "good"
+      ? "color: green"
+      : vital.rating === "poor"
+        ? "color: red"
+        : "color: orange";
+  console.log(
+    `%c[RUM] ${vital.name}: ${vital.value.toFixed(1)}ms (${vital.rating})`,
+    colour,
+  );
 }
 
 // ── Observers ───────────────────────────────────────────────────────────────
@@ -131,15 +125,12 @@ function observeNavigation() {
 
       const ttfb = nav.responseStart - nav.requestStart;
       record({ name: "TTFB", value: ttfb, rating: rate("TTFB", ttfb) });
-
-      if (runtimeConfig.isDev) {
-        console.log(
-          `[RUM] Navigation: DNS=${(nav.domainLookupEnd - nav.domainLookupStart).toFixed(0)}ms ` +
-            `TCP=${(nav.connectEnd - nav.connectStart).toFixed(0)}ms ` +
-            `DOMInteractive=${nav.domInteractive.toFixed(0)}ms ` +
-            `Load=${nav.loadEventEnd.toFixed(0)}ms`,
-        );
-      }
+      console.log(
+        `[RUM] Navigation: DNS=${(nav.domainLookupEnd - nav.domainLookupStart).toFixed(0)}ms ` +
+          `TCP=${(nav.connectEnd - nav.connectStart).toFixed(0)}ms ` +
+          `DOMInteractive=${nav.domInteractive.toFixed(0)}ms ` +
+          `Load=${nav.loadEventEnd.toFixed(0)}ms`,
+      );
     }, 0);
   });
 }
@@ -149,7 +140,7 @@ function observeLongTasks() {
   if (!PerformanceObserver.supportedEntryTypes?.includes("longtask")) return;
   const obs = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
-      if (runtimeConfig.isDev && entry.duration > 100) {
+      if (entry.duration > 100) {
         console.warn(
           `[RUM] Long task: ${entry.duration.toFixed(0)}ms`,
           entry,
@@ -163,21 +154,15 @@ function observeLongTasks() {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Initialize all RUM observers. Call once at app startup (e.g. in main.tsx).
+ * Initialize all RUM observers in development. Call once at app startup (e.g. in main.tsx);
+ * in a production build it does nothing.
  */
 export function initRUM() {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || !runtimeConfig.isDev) return;
 
   observeLCP();
   observeFID();
   observeCLS();
   observeNavigation();
   observeLongTasks();
-}
-
-/**
- * Get all collected web vitals so far.
- */
-export function getMetrics(): readonly WebVital[] {
-  return metrics;
 }

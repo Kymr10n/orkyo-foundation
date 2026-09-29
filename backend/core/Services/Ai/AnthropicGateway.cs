@@ -1,5 +1,7 @@
+using System.Net;
 using System.Text.Json;
 using Anthropic;
+using Anthropic.Exceptions;
 using Anthropic.Models.Messages;
 using Api.Models;
 
@@ -101,14 +103,7 @@ public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthro
         }
         catch (Exception ex)
         {
-            var reason = ClassifyFailure(ex) switch
-            {
-                "credential_invalid" => "invalid_key",
-                "upstream_busy" => "network",
-                _ => ex.Message.Contains("model", StringComparison.OrdinalIgnoreCase)
-                    ? "model_unavailable"
-                    : "network",
-            };
+            var reason = ClassifyProbeFailure(ex);
             // Deliberately coarse: an admin needs to know whether the key is wrong or the
             // network is, not the provider's internal error text.
             logger.LogWarning("AI credential probe failed: {Reason}", reason);
@@ -217,17 +212,25 @@ public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthro
     }
 
     /// <summary>
-    /// Maps a provider failure onto a stable code. Status is read off the exception text
-    /// because the SDK's typed exceptions differ by transport, and the three classes we
-    /// act on are distinguishable either way.
+    /// Maps a provider failure onto a stable code by the HTTP status the SDK's
+    /// <see cref="AnthropicApiException"/> carries. Anything without a status (transport,
+    /// parse or I/O failure) is an upstream error.
     /// </summary>
-    private static string ClassifyFailure(Exception ex)
+    internal static string ClassifyFailure(Exception ex) => (ex as AnthropicApiException)?.StatusCode switch
     {
-        var message = ex.ToString();
-        if (message.Contains("401") || message.Contains("authentication", StringComparison.OrdinalIgnoreCase))
-            return "credential_invalid";
-        if (message.Contains("429") || message.Contains("529") || message.Contains("overloaded", StringComparison.OrdinalIgnoreCase))
-            return "upstream_busy";
-        return "upstream_error";
-    }
+        HttpStatusCode.Unauthorized => "credential_invalid",
+        HttpStatusCode.TooManyRequests or OverloadedStatus => "upstream_busy",
+        _ => "upstream_error",
+    };
+
+    /// <summary>The coarse reason a credential probe reports: the key, the model, or the network.</summary>
+    internal static string ClassifyProbeFailure(Exception ex) => (ex as AnthropicApiException)?.StatusCode switch
+    {
+        HttpStatusCode.Unauthorized => "invalid_key",
+        HttpStatusCode.NotFound => "model_unavailable",
+        _ => "network",
+    };
+
+    /// <summary>Anthropic's non-standard "overloaded" status.</summary>
+    private const HttpStatusCode OverloadedStatus = (HttpStatusCode)529;
 }

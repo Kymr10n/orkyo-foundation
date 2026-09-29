@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type * as ApiUtils from "../core/api-utils";
+import { describe, expect, it, vi } from "vitest";
+import * as apiClient from "../core/api-client";
+import { API_PATHS } from "../core/api-paths";
+import { TENANT_HEADER_NAME } from "@foundation/src/constants/http";
 import {
   canCreateTenant,
   cancelTenantDeletion,
@@ -10,315 +12,62 @@ import {
   leaveTenant,
 } from "./tenant-account-api";
 
-// Mock AuthContext (BFF mode)
-vi.mock("@foundation/src/contexts/AuthContext", () => ({
-  getAuthTokenSync: () => null,
-  getTenantSlugSync: () => null,
-}));
+vi.mock("../core/api-client");
 
-// Mock CSRF
-vi.mock("@foundation/src/lib/core/csrf", () => ({
-  getCsrfToken: () => 'test-csrf-token',
-  CSRF_HEADER_NAME: 'X-CSRF-Token',
-  isMutatingMethod: (m: string) => ['POST','PUT','PATCH','DELETE'].includes(m.toUpperCase()),
-}));
+// These run before a tenant is chosen, so every call drops the tenant header. Credentials,
+// CSRF and error mapping belong to api-client (api-client.test.ts).
+const noTenant = expect.objectContaining({ omitHeaders: [TENANT_HEADER_NAME] });
 
-// Mock runtime config
-vi.mock("@foundation/src/config/runtime", () => ({
-  runtimeConfig: { apiBaseUrl: "http://localhost:5000", baseDomain: "" },
-}));
+describe("tenant-account-api", () => {
+  it("canCreateTenant reads the quota answer", async () => {
+    const answer = { canCreate: true, currentCount: 1, maxAllowed: 5 };
+    vi.mocked(apiClient.apiGet).mockResolvedValue(answer);
 
-// Mock api-utils
-vi.mock("../core/api-utils", async (importOriginal) => {
-  const actual = await importOriginal<typeof ApiUtils>();
-  return {
-    ...actual,
-    handleApiError: vi.fn().mockImplementation(async (response: Response) => {
-      const text = (await response.text?.()) || `Error ${(response).status}`;
-      throw new Error(text);
-    }),
-    API_BASE_URL: "http://localhost:5000",
-  };
-});
-
-// Mock fetch
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
-
-describe("tenants-api", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+    expect(await canCreateTenant()).toEqual(answer);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.TENANTS.CAN_CREATE, noTenant);
   });
 
-  describe("canCreateTenant", () => {
-    it("returns canCreate status when API returns success", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ canCreate: true, currentCount: 1, maxAllowed: 5 }),
-      });
+  it("createTenant posts the request and returns the created tenant", async () => {
+    const request = { slug: "acme", displayName: "Acme", starterTemplate: "empty" };
+    const created = { id: "t1", slug: "acme", displayName: "Acme", state: "active" };
+    vi.mocked(apiClient.apiPost).mockResolvedValue(created);
 
-      const result = await canCreateTenant();
-
-      expect(result).toEqual({
-        canCreate: true,
-        currentCount: 1,
-        maxAllowed: 5,
-      });
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants/can-create",
-        expect.objectContaining({
-          method: "GET",
-          credentials: "include",
-        }),
-      );
-    });
-
-    it("throws error when API call fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      await expect(canCreateTenant()).rejects.toThrow("Unauthorized");
-    });
-
-    it("includes Content-Type in headers", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ canCreate: true }),
-      });
-
-      await canCreateTenant();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-          }),
-        }),
-      );
-    });
+    expect(await createTenant(request)).toEqual(created);
+    expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.TENANTS.CREATE, request, noTenant);
   });
 
-  describe("createTenant", () => {
-    it("creates tenant and returns response", async () => {
-      const mockResponse = {
-        id: "tenant-123",
-        slug: "my-company",
-        displayName: "My Company",
-        state: "active",
-      };
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockResponse,
-      });
+  it("getTenantMemberships and getStarterTemplates read their lists", async () => {
+    vi.mocked(apiClient.apiGet).mockResolvedValue([]);
 
-      const result = await createTenant({
-        slug: "my-company",
-        displayName: "My Company",
-      });
+    await getTenantMemberships();
+    await getStarterTemplates();
 
-      expect(result).toEqual(mockResponse);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants",
-        expect.objectContaining({
-          method: "POST",
-          body: JSON.stringify({
-            slug: "my-company",
-            displayName: "My Company",
-          }),
-        }),
-      );
-    });
-
-    it("throws error when creation fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 400,
-        text: async () => "Slug already exists",
-      });
-
-      await expect(
-        createTenant({ slug: "test", displayName: "Test" }),
-      ).rejects.toThrow("Slug already exists");
-    });
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.TENANTS.MEMBERSHIPS, noTenant);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.TENANTS.STARTER_TEMPLATES, noTenant);
   });
 
-  describe("getTenantMemberships", () => {
-    it("returns list of memberships", async () => {
-      const mockMemberships = [
-        {
-          tenantId: "tenant-1",
-          tenantSlug: "acme",
-          tenantDisplayName: "ACME Corp",
-          tenantStatus: "active",
-          role: "admin",
-          status: "active",
-          isOwner: true,
-          joinedAt: "2024-01-01T00:00:00Z",
-        },
-      ];
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockMemberships,
-      });
+  it("leaveTenant and cancelTenantDeletion post with no body to parse", async () => {
+    vi.mocked(apiClient.apiPost).mockResolvedValue(undefined);
 
-      const result = await getTenantMemberships();
+    await leaveTenant("t1");
+    await cancelTenantDeletion("t1");
 
-      expect(result).toEqual(mockMemberships);
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants/memberships",
-        expect.objectContaining({ method: "GET" }),
-      );
-    });
+    const noBody = expect.objectContaining({ omitHeaders: [TENANT_HEADER_NAME], skipJsonParse: true });
+    expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.TENANTS.leave("t1"), {}, noBody);
+    expect(apiClient.apiPost).toHaveBeenCalledWith(API_PATHS.TENANTS.cancelDeletion("t1"), {}, noBody);
   });
 
-  describe("leaveTenant", () => {
-    it("makes POST request to leave endpoint", async () => {
-      mockFetch.mockResolvedValue({ ok: true });
+  it("deleteTenant deletes the tenant", async () => {
+    vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
 
-      await leaveTenant("tenant-123");
+    await deleteTenant("t1");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants/tenant-123/leave",
-        expect.objectContaining({ method: "POST" }),
-      );
-    });
-
-    it("throws error when leave fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: async () => "Cannot leave as only admin",
-      });
-
-      await expect(leaveTenant("tenant-123")).rejects.toThrow(
-        "Cannot leave as only admin",
-      );
-    });
+    expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.TENANTS.delete("t1"), noTenant);
   });
 
-  describe("deleteTenant", () => {
-    it("makes DELETE request to tenant endpoint", async () => {
-      mockFetch.mockResolvedValue({ ok: true });
+  it("passes a failure through", async () => {
+    vi.mocked(apiClient.apiGet).mockRejectedValue(new Error("Unauthorized"));
 
-      await deleteTenant("tenant-123");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants/tenant-123",
-        expect.objectContaining({ method: "DELETE" }),
-      );
-    });
-
-    it("throws error when delete fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 403,
-        text: async () => "Only owner can delete",
-      });
-
-      await expect(deleteTenant("tenant-123")).rejects.toThrow(
-        "Only owner can delete",
-      );
-    });
-  });
-
-  describe("getStarterTemplates", () => {
-    it("returns list of starter templates", async () => {
-      const mockTemplates = [
-        {
-          key: "blank",
-          name: "Blank",
-          description: "Start from scratch",
-          icon: "blank",
-          includesDemoData: false,
-        },
-        {
-          key: "office",
-          name: "Office",
-          description: "Standard office layout",
-          icon: "office",
-          includesDemoData: true,
-        },
-      ];
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => mockTemplates,
-      });
-
-      const result = await getStarterTemplates();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants/starter-templates",
-        expect.objectContaining({ method: "GET" }),
-      );
-      expect(result).toEqual(mockTemplates);
-    });
-
-    it("throws error when fetch fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 500,
-        text: async () => "Internal Server Error",
-      });
-
-      await expect(getStarterTemplates()).rejects.toThrow(
-        "Internal Server Error",
-      );
-    });
-  });
-
-  describe("authentication", () => {
-    it("uses credentials: include for cookie auth (no Bearer token)", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({ canCreate: false }),
-      });
-
-      const result = await canCreateTenant();
-
-      expect(result).toEqual({ canCreate: false });
-      expect(mockFetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ credentials: "include" }),
-      );
-      // No Authorization header in BFF mode
-      const [, options] = mockFetch.mock.calls[0] as [string, RequestInit];
-      const headers = options.headers as Record<string, string>;
-      expect(headers.Authorization).toBeUndefined();
-    });
-  });
-
-  describe("cancelTenantDeletion", () => {
-    it("sends POST to /api/tenants/{id}/cancel-deletion", async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        text: async () => "",
-      });
-
-      await cancelTenantDeletion("tenant-123");
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://localhost:5000/api/tenants/tenant-123/cancel-deletion",
-        expect.objectContaining({
-          method: "POST",
-          credentials: "include",
-        }),
-      );
-    });
-
-    it("throws when the request fails", async () => {
-      mockFetch.mockResolvedValue({
-        ok: false,
-        status: 400,
-        text: async () => "Tenant is not being deleted.",
-      });
-
-      await expect(cancelTenantDeletion("tenant-123")).rejects.toThrow(
-        "Tenant is not being deleted.",
-      );
-    });
+    await expect(canCreateTenant()).rejects.toThrow("Unauthorized");
   });
 });

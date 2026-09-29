@@ -251,38 +251,24 @@ public class LifecycleToolsTests
     [Fact]
     public async Task UnblockResourceTime_RemovesAnAbsenceThatBelongsToTheResource()
     {
-        _absences.Setup(s => s.GetByIdAsync(AbsenceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Absence());
-        _absences.Setup(s => s.DeleteAsync(AbsenceId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _absences.Setup(s => s.DeleteAsync(ResourceId, AbsenceId, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
         (await CreateTools().UnblockResourceTimeAsync(ResourceId, AbsenceId)).Should().BeTrue();
     }
 
     [Fact]
-    public async Task UnblockResourceTime_WillNotDeleteAnotherResourcesAbsence()
+    public async Task UnblockResourceTime_DeletesOnlyWithinTheNamedResource()
     {
-        // The ownership re-check is what stops a hallucinated id from freeing up a machine nobody
-        // asked about. Without it the delete would succeed on the id alone.
-        _absences.Setup(s => s.GetByIdAsync(AbsenceId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Absence(resourceId: Guid.NewGuid()));
+        // The delete is scoped to the resource: a hallucinated id cannot free up a machine nobody
+        // asked about. Another resource's absence, or none at all, is a miss the agent is told about.
+        _absences.Setup(s => s.DeleteAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
 
         var thrown = await Assert.ThrowsAsync<McpException>(
             () => CreateTools().UnblockResourceTimeAsync(ResourceId, AbsenceId));
 
         thrown.Message.Should().Contain("list_resource_absences");
-        _absences.Verify(s => s.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task UnblockResourceTime_SaysSoWhenTheAbsenceDoesNotExist()
-    {
-        _absences.Setup(s => s.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((ResourceAbsenceInfo?)null);
-
-        await Assert.ThrowsAsync<McpException>(
-            () => CreateTools().UnblockResourceTimeAsync(ResourceId, AbsenceId));
-
-        _absences.Verify(s => s.DeleteAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+        _absences.Verify(s => s.DeleteAsync(ResourceId, AbsenceId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

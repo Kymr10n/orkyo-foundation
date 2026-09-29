@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { AutoSchedulePreviewDialog } from './AutoSchedulePreviewDialog';
 import type { AutoSchedulePreviewResponse } from '@foundation/src/lib/api/auto-schedule-api';
@@ -67,10 +67,6 @@ function renderDialog(props: Partial<React.ComponentProps<typeof AutoSchedulePre
 }
 
 describe('AutoSchedulePreviewDialog', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('renders dialog title', () => {
     renderDialog();
     expect(screen.getByText('Auto-schedule preview')).toBeInTheDocument();
@@ -109,7 +105,7 @@ describe('AutoSchedulePreviewDialog', () => {
     // Timestamps to the minute and a working-time duration, not whole days.
     expect(screen.getByText('3h 20m')).toBeInTheDocument();
     expect(screen.getByText('18h')).toBeInTheDocument();
-    expect(screen.getAllByText(/Mar 2, 2026 \d\d:00/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Mar 2, 2026, \d\d:00/).length).toBeGreaterThan(0);
   });
 
   it('shows "No assignments proposed" when empty', () => {

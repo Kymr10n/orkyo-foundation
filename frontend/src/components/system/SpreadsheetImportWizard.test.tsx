@@ -6,6 +6,7 @@ import { SpreadsheetImportWizard } from './SpreadsheetImportWizard';
 import { FeatureKeys, type FeatureKey } from '@foundation/contracts/plans';
 import type { SheetData } from '@foundation/src/lib/utils/spreadsheet-import';
 import { pagedResult } from '@foundation/src/test-utils/paged-result';
+import { useSiteStore } from '@foundation/src/store/site-store';
 
 const readWorkbook = vi.fn<(file: File) => Promise<SheetData[]>>();
 const getSpaces = vi.fn();
@@ -35,11 +36,6 @@ vi.mock('@foundation/src/hooks/useResourceTypes', () => ({
 vi.mock('@foundation/src/hooks/useSites', () => ({
   useSites: () => ({ data: [{ id: 'site-1', name: 'Main plant' }] }),
 }));
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: (selector: (s: { selectedSiteId: string | null }) => unknown) =>
-    selector({ selectedSiteId: 'site-1' }),
-}));
-
 function sheet(name: string, dataRows: (string | number | null)[][]): SheetData {
   return { name, rows: [[], [], [], [], ['headers'], ...dataRows] };
 }
@@ -68,6 +64,7 @@ async function pickFileAndReview(user: ReturnType<typeof userEvent.setup>) {
 }
 
 beforeEach(() => {
+  useSiteStore.setState({ selectedSiteId: 'site-1' });
   dataExportAvailable = true;
   activeTypes = [{ key: 'space', hasGeometry: true }];
   readWorkbook.mockReset().mockResolvedValue(TEMPLATE);

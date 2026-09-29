@@ -42,7 +42,10 @@ permissions: {}
 env:
   REGISTRY: ghcr.io
   KC_IMAGE: ghcr.io/kymr10n/keycloak
-  KC_VERSION: "26.6"
+  # KC_VERSION (the <major>.<minor> tag prefix) is not set here: detect-changes
+  # derives it from keycloak/Dockerfile with scripts/ci/kc-version.sh and exposes it
+  # as the kc_version output, so the tag prefix follows the pinned upstream image.
+  # publish (tags only, where detect-changes is skipped) runs the script itself.
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -58,10 +61,15 @@ jobs:
     if: "!startsWith(github.ref, 'refs/tags/v')"
     outputs:
       keycloak: ${{ steps.result.outputs.keycloak }}
+      kc_version: ${{ steps.kc.outputs.KC_VERSION }}
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Derive KC_VERSION from keycloak/Dockerfile
+        id: kc
+        run: scripts/ci/kc-version.sh >> "$GITHUB_OUTPUT"
 
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
@@ -98,10 +106,44 @@ jobs:
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
+
   # ─────────────────────────────────────────────
-  # SECURITY AUDITS — three parallel jobs, all gate downstream builds
+  # PR GATES — the local hooks, re-run where --no-verify cannot skip them
   # ─────────────────────────────────────────────
-  # The three audit jobs call this repo's own reusable workflows — the same files the
+  pr-gates:
+    name: pr-gates
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Stale markers and docs-impact trailers
+        env:
+          BASE: origin/${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          scripts/ci/check-stale-markers.sh --base "$BASE"
+          status=0
+          msg="$RUNNER_TEMP/commit-msg"
+          for sha in $(git rev-list --no-merges "$BASE..$HEAD_SHA"); do
+            git log -1 --format=%B "$sha" > "$msg"
+            files=$(git diff-tree --no-commit-id --name-only -r --diff-filter=ACMR "$sha")
+            if ! DOCS_IMPACT_FILES="$files" scripts/check-docs-impact.sh "$msg"; then
+              echo "::error::Commit $sha has no Docs-impact trailer"
+              status=1
+            fi
+          done
+          exit "$status"
+
+  # ─────────────────────────────────────────────
+  # SECURITY AUDITS — secrets + Trivy fs, and the npm license scan
+  # ─────────────────────────────────────────────
+  # The audit jobs call this repo's own reusable workflows — the same files the
   # products call by SHA — so one change to a scan applies everywhere. Job ids are kept.
   # NOTE: a reusable job's check is displayed as "<job> / <inner job name>", so the
   # required-check entries in the main ruleset must be updated when this merges.
@@ -116,16 +158,6 @@ jobs:
       migration-lint-path: backend/migrations-foundation/sql
       run-iac-scan: false
 
-  audit-nuget:
-    if: "!startsWith(github.ref, 'refs/tags/v')"
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/reusable-audit-nuget.yml
-    with:
-      solution-path: Orkyo.Foundation.slnx
-      with-private-registry: false
-
   audit-npm:
     if: "!startsWith(github.ref, 'refs/tags/v')"
     permissions:
@@ -135,6 +167,10 @@ jobs:
       with-private-registry: false
       # The npm package is distributed (AGPL), so its dependency licenses are checked.
       with-license-scan: true
+      # Vulnerabilities: dependency-review (PRs) and the Trivy fs scan in audit-secrets
+      # already cover both lockfiles, so npm audit and `dotnet list --vulnerable` do not
+      # run here. Products still call both reusables with their defaults.
+      with-npm-audit: false
 
   # ─────────────────────────────────────────────
   # BACKEND CI
@@ -194,26 +230,9 @@ jobs:
           flags: backend
           token: ${{ secrets.CODECOV_TOKEN }}
 
+      # Packs every project in the solution; non-package projects set IsPackable=false.
       - name: Pack dry-run (validate all publishable packages build cleanly)
-        run: |
-          dotnet pack backend/shared/Orkyo.Shared.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/migrator-runtime/Orkyo.Migrator.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/core/Orkyo.Foundation.Core.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/src/Orkyo.Foundation.Web.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/hosting/Orkyo.Foundation.Hosting.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/seeding/Orkyo.Foundation.Seed.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
-          dotnet pack backend/testsupport/Orkyo.Foundation.TestSupport.csproj \
-            -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
+        run: dotnet pack Orkyo.Foundation.slnx -c Release -p:Version=0.0.0-ci --output /tmp/dry-run-nupkgs
 
   # ─────────────────────────────────────────────
   # FRONTEND CI
@@ -300,7 +319,7 @@ jobs:
     name: Build Keycloak Image
     timeout-minutes: 30
     runs-on: ubuntu-latest
-    needs: [backend-ci, frontend-ci, keycloak-dry-build]
+    needs: [backend-ci, frontend-ci, keycloak-dry-build, detect-changes]
     if: >-
       !failure() && !cancelled() &&
       needs.keycloak-dry-build.result == 'success' &&
@@ -309,6 +328,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      KC_VERSION: ${{ needs.detect-changes.outputs.kc_version }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -338,11 +359,13 @@ jobs:
     name: Container Scan
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    needs: [build-keycloak-image]
+    needs: [build-keycloak-image, detect-changes]
     if: needs.build-keycloak-image.result == 'success'
 
     permissions:
       contents: read
+    env:
+      KC_VERSION: ${{ needs.detect-changes.outputs.kc_version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -356,9 +379,9 @@ jobs:
       # HIGH findings in the upstream, digest-pinned Keycloak image are bundled by
       # Keycloak itself (netty/jackson/jdbc/…) and cannot be fixed independently of an
       # upstream rebase — the deploy ships this exact image regardless. So HIGHs are
-      # reported for visibility but do NOT block the release; the nightly
-      # security-refresh job tracks them and prompts a digest bump. CRITICAL findings
-      # still hard-stop the pipeline (gate step below).
+      # reported for visibility but do NOT block the release; a Dependabot digest bump
+      # resolves them, and the nightly base-image-scan watches the base for CRITICALs.
+      # CRITICAL findings still hard-stop the pipeline (gate step below).
       - name: Trivy — KC image scan (HIGH, report-only)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -381,7 +404,7 @@ jobs:
               cat trivy-high.txt
               echo '```'
               echo
-              echo "_HIGHs in the upstream Keycloak image are bundled by Keycloak and resolved only by an upstream rebase (tracked by the nightly security-refresh). They do not block this release — CRITICALs do._"
+              echo "_HIGHs in the upstream Keycloak image are bundled by Keycloak and resolved only by an upstream rebase (resolved by a Dependabot digest bump). They do not block this release — CRITICALs do._"
             else
               echo "No new HIGH findings."
             fi
@@ -397,15 +420,7 @@ jobs:
           trivyignores: .trivyignore
 
       - name: Verify non-root container
-        run: |
-          uid=$(docker run --rm \
-            ${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }} \
-            id -u 2>/dev/null || echo "1000")
-          echo "Container UID: $uid"
-          if [ "$uid" = "0" ]; then
-            echo "::error::Container runs as root — must use non-root user"
-            exit 1
-          fi
+        run: scripts/ci/verify-nonroot.sh "${{ env.KC_IMAGE }}:${{ env.KC_VERSION }}-orkyo-sha-${{ github.sha }}"
 
       - name: Generate SBOM
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
@@ -445,6 +460,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # detect-changes does not run on tags, so this job derives KC_VERSION itself.
+      - name: Derive KC_VERSION from keycloak/Dockerfile
+        run: scripts/ci/kc-version.sh >> "$GITHUB_ENV"
 
       - name: Extract version from tag
         id: version
@@ -498,66 +517,9 @@ jobs:
       - name: Build
         run: dotnet build Orkyo.Foundation.slnx -c Release --no-restore
 
-      - name: Pack Orkyo.Shared
+      - name: Pack all packages
         run: |
-          dotnet pack backend/shared/Orkyo.Shared.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Migration.Abstractions
-        run: |
-          dotnet pack backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Migrator
-        run: |
-          dotnet pack backend/migrator-runtime/Orkyo.Migrator.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Foundation.Core
-        run: |
-          dotnet pack backend/core/Orkyo.Foundation.Core.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Foundation.Web
-        run: |
-          dotnet pack backend/src/Orkyo.Foundation.Web.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Foundation.Hosting
-        run: |
-          dotnet pack backend/hosting/Orkyo.Foundation.Hosting.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Foundation.Migrations
-        run: |
-          dotnet pack backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Foundation.Seed
-        run: |
-          dotnet pack backend/seeding/Orkyo.Foundation.Seed.csproj \
-            -c Release --no-build \
-            -p:Version=${{ steps.version.outputs.VERSION }} \
-            -o ./nupkgs
-
-      - name: Pack Orkyo.Foundation.TestSupport
-        run: |
-          dotnet pack backend/testsupport/Orkyo.Foundation.TestSupport.csproj \
-            -c Release --no-build \
+          dotnet pack Orkyo.Foundation.slnx -c Release --no-build \
             -p:Version=${{ steps.version.outputs.VERSION }} \
             -o ./nupkgs
 
@@ -779,7 +741,7 @@ jobs:
     concurrency:
       group: nuget-push
       cancel-in-progress: false
-    needs: [backend-ci, frontend-ci, nightly-publish-gate]
+    needs: [backend-ci, frontend-ci, nightly-publish-gate, detect-changes]
     if: >-
       !failure() && !cancelled() &&
       github.ref == 'refs/heads/main' &&
@@ -789,6 +751,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      KC_VERSION: ${{ needs.detect-changes.outputs.kc_version }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -834,20 +798,9 @@ jobs:
 
       - name: Pack all packages
         run: |
-          for proj in \
-            backend/shared/Orkyo.Shared.csproj \
-            backend/migration-abstractions/Orkyo.Migration.Abstractions.csproj \
-            backend/migrator-runtime/Orkyo.Migrator.csproj \
-            backend/core/Orkyo.Foundation.Core.csproj \
-            backend/src/Orkyo.Foundation.Web.csproj \
-            backend/hosting/Orkyo.Foundation.Hosting.csproj \
-            backend/migrations-foundation/Orkyo.Foundation.Migrations.csproj \
-            backend/seeding/Orkyo.Foundation.Seed.csproj \
-            backend/testsupport/Orkyo.Foundation.TestSupport.csproj; do
-            dotnet pack "$proj" -c Release --no-build \
-              -p:Version=${{ steps.version.outputs.VERSION }} \
-              -o ./nupkgs
-          done
+          dotnet pack Orkyo.Foundation.slnx -c Release --no-build \
+            -p:Version=${{ steps.version.outputs.VERSION }} \
+            -o ./nupkgs
 
       - name: Push NuGet packages (skip duplicate)
         run: |
@@ -973,8 +926,8 @@ jobs:
     name: Release Evidence
     needs:
       - detect-changes
+      - pr-gates
       - audit-secrets
-      - audit-nuget
       - audit-npm
       - backend-ci
       - frontend-ci

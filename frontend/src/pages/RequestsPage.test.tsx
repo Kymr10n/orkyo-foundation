@@ -2,10 +2,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router';
-import { TooltipProvider } from '@foundation/src/components/ui/tooltip';
 import { RequestsPage } from '@foundation/src/pages/RequestsPage';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
-import { getDescendantIds, getAncestorIds } from '@foundation/src/domain/request-tree';
+import { useSiteStore } from '@foundation/src/store/site-store';
+import { useRequestTreeStore } from '@foundation/src/store/request-tree-store';
+import { makeRequestFormData } from '@foundation/src/test-utils/request-fixtures';
 import { importRequests, exportRequests } from '@foundation/src/lib/utils/export-handlers';
 import { toast } from 'sonner';
 import { renderWithQuery, createTestQueryWrapper } from '@foundation/src/test-utils';
@@ -59,42 +60,8 @@ vi.mock('@foundation/src/hooks/useConflictRegistry', () => ({
   useConflictRegistry: () => mockConflictRegistry(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
-// Mock the store
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector) => {
-    const mockState = {
-      selectedSiteId: 'site-1',
-    };
-    return selector ? selector(mockState) : mockState;
-  }),
-}));
-
-let mockSelectedId: string | null = null;
-let mockViewMode: 'tree' | 'list' = 'tree';
-const mockToggle = vi.fn();
-const mockExpandAncestors = vi.fn();
-const mockExpandAll = vi.fn();
-const mockCollapseAll = vi.fn();
-const mockSetSelectedId = vi.fn();
-const mockSetViewMode = vi.fn((m: 'tree' | 'list') => { mockViewMode = m; });
-
-vi.mock('@foundation/src/store/request-tree-store', () => ({
-  useRequestTreeStore: vi.fn(() => ({
-    expandedIds: new Set<string>(),
-    toggle: mockToggle,
-    expandAncestors: mockExpandAncestors,
-    expandAll: mockExpandAll,
-    collapseAll: mockCollapseAll,
-    selectedId: mockSelectedId,
-    setSelectedId: mockSetSelectedId,
-    viewMode: mockViewMode,
-    setViewMode: mockSetViewMode,
-  })),
-}));
+// The site and tree stores are real; beforeEach resets them.
+const treeState = () => useRequestTreeStore.getState();
 
 const mockGetRequests = vi.fn((_?: any): Promise<any[]> => Promise.resolve([]));
 
@@ -168,13 +135,13 @@ vi.mock('@foundation/src/components/requests/RequestListView', () => ({
 
 // RequestFormDialog is the single view+edit surface now — mocked so the page
 // test can drive save/close/navigate without the real dialog internals, and
-// can assert the canEdit/allRequests/onNavigate props the page threads through.
+// can assert the allRequests/onNavigate props the page threads through.
 vi.mock('@foundation/src/components/requests/RequestFormDialog', () => ({
-  RequestFormDialog: ({ open, onSave, onOpenChange, canEdit, allRequests, onNavigate }: any) =>
+  RequestFormDialog: ({ open, onSave, onOpenChange, allRequests, onNavigate }: any) =>
     open ? (
-      <div data-testid="form-dialog" data-can-edit={String(canEdit)} data-has-all-requests={String(!!allRequests)}>
+      <div data-testid="form-dialog" data-has-all-requests={String(!!allRequests)}>
         Form Dialog
-        <button data-testid="form-save" onClick={() => { void Promise.resolve(onSave({ name: 'Test', planningMode: 'leaf' })).catch(() => {}); }}>Save</button>
+        <button data-testid="form-save" onClick={() => { void Promise.resolve(onSave(makeRequestFormData())).catch(() => {}); }}>Save</button>
         <button data-testid="form-close" onClick={() => onOpenChange(false)}>Close</button>
         {onNavigate && <button data-testid="form-navigate" onClick={() => onNavigate('p1')}>Navigate</button>}
       </div>
@@ -195,67 +162,13 @@ vi.mock('@foundation/src/lib/utils/export-handlers', () => ({
   importRequests: vi.fn(() => Promise.resolve([])),
 }));
 
-vi.mock('@foundation/src/domain/request-tree', () => ({
-  buildRequestTree: vi.fn((requests: any[]) => {
-    return requests
-      .filter((r: any) => !r.parentRequestId)
-      .map((r: any) => ({
-        request: r,
-        depth: 0,
-        expanded: false,
-        children: requests
-          .filter((c: any) => c.parentRequestId === r.id)
-          .map((c: any) => ({ request: c, depth: 1, expanded: false, children: [] })),
-      }));
-  }),
-  flattenTree: vi.fn((entries: any[]) => {
-    const result: any[] = [];
-    const flatten = (list: any[]) => {
-      for (const e of list) {
-        result.push(e);
-        if (e.children) flatten(e.children);
-      }
-    };
-    flatten(entries);
-    return result;
-  }),
-  flattenVisibleTree: vi.fn((entries: any[], _expandedIds: any) => {
-    const result: any[] = [];
-    const flatten = (list: any[]) => {
-      for (const e of list) {
-        result.push(e);
-        if (e.children) flatten(e.children);
-      }
-    };
-    flatten(entries);
-    return result;
-  }),
-  buildChildrenIdMap: vi.fn(() => new Map()),
-  getDescendantIds: vi.fn(() => []),
-  getAncestorIds: vi.fn(() => []),
-  getNextSortOrder: vi.fn(() => 0),
-  wouldCreateCycle: vi.fn(() => false),
-  canHaveChildren: vi.fn(() => true),
-}));
-
-vi.mock('@foundation/src/lib/utils/utils', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return {
-    ...actual,
-    buildUpdatePayload: vi.fn((d: any) => d),
-    buildCreatePayload: vi.fn((d: any) => d),
-  };
-});
-
 const createWrapper = () => {
   // The page's mutations declare their toasts in `meta`, so the wrapper carries the same
   // MutationCache production uses (with the mocked sonner toast) — otherwise no toast fires.
   const QueryWrapper = createTestQueryWrapper({ feedback: true });
   return ({ children }: { children: React.ReactNode }) => (
     <QueryWrapper>
-      <BrowserRouter>
-        <TooltipProvider>{children}</TooltipProvider>
-      </BrowserRouter>
+      <BrowserRouter>{children}</BrowserRouter>
     </QueryWrapper>
   );
 };
@@ -270,13 +183,10 @@ describe('RequestsPage', () => {
   });
 
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetRequests.mockResolvedValue([]);
-    mockSelectedId = null;
-    mockViewMode = 'tree';
+    useSiteStore.setState({ selectedSiteId: 'site-1' });
+    useRequestTreeStore.setState({ expandedIds: new Set<string>(), selectedId: null, viewMode: 'tree' });
     mockConflictRegistry.mockReturnValue({ conflictsByRequest: new Map() });
-    vi.mocked(getDescendantIds).mockReturnValue([]);
-    vi.mocked(getAncestorIds).mockReturnValue([]);
     vi.mocked(importRequests).mockResolvedValue([]);
     global.alert = vi.fn();
   });
@@ -285,7 +195,7 @@ describe('RequestsPage', () => {
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     expect(screen.getByText('Requests')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search requests...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search requests…')).toBeInTheDocument();
     await act(async () => {});
   });
 
@@ -380,9 +290,9 @@ describe('RequestsPage', () => {
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: 'Expand all' }));
-    expect(mockExpandAll).toHaveBeenCalledWith(['r1']);
+    expect([...treeState().expandedIds]).toEqual(['r1']);
     fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
-    expect(mockCollapseAll).toHaveBeenCalled();
+    expect(treeState().expandedIds.size).toBe(0);
   });
 
   it('shows Create Request button in empty state', async () => {
@@ -404,7 +314,7 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Alpha')).toBeInTheDocument();
     });
-    fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'Alpha' } });
+    fireEvent.change(screen.getByPlaceholderText('Search requests…'), { target: { value: 'Alpha' } });
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
@@ -420,7 +330,7 @@ describe('RequestsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('Alpha')).toBeInTheDocument();
     });
-    fireEvent.change(screen.getByPlaceholderText('Search requests...'), { target: { value: 'zzz' } });
+    fireEvent.change(screen.getByPlaceholderText('Search requests…'), { target: { value: 'zzz' } });
     await act(async () => { vi.advanceTimersByTime(300); });
     expect(screen.getByText(/try adjusting your search/i)).toBeInTheDocument();
   });
@@ -438,9 +348,9 @@ describe('RequestsPage', () => {
     });
     // Both toggles write the mode through the store (viewMode is store-backed).
     fireEvent.click(screen.getByRole('button', { name: 'List view' }));
-    expect(mockSetViewMode).toHaveBeenCalledWith('list');
+    expect(treeState().viewMode).toBe('list');
     fireEvent.click(screen.getByRole('button', { name: 'Tree view' }));
-    expect(mockSetViewMode).toHaveBeenCalledWith('tree');
+    expect(treeState().viewMode).toBe('tree');
   });
 
   // --- Edit from tree view opens form dialog ---
@@ -461,22 +371,9 @@ describe('RequestsPage', () => {
     });
   });
 
-  // --- Row click opens the dialog: edit mode for editors, view mode for viewers ---
+  // --- Row click opens the dialog; the dialog picks edit or view mode itself ---
 
-  it('opens the form dialog in edit mode when the user can edit', async () => {
-    mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-    ]);
-    const Wrapper = createWrapper();
-    render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
-    fireEvent.click(screen.getAllByText('Edit')[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'true');
-    });
-  });
-
-  it('opens the form dialog in view mode when the user cannot edit', async () => {
+  it('still opens the form dialog for a user who cannot edit (it renders read-only itself)', async () => {
     vi.mocked(useCanEdit).mockReturnValue(false);
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
@@ -485,9 +382,7 @@ describe('RequestsPage', () => {
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
     fireEvent.click(screen.getAllByText('Edit')[0]);
-    await waitFor(() => {
-      expect(screen.getByTestId('form-dialog')).toHaveAttribute('data-can-edit', 'false');
-    });
+    await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     // A viewer creates nothing, so the routing entry point is not offered at all.
     expect(screen.queryByText('New from routing')).not.toBeInTheDocument();
     vi.mocked(useCanEdit).mockReturnValue(true);
@@ -597,7 +492,7 @@ describe('RequestsPage', () => {
   // --- List view rendering ---
 
   it('renders requests in list view', async () => {
-    mockViewMode = 'list';
+    useRequestTreeStore.setState({ viewMode: 'list' });
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
       { id: 'r2', name: 'Task B', planningMode: 'leaf', parentRequestId: null, sortOrder: 1 },
@@ -691,12 +586,7 @@ describe('RequestsPage', () => {
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
     ]);
-    renderWithQuery(
-      <TooltipProvider>
-        <RequestsPage />
-      </TooltipProvider>,
-      { router: '/requests?edit=r1' },
-    );
+    renderWithQuery(<RequestsPage />, { router: '/requests?edit=r1' });
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
   });
 
@@ -705,7 +595,7 @@ describe('RequestsPage', () => {
   it('hands list view every request — its column headers do the filtering', async () => {
     // The page's search box is tree-only now. Filtering here as well would pre-filter the
     // list with a box the user cannot see after switching views.
-    mockViewMode = 'list';
+    useRequestTreeStore.setState({ viewMode: 'list' });
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Alpha', description: 'red apple', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
       { id: 'r2', name: 'Beta', description: 'blue sky', planningMode: 'leaf', parentRequestId: null, sortOrder: 1 },
@@ -716,7 +606,7 @@ describe('RequestsPage', () => {
 
     expect(screen.getByTestId('list-item-r1')).toBeInTheDocument();
     expect(screen.getByTestId('list-item-r2')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Search requests...')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Search requests…')).not.toBeInTheDocument();
   });
 
   // ── loadRequests non-Error fallback ─────────────────────────────────────────
@@ -756,10 +646,10 @@ describe('RequestsPage', () => {
   it('deletes a subtree and clears selection when the selected node is removed', async () => {
     const { deleteRequestSubtree } = await import('@foundation/src/lib/api/request-api');
     vi.mocked(deleteRequestSubtree).mockResolvedValue(undefined as any);
-    vi.mocked(getDescendantIds).mockReturnValue(['c1']);
-    mockSelectedId = 'r1';
+    useRequestTreeStore.setState({ selectedId: 'r1' });
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
+      { id: 'c1', name: 'Child', planningMode: 'leaf', parentRequestId: 'r1', sortOrder: 0 },
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
@@ -769,8 +659,7 @@ describe('RequestsPage', () => {
     expect(screen.getByText(/and 1 child request\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     await waitFor(() => expect(deleteRequestSubtree).toHaveBeenCalledWith('r1'));
-    expect(mockSetSelectedId).toHaveBeenCalledWith(null);
-    mockSelectedId = null;
+    expect(treeState().selectedId).toBeNull();
   });
 
   it('shows an error toast when deleting a request fails', async () => {
@@ -830,7 +719,7 @@ describe('RequestsPage', () => {
   // ── Selection toggle ────────────────────────────────────────────────────────
 
   it('deselects a request when its already-selected row is clicked again', async () => {
-    mockSelectedId = 'r1';
+    useRequestTreeStore.setState({ selectedId: 'r1' });
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
     ]);
@@ -838,25 +727,26 @@ describe('RequestsPage', () => {
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
     fireEvent.click(screen.getAllByText('Select')[0]);
-    expect(mockSetSelectedId).toHaveBeenCalledWith(null);
-    mockSelectedId = null;
+    expect(treeState().selectedId).toBeNull();
   });
 
   // ── Navigate to request ─────────────────────────────────────────────────────
 
   it('navigates to a request, expanding its ancestors', async () => {
-    vi.mocked(getAncestorIds).mockReturnValue(['p1']);
     mockGetRequests.mockResolvedValue([
-      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
+      { id: 'g1', name: 'Outer', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
+      { id: 'p1', name: 'Inner', planningMode: 'summary', parentRequestId: 'g1', sortOrder: 0 },
+      { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: 'p1', sortOrder: 0 },
     ]);
+    useRequestTreeStore.setState({ expandedIds: new Set<string>() });
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
     await waitFor(() => expect(screen.getByTestId('tree-view')).toBeInTheDocument());
     fireEvent.click(screen.getAllByText('Edit')[0]);
     await waitFor(() => expect(screen.getByTestId('form-dialog')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('form-navigate'));
-    expect(mockExpandAncestors).toHaveBeenCalledWith(['p1']);
-    expect(mockSetSelectedId).toHaveBeenCalledWith('p1');
+    expect(treeState().expandedIds.has('g1')).toBe(true);
+    expect(treeState().selectedId).toBe('p1');
   });
 
   // ── Open conflicts ──────────────────────────────────────────────────────────
@@ -877,12 +767,12 @@ describe('RequestsPage', () => {
   });
 
   it('bubbles descendant conflicts up to the parent row and targets the descendant', async () => {
-    vi.mocked(getDescendantIds).mockReturnValue(['c1']);
     mockConflictRegistry.mockReturnValue({
       conflictsByRequest: new Map([['c1', [{ id: 'cf-c1' }]]]),
     });
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Group', planningMode: 'summary', parentRequestId: null, sortOrder: 0 },
+      { id: 'c1', name: 'Child', planningMode: 'leaf', parentRequestId: 'r1', sortOrder: 0 },
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
@@ -900,7 +790,7 @@ describe('RequestsPage', () => {
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
-    await waitFor(() => expect(mockExpandAll).toHaveBeenCalledWith(['r1']));
+    await waitFor(() => expect([...treeState().expandedIds]).toEqual(['r1']));
   });
 
   // ── Dialog onOpenChange close paths ─────────────────────────────────────────

@@ -30,14 +30,12 @@ public class ListLookupTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    private static string UniqueName(string prefix) => $"{prefix} {Guid.NewGuid():N}";
-    private static string UniqueKey(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
     private static JsonElement Json(string raw) => JsonDocument.Parse(raw).RootElement;
 
     private async Task<ListDefinitionInfo> CreateComponentsDefinitionAsync()
     {
         var created = await _client.PostAsJsonAsync("/api/list-definitions",
-            new CreateListDefinitionRequest { Name = UniqueName("Components") });
+            new CreateListDefinitionRequest { Name = TestHelpers.UniqueName("Components") });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
 
@@ -56,7 +54,7 @@ public class ListLookupTests
     private async Task<ListInstanceInfo> CreateSharedInstanceAsync(Guid definitionId)
     {
         var response = await _client.PostAsJsonAsync($"/api/list-definitions/{definitionId}/instances",
-            new CreateListInstanceRequest { Name = UniqueName("Standard parts") });
+            new CreateListInstanceRequest { Name = TestHelpers.UniqueName("Standard parts") });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ListInstanceInfo>())!;
     }
@@ -70,18 +68,6 @@ public class ListLookupTests
             });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ListRowInfo>())!;
-    }
-
-    private async Task<ResourceTypeInfo> CreateResourceTypeAsync()
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = UniqueKey("machine"),
-            DisplayName = "Machine",
-            DisplayNamePlural = "Machines",
-        });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<ResourceTypeInfo>())!;
     }
 
     private async Task<ResourceCustomFieldInfo> CreateLookupFieldAsync(Guid typeId, Guid instanceId, string key = "parts")
@@ -103,7 +89,7 @@ public class ListLookupTests
         var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
         {
             ResourceTypeKey = typeKey,
-            Name = UniqueName("Lathe"),
+            Name = TestHelpers.UniqueName("Lathe"),
             AllocationMode = AllocationModes.Exclusive,
             CustomFields = customFields,
         });
@@ -117,7 +103,7 @@ public class ListLookupTests
     public async Task ALookupField_NeedsASharedInstance_NotADefinition()
     {
         var definition = await CreateComponentsDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var withDefinition = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
@@ -146,7 +132,7 @@ public class ListLookupTests
         // A per-resource instance belongs to one resource; pointing a shared lookup at it would
         // let every resource of a type read one resource's private rows.
         var definition = await CreateComponentsDefinitionAsync();
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var listField = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest
@@ -184,7 +170,7 @@ public class ListLookupTests
         var bolt = await CreateRowAsync(instance.Id, "Bolt");
         var nut = await CreateRowAsync(instance.Id, "Nut");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
 
         var resource = await CreateResourceAsync(type.Key, new Dictionary<string, JsonElement>
@@ -203,7 +189,7 @@ public class ListLookupTests
         var other = await CreateSharedInstanceAsync(definition.Id);
         var strayRow = await CreateRowAsync(other.Id, "Belongs elsewhere");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
 
         var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
@@ -227,7 +213,7 @@ public class ListLookupTests
         var instance = await CreateSharedInstanceAsync(definition.Id);
         var bolt = await CreateRowAsync(instance.Id, "Bolt");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
 
         var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
@@ -251,7 +237,7 @@ public class ListLookupTests
         var instance = await CreateSharedInstanceAsync(definition.Id);
         var bolt = await CreateRowAsync(instance.Id, "Bolt");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
 
         var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
@@ -285,7 +271,7 @@ public class ListLookupTests
         var instance = await CreateSharedInstanceAsync(definition.Id);
         var bolt = await CreateRowAsync(instance.Id, "Bolt");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
         var picked = Json($"[\"{bolt.Id}\"]");
 
@@ -315,7 +301,7 @@ public class ListLookupTests
         var created = await _client.PostAsJsonAsync("/api/list-definitions",
             new CreateListDefinitionRequest
             {
-                Name = UniqueName("Trades"),
+                Name = TestHelpers.UniqueName("Trades"),
                 Scope = ListDefinitionScopes.Organization,
             });
         var definition = (await created.Content.ReadFromJsonAsync<ListDefinitionInfo>())!;
@@ -330,7 +316,7 @@ public class ListLookupTests
         var instance = await CreateSharedInstanceAsync(definition.Id);
         var bolt = await CreateRowAsync(instance.Id, "Fitter");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
         var resource = await CreateResourceAsync(type.Key, new Dictionary<string, JsonElement>
         {
@@ -370,7 +356,7 @@ public class ListLookupTests
         var bolt = await CreateRowAsync(instance.Id, "Bolt");
         var nut = await CreateRowAsync(instance.Id, "Nut");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var primary = await CreateLookupFieldAsync(type.Id, instance.Id, "parts");
         var spares = await CreateLookupFieldAsync(type.Id, instance.Id, "spare_parts");
 
@@ -402,7 +388,7 @@ public class ListLookupTests
         var bolt = await CreateRowAsync(instance.Id, "Bolt");
         var nut = await CreateRowAsync(instance.Id, "Nut");
 
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         var field = await CreateLookupFieldAsync(type.Id, instance.Id);
 
         var first = await CreateResourceAsync(type.Key, new Dictionary<string, JsonElement>
@@ -432,7 +418,7 @@ public class ListLookupTests
     {
         var definition = await CreateComponentsDefinitionAsync();
         var instance = await CreateSharedInstanceAsync(definition.Id);
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
         await CreateLookupFieldAsync(type.Id, instance.Id);
 
         var response = await _client.DeleteAsync(
@@ -446,7 +432,7 @@ public class ListLookupTests
     {
         var definition = await CreateComponentsDefinitionAsync();
         var instance = await CreateSharedInstanceAsync(definition.Id);
-        var type = await CreateResourceTypeAsync();
+        var type = await TestHelpers.CreateResourceTypeAsync(_client);
 
         var created = await _client.PostAsJsonAsync($"/api/resource-types/{type.Id}/custom-fields",
             new CreateResourceCustomFieldRequest

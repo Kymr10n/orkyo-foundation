@@ -60,19 +60,17 @@ public static class ApiAccessTokenEndpoints
         if (!await featureGate.IsEnabledAsync(FeatureKeys.ApiAccess, ct))
             return ErrorResponses.UpgradeRequired("API access requires a paid plan.");
 
-        var shape = await validator.ValidateAsync(request, ct);
-        if (!shape.IsValid)
-            return EndpointHelpers.ValidationFailed(shape);
-
-        var created = await tokenService.CreateAsync(
-            tenant.TenantId,
-            request.Name.Trim(),
-            request.Scopes,
-            request.ExpiresAt,
-            principal.UserIdOrNull,
-            ct);
-
-        return Results.Created($"/api/platform/v1/tokens/{created.Summary.Id}", created);
+        return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+        {
+            var created = await tokenService.CreateAsync(
+                tenant.TenantId,
+                request.Name.Trim(),
+                request.Scopes,
+                request.ExpiresAt,
+                principal.UserIdOrNull,
+                ct);
+            return Results.Created($"/api/platform/v1/tokens/{created.Summary.Id}", created);
+        }, ct);
     }
 
     private static async Task<IResult> RevokeToken(
@@ -92,30 +90,3 @@ public record CreateApiAccessTokenRequest(
     IReadOnlyList<string> Scopes,
     DateTime? ExpiresAt
 );
-
-public sealed class CreateApiAccessTokenRequestValidator : AbstractValidator<CreateApiAccessTokenRequest>
-{
-    private readonly TimeProvider _time;
-
-    public CreateApiAccessTokenRequestValidator(TimeProvider time)
-    {
-        _time = time;
-
-        RuleFor(x => x.Name)
-            .NotEmpty().WithMessage("Name is required.")
-            .MaximumLength(255);
-
-        RuleFor(x => x.Scopes)
-            .NotEmpty().WithMessage("At least one scope is required.");
-
-        // Rejected here as well as in the service: the endpoint gives a field-level validation
-        // error, which the settings form can show against the scope picker.
-        RuleForEach(x => x.Scopes)
-            .Must(PlatformApiScopes.All.Contains)
-            .WithMessage(s => $"Unknown scope. Valid scopes: {string.Join(", ", PlatformApiScopes.All)}");
-
-        RuleFor(x => x.ExpiresAt)
-            .Must(d => d is null || d > _time.GetUtcNow().UtcDateTime)
-            .WithMessage("Expiry must be in the future.");
-    }
-}

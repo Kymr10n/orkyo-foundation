@@ -16,45 +16,28 @@ import type * as ReactQuery from '@tanstack/react-query';
 import { TopBar } from './TopBar';
 import { restoreViewport, setViewport } from '@foundation/src/test-utils/viewport';
 import { useUiActionsStore } from '@foundation/src/store/ui-actions-store';
+import { useSiteStore } from '@foundation/src/store/site-store';
+import { useLayoutStore } from '@foundation/src/store/layout-store';
+import { useAuth } from '@foundation/src/contexts/AuthContext';
+import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
-const { mockNavigateToApex, mockUseAuth } = vi.hoisted(() => ({
+const { mockNavigateToApex } = vi.hoisted(() => ({
   mockNavigateToApex: vi.fn(),
-  mockUseAuth: vi.fn(),
 }));
 
 const mockSwitchTenant = vi.fn();
 const mockLogout = vi.fn();
 
-vi.mock('@foundation/src/contexts/AuthContext', () => ({
-  useAuth: () => mockUseAuth(),
+vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useAuth: vi.fn(),
 }));
 
 vi.mock('@foundation/src/lib/utils/tenant-navigation', () => ({
   navigateToApex: mockNavigateToApex,
   getCurrentSubdomain: vi.fn(() => null),
-}));
-
-const mockSetSelectedSiteId = vi.fn();
-const mockSetTheme = vi.fn();
-
-vi.mock('@foundation/src/store/site-store', () => ({
-  useSiteStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ selectedSiteId: null, setSelectedSiteId: mockSetSelectedSiteId }),
-  ),
-}));
-
-vi.mock('@foundation/src/store/scheduler-view-store', () => ({
-  useSchedulerViewStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ scale: 'week', anchorTs: new Date('2026-01-01') }),
-  ),
-}));
-
-vi.mock('@foundation/src/store/layout-store', () => ({
-  useLayoutStore: vi.fn((selector: (s: unknown) => unknown) =>
-    selector({ resolvedTheme: 'dark', setTheme: mockSetTheme }),
-  ),
 }));
 
 const mockSitesData = { current: undefined as unknown };
@@ -74,6 +57,13 @@ vi.mock('@foundation/src/lib/api/user-announcements-api', () => ({ getUnreadAnno
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const initialSiteState = useSiteStore.getState();
+const initialLayoutState = useLayoutStore.getState();
+beforeEach(() => {
+  useSiteStore.setState({ ...initialSiteState, selectedSiteId: null }, true);
+  useLayoutStore.setState({ ...initialLayoutState, resolvedTheme: 'dark' }, true);
+});
+
 const baseMembership = {
   tenantId: 't1',
   slug: 'demo',
@@ -82,16 +72,15 @@ const baseMembership = {
   state: 'active',
 };
 
-function authState(overrides: Record<string, unknown> = {}) {
-  return {
+function authState(overrides: MockAuthOptions = {}) {
+  return mockAuth({
     membership: baseMembership,
     sessionData: { tenants: [baseMembership] },
     appUser: { displayName: 'Alice', email: 'alice@example.com' },
     logout: mockLogout,
-    clearMembership: vi.fn(),
     switchTenant: mockSwitchTenant,
     ...overrides,
-  };
+  });
 }
 
 function renderTopBar() {
@@ -110,12 +99,8 @@ function openUserMenu() {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('TopBar — Switch Organization', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('is hidden when user has only one tenant', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       sessionData: { tenants: [baseMembership] },
     }));
     renderTopBar();
@@ -125,7 +110,7 @@ describe('TopBar — Switch Organization', () => {
 
   it('is shown when user has multiple tenants', () => {
     const tenant2 = { ...baseMembership, tenantId: 't2', slug: 'other', displayName: 'Other Corp' };
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       sessionData: { tenants: [baseMembership, tenant2] },
     }));
     renderTopBar();
@@ -135,7 +120,7 @@ describe('TopBar — Switch Organization', () => {
 
   it('is hidden during a break-glass session even when multi-tenant', () => {
     const tenant2 = { ...baseMembership, tenantId: 't2', slug: 'other', displayName: 'Other Corp' };
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       membership: { ...baseMembership, isBreakGlass: true },
       sessionData: { tenants: [baseMembership, tenant2] },
     }));
@@ -145,7 +130,7 @@ describe('TopBar — Switch Organization', () => {
   });
 
   it('is hidden when sessionData is null', () => {
-    mockUseAuth.mockReturnValue(authState({ sessionData: null }));
+    vi.mocked(useAuth).mockReturnValue(authState({ sessionData: null }));
     renderTopBar();
     openUserMenu();
     expect(screen.queryByTestId('switch-organization-btn')).not.toBeInTheDocument();
@@ -156,7 +141,7 @@ describe('TopBar — Switch Organization', () => {
 
     it('calls navigateToApex("/") in production (returns true) and does not call switchTenant', () => {
       mockNavigateToApex.mockReturnValue(true);
-      mockUseAuth.mockReturnValue(authState({
+      vi.mocked(useAuth).mockReturnValue(authState({
         sessionData: { tenants: [baseMembership, tenant2] },
       }));
       renderTopBar();
@@ -168,7 +153,7 @@ describe('TopBar — Switch Organization', () => {
 
     it('calls switchTenant() in local dev when navigateToApex returns false', () => {
       mockNavigateToApex.mockReturnValue(false);
-      mockUseAuth.mockReturnValue(authState({
+      vi.mocked(useAuth).mockReturnValue(authState({
         sessionData: { tenants: [baseMembership, tenant2] },
       }));
       renderTopBar();
@@ -181,19 +166,15 @@ describe('TopBar — Switch Organization', () => {
 });
 
 describe('TopBar — Admin Panel', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it('is shown for site admins in a normal session', () => {
-    mockUseAuth.mockReturnValue(authState({ canAccessAdminPage: true }));
+    vi.mocked(useAuth).mockReturnValue(authState({ canAccessAdminPage: true }));
     renderTopBar();
     openUserMenu();
     expect(screen.getByTestId('admin-panel-btn')).toBeInTheDocument();
   });
 
   it('is hidden during a break-glass session', () => {
-    mockUseAuth.mockReturnValue(authState({
+    vi.mocked(useAuth).mockReturnValue(authState({
       canAccessAdminPage: true,
       membership: { ...baseMembership, isBreakGlass: true },
     }));
@@ -203,7 +184,7 @@ describe('TopBar — Admin Panel', () => {
   });
 
   it('is hidden for non-admin users', () => {
-    mockUseAuth.mockReturnValue(authState({ canAccessAdminPage: false }));
+    vi.mocked(useAuth).mockReturnValue(authState({ canAccessAdminPage: false }));
     renderTopBar();
     openUserMenu();
     expect(screen.queryByTestId('admin-panel-btn')).not.toBeInTheDocument();
@@ -212,13 +193,12 @@ describe('TopBar — Admin Panel', () => {
 
 describe('TopBar — Site Selector', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSitesData.current = undefined;
   });
 
   it('is hidden when there is only one site', () => {
     mockSitesData.current = [{ id: 's1', name: 'Default Site' }];
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
     renderTopBar();
     expect(screen.queryByText('Select site...')).not.toBeInTheDocument();
   });
@@ -228,7 +208,7 @@ describe('TopBar — Site Selector', () => {
       { id: 's1', name: 'Site Alpha' },
       { id: 's2', name: 'Site Beta' },
     ];
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
     renderTopBar();
     // The Building2 icon and select trigger should be present
     expect(screen.getByRole('combobox')).toBeInTheDocument();
@@ -236,7 +216,7 @@ describe('TopBar — Site Selector', () => {
 
   it('is hidden when sites data is empty', () => {
     mockSitesData.current = [];
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
     renderTopBar();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
@@ -244,8 +224,7 @@ describe('TopBar — Site Selector', () => {
 
 describe('TopBar — mobile navigation hamburger', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
   });
 
   it('is absent when onOpenMobileNav is not provided (tablet/desktop)', () => {
@@ -269,9 +248,8 @@ describe('TopBar — mobile navigation hamburger', () => {
 
 describe('TopBar — phone overflow menu', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockSitesData.current = undefined;
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
   });
 
   it('renders a "More options" trigger', () => {
@@ -285,7 +263,7 @@ describe('TopBar — phone overflow menu', () => {
       { id: 's1', name: 'Site Alpha' },
       { id: 's2', name: 'Site Beta' },
     ];
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
     renderTopBar();
 
     await user.click(screen.getByLabelText('More options'));
@@ -299,7 +277,7 @@ describe('TopBar — phone overflow menu', () => {
   it('omits the site radio group when there is a single site', async () => {
     const user = userEvent.setup();
     mockSitesData.current = [{ id: 's1', name: 'Default Site' }];
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
     renderTopBar();
 
     await user.click(screen.getByLabelText('More options'));
@@ -323,7 +301,6 @@ describe('TopBar — phone overflow menu', () => {
 // The buttons follow the registry — what a mounted page offers — never the URL.
 describe('TopBar — import/export availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     useUiActionsStore.setState({ exportRegistry: new Map(), importRegistry: new Map() });
   });
 
@@ -374,7 +351,6 @@ describe('TopBar — import/export availability', () => {
 
 describe('TopBar — calendar subscription availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     useUiActionsStore.setState({
       exportRegistry: new Map(),
       importRegistry: new Map(),
@@ -421,19 +397,18 @@ describe('TopBar — calendar subscription availability', () => {
 
 describe('TopBar — Scan QR code', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockUseAuth.mockReturnValue(authState());
+    vi.mocked(useAuth).mockReturnValue(authState());
   });
 
   afterEach(restoreViewport);
 
   it('is offered on a phone and asks the layout to open the scanner', () => {
     setViewport(375);
-    const before = useUiActionsStore.getState().scanTick;
+    useUiActionsStore.setState({ scannerOpen: false });
     renderTopBar();
 
     fireEvent.click(screen.getByRole('button', { name: 'Scan QR code' }));
 
-    expect(useUiActionsStore.getState().scanTick).toBe(before + 1);
+    expect(useUiActionsStore.getState().scannerOpen).toBe(true);
   });
 });

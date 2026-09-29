@@ -30,6 +30,27 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.CompletedTask;
     }
 
+    // ── Verify password ───────────────────────────────────────────
+    public bool VerifyPasswordSuccess { get; set; } = true;
+    public int VerifyPasswordCallCount { get; private set; }
+
+    /// <summary>
+    /// Models a TOTP user: the realm's direct-grant flow rejects the password grant unless the
+    /// <c>totp</c> value equals <see cref="AcceptedTotp"/> — the same failure as a wrong password.
+    /// </summary>
+    public bool RequireTotpForPasswordGrant { get; set; }
+    public string? AcceptedTotp { get; set; }
+    public string? LastVerifiedTotp { get; private set; }
+
+    public Task VerifyCurrentPasswordAsync(string keycloakSub, string password, string? totp = null, CancellationToken ct = default)
+    {
+        VerifyPasswordCallCount++;
+        LastVerifiedTotp = totp;
+        if (!VerifyPasswordSuccess || (RequireTotpForPasswordGrant && totp != AcceptedTotp))
+            throw new KeycloakAdminException("Current password is incorrect", StatusCodes.Status400BadRequest);
+        return Task.CompletedTask;
+    }
+
     // ── Sessions ──────────────────────────────────────────────────
     public List<KeycloakSession> MockSessions { get; set; } = new();
     public int GetSessionsCallCount { get; private set; }
@@ -90,9 +111,14 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public bool UserExistsResult { get; set; } = false;
     public int UserExistsCallCount { get; private set; }
 
+    /// <summary>When set, <see cref="UserExistsAsync"/> throws it (a Keycloak outage).</summary>
+    public KeycloakAdminException? UserExistsException { get; set; }
+
     public Task<bool> UserExistsAsync(string email, CancellationToken ct = default)
     {
         UserExistsCallCount++;
+        if (UserExistsException is not null)
+            throw UserExistsException;
         return Task.FromResult(UserExistsResult);
     }
 
@@ -213,19 +239,9 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     // ── Update email ──────────────────────────────────────────────
     public bool UpdateEmailSuccess { get; set; } = true;
     public string? UpdateEmailError { get; set; }
-    public int UpdateEmailCallCount { get; private set; }
-    public (string? keycloakSub, string? newEmail) LastUpdateEmailCall { get; private set; }
     public int UpdateEmailForAccountCallCount { get; private set; }
     public (string? keycloakSub, string? currentEmail, string? newEmail) LastUpdateEmailForAccountCall { get; private set; }
 
-    public Task UpdateEmailAsync(string keycloakSub, string newEmail, CancellationToken ct = default)
-    {
-        UpdateEmailCallCount++;
-        LastUpdateEmailCall = (keycloakSub, newEmail);
-        if (!UpdateEmailSuccess)
-            throw new KeycloakAdminException(UpdateEmailError ?? "Failed to update email");
-        return Task.CompletedTask;
-    }
 
     public Task UpdateEmailForAccountAsync(string? keycloakSub, string currentEmail, string newEmail, CancellationToken ct = default)
     {
@@ -301,10 +317,29 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.FromResult(CountRealmRoleMembersResult);
     }
 
+    /// <summary>The ids <see cref="GetRealmRoleMemberIdsAsync"/> answers with.</summary>
+    public HashSet<string> RealmRoleMemberIds { get; set; } = new(StringComparer.Ordinal);
+    public int GetRealmRoleMemberIdsCallCount { get; private set; }
+    /// <summary>When set, <see cref="GetRealmRoleMemberIdsAsync"/> throws with this message.</summary>
+    public string? GetRealmRoleMemberIdsError { get; set; }
+
+    public Task<IReadOnlySet<string>> GetRealmRoleMemberIdsAsync(string roleName, CancellationToken ct = default)
+    {
+        GetRealmRoleMemberIdsCallCount++;
+        if (GetRealmRoleMemberIdsError is not null)
+            throw new KeycloakAdminException(GetRealmRoleMemberIdsError, StatusCodes.Status502BadGateway);
+        return Task.FromResult<IReadOnlySet<string>>(RealmRoleMemberIds);
+    }
+
     public void Reset()
     {
         ChangePasswordSuccess = true;
         ChangePasswordError = null;
+        VerifyPasswordSuccess = true;
+        VerifyPasswordCallCount = 0;
+        RequireTotpForPasswordGrant = false;
+        AcceptedTotp = null;
+        LastVerifiedTotp = null;
         IsFederatedUser = false;
         FederatedIdentityProvider = null;
         MockSessions = new List<KeycloakSession>();
@@ -322,6 +357,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
         UserExistsResult = false;
         UserExistsCallCount = 0;
+        UserExistsException = null;
 
         DisableUserSuccess = true;
         DisableUserError = null;
@@ -356,8 +392,6 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
         UpdateEmailSuccess = true;
         UpdateEmailError = null;
-        UpdateEmailCallCount = 0;
-        LastUpdateEmailCall = default;
         UpdateEmailForAccountCallCount = 0;
         LastUpdateEmailForAccountCall = default;
 
@@ -377,6 +411,9 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         RevokeRealmRoleSuccess = true;
         RevokeRealmRoleError = null;
         HasRealmRoleCallCount = 0;
+        RealmRoleMemberIds = new HashSet<string>(StringComparer.Ordinal);
+        GetRealmRoleMemberIdsCallCount = 0;
+        GetRealmRoleMemberIdsError = null;
         AssignRealmRoleCallCount = 0;
         RevokeRealmRoleCallCount = 0;
         LastAssignRealmRoleCall = default;

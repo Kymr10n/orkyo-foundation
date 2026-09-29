@@ -4,12 +4,8 @@
 
     <!-- NuGet packaging -->
     <PackageId>Orkyo.Shared</PackageId>
-    <Version>0.1.0</Version>
-    <Authors>Orkyo</Authors>
     <Description>Orkyo Shared — configuration keys, environment names, and constants shared across all Orkyo packages.</Description>
     <PackageTags>orkyo;shared;configuration</PackageTags>
-    <RepositoryUrl>https://github.com/Kymr10n/orkyo-foundation</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
   </PropertyGroup>
 

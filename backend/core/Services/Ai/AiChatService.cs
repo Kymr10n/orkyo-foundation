@@ -148,7 +148,7 @@ public sealed class AiChatService(
             yield break;
         }
 
-        var model = await credentials.GetModelAsync(token);
+        var model = AiDefaults.Model;
 
         // Sites own their working hours and the zone those hours are written in, so a
         // person's "tomorrow morning" is their site's, not UTC's. Best-effort: a turn is

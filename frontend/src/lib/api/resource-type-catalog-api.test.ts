@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../core/api-client', () => ({
   apiGet: vi.fn(),
@@ -15,8 +15,6 @@ import {
 } from './resource-type-catalog-api';
 
 describe('resource-type-catalog-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('lists the catalog', async () => {
     vi.mocked(apiGet).mockResolvedValue([]);
 

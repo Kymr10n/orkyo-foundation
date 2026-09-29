@@ -1,6 +1,8 @@
 /* eslint-disable orkyo/ui-primitives -- F3 (2026-09 review): 1 legacy hand-rolled empty/loading site; converge on touch, then drop this line. */
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, Network, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ChevronRight, Network } from "lucide-react";
+import { useAnchoredZoom } from "@foundation/src/hooks/useAnchoredZoom";
+import { ZoomControls } from "./ZoomControls";
 import { Button } from "@foundation/src/components/ui/button";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
@@ -15,7 +17,7 @@ import type { OffTimeRange } from "@foundation/src/domain/scheduling/types";
 import type { TimeScale } from "@foundation/src/components/utilization/ScaleSelect";
 import type { TimeColumn } from "@foundation/src/components/utilization/scheduler-types";
 import { useTimeColumns } from "@foundation/src/components/utilization/useTimeColumns";
-import { viewPositionPercent } from "@foundation/src/components/utilization/time-grid-utils";
+import { NowLine } from "@foundation/src/components/utilization/NowLine";
 import {
   columnHeaderTintClass,
   columnHeaderTitle,
@@ -34,9 +36,6 @@ import { PlanEdgeLayer, type PlanRect } from "./PlanEdgeLayer";
 import { PlanNodeCard } from "./PlanNodeCard";
 import { collectViolatingEdgeIds } from "./plan-conflicts";
 
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 2;
-const ZOOM_STEP = 0.25;
 /** Bottom breathing room under the structure canvas; it runs flush on every other edge. */
 const CANVAS_PADDING = 32;
 
@@ -125,7 +124,7 @@ export function SitePlanCanvas({
   anchorTs,
   nowMs,
   offTimeRanges = [],
-  weekendsEnabled = false,
+  weekendsAreOff = false,
   workingHoursEnabled = false,
   workingDayStart,
   workingDayEnd,
@@ -141,16 +140,18 @@ export function SitePlanCanvas({
   anchorTs: Date;
   nowMs: number;
   offTimeRanges?: readonly OffTimeRange[];
-  weekendsEnabled?: boolean;
+  weekendsAreOff?: boolean;
   workingHoursEnabled?: boolean;
   workingDayStart?: string;
   workingDayEnd?: string;
 }) {
   const { isPhone } = useBreakpoint();
-  const [zoom, setZoom] = useState(1);
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Structure-view zoom only. Timeline view has no card zoom: the scale selector IS its zoom.
+  const zoomControl = useAnchoredZoom(scrollRef);
+  const { zoom } = zoomControl;
 
   // The scroller's inner width, so the timeline can stretch to fill it (fit-to-width, with the
   // per-column minimum as the floor). A callback ref rather than an effect: the scroller only
@@ -179,7 +180,7 @@ export function SitePlanCanvas({
 
   // The date grid, following the page's selector — the same columns the utilization grids use.
   const columns = useTimeColumns({
-    scale, anchorTs, weekendsEnabled, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
+    scale, anchorTs, weekendsAreOff, workingHoursEnabled, workingDayStart, workingDayEnd, offTimeRanges,
   });
   const viewStartMs = columns[0].start.getTime();
   const viewEndMs = columns[columns.length - 1].end.getTime();
@@ -370,28 +371,6 @@ export function SitePlanCanvas({
     });
   }, []);
 
-  // Structure-view zoom about the viewport centre — the same deliberate scroll correction the
-  // per-group planner applies, copied rather than shared while there are exactly two consumers.
-  // Timeline view has no card zoom: the scale selector IS its zoom.
-  const zoomAnchor = useRef<{ x: number; y: number } | null>(null);
-  const applyZoom = useCallback((next: number) => {
-    const el = scrollRef.current;
-    if (el) {
-      zoomAnchor.current = {
-        x: (el.scrollLeft + el.clientWidth / 2) / zoom,
-        y: (el.scrollTop + el.clientHeight / 2) / zoom,
-      };
-    }
-    setZoom(next);
-  }, [zoom]);
-  useLayoutEffect(() => {
-    const el = scrollRef.current;
-    const anchor = zoomAnchor.current;
-    zoomAnchor.current = null;
-    if (!el || !anchor) return;
-    el.scrollLeft = anchor.x * zoom - el.clientWidth / 2;
-    el.scrollTop = anchor.y * zoom - el.clientHeight / 2;
-  }, [zoom]);
   if (isLoading) return <LoadingSpinner fullScreen={false} message="Loading the plan…" />;
   if (error || !data) return <ErrorAlert message="Could not load the site's plan." />;
 
@@ -423,8 +402,6 @@ export function SitePlanCanvas({
       </p>
     );
   }
-
-  const nowPct = viewPositionPercent(nowMs, viewStartMs, viewEndMs);
 
   // Rendered identically by both view paths below; only the surface around it differs.
   const bandsContent = geometry.placedBands.map(
@@ -559,25 +536,7 @@ export function SitePlanCanvas({
           {data.edges.length} dependenc{data.edges.length === 1 ? "y" : "ies"}
         </span>
         {view === "structure" && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline" size="icon" aria-label="Zoom out"
-              onClick={() => applyZoom(Math.max(ZOOM_MIN, zoom - ZOOM_STEP))}
-              disabled={zoom <= ZOOM_MIN}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="icon" aria-label="Reset zoom" onClick={() => applyZoom(1)}>
-              <Maximize className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline" size="icon" aria-label="Zoom in"
-              onClick={() => applyZoom(Math.min(ZOOM_MAX, zoom + ZOOM_STEP))}
-              disabled={zoom >= ZOOM_MAX}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-          </div>
+          <ZoomControls zoom={zoomControl} />
         )}
       </div>
 
@@ -615,20 +574,9 @@ export function SitePlanCanvas({
                 selectedEdgeId={null}
                 violatingEdgeIds={violatingEdgeIds}
               />
-              {/* Below the header, like NowLine on the grids — the pill can no longer
-                  collide with the date row. */}
-              {nowPct !== null && (
-                <div
-                  data-testid="site-plan-now"
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-0 bottom-0 z-20 w-0.5 bg-rose-500"
-                  style={{ left: `${nowPct}%` }}
-                >
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 rounded-sm bg-rose-500 px-1 text-[10px] font-medium leading-tight text-white">
-                    Now
-                  </span>
-                </div>
-              )}
+              {/* Below the header, as on the grids — the pill can no longer collide with
+                  the date row. */}
+              <NowLine nowMs={nowMs} viewStartMs={viewStartMs} viewEndMs={viewEndMs} className="left-0 right-0 z-20" />
             </div>
           </div>
         </div>

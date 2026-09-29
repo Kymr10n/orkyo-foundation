@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
@@ -32,8 +32,8 @@ vi.mock('@foundation/src/components/ui/DialogFormFooter', () => ({
   ),
 }));
 
-// The dialog composes its create/update/applicability calls itself through
-// useEntityFormDialog, so the api module is the seam now, not the per-call hooks.
+// useSaveCriterion composes the create/update/applicability calls, and its meta drives the
+// toast these tests assert, so the api module under the real hook is the seam.
 const mockCreateCriterion = vi.fn(() =>
   Promise.resolve({ id: 'new-id', name: 'Test', dataType: 'Boolean', description: '', unit: null, enumValues: [] }),
 );
@@ -69,10 +69,6 @@ vi.mock('@foundation/src/components/ui/select', () => ({
 
 describe('CriterionEditDialog', () => {
   const wrapper = createTestQueryWrapper();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
   describe('create mode (criterion=null)', () => {
     const defaultProps = {
@@ -165,6 +161,18 @@ describe('CriterionEditDialog', () => {
       render(<CriterionEditDialog {...defaultProps} defaultResourceType="person" />, { wrapper });
       expect(screen.getByLabelText('Person')).toHaveAttribute('aria-checked', 'true');
       expect(screen.getByLabelText('Space')).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('shows validation error when an Enum criterion has no values, and sends nothing', async () => {
+      render(<CriterionEditDialog {...defaultProps} defaultResourceType="person" />, { wrapper });
+      fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Colour' } });
+      fireEvent.change(screen.getByTestId('datatype-select'), { target: { value: 'Enum' } });
+      fireEvent.submit(screen.getByRole('dialog').querySelector('form')!);
+
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent(/at least one enum value/i);
+      });
+      expect(mockCreateCriterion).not.toHaveBeenCalled();
     });
 
     it('shows validation error when no applicability is selected', async () => {

@@ -1,13 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using System.Text.Json;
 using Api.Integrations.Keycloak;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
-using Orkyo.Shared.Keycloak;
 
 namespace Api.Security;
 
@@ -49,9 +47,8 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
     private readonly IBffSessionStore _sessionStore;
     private readonly IDataProtector _protector;
     private readonly Configuration.BffOptions _bffOptions;
-    private readonly KeycloakOptions _keycloakOptions;
     private readonly IBffAuthClientRegistry _authClientRegistry;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly KeycloakTokenClient _tokenClient;
     private readonly TimeProvider _time;
 
     public BffCookieAuthenticationHandler(
@@ -61,18 +58,16 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         IBffSessionStore sessionStore,
         IDataProtectionProvider dataProtection,
         IOptions<Configuration.BffOptions> bffOptions,
-        KeycloakOptions keycloakOptions,
         IBffAuthClientRegistry authClientRegistry,
-        IHttpClientFactory httpClientFactory,
+        KeycloakTokenClient tokenClient,
         TimeProvider time)
         : base(options, logger, encoder)
     {
         _sessionStore = sessionStore;
-        _protector = dataProtection.CreateProtector("BffSession");
+        _protector = dataProtection.CreateProtector(BffSessionCookies.DataProtectionPurpose);
         _bffOptions = bffOptions.Value;
-        _keycloakOptions = keycloakOptions;
         _authClientRegistry = authClientRegistry;
-        _httpClientFactory = httpClientFactory;
+        _tokenClient = tokenClient;
         _time = time;
     }
 
@@ -110,14 +105,24 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         if (session.TokenExpiresAt - _time.GetUtcNow() < RefreshWindow
             && await _sessionStore.TryAcquireRefreshLockAsync(sessionId, RefreshLockTtl, Context.RequestAborted))
         {
-            var refreshed = await TryRefreshTokensAsync(session);
+            var (refreshed, rejected) = await TryRefreshTokensAsync(session);
             if (refreshed is not null)
             {
                 accessToken = refreshed.AccessToken;
             }
+            else if (rejected)
+            {
+                // Keycloak refused the refresh token itself: the SSO session was logged out
+                // (on this device or "everywhere"), revoked, or the user was disabled. The
+                // stored access token must not keep the BFF session alive past that.
+                Logger.LogInformation("BFF refresh token rejected; ending session {SessionIdPrefix}…", sessionId[..8]);
+                await _sessionStore.RemoveAsync(sessionId, Context.RequestAborted);
+                return AuthenticateResult.Fail("Session ended by the identity provider");
+            }
             else
             {
-                // Refresh failed — session is still valid until overall session expiry
+                // Transient failure (network, Keycloak 5xx): keep the session and let a later
+                // request retry once the refresh lock lapses.
                 Logger.LogWarning("BFF token refresh failed for session {SessionIdPrefix}…", sessionId[..8]);
             }
         }
@@ -196,7 +201,7 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         // The browser copy must move too, or the cookie would lapse while the server-side session
         // is still alive — the user would be logged out despite the extension.
         var cookieValue = Request.Cookies[_bffOptions.CookieName];
-        var csrfValue = Request.Cookies[_bffOptions.CsrfCookieName];
+        var csrfValue = Request.Cookies[Configuration.BffOptions.CsrfCookieName];
         var lifetime = target - now;
         if (!string.IsNullOrEmpty(cookieValue))
             BffSessionCookies.WriteSessionCookie(Context, _bffOptions, cookieValue, lifetime);
@@ -204,57 +209,41 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
             BffSessionCookies.WriteCsrfCookie(Context, _bffOptions, csrfValue, lifetime);
     }
 
-    private async Task<BffSessionRecord?> TryRefreshTokensAsync(BffSessionRecord session)
+    /// <summary>
+    /// Refreshes the session's tokens. <c>Rejected</c> is true only when Keycloak answered
+    /// <c>invalid_grant</c> — the refresh token is dead for good — as opposed to a failure that
+    /// a retry may cure.
+    /// </summary>
+    private async Task<(BffSessionRecord? Refreshed, bool Rejected)> TryRefreshTokensAsync(BffSessionRecord session)
     {
         try
         {
-            var tokenEndpoint = $"{_keycloakOptions.InternalAuthority}/protocol/openid-connect/token";
-            var client = _httpClientFactory.CreateClient("BffKeycloak");
-
             // A refresh token is bound to the client it was issued to — a session
             // established through a secondary client (session.AuthClient) must
             // refresh with that client's credentials or Keycloak rejects the grant.
             var (clientId, clientSecret) = _authClientRegistry.Resolve(session.AuthClient);
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "refresh_token",
-                ["client_id"] = clientId,
-                ["client_secret"] = clientSecret,
-                ["refresh_token"] = session.RefreshToken,
-            });
+            var (tokens, rejected) = await _tokenClient.RefreshAsync(
+                clientId, clientSecret, session.RefreshToken, Context.RequestAborted);
+            if (tokens is null)
+                return (null, rejected);
 
-            var response = await client.PostAsync(tokenEndpoint, content, Context.RequestAborted);
-            if (!response.IsSuccessStatusCode)
-            {
-                Logger.LogWarning("Keycloak token refresh returned {StatusCode}", response.StatusCode);
-                return null;
-            }
-
-            using var doc = await JsonDocument.ParseAsync(
-                await response.Content.ReadAsStreamAsync(Context.RequestAborted),
-                cancellationToken: Context.RequestAborted);
-
-            var root = doc.RootElement;
-            var newAccessToken = root.GetProperty("access_token").GetString()!;
-            var newRefreshToken = root.GetProperty("refresh_token").GetString()!;
-            var expiresIn = root.GetProperty("expires_in").GetInt32();
-            var newTokenExpiresAt = _time.GetUtcNow().AddSeconds(expiresIn);
+            var newTokenExpiresAt = _time.GetUtcNow().AddSeconds(tokens.ExpiresInSeconds);
 
             await _sessionStore.RefreshTokensAsync(
-                session.SessionId, newAccessToken, newRefreshToken, newTokenExpiresAt, Context.RequestAborted);
+                session.SessionId, tokens.AccessToken, tokens.RefreshToken, newTokenExpiresAt, Context.RequestAborted);
 
-            return session with
+            return (session with
             {
-                AccessToken = newAccessToken,
-                RefreshToken = newRefreshToken,
+                AccessToken = tokens.AccessToken,
+                RefreshToken = tokens.RefreshToken,
                 TokenExpiresAt = newTokenExpiresAt,
-            };
+            }, false);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error refreshing tokens for session {SessionIdPrefix}…",
                 session.SessionId[..Math.Min(8, session.SessionId.Length)]);
-            return null;
+            return (null, false);
         }
     }
 }

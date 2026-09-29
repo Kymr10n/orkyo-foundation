@@ -89,7 +89,7 @@ describe('FormDialog', () => {
 
   it('falls back to a default submitting label', () => {
     renderDialog({ isSubmitting: true });
-    expect(screen.getByRole('button', { name: 'Saving...' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeInTheDocument();
   });
 
   it('disables submit when submitDisabled is set', () => {
@@ -188,6 +188,40 @@ describe('FormDialog', () => {
     expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByLabelText('name')).toBeInTheDocument();
+  });
+
+  it('reports "Keep editing" but not a discard to onKeepEditing', async () => {
+    const onKeepEditing = vi.fn();
+    const { onOpenChange } = renderDialog({ dirty: true, onKeepEditing });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(onKeepEditing).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(onKeepEditing).toHaveBeenCalledTimes(1);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('hands a scaffold child the guarded close', async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <FormDialog open onOpenChange={onOpenChange} title="Scaffold" footer={null} dirty>
+        {(requestClose) => (
+          <button type="button" onClick={requestClose}>
+            Leave
+          </button>
+        )}
+      </FormDialog>,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Leave' }));
+    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
+    expect(onOpenChange).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('discards and closes when the person says so', async () => {

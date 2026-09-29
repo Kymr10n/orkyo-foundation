@@ -19,42 +19,34 @@ public static class UserAdminEndpoints
         var group = app.MapSiteAdminGroup();
 
         group.MapGet("/users", GetUsers)
-            .RequireSiteAdmin()
             .WithName("AdminGetUsers")
             .WithSummary("List all users");
 
         group.MapGet("/users/{userId:guid}", GetUser)
-            .RequireSiteAdmin()
             .WithName("AdminGetUser")
             .WithSummary("Get user by ID");
 
         group.MapGet("/users/{userId:guid}/memberships", GetUserMemberships)
-            .RequireSiteAdmin()
             .WithName("AdminGetUserMemberships")
             .WithSummary("List all tenant memberships for a user");
 
         group.MapPost("/users/{userId:guid}/deactivate", DeactivateUser)
-            .RequireSiteAdmin()
             .WithName("AdminDeactivateUser")
             .WithSummary("Disable a user account globally");
 
         group.MapPost("/users/{userId:guid}/reactivate", ReactivateUser)
-            .RequireSiteAdmin()
             .WithName("AdminReactivateUser")
             .WithSummary("Re-enable a previously disabled user account");
 
         group.MapDelete("/users/{userId:guid}", DeleteUser)
-            .RequireSiteAdmin()
             .WithName("AdminDeleteUser")
             .WithSummary("Permanently delete a user and all associated data");
 
         group.MapPost("/users/{userId:guid}/promote-site-admin", PromoteSiteAdmin)
-            .RequireSiteAdmin()
             .WithName("AdminPromoteSiteAdmin")
             .WithSummary("Grant site-admin role to a user");
 
         group.MapPost("/users/{userId:guid}/revoke-site-admin", RevokeSiteAdmin)
-            .RequireSiteAdmin()
             .WithName("AdminRevokeSiteAdmin")
             .WithSummary("Revoke site-admin role from a user");
     }
@@ -68,33 +60,25 @@ public static class UserAdminEndpoints
         string? status = null,
         CancellationToken ct = default)
     {
-        var rows = await userRepository.GetAdminUserListAsync(search, status, ct);
+        var list = await userRepository.GetAdminUserListAsync(search, status, ct);
 
-        var users = new List<AdminUserSummary>();
-        var keycloakIds = new List<(int index, string keycloakId)>();
-
-        foreach (var row in rows)
+        // One read of the site-admin role's members flags the whole page (it was one Keycloak
+        // call per user). Failure is non-fatal — the list still comes back with no one flagged.
+        IReadOnlySet<string> siteAdmins = new HashSet<string>();
+        try
         {
-            if (row.KeycloakSub != null)
-                keycloakIds.Add((users.Count, row.KeycloakSub));
-
-            users.Add(row.Summary);
+            siteAdmins = await keycloak.GetRealmRoleMemberIdsAsync(KeycloakClaims.SiteAdminRole, ct);
+        }
+        catch (KeycloakAdminException ex)
+        {
+            logger.LogWarning(ex, "Failed to list the site-admin role's members");
         }
 
-        // Check site-admin role for each user with a Keycloak identity.
-        // Failures are non-fatal — we want the user list even if Keycloak is degraded.
-        foreach (var (index, keycloakId) in keycloakIds)
-        {
-            try
-            {
-                if (await keycloak.HasRealmRoleAsync(keycloakId, KeycloakClaims.SiteAdminRole, ct))
-                    users[index] = users[index] with { IsSiteAdmin = true };
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to check site-admin role for {KeycloakId}", keycloakId);
-            }
-        }
+        var users = list.Items
+            .Select(row => row.KeycloakSub is { } sub && siteAdmins.Contains(sub)
+                ? row.Summary with { IsSiteAdmin = true }
+                : row.Summary)
+            .ToList();
 
         // Owned-tenant plan is a commercial concept resolved by the edition. Send the machine
         // CODE, not the display label — the admin UI feeds this straight into a select whose
@@ -111,7 +95,9 @@ public static class UserAdminEndpoints
             }
         }
 
-        return Results.Ok(new { users });
+        // `users` stays the list the admin UI reads; the capped list's real total and its
+        // truncation flag ride alongside, so a list cut at the cap says so.
+        return Results.Ok(new { users, totalItems = list.TotalItems, hasNextPage = list.HasNextPage });
     }
 
     private static async Task<IResult> GetUser(
@@ -187,25 +173,19 @@ public static class UserAdminEndpoints
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
         IPlatformUserRepository userRepository,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
+        // Keycloak first, and a failure fails the request: the DB must not say "disabled"
+        // while the identity provider still lets the user sign in. An identity Keycloak no
+        // longer has cannot sign in either, so a 404 there is the goal state.
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
-        {
-            try
-            {
-                await keycloak.DisableUserAsync(keycloakId, ct);
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to disable user {UserId} in Keycloak", userId);
-            }
-        }
+            await IgnoreKeycloakNotFoundAsync(() => keycloak.DisableUserAsync(keycloakId, ct));
 
         await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Disabled, ct);
-        logger.LogInformation("Admin {AdminId} deactivated user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.UserDeactivated, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
@@ -214,25 +194,16 @@ public static class UserAdminEndpoints
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
         IPlatformUserRepository userRepository,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
-        {
-            try
-            {
-                await keycloak.EnableUserAsync(keycloakId, ct);
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to enable user {UserId} in Keycloak", userId);
-            }
-        }
+            await keycloak.EnableUserAsync(keycloakId, ct);
 
         await userService.SetGlobalStatusAsync(userId, UserStatusConstants.Active, ct);
-        logger.LogInformation("Admin {AdminId} reactivated user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.UserReactivated, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
@@ -241,32 +212,39 @@ public static class UserAdminEndpoints
         IUserManagementService userService,
         IKeycloakAdminService keycloak,
         IPlatformUserRepository userRepository,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
-        ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
+        if (userId == principal.UserId)
+            return ErrorResponses.BadRequest("Cannot delete your own account");
+
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
-        {
-            try
-            {
-                await keycloak.DeleteUserAsync(keycloakId, ct);
-            }
-            catch (KeycloakAdminException ex)
-            {
-                logger.LogWarning(ex, "Failed to delete user {UserId} from Keycloak", userId);
-            }
-        }
+            await IgnoreKeycloakNotFoundAsync(() => keycloak.DeleteUserAsync(keycloakId, ct));
 
         await userService.PermanentlyDeleteAsync(userId, ct);
-        logger.LogInformation("Admin {AdminId} permanently deleted user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.UserDeleted, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
+    }
+
+    private static async Task IgnoreKeycloakNotFoundAsync(Func<Task> call)
+    {
+        try
+        {
+            await call();
+        }
+        catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status404NotFound)
+        {
+            // Already gone from the identity provider.
+        }
     }
 
     private static async Task<IResult> PromoteSiteAdmin(
         Guid userId,
         IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -291,7 +269,7 @@ public static class UserAdminEndpoints
             return ErrorResponses.UnprocessableEntity("Keycloak identity is stale — user not found in identity provider");
         }
 
-        logger.LogInformation("Admin {AdminId} promoted user {UserId} to site-admin", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.SiteAdminGranted, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 
@@ -299,6 +277,7 @@ public static class UserAdminEndpoints
         Guid userId,
         IPlatformUserRepository userRepository,
         IKeycloakAdminService keycloak,
+        IAdminAuditService audit,
         ICurrentPrincipal principal,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -332,7 +311,7 @@ public static class UserAdminEndpoints
             return ErrorResponses.UnprocessableEntity("Keycloak identity is stale — user not found in identity provider");
         }
 
-        logger.LogInformation("Admin {AdminId} revoked site-admin from user {UserId}", principal.UserId, userId);
+        await audit.RecordEventAsync(principal.UserIdOrNull, SecurityAuditActions.SiteAdminRevoked, "user", userId.ToString(), ct: ct);
         return Results.NoContent();
     }
 

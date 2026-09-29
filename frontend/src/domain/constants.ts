@@ -102,7 +102,6 @@ export const RRULE_FIELD = {
 // Safety-limit iteration caps
 // ---------------------------------------------------------------------------
 
-export const MAX_DAY_ITERATIONS = 400;
 export const MAX_CALC_ITERATIONS = 10_000;
 
 // ---------------------------------------------------------------------------

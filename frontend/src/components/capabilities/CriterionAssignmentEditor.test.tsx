@@ -45,7 +45,6 @@ function renderEditor(props: Partial<CriterionAssignmentEditorProps> = {}) {
 
 describe('CriterionAssignmentEditor', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     vi.mocked(useCanEdit).mockReturnValue(true);
   });
 

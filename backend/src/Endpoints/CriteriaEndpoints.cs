@@ -55,7 +55,7 @@ public static class CriteriaEndpoints
                     request.Unit,
                     request.Validation,
                     request.ResourceTypeKeys!, ct);
-                return Results.Created($"/criteria/{criterion.Id}", criterion);
+                return Results.Created($"/api/criteria/{criterion.Id}", criterion);
             }, logger, "create criterion");
         })
         .WithName("CreateCriterion")

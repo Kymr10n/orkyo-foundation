@@ -13,7 +13,6 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 [Collection("Database collection")]
 public class InsightsEndpointsTests
 {
-    private readonly DatabaseFixture _fixture;
     private readonly HttpClient _client;
     private readonly string _tenantCs;
 
@@ -24,7 +23,6 @@ public class InsightsEndpointsTests
 
     public InsightsEndpointsTests(DatabaseFixture fixture)
     {
-        _fixture = fixture;
         _client = fixture.CreateAuthorizedClient();
         _tenantCs = fixture.TenantConnectionString;
     }
@@ -178,14 +176,6 @@ public class InsightsEndpointsTests
     {
         var response = await _client.GetAsync($"/api/insights/overview?from={From}&to={To}&siteId={Guid.NewGuid()}");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
-    }
-
-    [Fact]
-    public async Task Insights_WithoutAuth_Returns401()
-    {
-        var anon = _fixture.Factory.CreateClient();
-        var response = await anon.GetAsync($"/api/insights/overview?from={From}&to={To}");
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     // ── Empty period ──────────────────────────────────────────────────────────

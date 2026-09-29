@@ -37,12 +37,12 @@ export function TenantAdminPage() {
     <PageLayout>
       <PageHeader
         title="Administration"
-        description="Manage tenant governance: sites, users, organization, and integrations"
+        description="Manage organization governance: sites, users, organization, and integrations"
       />
       <PageTabs
         tabs={tabs}
         value={active}
-        onChange={(v) => navigate(`${ROUTE_TENANT_ADMIN}/${v}`, { replace: true })}
+        onChange={(v) => void navigate(`${ROUTE_TENANT_ADMIN}/${v}`, { replace: true })}
       >
         <Outlet />
       </PageTabs>

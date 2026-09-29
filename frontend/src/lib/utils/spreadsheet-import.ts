@@ -2,9 +2,9 @@ import type { CreateRequestRequest } from '@foundation/src/types/requests';
 import type { CreateResourceRequest } from '@foundation/src/lib/api/resources-api';
 
 // Parses the published Orkyo capacity-planning workbook (orkyo.com/guides/
-// capacity-planning-excel-template/) into create payloads. Kept free of any
-// spreadsheet library: the exceljs touchpoint lives in spreadsheet-file.ts and
-// hands over neutral SheetData, so everything here is synchronous and testable.
+// capacity-planning-excel-template/) into create payloads. Kept free of file
+// reading: spreadsheet-file.ts unpacks the .xlsx and hands over neutral SheetData,
+// so everything here is synchronous and testable.
 //
 // Template layout (both sheets): headers on row 5, data from row 6. Columns
 // beyond the input range are derived formulas in the workbook and are ignored.

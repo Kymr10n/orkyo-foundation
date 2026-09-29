@@ -39,7 +39,7 @@ public class SiteRepository : ISiteRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         var sites = await conn.QueryListAsync(
-            $"SELECT {SelectColumns} FROM sites ORDER BY name LIMIT 200", null,
+            $"SELECT {SelectColumns} FROM sites ORDER BY name", null,
             SiteMapper.MapFromReader, ct);
         return sites.Select(Dec).ToList();
     }
@@ -72,7 +72,7 @@ public class SiteRepository : ISiteRepository
         return await conn.ExistsAsync("sites", siteId, ct);
     }
 
-    public async Task<int> GetEstimatedCountAsync(CancellationToken ct = default)
+    public async Task<int> GetCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
         return (int)await conn.ExecuteScalarAsync<long>(
@@ -82,14 +82,9 @@ public class SiteRepository : ISiteRepository
     public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        // Check if code already exists
-        if (await conn.ExecuteScalarAsync<long>("SELECT COUNT(*) FROM sites WHERE code = @code",
-                p => p.AddWithValue("code", code), ct) > 0)
-            throw new ConflictException("Site with this code already exists");
-
-        return Dec((await conn.QuerySingleOrDefaultAsync(
+        try
+        {
+            return Dec((await conn.QuerySingleOrDefaultAsync(
             $"INSERT INTO sites (id, code, name, description, address, created_at, updated_at) VALUES (@id, @code, @name, @description, @address, NOW(), NOW()) RETURNING {SelectColumns}",
             p =>
             {
@@ -99,20 +94,21 @@ public class SiteRepository : ISiteRepository
                 p.AddNullable("description", Enc(description));
                 p.AddNullable("address", Enc(address));
             }, SiteMapper.MapFromReader, ct))!);
+        }
+        catch (PostgresException pg) when (pg.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            // sites_code_key decides, not a prior COUNT that two concurrent creates both pass.
+            throw new ConflictException("Site with this code already exists");
+        }
     }
 
     public async Task<SiteInfo?> UpdateAsync(Guid siteId, string code, string name, string? description, string? address, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        await conn.OpenAsync(ct);
-
-        // Check if another site has this code
-        if (await conn.ExecuteScalarAsync<long>(
-                "SELECT COUNT(*) FROM sites WHERE code = @code AND id != @siteId",
-                p => { p.AddWithValue("code", code); p.AddWithValue("siteId", siteId); }, ct) > 0)
-            throw new ConflictException("Another site with this code already exists");
-
-        var updated = await conn.QuerySingleOrDefaultAsync(
+        SiteInfo? updated;
+        try
+        {
+            updated = await conn.QuerySingleOrDefaultAsync(
             $"UPDATE sites SET code = @code, name = @name, description = @description, address = @address, updated_at = NOW() WHERE id = @siteId RETURNING {SelectColumns}",
             p =>
             {
@@ -122,6 +118,11 @@ public class SiteRepository : ISiteRepository
                 p.AddNullable("description", Enc(description));
                 p.AddNullable("address", Enc(address));
             }, SiteMapper.MapFromReader, ct);
+        }
+        catch (PostgresException pg) when (pg.SqlState == PostgresErrorCodes.UniqueViolation)
+        {
+            throw new ConflictException("Another site with this code already exists");
+        }
         return updated is null ? null : Dec(updated);
     }
 

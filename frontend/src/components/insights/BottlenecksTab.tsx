@@ -7,11 +7,8 @@ import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { ErrorAlert } from "@foundation/src/components/ui/ErrorAlert";
 import { BottleneckChart } from "@foundation/src/components/insights/InsightsTrendCharts";
 import { useInsightsTabContext } from "@foundation/src/components/insights/insightsTabContext";
-import {
-  useCriticalPath,
-  useFetchRequest,
-  useInsightsBottlenecksByType,
-} from "@foundation/src/hooks/useInsights";
+import { useCriticalPath, useInsightsBottlenecksByType } from "@foundation/src/hooks/useInsights";
+import { useFetchRequest } from "@foundation/src/hooks/useRequests";
 import { useResourceTypes } from "@foundation/src/hooks/useResourceTypes";
 import { type InsightsBottlenecks } from "@foundation/src/lib/api/insights-api";
 import type { ResourceTypeInfo } from "@foundation/src/lib/api/resource-types-api";
@@ -34,9 +31,8 @@ import {
   TableHeader,
   TableRow,
 } from "@foundation/src/components/ui/table";
-import { DATE_FORMATS } from "@foundation/src/lib/formatters";
+import { formatDateTimeDisplay } from "@foundation/src/lib/formatters";
 import { formatMinutesHuman } from "@foundation/src/lib/utils/utils";
-import { format, parseISO } from "date-fns";
 
 /**
  * Where the plan is constrained: which resources are over capacity, and which work decides the
@@ -120,7 +116,7 @@ export function BottlenecksTab() {
             <CriticalPathBody
               nodes={criticalPath.data?.nodes ?? []}
               diagnostics={criticalPath.data?.diagnostics ?? []}
-              onOpenRequest={openRequest}
+              onOpenRequest={(id) => void openRequest(id)}
             />
           )}
         </CardContent>
@@ -224,7 +220,7 @@ function CriticalPathBody({
     );
   }
 
-  const day = (iso: string) => format(parseISO(iso), DATE_FORMATS.DATETIME_MEDIUM);
+  const day = formatDateTimeDisplay;
 
   return (
     <div className="space-y-3">

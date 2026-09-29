@@ -98,7 +98,6 @@ export const AUTH_EVENTS = {
   USER_UPDATED: 'USER_UPDATED',
   REFRESH: 'REFRESH',
   UNAUTHORIZED: 'UNAUTHORIZED',
-  SESSION_EXPIRED: 'SESSION_EXPIRED',
   REACTIVATE: 'REACTIVATE',
   RETRY: 'RETRY',
 } as const;
@@ -108,9 +107,9 @@ export const AUTH_EVENTS = {
 /** Spinner and status messages shown to the user. */
 export const AUTH_MESSAGES = {
   LOADING: 'Loading…',
-  REDIRECTING: 'Redirecting...',
-  REDIRECTING_LOGIN: 'Redirecting to sign in...',
-  SIGNING_OUT: 'Signing out...',
+  REDIRECTING: 'Redirecting…',
+  REDIRECTING_LOGIN: 'Redirecting to sign in…',
+  SIGNING_OUT: 'Signing out…',
   BACKEND_ERROR_TITLE: 'Something went wrong',
   BACKEND_ERROR_DETAIL: 'Our servers are having trouble — please try again in a moment.',
   NETWORK_ERROR_TITLE: 'Unable to connect',
@@ -136,6 +135,10 @@ export const AUTH_ERROR_MESSAGES = {
     'Access to Orkyo is currently by invitation only. If your organisation is taking part in the early-access programme, ask your administrator to invite this address — or apply at orkyo.com/design-partners.',
   account_inactive:
     'This account is not active. Please contact your administrator.',
+  // The identity provider has not verified this address, so it cannot be matched to an
+  // existing (invited) account. Retrying cannot help until the address is verified.
+  email_not_verified:
+    'Your email address is not verified yet. Verify it with your sign-in provider, then sign in again.',
   // Emitted by the SaaS demo-login endpoint when the demo is disabled or Keycloak is
   // unreachable. Without an entry here it fell through to DEFAULT ("Sign-in failed"), which
   // tells a demo visitor — who was never signing in — nothing useful.

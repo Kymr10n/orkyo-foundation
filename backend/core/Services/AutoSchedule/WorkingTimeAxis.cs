@@ -80,10 +80,6 @@ public sealed class WorkingTimeAxis
         return new WorkingTimeAxis(segments);
     }
 
-    /// <summary>The 24x7 axis over the horizon: offsets are plain minutes since its start.</summary>
-    public static WorkingTimeAxis Identity(DateOnly horizonStart, DateOnly horizonEnd)
-        => Build(horizonStart, horizonEnd, settings: null, respectSchedulingSettings: false);
-
     /// <summary>
     /// The offset of an instant, rounded down to the minute. An instant in a gap maps to the
     /// gap's offset — the same number as the end of the working stretch before it and the

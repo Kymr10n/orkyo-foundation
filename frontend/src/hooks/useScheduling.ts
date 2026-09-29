@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
+import { savedMessage, type SaveVariables } from "@foundation/src/hooks/mutation-utils";
 import {
   getSchedulingSettings,
   upsertSchedulingSettings,
@@ -57,24 +58,15 @@ export function useAvailabilityEvents(siteId: string | undefined) {
   });
 }
 
-export function useCreateAvailabilityEvent(siteId: string) {
+/** Create (`id: null`) or update an event — the event dialog's save; it shows a failure inline. */
+export function useSaveAvailabilityEvent(siteId: string) {
   return useMutation({
-    mutationFn: (request: CreateAvailabilityEventRequest) =>
-      createAvailabilityEvent(siteId, request),
+    mutationFn: (v: SaveVariables<CreateAvailabilityEventRequest, UpdateAvailabilityEventRequest>) =>
+      v.id === null
+        ? createAvailabilityEvent(siteId, v.data)
+        : updateAvailabilityEvent(siteId, v.id, v.data),
     meta: {
-      successMessage: 'Availability event created',
-      suppressErrorToast: true,
-      invalidates: [qk.scheduling.availabilityEvents(siteId)],
-    },
-  });
-}
-
-export function useUpdateAvailabilityEvent(siteId: string) {
-  return useMutation({
-    mutationFn: ({ eventId, updates }: { eventId: string; updates: UpdateAvailabilityEventRequest }) =>
-      updateAvailabilityEvent(siteId, eventId, updates),
-    meta: {
-      successMessage: 'Availability event updated',
+      successMessage: savedMessage('Availability event created', 'Availability event updated'),
       suppressErrorToast: true,
       invalidates: [qk.scheduling.availabilityEvents(siteId)],
     },

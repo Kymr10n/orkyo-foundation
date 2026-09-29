@@ -42,7 +42,7 @@ public static class FeedbackEndpoints
                 await NotifyAsync(request, currentPrincipal.Email, currentTenant.TenantSlug, userAgent,
                     emailService, configuration, logger);
 
-                return Results.Created($"/feedback/{feedback.Id}", feedback);
+                return Results.Created($"/api/feedback/{feedback.Id}", feedback);
             }, logger, "submit feedback", new { request.FeedbackType, request.Title });
         })
         .WithName("SubmitFeedback")

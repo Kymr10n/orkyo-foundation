@@ -1,6 +1,8 @@
+using System.Text.Json;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Repositories;
+using Api.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -27,14 +29,14 @@ public static class GroupCapabilityEndpoints
 
         capabilities.MapPost("/", async (Guid groupId, AddGroupCapabilityRequest request,
             IValidator<AddGroupCapabilityRequest> validator,
-            IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
+            ICapabilityAssignmentService assignments, CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var capability = await groupCapabilityRepository.CreateAsync(groupId, request.CriterionId, request.Value, ct);
+                var capability = await assignments.SetGroupCapabilityAsync(groupId, request.CriterionId, request.Value, ct);
                 return Results.Created($"/api/resource-groups/{groupId}/capabilities/{capability.Id}", capability);
             }))
         .WithName("AddGroupCapability")
-        .WithSummary("Add a capability to a resource group");
+        .WithSummary("Add or update a capability for a resource group");
 
         capabilities.MapDelete("/{capabilityId:guid}", async (Guid groupId, Guid capabilityId, IGroupCapabilityRepository groupCapabilityRepository, CancellationToken ct) =>
         {
@@ -46,4 +48,4 @@ public static class GroupCapabilityEndpoints
     }
 }
 
-public record AddGroupCapabilityRequest(Guid CriterionId, object Value);
+public record AddGroupCapabilityRequest(Guid CriterionId, JsonElement Value);

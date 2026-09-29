@@ -14,7 +14,7 @@ public static class DiagnosticsAdminEndpoints
 {
     public static void MapDiagnosticsAdminEndpoints(this WebApplication app)
     {
-        // Public version endpoint �� no auth required
+        // Public version endpoint — no auth required
         app.MapGet("/api/version", (DeploymentConfig deploymentConfig) =>
             Results.Ok(new
             {
@@ -26,23 +26,10 @@ public static class DiagnosticsAdminEndpoints
             .WithName("GetVersion")
             .WithSummary("Returns application version and build info (public, no auth)");
 
-        // Legacy API info endpoint (v1 compat)
-        app.MapGet("/api/v1/info", (DeploymentConfig deploymentConfig) =>
-            Results.Ok(new
-            {
-                name = "Orkyo API",
-                version = deploymentConfig.Version ?? "unknown",
-            }))
-            .AsInfrastructureEndpoint()
-            .WithTags("Infrastructure")
-            .WithName("GetApiInfo")
-            .WithSummary("Returns API name and version (public, no auth)");
-
         // Admin diagnostics endpoint
         var group = app.MapSiteAdminGroup();
 
         group.MapGet("/diagnostics", GetDiagnostics)
-            .RequireSiteAdmin()
             .WithName("AdminGetDiagnostics")
             .WithSummary("Returns full platform diagnostics: DB, SMTP, auth, migration, worker, and module status");
     }
@@ -50,6 +37,7 @@ public static class DiagnosticsAdminEndpoints
     private static async Task<IResult> GetDiagnostics(
         DeploymentConfig deploymentConfig,
         IDbConnectionFactory connectionFactory,
+        IHttpClientFactory httpClientFactory,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
     {
@@ -95,7 +83,8 @@ public static class DiagnosticsAdminEndpoints
         string authStatus;
         try
         {
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var http = httpClientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(5);
             var probeAuthority = deploymentConfig.OidcInternalAuthority ?? deploymentConfig.OidcAuthority;
             var discoveryUrl = OidcDiscoveryUrlPolicy.BuildDiscoveryUrl(probeAuthority);
             if (discoveryUrl is not null)
@@ -114,8 +103,9 @@ public static class DiagnosticsAdminEndpoints
         }
 
         // ── Worker status ───────────────────────────────────────────────
-        // Worker runs as a separate container; we check if its dependent
-        // background jobs have left evidence in the DB.
+        // The worker runs as a separate container and journals every scheduled job it finishes
+        // in worker_job_runs (the API never writes there). The tenant lifecycle job runs hourly,
+        // so no completion in two hours means the worker is idle or stopped.
         string workerStatus;
         DateTime? lastWorkerActivity = null;
 
@@ -124,24 +114,19 @@ public static class DiagnosticsAdminEndpoints
             await using var conn = connectionFactory.CreateControlPlaneConnection();
             await conn.OpenAsync(ct);
 
-            // Check for recent audit events or tenant lifecycle activity
             await using var cmd = new Npgsql.NpgsqlCommand(
-                $"SELECT MAX(created_at) FROM audit_events WHERE created_at > NOW() - INTERVAL '2 hours'", conn);
-            var recent = (await cmd.ExecuteScalarAsync(ct)) as DateTime?;
-            if (recent.HasValue)
-            {
-                workerStatus = "running";
-                lastWorkerActivity = recent.Value;
-            }
-            else
-            {
-                // No recent activity — could be idle or stopped
-                workerStatus = "idle";
-            }
+                "SELECT MAX(completed_at) AS last_completed, " +
+                "COALESCE(MAX(completed_at) > NOW() - INTERVAL '2 hours', false) AS recent " +
+                "FROM worker_job_runs", conn);
+            await using var reader = await cmd.ExecuteReaderAsync(ct);
+            await reader.ReadAsync(ct);
+            lastWorkerActivity = reader.GetNullableDateTime("last_completed");
+            workerStatus = reader.GetBoolean("recent") ? "running" : "idle";
         }
-        catch
+        catch (Exception ex)
         {
             workerStatus = "unknown";
+            logger.LogWarning(ex, "Diagnostics: worker status check failed");
         }
 
         // ── Modules ─────────────────────────────────────────────────────
@@ -154,7 +139,7 @@ public static class DiagnosticsAdminEndpoints
         {
             Version = deploymentConfig.Version ?? "unknown",
             Build = Environment.GetEnvironmentVariable(ConfigKeys.OrkyoBuildSha) ?? "unknown",
-            DeploymentMode = "self-hosted",
+            DeploymentMode = deploymentConfig.DeploymentMode ?? "unknown",
             LogLevel = deploymentConfig.LogLevel,
             Database = new DatabaseStatus
             {

@@ -23,7 +23,6 @@ afterEach(() => {
     writable: true,
     configurable: true,
   });
-  vi.clearAllMocks();
 });
 
 function dispatchPreloadError(): Event {

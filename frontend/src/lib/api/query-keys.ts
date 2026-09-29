@@ -15,9 +15,6 @@
  *  - Date params are serialized here (`toISOString`) so call sites stay terse and
  *    serialization can never drift between a query and its invalidation.
  *  - Keys are `as const` for literal-tuple types.
- *
- * Migration is incremental: the domains below are migrated; other keys still use
- * inline arrays and should be folded in here when next touched.
  */
 const iso = (d: Date) => d.toISOString();
 
@@ -35,6 +32,8 @@ export const qk = {
     conflicted: () => ["requests", "conflicted"] as const,
     /** Full request list incl. hierarchy — the Requests page, scoped to the selected site. */
     list: (siteId: string | null = null) => ["requests", "list", { siteId }] as const,
+    /** Every request without requirements — names for labels only. Never shares `list`'s key. */
+    names: () => ["requests", "names"] as const,
     /** One request, fetched by id on demand. */
     detail: (requestId: string) => ["requests", "detail", requestId] as const,
     /** Precedence edges touching one request. */
@@ -265,7 +264,12 @@ export const qk = {
     status: () => ["ai", "status"] as const,
     /** The caller's saved conversations (titles only — bodies are fetched on demand). */
     conversations: () => ["ai", "conversations"] as const,
+    /** One saved conversation's body. Under `conversations()` so a save or delete reaches it. */
+    conversation: (id: string) => ["ai", "conversations", id] as const,
   },
+
+  /** The command palette's search for one debounced term, scoped to an optional site. */
+  search: (term: string, siteId: string | null) => ["global-search", term, siteId] as const,
 
   userProfile: {
     /** The current user's identity-provider profile (also its own invalidation prefix). */
@@ -333,5 +337,13 @@ export const qk = {
     diagnostics: () => ["admin", "diagnostics"] as const,
     /** The platform runtime settings the admin Settings tab edits. */
     settings: () => ["admin", "settings"] as const,
+    /** The caller's break-glass session in one tenant. */
+    breakGlassSession: (tenantSlug: string) => ["admin", "break-glass-session", tenantSlug] as const,
+    /** Every user-feedback read (invalidation prefix). */
+    feedback: () => ["admin", "feedback"] as const,
+    /** The feedback list for one status filter (null = every status). */
+    feedbackList: (status: string | null) => ["admin", "feedback", "list", status] as const,
+    /** One feedback item with its full text. */
+    feedbackItem: (id: string) => ["admin", "feedback", "item", id] as const,
   },
 } as const;

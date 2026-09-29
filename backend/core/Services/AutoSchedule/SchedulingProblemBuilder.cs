@@ -48,7 +48,60 @@ public class SchedulingProblemBuilder
         var axis = WorkingTimeAxis.Build(
             request.HorizonStart, request.HorizonEnd, settings, request.RespectSchedulingSettings);
 
-        // The schedulable backlog is every leaf that isn't fully scheduled, in two disjoint fetches
+        var horizonFrom = request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        var horizonTo = request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+        var (eligibleRequests, runTypes) = await LoadBacklogAsync(request, horizonFrom, horizonTo, cancellationToken);
+        var resourceNodes = await BuildPoolAsync(request, runTypes, horizonFrom, horizonTo, cancellationToken);
+        var criterionTypeScopes = CriterionTypeScopes(eligibleRequests);
+        var (scheduled, fixedAssignments) = await BuildOccupancyAsync(
+            request, axis, resourceNodes, horizonFrom, horizonTo, cancellationToken);
+        var requestNodes = BuildRequestNodes(eligibleRequests, runTypes, axis);
+        var triage = await TriageDependenciesAsync(requestNodes, eligibleRequests, scheduled, axis, cancellationToken);
+        PropagateBlocking(triage.Blocked, triage.JoinNeeds);
+
+        // Withheld requests leave the solve set, so no solver can report them. Carry them out
+        // separately, with their names, or the caller sees a run that quietly returned fewer
+        // requests than it was given and no reason for any of them.
+        var withheld = triage.Blocked.Count == 0
+            ? []
+            : requestNodes
+                .Where(n => triage.Blocked.Contains(n.RequestId))
+                .Select(n => new WithheldRequestNode(n.RequestId, n.DisplayName))
+                .ToList();
+
+        if (triage.EarliestFromPredecessor.Count > 0 || triage.Blocked.Count > 0)
+        {
+            requestNodes = requestNodes
+                .Where(n => !triage.Blocked.Contains(n.RequestId))
+                .Select(n => triage.EarliestFromPredecessor.TryGetValue(n.RequestId, out var bound)
+                    && (n.EarliestStart is null || bound > n.EarliestStart.Value)
+                        ? n with { EarliestStart = bound }
+                        : n)
+                .ToList();
+
+            // Edges with an endpoint outside the solve set have nothing left to constrain.
+            triage.SolverEdges.RemoveAll(e => triage.Blocked.Contains(e.SuccessorRequestId)
+                                    || triage.Blocked.Contains(e.PredecessorRequestId));
+        }
+
+        return new SchedulingProblem(
+            request.SiteId, request.HorizonStart, request.HorizonEnd, axis,
+            requestNodes, resourceNodes, fixedAssignments,
+            triage.SolverEdges, withheld, triage.JoinConditions, criterionTypeScopes);
+    }
+
+    /// <summary>
+    /// The schedulable backlog: every leaf that is not fully scheduled, wants one of the run's
+    /// types and has none of it yet.
+    /// </summary>
+    private async Task<(List<RequestInfo> Eligible, HashSet<string> RunTypes)> LoadBacklogAsync(
+        AutoSchedulePreviewRequest request,
+        DateTime horizonFrom,
+        DateTime horizonTo,
+        CancellationToken cancellationToken)
+    {
+        // Two disjoint fetches
         // that together reproduce the old tenant-wide `!IsScheduled` leaf filter without the heavy
         // GetAllAsync (which pulled every request, groups and finished ones included):
         //   • GetUnscheduledAsync — leaves with start_ts IS NULL (the drag-to-schedule backlog).
@@ -67,9 +120,6 @@ public class SchedulingProblemBuilder
             ? keys.ToHashSet(StringComparer.Ordinal)
             : throw new ArgumentException(
                 "ResourceTypeKeys must be resolved before building the problem.", nameof(request));
-
-        var horizonFrom = request.HorizonStart.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-        var horizonTo = request.HorizonEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         // A request is in the run when it wants at least one of the run's types and has not
         // already got a resource of it. Without the second test a request whose room is already
@@ -91,6 +141,17 @@ public class SchedulingProblemBuilder
             eligibleRequests = eligibleRequests.Where(r => requestIdSet.Contains(r.Id)).ToList();
         }
 
+        return (eligibleRequests, runTypes);
+    }
+
+    /// <summary>The candidate resources of the run's types, with their capabilities.</summary>
+    private async Task<List<ResourceNode>> BuildPoolAsync(
+        AutoSchedulePreviewRequest request,
+        HashSet<string> runTypes,
+        DateTime horizonFrom,
+        DateTime horizonTo,
+        CancellationToken cancellationToken)
+    {
         // Window the site filter to the horizon. Without it the filter resolves a travelling
         // resource's location as of now(), so solving three months out included or excluded
         // people and tools by where they happen to be today — and the same run tomorrow
@@ -116,16 +177,20 @@ public class SchedulingProblemBuilder
                 candidates.Select(c => c.Id).ToList(), cancellationToken))
             .GroupBy(c => c.ResourceId)
             .ToDictionary(g => g.Key, g => g.Select(c => c.CriterionId).ToHashSet());
-        var resourceNodes = candidates
+        return candidates
             .Select(c => new ResourceNode(
                 c.Id, c.Name, c.ResourceTypeKey, capabilitiesByResource.GetValueOrDefault(c.Id) ?? []))
             .ToList();
+    }
 
-        // A criterion is scoped to resource types, so a requirement written for the mill must
-        // not be demanded of the van the same request also needs. The scope rides on each
-        // loaded requirement (the same projection the assignment validator decides from), so
-        // no second read of the criteria table is needed.
-        var criterionTypeScopes = eligibleRequests
+    /// <summary>
+    /// A criterion is scoped to resource types, so a requirement written for the mill must
+    /// not be demanded of the van the same request also needs. The scope rides on each
+    /// loaded requirement (the same projection the assignment validator decides from), so
+    /// no second read of the criteria table is needed.
+    /// </summary>
+    private static Dictionary<Guid, IReadOnlySet<string>> CriterionTypeScopes(List<RequestInfo> eligibleRequests)
+        => eligibleRequests
             .SelectMany(r => r.Requirements ?? [])
             .Where(q => q.Criterion is not null)
             .GroupBy(q => q.CriterionId)
@@ -133,44 +198,21 @@ public class SchedulingProblemBuilder
                 g => g.Key,
                 g => (IReadOnlySet<string>)g.First().Criterion!.ResourceTypeKeys.ToHashSet(StringComparer.Ordinal));
 
+    /// <summary>
+    /// What already holds the pool: bookings on its resources and the resources' own blocked
+    /// periods. Also returns the scheduled requests, which the dependency triage reads.
+    /// </summary>
+    private async Task<(List<RequestInfo> Scheduled, List<FixedOccupancy> Occupancy)> BuildOccupancyAsync(
+        AutoSchedulePreviewRequest request,
+        WorkingTimeAxis axis,
+        List<ResourceNode> resourceNodes,
+        DateTime horizonFrom,
+        DateTime horizonTo,
+        CancellationToken cancellationToken)
+    {
         var candidateIds = resourceNodes.Select(n => n.ResourceId).ToList();
         var blockedPeriodsByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(
             request.SiteId, candidateIds, cancellationToken);
-
-        var requestNodes = new List<RequestNode>();
-        foreach (var r in eligibleRequests)
-        {
-            int? earliest, latest;
-            int duration;
-            if (r.StartTs is { } pinnedStart && r.EndTs is { } pinnedEnd)
-            {
-                // A window someone already chose is a fact about the plan, not an estimate:
-                // the run fills the open types at exactly that window. Moving it would also
-                // move the resources already booked on it, past whatever else they hold.
-                var start = axis.ToOffset(pinnedStart);
-                var end = Math.Max(start + 1, axis.ToOffsetEnd(pinnedEnd));
-                earliest = start;
-                latest = end;
-                duration = end - start;
-            }
-            else
-            {
-                earliest = r.EarliestStartTs is { } earliestTs ? axis.ToOffset(earliestTs) : null;
-                latest = r.LatestEndTs is { } latestTs ? axis.ToOffset(latestTs) : null;
-                // At least a minute: a zero-length placement would have no window to write.
-                duration = Math.Max(1, SchedulingEngine.DurationToMinutes(r.MinimalDurationValue, r.MinimalDurationUnit));
-            }
-
-            requestNodes.Add(new RequestNode(
-                r.Id,
-                r.Name,
-                earliest,
-                latest,
-                duration,
-                Priority: (int)r.Status,
-                r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>(),
-                OpenTypes(r, runTypes)));
-        }
 
         // Fixed occupancies: requests in this site whose bar can touch the horizon. The solvers
         // only consult occupancies on the candidate resources within the horizon, so the
@@ -212,6 +254,71 @@ public class SchedulingProblemBuilder
             }
         }
 
+        return (scheduled, fixedAssignments);
+    }
+
+    private static List<RequestNode> BuildRequestNodes(
+        List<RequestInfo> eligibleRequests, IReadOnlySet<string> runTypes, WorkingTimeAxis axis)
+    {
+        var requestNodes = new List<RequestNode>();
+        foreach (var r in eligibleRequests)
+        {
+            int? earliest, latest;
+            int duration;
+            if (r.StartTs is { } pinnedStart && r.EndTs is { } pinnedEnd)
+            {
+                // A window someone already chose is a fact about the plan, not an estimate:
+                // the run fills the open types at exactly that window. Moving it would also
+                // move the resources already booked on it, past whatever else they hold.
+                var start = axis.ToOffset(pinnedStart);
+                var end = Math.Max(start + 1, axis.ToOffsetEnd(pinnedEnd));
+                earliest = start;
+                latest = end;
+                duration = end - start;
+            }
+            else
+            {
+                earliest = r.EarliestStartTs is { } earliestTs ? axis.ToOffset(earliestTs) : null;
+                latest = r.LatestEndTs is { } latestTs ? axis.ToOffset(latestTs) : null;
+                // At least a minute: a zero-length placement would have no window to write.
+                duration = Math.Max(1, SchedulingEngine.DurationToMinutes(r.MinimalDurationValue, r.MinimalDurationUnit));
+            }
+
+            requestNodes.Add(new RequestNode(
+                r.Id,
+                r.Name,
+                earliest,
+                latest,
+                duration,
+                Priority: (int)r.Status,
+                r.Requirements?.Select(req => req.CriterionId).ToHashSet() ?? new HashSet<Guid>(),
+                OpenTypes(r, runTypes)));
+        }
+
+        return requestNodes;
+    }
+
+    /// <summary>What each successor still needs from the run's own placements.</summary>
+    private readonly record struct JoinNeed(int Required, int FromPlaced, List<Guid> SolverPredecessors);
+
+    private sealed record DependencyTriage(
+        List<DependencyEdge> SolverEdges,
+        Dictionary<Guid, int> EarliestFromPredecessor,
+        HashSet<Guid> Blocked,
+        Dictionary<Guid, JoinCondition> JoinConditions,
+        Dictionary<Guid, JoinNeed> JoinNeeds);
+
+    /// <summary>
+    /// Sorts every precedence edge into the run: a solver constraint, a fixed earliest start, or
+    /// a reason to withhold the successor.
+    /// </summary>
+    private async Task<DependencyTriage> TriageDependenciesAsync(
+        List<RequestNode> requestNodes,
+        List<RequestInfo> eligibleRequests,
+        List<RequestInfo> scheduled,
+        WorkingTimeAxis axis,
+        CancellationToken cancellationToken)
+    {
         // Precedence edges pointing at anything this run might place. One read for the whole
         // solve set — asking per request would be an N+1 over the backlog.
         var solveSet = requestNodes.Select(n => n.RequestId).ToHashSet();
@@ -258,7 +365,7 @@ public class SchedulingProblemBuilder
         // What each successor still needs, so blocking can be resolved by the join rather than by
         // reachability. Only successors that depend on the run's own placements are listed: one
         // satisfied purely by immovable work cannot be un-satisfied by anything the run does.
-        var joinNeeds = new Dictionary<Guid, (int Required, int FromPlaced, List<Guid> SolverPredecessors)>();
+        var joinNeeds = new Dictionary<Guid, JoinNeed>();
 
         // Triage runs per SUCCESSOR, not per edge: a join condition is a property of a request's
         // whole incoming set ("2 of my 3"), so no single edge can be classified on its own.
@@ -338,7 +445,7 @@ public class SchedulingProblemBuilder
                 // can do better. The solvers fold edges with a max, so the join is kept
                 // conservatively: every solver edge is handed over.
                 solverEdges.AddRange(edgesForSolver);
-                joinNeeds[successorId] = (
+                joinNeeds[successorId] = new JoinNeed(
                     required,
                     placedBounds.Count,
                     [.. edgesForSolver.Select(e => e.PredecessorRequestId)]);
@@ -374,11 +481,18 @@ public class SchedulingProblemBuilder
             if (bound > lastStart) blockedBySet.Add(requestId);
         }
 
+        return new DependencyTriage(
+            solverEdges, earliestFromPredecessor, blockedBySet, joinConditions, joinNeeds);
+    }
+
+    /// <summary>Carries blocking downstream through each successor's join.</summary>
+    private static void PropagateBlocking(HashSet<Guid> blockedBySet, Dictionary<Guid, JoinNeed> joinNeeds)
+    {
         // Blocking travels downstream, but it travels through the JOIN, not through plain
         // reachability. If S cannot be placed, a successor that needs "all" of its predecessors
         // is finished — while one that needs "any" is perfectly fine as long as another
         // predecessor survives. Walking the edges alone would re-impose "all" on every join and
-        // undo the whole triage above.
+        // undo the whole triage in TriageDependenciesAsync.
         //
         // A fixpoint rather than a queue: blocking a request can drop a later successor below its
         // requirement, which can drop another, and the dependency order is not known here.
@@ -399,37 +513,8 @@ public class SchedulingProblemBuilder
                 }
             } while (changed);
         }
-
-        // Withheld requests leave the solve set, so no solver can report them. Carry them out
-        // separately, with their names, or the caller sees a run that quietly returned fewer
-        // requests than it was given and no reason for any of them.
-        var withheld = blockedBySet.Count == 0
-            ? []
-            : requestNodes
-                .Where(n => blockedBySet.Contains(n.RequestId))
-                .Select(n => new WithheldRequestNode(n.RequestId, n.DisplayName))
-                .ToList();
-
-        if (earliestFromPredecessor.Count > 0 || blockedBySet.Count > 0)
-        {
-            requestNodes = requestNodes
-                .Where(n => !blockedBySet.Contains(n.RequestId))
-                .Select(n => earliestFromPredecessor.TryGetValue(n.RequestId, out var bound)
-                    && (n.EarliestStart is null || bound > n.EarliestStart.Value)
-                        ? n with { EarliestStart = bound }
-                        : n)
-                .ToList();
-
-            // Edges with an endpoint outside the solve set have nothing left to constrain.
-            solverEdges.RemoveAll(e => blockedBySet.Contains(e.SuccessorRequestId)
-                                    || blockedBySet.Contains(e.PredecessorRequestId));
-        }
-
-        return new SchedulingProblem(
-            request.SiteId, request.HorizonStart, request.HorizonEnd, axis,
-            requestNodes, resourceNodes, fixedAssignments,
-            solverEdges, withheld, joinConditions, criterionTypeScopes);
     }
+
 
     /// <summary>The run's types this request targets and has no resource of yet.</summary>
     private static IReadOnlySet<string> OpenTypes(RequestInfo r, IReadOnlySet<string> runTypes)

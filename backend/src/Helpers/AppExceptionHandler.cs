@@ -9,7 +9,27 @@ public sealed class AppExceptionHandler : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        var result = exception switch
+        var result = Map(exception);
+
+        if (result is null) return false;
+
+        await result.ExecuteAsync(httpContext);
+        return true;
+    }
+
+    /// <summary>
+    /// The one classification of an exception as a client error, shared with the MCP pipeline:
+    /// the detail of the 4xx <see cref="Map"/> answers it with, or null when it is not one (a
+    /// programming error, an upstream failure) and the caller must not see its message.
+    /// </summary>
+    internal static string? ClientErrorDetail(Exception exception)
+        => Map(exception) is IStatusCodeHttpResult { StatusCode: >= 400 and < 500 } and IValueHttpResult { Value: OrkyoProblemDetails problem }
+            ? problem.Detail ?? problem.Title
+            : null;
+
+    /// <summary>The response for an exception this handler owns, or null to let it fall through.</summary>
+    private static IResult? Map(Exception exception)
+        => exception switch
         {
             // Framework exception: required query/route/body parameter missing from the request.
             // ASP.NET Core would return 400 anyway, but catching it here prevents DeveloperExceptionPageMiddleware
@@ -61,10 +81,4 @@ public sealed class AppExceptionHandler : IExceptionHandler
                     $"The site's scheduling settings use a time zone this server cannot resolve: {tznf.Message}"),
             _ => null
         };
-
-        if (result is null) return false;
-
-        await result.ExecuteAsync(httpContext);
-        return true;
-    }
 }

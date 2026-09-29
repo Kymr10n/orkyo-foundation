@@ -4,7 +4,7 @@
 
 The shared domain layer consumed by **both** product repos (`orkyo-saas`, `orkyo-community`). Contains NO self-executing wiring — no `Program.cs` composes anything here. Foundation ships DI **extension methods** (`AddFoundationServices` and friends) and middleware **classes** that products opt into from their own `Program.cs`. Published to GitHub Packages as `Orkyo.Foundation` (NuGet) and `@kymr10n/foundation` (npm).
 
-Also owns the Keycloak image (`ghcr.io/kymr10n/keycloak:26.6-orkyo-<version>`) including the Orkyo theme.
+Also owns the Keycloak image (`ghcr.io/kymr10n/keycloak:<kc-major.minor>-orkyo-<version>`, prefix taken from `keycloak/Dockerfile`) including the Orkyo theme.
 
 ## Placement rule
 
@@ -17,7 +17,7 @@ Multi-tenancy or a `tenantId` parameter alone is NOT a reason to keep code in Sa
 - **No runtime wiring** in this repo. Products do the wiring.
 - **Public API surface** must stay backward-compatible within a major version. Breaking changes require a major bump + coordinated downstream PRs in saas + community.
 - **Tests live where the code lives.** Service tests for foundation code stay here; integration tests against product wiring stay in the product repo.
-- **`dotnet format`** must pass before push. The pre-push hook in `.pre-commit-config.yaml` runs it; `./setup.sh` installs the hooks once.
+- **`dotnet format`** must pass before push. The pre-commit hook in `.pre-commit-config.yaml` runs it and CI verifies it; `./setup.sh` installs the hooks once.
 - **Documentation language is ASD-STE100 Simplified Technical English.** Applies to `docs/` and `frontend/docs/` — descriptive register: simple tenses, 25 words maximum per sentence, no imperative. Approved modals are can/will/must — never should, would, may, might, or could. The 53 rules are in `.claude/skills/simple-english/SKILL.md`; the scope table and the Orkyo term list are in `orkyo-documentation/docs/LANGUAGE-STANDARD.md`. `requirements/` is out of scope (historical spec packs). A `PostToolUse` hook (`.claude/hooks/ste-check.py`) reports violations — advisory, no CI gate.
 
 ## Authorization & roles
@@ -154,9 +154,10 @@ Three exemptions, and nothing else. State the reason in the PR:
   loading a remote script, a container entrypoint. Test the decision around them (does the
   widget render at all?) rather than the vendor's code.
 
-This is a rule of practice, not a CI gate. Codecov reports the number and does not block the
-merge; deliberately, because a hard threshold turns into a treadmill of tests written to move
-a percentage rather than to catch a defect.
+Patch coverage is a rule of practice, not a CI gate: codecov reports it and does not block the
+merge, because a hard patch threshold turns into a treadmill of tests written to move a
+percentage. The frontend aggregate IS gated: vitest's thresholds (`frontend/vitest.config.ts`,
+80 lines/statements/functions, 70 branches) fail `npm test -- --coverage` in CI.
 
 ## Nothing unreachable gets committed (enforced)
 

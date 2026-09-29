@@ -46,7 +46,6 @@ const importantAnnouncement = {
 
 describe('MessagesTab', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetActiveAnnouncements.mockResolvedValue({ announcements: [] });
     mockMarkAnnouncementRead.mockResolvedValue(undefined);
   });

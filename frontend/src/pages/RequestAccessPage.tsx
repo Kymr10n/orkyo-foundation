@@ -8,17 +8,19 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
+import { goToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { API_BASE_URL } from "@foundation/src/lib/core/api-utils";
 import { isValidEmail } from "@foundation/src/lib/utils/validation";
 import { usePageTitle } from "@foundation/src/hooks/usePageTitle";
+import { TurnstileWidget } from "@foundation/src/components/security/TurnstileWidget";
 
 export function RequestAccessPage() {
   usePageTitle("Request access");
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -59,6 +61,8 @@ export function RequestAccessPage() {
           email: formData.email,
           password: formData.password,
           displayName: formData.name || undefined,
+          // Null when no Turnstile site key is configured; the backend then fails open.
+          challengeToken,
         }),
       });
 
@@ -78,7 +82,7 @@ export function RequestAccessPage() {
   };
 
   const handleBackToLogin = () => {
-    if (!navigateToApex("/")) window.location.href = "/";
+    goToApex("/");
   };
 
   if (submitted) {
@@ -125,7 +129,7 @@ export function RequestAccessPage() {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name (optional)</Label>
             <Input
@@ -184,6 +188,9 @@ export function RequestAccessPage() {
               disabled={isLoading}
             />
           </div>
+
+          {/* Renders nothing when no Turnstile site key is configured. */}
+          <TurnstileWidget onToken={setChallengeToken} className="min-h-[65px]" />
 
           <Button type="submit" className="w-full" loading={isLoading} disabled={isLoading}>
             {!isLoading && <UserPlus className="mr-2 h-4 w-4" />}

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   getResourceCapabilities,
   upsertResourceCapability,
@@ -20,8 +20,6 @@ const mockCapability = {
 };
 
 describe('resource-capabilities-api', () => {
-  beforeEach(() => vi.clearAllMocks());
-
   it('getResourceCapabilities calls /api/resources/{id}/capabilities', async () => {
     vi.mocked(apiClient.apiGet).mockResolvedValue([mockCapability]);
 

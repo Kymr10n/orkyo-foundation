@@ -5,9 +5,7 @@ import { MemoryRouter } from 'react-router';
 import { TemplateSettings } from './TemplateSettings';
 import { createTestQueryWrapper } from '@foundation/src/test-utils';
 import { getTemplates, deleteTemplate } from '@foundation/src/lib/api/template-api';
-
-const toastError = vi.fn();
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: (...a: unknown[]) => toastError(...a) } }));
+import { toast } from 'sonner';
 
 const mockGetTemplates = vi.mocked(getTemplates);
 const mockDeleteTemplate = vi.mocked(deleteTemplate);
@@ -50,7 +48,6 @@ function renderTemplateSettings(initialEntries: string[] = ['/settings/templates
 
 describe('TemplateSettings', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
     mockGetTemplates.mockResolvedValue([]);
     global.alert = vi.fn();
   });
@@ -123,9 +120,8 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    // Click first delete button (Trash2 icon buttons)
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Weekly Meeting' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await waitFor(() => {
       expect(screen.getByText('Delete "Weekly Meeting"?')).toBeInTheDocument();
     });
@@ -142,8 +138,8 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Weekly Meeting' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Cancel' }));
     expect(mockDeleteTemplate).not.toHaveBeenCalled();
   });
@@ -156,11 +152,11 @@ describe('TemplateSettings', () => {
     await waitFor(() => {
       expect(screen.getByText('Weekly Meeting')).toBeInTheDocument();
     });
-    const deleteButtons = screen.getAllByRole('button').filter(b => b.querySelector('.text-destructive'));
-    await user.click(deleteButtons[0]);
+    await user.click(screen.getByRole('button', { name: 'Actions for Weekly Meeting' }));
+    await user.click(await screen.findByRole('menuitem', { name: /Delete/ }));
     await user.click(await screen.findByRole('button', { name: 'Delete' }));
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to delete template', expect.objectContaining({ description: 'Delete failed' }));
     });
   });
 

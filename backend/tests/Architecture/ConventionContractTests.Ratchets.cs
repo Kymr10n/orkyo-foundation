@@ -14,17 +14,17 @@ public partial class ConventionContractTests
     // ── (f) services that write SQL ──────────────────────────────────────────
 
     /// <summary>
-    /// Services that reach the database directly — by constructing an <c>NpgsqlCommand</c>, or by
-    /// running a query through the <c>NpgsqlQueryExtensions</c> helpers on their own connection:
-    /// repositories wearing service names (docs/conventions.md, "Layering"). Grandfathered; move
-    /// the query into a repository on touch; new services take a repository.
+    /// Services and integrations that reach the database directly — by constructing an
+    /// <c>NpgsqlCommand</c>, or by running a query through the <c>NpgsqlQueryExtensions</c> helpers
+    /// on their own connection: repositories wearing service names (docs/conventions.md,
+    /// "Layering"). Grandfathered; move the query into a repository on touch; new services take a
+    /// repository.
     /// </summary>
     private static readonly HashSet<string> KnownSqlWritingServiceFiles = new(StringComparer.Ordinal)
     {
-        "core:Services/AdminAuditService.cs",
+        // Five raw commands on the identity tables; an integration, not a repository.
+        "core:Integrations/Keycloak/KeycloakIdentityLinkService.cs",
         "core:Services/AnnouncementBroadcastService.cs",
-        // "open + SELECT 1" control-plane reachability probe; a raw command by design.
-        "core:Services/DbHealthProbe.cs",
         "core:Services/Insights/InsightsService.cs",
         "core:Services/InvitationService.cs",
         "core:Services/Preset/PresetApplier.cs",
@@ -42,42 +42,17 @@ public partial class ConventionContractTests
         "core:Services/WorkerJobCoordinator.cs",
     };
 
+    private static readonly HashSet<string> SqlWritingServiceExemptFiles = new(StringComparer.Ordinal)
+    {
+        // "open + SELECT 1" control-plane reachability probe; a raw command by design.
+        "core:Services/DbHealthProbe.cs",
+    };
+
     // Both routes from a service to the database: a hand-built command (optionally namespace-
     // qualified) and the NpgsqlQueryExtensions helpers, which take the connection local `conn`
     // or `db` (docs/conventions.md, "Opening a connection").
-    [GeneratedRegex(@"new\s+(?:Npgsql\.)?NpgsqlCommand|(?<![\w.])(?:conn|db)\.(?:QueryListAsync|QuerySingleOrDefaultAsync|ExecuteAsync|ExecuteScalarAsync|ExistsAsync|QueryPagedAsync)\(")]
+    [GeneratedRegex(@"new\s+(?:Npgsql\.)?NpgsqlCommand|(?<![\w.])(?:conn|db)\.(?:QueryListAsync|QuerySingleOrDefaultAsync|ExecuteAsync|ExecuteScalarAsync|ExistsAsync|QueryPagedAsync|QueryCappedAsync)\(")]
     private static partial Regex ServiceSqlAccessRegex();
-
-    // ── (g) `db` connection locals ───────────────────────────────────────────
-
-    /// <summary>
-    /// The connection local is <c>conn</c> (docs/conventions.md, "Opening a connection").
-    /// Files still using <c>db</c>; rename on touch.
-    /// </summary>
-    private static readonly HashSet<string> KnownDbLocalFiles = new(StringComparer.Ordinal)
-    {
-        "core:Repositories/CalendarFeedTokenRepository.cs",
-        "core:Repositories/CriteriaRepository.cs",
-        "core:Repositories/CriterionApplicabilityRepository.cs",
-        "core:Repositories/ListDefinitionRepository.cs",
-        "core:Repositories/ListInstanceRepository.cs",
-        "core:Repositories/RequestDependencyRepository.cs",
-        "core:Repositories/RequestRepository.cs",
-        "core:Repositories/ResourceAssignmentRepository.cs",
-        "core:Repositories/ResourceCapabilityRepository.cs",
-        "core:Repositories/ResourceCustomFieldRepository.cs",
-        "core:Repositories/ResourceGroupMemberRepository.cs",
-        "core:Repositories/ResourceRepository.cs",
-        "core:Repositories/ResourceTypeRepository.cs",
-        "core:Services/AnnouncementBroadcastService.cs",
-        "core:Services/Insights/InsightsService.cs",
-        "core:Services/SessionService.cs",
-        "core:Services/UserLifecycleService.cs",
-        "core:Services/UserSessionService.cs",
-    };
-
-    [GeneratedRegex(@"await\s+using\s+var\s+db\s*=")]
-    private static partial Regex DbConnectionLocalRegex();
 
     // ── (h) bare numeric length limits in validators ─────────────────────────
 
@@ -126,28 +101,6 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"Results\.NotFound\(\)")]
     private static partial Regex BareNotFoundRegex();
 
-    // ── (j) read verbs ───────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Reads are <c>Get</c> (docs/conventions.md, "Naming"). Files that still declare a
-    /// <c>Fetch*</c>/<c>Load*</c>/<c>Find*Async</c>; rename on touch.
-    /// </summary>
-    private static readonly HashSet<string> KnownNonGetReadVerbFiles = new(StringComparer.Ordinal)
-    {
-        "core:Integrations/Keycloak/KeycloakIdentityLinkService.cs",
-        "core:Repositories/AvailabilityEventRepository.cs",
-        "core:Repositories/CalendarFeedTokenRepository.cs",
-        "core:Repositories/IPlatformUserRepository.cs",
-        "core:Repositories/PlatformUserRepository.cs",
-        "core:Security/IIdentityLinkService.cs",
-        "core:Services/Insights/InsightsService.cs",
-        "core:Services/Preset/PresetApplier.cs",
-        "core:Services/UserProvisioningService.cs",
-    };
-
-    [GeneratedRegex(@"Task(<[^>]*>)?\s+(Fetch|Load|Find)\w*Async\(")]
-    private static partial Regex NonGetReadVerbRegex();
-
     // ── (k) ordinal row reads ────────────────────────────────────────────────
 
     /// <summary>
@@ -170,11 +123,11 @@ public partial class ConventionContractTests
     /// The clock is <c>TimeProvider</c>, registered by <c>AddFoundationServices</c> and
     /// <c>AddFoundationWorkerServices</c>. A direct <c>UtcNow</c> read is untestable: nothing
     /// can move it, so every rule that depends on "now" — expiry, dormancy, the effective
-    /// request status — is pinned only at whatever time the suite happens to run. These files
-    /// predate the rule and shrink on touch; the reverse staleness row locks in each
-    /// conversion. There is no burn-down schedule.
+    /// request status — is pinned only at whatever time the suite happens to run. Each file below
+    /// has no DI seam (a record, a static helper, a framework-fixed delegate), so it is exempt
+    /// rather than grandfathered.
     /// </summary>
-    private static readonly HashSet<string> KnownDirectClockFiles = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> DirectClockExemptFiles = new(StringComparer.Ordinal)
     {
         // A computed property on a DTO record; nothing injects into a record.
         "core:Models/Announcement.cs",
@@ -195,11 +148,45 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"DateTime(?:Offset)?\.UtcNow")]
     private static partial Regex DirectClockReadRegex();
 
+    // ── (m) hand-rolled nullable parameter bindings ──────────────────────────
+
+    /// <summary>
+    /// A nullable parameter is bound with <c>AddNullable</c> (docs/conventions.md, "Binding a
+    /// nullable parameter"), not <c>x ?? DBNull.Value</c> or <c>x.HasValue ? x.Value : DBNull.Value</c>.
+    /// Files that still hand-roll the substitution; adopt the helper on touch.
+    /// </summary>
+    private static readonly HashSet<string> KnownHandRolledNullBindingFiles = new(StringComparer.Ordinal)
+    {
+        "core:Integrations/Keycloak/KeycloakIdentityLinkService.cs",
+        "core:Repositories/AiAllowanceRepository.cs",
+        "core:Repositories/AiCredentialRepository.cs",
+        "core:Repositories/AssetRepository.cs",
+        "core:Repositories/AuditEventWriter.cs",
+        "core:Services/Insights/InsightsService.cs",
+        "core:Services/Preset/PresetApplier.cs",
+        "core:Services/SessionService.cs",
+        "core:Services/UserLifecycleService.cs",
+        "core:Services/UserSessionService.cs",
+    };
+
+    /// <summary>The helpers themselves: <c>AddNullable</c>, <c>AddJsonb</c> and <c>UpdateBuilder</c> do the substitution.</summary>
+    private static readonly HashSet<string> HandRolledNullBindingExemptFiles = new(StringComparer.Ordinal)
+    {
+        "core:Repositories/NpgsqlQueryExtensions.cs",
+    };
+
+    // `?? DBNull.Value`, `? DBNull.Value :` and `: DBNull.Value`, each optionally cast to
+    // `(object)` — the spellings of the substitution AddNullable owns.
+    [GeneratedRegex(@"[?:]\s*(?:\(object\??\)\s*)?DBNull\.Value")]
+    private static partial Regex HandRolledNullBindingRegex();
+
     private static IEnumerable<Ratchet> ConventionRatchets() =>
     [
         new("SqlWritingService", ServiceSqlAccessRegex(), ["core"],
-            Scope: rel => rel.StartsWith("Services/", StringComparison.Ordinal),
+            Scope: f => f.Rel.StartsWith("Services/", StringComparison.Ordinal)
+                || f.Rel.StartsWith("Integrations/", StringComparison.Ordinal),
             Baseline: KnownSqlWritingServiceFiles,
+            Exempt: SqlWritingServiceExemptFiles,
             Exemplars:
             [
                 new("await using var cmd = new NpgsqlCommand(sql, conn);"),
@@ -210,14 +197,8 @@ public partial class ConventionContractTests
                 + "repository and inject it. The grandfathered files are in "
                 + "KnownSqlWritingServiceFiles and shrink on touch."),
 
-        new("DbConnectionLocal", DbConnectionLocalRegex(), ["src", "core"],
-            Baseline: KnownDbLocalFiles,
-            Exemplars: [new("await using var db = connectionFactory.CreateOrgConnection(orgContext);")],
-            ForbidMessage: "the connection local is named `conn` (docs/conventions.md). The grandfathered "
-                + "files are in KnownDbLocalFiles and shrink on touch."),
-
         new("BareLengthLimit", BareLengthLimitRegex(), ["src", "core"],
-            Scope: rel => rel.Contains("Validators/", StringComparison.Ordinal),
+            Scope: DeclaresAValidator,
             Baseline: KnownBareLengthLimitFiles,
             Exemplars: [new("RuleFor(x => x.Name).MaximumLength(200);")],
             ForbidMessage: "length limits come from DomainLimits, not a bare number (docs/conventions.md). "
@@ -225,7 +206,7 @@ public partial class ConventionContractTests
                 + "KnownBareLengthLimitFiles and shrink on touch."),
 
         new("BareNotFound", BareNotFoundRegex(), ["src"],
-            Scope: rel => rel.StartsWith("Endpoints/", StringComparison.Ordinal),
+            Scope: f => f.Rel.StartsWith("Endpoints/", StringComparison.Ordinal),
             Baseline: KnownBareNotFoundFiles,
             Exempt: BareNotFoundExemptFiles,
             Exemplars: [new("if (found is null) return Results.NotFound();")],
@@ -233,12 +214,6 @@ public partial class ConventionContractTests
                 + "NoContentOrNotFound) so the frontend can switch on it; a bare Results.NotFound() "
                 + "is only for the anonymous calendar feed. The grandfathered files are in "
                 + "KnownBareNotFoundFiles and shrink on touch."),
-
-        new("NonGetReadVerb", NonGetReadVerbRegex(), ["src", "core"],
-            Baseline: KnownNonGetReadVerbFiles,
-            Exemplars: [new("public async Task<User?> FindByEmailAsync(string email)")],
-            ForbidMessage: "reads are Get* (docs/conventions.md, Naming): not Fetch, Load or Find. The "
-                + "grandfathered files are in KnownNonGetReadVerbFiles and shrink on touch."),
 
         new("OrdinalRowRead", OrdinalRowReadRegex(), ["src", "core"],
             Exemplars:
@@ -250,13 +225,28 @@ public partial class ConventionContractTests
                 + "column if a JOIN makes the name ambiguous."),
 
         new("DirectClockRead", DirectClockReadRegex(), ["src", "core"],
-            Baseline: KnownDirectClockFiles,
+            Exempt: DirectClockExemptFiles,
             Exemplars:
             [
                 new("var now = DateTime.UtcNow;"),
                 new("var now = _time.GetUtcNow();", false, "reading through TimeProvider is the rule, not an offence"),
             ],
-            ForbidMessage: "the clock comes from an injected TimeProvider, not DateTime.UtcNow. The "
-                + "grandfathered files are in KnownDirectClockFiles and shrink on touch."),
+            ForbidMessage: "the clock comes from an injected TimeProvider, not DateTime.UtcNow. A "
+                + "file with no DI seam goes in DirectClockExemptFiles with its reason."),
+
+        new("HandRolledNullBinding", HandRolledNullBindingRegex(), ["src", "core"],
+            Baseline: KnownHandRolledNullBindingFiles,
+            Exempt: HandRolledNullBindingExemptFiles,
+            Exemplars:
+            [
+                new("cmd.Parameters.AddWithValue(\"unit\", (object?)unit ?? DBNull.Value);"),
+                new("p.AddWithValue(\"scheduled\", scheduled.HasValue ? scheduled.Value : DBNull.Value);"),
+                new("p.AddWithValue(\"op\", op is null ? (object)DBNull.Value : op);"),
+                new("p.AddNullable(\"unit\", unit);", false, "the helper is the rule, not an offence"),
+                new("update.Set(\"site_id\", (object)DBNull.Value);", false, "an explicit NULL is not a nullable binding"),
+            ],
+            ForbidMessage: "bind a nullable parameter with AddNullable, not `?? DBNull.Value` "
+                + "(docs/conventions.md, Data access). The grandfathered files are in "
+                + "KnownHandRolledNullBindingFiles and shrink on touch."),
     ];
 }
