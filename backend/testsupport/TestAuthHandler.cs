@@ -50,7 +50,10 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
                 new("tenant_id", tokenData.TenantId),
                 new("tenant_slug", tokenData.TenantSlug),
                 new("is_tenant_admin", tokenData.IsTenantAdmin.ToString()),
-                new("role", tokenData.Role)
+                new("role", tokenData.Role),
+                // Keycloak sets email_verified on every token of a signed-in user in a realm
+                // with email verification on; the identity link refuses an unverified claim.
+                new("email_verified", (tokenData.EmailVerified ?? true) ? "true" : "false")
             };
 
             if (!string.IsNullOrEmpty(tokenData.Sub))
@@ -88,5 +91,7 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         public string? Sub { get; set; }
         public string? Sid { get; set; }
         public string[]? RealmRoles { get; set; }
+        /// <summary>Absent means verified, the state of every real signed-in user.</summary>
+        public bool? EmailVerified { get; set; }
     }
 }
