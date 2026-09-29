@@ -1,4 +1,7 @@
 FROM quay.io/keycloak/keycloak:26.7.3@sha256:29be7252db0a106f1cd2ac17b9a56ff2668073da645638a38b9fc67deeb2d6c4
+# The image tag prefix (<major>.<minor>-orkyo-) is derived from this FROM line by
+# scripts/ci/kc-version.sh. A change here starts a new tag line, and the first release
+# on that line must build an image from a commit that touches keycloak/**.
 
 # Bake the complete Orkyo theme into the image.
 # All theme files (templates, CSS, messages, theme.properties) live here in foundation.
