@@ -306,6 +306,9 @@ public class KeycloakAdminServiceTests
 
     /// <summary>Admin token, user lookup, and a password grant that succeeds only for the given
     /// password and (when required) the given TOTP code — the realm's conditional-OTP step.</summary>
+    /// <summary>The credential the fake realm accepts and the tests send; a fixture, not a real value.</summary>
+    private const string CurrentCredential = "fixture-value";
+
     private static HttpResponseMessage PasswordGrantResponder(HttpRequestMessage req, string? requiredTotp)
     {
         var url = req.RequestUri!.ToString();
@@ -314,7 +317,7 @@ public class KeycloakAdminServiceTests
             var form = req.Content!.ReadAsStringAsync().Result;
             if (!form.Contains("grant_type=password"))
                 return Json(HttpStatusCode.OK, TokenJson());
-            var ok = form.Contains("password=fixture-value")
+            var ok = form.Contains($"password={CurrentCredential}")
                 && (requiredTotp is null || form.Contains($"totp={requiredTotp}"));
             return Json(ok ? HttpStatusCode.OK : HttpStatusCode.Unauthorized, ok ? TokenJson() : """{"error":"invalid_grant"}""");
         }
@@ -329,7 +332,7 @@ public class KeycloakAdminServiceTests
     {
         var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
 
-        await svc.VerifyCurrentPasswordAsync("kc-user-id", "fixture-value", totp: "654321");
+        await svc.VerifyCurrentPasswordAsync("kc-user-id", CurrentCredential, totp: "654321");
 
         var grant = handler.Bodies.Single(b => b.Contains("grant_type=password"));
         grant.Should().Contain("totp=654321");
@@ -340,7 +343,7 @@ public class KeycloakAdminServiceTests
     {
         var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: null));
 
-        await svc.VerifyCurrentPasswordAsync("kc-user-id", "fixture-value");
+        await svc.VerifyCurrentPasswordAsync("kc-user-id", CurrentCredential);
 
         handler.Bodies.Single(b => b.Contains("grant_type=password")).Should().NotContain("totp=");
     }
@@ -351,7 +354,7 @@ public class KeycloakAdminServiceTests
         // A TOTP user without the code and a wrong password come back the same way from Keycloak.
         var (svc, _) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
 
-        var act = () => svc.VerifyCurrentPasswordAsync("kc-user-id", "fixture-value");
+        var act = () => svc.VerifyCurrentPasswordAsync("kc-user-id", CurrentCredential);
 
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(400);
@@ -362,7 +365,7 @@ public class KeycloakAdminServiceTests
     {
         var (svc, handler) = BuildCapturing(req => CreateUserResponder(req));
 
-        await svc.CreateUserAsync("new@example.com", "fixture-value", emailVerified: true);
+        await svc.CreateUserAsync("new@example.com", CurrentCredential, emailVerified: true);
 
         // Keycloak 26 ignores inline credentials on creation, so the password must be set by a
         // dedicated reset-password PUT for the newly created user, carrying a non-temporary credential.
@@ -370,7 +373,7 @@ public class KeycloakAdminServiceTests
             r.Method == HttpMethod.Put &&
             r.RequestUri!.ToString().Contains("/users/new-user-id/reset-password"));
         pwIndex.Should().BeGreaterThanOrEqualTo(0, "the password must be set via reset-password");
-        handler.Bodies[pwIndex].Should().Contain("fixture-value");
+        handler.Bodies[pwIndex].Should().Contain(CurrentCredential);
         handler.Bodies[pwIndex].Should().Contain("\"temporary\":false");
     }
 
@@ -406,7 +409,7 @@ public class KeycloakAdminServiceTests
             return resp;
         });
 
-        var act = () => svc.CreateUserAsync("new@example.com", "fixture-value", emailVerified: true, ct: cts.Token);
+        var act = () => svc.CreateUserAsync("new@example.com", CurrentCredential, emailVerified: true, ct: cts.Token);
 
         await act.Should().NotThrowAsync();
         handler.Requests.Should().Contain(r =>
