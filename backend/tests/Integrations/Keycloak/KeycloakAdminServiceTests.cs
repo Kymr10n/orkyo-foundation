@@ -308,6 +308,7 @@ public class KeycloakAdminServiceTests
     /// password and (when required) the given TOTP code — the realm's conditional-OTP step.</summary>
     /// <summary>The credential the fake realm accepts and the tests send; a fixture, not a real value.</summary>
     private const string CurrentCredential = "fixture-value";
+    private const string KcUserId = "kc-user-id";
 
     private static HttpResponseMessage PasswordGrantResponder(HttpRequestMessage req, string? requiredTotp)
     {
@@ -332,7 +333,7 @@ public class KeycloakAdminServiceTests
     {
         var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
 
-        await svc.VerifyCurrentPasswordAsync("kc-user-id", CurrentCredential, totp: "654321");
+        await svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential, totp: "654321");
 
         var grant = handler.Bodies.Single(b => b.Contains("grant_type=password"));
         grant.Should().Contain("totp=654321");
@@ -343,7 +344,7 @@ public class KeycloakAdminServiceTests
     {
         var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: null));
 
-        await svc.VerifyCurrentPasswordAsync("kc-user-id", CurrentCredential);
+        await svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential);
 
         handler.Bodies.Single(b => b.Contains("grant_type=password")).Should().NotContain("totp=");
     }
@@ -354,7 +355,7 @@ public class KeycloakAdminServiceTests
         // A TOTP user without the code and a wrong password come back the same way from Keycloak.
         var (svc, _) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
 
-        var act = () => svc.VerifyCurrentPasswordAsync("kc-user-id", CurrentCredential);
+        var act = () => svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential);
 
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(400);
