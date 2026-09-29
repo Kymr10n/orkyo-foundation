@@ -711,3 +711,86 @@ a.orkyo-social-google:active {
 .orkyo-copy-btn:hover {
   background: var(--orkyo-button-secondary-hover);
 }
+
+/* ========================================
+   Passkeys / WebAuthn pages
+   (base webauthn-*.ftl + passkeys.ftl macro, styled via theme.properties)
+   ======================================== */
+
+.orkyo-button-block {
+  display: block;
+  width: 100%;
+}
+
+.orkyo-mt {
+  margin-top: 1rem;
+}
+
+/* The conditional-UI passkey trigger is an <a>; make it look like a button */
+a.orkyo-button-secondary,
+a.orkyo-button-secondary:link,
+a.orkyo-button-secondary:visited {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--orkyo-fg);
+  text-decoration: none;
+}
+
+a.orkyo-button-secondary:hover {
+  text-decoration: none;
+}
+
+a.orkyo-button-secondary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--orkyo-bg), 0 0 0 4px var(--orkyo-primary);
+}
+
+/* "Logout other sessions" checkbox rendered by base password-commons.ftl */
+.orkyo-form-options .checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--orkyo-muted);
+  cursor: pointer;
+}
+
+.orkyo-form-options .checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--orkyo-primary);
+  cursor: pointer;
+}
+
+/* Registered passkey list on webauthn-authenticate.ftl */
+.orkyo-authn-item {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--orkyo-input-bg);
+  border: 1px solid var(--orkyo-border);
+  border-radius: 0.5rem;
+}
+
+.orkyo-authn-item-icon:empty {
+  display: none;
+}
+
+.orkyo-authn-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.orkyo-authn-item-heading {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--orkyo-fg);
+}
+
+.orkyo-authn-item-description {
+  font-size: 0.75rem;
+  color: var(--orkyo-muted);
+}

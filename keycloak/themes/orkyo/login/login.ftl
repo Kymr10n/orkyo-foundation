@@ -1,11 +1,12 @@
 <#import "template.ftl" as layout>
+<#import "passkeys.ftl" as passkeys>
 <@layout.registrationLayout displayMessage=!messagesPerField.existsError('username','password') displayInfo=true; section>
     <#if section = "form">
         <h2 class="orkyo-form-heading">${msg("doLogIn")}</h2>
         <form id="kc-form-login" onsubmit="handleLoginSubmit(this); return true;" action="${url.loginAction}" method="post">
             <div class="orkyo-form-group">
                 <label for="username" class="orkyo-label">${msg("usernameOrEmail")}</label>
-                <input tabindex="1" id="username" class="orkyo-input" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="username" aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
+                <input tabindex="1" id="username" class="orkyo-input" name="username" value="${(login.username!'')}" type="text" autofocus autocomplete="${(enableWebAuthnConditionalUI?has_content)?then('username webauthn', 'username')}" aria-invalid="<#if messagesPerField.existsError('username','password')>true</#if>" />
                 <#if messagesPerField.existsError('username','password')>
                     <span class="orkyo-error">${kcSanitize(messagesPerField.getFirstError('username','password'))?no_esc}</span>
                 </#if>
@@ -44,6 +45,7 @@
                 </button>
             </div>
         </form>
+        <@passkeys.conditionalUIData />
 
         <#if realm.password && social?? && social.providers?has_content>
             <div class="orkyo-social-divider">

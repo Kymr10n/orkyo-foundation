@@ -65,8 +65,14 @@
                 </div>
             </#if>
 
-            <#-- Main form content -->
+            <#-- Main form content. Orkyo's own templates put their heading inside the
+                 form section; base templates that Orkyo does not override (the WebAuthn
+                 pages) put it in the header section, so render that one when present. -->
             <div class="orkyo-login-form">
+                <#assign _header><#nested "header"></#assign>
+                <#if _header?trim?has_content>
+                    <h2 class="orkyo-form-heading">${_header?trim}</h2>
+                </#if>
                 <#nested "form">
             </div>
 
