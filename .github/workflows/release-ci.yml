@@ -310,7 +310,14 @@ jobs:
         with:
           context: keycloak
           push: false
+          load: true
           tags: keycloak-test:${{ github.sha }}
+
+      # A theme template error surfaces only when Keycloak renders a page: the build
+      # above cannot see it, and 0.28.0 reached staging with every login page answering
+      # 500. Start the built image and render the login form once.
+      - name: Render the login page with the Orkyo theme
+        run: scripts/ci/keycloak-render-check.sh "keycloak-test:${{ github.sha }}"
 
   # ─────────────────────────────────────────────
   # BUILD & PUSH KC IMAGE — main branch only

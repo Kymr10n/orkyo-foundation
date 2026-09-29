@@ -69,9 +69,11 @@
                  form section; base templates that Orkyo does not override (the WebAuthn
                  pages) put it in the header section, so render that one when present. -->
             <div class="orkyo-login-form">
+                <#-- The capture is markup output under auto-escaping, so read it as a
+                     string to test it and emit it unescaped: it is already escaped. -->
                 <#assign _header><#nested "header"></#assign>
-                <#if _header?trim?has_content>
-                    <h2 class="orkyo-form-heading">${_header?trim}</h2>
+                <#if _header?markup_string?trim?has_content>
+                    <h2 class="orkyo-form-heading">${_header?markup_string?trim?no_esc}</h2>
                 </#if>
                 <#nested "form">
             </div>
