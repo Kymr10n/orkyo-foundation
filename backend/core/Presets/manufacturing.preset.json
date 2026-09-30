@@ -1,0 +1,79 @@
+{
+  "presetId": "manufacturing-workshop-v1",
+  "name": "Manufacturing workshop",
+  "description": "A small workshop: three rooms, four people, two machines and two tools, with the criteria to match them. Rename or delete anything.",
+  "vendor": "orkyo",
+  "industry": "manufacturing",
+  "version": "1.1.0",
+  "minAppVersion": "0.30.0",
+  "createdAt": "2026-09-30T00:00:00Z",
+  "contents": {
+    "resourceTypes": [
+      {
+        "key": "room",
+        "displayName": "Room",
+        "displayNamePlural": "Rooms",
+        "description": "A room on the floorplan. Work happens in it, and it holds one group at a time.",
+        "icon": "Box",
+        "hasGeometry": true,
+        "hasDirectoryProfile": false,
+        "singleGroupMembership": true
+      },
+      { "key": "person" },
+      { "key": "tool" },
+      { "key": "mill" },
+      { "key": "drill" }
+    ],
+    "criteria": [
+      { "key": "cnc-operation", "name": "CNC Operation", "description": "Operates CNC-controlled machines.", "dataType": "Boolean", "resourceTypeKeys": ["person", "mill"] },
+      { "key": "drilling", "name": "Drilling", "dataType": "Boolean", "resourceTypeKeys": ["person", "drill"] },
+      { "key": "assembly", "name": "Assembly", "dataType": "Boolean", "resourceTypeKeys": ["person"] },
+      { "key": "qa-inspection", "name": "QA Inspection", "description": "Inspects and releases finished parts.", "dataType": "Boolean", "resourceTypeKeys": ["person"] },
+      { "key": "maintenance", "name": "Maintenance", "dataType": "Boolean", "resourceTypeKeys": ["person"] },
+      { "key": "forklift-license", "name": "Forklift License", "dataType": "Boolean", "resourceTypeKeys": ["person"] },
+      { "key": "welding-cert", "name": "Welding Certification", "dataType": "Enum", "enumValues": ["MIG", "TIG", "Stick"], "resourceTypeKeys": ["person"] },
+      { "key": "clean-room", "name": "Clean Room", "description": "Controlled particle count.", "dataType": "Boolean", "resourceTypeKeys": ["room"] },
+      { "key": "ventilated", "name": "Ventilated", "description": "Extraction for fumes and dust.", "dataType": "Boolean", "resourceTypeKeys": ["room"] },
+      { "key": "max-load", "name": "Max Load", "description": "Highest load the floor or the equipment takes.", "dataType": "Number", "unit": "t", "resourceTypeKeys": ["tool", "room"] }
+    ],
+    "spaceGroups": [
+      { "key": "production", "name": "Production", "description": "Where parts are made and assembled.", "color": "#2563EB", "displayOrder": 0, "resourceTypeKey": "room" },
+      { "key": "quality", "name": "Quality", "description": "Inspection and release.", "color": "#16A34A", "displayOrder": 1, "resourceTypeKey": "room" }
+    ],
+    "templates": {
+      "space": [],
+      "group": [],
+      "request": [
+        {
+          "key": "machining-job",
+          "name": "Machining job",
+          "description": "A part machined by a CNC operator.",
+          "durationValue": 4,
+          "durationUnit": "hours",
+          "items": [ { "criterionKey": "cnc-operation", "value": "true" } ]
+        },
+        {
+          "key": "final-inspection",
+          "name": "Final inspection",
+          "description": "Inspection and release of a finished part.",
+          "durationValue": 2,
+          "durationUnit": "hours",
+          "items": [ { "criterionKey": "qa-inspection", "value": "true" } ]
+        }
+      ]
+    },
+    "resources": [
+      { "key": "machine-hall", "name": "Machine Hall", "code": "HALL-1", "typeKey": "room", "groupKeys": ["production"], "capabilities": [ { "criterionKey": "max-load", "value": "5" } ] },
+      { "key": "assembly-area", "name": "Assembly Area", "code": "ASSY-1", "typeKey": "room", "groupKeys": ["production"], "capabilities": [ { "criterionKey": "ventilated", "value": "true" } ] },
+      { "key": "qc-room", "name": "QC Room", "code": "QC-1", "typeKey": "room", "groupKeys": ["quality"], "capabilities": [ { "criterionKey": "clean-room", "value": "true" } ] },
+      { "key": "anna-keller", "name": "Anna Keller", "code": "P-001", "typeKey": "person", "capabilities": [ { "criterionKey": "cnc-operation", "value": "true" }, { "criterionKey": "drilling", "value": "true" } ] },
+      { "key": "marco-bianchi", "name": "Marco Bianchi", "code": "P-002", "typeKey": "person", "capabilities": [ { "criterionKey": "assembly", "value": "true" }, { "criterionKey": "forklift-license", "value": "true" } ] },
+      { "key": "lena-fischer", "name": "Lena Fischer", "code": "P-003", "typeKey": "person", "capabilities": [ { "criterionKey": "qa-inspection", "value": "true" }, { "criterionKey": "welding-cert", "value": "\"TIG\"" } ] },
+      { "key": "jonas-weber", "name": "Jonas Weber", "code": "P-004", "typeKey": "person", "capabilities": [ { "criterionKey": "maintenance", "value": "true" }, { "criterionKey": "drilling", "value": "true" }, { "criterionKey": "welding-cert", "value": "\"MIG\"" } ] },
+      { "key": "mill-vmc-1", "name": "Mill VMC-1", "code": "VMC-1", "typeKey": "mill", "capabilities": [ { "criterionKey": "cnc-operation", "value": "true" } ] },
+      { "key": "drill-press-1", "name": "Drill Press 1", "code": "DRL-1", "typeKey": "drill", "capabilities": [ { "criterionKey": "drilling", "value": "true" } ] },
+      { "key": "forklift-1", "name": "Forklift 1", "code": "FLT-1", "typeKey": "tool", "capabilities": [ { "criterionKey": "max-load", "value": "2.5" } ] },
+      { "key": "torque-wrench-set", "name": "Torque Wrench Set", "code": "TQW-1", "typeKey": "tool" }
+    ]
+  }
+}

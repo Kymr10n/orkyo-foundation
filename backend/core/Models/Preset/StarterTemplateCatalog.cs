@@ -12,6 +12,7 @@ public static class StarterTemplateCatalog
     public const string CampingSite = "camping-site";
     public const string ConstructionSite = "construction-site";
     public const string Manufacturing = "manufacturing";
+    public const string Office = "office";
 
     private static readonly IReadOnlyList<StarterTemplateInfo> Templates =
     [
@@ -47,13 +48,24 @@ public static class StarterTemplateCatalog
             Icon = "hard-hat",
             IncludesDemoData = false
         },
+        // The two shipped starter setups carry named sample resources, so a workspace that
+        // picks one starts with rooms, people and machines it can rename or delete. Honestly
+        // flagged as demo data: that is what the picker renders, and what a signup should know.
         new()
         {
             Key = Manufacturing,
             Name = "Manufacturing",
-            Description = "Pre-configured for manufacturing and production facilities.",
+            Description = "A small workshop: rooms, people, machines and tools you can rename or delete.",
             Icon = "factory",
-            IncludesDemoData = false
+            IncludesDemoData = true
+        },
+        new()
+        {
+            Key = Office,
+            Name = "Office",
+            Description = "Meeting rooms and open areas you can rename or delete.",
+            Icon = "building",
+            IncludesDemoData = true
         }
     ];
 
@@ -66,15 +78,19 @@ public static class StarterTemplateCatalog
     public static bool IsPresetTemplate(string templateKey) =>
         string.Equals(templateKey, CampingSite, StringComparison.Ordinal) ||
         string.Equals(templateKey, ConstructionSite, StringComparison.Ordinal) ||
-        string.Equals(templateKey, Manufacturing, StringComparison.Ordinal);
+        string.Equals(templateKey, Manufacturing, StringComparison.Ordinal) ||
+        string.Equals(templateKey, Office, StringComparison.Ordinal);
 
     public static bool TryGetPresetFileName(string templateKey, out string? fileName)
     {
+        // manufacturing and office ship embedded in Orkyo.Foundation.Core (backend/core/Presets).
+        // The other two have no file yet: loading them throws FileNotFoundException.
         fileName = templateKey switch
         {
             CampingSite => "camping-site.preset.json",
             ConstructionSite => "construction-site.preset.json",
-            Manufacturing => "manufacturing-ch.preset.json",
+            Manufacturing => "manufacturing.preset.json",
+            Office => "office.preset.json",
             _ => null
         };
 

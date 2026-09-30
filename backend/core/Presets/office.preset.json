@@ -1,0 +1,56 @@
+{
+  "presetId": "office-v1",
+  "name": "Office",
+  "description": "Two meeting rooms, an open workspace and a focus booth, with the criteria to book them by. Rename or delete anything.",
+  "vendor": "orkyo",
+  "industry": "office",
+  "version": "1.1.0",
+  "minAppVersion": "0.30.0",
+  "createdAt": "2026-09-30T00:00:00Z",
+  "contents": {
+    "resourceTypes": [
+      {
+        "key": "space",
+        "displayName": "Space",
+        "displayNamePlural": "Spaces",
+        "description": "A bookable room or area on the floorplan.",
+        "icon": "Box",
+        "hasGeometry": true,
+        "hasDirectoryProfile": false,
+        "singleGroupMembership": true
+      }
+    ],
+    "criteria": [
+      { "key": "capacity-persons", "name": "Capacity (persons)", "description": "How many people the space seats.", "dataType": "Number", "resourceTypeKeys": ["space"] },
+      { "key": "av-equipment", "name": "AV Equipment", "description": "Screen and conferencing equipment.", "dataType": "Boolean", "resourceTypeKeys": ["space"] },
+      { "key": "whiteboard", "name": "Whiteboard", "dataType": "Boolean", "resourceTypeKeys": ["space"] }
+    ],
+    "spaceGroups": [
+      { "key": "meeting-rooms", "name": "Meeting rooms", "color": "#2563EB", "displayOrder": 0, "resourceTypeKey": "space" },
+      { "key": "open-areas", "name": "Open areas", "color": "#16A34A", "displayOrder": 1, "resourceTypeKey": "space" }
+    ],
+    "templates": {
+      "space": [],
+      "group": [],
+      "request": [
+        {
+          "key": "team-meeting",
+          "name": "Team meeting",
+          "description": "A meeting room with a screen for six people.",
+          "durationValue": 1,
+          "durationUnit": "hours",
+          "items": [
+            { "criterionKey": "capacity-persons", "value": "6" },
+            { "criterionKey": "av-equipment", "value": "true" }
+          ]
+        }
+      ]
+    },
+    "resources": [
+      { "key": "meeting-room-a", "name": "Meeting Room A", "code": "MR-A", "typeKey": "space", "groupKeys": ["meeting-rooms"], "capabilities": [ { "criterionKey": "capacity-persons", "value": "8" }, { "criterionKey": "av-equipment", "value": "true" }, { "criterionKey": "whiteboard", "value": "true" } ] },
+      { "key": "meeting-room-b", "name": "Meeting Room B", "code": "MR-B", "typeKey": "space", "groupKeys": ["meeting-rooms"], "capabilities": [ { "criterionKey": "capacity-persons", "value": "4" }, { "criterionKey": "whiteboard", "value": "true" } ] },
+      { "key": "open-workspace", "name": "Open Workspace", "code": "OW-1", "typeKey": "space", "groupKeys": ["open-areas"], "capabilities": [ { "criterionKey": "capacity-persons", "value": "12" } ] },
+      { "key": "focus-booth", "name": "Focus Booth", "code": "FB-1", "typeKey": "space", "groupKeys": ["open-areas"], "capabilities": [ { "criterionKey": "capacity-persons", "value": "1" } ] }
+    ]
+  }
+}

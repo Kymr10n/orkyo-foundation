@@ -131,8 +131,8 @@ export function PresetSettings() {
             Presets
           </CardTitle>
           <CardDescription>
-            Import or export organization configuration presets. Presets include criteria,
-            space groups, and templates.
+            Import or export organization configuration presets. Presets include resource
+            types, criteria, space groups, and templates.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex gap-4">
@@ -232,7 +232,15 @@ export function PresetSettings() {
               </div>
 
               {/* Contents Summary */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                <Card>
+                  <CardContent className="pt-4 md:pt-4">
+                    <div className="text-2xl font-bold">
+                      {importedPreset.contents.resourceTypes?.length ?? 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Resource Types</div>
+                  </CardContent>
+                </Card>
                 <Card>
                   <CardContent className="pt-4 md:pt-4">
                     <div className="text-2xl font-bold">
@@ -257,6 +265,14 @@ export function PresetSettings() {
                         importedPreset.contents.templates.group.length}
                     </div>
                     <div className="text-sm text-muted-foreground">Templates</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 md:pt-4">
+                    <div className="text-2xl font-bold">
+                      {importedPreset.contents.resources?.length ?? 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Resources</div>
                   </CardContent>
                 </Card>
               </div>
@@ -299,12 +315,16 @@ export function PresetSettings() {
                   </AlertTitle>
                   <AlertDescription className="text-green-600 dark:text-green-400">
                     <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                      <div>Resource types activated: {applicationResult.stats.resourceTypesActivated}</div>
+                      <div />
                       <div>Criteria created: {applicationResult.stats.criteriaCreated}</div>
                       <div>Criteria updated: {applicationResult.stats.criteriaUpdated}</div>
                       <div>Groups created: {applicationResult.stats.spaceGroupsCreated}</div>
                       <div>Groups updated: {applicationResult.stats.spaceGroupsUpdated}</div>
                       <div>Templates created: {applicationResult.stats.templatesCreated}</div>
                       <div>Templates updated: {applicationResult.stats.templatesUpdated}</div>
+                      <div>Resources created: {applicationResult.stats.resourcesCreated}</div>
+                      <div>Resources updated: {applicationResult.stats.resourcesUpdated}</div>
                     </div>
                   </AlertDescription>
                 </Alert>
@@ -352,8 +372,8 @@ export function PresetSettings() {
           <DialogHeader>
             <DialogTitle>Export Configuration as Preset</DialogTitle>
             <DialogDescription>
-              Export your current organization configuration (criteria, groups, templates)
-              as a reusable preset file.
+              Export your current organization configuration (resource types, criteria,
+              groups, templates) as a reusable preset file. Resources are not exported.
             </DialogDescription>
           </DialogHeader>
 
