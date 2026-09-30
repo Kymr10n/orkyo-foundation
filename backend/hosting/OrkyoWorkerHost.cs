@@ -115,7 +115,7 @@ public static class OrkyoWorkerHost
         services.AddFoundationWorkerServices(context.Configuration);
         // The worker sends the lifecycle mail, so it says at startup when none of it is
         // delivered. Logged here because core carries no logging framework.
-        if (EmailTransportRegistration.IsLogOnly(context.Configuration))
+        if (!DeploymentConfig.IsSmtpConfigured(context.Configuration))
             Log.Warning(EmailTransportRegistration.LogOnlyWarning);
         // Edition last, so it can override any of the above. See the RunAsync parameter docs.
         configureEditionServices(context, services);

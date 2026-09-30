@@ -23,17 +23,23 @@ public class FoundationServiceExtensionsTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static (IServiceCollection services, IConfiguration configuration) BuildServices()
+    private static (IServiceCollection services, IConfiguration configuration) BuildServices(
+        Dictionary<string, string?>? extra = null)
     {
+        var values = new Dictionary<string, string?>
+        {
+            [ConfigKeys.OidcAuthority] = "https://auth.example.com/realms/orkyo",
+            [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
+            [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
+            [ConfigKeys.KeycloakRealm] = "orkyo",
+            [ConfigKeys.KeycloakBackendClientSecret] = "test-secret",
+        };
+        if (extra != null)
+            foreach (var (k, v) in extra)
+                values[k] = v;
+
         var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [ConfigKeys.OidcAuthority] = "https://auth.example.com/realms/orkyo",
-                [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
-                [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
-                [ConfigKeys.KeycloakRealm] = "orkyo",
-                [ConfigKeys.KeycloakBackendClientSecret] = "test-secret",
-            })
+            .AddInMemoryCollection(values)
             .Build();
 
         var services = new ServiceCollection();
@@ -296,5 +302,29 @@ public class FoundationServiceExtensionsTests
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IChallengeProvider>()
             .Should().BeOfType<CloudflareTurnstileProvider>();
+    }
+
+    // ── Email transport: key-gated like the challenge provider ────────────────
+
+    [Fact]
+    public void AddFoundationServices_WithNoSmtpHost_RegistersTheLogOnlyTransport()
+    {
+        // The self-host default. SmtpEmailTransport reads its keys with GetRequired, so
+        // registering it without a host would fail at the first send.
+        var (services, _) = BuildServices();
+
+        services.Should().ContainSingle(sd =>
+            sd.ServiceType == typeof(IEmailTransport) &&
+            sd.ImplementationType == typeof(LogOnlyEmailTransport));
+    }
+
+    [Fact]
+    public void AddFoundationServices_WithAnSmtpHost_RegistersTheSmtpTransport()
+    {
+        var (services, _) = BuildServices(new() { [ConfigKeys.SmtpHost] = "smtp.example.com" });
+
+        services.Should().ContainSingle(sd =>
+            sd.ServiceType == typeof(IEmailTransport) &&
+            sd.ImplementationType == typeof(SmtpEmailTransport));
     }
 }

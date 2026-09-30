@@ -91,6 +91,14 @@ public sealed record DeploymentConfig
     ];
 
     /// <summary>
+    /// The one reading of "is mail configured": a non-empty <c>SMTP_HOST</c>. Empty counts as
+    /// unset because the deploy pipeline writes <c>KEY=</c> for every unset key. The validator,
+    /// this factory, and the transport registration all decide through this method.
+    /// </summary>
+    public static bool IsSmtpConfigured(IConfiguration configuration) =>
+        configuration[ConfigKeys.SmtpHost] is { Length: > 0 };
+
+    /// <summary>
     /// The keys that a set <c>SMTP_HOST</c> makes mandatory. A half-filled SMTP block is a
     /// startup error rather than a silent fallback to a port or sender nobody chose.
     /// </summary>
@@ -118,7 +126,7 @@ public sealed record DeploymentConfig
                 ? value
                 : throw new InvalidOperationException($"DeploymentConfig: required key '{key}' is not set");
 
-        var smtpConfigured = configuration[ConfigKeys.SmtpHost] is { Length: > 0 };
+        var smtpConfigured = IsSmtpConfigured(configuration);
 
         var config = new DeploymentConfig
         {
@@ -127,13 +135,13 @@ public sealed record DeploymentConfig
             AppBaseUrl = Require(ConfigKeys.AppBaseUrl),
             CorsAllowedOrigins = configuration.GetOptionalString(ConfigKeys.CorsAllowedOrigins),
 
-            // Read, not required: an unset host means log-only mail. When the host is set the
-            // validator has already refused a missing port, SSL flag, or sender.
+            // Optional as a block: an unset host means log-only mail and the rest stays empty.
+            // A set host makes the rest required, the same Require as every other key.
             SmtpHost = configuration.GetOptionalString(ConfigKeys.SmtpHost),
             SmtpPort = smtpConfigured ? int.Parse(Require(ConfigKeys.SmtpPort)) : 0,
             SmtpUseSsl = smtpConfigured && bool.Parse(Require(ConfigKeys.SmtpUseSsl)),
-            SmtpFromEmail = configuration.GetOptionalString(ConfigKeys.SmtpFromEmail),
-            SmtpFromName = configuration.GetOptionalString(ConfigKeys.SmtpFromName),
+            SmtpFromEmail = smtpConfigured ? Require(ConfigKeys.SmtpFromEmail) : "",
+            SmtpFromName = smtpConfigured ? Require(ConfigKeys.SmtpFromName) : "",
             SmtpUsername = configuration[ConfigKeys.SmtpUsername],
             SmtpPassword = configuration[ConfigKeys.SmtpPassword],
 

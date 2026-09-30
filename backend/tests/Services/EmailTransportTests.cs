@@ -6,6 +6,19 @@ using MimeKit;
 
 namespace Orkyo.Foundation.Tests.Services;
 
+/// <summary>Builds the one shape of message EmailService hands a transport: To, Subject, body, no From.</summary>
+internal static class TransportTestMessage
+{
+    public static MimeMessage Create(string textBody = "text")
+    {
+        var message = new MimeMessage();
+        message.To.Add(new MailboxAddress("User", "to@example.com"));
+        message.Subject = "Your invitation";
+        message.Body = new TextPart("plain") { Text = textBody };
+        return message;
+    }
+}
+
 public class SmtpEmailTransportTests
 {
     private static IConfiguration Config(params (string Key, string? Value)[] overrides)
@@ -25,15 +38,6 @@ public class SmtpEmailTransportTests
     private static SmtpEmailTransport Create(IConfiguration configuration) =>
         new(configuration, new Mock<ILogger<SmtpEmailTransport>>().Object);
 
-    private static MimeMessage Message()
-    {
-        var message = new MimeMessage();
-        message.To.Add(new MailboxAddress("User", "to@example.com"));
-        message.Subject = "Subject";
-        message.Body = new TextPart("plain") { Text = "text" };
-        return message;
-    }
-
     [Fact]
     public async Task SendAsync_WhenSmtpUnreachable_Throws()
     {
@@ -41,7 +45,7 @@ public class SmtpEmailTransportTests
         // now, and EmailService turns it into `false` through its own retry loop.
         var transport = Create(Config(("SMTP_PORT", "19999")));
 
-        var act = async () => await transport.SendAsync(Message());
+        var act = async () => await transport.SendAsync(TransportTestMessage.Create());
 
         await act.Should().ThrowAsync<Exception>();
     }
@@ -52,7 +56,7 @@ public class SmtpEmailTransportTests
         // EmailService retries with the same MimeMessage, so a transport that only appended
         // would put one more From on the message per attempt.
         var transport = Create(Config(("SMTP_PORT", "19999")));
-        var message = Message();
+        var message = TransportTestMessage.Create();
 
         for (var attempt = 0; attempt < 3; attempt++)
         {
@@ -68,21 +72,12 @@ public class LogOnlyEmailTransportTests
 {
     private readonly Mock<ILogger<LogOnlyEmailTransport>> _logger = new();
 
-    private MimeMessage Message()
-    {
-        var message = new MimeMessage();
-        message.To.Add(new MailboxAddress("User", "to@example.com"));
-        message.Subject = "Your invitation";
-        message.Body = new TextPart("plain") { Text = "Open https://example.test/signup?invitation=tok" };
-        return message;
-    }
-
     [Fact]
     public async Task SendAsync_DoesNotThrow_AndDeliversNothing()
     {
         var transport = new LogOnlyEmailTransport(_logger.Object);
 
-        var act = async () => await transport.SendAsync(Message());
+        var act = async () => await transport.SendAsync(TransportTestMessage.Create());
 
         await act.Should().NotThrowAsync();
     }
@@ -93,7 +88,7 @@ public class LogOnlyEmailTransportTests
         // The operator recovers invitation links from the log, so all three must be in it.
         var transport = new LogOnlyEmailTransport(_logger.Object);
 
-        await transport.SendAsync(Message());
+        await transport.SendAsync(TransportTestMessage.Create("Open https://example.test/signup?invitation=tok"));
 
         _logger.Verify(
             l => l.Log(
@@ -111,7 +106,7 @@ public class LogOnlyEmailTransportTests
 
 public class EmailTransportRegistrationTests
 {
-    private static IServiceCollection Services(string? smtpHost)
+    private static ServiceProvider Build(string? smtpHost)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["SMTP_HOST"] = smtpHost })
@@ -120,7 +115,7 @@ public class EmailTransportRegistrationTests
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddOrkyoEmailTransport(configuration);
-        return services;
+        return services.BuildServiceProvider();
     }
 
     [Theory]
@@ -129,18 +124,16 @@ public class EmailTransportRegistrationTests
     public void AddOrkyoEmailTransport_WithoutSmtpHost_SelectsLogOnly(string? smtpHost)
     {
         // Empty counts as unset: the deploy pipeline writes KEY= for every unset key.
-        using var provider = Services(smtpHost).BuildServiceProvider();
+        using var provider = Build(smtpHost);
 
         provider.GetRequiredService<IEmailTransport>().Should().BeOfType<LogOnlyEmailTransport>();
-        EmailTransportRegistration.IsLogOnly(provider.GetRequiredService<IConfiguration>()).Should().BeTrue();
     }
 
     [Fact]
     public void AddOrkyoEmailTransport_WithSmtpHost_SelectsSmtp()
     {
-        using var provider = Services("smtp.example.com").BuildServiceProvider();
+        using var provider = Build("smtp.example.com");
 
         provider.GetRequiredService<IEmailTransport>().Should().BeOfType<SmtpEmailTransport>();
-        EmailTransportRegistration.IsLogOnly(provider.GetRequiredService<IConfiguration>()).Should().BeFalse();
     }
 }
