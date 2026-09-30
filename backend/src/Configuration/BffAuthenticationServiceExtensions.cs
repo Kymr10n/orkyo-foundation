@@ -67,6 +67,11 @@ public static class BffAuthenticationServiceExtensions
                 var allowedHosts = config[ConfigKeys.BffAllowedHosts];
                 if (!string.IsNullOrEmpty(allowedHosts))
                     opts.AllowedReturnToHosts = allowedHosts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                else if (HostOf(opts.AppBaseUrl) is { } appHost)
+                    // A self-host deployment supplies only APP_BASE_URL. Without this the list
+                    // stays empty and every returnTo is rejected, so the derivation turns a
+                    // broken state into a working one. An explicit BFF_ALLOWED_HOSTS still wins.
+                    opts.AllowedReturnToHosts = [appHost];
 
                 // A set-but-unparseable duration refuses startup rather than silently
                 // keeping the compiled-in default: a typo in prod would otherwise change
@@ -128,6 +133,15 @@ public static class BffAuthenticationServiceExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// The host of an absolute URL, or null when the value is empty or unparseable. The port is
+    /// dropped: AllowedReturnToHosts is compared against Uri.Host, which carries no port.
+    /// </summary>
+    private static string? HostOf(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var parsed) && !string.IsNullOrEmpty(parsed.Host)
+            ? parsed.Host
+            : null;
 
     /// <summary>Unset keeps the default; set-but-invalid is a startup error, never a silent fallback.</summary>
     private static TimeSpan ParseDurationOrThrow(string? raw, string key, TimeSpan defaultValue)

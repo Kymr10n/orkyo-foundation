@@ -1,6 +1,4 @@
 using Api.Configuration;
-using MailKit.Net.Smtp;
-using MailKit.Security;
 using MimeKit;
 using Orkyo.Shared;
 
@@ -57,6 +55,7 @@ public class EmailService : IEmailService
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
     private readonly ITenantSettingsService _settingsService;
+    private readonly IEmailTransport _transport;
     private readonly EmailSendOptions _sendOptions;
 
     /// <summary>
@@ -69,11 +68,13 @@ public class EmailService : IEmailService
         IConfiguration configuration,
         ILogger<EmailService> logger,
         ITenantSettingsService settingsService,
+        IEmailTransport transport,
         EmailSendOptions? sendOptions = null)
     {
         _configuration = configuration;
         _logger = logger;
         _settingsService = settingsService;
+        _transport = transport;
         _sendOptions = sendOptions ?? EmailSendOptions.Default;
     }
 
@@ -111,17 +112,8 @@ public class EmailService : IEmailService
     {
         try
         {
-            // SMTP settings - all from .env, no defaults
-            var smtpHost = _configuration.GetRequired(ConfigKeys.SmtpHost);
-            var smtpPort = _configuration.GetRequiredInt(ConfigKeys.SmtpPort);
-            var smtpUseSsl = _configuration.GetRequiredBool(ConfigKeys.SmtpUseSsl);
-            var smtpUsername = _configuration.GetOptionalString(ConfigKeys.SmtpUsername); // legitimately optional
-            var smtpPassword = _configuration.GetOptionalString(ConfigKeys.SmtpPassword); // legitimately optional
-            var fromEmail = _configuration.GetRequired(ConfigKeys.SmtpFromEmail);
-            var fromName = _configuration.GetRequired(ConfigKeys.SmtpFromName);
-
+            // The sender is the transport's: it is SMTP identity, and log-only mail has none.
             var message = new MimeMessage();
-            message.From.Add(new MailboxAddress(fromName, fromEmail));
             message.To.Add(new MailboxAddress(toName, toEmail));
             message.Subject = subject;
 
@@ -139,28 +131,7 @@ public class EmailService : IEmailService
                 {
                     try
                     {
-                        using var client = new SmtpClient();
-
-                        _logger.LogInformation("Attempting to send email via {Host}:{Port} (SSL: {UseSsl})",
-                            smtpHost, smtpPort, smtpUseSsl);
-
-                        // Connect to SMTP server
-                        // MailHog doesn't support SSL/TLS, so we need to use None for local development
-                        var secureSocketOptions = smtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
-                        await client.ConnectAsync(smtpHost, smtpPort, secureSocketOptions, ct);
-
-                        _logger.LogDebug("Connected to SMTP server");
-
-                        // Authenticate if credentials are provided
-                        if (!string.IsNullOrEmpty(smtpUsername) && !string.IsNullOrEmpty(smtpPassword))
-                        {
-                            await client.AuthenticateAsync(smtpUsername, smtpPassword, ct);
-                            _logger.LogDebug("SMTP authentication successful");
-                        }
-
-                        // Send email
-                        await client.SendAsync(message, ct);
-                        await client.DisconnectAsync(true, ct);
+                        await _transport.SendAsync(message, ct);
 
                         _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
                         return true;
@@ -184,8 +155,8 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email (subject: {Subject}) via SMTP {Host}:{Port}",
-                subject, _configuration[ConfigKeys.SmtpHost], _configuration[ConfigKeys.SmtpPort]);
+            _logger.LogError(ex, "Failed to send email (subject: {Subject}) via {Transport}",
+                subject, _transport.GetType().Name);
             return false;
         }
     }

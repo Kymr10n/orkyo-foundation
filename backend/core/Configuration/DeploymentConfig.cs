@@ -19,11 +19,15 @@ public sealed record DeploymentConfig
     public required string CorsAllowedOrigins { get; init; }
 
     // ── SMTP ─────────────────────────────────────────────────────────────
-    public required string SmtpHost { get; init; }
-    public required int SmtpPort { get; init; }
-    public required bool SmtpUseSsl { get; init; }
-    public required string SmtpFromEmail { get; init; }
-    public required string SmtpFromName { get; init; }
+    // Optional as a block. An unset SmtpHost selects the log-only transport, and then the
+    // remaining values are never read; a set one makes all of them required — see
+    // ConfigurationValidator. Empty/zero therefore means "mail is not configured", which is
+    // what SmtpConfigured reports to the admin UI.
+    public string SmtpHost { get; init; } = "";
+    public int SmtpPort { get; init; }
+    public bool SmtpUseSsl { get; init; }
+    public string SmtpFromEmail { get; init; } = "";
+    public string SmtpFromName { get; init; } = "";
     public string? SmtpUsername { get; init; }
     public string? SmtpPassword { get; init; }
 
@@ -82,8 +86,16 @@ public sealed record DeploymentConfig
         // URLs
         ConfigKeys.AppBaseUrl,
 
-        // Email
-        ConfigKeys.SmtpHost,
+        // Email is not here: mail is optional as a block. ConfigurationValidator requires
+        // SmtpKeysRequiredWithHost once SMTP_HOST is set.
+    ];
+
+    /// <summary>
+    /// The keys that a set <c>SMTP_HOST</c> makes mandatory. A half-filled SMTP block is a
+    /// startup error rather than a silent fallback to a port or sender nobody chose.
+    /// </summary>
+    public static IReadOnlyList<string> SmtpKeysRequiredWithHost { get; } =
+    [
         ConfigKeys.SmtpPort,
         ConfigKeys.SmtpUseSsl,
         ConfigKeys.SmtpFromEmail,
@@ -106,6 +118,8 @@ public sealed record DeploymentConfig
                 ? value
                 : throw new InvalidOperationException($"DeploymentConfig: required key '{key}' is not set");
 
+        var smtpConfigured = configuration[ConfigKeys.SmtpHost] is { Length: > 0 };
+
         var config = new DeploymentConfig
         {
             PublicUrl = Require(ConfigKeys.AppBaseUrl),
@@ -113,11 +127,13 @@ public sealed record DeploymentConfig
             AppBaseUrl = Require(ConfigKeys.AppBaseUrl),
             CorsAllowedOrigins = configuration.GetOptionalString(ConfigKeys.CorsAllowedOrigins),
 
-            SmtpHost = Require(ConfigKeys.SmtpHost),
-            SmtpPort = int.Parse(Require(ConfigKeys.SmtpPort)),
-            SmtpUseSsl = bool.Parse(Require(ConfigKeys.SmtpUseSsl)),
-            SmtpFromEmail = Require(ConfigKeys.SmtpFromEmail),
-            SmtpFromName = Require(ConfigKeys.SmtpFromName),
+            // Read, not required: an unset host means log-only mail. When the host is set the
+            // validator has already refused a missing port, SSL flag, or sender.
+            SmtpHost = configuration.GetOptionalString(ConfigKeys.SmtpHost),
+            SmtpPort = smtpConfigured ? int.Parse(Require(ConfigKeys.SmtpPort)) : 0,
+            SmtpUseSsl = smtpConfigured && bool.Parse(Require(ConfigKeys.SmtpUseSsl)),
+            SmtpFromEmail = configuration.GetOptionalString(ConfigKeys.SmtpFromEmail),
+            SmtpFromName = configuration.GetOptionalString(ConfigKeys.SmtpFromName),
             SmtpUsername = configuration[ConfigKeys.SmtpUsername],
             SmtpPassword = configuration[ConfigKeys.SmtpPassword],
 

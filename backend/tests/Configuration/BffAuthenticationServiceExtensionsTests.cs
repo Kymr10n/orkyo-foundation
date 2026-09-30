@@ -369,6 +369,56 @@ public class BffAuthenticationServiceExtensionsTests
             .Where(e => e.Message.Contains(ConfigKeys.BffSessionIdleDuration) || (e.InnerException != null && e.InnerException.Message.Contains(ConfigKeys.BffSessionIdleDuration)));
     }
 
+    // ── Derived allowed hosts ─────────────────────────────────────────────────
+
+    [Fact]
+    public void AllowedReturnToHosts_ExplicitValue_WinsOverAppBaseUrl()
+    {
+        var options = BuildOptions(new()
+        {
+            [ConfigKeys.BffAllowedHosts] = "explicit.example.com, second.example.com",
+            [ConfigKeys.AppBaseUrl] = "https://derived.example.com",
+        });
+
+        options.AllowedReturnToHosts.Should().Equal("explicit.example.com", "second.example.com");
+    }
+
+    [Theory]
+    [InlineData("https://app.example.com", "app.example.com")]
+    [InlineData("http://localhost:8080", "localhost")]
+    [InlineData("https://app.example.com:8443/", "app.example.com")]
+    public void AllowedReturnToHosts_WithoutExplicitValue_DerivesHostFromAppBaseUrl(string appBaseUrl, string expectedHost)
+    {
+        // The self-host case: only APP_BASE_URL is supplied. The port is dropped because
+        // the list is compared against Uri.Host.
+        var options = BuildOptions(new() { [ConfigKeys.AppBaseUrl] = appBaseUrl });
+
+        options.AllowedReturnToHosts.Should().Equal(expectedHost);
+    }
+
+    [Fact]
+    public void AllowedReturnToHosts_WithNeitherValue_StaysEmpty()
+    {
+        var options = BuildOptions(new());
+
+        options.AllowedReturnToHosts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AllowedReturnToHosts_WithUnparseableAppBaseUrl_StaysEmpty()
+    {
+        // A relative or malformed URL must not become a host entry.
+        var options = BuildOptions(new() { [ConfigKeys.AppBaseUrl] = "not-a-url" });
+
+        options.AllowedReturnToHosts.Should().BeEmpty();
+    }
+
+    private static BffOptions BuildOptions(Dictionary<string, string?> extra)
+    {
+        using var provider = BuildProvider(valkeyConnection: null, extra: extra);
+        return provider.GetRequiredService<IOptions<BffOptions>>().Value;
+    }
+
     private static ServiceProvider BuildProvider(
         string? valkeyConnection,
         Dictionary<string, string?>? extra = null,
