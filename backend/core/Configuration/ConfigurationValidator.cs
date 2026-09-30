@@ -41,6 +41,18 @@ public static class ConfigurationValidator
                 errors.Add($"Required configuration '{key}' is not set");
         }
 
+        // Mail is optional as a block: no SMTP_HOST selects the log-only transport. Once the
+        // host is set the rest of the block must be complete, so a deployment that means to
+        // send mail fails at startup instead of falling back to a sender nobody chose.
+        if (DeploymentConfig.IsSmtpConfigured(configuration))
+        {
+            foreach (var key in DeploymentConfig.SmtpKeysRequiredWithHost)
+            {
+                if (string.IsNullOrEmpty(configuration[key]))
+                    errors.Add($"Required configuration '{key}' is not set when '{ConfigKeys.SmtpHost}' is set");
+            }
+        }
+
         if (errors.Count == 0)
         {
             try { DeploymentConfig.FromConfiguration(configuration); }

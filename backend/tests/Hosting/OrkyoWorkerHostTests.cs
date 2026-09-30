@@ -120,4 +120,33 @@ public class OrkyoWorkerHostTests
             .Last();
         Assert.Same(editionEmail, resolved);
     }
+
+    /// <summary>
+    /// The worker sends the lifecycle mail, so the SMTP_HOST switch has to reach its graph too —
+    /// an edition that configures no mail must get the log-only transport, not a broken SMTP one.
+    /// </summary>
+    [Theory]
+    [InlineData(null, typeof(LogOnlyEmailTransport))]
+    [InlineData("smtp.example.com", typeof(SmtpEmailTransport))]
+    public void ComposeServices_SelectsTheEmailTransportFromSmtpHost(string? smtpHost, Type expected)
+    {
+        var services = new ServiceCollection();
+        var context = new HostBuilderContext(new Dictionary<object, object>())
+        {
+            Configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ConfigKeys.KeycloakUrl] = "http://keycloak.invalid",
+                [ConfigKeys.KeycloakRealm] = "orkyo",
+                [ConfigKeys.KeycloakBackendClientId] = "backend",
+                [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+                [ConfigKeys.SmtpHost] = smtpHost,
+            }).Build(),
+        };
+
+        OrkyoWorkerHost.ComposeServices(context, services, (_, _) => { }, _ => []);
+
+        services
+            .Last(d => d.ServiceType == typeof(IEmailTransport))
+            .ImplementationType.Should().Be(expected);
+    }
 }

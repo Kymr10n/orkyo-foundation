@@ -113,6 +113,10 @@ public static class OrkyoWorkerHost
     {
         // Shared worker graph (HTTP client, Keycloak, email, announcements, user lifecycle).
         services.AddFoundationWorkerServices(context.Configuration);
+        // The worker sends the lifecycle mail, so it says at startup when none of it is
+        // delivered. Logged here because core carries no logging framework.
+        if (!DeploymentConfig.IsSmtpConfigured(context.Configuration))
+            Log.Warning(EmailTransportRegistration.LogOnlyWarning);
         // Edition last, so it can override any of the above. See the RunAsync parameter docs.
         configureEditionServices(context, services);
         services.AddFoundationWorkerLoop(sp => BuildJobs(sp, extraJobs));

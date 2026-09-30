@@ -2,12 +2,13 @@ using Api.Models;
 using Api.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MimeKit;
 
 namespace Orkyo.Foundation.Tests.Services;
 
 public class EmailServiceTests
 {
-    // Zero backoff keeps the unreachable-SMTP failure tests fast while still
+    // Zero backoff keeps the transport-failure tests fast while still
     // exercising the retry loop (3 attempts, as in production).
     private static readonly EmailSendOptions FastRetry = new(MaxAttempts: 3, Backoff: _ => TimeSpan.Zero);
 
@@ -30,6 +31,7 @@ public class EmailServiceTests
         _emailService = new EmailService(_mockConfiguration.Object,
             new Mock<ILogger<EmailService>>().Object,
             CreateSettingsServiceMock(),
+            CreateTransportMock(fails: false),
             FastRetry);
     }
 
@@ -37,6 +39,21 @@ public class EmailServiceTests
     {
         var mock = new Mock<ITenantSettingsService>();
         mock.Setup(s => s.GetSettingsAsync()).ReturnsAsync(new TenantSettings());
+        return mock.Object;
+    }
+
+    /// <summary>
+    /// A failing transport stands in for the former unreachable-SMTP setup: EmailService sees the
+    /// same thing either way, and the real connection failure now belongs to SmtpEmailTransportTests.
+    /// </summary>
+    private static IEmailTransport CreateTransportMock(bool fails)
+    {
+        var mock = new Mock<IEmailTransport>();
+        var setup = mock.Setup(t => t.SendAsync(It.IsAny<MimeMessage>(), It.IsAny<CancellationToken>()));
+        if (fails)
+            setup.ThrowsAsync(new IOException("transport unavailable"));
+        else
+            setup.Returns(Task.CompletedTask);
         return mock.Object;
     }
 
@@ -128,52 +145,49 @@ public class EmailServiceTests
         await act.Should().NotThrowAsync();
     }
 
-    private EmailService CreateUnreachableSmtpService()
-    {
-        _mockConfiguration.Setup(c => c["SMTP_HOST"]).Returns("localhost");
-        _mockConfiguration.Setup(c => c["SMTP_PORT"]).Returns("19999");
-        return new EmailService(_mockConfiguration.Object,
+    private EmailService CreateFailingTransportService() =>
+        new(_mockConfiguration.Object,
             new Mock<ILogger<EmailService>>().Object,
             CreateSettingsServiceMock(),
+            CreateTransportMock(fails: true),
             FastRetry);
-    }
 
     [Fact]
-    public async Task SendEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
+    public async Task SendEmailAsync_WhenTransportFails_ShouldReturnFalse()
     {
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
         var result = await service.SendEmailAsync("to@example.com", "User", "Subject", "<p>html</p>", "text");
         result.Should().BeFalse();
     }
 
     [Fact]
-    public async Task SendWelcomeEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
+    public async Task SendWelcomeEmailAsync_WhenTransportFails_ShouldReturnFalse()
     {
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
         var result = await service.SendWelcomeEmailAsync("to@example.com", "User");
         result.Should().BeFalse();
     }
 
     [Fact]
-    public async Task SendInvitationEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
+    public async Task SendInvitationEmailAsync_WhenTransportFails_ShouldReturnFalse()
     {
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
         var result = await service.SendInvitationEmailAsync("to@example.com", "inv-token", DateTime.UtcNow.AddDays(7));
         result.Should().BeFalse();
     }
 
     [Fact]
-    public async Task SendLifecycleWarningEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
+    public async Task SendLifecycleWarningEmailAsync_WhenTransportFails_ShouldReturnFalse()
     {
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
         var result = await service.SendLifecycleWarningEmailAsync("to@example.com", "User", "confirm-token", 1);
         result.Should().BeFalse();
     }
 
     [Fact]
-    public async Task SendDormancyNoticeEmailAsync_WhenSmtpUnreachable_ShouldReturnFalse()
+    public async Task SendDormancyNoticeEmailAsync_WhenTransportFails_ShouldReturnFalse()
     {
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
         var result = await service.SendDormancyNoticeEmailAsync("to@example.com", "User");
         result.Should().BeFalse();
     }
@@ -182,7 +196,7 @@ public class EmailServiceTests
     public async Task SendNewUserAlertAsync_WhenAdminEmailConfigured_ShouldNotThrow()
     {
         _mockConfiguration.Setup(c => c["ALERT_EMAIL_TO"]).Returns("admin@example.com");
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
 
         var act = async () => await service.SendNewUserAlertAsync("user@example.com", "Alice");
         await act.Should().NotThrowAsync();
@@ -192,18 +206,18 @@ public class EmailServiceTests
     public async Task SendNewTenantAlertAsync_WhenAdminEmailConfigured_ShouldNotThrow()
     {
         _mockConfiguration.Setup(c => c["ALERT_EMAIL_TO"]).Returns("admin@example.com");
-        var service = CreateUnreachableSmtpService();
+        var service = CreateFailingTransportService();
 
         var act = async () => await service.SendNewTenantAlertAsync("my-slug", "My Tenant", "owner@example.com");
         await act.Should().NotThrowAsync();
     }
 
     [Fact]
-    public async Task NewLifecycleAndAdminSends_WhenSmtpUnreachable_ReturnFalse()
+    public async Task NewLifecycleAndAdminSends_WhenTransportFails_ReturnFalse()
     {
         // Exercises the template-build + dispatch path for every email added 2026-06 (covers the
         // EmailService delegations). Unreachable SMTP → false, deterministic in CI.
-        var s = CreateUnreachableSmtpService();
+        var s = CreateFailingTransportService();
         (await s.SendTenantInactivityWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();
         (await s.SendTenantSuspendedAsync("a@x.com", "Acme", "https://app", 90)).Should().BeFalse();
         (await s.SendTenantDeletingWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();

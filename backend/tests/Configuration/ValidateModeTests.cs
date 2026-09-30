@@ -43,7 +43,8 @@ public class ValidateModeTests
     public void Run_MissingKey_ReturnsOne()
     {
         var values = ValidConfig();
-        values.Remove("SMTP_HOST");
+        // Not SMTP_HOST: mail is optional as a block, so its absence is no longer an error.
+        values.Remove("APP_BASE_URL");
         var config = BuildConfig(values);
 
         var exitCode = ValidateMode.Run(config, EnvironmentNames.Test);

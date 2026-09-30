@@ -37,19 +37,19 @@ public class ConfigurationValidatorTests
     public void Validate_ReturnsError_WhenRequiredKeyMissing()
     {
         var values = ValidConfigValues();
-        values.Remove(ConfigKeys.SmtpHost);
+        values.Remove(ConfigKeys.AppBaseUrl);
         var config = BuildConfig(values);
 
         var errors = ConfigurationValidator.Validate(config);
 
-        errors.Should().ContainSingle(e => e.Contains(ConfigKeys.SmtpHost));
+        errors.Should().ContainSingle(e => e.Contains(ConfigKeys.AppBaseUrl));
     }
 
     [Fact]
     public void Validate_ReturnsMultipleErrors_WhenSeveralRequiredKeysMissing()
     {
         var values = ValidConfigValues();
-        values.Remove(ConfigKeys.SmtpHost);
+        values.Remove(ConfigKeys.AppBaseUrl);
         values.Remove(ConfigKeys.KeycloakUrl);
         var config = BuildConfig(values);
 
@@ -112,7 +112,7 @@ public class ConfigurationValidatorTests
     public void ValidateOrThrow_Throws_WhenConfigurationIsInvalid()
     {
         var values = ValidConfigValues();
-        values.Remove(ConfigKeys.SmtpHost);
+        values.Remove(ConfigKeys.AppBaseUrl);
         var config = BuildConfig(values);
 
         var act = () => ConfigurationValidator.ValidateOrThrow(config);
@@ -125,16 +125,69 @@ public class ConfigurationValidatorTests
     public void ValidateOrThrow_ExceptionMessage_ContainsAllErrors()
     {
         var values = ValidConfigValues();
-        values.Remove(ConfigKeys.SmtpHost);
+        values.Remove(ConfigKeys.AppBaseUrl);
         values.Remove(ConfigKeys.KeycloakUrl);
         var config = BuildConfig(values);
 
         var act = () => ConfigurationValidator.ValidateOrThrow(config);
 
         var ex = act.Should().Throw<InvalidOperationException>().Which;
-        ex.Message.Should().Contain(ConfigKeys.SmtpHost);
+        ex.Message.Should().Contain(ConfigKeys.AppBaseUrl);
         ex.Message.Should().Contain(ConfigKeys.KeycloakUrl);
     }
+
+    // ── SMTP is optional as a block ─────────────────────────────────────────
+
+    [Fact]
+    public void Validate_ReportsNoError_WhenWholeSmtpBlockIsAbsent()
+    {
+        // The self-host default: no mail configuration at all selects the log-only transport.
+        var values = ValidConfigValues();
+        foreach (var key in SmtpKeys) values.Remove(key);
+
+        var errors = ConfigurationValidator.Validate(BuildConfig(values));
+
+        errors.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(nameof(ConfigKeys.SmtpPort))]
+    [InlineData(nameof(ConfigKeys.SmtpUseSsl))]
+    [InlineData(nameof(ConfigKeys.SmtpFromEmail))]
+    [InlineData(nameof(ConfigKeys.SmtpFromName))]
+    public void Validate_ReturnsError_WhenSmtpHostIsSetButBlockIsIncomplete(string missingKeyName)
+    {
+        // A half-filled block means the operator wants mail, so it fails at startup rather
+        // than falling back to a port or a sender nobody chose.
+        var missingKey = (string)typeof(ConfigKeys).GetField(missingKeyName)!.GetValue(null)!;
+        var values = ValidConfigValues();
+        values.Remove(missingKey);
+
+        var errors = ConfigurationValidator.Validate(BuildConfig(values));
+
+        errors.Should().ContainSingle(e => e.Contains(missingKey) && e.Contains(ConfigKeys.SmtpHost));
+    }
+
+    [Fact]
+    public void Validate_ReportsNoSmtpError_WhenHostIsAbsentButOtherKeysRemain()
+    {
+        // Leftover SMTP keys with no host are still log-only — the host is the switch.
+        var values = ValidConfigValues();
+        values.Remove(ConfigKeys.SmtpHost);
+
+        var errors = ConfigurationValidator.Validate(BuildConfig(values));
+
+        errors.Should().BeEmpty();
+    }
+
+    private static readonly string[] SmtpKeys =
+    [
+        ConfigKeys.SmtpHost,
+        ConfigKeys.SmtpPort,
+        ConfigKeys.SmtpUseSsl,
+        ConfigKeys.SmtpFromEmail,
+        ConfigKeys.SmtpFromName,
+    ];
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 

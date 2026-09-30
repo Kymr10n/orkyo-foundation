@@ -16,6 +16,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orkyo.Shared;
 using Orkyo.Shared.Keycloak;
+using Serilog;
 
 namespace Api.Configuration;
 
@@ -168,6 +169,11 @@ public static class FoundationServiceExtensions
         services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         services.AddScoped<ICapabilityAssignmentService, CapabilityAssignmentService>();
         services.AddScoped<IEmailService, EmailService>();
+        // Key-gated like the Turnstile provider above: no SMTP_HOST means the log-only
+        // transport. Warned here rather than in core, which carries no logging framework.
+        services.AddOrkyoEmailTransport(configuration);
+        if (!DeploymentConfig.IsSmtpConfigured(configuration))
+            Log.Warning(EmailTransportRegistration.LogOnlyWarning);
         services.AddScoped<IBackgroundDispatcher, BackgroundDispatcher>();
         services.AddScoped<IExportService, ExportService>();
         services.AddScoped<ICalendarFeedService, CalendarFeedService>();
