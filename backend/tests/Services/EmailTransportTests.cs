@@ -108,9 +108,18 @@ public class EmailTransportRegistrationTests
 {
     private static ServiceProvider Build(string? smtpHost)
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["SMTP_HOST"] = smtpHost })
-            .Build();
+        // A set host comes with the rest of the block, as the validator guarantees in a real
+        // deployment: SmtpEmailTransport reads the block in its constructor, so resolving it
+        // is also the construction guard the Turnstile test has.
+        var values = new Dictionary<string, string?> { ["SMTP_HOST"] = smtpHost };
+        if (!string.IsNullOrEmpty(smtpHost))
+        {
+            values["SMTP_PORT"] = "587";
+            values["SMTP_USE_SSL"] = "true";
+            values["SMTP_FROM_EMAIL"] = "noreply@example.com";
+            values["SMTP_FROM_NAME"] = "Orkyo";
+        }
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
