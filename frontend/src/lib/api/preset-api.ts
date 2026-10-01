@@ -19,9 +19,45 @@ export interface Preset {
 }
 
 export interface PresetContents {
+  /** Schema 1.1.0; absent in a 1.0.0 file. Applied first: everything below refers to them by key. */
+  resourceTypes?: PresetResourceType[];
   criteria: PresetCriterion[];
   spaceGroups: PresetSpaceGroup[];
   templates: PresetTemplates;
+  /** Schema 1.1.0; absent in a 1.0.0 file and never in an export (resources are data, not configuration). */
+  resources?: PresetResource[];
+}
+
+/**
+ * A resource type the preset needs. A catalog key (person, tool, mill, ...) is activated from the
+ * product's catalog and the names/flags here are ignored; any other key is an ad-hoc type.
+ */
+export interface PresetResourceType {
+  key: string;
+  displayName?: string;
+  displayNamePlural?: string;
+  description?: string;
+  icon?: string;
+  hasGeometry?: boolean;
+  hasDirectoryProfile?: boolean;
+  singleGroupMembership?: boolean;
+}
+
+/** A named sample resource: one room, person, machine or tool. */
+export interface PresetResource {
+  key: string;
+  name: string;
+  code?: string;
+  description?: string;
+  typeKey: string;
+  allocationMode?: 'Exclusive' | 'Fractional';
+  groupKeys?: string[];
+  capabilities?: PresetCapability[];
+}
+
+export interface PresetCapability {
+  criterionKey: string;
+  value: string;
 }
 
 export interface PresetTemplates {
@@ -37,6 +73,8 @@ export interface PresetCriterion {
   dataType: 'Boolean' | 'Number' | 'String' | 'Enum';
   enumValues?: string[];
   unit?: string;
+  /** Keys of the resource types this criterion applies to (schema 1.1.0). */
+  resourceTypeKeys?: string[];
 }
 
 export interface PresetSpaceGroup {
@@ -45,6 +83,8 @@ export interface PresetSpaceGroup {
   description?: string;
   color?: string;
   displayOrder?: number;
+  /** Key of the resource type the group holds (schema 1.1.0); unset keeps the placeable-type default. */
+  resourceTypeKey?: string;
 }
 
 export interface PresetTemplate {
@@ -76,12 +116,15 @@ export interface PresetApplicationResult {
 }
 
 export interface PresetApplicationStats {
+  resourceTypesActivated: number;
   criteriaCreated: number;
   criteriaUpdated: number;
   spaceGroupsCreated: number;
   spaceGroupsUpdated: number;
   templatesCreated: number;
   templatesUpdated: number;
+  resourcesCreated: number;
+  resourcesUpdated: number;
 }
 
 export interface PresetApplication {

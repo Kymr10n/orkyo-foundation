@@ -67,18 +67,40 @@ public class PresetService : IPresetService
         await transaction.CommitAsync(ct);
 
         _logger.LogInformation(
-            "Applied preset {PresetId} v{Version}: {CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
-            "{GroupsCreated} groups created, {GroupsUpdated} updated, {TemplatesCreated} templates created, {TemplatesUpdated} updated",
+            "Applied preset {PresetId} v{Version}: {TypesActivated} types activated, " +
+            "{CriteriaCreated} criteria created, {CriteriaUpdated} updated, " +
+            "{GroupsCreated} groups created, {GroupsUpdated} updated, {TemplatesCreated} templates created, {TemplatesUpdated} updated, " +
+            "{ResourcesCreated} resources created, {ResourcesUpdated} updated",
             preset.PresetId, preset.Version,
+            stats.ResourceTypesActivated,
             stats.CriteriaCreated, stats.CriteriaUpdated,
             stats.SpaceGroupsCreated, stats.SpaceGroupsUpdated,
-            stats.TemplatesCreated, stats.TemplatesUpdated);
+            stats.TemplatesCreated, stats.TemplatesUpdated,
+            stats.ResourcesCreated, stats.ResourcesUpdated);
 
         return new PresetApplicationResult { Success = true, Stats = stats };
     }
 
     public async Task<Preset> ExportAsync(string presetId, string name, string? description = null, CancellationToken ct = default)
     {
+        // Every active type, catalog keys included: the applier treats a key by name, so an
+        // import on a tenant that has the type adopts it and one that does not creates it.
+        // Resources are not exported — they are data (people's names, an inventory), and this
+        // export is the tenant's configuration.
+        var types = (await _resourceTypeRepo.GetAllAsync(ct)).Where(t => t.IsActive).ToList();
+        var presetTypes = types.Select(t => new PresetResourceType
+        {
+            Key = t.Key,
+            DisplayName = t.DisplayName,
+            DisplayNamePlural = t.DisplayNamePlural,
+            Description = t.Description,
+            Icon = t.Icon,
+            HasGeometry = t.HasGeometry,
+            HasDirectoryProfile = t.HasDirectoryProfile,
+            SingleGroupMembership = t.SingleGroupMembership
+        }).ToList();
+        var exportedTypeKeys = presetTypes.Select(t => t.Key).ToHashSet(StringComparer.Ordinal);
+
         var criteria = await _criteriaRepo.GetAllAsync(ct);
         var presetCriteria = criteria.Select(c => new PresetCriterion
         {
@@ -87,14 +109,16 @@ public class PresetService : IPresetService
             Description = c.Description,
             DataType = c.DataType,
             EnumValues = c.EnumValues,
-            Unit = c.Unit
+            Unit = c.Unit,
+            ResourceTypeKeys = c.ResourceTypeKeys.Where(exportedTypeKeys.Contains).ToList()
         }).ToList();
 
         var criterionKeyMap = presetCriteria.ToDictionary(c => c.Name, c => c.Key);
         var criterionIdToKey = criteria.ToDictionary(c => c.Id, c => criterionKeyMap[c.Name]);
 
         // Export follows the same rule as apply: groups of every placeable type, since that is
-        // what the floorplan the preset captures actually holds.
+        // what the floorplan the preset captures actually holds. Each carries its type, so an
+        // import recreates it as the same kind of group instead of guessing a placeable type.
         var groups = await _resourceGroupRepo.GetByTypeKeysAsync(
             await _resourceTypeRepo.GetPlaceableKeysAsync(ct), ct);
         var presetGroups = groups.Select(g => new PresetSpaceGroup
@@ -103,7 +127,8 @@ public class PresetService : IPresetService
             Name = g.Name,
             Description = g.Description,
             Color = g.Color,
-            DisplayOrder = g.DisplayOrder ?? 0
+            DisplayOrder = g.DisplayOrder ?? 0,
+            ResourceTypeKey = exportedTypeKeys.Contains(g.ResourceTypeKey) ? g.ResourceTypeKey : null
         }).ToList();
 
         var presetTemplates = new PresetTemplates
@@ -122,6 +147,7 @@ public class PresetService : IPresetService
             CreatedAt = _time.GetUtcNow().UtcDateTime,
             Contents = new PresetContents
             {
+                ResourceTypes = presetTypes,
                 Criteria = presetCriteria,
                 SpaceGroups = presetGroups,
                 Templates = presetTemplates

@@ -9,6 +9,27 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 ## [Unreleased]
 
 ### Added
+- **Presets carry resource types, applicability, typed groups and sample resources (schema 1.1.0).**
+  `PresetContents` gains `ResourceTypes` (a catalog key is activated from the catalog spec, any other
+  key is an ad-hoc type) and `Resources` (named rooms, people, machines, tools with capabilities and
+  memberships); `PresetCriterion.ResourceTypeKeys` writes `criterion_resource_types`;
+  `PresetSpaceGroup.ResourceTypeKey` types a group explicitly. `PresetApplier` applies them in
+  dependency order, adopts existing rows by key, code or name, and still never deletes. 1.0.0 files
+  import unchanged. `PresetApplicationStats` gains `ResourceTypesActivated`, `ResourcesCreated`,
+  `ResourcesUpdated`.
+- **`office` starter template**, and the `manufacturing` and `office` preset files ship embedded in
+  `Orkyo.Foundation.Core` — before this no `.preset.json` existed and every preset-backed key threw.
+  Both are flagged `IncludesDemoData` because they carry named sample resources.
+
+### Changed
+- **`StarterTemplateService` applies a preset once.** When `preset_applications` already records the
+  preset it logs and returns, so a product can call it at every start (Community's
+  `ORKYO_STARTER_TEMPLATE`). A shipped file that fails `PresetValidator` throws with the errors.
+- **Preset export emits resource types, criterion applicability and group typing**, fixing a
+  round-trip loss (groups lost their type on import). Resources are not exported. The export declares
+  version `1.1.0`; older apps refuse it as unsupported instead of dropping the new sections.
+- `manufacturing` preset file renamed from `manufacturing-ch.preset.json`; its catalog description
+  and `IncludesDemoData` now describe the small workshop it contains.
 - **`MigrationScope` on `MigrationScript`.** A tenant-phase migration that must not run where control
   plane and tenant share one database declares `-- @scope: tenant-database-only` in the file;
   `FoundationMigrationModule.TenantDatabaseOnlyIds` marks the two legacy feedback migrations that predate

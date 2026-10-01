@@ -19,6 +19,12 @@
     <ProjectReference Include="..\shared\Orkyo.Shared.csproj" />
   </ItemGroup>
 
+  <!-- The shipped starter presets (StarterTemplateCatalog → PresetTemplateLoader). Embedded so
+       the NuGet package carries them inside the DLL; no product image copies a file. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Presets\*.preset.json" />
+  </ItemGroup>
+
   <!-- No FrameworkReference — must remain ASP.NET-free -->
   <ItemGroup>
     <PackageReference Include="Anthropic" />

@@ -327,6 +327,72 @@ public class PresetEndpointsTests
         Assert.True(result.Stats!.TemplatesCreated >= 2 || result.Stats.TemplatesUpdated >= 0);
     }
 
+    [Fact]
+    public async Task ApplyPreset_WithResourceTypesAndResources_CreatesThemAndReportsStats()
+    {
+        // A 1.1.0 preset through the HTTP path: an ad-hoc type, a catalog type, a typed group,
+        // an applicable criterion and two resources with a capability and a membership.
+        var typeKey = $"ws{Guid.NewGuid():N}"[..20];
+        var preset = CreateValidPreset($"resources-{Guid.NewGuid():N}") with
+        {
+            Version = Api.Validators.PresetValidator.CurrentVersion,
+            Contents = new PresetContents
+            {
+                ResourceTypes =
+                [
+                    new() { Key = typeKey, DisplayName = "Workbench", DisplayNamePlural = "Workbenches", HasGeometry = true, SingleGroupMembership = true },
+                    new() { Key = "tool" }
+                ],
+                Criteria = [new() { Key = "esd-safe", Name = $"ESD safe {Guid.NewGuid():N}", DataType = Api.Models.CriterionDataType.Boolean, ResourceTypeKeys = [typeKey, "tool"] }],
+                SpaceGroups = [new() { Key = "benches", Name = $"Benches {Guid.NewGuid():N}", ResourceTypeKey = typeKey }],
+                Resources =
+                [
+                    new() { Key = "bench-1", Name = $"Bench 1 {Guid.NewGuid():N}", Code = $"B1-{Guid.NewGuid():N}"[..20], TypeKey = typeKey, GroupKeys = ["benches"], Capabilities = [new() { CriterionKey = "esd-safe", Value = "true" }] },
+                    new() { Key = "meter-1", Name = $"Multimeter {Guid.NewGuid():N}", TypeKey = "tool" }
+                ]
+            }
+        };
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset);
+
+        var response = await _client.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.StatusCode == HttpStatusCode.OK, $"Expected OK but got {response.StatusCode}. Response: {body}");
+        var result = JsonSerializer.Deserialize<ApplyResult>(body, _jsonOptions)!;
+        Assert.True(result.Success, $"Apply failed: {result.Error}");
+        Assert.Equal(2, result.Stats!.ResourceTypesActivated);
+        Assert.Equal(2, result.Stats.ResourcesCreated);
+        Assert.Equal(0, result.Stats.ResourcesUpdated);
+
+        // A second apply adopts everything it created: nothing new, everything updated.
+        var again = JsonSerializer.Deserialize<ApplyResult>(
+            await (await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset)))
+                .Content.ReadAsStringAsync(), _jsonOptions)!;
+        Assert.True(again.Success, again.Error);
+        Assert.Equal(0, again.Stats!.ResourcesCreated);
+        Assert.Equal(2, again.Stats.ResourcesUpdated);
+    }
+
+    [Fact]
+    public async Task ApplyPreset_ResourceInGroupOfAnotherType_IsRejectedByValidation()
+    {
+        var typeKey = $"tt{Guid.NewGuid():N}"[..20];
+        var preset = CreateValidPreset($"mismatch-{Guid.NewGuid():N}") with
+        {
+            Version = Api.Validators.PresetValidator.CurrentVersion,
+            Contents = new PresetContents
+            {
+                ResourceTypes = [new() { Key = typeKey, DisplayName = "T", DisplayNamePlural = "Ts" }, new() { Key = "tool" }],
+                SpaceGroups = [new() { Key = "g", Name = $"G {Guid.NewGuid():N}", ResourceTypeKey = typeKey }],
+                Resources = [new() { Key = "r", Name = "R", TypeKey = "tool", GroupKeys = ["g"] }]
+            }
+        };
+
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, preset));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     #endregion
 
     #region GET /api/admin/presets/export
@@ -349,8 +415,45 @@ public class PresetEndpointsTests
         Assert.NotNull(preset);
         Assert.Equal(presetId, preset.PresetId);
         Assert.Equal(name, preset.Name);
-        Assert.Equal("1.0.0", preset.Version);
+        Assert.Equal(Api.Validators.PresetValidator.CurrentVersion, preset.Version);
         Assert.NotNull(preset.Contents);
+    }
+
+    [Fact]
+    public async Task ExportPreset_EmitsResourceTypesAndTyping_ButNoResources()
+    {
+        // Types, applicability and group typing are configuration and round-trip; resources
+        // are data (people's names) and never leave the tenant in an export.
+        var typeKey = $"exp{Guid.NewGuid():N}"[..20];
+        var apply = CreateValidPreset($"export-shape-{Guid.NewGuid():N}") with
+        {
+            Version = Api.Validators.PresetValidator.CurrentVersion,
+            Contents = new PresetContents
+            {
+                ResourceTypes = [new() { Key = typeKey, DisplayName = "Bench", DisplayNamePlural = "Benches", HasGeometry = true }],
+                Criteria = [new() { Key = "bench-load", Name = $"Bench load {Guid.NewGuid():N}", DataType = Api.Models.CriterionDataType.Number, ResourceTypeKeys = [typeKey] }],
+                SpaceGroups = [new() { Key = "benches", Name = $"Benches {Guid.NewGuid():N}", ResourceTypeKey = typeKey }],
+                Resources = [new() { Key = "bench-1", Name = $"Bench {Guid.NewGuid():N}", TypeKey = typeKey, GroupKeys = ["benches"] }]
+            }
+        };
+        var applyResponse = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/presets/apply", await Token, apply));
+        Assert.Equal(HttpStatusCode.OK, applyResponse.StatusCode);
+
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get,
+            $"/api/admin/presets/export?presetId=export-shape&name=Shape", await Token));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        var contents = doc.RootElement.GetProperty("contents");
+        Assert.Contains(contents.GetProperty("resourceTypes").EnumerateArray(), t => t.GetProperty("key").GetString() == typeKey);
+        Assert.Contains(contents.GetProperty("criteria").EnumerateArray(),
+            c => c.GetProperty("name").GetString() == apply.Contents.Criteria[0].Name
+                 && c.GetProperty("resourceTypeKeys").EnumerateArray().Any(k => k.GetString() == typeKey));
+        Assert.Contains(contents.GetProperty("spaceGroups").EnumerateArray(),
+            g => g.GetProperty("name").GetString() == apply.Contents.SpaceGroups[0].Name
+                 && g.GetProperty("resourceTypeKey").GetString() == typeKey);
+        Assert.Empty(contents.GetProperty("resources").EnumerateArray());
     }
 
     [Fact]
@@ -504,12 +607,15 @@ public class PresetEndpointsTests
 
     private record ApplyStats
     {
+        public int ResourceTypesActivated { get; init; }
         public int CriteriaCreated { get; init; }
         public int CriteriaUpdated { get; init; }
         public int SpaceGroupsCreated { get; init; }
         public int SpaceGroupsUpdated { get; init; }
         public int TemplatesCreated { get; init; }
         public int TemplatesUpdated { get; init; }
+        public int ResourcesCreated { get; init; }
+        public int ResourcesUpdated { get; init; }
     }
 
     #endregion

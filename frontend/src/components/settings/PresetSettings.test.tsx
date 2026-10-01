@@ -68,12 +68,15 @@ describe('PresetSettings', () => {
   const mockApplicationSuccess: presetApi.PresetApplicationResult = {
     success: true,
     stats: {
+      resourceTypesActivated: 2,
       criteriaCreated: 5,
       criteriaUpdated: 2,
       spaceGroupsCreated: 3,
       spaceGroupsUpdated: 1,
       templatesCreated: 4,
       templatesUpdated: 0,
+      resourcesCreated: 6,
+      resourcesUpdated: 0,
     },
   };
 
@@ -81,12 +84,15 @@ describe('PresetSettings', () => {
     success: false,
     error: 'Database constraint violation',
     stats: {
+      resourceTypesActivated: 0,
       criteriaCreated: 0,
       criteriaUpdated: 0,
       spaceGroupsCreated: 0,
       spaceGroupsUpdated: 0,
       templatesCreated: 0,
       templatesUpdated: 0,
+      resourcesCreated: 0,
+      resourcesUpdated: 0,
     },
   };
 

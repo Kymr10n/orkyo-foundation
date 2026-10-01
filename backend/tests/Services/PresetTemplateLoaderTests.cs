@@ -72,7 +72,7 @@ public class PresetTemplateLoaderTests
                 typeof(PresetTemplateLoaderTests).Assembly);
 
             act.Should().Throw<FileNotFoundException>()
-                .WithMessage("*manufacturing-ch.preset.json*");
+                .WithMessage("*manufacturing.preset.json*");
         }
         finally
         {

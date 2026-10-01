@@ -8,13 +8,13 @@ public class StarterTemplateServiceTests
     #region GetAvailableTemplates
 
     [Fact]
-    public void GetAvailableTemplates_ShouldReturnFiveTemplates()
+    public void GetAvailableTemplates_ShouldReturnSixTemplates()
     {
         var sut = CreateService();
 
         var templates = sut.GetAvailableTemplates();
 
-        templates.Should().HaveCount(5);
+        templates.Should().HaveCount(6);
     }
 
     [Fact]
@@ -29,6 +29,7 @@ public class StarterTemplateServiceTests
         keys.Should().Contain("camping-site");
         keys.Should().Contain("construction-site");
         keys.Should().Contain("manufacturing");
+        keys.Should().Contain("office");
     }
 
     [Fact]
@@ -56,8 +57,10 @@ public class StarterTemplateServiceTests
     [Theory]
     [InlineData("camping-site", false)]
     [InlineData("construction-site", false)]
-    [InlineData("manufacturing", false)]
-    public void GetAvailableTemplates_PresetTemplates_ShouldNotIncludeDemoData(string key, bool expectedDemoData)
+    // The two shipped starter setups carry named sample resources and say so.
+    [InlineData("manufacturing", true)]
+    [InlineData("office", true)]
+    public void GetAvailableTemplates_PresetTemplates_ShouldReportDemoDataHonestly(string key, bool expectedDemoData)
     {
         var sut = CreateService();
 
