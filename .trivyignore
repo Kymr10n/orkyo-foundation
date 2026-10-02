@@ -6,10 +6,10 @@
 # Policy: time-bound only. Review date must be within 14 days of added date.
 # Remove entries once the upstream fix is available.
 #
-# Reviewed 2026-10-01: the 26.7.5 pin cleared every Keycloak-library exception — Bouncy
-# Castle (1.86), netty (4.1.138), FreeMarker (2.3.35) and Jackson (2.21.7), the last one
-# also closing CVE-2026-91776/91777, published 2026-10-01 (git history has the per-review
-# narrative). Live entries follow.
+# Reviewed 2026-10-01: The 26.7.5 pin cleared five vulnerable-library exceptions:
+# Bouncy Castle (1.86), netty (4.1.138), FreeMarker (2.3.35), and Jackson (2.21.7).
+# Jackson also closed CVE-2026-91776/91777, published 2026-10-01. The `mssql-jdbc`
+# false-positive exception remains. Git history contains the review narrative.
 
 # ── Trivy false positive ───────────────────────────────────────────────────────
 # Renewed on a 14-day cadence while it stays a false positive; a permanent-exception
