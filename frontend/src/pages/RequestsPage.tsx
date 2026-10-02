@@ -385,114 +385,117 @@ export function RequestsPage() {
     ? visibleEntries.length === 0
     : filteredRequests.length === 0;
 
+  // Page controls live in the header's actions slot (UI-GUIDELINES §16). PageHeader flex-wraps,
+  // so on a phone they wrap under the title instead of pushing the whole page sideways, which
+  // the former non-wrapping toolbar row did.
+  const headerActions = (
+    <>
+      {viewMode === "tree" && (
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => expandAll(expandableIds)}
+                aria-label="Expand all"
+              >
+                <ChevronsDown className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Expand all (*)</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => collapseAll()}
+                aria-label="Collapse all"
+              >
+                <ChevronsUp className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Collapse all</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+
+      <div className="flex border rounded-md" role="group" aria-label="View mode">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={viewMode === "tree" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setViewMode("tree")}
+              aria-label="Tree view"
+              aria-pressed={viewMode === "tree"}
+            >
+              <TreePine className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Tree view</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="sm"
+              className="rounded-l-none"
+              onClick={() => setViewMode("list")}
+              aria-label="List view"
+              aria-pressed={viewMode === "list"}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>List view</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {canEdit && (
+        <Button variant="outline" onClick={() => setSpreadsheetImportOpen(true)}>
+          <FileSpreadsheet className="h-4 w-4 mr-2" />
+          Import from spreadsheet
+        </Button>
+      )}
+      {canEdit && (
+        <Button variant="outline" onClick={() => setNewFromRoutingOpen(true)}>
+          <ListOrdered className="h-4 w-4 mr-2" />
+          New from routing
+        </Button>
+      )}
+      <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
+        <Plus className="h-4 w-4 mr-2" />
+        New Request
+      </Button>
+    </>
+  );
+
   return (
     <PageLayout>
       <PageHeader
         title="Requests"
         description="Organize tasks and groups and track their schedules."
+        actions={headerActions}
       />
 
-      {/* Toolbar: search (tree only) · expand/collapse-all + view toggle + primary (right) */}
-      <div className="flex items-center gap-3 mb-2 md:mb-4 shrink-0">
-        {/* The tree has no column headers, so it keeps a search box. The list filters from
-            its Name header like every other list — two search affordances on one view is one
-            too many. */}
-        {viewMode === "tree" && (
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search requests…"
-              aria-label="Search requests"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          {viewMode === "tree" && (
-            <div className="flex items-center gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => expandAll(expandableIds)}
-                    aria-label="Expand all"
-                  >
-                    <ChevronsDown className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Expand all (*)</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => collapseAll()}
-                    aria-label="Collapse all"
-                  >
-                    <ChevronsUp className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Collapse all</TooltipContent>
-              </Tooltip>
-            </div>
-          )}
-
-          <div className="flex border rounded-md" role="group" aria-label="View mode">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={viewMode === "tree" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="rounded-r-none"
-                  onClick={() => setViewMode("tree")}
-                  aria-label="Tree view"
-                  aria-pressed={viewMode === "tree"}
-                >
-                  <TreePine className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Tree view</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={viewMode === "list" ? "secondary" : "ghost"}
-                  size="sm"
-                  className="rounded-l-none"
-                  onClick={() => setViewMode("list")}
-                  aria-label="List view"
-                  aria-pressed={viewMode === "list"}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>List view</TooltipContent>
-            </Tooltip>
-          </div>
-
-          {canEdit && (
-            <Button variant="outline" onClick={() => setSpreadsheetImportOpen(true)}>
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Import from spreadsheet
-            </Button>
-          )}
-          {canEdit && (
-            <Button variant="outline" onClick={() => setNewFromRoutingOpen(true)}>
-              <ListOrdered className="h-4 w-4 mr-2" />
-              New from routing
-            </Button>
-          )}
-          <Button onClick={() => handleCreateRequest('leaf')} disabled={!canEdit}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Request
-          </Button>
+      {/* The tree has no column headers, so it keeps a search box. The list filters from
+          its Name header like every other list — two search affordances on one view is one
+          too many. A filter, not a page control, so it stays a row under the header. */}
+      {viewMode === "tree" && (
+        <div className="relative max-w-sm mb-2 md:mb-4 shrink-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search requests…"
+            aria-label="Search requests"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
         </div>
-      </div>
+      )}
 
       {/* Mounted only while open: it loads routings and sites, neither worth fetching on
           every Requests render. */}
