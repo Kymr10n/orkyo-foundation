@@ -164,8 +164,10 @@ export function AppLayout({ upgradeHref }: AppLayoutProps = {}) {
           <SidebarNav forceCollapsed={isTablet ? true : undefined} />
         )}
         {/* On phones PageLayout is the single padding owner (UI-GUIDELINES §16);
-            main pads only from md: up so desktop metrics stay unchanged. */}
-        <main className="flex-1 overflow-auto md:p-4">
+            main pads only from md: up so desktop metrics stay unchanged.
+            Vertical scroll only: a page must never drag the frame sideways (§1). Wide content
+            brings its own overflow-x container; an over-wide stray clips on its own page. */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto md:p-4">
           <RouteErrorBoundary label="page">
             <Outlet />
           </RouteErrorBoundary>

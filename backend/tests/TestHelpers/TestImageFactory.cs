@@ -4,7 +4,7 @@ using System.Text;
 namespace Api.Tests.TestHelpers;
 
 /// <summary>
-/// Builds minimal, valid PNG and JPEG byte payloads for upload/validation tests,
+/// Builds minimal, valid PNG, JPEG, WebP, GIF and BMP byte payloads for upload/validation tests,
 /// replacing the previous dependency on a full imaging library. Orkyo only reads
 /// image headers (format + dimensions), so these fixtures need correct headers,
 /// not richly-decodable pixel content.
@@ -60,6 +60,51 @@ public static class TestImageFactory
         return ms.ToArray();
     }
 
+    /// <summary>Builds a minimal GIF89a: signature, logical screen descriptor and trailer.</summary>
+    public static byte[] Gif(int width, int height)
+    {
+        using var ms = new MemoryStream();
+        ms.Write("GIF89a"u8);
+        ms.Write([(byte)width, (byte)(width >> 8), (byte)height, (byte)(height >> 8)]);
+        ms.Write([0x00, 0x00, 0x00]); // packed fields, background colour index, pixel aspect ratio
+        ms.Write([0x3B]); // trailer
+        return ms.ToArray();
+    }
+
+    /// <summary>Builds a minimal BMP: file header plus a 40-byte BITMAPINFOHEADER, no pixel data.</summary>
+    public static byte[] Bmp(int width, int height)
+    {
+        var bytes = new byte[54];
+        bytes[0] = (byte)'B';
+        bytes[1] = (byte)'M';
+        WriteLittleEndian(bytes, 2, bytes.Length); // file size
+        WriteLittleEndian(bytes, 10, bytes.Length); // pixel data offset
+        WriteLittleEndian(bytes, 14, 40); // DIB header size
+        WriteLittleEndian(bytes, 18, width);
+        WriteLittleEndian(bytes, 22, height);
+        bytes[26] = 1; // colour planes
+        bytes[28] = 24; // bits per pixel
+        return bytes;
+    }
+
+    /// <summary>
+    /// Builds a minimal WebP in the extended (VP8X) container, whose header carries the
+    /// canvas size itself — the shortest layout that states the dimensions.
+    /// </summary>
+    public static byte[] Webp(int width, int height)
+    {
+        var bytes = new byte[30];
+        "RIFF"u8.CopyTo(bytes);
+        WriteLittleEndian(bytes, 4, bytes.Length - 8); // RIFF payload size
+        "WEBP"u8.CopyTo(bytes.AsSpan(8));
+        "VP8X"u8.CopyTo(bytes.AsSpan(12));
+        WriteLittleEndian(bytes, 16, 10); // chunk payload size: flags (4) + canvas size (6)
+        // bytes 20–23: feature flags and reserved bits, all zero
+        WriteLittleEndian24(bytes, 24, width - 1);
+        WriteLittleEndian24(bytes, 27, height - 1);
+        return bytes;
+    }
+
     private static void WriteChunk(Stream s, string type, ReadOnlySpan<byte> data)
     {
         var len = new byte[4];
@@ -89,6 +134,21 @@ public static class TestImageFactory
         buffer[offset + 1] = (byte)(value >> 16);
         buffer[offset + 2] = (byte)(value >> 8);
         buffer[offset + 3] = (byte)value;
+    }
+
+    private static void WriteLittleEndian(byte[] buffer, int offset, int value)
+    {
+        buffer[offset] = (byte)value;
+        buffer[offset + 1] = (byte)(value >> 8);
+        buffer[offset + 2] = (byte)(value >> 16);
+        buffer[offset + 3] = (byte)(value >> 24);
+    }
+
+    private static void WriteLittleEndian24(byte[] buffer, int offset, int value)
+    {
+        buffer[offset] = (byte)value;
+        buffer[offset + 1] = (byte)(value >> 8);
+        buffer[offset + 2] = (byte)(value >> 16);
     }
 
     private static uint Crc32(ReadOnlySpan<byte> type, ReadOnlySpan<byte> data)

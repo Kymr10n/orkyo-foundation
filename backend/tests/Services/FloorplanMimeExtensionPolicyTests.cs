@@ -9,6 +9,9 @@ public class FloorplanMimeExtensionPolicyTests
     [InlineData("image/jpeg", ".jpg")]
     [InlineData("IMAGE/PNG", ".png")]
     [InlineData("Image/Jpeg", ".jpg")]
+    [InlineData("image/webp", ".webp")]
+    [InlineData("image/gif", ".gif")]
+    [InlineData("image/bmp", ".bmp")]
     public void TryGetExtensionForMime_MapsSupportedMimesCaseInsensitively(string mime, string expected)
     {
         FloorplanMimeExtensionPolicy.TryGetExtensionForMime(mime, out var ext).Should().BeTrue();
@@ -16,8 +19,8 @@ public class FloorplanMimeExtensionPolicyTests
     }
 
     [Theory]
-    [InlineData("image/webp")]
-    [InlineData("image/gif")]
+    [InlineData("image/tiff")]
+    [InlineData("image/svg+xml")]
     [InlineData("application/pdf")]
     [InlineData("")]
     public void TryGetExtensionForMime_ReturnsFalseForUnsupportedMimes(string mime)

@@ -64,6 +64,31 @@ public class FloorplanEndpointsTests
         asset!.ContentType.Should().Be("image/jpeg");
     }
 
+    [Theory]
+    [InlineData("webp", "image/webp")]
+    [InlineData("gif", "image/gif")]
+    [InlineData("bmp", "image/bmp")]
+    public async Task UploadFloorplan_WithBrowserNativeFormat_ShouldPersistDetectedTypeAndDimensions(string extension, string mimeType)
+    {
+        var siteId = await CreateTestSiteAsync();
+        var bytes = extension switch
+        {
+            "webp" => TestImageFactory.Webp(12, 8),
+            "gif" => TestImageFactory.Gif(12, 8),
+            _ => TestImageFactory.Bmp(12, 8),
+        };
+
+        var response = await _client.PostAsync(
+            $"/api/sites/{siteId}/floorplan",
+            BuildImageMultipartContent(bytes, mimeType, $"floorplan.{extension}"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var asset = await ReadFloorplanAssetAsync(siteId);
+        asset!.ContentType.Should().Be(mimeType);
+        asset.Width.Should().Be(12);
+        asset.Height.Should().Be(8);
+    }
+
     [Fact]
     public async Task UploadFloorplan_ReplacingExisting_ShouldKeepOneCurrentAsset()
     {

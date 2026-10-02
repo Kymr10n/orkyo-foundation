@@ -29,7 +29,7 @@ describe('FloorplanUploadDialog', () => {
   it('renders dialog title and description', () => {
     renderDialog();
     expect(screen.getByText('Upload Floorplan Image')).toBeInTheDocument();
-    expect(screen.getByText(/PNG, JPEG/)).toBeInTheDocument();
+    expect(screen.getByText(/Accepted formats: PNG, JPEG, WebP, GIF or BMP/)).toBeInTheDocument();
   });
 
   it('shows drop zone initially', () => {
@@ -40,9 +40,18 @@ describe('FloorplanUploadDialog', () => {
   it('rejects invalid file types', () => {
     renderDialog();
     const input = document.getElementById('file-input') as HTMLInputElement;
-    const invalidFile = createMockFile('plan.gif', 'image/gif', 1024);
+    const invalidFile = createMockFile('plan.tiff', 'image/tiff', 1024);
     fireEvent.change(input, { target: { files: [invalidFile] } });
-    expect(screen.getByText('Only PNG and JPEG images are allowed')).toBeInTheDocument();
+    expect(screen.getByText('Only PNG, JPEG, WebP, GIF or BMP images are allowed')).toBeInTheDocument();
+  });
+
+  it('accepts the browser-native formats beyond PNG and JPEG', () => {
+    renderDialog();
+    const input = document.getElementById('file-input') as HTMLInputElement;
+    expect(input.accept).toBe('image/png,image/jpeg,image/webp,image/gif,image/bmp');
+    fireEvent.change(input, { target: { files: [createMockFile('plan.webp', 'image/webp', 5000)] } });
+    expect(screen.getByText(/plan.webp/)).toBeInTheDocument();
+    expect(screen.getByText(/image\/webp/)).toBeInTheDocument();
   });
 
   it('rejects files over 10MB', () => {

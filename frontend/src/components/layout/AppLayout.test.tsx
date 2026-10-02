@@ -166,6 +166,13 @@ describe('AppLayout', () => {
 describe('AppLayout — responsive shell', () => {
   afterEach(restoreViewport);
 
+  it('the frame scrolls vertically only — a wide page clips instead of dragging it sideways', async () => {
+    setViewport(500);
+    renderLayout();
+    await waitFor(() => expect(screen.getByRole('main')).toBeInTheDocument());
+    expect(screen.getByRole('main')).toHaveClass('overflow-x-hidden', 'overflow-y-auto');
+  });
+
   it('desktop: inline sidebar (store-driven), no hamburger', async () => {
     setViewport(1280);
     renderLayout();
