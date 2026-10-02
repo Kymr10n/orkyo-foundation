@@ -9,8 +9,9 @@ namespace Api.Services;
 /// </summary>
 public static class FloorplanMimeExtensionPolicy
 {
-    public const string PngMimeType = "image/png";
-    public const string JpegMimeType = "image/jpeg";
+    // The format list has one home, ImageHeaderReader; these aliases keep the public surface.
+    public const string PngMimeType = ImageHeaderReader.PngMimeType;
+    public const string JpegMimeType = ImageHeaderReader.JpegMimeType;
     public const string OctetStreamMimeType = "application/octet-stream";
 
     /// <summary>
@@ -24,6 +25,9 @@ public static class FloorplanMimeExtensionPolicy
         {
             case PngMimeType: extension = ".png"; return true;
             case JpegMimeType: extension = ".jpg"; return true;
+            case ImageHeaderReader.WebpMimeType: extension = ".webp"; return true;
+            case ImageHeaderReader.GifMimeType: extension = ".gif"; return true;
+            case ImageHeaderReader.BmpMimeType: extension = ".bmp"; return true;
             default: extension = string.Empty; return false;
         }
     }

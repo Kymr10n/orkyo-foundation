@@ -41,7 +41,7 @@ public class TenantSettingsTests
 
         settings.Invitation_ExpiryDays.Should().Be(7);
         settings.Upload_MaxFileSizeMb.Should().Be(10);
-        settings.Upload_AllowedMimeTypes.Should().Be("image/png,image/jpeg,image/jpg");
+        settings.Upload_AllowedMimeTypes.Should().Be("image/png,image/jpeg,image/jpg,image/webp,image/gif,image/bmp");
         settings.Search_DefaultPageSize.Should().Be(20);
         settings.Search_PrimarySimilarityThreshold.Should().Be(0.2);
         settings.Search_SecondarySimilarityThreshold.Should().Be(0.15);

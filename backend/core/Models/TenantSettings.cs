@@ -50,7 +50,7 @@ public sealed record TenantSettings
     public int Upload_MaxFileSizeMb { get; init; } = 10;
 
     /// <summary>Comma-separated list of allowed MIME types for floorplan uploads.</summary>
-    public string Upload_AllowedMimeTypes { get; init; } = "image/png,image/jpeg,image/jpg";
+    public string Upload_AllowedMimeTypes { get; init; } = "image/png,image/jpeg,image/jpg,image/webp,image/gif,image/bmp";
 
     // ── Search ──────────────────────────────────────────────────────────
     /// <summary>Default number of search results returned.</summary>

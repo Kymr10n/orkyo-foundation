@@ -10,6 +10,11 @@ import { formatBytes } from '@foundation/src/lib/quotas/quota-display';
 import { useInvalidateFloorplanViewData } from '@foundation/src/hooks/useFloorplan';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 
+// The formats every supported browser renders natively; the server verifies the bytes and
+// keeps the same list in ImageHeaderReader, and the tenant allow-list default mirrors it.
+const FLOORPLAN_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/bmp'];
+const FLOORPLAN_FORMATS = 'PNG, JPEG, WebP, GIF or BMP';
+
 interface FloorplanUploadDialogProps {
   siteId: string;
   open: boolean;
@@ -33,11 +38,10 @@ export function FloorplanUploadDialog({
   const [dragActive, setDragActive] = useState(false);
 
   const validateFile = (file: File): string | null => {
-    const validTypes = ['image/png', 'image/jpeg'];
     const maxSize = 10 * 1024 * 1024; // 10MB
 
-    if (!validTypes.includes(file.type)) {
-      return 'Only PNG and JPEG images are allowed';
+    if (!FLOORPLAN_IMAGE_TYPES.includes(file.type)) {
+      return `Only ${FLOORPLAN_FORMATS} images are allowed`;
     }
 
     if (file.size > maxSize) {
@@ -129,7 +133,7 @@ export function FloorplanUploadDialog({
         <DialogHeader>
           <DialogTitle>Upload Floorplan Image</DialogTitle>
           <DialogDescription>
-            Upload a floorplan image for this site. Accepted formats: PNG, JPEG (max 10MB)
+            Upload a floorplan image for this site. Accepted formats: {FLOORPLAN_FORMATS} (max 10MB)
           </DialogDescription>
         </DialogHeader>
 
@@ -150,12 +154,12 @@ export function FloorplanUploadDialog({
               <FileImage className="h-12 w-12 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">Drop your floorplan here or click to browse</p>
-                <p className="text-xs text-muted-foreground mt-1">PNG or JPEG, up to 10MB</p>
+                <p className="text-xs text-muted-foreground mt-1">{FLOORPLAN_FORMATS}, up to 10MB</p>
               </div>
               <input
                 id="file-input"
                 type="file"
-                accept="image/png,image/jpeg"
+                accept={FLOORPLAN_IMAGE_TYPES.join(',')}
                 className="hidden"
                 onChange={handleFileInput}
               />
