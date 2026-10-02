@@ -8,6 +8,12 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
 
 ## [Unreleased]
 
+### Security
+- **Keycloak base 26.7.4 → 26.7.5.** Closes CVE-2026-91776 and CVE-2026-91777 (jackson-databind,
+  published 2026-10-01) and retires five standing scan exceptions the patch release fixes at the
+  source: Bouncy Castle (CVE-2026-8763, CVE-2026-13506), netty (CVE-2026-75595), FreeMarker
+  (CVE-2026-84939) and Jackson (CVE-2026-68497). Only the `mssql-jdbc` false positive remains.
+
 ### Added
 - **Presets carry resource types, applicability, typed groups and sample resources (schema 1.1.0).**
   `PresetContents` gains `ResourceTypes` (a catalog key is activated from the catalog spec, any other
