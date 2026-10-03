@@ -19,7 +19,7 @@ import {
   goToApex,
   redirectToLogin,
 } from "@foundation/src/lib/utils/tenant-navigation";
-import { takeSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
+import { sessionEndRedirect } from "@foundation/src/lib/utils/session-end";
 
 /**
  * Get common headers for API requests.
@@ -154,8 +154,9 @@ export async function handleApiError(response: Response): Promise<never> {
     // Session expired or unauthenticated — clear state and redirect.
     tenantStorage.clear();
     // An ephemeral session (the public demo) ends on the marketing site, not at a credentials
-    // form its visitor never had. Same shape as the break-glass branch above.
-    const sessionEnd = takeSessionEndRedirect();
+    // form its visitor never had. Same shape as the break-glass branch above. Concurrent 401s
+    // all read the same answer, so no later one can override this navigation with the login flow.
+    const sessionEnd = sessionEndRedirect();
     if (sessionEnd) {
       window.location.replace(sessionEnd);
     } else {

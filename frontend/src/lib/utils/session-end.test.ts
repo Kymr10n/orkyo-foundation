@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { rememberSessionEndRedirect, takeSessionEndRedirect } from "./session-end";
+import { rememberSessionEndRedirect, sessionEndRedirect, isEphemeralSession } from "./session-end";
 
 vi.mock("./tenant-navigation", () => ({
   getApexOrigin: () => "https://orkyo.com",
@@ -12,13 +12,15 @@ describe("session-end", () => {
   it("records the apex for an ephemeral session", () => {
     rememberSessionEndRedirect("demo");
 
-    expect(takeSessionEndRedirect()).toBe("https://orkyo.com/");
+    expect(sessionEndRedirect()).toBe("https://orkyo.com/");
+    expect(isEphemeralSession()).toBe(true);
   });
 
   it("records nothing for an ordinary session", () => {
     rememberSessionEndRedirect(null);
 
-    expect(takeSessionEndRedirect()).toBeNull();
+    expect(sessionEndRedirect()).toBeNull();
+    expect(isEphemeralSession()).toBe(false);
   });
 
   it("clears a stale marker when an ordinary session bootstraps in the same tab", () => {
@@ -27,14 +29,22 @@ describe("session-end", () => {
     rememberSessionEndRedirect("demo");
     rememberSessionEndRedirect(undefined);
 
-    expect(takeSessionEndRedirect()).toBeNull();
+    expect(sessionEndRedirect()).toBeNull();
   });
 
-  it("is single-use", () => {
+  it("gives every reader the same answer until the next bootstrap", () => {
+    // A session ends in a burst of concurrent 401s; each handler must reach the same
+    // destination, or the first one's marketing-site exit is overridden by the login flow.
     rememberSessionEndRedirect("demo");
 
-    expect(takeSessionEndRedirect()).toBe("https://orkyo.com/");
-    expect(takeSessionEndRedirect()).toBeNull();
+    expect(sessionEndRedirect()).toBe("https://orkyo.com/");
+    expect(sessionEndRedirect()).toBe("https://orkyo.com/");
+  });
+
+  it("stores a flag, not a URL, so storage cannot steer the redirect", () => {
+    sessionStorage.setItem("orkyo:session-end-redirect", "https://evil.example/");
+
+    expect(sessionEndRedirect()).toBe("https://orkyo.com/");
   });
 
   it("never throws when sessionStorage is unavailable", () => {
@@ -49,6 +59,6 @@ describe("session-end", () => {
     });
 
     expect(() => rememberSessionEndRedirect("demo")).not.toThrow();
-    expect(takeSessionEndRedirect()).toBeNull();
+    expect(sessionEndRedirect()).toBeNull();
   });
 });
