@@ -41,6 +41,8 @@ public class TenantResetTruncateListTests
     [InlineData("resource_assignments")]
     [InlineData("criteria")]
     [InlineData("templates")]
+    [InlineData("routings")]        // demo routings — not reached by the CASCADE from templates
+    [InlineData("routing_steps")]
     [InlineData("resource_capabilities")]   // skill/spec capabilities — narrative demo
     [InlineData("availability_events")]     // holidays / shutdowns — narrative demo
     [InlineData("resource_absences")]       // vacation / sickness / training — narrative demo

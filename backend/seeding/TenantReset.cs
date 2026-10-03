@@ -29,6 +29,10 @@ public static class TenantReset
         "resource_absences",
         "templates",
         "template_items",
+        // Not reached by the CASCADE from templates: routing_steps is, but routings references
+        // nothing, so it would survive every reset as a growing set of step-less duplicates.
+        "routings",
+        "routing_steps",
         "requests",
         "request_requirements",
         "resource_assignments",

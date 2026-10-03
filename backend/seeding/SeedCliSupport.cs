@@ -165,6 +165,7 @@ public static class SeedCliSupport
             Console.WriteLine($"  Absences:           {report.Absences,8}");
             Console.WriteLine($"  Conflicts (seeded): {report.Conflicts,8}");
             Console.WriteLine($"  Dependencies:       {report.Dependencies,8}");
+            Console.WriteLine($"  Routings:           {report.Routings,8}");
         }
     }
 }

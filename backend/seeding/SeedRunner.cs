@@ -15,7 +15,7 @@ public sealed record SeedReport(
     int Tools = 0, int Capabilities = 0, int Requirements = 0,
     int AvailabilityEvents = 0, int Absences = 0, int Conflicts = 0,
     int Machines = 0, int MachineTypes = 0, int ListRows = 0, int CustomFields = 0,
-    int MachineGroups = 0, int Dependencies = 0);
+    int MachineGroups = 0, int Dependencies = 0, int Routings = 0);
 
 /// <summary>
 /// Orchestrates an end-to-end seed run against an open Npgsql connection.
@@ -124,6 +124,7 @@ public static class SeedRunner
             avail.Vacations, avail.AbsenceWindows);
 
         await TenantConfigFactory.SeedCriteriaTemplatesAsync(conn, skillCriteria);
+        var routings = await RoutingFactory.SeedAsync(conn, machineTypeIds, skillCriteria);
         await TenantConfigFactory.SeedGroupCapabilitiesAsync(conn, skillCriteria);
 
         // Populate the Home-Site model on the seeded rows (see SiteModelFactory), inside the
@@ -160,6 +161,7 @@ public static class SeedRunner
             ListRows: listRows,
             CustomFields: machineFields.Ids.Count + builtIn.Fields,
             MachineGroups: machineCells.Groups,
-            Dependencies: year.Dependencies);
+            Dependencies: year.Dependencies,
+            Routings: routings);
     }
 }
