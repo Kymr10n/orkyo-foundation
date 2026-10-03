@@ -52,7 +52,7 @@ import {
   getApexOrigin,
   buildBffLoginUrl,
 } from '@foundation/src/lib/utils/tenant-navigation';
-import { rememberSessionEndRedirect, takeSessionEndRedirect } from '@foundation/src/lib/utils/session-end';
+import { rememberSessionEndRedirect, sessionEndRedirect } from '@foundation/src/lib/utils/session-end';
 import { logger } from '@foundation/src/lib/core/logger';
 import { PlanCodes, isKnownPlanCode } from '@foundation/contracts/plans';
 import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
@@ -264,7 +264,7 @@ export const authMachine = setup({
 
       // An ephemeral session (the public demo) has ended: send the visitor back to the
       // marketing site rather than to Keycloak, where they have no credentials to enter.
-      const sessionEnd = takeSessionEndRedirect();
+      const sessionEnd = sessionEndRedirect();
       if (sessionEnd) {
         window.location.replace(sessionEnd);
         return;

@@ -13,20 +13,29 @@ import { getApexOrigin } from "./tenant-navigation";
  * hard navigation that ends the session, and has to be readable from `api-utils`, which sits
  * below the component tree and cannot reach a context.
  *
+ * Only a flag is stored; the destination is computed when it is read. A URL in storage would
+ * be a redirect anyone able to write this origin's sessionStorage could steer.
+ *
+ * The flag is NOT consumed on read. A session usually ends in a burst of concurrent 401s
+ * (polls, the page's own queries), and each handler must reach the same answer — a single-use
+ * marker let the first 401 head for the marketing site and the next one override it with the
+ * login flow. The next successful bootstrap sets or clears the flag, which is the one place the
+ * tab learns what kind of session it holds, so a later real login is unaffected.
+ *
  * Deliberately generic: foundation knows "this session came through a secondary client and is
  * therefore ephemeral", not "this is the SaaS demo". Community never sets it.
  */
 const SESSION_END_REDIRECT_KEY = "orkyo:session-end-redirect";
 
 /**
- * Records where this session should end, based on the bootstrap response's `authClient`.
- * Call on every successful bootstrap: a null/absent value clears any stale marker left by a
+ * Records whether this session is ephemeral, based on the bootstrap response's `authClient`.
+ * Call on every successful bootstrap: a null/absent value clears any stale flag left by a
  * previous demo session in the same tab.
  */
 export function rememberSessionEndRedirect(authClient: string | null | undefined): void {
   try {
     if (authClient) {
-      sessionStorage.setItem(SESSION_END_REDIRECT_KEY, `${getApexOrigin()}/`);
+      sessionStorage.setItem(SESSION_END_REDIRECT_KEY, "1");
     } else {
       sessionStorage.removeItem(SESSION_END_REDIRECT_KEY);
     }
@@ -38,8 +47,7 @@ export function rememberSessionEndRedirect(authClient: string | null | undefined
 
 /**
  * Whether this session came through a secondary client and is therefore ephemeral — the
- * public demo, today. Peeks without consuming, so it is safe to ask during render; use
- * {@link takeSessionEndRedirect} when actually ending the session.
+ * public demo, today. Safe to ask during render.
  *
  * Lets a surface offer an ephemeral visitor something an account holder would not want, such
  * as a way to ask for a guided demonstration when a demo limit is reached.
@@ -53,15 +61,8 @@ export function isEphemeralSession(): boolean {
 }
 
 /**
- * Consumes the marker. Returns the URL to send the visitor to, or null when this session ends
- * the ordinary way. Single-use: reading it clears it, so a later real login is unaffected.
+ * The URL to send the visitor to when this session ends, or null when it ends the ordinary way.
  */
-export function takeSessionEndRedirect(): string | null {
-  try {
-    const target = sessionStorage.getItem(SESSION_END_REDIRECT_KEY);
-    if (target) sessionStorage.removeItem(SESSION_END_REDIRECT_KEY);
-    return target;
-  } catch {
-    return null;
-  }
+export function sessionEndRedirect(): string | null {
+  return isEphemeralSession() ? `${getApexOrigin()}/` : null;
 }

@@ -83,6 +83,7 @@ vi.mock('@foundation/src/constants/auth', () => ({
 
 // Import after mocks are set up
 import { authMachine, getUrlAuthError } from './authMachine';
+import { rememberSessionEndRedirect, sessionEndRedirect } from '@foundation/src/lib/utils/session-end';
 
 /** The current window.location.replace spy — captured here (rather than read back off
  *  window.location) to avoid the unbound-method lint on the DOM method reference. */
@@ -746,6 +747,21 @@ describe('performLogin (redirecting_login entry)', () => {
     expect(redirectUrl).toContain(
       encodeURIComponent('http://localhost:5173/login?auto=1'),
     );
+    actor.stop();
+  });
+
+  it('sends an ephemeral (demo) session to the marketing site instead of the BFF login', async () => {
+    // The visitor never had credentials; the marker survives the read so a concurrent 401
+    // handler (api-utils) reaches the same destination rather than the login flow.
+    setLocation({ pathname: '/requests', href: 'http://localhost:5173/requests' });
+    rememberSessionEndRedirect('demo');
+    const actor = createActor(machineWithOutput({ kind: 'empty' }));
+    actor.start();
+
+    await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
+    expect(locationReplace).toHaveBeenCalledWith('http://localhost:5173/');
+    expect(sessionEndRedirect()).toBe('http://localhost:5173/');
+    sessionStorage.clear();
     actor.stop();
   });
 

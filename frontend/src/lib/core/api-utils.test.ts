@@ -8,6 +8,7 @@ import {
     handleApiError,
 } from './api-utils';
 import { runtimeConfig } from '../../config/runtime';
+import { rememberSessionEndRedirect } from '../utils/session-end';
 
 const { mockRedirectToLogin, mockGoToApex } = vi.hoisted(() => ({
   mockRedirectToLogin: vi.fn(),
@@ -37,6 +38,8 @@ describe('api-utils', () => {
       writable: true,
       value: originalLocation,
     });
+    // The session-end marker is deliberately not consumed on read; drop it between tests.
+    sessionStorage.clear();
   });
 
   describe('getApiHeaders', () => {
@@ -225,29 +228,34 @@ describe('api-utils', () => {
     it('sends an ephemeral (demo) session back to the marketing site, not to login', async () => {
       // A demo visitor never had credentials, so ending their session at a Keycloak password
       // form is a dead end. AuthContext marks the session on bootstrap; this is the payoff.
-      sessionStorage.setItem('orkyo:session-end-redirect', 'https://orkyo.com/');
+      (runtimeConfig as any).baseDomain = 'orkyo.com';
+      rememberSessionEndRedirect('demo');
       const replace = vi.fn();
       // A minimal stand-in rather than a spread of the real Location: spreading a class
       // instance drops its prototype (and eslint rightly flags it). The 401 branch only
-      // needs replace() and the hostname clearTenantState reads.
+      // needs replace() plus the hostname/protocol the apex is derived from.
       Object.defineProperty(window, 'location', {
         writable: true,
-        value: { hostname: 'acme.orkyo.com', href: 'https://acme.orkyo.com/app', replace },
+        value: { hostname: 'acme.orkyo.com', protocol: 'https:', href: 'https://acme.orkyo.com/app', replace },
       });
 
-      const response = {
+      const response = () => ({
         status: 401,
         statusText: 'Unauthorized',
         headers: new Headers(),
         json: async () => ({ detail: 'Token expired' }),
-      } as unknown as Response;
+      }) as unknown as Response;
 
-      await expect(handleApiError(response)).rejects.toThrow('Token expired');
+      // A session ends in a burst of concurrent 401s (polls, the page's own queries). Every
+      // one of them must pick the marketing site: a single-use marker let the second 401 fall
+      // through to redirectToLogin() and override the first navigation with the login flow.
+      await expect(handleApiError(response())).rejects.toThrow('Token expired');
+      await expect(handleApiError(response())).rejects.toThrow('Token expired');
 
+      expect(replace).toHaveBeenCalledTimes(2);
       expect(replace).toHaveBeenCalledWith('https://orkyo.com/');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
-      // Single-use: a subsequent real login must still end at the login flow.
-      expect(sessionStorage.getItem('orkyo:session-end-redirect')).toBeNull();
+      (runtimeConfig as any).baseDomain = '';
     });
 
     it('handles 401 API key error by clearing session', async () => {
