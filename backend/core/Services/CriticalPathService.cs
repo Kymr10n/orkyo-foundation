@@ -10,8 +10,8 @@ namespace Api.Services;
 public interface ICriticalPathService
 {
     /// <summary>
-    /// Computes earliest/latest instants and float for every request that takes part in a
-    /// dependency, optionally scoped to a site. Throws <see cref="ConflictException"/> when the
+    /// Computes earliest/latest instants and float for every open request that takes part in a
+    /// dependency, grouped into chains, optionally scoped to a site. Throws <see cref="ConflictException"/> when the
     /// graph contains a cycle, because a cycle has no forward pass.
     /// </summary>
     Task<CriticalPathResult> ComputeAsync(Guid? siteId, CancellationToken ct = default);
@@ -20,6 +20,10 @@ public interface ICriticalPathService
 /// <summary>
 /// Classic CPM — a forward pass for earliest instants, a backward pass for latest instants,
 /// float as the difference — over the leaves that carry dependency edges.
+///
+/// The network is a set of unconnected chains, not one project. Each chain is measured against
+/// its own finish, so a chain that ends in March is not given float up to a chain that ends in
+/// December. Finished work is left out: it can no longer delay anything.
 ///
 /// Two things make this Orkyo's version rather than a textbook one:
 ///
@@ -85,6 +89,13 @@ public class CriticalPathService : ICriticalPathService
             diagnostics.Add($"{abandoned.Count} dependency edge(s) start at a cancelled or deferred request and were excluded.");
         }
 
+        // Finished work is a met constraint: a done predecessor holds nothing back, and a done
+        // successor has nothing left to delay. Neither belongs in a forecast of open work.
+        usable = usable
+            .Where(e => !JoinConditionEvaluator.IsDone(requests[e.PredecessorRequestId], now)
+                && !JoinConditionEvaluator.IsDone(requests[e.SuccessorRequestId], now))
+            .ToList();
+
         if (usable.Count == 0)
             return Empty(diagnostics);
 
@@ -108,15 +119,9 @@ public class CriticalPathService : ICriticalPathService
         var earliestStart = new Dictionary<Guid, DateTime>();
         var earliestFinish = new Dictionary<Guid, DateTime>();
 
-        // Unanchored work has to start somewhere; the network's own earliest known instant is
-        // the honest floor — it keeps the numbers relative to the plan rather than to "now",
-        // which would make the same graph report differently on different days.
-        var floor = nodeIds
-            .Select(id => Anchor(requests[id]))
-            .Where(d => d.HasValue)
-            .Select(d => d!.Value)
-            .DefaultIfEmpty(ThisMinute(_time.GetUtcNow().UtcDateTime))
-            .Min();
+        // Unanchored work starts no earlier than now: the network holds open work only, and
+        // open work cannot start in the past.
+        var floor = ThisMinute(now);
 
         // Which incoming edges actually held a request back. Under "all" that is all of them, so
         // the backward pass below is unchanged; under "any" and k-of-n the slack branches are
@@ -158,7 +163,10 @@ public class CriticalPathService : ICriticalPathService
             earliestFinish[id] = start.AddMinutes(duration[id]);
         }
 
-        var projectFinish = earliestFinish.Values.Max();
+        var chainOf = ChainOf(nodeIds, usable);
+        var chainFinish = nodeIds
+            .GroupBy(id => chainOf[id])
+            .ToDictionary(g => g.Key, g => g.Max(id => earliestFinish[id]));
 
         if (nodeIds.Any(id => predecessorsOf.ContainsKey(id)
                 && requests[id].PredecessorLogic != PredecessorLogic.All))
@@ -176,7 +184,7 @@ public class CriticalPathService : ICriticalPathService
         // producing negative float and marking a request critical that nothing waits for.
         foreach (var id in Enumerable.Reverse(order))
         {
-            var finish = projectFinish;
+            var finish = chainFinish[chainOf[id]];
 
             if (bindingSuccessorsOf.TryGetValue(id, out var outgoing))
                 foreach (var edge in outgoing)
@@ -208,6 +216,7 @@ public class CriticalPathService : ICriticalPathService
                     TotalFloatMinutes = floatMinutes,
                     IsCritical = floatMinutes <= 0,
                     IsScheduled = Anchor(requests[id]).HasValue,
+                    ChainId = chainOf[id],
                 };
             })
             .OrderBy(n => n.EarliestStart)
@@ -217,13 +226,42 @@ public class CriticalPathService : ICriticalPathService
             .ThenBy(n => n.RequestId)
             .ToList();
 
-        var networkStart = earliestStart.Values.Min();
+        var position = order.Select((id, i) => (id, i)).ToDictionary(x => x.id, x => x.i);
+        var chains = nodeIds
+            .GroupBy(id => chainOf[id])
+            .Select(g =>
+            {
+                var steps = g.OrderBy(id => position[id]).ToList();
+                var deadlines = steps
+                    .Where(id => requests[id].LatestEndTs.HasValue)
+                    .Select(id => (Deadline: requests[id].LatestEndTs!.Value, Finish: earliestFinish[id]))
+                    .ToList();
+                return new CriticalPathChain
+                {
+                    ChainId = g.Key,
+                    RequestIds = steps,
+                    FirstName = requests[steps[0]].Name,
+                    LastName = requests[steps[^1]].Name,
+                    Start = steps.Min(id => earliestStart[id]),
+                    Finish = steps.Max(id => earliestFinish[id]),
+                    Deadline = deadlines.Count == 0 ? null : deadlines.Min(d => d.Deadline),
+                    SlackMinutes = deadlines.Count == 0
+                        ? null
+                        : deadlines.Min(d => (int)(d.Deadline - d.Finish).TotalMinutes),
+                };
+            })
+            // Most at risk first: the least slack to a deadline, then chains without one by finish.
+            .OrderBy(c => c.SlackMinutes is null)
+            .ThenBy(c => c.SlackMinutes)
+            .ThenBy(c => c.Finish)
+            .ThenBy(c => c.ChainId)
+            .ToList();
 
         return new CriticalPathResult
         {
             Nodes = nodes,
             Edges = usable,
-            DurationMinutes = (int)(projectFinish - networkStart).TotalMinutes,
+            Chains = chains,
             Diagnostics = diagnostics,
         };
     }
@@ -237,7 +275,7 @@ public class CriticalPathService : ICriticalPathService
         {
             Nodes = [],
             Edges = [],
-            DurationMinutes = 0,
+            Chains = [],
             Diagnostics = diagnostics ?? [],
         };
 
@@ -259,6 +297,34 @@ public class CriticalPathService : ICriticalPathService
     /// <summary>"Now" at minute precision, so an unanchored network reports stable numbers within a minute.</summary>
     private static DateTime ThisMinute(DateTime utc)
         => new(utc.Ticks - utc.Ticks % TimeSpan.TicksPerMinute, DateTimeKind.Utc);
+
+    /// <summary>
+    /// Union-find over the edges: each request maps to its chain, named by the smallest request id
+    /// in it so the id is stable between calls.
+    /// </summary>
+    private static Dictionary<Guid, Guid> ChainOf(
+        IReadOnlyList<Guid> nodeIds, IReadOnlyList<RequestDependencyInfo> edges)
+    {
+        var parent = nodeIds.ToDictionary(id => id, id => id);
+
+        Guid Root(Guid id)
+        {
+            while (parent[id] != id)
+                id = parent[id] = parent[parent[id]];
+            return id;
+        }
+
+        foreach (var edge in edges)
+        {
+            var a = Root(edge.PredecessorRequestId);
+            var b = Root(edge.SuccessorRequestId);
+            if (a == b) continue;
+            if (b.CompareTo(a) < 0) (a, b) = (b, a);
+            parent[b] = a;
+        }
+
+        return nodeIds.ToDictionary(id => id, Root);
+    }
 
     /// <summary>Kahn's algorithm. Returns null when a cycle leaves nodes unresolvable.</summary>
     private static List<Guid>? TopologicalOrder(

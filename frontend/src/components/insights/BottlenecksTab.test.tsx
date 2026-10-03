@@ -62,7 +62,7 @@ const emptyBottlenecks = {
   metadata: { calculatedAt: "2026-01-01T00:00:00Z", sourceMode: "live" },
 };
 
-const emptyPath = { nodes: [], edges: [], durationMinutes: 0, diagnostics: [] };
+const emptyPath = { nodes: [], edges: [], chains: [], diagnostics: [] };
 
 function node(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -75,8 +75,39 @@ function node(overrides: Partial<Record<string, unknown>> = {}) {
     totalFloatMinutes: 0,
     isCritical: true,
     isScheduled: false,
+    chainId: "c1",
     ...overrides,
   };
+}
+
+function chain(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    chainId: "c1",
+    requestIds: ["r1"],
+    firstName: "Mill the bracket",
+    lastName: "Mill the bracket",
+    start: "2026-06-01T08:00:00Z",
+    finish: "2026-06-01T11:20:00Z",
+    deadline: null,
+    slackMinutes: null,
+    ...overrides,
+  };
+}
+
+/** One chain holding the given steps, the shape the server returns for a single linked group. */
+function pathOf(nodes: ReturnType<typeof node>[], overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    ...emptyPath,
+    nodes,
+    chains: [chain({ requestIds: nodes.map((n) => n.requestId), lastName: nodes.at(-1)?.name })],
+    ...overrides,
+  };
+}
+
+/** Steps sit behind their chain row, so a test that clicks a step opens the chain first. */
+async function expandChain() {
+  await waitFor(() => expect(screen.getByRole("button", { expanded: false })).toBeInTheDocument());
+  await userEvent.click(screen.getByRole("button", { expanded: false }));
 }
 
 function renderTab() {
@@ -141,27 +172,78 @@ describe("BottlenecksTab", () => {
 
     // The empty state has to say how to make it non-empty, or it reads as a broken feature.
     await waitFor(() =>
-      expect(screen.getByText(/nothing depends on anything yet/i)).toBeInTheDocument(),
+      expect(screen.getByText(/no open work depends on anything/i)).toBeInTheDocument(),
     );
   });
 
-  it("marks the critical work and shows float for the rest", async () => {
-    (getCriticalPath as Mock).mockResolvedValue({
-      ...emptyPath,
-      durationMinutes: 6 * 1440,
-      nodes: [
+  it("lists one row per chain and shows its steps on expand", async () => {
+    (getCriticalPath as Mock).mockResolvedValue(
+      pathOf([
         node(),
         node({ requestId: "r2", name: "Grind", totalFloatMinutes: 3 * 1440 + 120, isCritical: false, isScheduled: true }),
+      ]),
+    );
+
+    renderTab();
+
+    await waitFor(() => expect(screen.getByText("Mill the bracket → Grind")).toBeInTheDocument());
+    expect(screen.getByText("2 steps")).toBeInTheDocument();
+    expect(screen.getByText("1 in this period")).toBeInTheDocument();
+    expect(screen.queryByText("Critical")).not.toBeInTheDocument();
+
+    await expandChain();
+
+    expect(screen.getByText("Critical")).toBeInTheDocument();
+    expect(screen.getByText("Scheduled")).toBeInTheDocument();
+    expect(screen.getByText("3d 2h")).toBeInTheDocument();
+  });
+
+  it("keeps the server's risk order and flags a chain that misses its deadline", async () => {
+    (getCriticalPath as Mock).mockResolvedValue({
+      ...emptyPath,
+      nodes: [node(), node({ requestId: "r2", name: "Paint", chainId: "c2" })],
+      chains: [
+        chain({ chainId: "c1", firstName: "Late", lastName: "Late end", deadline: "2026-06-01T10:00:00Z", slackMinutes: -1500 }),
+        chain({ chainId: "c2", requestIds: ["r2"], firstName: "Easy", lastName: "Easy end", deadline: "2026-06-09T10:00:00Z", slackMinutes: 2 * 1440 }),
       ],
     });
 
     renderTab();
 
-    await waitFor(() => expect(screen.getByText("Mill the bracket")).toBeInTheDocument());
-    expect(screen.getByText("Critical")).toBeInTheDocument();
-    expect(screen.getByText("Scheduled")).toBeInTheDocument();
-    expect(screen.getByText("3d 2h")).toBeInTheDocument();
-    expect(screen.getByText(/6d end to end/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Late by 1d 1h")).toBeInTheDocument());
+    expect(screen.getByText("2d")).toBeInTheDocument();
+    const rows = screen.getAllByRole("button", { expanded: false }).map((b) => b.textContent);
+    expect(rows[0]).toContain("Late → Late end");
+    expect(rows[1]).toContain("Easy → Easy end");
+  });
+
+  it("lists only the chains that overlap the selected period", async () => {
+    (getCriticalPath as Mock).mockResolvedValue({
+      ...emptyPath,
+      nodes: [node(), node({ requestId: "r2", name: "Next year", chainId: "c2" })],
+      chains: [
+        chain(),
+        chain({ chainId: "c2", requestIds: ["r2"], firstName: "Next year", lastName: "Next year", start: "2027-03-01T08:00:00Z", finish: "2027-03-02T08:00:00Z" }),
+      ],
+    });
+
+    renderTab();
+
+    await waitFor(() => expect(screen.getByText("1 in this period")).toBeInTheDocument());
+    expect(screen.queryByText(/Next year →/)).not.toBeInTheDocument();
+  });
+
+  it("says when no chain falls in the period", async () => {
+    (getCriticalPath as Mock).mockResolvedValue({
+      ...pathOf([node()]),
+      chains: [chain({ start: "2027-03-01T08:00:00Z", finish: "2027-03-02T08:00:00Z" })],
+    });
+
+    renderTab();
+
+    await waitFor(() =>
+      expect(screen.getByText(/no open dependency chains in this period/i)).toBeInTheDocument(),
+    );
   });
 
   it("opens the request behind a critical-path row, with its conflicts", async () => {
@@ -171,22 +253,22 @@ describe("BottlenecksTab", () => {
     (getRequest as Mock).mockResolvedValue(request);
     const conflicts = [{ id: "c1", kind: "dependency_violation" }];
     conflictsByRequest.set("r1", conflicts);
-    (getCriticalPath as Mock).mockResolvedValue({ ...emptyPath, nodes: [node()] });
+    (getCriticalPath as Mock).mockResolvedValue(pathOf([node()]));
 
     renderTab();
-    await waitFor(() => expect(screen.getByText("Mill the bracket")).toBeInTheDocument());
-    await userEvent.click(screen.getByText("Mill the bracket").closest('[role="button"]')!);
+    await expandChain();
+    await userEvent.click(screen.getAllByText("Mill the bracket").at(-1)!.closest('tr[role="button"]')!);
 
     await waitFor(() => expect(mockOpen).toHaveBeenCalledWith(request, conflicts));
     expect(getRequest).toHaveBeenCalledWith("r1");
   });
 
   it("opens the row from the keyboard, not just the mouse", async () => {
-    (getCriticalPath as Mock).mockResolvedValue({ ...emptyPath, nodes: [node()] });
+    (getCriticalPath as Mock).mockResolvedValue(pathOf([node()]));
 
     renderTab();
-    await waitFor(() => expect(screen.getByText("Mill the bracket")).toBeInTheDocument());
-    const row = screen.getByText("Mill the bracket").closest('[role="button"]') as HTMLElement;
+    await expandChain();
+    const row = screen.getAllByText("Mill the bracket").at(-1)!.closest('tr[role="button"]') as HTMLElement;
     expect(row).toHaveAttribute("tabIndex", "0");
     row.focus();
     await userEvent.keyboard("{Enter}");
@@ -196,11 +278,11 @@ describe("BottlenecksTab", () => {
 
   it("says so rather than doing nothing when the request cannot be fetched", async () => {
     (getRequest as Mock).mockRejectedValue(new Error("boom"));
-    (getCriticalPath as Mock).mockResolvedValue({ ...emptyPath, nodes: [node()] });
+    (getCriticalPath as Mock).mockResolvedValue(pathOf([node()]));
 
     renderTab();
-    await waitFor(() => expect(screen.getByText("Mill the bracket")).toBeInTheDocument());
-    await userEvent.click(screen.getByText("Mill the bracket").closest('[role="button"]')!);
+    await expandChain();
+    await userEvent.click(screen.getAllByText("Mill the bracket").at(-1)!.closest('tr[role="button"]')!);
 
     await waitFor(() => expect(toast.error).toHaveBeenCalled());
     expect(mockOpen).not.toHaveBeenCalled();
@@ -208,8 +290,7 @@ describe("BottlenecksTab", () => {
 
   it("surfaces diagnostics rather than hiding them", async () => {
     (getCriticalPath as Mock).mockResolvedValue({
-      ...emptyPath,
-      nodes: [node()],
+      ...pathOf([node()]),
       diagnostics: ["2 dependency edge(s) reference requests outside this scope and were excluded."],
     });
 
@@ -226,7 +307,7 @@ describe("BottlenecksTab", () => {
     renderTab();
 
     await waitFor(() =>
-      expect(screen.getByText(/could not compute the critical path/i)).toBeInTheDocument(),
+      expect(screen.getByText(/could not compute the dependency chains/i)).toBeInTheDocument(),
     );
   });
 });

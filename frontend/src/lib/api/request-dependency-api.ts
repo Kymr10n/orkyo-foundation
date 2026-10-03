@@ -61,13 +61,29 @@ export interface CriticalPathNode {
   totalFloatMinutes: number;
   isCritical: boolean;
   isScheduled: boolean;
+  chainId: string;
+}
+
+/** One connected group of dependent requests, measured against its own finish. */
+export interface CriticalPathChain {
+  chainId: string;
+  /** The chain's requests in dependency order. */
+  requestIds: string[];
+  firstName: string;
+  lastName: string;
+  start: string;
+  finish: string;
+  /** The earliest deadline in the chain, or null when no request carries one. */
+  deadline: string | null;
+  /** Minutes from the earliest finish to the deadline. Negative means late; null without a deadline. */
+  slackMinutes: number | null;
 }
 
 export interface CriticalPathResult {
   nodes: CriticalPathNode[];
   edges: RequestDependency[];
-  /** Minutes from the network's earliest start to its latest finish. */
-  durationMinutes: number;
+  /** Most at risk first: least slack to a deadline, then earliest finish. */
+  chains: CriticalPathChain[];
   diagnostics: string[];
 }
 

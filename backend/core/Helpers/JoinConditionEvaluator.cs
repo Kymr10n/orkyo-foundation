@@ -108,7 +108,7 @@ public static class JoinConditionEvaluator
         // the derived value would hold its successors shut forever with no way out but deleting
         // the edge. Dependencies are about order, not placement — an unscheduled predecessor
         // marked done really is done.
-        var met = live.Count(p => p.Effective == RequestStatus.Done || p.StoredStatus == RequestStatus.Done);
+        var met = live.Count(p => IsDone(p.StoredStatus, p.Effective));
         var required = RequiredCount(condition, live.Count);
 
         return new JoinGateResult(
@@ -117,7 +117,7 @@ public static class JoinConditionEvaluator
             LiveCount: live.Count,
             RequiredCount: required,
             UnmetNames: live
-                .Where(p => p.Effective != RequestStatus.Done && p.StoredStatus != RequestStatus.Done)
+                .Where(p => !IsDone(p.StoredStatus, p.Effective))
                 .Select(p => p.Name)
                 .ToList());
     }
@@ -130,6 +130,16 @@ public static class JoinConditionEvaluator
     public static bool IsAbandoned(RequestInfo request, DateTime now)
         => RequestStatusCalculator.Effective(request.Status, request.StartTs, request.EndTs, now)
             is RequestStatus.Cancelled or RequestStatus.Deferred;
+
+    /// <summary>
+    /// True when a request's work is finished, by either reading — see the note in
+    /// <see cref="EvaluateGate"/> on why the stored status counts too.
+    /// </summary>
+    public static bool IsDone(RequestInfo request, DateTime now)
+        => IsDone(request.Status, RequestStatusCalculator.Effective(request.Status, request.StartTs, request.EndTs, now));
+
+    private static bool IsDone(RequestStatus stored, RequestStatus effective)
+        => effective == RequestStatus.Done || stored == RequestStatus.Done;
 
     /// <summary>
     /// One sentence naming what is still missing, shared by the execution gate's refusal and the

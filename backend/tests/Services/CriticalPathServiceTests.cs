@@ -2,6 +2,7 @@ using Api.Helpers;
 using Api.Models;
 using Api.Repositories;
 using Api.Services;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Api.Tests.Services;
 
@@ -17,9 +18,12 @@ public class CriticalPathServiceTests
 
     private static readonly DateTime Day1 = new(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
 
+    // "Now" is the start of Day1: work placed from Day1 on is open, work that ended before is done.
+    private readonly FakeTimeProvider _time = new(new DateTimeOffset(Day1));
+
     public CriticalPathServiceTests()
     {
-        _service = new CriticalPathService(_dependencies.Object, _requests.Object, TimeProvider.System);
+        _service = new CriticalPathService(_dependencies.Object, _requests.Object, _time);
     }
 
     private const int Day = 24 * 60;
@@ -75,7 +79,7 @@ public class CriticalPathServiceTests
         var result = await _service.ComputeAsync(null);
 
         Assert.Empty(result.Nodes);
-        Assert.Equal(0, result.DurationMinutes);
+        Assert.Empty(result.Chains);
     }
 
     [Fact]
@@ -99,7 +103,12 @@ public class CriticalPathServiceTests
 
         // A single chain has no slack anywhere.
         Assert.All(result.Nodes, n => Assert.True(n.IsCritical));
-        Assert.Equal(6 * Day, result.DurationMinutes); // 1 June 00:00 to 7 June 00:00
+
+        var chain = Assert.Single(result.Chains);
+        Assert.Equal([a, b, c], chain.RequestIds);
+        Assert.Equal(("A", "C"), (chain.FirstName, chain.LastName));
+        Assert.Equal((Day1, Day1.AddDays(6)), (chain.Start, chain.Finish)); // 1 June 00:00 to 7 June 00:00
+        Assert.Null(chain.SlackMinutes);
     }
 
     [Fact]
@@ -131,7 +140,7 @@ public class CriticalPathServiceTests
 
         Assert.Equal(Day1.AddMinutes(20), result.Nodes.Single(n => n.RequestId == mill).EarliestStart);
         Assert.Equal(Day1.AddMinutes(200), result.Nodes.Single(n => n.RequestId == deburr).EarliestStart);
-        Assert.Equal(245, result.DurationMinutes);
+        Assert.Equal(Day1.AddMinutes(245), Assert.Single(result.Chains).Finish);
     }
 
     [Fact]
@@ -373,5 +382,111 @@ public class CriticalPathServiceTests
         Assert.Equal(Day1.AddDays(4), nodeB.LatestFinish);
         Assert.Equal(Day1.AddDays(1), nodeB.LatestStart);
         Assert.Equal(-1 * Day, nodeB.TotalFloatMinutes);
+    }
+
+    [Fact]
+    public async Task UnconnectedChains_AreEachMeasuredAgainstTheirOwnFinish()
+    {
+        // Two separate chains. The short one ends 3 June, the long one 22 June. Against one global
+        // finish the short chain would carry 19 days of float it does not have.
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid(), d = Guid.NewGuid();
+        Setup([Edge(a, b), Edge(c, d)],
+            Request(a, "A", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(b, "B", 1),
+            Request(c, "C", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(d, "D", 20));
+
+        var result = await _service.ComputeAsync(null);
+
+        Assert.All(result.Nodes, n => Assert.Equal(0, n.TotalFloatMinutes));
+        Assert.Equal(2, result.Chains.Count);
+        Assert.Equal(result.Nodes.Single(n => n.RequestId == a).ChainId, result.Nodes.Single(n => n.RequestId == b).ChainId);
+        Assert.NotEqual(result.Nodes.Single(n => n.RequestId == a).ChainId, result.Nodes.Single(n => n.RequestId == c).ChainId);
+    }
+
+    [Fact]
+    public async Task AFinishedPredecessor_ConstrainsNothing()
+    {
+        // A ran last week, so its window has passed and it is done. B and C are the open chain.
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid();
+        Setup([Edge(a, b), Edge(b, c)],
+            Request(a, "A", 1, start: Day1.AddDays(-7), end: Day1.AddDays(-6)),
+            Request(b, "B", 1),
+            Request(c, "C", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        Assert.DoesNotContain(result.Nodes, n => n.RequestId == a);
+        Assert.Equal(Day1, EarliestStartOf(result, b));
+        Assert.Equal([b, c], Assert.Single(result.Chains).RequestIds);
+    }
+
+    [Fact]
+    public async Task ARequestMarkedDone_CountsAsFinishedWithoutAPlacement()
+    {
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+        Setup([Edge(a, b)],
+            Request(a, "A", 1, status: RequestStatus.Done),
+            Request(b, "B", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        // Its only edge started at finished work, so nothing open is left.
+        Assert.Empty(result.Nodes);
+        Assert.Empty(result.Chains);
+    }
+
+    [Fact]
+    public async Task AFullyFinishedChain_IsLeftOut()
+    {
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid(), c = Guid.NewGuid(), d = Guid.NewGuid();
+        Setup([Edge(a, b), Edge(c, d)],
+            Request(a, "A", 1, start: Day1.AddDays(-9), end: Day1.AddDays(-8)),
+            Request(b, "B", 1, start: Day1.AddDays(-8), end: Day1.AddDays(-7)),
+            Request(c, "C", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(d, "D", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        Assert.Equal([c, d], Assert.Single(result.Chains).RequestIds);
+    }
+
+    [Fact]
+    public async Task UnplacedWork_StartsNoEarlierThanNow()
+    {
+        _time.SetUtcNow(new DateTimeOffset(Day1.AddDays(3).AddSeconds(30)));
+        Guid a = Guid.NewGuid(), b = Guid.NewGuid();
+        Setup([Edge(a, b)],
+            Request(a, "A", 1),
+            Request(b, "B", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        // Truncated to the minute, like every other instant the pass reports.
+        Assert.Equal(Day1.AddDays(3), EarliestStartOf(result, a));
+        Assert.Equal(Day1.AddDays(4), EarliestStartOf(result, b));
+    }
+
+    [Fact]
+    public async Task ChainSlack_IsTheGapToItsDeadline_MostAtRiskFirst()
+    {
+        // Three chains of two one-day steps from 1 June, each finishing 3 June.
+        Guid lateA = Guid.NewGuid(), lateB = Guid.NewGuid();
+        Guid easyA = Guid.NewGuid(), easyB = Guid.NewGuid();
+        Guid openA = Guid.NewGuid(), openB = Guid.NewGuid();
+        Setup([Edge(lateA, lateB), Edge(easyA, easyB), Edge(openA, openB)],
+            Request(lateA, "Late", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(lateB, "Late end", 1, latestEnd: Day1.AddDays(1)),
+            Request(easyA, "Easy", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(easyB, "Easy end", 1, latestEnd: Day1.AddDays(4)),
+            Request(openA, "Open", 1, start: Day1, end: Day1.AddDays(1)),
+            Request(openB, "Open end", 1));
+
+        var result = await _service.ComputeAsync(null);
+
+        Assert.Equal(["Late", "Easy", "Open"], result.Chains.Select(c => c.FirstName));
+        Assert.Equal([-1 * Day, 2 * Day, (int?)null], result.Chains.Select(c => c.SlackMinutes));
+        Assert.Equal(Day1.AddDays(1), result.Chains[0].Deadline);
+        Assert.Null(result.Chains[2].Deadline);
     }
 }

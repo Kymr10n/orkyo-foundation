@@ -51,7 +51,7 @@ public class PlanningToolsTests
             {
                 Nodes = [],
                 Edges = [],
-                DurationMinutes = 0,
+                Chains = [],
                 Diagnostics = [],
             });
 
@@ -76,11 +76,11 @@ public class PlanningToolsTests
                     EarliestFinish = new DateTime(2026, 6, 1, 11, 0, 0, DateTimeKind.Utc),
                     LatestStart = new DateTime(2026, 6, 1, 8, 0, 0, DateTimeKind.Utc),
                     LatestFinish = new DateTime(2026, 6, 1, 11, 0, 0, DateTimeKind.Utc),
-                    TotalFloatMinutes = 0, IsCritical = true, IsScheduled = true,
+                    TotalFloatMinutes = 0, IsCritical = true, IsScheduled = true, ChainId = RequestId,
                 },
             ],
             Edges = [],
-            DurationMinutes = 12 * 60,
+            Chains = [],
             Diagnostics = [],
         };
         _criticalPath.Setup(s => s.ComputeAsync(It.IsAny<Guid?>(), It.IsAny<CancellationToken>()))

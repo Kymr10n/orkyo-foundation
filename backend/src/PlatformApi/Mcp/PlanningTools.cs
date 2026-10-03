@@ -44,9 +44,11 @@ public sealed class PlanningTools
 
     [McpServerTool(Name = "get_critical_path", Title = "Get the critical path",
         ReadOnly = true, OpenWorld = false, UseStructuredContent = true)]
-    [Description("Compute the chain of work that decides the finish date, and how much slack every "
-        + "other request has. Each node reports isCritical and totalFloatMinutes: moving a critical "
-        + "request moves the end date, moving one with float does not.")]
+    [Description("Compute the dependency chains of open work, most at risk first, and how much slack "
+        + "every request has. Each chain reports its finish, its earliest deadline and slackMinutes to "
+        + "it (negative = late). Each node reports its chainId, isCritical and totalFloatMinutes: moving "
+        + "a critical request moves its chain's finish, moving one with float does not. Finished work "
+        + "is left out.")]
     public async Task<CriticalPathResult> GetCriticalPathAsync(
         [Description("Restrict to one site. Omit for the whole tenant. Get ids from list_sites.")]
         Guid? siteId = null,
