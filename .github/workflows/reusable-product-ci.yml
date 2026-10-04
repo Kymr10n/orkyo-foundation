@@ -259,7 +259,14 @@ jobs:
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> frontend/.npmrc
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          # The token in .npmrc is only for fetching @kymr10n/*. Install without running any
+          # package script, delete it, then run the scripts: a compromised dependency's
+          # postinstall (and every later lint/build/test step) never sees the token.
+          npm ci --ignore-scripts
+          rm -f .npmrc
+          npm rebuild
+          npm run postinstall --if-present
         working-directory: frontend
 
       - name: Verify foundation package is installed
