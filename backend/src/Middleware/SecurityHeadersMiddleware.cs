@@ -25,6 +25,10 @@ public sealed class SecurityHeadersMiddleware
         headers[HeaderConstants.XPermittedCrossDomainPolicies] = "none";
         headers[HeaderConstants.ContentSecurityPolicy] = "default-src 'none'; frame-ancestors 'none'";
         headers[HeaderConstants.PermissionsPolicy] = "camera=(), microphone=(), geolocation=(), payment=()";
+        // API and auth responses are per-caller. Without this a CDN in front may store one
+        // visitor's answer and replay it to the next — a cached anonymous /me looped every
+        // sign-in on orkyo.com. An endpoint that may be cached sets its own value after this.
+        headers.CacheControl = "no-store";
         if (_isProduction)
             headers[HeaderConstants.StrictTransportSecurity] = "max-age=31536000; includeSubDomains";
 

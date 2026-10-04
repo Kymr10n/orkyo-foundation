@@ -35,6 +35,29 @@ public class SecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_ForbidsSharedCaching()
+    {
+        var ctx = CreateContext();
+        await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
+
+        ctx.Response.Headers.CacheControl.ToString().Should().Be("no-store");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_AnEndpointsOwnCacheControlWins()
+    {
+        var env = new Mock<IWebHostEnvironment>();
+        env.Setup(e => e.EnvironmentName).Returns(EnvironmentNames.Development);
+        var middleware = new SecurityHeadersMiddleware(
+            c => { c.Response.Headers.CacheControl = "private, max-age=300"; return Task.CompletedTask; }, env.Object);
+
+        var ctx = CreateContext();
+        await middleware.InvokeAsync(ctx);
+
+        ctx.Response.Headers.CacheControl.ToString().Should().Be("private, max-age=300");
+    }
+
+    [Fact]
     public async Task InvokeAsync_AlwaysSets_XFrameOptions()
     {
         var ctx = CreateContext();
