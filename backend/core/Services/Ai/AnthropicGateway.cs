@@ -204,7 +204,7 @@ public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthro
         return code switch
         {
             "credential_invalid" => new AiGatewayException(code,
-                "The workspace's AI key was rejected. An administrator must check it in Administration.", ex),
+                "The workspace's AI key was rejected or has no credit left. An administrator must check it in Administration.", ex),
             "upstream_busy" => new AiGatewayException(code,
                 "The AI service is busy. Try again in a moment.", ex),
             _ => new AiGatewayException(code, "The AI service could not be reached.", ex),
@@ -214,11 +214,14 @@ public sealed class AnthropicGateway(ILogger<AnthropicGateway> logger) : IAnthro
     /// <summary>
     /// Maps a provider failure onto a stable code by the HTTP status the SDK's
     /// <see cref="AnthropicApiException"/> carries. Anything without a status (transport,
-    /// parse or I/O failure) is an upstream error.
+    /// parse or I/O failure) is an upstream error. A key the provider will not serve is a
+    /// credential problem whatever the status: revoked (401), not permitted (403), or out of
+    /// credit, which Anthropic reports as a 400 naming the credit balance.
     /// </summary>
-    internal static string ClassifyFailure(Exception ex) => (ex as AnthropicApiException)?.StatusCode switch
+    internal static string ClassifyFailure(Exception ex) => ex is not AnthropicApiException api ? "upstream_error" : api.StatusCode switch
     {
-        HttpStatusCode.Unauthorized => "credential_invalid",
+        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => "credential_invalid",
+        HttpStatusCode.BadRequest when api.ResponseBody?.Contains("credit balance", StringComparison.OrdinalIgnoreCase) == true => "credential_invalid",
         HttpStatusCode.TooManyRequests or OverloadedStatus => "upstream_busy",
         _ => "upstream_error",
     };

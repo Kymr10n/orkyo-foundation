@@ -65,7 +65,7 @@ public static class AiAllowanceEndpoints
         return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
         {
             await access.SetDailyLimitsAsync(
-                request.UserDailyTurns, request.TenantDailyTurns,
+                request.UserDailyTurns, request.TenantDailyTurns, request.PrivateChat,
                 principal.UserIdOrNull, ct);
             return Results.NoContent();
         }, ct);

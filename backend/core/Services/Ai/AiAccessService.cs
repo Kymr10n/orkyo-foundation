@@ -43,7 +43,7 @@ public interface IAiAccessService
     /// Replaces the workspace's daily interaction limits. Null clears a limit; values
     /// must be positive — "zero interactions" is what removing access is for.
     /// </summary>
-    Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, Guid? actorUserId, CancellationToken ct = default);
+    Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, bool privateChat, Guid? actorUserId, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -70,8 +70,12 @@ public sealed class AiAccessService(
         if (!await featureGate.IsEnabledAsync(FeatureKeys.AiAssistant, ct))
             return AiAccessDecision.Deny("not_entitled");
 
-        if (!await credentials.IsConfiguredAsync(ct))
+        var credential = await credentials.GetStatusAsync(ct);
+        if (!credential.Configured)
             return AiAccessDecision.Deny("not_configured");
+
+        if (credential.RejectedAt > time.GetUtcNow().UtcDateTime - AiDefaults.KeyRejectionHold)
+            return AiAccessDecision.Deny("key_rejected");
 
         var userId = principal.UserId;
 
@@ -153,6 +157,7 @@ public sealed class AiAccessService(
             DailyTurnLimit = decision.DailyTurnLimit,
             UsedTurnsToday = decision.UsedTurnsToday,
             DailyLimitIsWorkspaceWide = decision.DailyLimitIsWorkspaceWide,
+            PrivateChat = (await allowances.GetDailyLimitsAsync(ct)).PrivateChat,
         };
     }
 
@@ -187,7 +192,7 @@ public sealed class AiAccessService(
     public Task<AiDailyLimits> GetDailyLimitsAsync(CancellationToken ct = default) =>
         allowances.GetDailyLimitsAsync(ct);
 
-    public async Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, Guid? actorUserId, CancellationToken ct = default)
+    public async Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, bool privateChat, Guid? actorUserId, CancellationToken ct = default)
     {
         // A shared login is many people behind one password, so nobody behind it may raise
         // the ceiling that governs them all. Today the route also requires the admin role
@@ -201,12 +206,12 @@ public sealed class AiAccessService(
         if (tenantDailyTurns is < 1)
             throw new ArgumentOutOfRangeException(nameof(tenantDailyTurns), "A daily limit must be positive; clear it for no limit.");
 
-        await allowances.SetDailyLimitsAsync(userDailyTurns, tenantDailyTurns, actorUserId, ct);
+        await allowances.SetDailyLimitsAsync(userDailyTurns, tenantDailyTurns, privateChat, actorUserId, ct);
 
         await tenantUserService.RecordAuditEventAsync(
             orgContext, TenantAuditActions.AiDailyLimitsChanged, actorUserId,
             targetType: "workspace", targetId: null,
-            metadata: new { userDailyTurns, tenantDailyTurns }, ct: ct);
+            metadata: new { userDailyTurns, tenantDailyTurns, privateChat }, ct: ct);
     }
 
     public Task RecordDailyTurnAsync(CancellationToken ct = default) =>

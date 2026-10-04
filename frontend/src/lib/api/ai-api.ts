@@ -21,6 +21,8 @@ export interface AiCredentialStatus {
   keyHint: string | null;
   updatedAt: string | null;
   lastVerifiedAt: string | null;
+  /** When the provider last refused the key (revoked, or no credit left). */
+  rejectedAt: string | null;
 }
 
 export interface AiCredentialTestResult {
@@ -82,6 +84,8 @@ export async function revokeAiAllowance(userId: string): Promise<void> {
 export interface AiDailyLimits {
   userDailyTurns: number | null;
   tenantDailyTurns: number | null;
+  /** The workspace keeps no conversations. Turning it on deletes the saved ones. */
+  privateChat: boolean;
 }
 
 export async function getAiDailyLimits(): Promise<AiDailyLimits> {
@@ -96,7 +100,7 @@ export async function saveAiDailyLimits(limits: AiDailyLimits): Promise<void> {
 
 export interface AiStatus {
   available: boolean;
-  /** Why not, when unavailable: `not_entitled` | `not_configured` | `not_allowed` | `allowance_exhausted` | `daily_limit_reached` | `workspace_daily_limit_reached`. */
+  /** Why not, when unavailable: `not_entitled` | `not_configured` | `key_rejected` | `not_allowed` | `allowance_exhausted` | `daily_limit_reached` | `workspace_daily_limit_reached`. */
   reason: string | null;
   monthlyTokenLimit: number | null;
   usedTotalTokens: number;
@@ -106,6 +110,8 @@ export interface AiStatus {
   usedTurnsToday: number;
   /** True when dailyTurnLimit is the whole workspace's ceiling rather than the caller's own. */
   dailyLimitIsWorkspaceWide: boolean;
+  /** True when the workspace keeps no conversations, so the panel must not save one. */
+  privateChat: boolean;
 }
 
 export async function getAiStatus(): Promise<AiStatus> {

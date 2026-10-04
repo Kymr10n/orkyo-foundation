@@ -10,16 +10,24 @@ namespace Orkyo.Foundation.Tests.Services.Ai;
 /// </summary>
 public class AnthropicGatewayClassificationTests
 {
-    private static AnthropicApiException Status(HttpStatusCode status) =>
-        new AnthropicUnexpectedStatusCodeException(new HttpRequestException("upstream")) { StatusCode = status, ResponseBody = "" };
+    private static AnthropicApiException Status(HttpStatusCode status, string body = "") =>
+        new AnthropicUnexpectedStatusCodeException(new HttpRequestException("upstream")) { StatusCode = status, ResponseBody = body };
 
     [Theory]
     [InlineData(HttpStatusCode.Unauthorized, "credential_invalid")]
+    [InlineData(HttpStatusCode.Forbidden, "credential_invalid")]
+    [InlineData(HttpStatusCode.BadRequest, "upstream_error")]
     [InlineData(HttpStatusCode.TooManyRequests, "upstream_busy")]
     [InlineData((HttpStatusCode)529, "upstream_busy")]
     [InlineData(HttpStatusCode.InternalServerError, "upstream_error")]
     public void ClassifyFailure_ReadsTheStatus(HttpStatusCode status, string expected) =>
         AnthropicGateway.ClassifyFailure(Status(status)).Should().Be(expected);
+
+    [Fact]
+    public void ClassifyFailure_NoCreditLeft_IsACredentialProblem() =>
+        AnthropicGateway.ClassifyFailure(Status(HttpStatusCode.BadRequest,
+            """{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"""))
+            .Should().Be("credential_invalid");
 
     [Theory]
     [InlineData("failed at line 401")]

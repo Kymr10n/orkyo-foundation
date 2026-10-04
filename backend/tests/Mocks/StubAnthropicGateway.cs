@@ -40,10 +40,14 @@ public sealed class StubAnthropicGateway : IAnthropicGateway
         return Task.FromResult(TestResult);
     }
 
+    /// <summary>When set, every <see cref="SendAsync"/> throws it, as the real gateway does on a provider failure.</summary>
+    public AiGatewayException? Failure { get; set; }
+
     public Task<AiGatewayResponse> SendAsync(AiGatewayRequest request, CancellationToken ct = default)
     {
         CallCount++;
         LastRequest = request;
+        if (Failure is not null) throw Failure;
         return Task.FromResult(_responses.Count > 0
             ? _responses.Dequeue()
             : new AiGatewayResponse { Blocks = [], StopReason = "end_turn" });

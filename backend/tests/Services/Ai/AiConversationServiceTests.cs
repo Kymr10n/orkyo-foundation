@@ -1,4 +1,5 @@
 using Api.Helpers;
+using Api.Models;
 using Api.Repositories;
 using Api.Security;
 using Api.Services.Ai;
@@ -16,6 +17,7 @@ public class AiConversationServiceTests
     private static readonly Guid Caller = Guid.NewGuid();
 
     private readonly Mock<IAiConversationRepository> _repository = new();
+    private readonly Mock<IAiAllowanceRepository> _settings = new();
     private readonly Mock<ICurrentPrincipal> _principal = new();
     private readonly AiConversationService _service;
 
@@ -28,11 +30,24 @@ public class AiConversationServiceTests
             .Setup(r => r.UpsertAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(),
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _service = new AiConversationService(_repository.Object, _principal.Object);
+        _settings.Setup(s => s.GetDailyLimitsAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new AiDailyLimits());
+        _service = new AiConversationService(_repository.Object, _settings.Object, _principal.Object);
     }
 
     private const string Entries = """[{"kind":"user","text":"hi"}]""";
     private const string Transcript = """[]""";
+
+    [Fact]
+    public async Task Save_IsRefusedWhenPrivateChatIsOn()
+    {
+        _settings.Setup(s => s.GetDailyLimitsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiDailyLimits { PrivateChat = true });
+
+        await Assert.ThrowsAsync<ConflictException>(() => _service.SaveAsync(Guid.NewGuid(), "t", Entries, Transcript));
+
+        _repository.Verify(r => r.UpsertAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(),
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 
     [Fact]
     public async Task EveryReadIsScopedToTheCaller()

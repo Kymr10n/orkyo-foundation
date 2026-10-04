@@ -46,7 +46,7 @@ describe('useAiAssistant mutation feedback', () => {
     vi.mocked(aiApi.saveAiDailyLimits).mockResolvedValue(undefined);
     const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
-    await result.current.mutateAsync({ userDailyTurns: 1, tenantDailyTurns: null });
+    await result.current.mutateAsync({ userDailyTurns: 1, tenantDailyTurns: null, privateChat: false });
 
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Daily limits saved'));
   });
@@ -55,7 +55,7 @@ describe('useAiAssistant mutation feedback', () => {
     vi.mocked(aiApi.saveAiDailyLimits).mockRejectedValue(new Error('nope'));
     const { result } = renderHook(() => useSaveAiDailyLimits(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 
-    await expect(result.current.mutateAsync({ userDailyTurns: 1, tenantDailyTurns: null })).rejects.toThrow('nope');
+    await expect(result.current.mutateAsync({ userDailyTurns: 1, tenantDailyTurns: null, privateChat: false })).rejects.toThrow('nope');
 
     await waitFor(() =>
       expect(toast.error).toHaveBeenCalledWith('Could not save the daily limits', expect.anything()),
@@ -80,6 +80,7 @@ describe('useAiAssistant mutation feedback', () => {
       keyHint: 'x',
       updatedAt: null,
       lastVerifiedAt: null,
+      rejectedAt: null,
     });
     const { result } = renderHook(() => useSaveAiCredential(), { wrapper: createTestQueryWrapper({ feedback: true }) });
 

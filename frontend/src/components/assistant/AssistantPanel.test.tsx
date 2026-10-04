@@ -28,6 +28,7 @@ const aiStatus = vi.hoisted(() => ({
     dailyTurnLimit: null as number | null,
     usedTurnsToday: 0,
     dailyLimitIsWorkspaceWide: false,
+    privateChat: false,
   },
 }));
 
@@ -238,6 +239,25 @@ describe('AssistantPanel conversation persistence', () => {
     expect(body.entries.some((e) => e.text === 'Two requests overlap.')).toBe(true);
   });
 
+  it('in private chat, says so, offers no history and saves nothing', async () => {
+    const before = aiStatus.value;
+    aiStatus.value = { ...before, privateChat: true };
+    try {
+      renderWithQuery(<AssistantPanel open onOpenChange={vi.fn()} />);
+      expect(screen.getByText('Private')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /saved conversations/i })).not.toBeInTheDocument();
+
+      const user = userEvent.setup();
+      await user.type(screen.getByPlaceholderText(/ask about your schedule/i), 'any conflicts?');
+      await user.keyboard('{Enter}');
+
+      expect(await screen.findByText('Two requests overlap.')).toBeInTheDocument();
+      expect(saveAiConversation).not.toHaveBeenCalled();
+    } finally {
+      aiStatus.value = before;
+    }
+  });
+
   it('restores the newest conversation when the panel opens empty', async () => {
     vi.mocked(listAiConversations).mockResolvedValue([
       { id: 'conv-1', title: 'Yesterday', updatedAt: '2026-08-24T10:00:00Z' },
@@ -362,6 +382,7 @@ describe('AssistantPanel daily interaction limit', () => {
       dailyTurnLimit: null,
       usedTurnsToday: 0,
       dailyLimitIsWorkspaceWide: false,
+      privateChat: false,
     };
   });
 

@@ -310,6 +310,10 @@ public sealed class AiChatService(
         }
         catch (AiGatewayException ex)
         {
+            // A refused key fails every turn alike, so stop offering the assistant rather
+            // than let each person find out by asking.
+            if (ex.Code == "credential_invalid")
+                await credentials.MarkRejectedAsync(ct);
             return (null, ex);
         }
     }
@@ -456,6 +460,7 @@ public sealed class AiChatService(
     {
         "not_entitled" => "The AI assistant is not included in this workspace's plan.",
         "not_configured" => "This workspace has no AI key configured. An administrator can add one in Administration.",
+        "key_rejected" => "The workspace's AI key was rejected or has no credit left. An administrator must check it in Administration.",
         "not_allowed" => "You do not have access to the AI assistant. An administrator can grant it in Administration.",
         "allowance_exhausted" => "You have used your AI token allowance for this month.",
         "daily_limit_reached" => "You have used your AI interactions for today. Your allowance returns tomorrow.",

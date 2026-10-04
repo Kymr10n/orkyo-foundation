@@ -135,6 +135,38 @@ public class AiAdminEndpointsTests
         await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Delete, "/api/ai/credentials", await Token));
     }
 
+    [Fact]
+    public async Task ARefusedKey_PausesTheAssistantUntilTheKeyIsSavedAgain()
+    {
+        const string apiKey = "sk-ant-api03-integration-test-key-value";
+        async Task<JsonElement> Status() => await BodyOf(await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Get, "/api/ai/status", await Token)));
+
+        await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/ai/credentials", await Token, new { apiKey }));
+        var gateway = _fixture.Factory.Services.GetRequiredService<StubAnthropicGateway>();
+        gateway.Failure = new Api.Services.Ai.AiGatewayException("credential_invalid", "no credit left");
+        try
+        {
+            var turn = await _client.SendAsync(
+                TestHelpers.AuthRequest(HttpMethod.Post, "/api/ai/chat", await Token, new { message = "hello" }));
+            (await turn.Content.ReadAsStringAsync()).Should().Contain("credential_invalid");
+
+            (await Status()).GetProperty("reason").GetString().Should().Be("key_rejected");
+            var credential = await BodyOf(await _client.SendAsync(
+                TestHelpers.AuthRequest(HttpMethod.Get, "/api/ai/credentials", await Token)));
+            credential.GetProperty("rejectedAt").ValueKind.Should().Be(JsonValueKind.String);
+
+            await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/ai/credentials", await Token, new { apiKey }));
+            (await Status()).GetProperty("available").GetBoolean().Should().BeTrue();
+        }
+        finally
+        {
+            // The stub is a singleton shared by the whole collection.
+            gateway.Failure = null;
+            await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Delete, "/api/ai/credentials", await Token));
+        }
+    }
+
     // ─── PUT /api/ai/allowances/daily-limits ─────────────────────────────────────
 
     [Theory]
@@ -165,6 +197,38 @@ public class AiAdminEndpointsTests
             TestHelpers.AuthRequest(HttpMethod.Get, "/api/ai/allowances/daily-limits", await Token)));
         limits.GetProperty("userDailyTurns").GetInt32().Should().Be(25);
         limits.GetProperty("tenantDailyTurns").GetInt32().Should().Be(200);
+    }
+
+    [Fact]
+    public async Task PrivateChat_DeletesTheSavedConversations_AndRefusesNewOnes()
+    {
+        HttpRequestMessage SaveConversation()
+        {
+            var save = TestHelpers.AuthRequest(HttpMethod.Put, $"/api/ai/conversations/{Guid.NewGuid()}", Token.Result);
+            save.Content = new StringContent(
+                """{"title":"Kept","entries":[],"transcript":[]}""", System.Text.Encoding.UTF8, "application/json");
+            return save;
+        }
+
+        await Token;
+        (await _client.SendAsync(SaveConversation())).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        try
+        {
+            (await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/ai/allowances/daily-limits", await Token,
+                new { privateChat = true }))).StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+            var list = await BodyOf(await _client.SendAsync(
+                TestHelpers.AuthRequest(HttpMethod.Get, "/api/ai/conversations", await Token)));
+            list.GetArrayLength().Should().Be(0);
+            (await _client.SendAsync(SaveConversation())).StatusCode.Should().Be(HttpStatusCode.Conflict);
+        }
+        finally
+        {
+            // The tenant database is shared by the whole collection; leave saving on.
+            await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/ai/allowances/daily-limits", await Token,
+                new { privateChat = false }));
+        }
     }
 
     // ─── PUT and DELETE /api/ai/allowances/{userId} ──────────────────────────────

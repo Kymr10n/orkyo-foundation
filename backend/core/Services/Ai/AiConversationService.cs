@@ -22,6 +22,7 @@ public interface IAiConversationService
 /// </summary>
 public sealed class AiConversationService(
     IAiConversationRepository repository,
+    IAiAllowanceRepository settings,
     ICurrentPrincipal principal) : IAiConversationService
 {
     /// <summary>
@@ -43,6 +44,10 @@ public sealed class AiConversationService(
     public async Task SaveAsync(Guid id, string title, string entriesJson, string transcriptJson,
         CancellationToken ct = default)
     {
+        // The panel does not save when private chat is on; this holds for any other client.
+        if ((await settings.GetDailyLimitsAsync(ct)).PrivateChat)
+            throw new ConflictException("Private chat is on: this workspace keeps no conversations.");
+
         // The same ceilings the chat turn enforces. A conversation that could never be
         // sent is not worth storing, and this is the boundary where an oversized one
         // would otherwise become permanent.

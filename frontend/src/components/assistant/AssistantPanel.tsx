@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
-import { Bot, GripVertical, History, Plus, Send, Trash2 } from "lucide-react";
+import { Bot, GripVertical, History, Lock, Plus, Send, Trash2 } from "lucide-react";
 import { Button } from "@foundation/src/components/ui/button";
 import { Input } from "@foundation/src/components/ui/input";
 import {
@@ -141,6 +141,12 @@ export function AssistantPanel({
           <SheetTitle className="flex items-center gap-2 pr-6">
             <Bot className="h-4 w-4" />
             <span className="flex-1">Assistant</span>
+            {status?.privateChat && (
+              <span className="flex items-center gap-1 text-xs font-normal text-muted-foreground" title="This chat is not saved">
+                <Lock className="h-3.5 w-3.5" aria-hidden />
+                Private
+              </span>
+            )}
 
             <Button
               variant="ghost"
@@ -153,47 +159,49 @@ export function AssistantPanel({
               <Plus className="h-4 w-4" />
             </Button>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  aria-label="Saved conversations"
-                  title="Saved conversations"
-                >
-                  <History className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                {conversations.length === 0 ? (
-                  <DropdownMenuItem disabled>Nothing saved yet</DropdownMenuItem>
-                ) : (
-                  // Open and delete are two menu items, not a button nested inside one: a
-                  // menuitem must not contain focusable children, and Radix's roving
-                  // tabindex made the nested button unreachable by keyboard entirely.
-                  conversations.map((saved) => (
-                    <div key={saved.id} className="flex items-center">
-                      <DropdownMenuItem
-                        className="flex-1 truncate"
-                        onSelect={() => void conversation.openConversation(saved.id)}
-                      >
-                        {saved.title}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        aria-label={`Delete ${saved.title}`}
-                        className="text-muted-foreground focus:text-destructive"
-                        onSelect={() => void conversation.deleteConversation(saved.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </DropdownMenuItem>
-                    </div>
-                  ))
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={startNewConversation}>New conversation</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!status?.privateChat && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    aria-label="Saved conversations"
+                    title="Saved conversations"
+                  >
+                    <History className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-72">
+                  {conversations.length === 0 ? (
+                    <DropdownMenuItem disabled>Nothing saved yet</DropdownMenuItem>
+                  ) : (
+                    // Open and delete are two menu items, not a button nested inside one: a
+                    // menuitem must not contain focusable children, and Radix's roving
+                    // tabindex made the nested button unreachable by keyboard entirely.
+                    conversations.map((saved) => (
+                      <div key={saved.id} className="flex items-center">
+                        <DropdownMenuItem
+                          className="flex-1 truncate"
+                          onSelect={() => void conversation.openConversation(saved.id)}
+                        >
+                          {saved.title}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          aria-label={`Delete ${saved.title}`}
+                          className="text-muted-foreground focus:text-destructive"
+                          onSelect={() => void conversation.deleteConversation(saved.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </DropdownMenuItem>
+                      </div>
+                    ))
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onSelect={startNewConversation}>New conversation</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </SheetTitle>
           <SheetDescription>
             {status?.dailyTurnLimit != null

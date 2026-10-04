@@ -31,7 +31,8 @@ public class AiAccessServiceTests
         // The happy path everywhere: entitled workspace, key present, ordinary member.
         _featureGate.Setup(g => g.IsEnabledAsync(FeatureKeys.AiAssistant, It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
-        _credentials.Setup(c => c.IsConfiguredAsync(It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        _credentials.Setup(c => c.GetStatusAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiCredentialStatus { Configured = true });
         _authorization.SetupGet(a => a.IsAdmin).Returns(false);
         _principal.SetupGet(p => p.UserId).Returns(UserId);
         // No daily limits and an ordinary (non-shared) account unless a test says otherwise,
@@ -144,18 +145,46 @@ public class AiAccessServiceTests
 
         decision.Allowed.Should().BeFalse();
         decision.Reason.Should().Be("not_entitled");
-        _credentials.Verify(c => c.IsConfiguredAsync(It.IsAny<CancellationToken>()), Times.Never);
+        _credentials.Verify(c => c.GetStatusAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task WorkspaceWithoutKey_IsNotConfigured()
     {
-        _credentials.Setup(c => c.IsConfiguredAsync(It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        _credentials.Setup(c => c.GetStatusAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiCredentialStatus { Configured = false });
 
         var decision = await CreateSut().EvaluateAsync();
 
         decision.Allowed.Should().BeFalse();
         decision.Reason.Should().Be("not_configured");
+    }
+
+    [Theory]
+    [InlineData(10, false)]   // refused ten minutes ago: still held
+    [InlineData(61, true)]    // the hold is over: one turn may try the key again
+    public async Task ARefusedKey_HoldsTheAssistantForAnHour(int minutesAgo, bool allowed)
+    {
+        GrantAllowance(null);
+        _credentials.Setup(c => c.GetStatusAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiCredentialStatus { Configured = true, RejectedAt = DateTime.UtcNow.AddMinutes(-minutesAgo) });
+
+        var decision = await CreateSut().EvaluateAsync();
+
+        decision.Allowed.Should().Be(allowed);
+        decision.Reason.Should().Be(allowed ? null : "key_rejected");
+    }
+
+    [Fact]
+    public async Task Status_ReportsPrivateChat()
+    {
+        GrantAllowance(null);
+        _allowances.Setup(a => a.GetDailyLimitsAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AiDailyLimits { PrivateChat = true });
+
+        var status = await CreateSut().GetStatusAsync();
+
+        status.PrivateChat.Should().BeTrue();
     }
 
     [Fact]
@@ -341,10 +370,10 @@ public class AiAccessServiceTests
         var sut = CreateSut();
 
         await Assert.ThrowsAsync<AccountLockedException>(
-            () => sut.SetDailyLimitsAsync(userDailyTurns: 500, tenantDailyTurns: null, actorUserId: null));
+            () => sut.SetDailyLimitsAsync(userDailyTurns: 500, tenantDailyTurns: null, privateChat: false, actorUserId: null));
 
         _allowances.Verify(a => a.SetDailyLimitsAsync(
-            It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<bool>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -355,10 +384,10 @@ public class AiAccessServiceTests
         var sut = CreateSut();
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => sut.SetDailyLimitsAsync(userDailyTurns: 0, tenantDailyTurns: null, actorUserId: null));
+            () => sut.SetDailyLimitsAsync(userDailyTurns: 0, tenantDailyTurns: null, privateChat: false, actorUserId: null));
 
         _allowances.Verify(a => a.SetDailyLimitsAsync(
-            It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
+            It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<bool>(), It.IsAny<Guid?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

@@ -13,6 +13,7 @@ public sealed record AiCredentialRow
     public string KeyHint { get; init; } = "";
     public DateTime UpdatedAt { get; init; }
     public DateTime? LastVerifiedAt { get; init; }
+    public DateTime? RejectedAt { get; init; }
 }
 
 public interface IAiCredentialRepository
@@ -21,6 +22,7 @@ public interface IAiCredentialRepository
     Task UpsertAsync(string ciphertext, string keyHint, Guid? actorUserId, CancellationToken ct = default);
     Task<bool> DeleteAsync(CancellationToken ct = default);
     Task MarkVerifiedAsync(CancellationToken ct = default);
+    Task MarkRejectedAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -35,7 +37,7 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         return await conn.QuerySingleOrDefaultAsync(@"
-            SELECT provider, api_key_ciphertext, key_hint, updated_at, last_verified_at
+            SELECT provider, api_key_ciphertext, key_hint, updated_at, last_verified_at, rejected_at
             FROM ai_credentials
             WHERE provider = @provider",
             p => p.AddWithValue("provider", AiProviders.Anthropic),
@@ -46,6 +48,7 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
                 KeyHint = r.GetString("key_hint"),
                 UpdatedAt = r.GetDateTime("updated_at"),
                 LastVerifiedAt = r.GetNullableDateTime("last_verified_at"),
+                RejectedAt = r.GetNullableDateTime("rejected_at"),
             }, ct);
     }
 
@@ -59,8 +62,9 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
                 api_key_ciphertext = @ciphertext,
                 key_hint           = @hint,
                 updated_at         = NOW(),
-                -- A replaced key is unverified until it is probed again.
-                last_verified_at   = NULL",
+                -- A replaced key is unverified until it is probed again, and not yet refused.
+                last_verified_at   = NULL,
+                rejected_at        = NULL",
             p =>
             {
                 p.AddWithValue("provider", AiProviders.Anthropic);
@@ -83,7 +87,15 @@ public sealed class AiCredentialRepository(OrgContext orgContext, IOrgDbConnecti
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.ExecuteAsync(
-            "UPDATE ai_credentials SET last_verified_at = NOW() WHERE provider = @provider",
+            "UPDATE ai_credentials SET last_verified_at = NOW(), rejected_at = NULL WHERE provider = @provider",
+            p => p.AddWithValue("provider", AiProviders.Anthropic), ct);
+    }
+
+    public async Task MarkRejectedAsync(CancellationToken ct = default)
+    {
+        await using var conn = connectionFactory.CreateOrgConnection(orgContext);
+        await conn.ExecuteAsync(
+            "UPDATE ai_credentials SET rejected_at = NOW() WHERE provider = @provider",
             p => p.AddWithValue("provider", AiProviders.Anthropic), ct);
     }
 }

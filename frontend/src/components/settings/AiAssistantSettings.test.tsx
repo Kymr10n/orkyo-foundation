@@ -33,7 +33,7 @@ vi.mock('@foundation/src/hooks/useAiAssistant', () => ({
 /** Sets the daily-limits query state; defaults to a configured workspace. */
 function setLimits(over: Record<string, unknown> = {}) {
   vi.mocked(useAiDailyLimits).mockReturnValue({
-    data: { userDailyTurns: 15, tenantDailyTurns: 150 },
+    data: { userDailyTurns: 15, tenantDailyTurns: 150, privateChat: false },
     isLoading: false,
     isError: false,
     ...over,
@@ -61,6 +61,19 @@ beforeEach(() => {
 const perPerson = () => screen.getByLabelText(/interactions per person each day/i);
 const perWorkspace = () => screen.getByLabelText(/whole organization each day/i);
 
+describe('AiAssistantSettings key', () => {
+  it('says when the provider refused the key', () => {
+    vi.mocked(useAiCredential).mockReturnValue({
+      data: { configured: true, keyHint: 'hAAA', lastVerifiedAt: null, rejectedAt: '2026-10-04T08:00:00Z' },
+      isLoading: false,
+    } as unknown as ReturnType<typeof useAiCredential>);
+
+    render(<AiAssistantSettings />);
+
+    expect(screen.getByText(/rejected by the provider/i)).toBeInTheDocument();
+  });
+});
+
 describe('AiAssistantSettings daily limits', () => {
   it('shows the limits the workspace already has', () => {
     render(<AiAssistantSettings />);
@@ -74,18 +87,27 @@ describe('AiAssistantSettings daily limits', () => {
     const user = userEvent.setup();
     await user.clear(perPerson());
     await user.type(perPerson(), '20');
-    await user.click(screen.getByRole('button', { name: /save limits/i }));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
 
-    expect(saveLimits).toHaveBeenCalledWith({ userDailyTurns: 20, tenantDailyTurns: 150 });
+    expect(saveLimits).toHaveBeenCalledWith({ userDailyTurns: 20, tenantDailyTurns: 150, privateChat: false });
+  });
+
+  it('sends private chat with the limits', async () => {
+    render(<AiAssistantSettings />);
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText(/private chat/i));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
+
+    expect(saveLimits).toHaveBeenCalledWith({ userDailyTurns: 15, tenantDailyTurns: 150, privateChat: true });
   });
 
   it('treats an empty field as no limit', async () => {
     render(<AiAssistantSettings />);
     const user = userEvent.setup();
     await user.clear(perWorkspace());
-    await user.click(screen.getByRole('button', { name: /save limits/i }));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
 
-    expect(saveLimits).toHaveBeenCalledWith({ userDailyTurns: 15, tenantDailyTurns: null });
+    expect(saveLimits).toHaveBeenCalledWith({ userDailyTurns: 15, tenantDailyTurns: null, privateChat: false });
   });
 
   it('refuses an out-of-range limit instead of clearing it', async () => {
@@ -95,7 +117,7 @@ describe('AiAssistantSettings daily limits', () => {
     const user = userEvent.setup();
     await user.clear(perPerson());
     await user.type(perPerson(), '50000');
-    await user.click(screen.getByRole('button', { name: /save limits/i }));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
 
     expect(saveLimits).not.toHaveBeenCalled();
     expect(vi.mocked(toast.error)).toHaveBeenCalled();
@@ -108,7 +130,7 @@ describe('AiAssistantSettings daily limits', () => {
 
     render(<AiAssistantSettings />);
 
-    expect(screen.queryByRole('button', { name: /save limits/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save settings/i })).not.toBeInTheDocument();
     expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument();
   });
 
@@ -118,7 +140,7 @@ describe('AiAssistantSettings daily limits', () => {
     saveLimits.mockRejectedValue(new Error('nope'));
     render(<AiAssistantSettings />);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /save limits/i }));
+    await user.click(screen.getByRole('button', { name: /save settings/i }));
 
     expect(vi.mocked(toast.success)).not.toHaveBeenCalled();
   });

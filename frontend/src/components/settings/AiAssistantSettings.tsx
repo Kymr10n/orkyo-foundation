@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@foundation/src/components/ui/alert";
 import { Button } from "@foundation/src/components/ui/button";
 import { FeatureUpsell } from "@foundation/src/components/ui/FeatureUpsell";
 import { Input } from "@foundation/src/components/ui/input";
+import { Checkbox } from "@foundation/src/components/ui/checkbox";
 import { Label } from "@foundation/src/components/ui/label";
 import { LoadingSpinner } from "@foundation/src/components/ui/LoadingSpinner";
 import { SettingsPageHeader } from "@foundation/src/components/settings/SettingsPageHeader";
@@ -155,6 +156,11 @@ export function AiAssistantSettings({ upgradeHref }: AiAssistantSettingsProps = 
                     ? `Last checked ${new Date(credential.lastVerifiedAt).toLocaleString()}.`
                     : "Not checked yet."}
                 </p>
+                {credential.rejectedAt && (
+                  <p className="text-xs text-destructive">
+                    {`Rejected by the provider ${new Date(credential.rejectedAt).toLocaleString()}: revoked or out of credit. The assistant pauses for an hour, or until the key is tested or replaced.`}
+                  </p>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button
@@ -286,6 +292,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
   const save = useSaveAiDailyLimits();
   const [perUser, setPerUser] = useState(limits.userDailyTurns?.toString() ?? "");
   const [perWorkspace, setPerWorkspace] = useState(limits.tenantDailyTurns?.toString() ?? "");
+  const [privateChat, setPrivateChat] = useState(limits.privateChat);
 
   /**
    * An empty field means no limit. Anything else has to be a whole number in range —
@@ -312,7 +319,7 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
     try {
       // Both fields go together: they are one row on the server, so sending one while
       // showing a stale value for the other would overwrite it silently.
-      await save.mutateAsync({ userDailyTurns: user.value, tenantDailyTurns: workspace.value });
+      await save.mutateAsync({ userDailyTurns: user.value, tenantDailyTurns: workspace.value, privateChat });
     } catch {
       /* toasted by the MutationCache */
     }
@@ -358,8 +365,19 @@ function DailyLimitsForm({ limits }: { limits: AiDailyLimits }) {
         </div>
       </div>
 
+      <div className="flex items-start gap-2">
+        <Checkbox id="ai-private-chat" checked={privateChat} onCheckedChange={(c) => setPrivateChat(!!c)} />
+        <div className="space-y-1">
+          <Label htmlFor="ai-private-chat" className="cursor-pointer">Private chat</Label>
+          <p className="text-xs text-muted-foreground">
+            Conversations are not saved. Each chat lasts only while the panel is open. Turning
+            this on deletes the saved conversations.
+          </p>
+        </div>
+      </div>
+
       <Button onClick={() => void handleSave()} loading={save.isPending}>
-        Save limits
+        Save settings
       </Button>
     </div>
   );

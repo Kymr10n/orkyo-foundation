@@ -300,7 +300,8 @@ export function useAssistantConversation({
   }, [busy, entries.length, invalidateAiStatus]);
 
   useEffect(() => {
-    if (busy || entries.length === 0) return;
+    // Private chat keeps nothing; an unknown status is not permission to store.
+    if (busy || entries.length === 0 || status?.privateChat !== false) return;
 
     const last = saved.current;
     if (last?.id === conversationId && last.entries === entries && last.transcript === transcript) return;
@@ -313,7 +314,7 @@ export function useAssistantConversation({
       entries,
       transcript,
     }).catch((err: unknown) => logger.error("Could not save the conversation", err));
-  }, [busy, entries, transcript, conversationId, saveAiConversation]);
+  }, [busy, entries, transcript, conversationId, saveAiConversation, status?.privateChat]);
 
   // Reopening the panel picks up where the person left off. Only once, and only into an
   // empty panel: a conversation already on screen is the one they want.

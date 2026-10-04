@@ -50,7 +50,7 @@ public interface IAiAllowanceRepository
     Task<AiDailyLimits> GetDailyLimitsAsync(CancellationToken ct = default);
 
     /// <summary>Replaces the workspace's daily interaction limits. Null clears a limit.</summary>
-    Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, Guid? actorUserId, CancellationToken ct = default);
+    Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, bool privateChat, Guid? actorUserId, CancellationToken ct = default);
 
     /// <summary>
     /// Counts one attempt. Called before the provider, so a turn that fails still counts —
@@ -175,30 +175,36 @@ public sealed class AiAllowanceRepository(OrgContext orgContext, IOrgDbConnectio
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         var row = await conn.QuerySingleOrDefaultAsync(
-            "SELECT user_daily_turns, tenant_daily_turns FROM ai_daily_limits",
+            "SELECT user_daily_turns, tenant_daily_turns, private_chat FROM ai_daily_limits",
             p => { },
             r => new AiDailyLimits
             {
                 UserDailyTurns = r.GetNullableInt32("user_daily_turns"),
                 TenantDailyTurns = r.GetNullableInt32("tenant_daily_turns"),
+                PrivateChat = r.GetBoolean("private_chat"),
             }, ct);
         // No row yet means nothing was ever configured — the same as both limits cleared.
         return row ?? new AiDailyLimits();
     }
 
-    public async Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, Guid? actorUserId, CancellationToken ct = default)
+    public async Task SetDailyLimitsAsync(int? userDailyTurns, int? tenantDailyTurns, bool privateChat, Guid? actorUserId, CancellationToken ct = default)
     {
+        // Private chat keeps nothing, including what was kept before it was turned on: the
+        // delete rides the same statement so the setting and the purge cannot drift apart.
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.ExecuteAsync(@"
-            INSERT INTO ai_daily_limits (singleton, user_daily_turns, tenant_daily_turns, updated_at, updated_by_user_id)
-            VALUES (true, @user, @tenant, NOW(), @actor)
+            INSERT INTO ai_daily_limits (singleton, user_daily_turns, tenant_daily_turns, private_chat, updated_at, updated_by_user_id)
+            VALUES (true, @user, @tenant, @private, NOW(), @actor)
             ON CONFLICT (singleton) DO UPDATE SET
                 user_daily_turns   = @user,
                 tenant_daily_turns = @tenant,
+                private_chat       = @private,
                 updated_at         = NOW(),
-                updated_by_user_id = @actor",
+                updated_by_user_id = @actor;
+            DELETE FROM ai_conversations WHERE @private",
             p =>
             {
+                p.AddWithValue("private", privateChat);
                 p.AddWithValue("user", userDailyTurns.HasValue ? userDailyTurns.Value : DBNull.Value);
                 p.AddWithValue("tenant", tenantDailyTurns.HasValue ? tenantDailyTurns.Value : DBNull.Value);
                 p.AddWithValue("actor", actorUserId.HasValue ? actorUserId.Value : DBNull.Value);

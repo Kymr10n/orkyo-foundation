@@ -10,9 +10,6 @@ public interface IAiCredentialService
     /// <summary>Masked status for the admin UI. Never returns the key.</summary>
     Task<AiCredentialStatus> GetStatusAsync(CancellationToken ct = default);
 
-    /// <summary>True when a key is stored — the cheap check the chat surface needs.</summary>
-    Task<bool> IsConfiguredAsync(CancellationToken ct = default);
-
     /// <summary>Stores or replaces the workspace's key. Throws <see cref="ArgumentException"/> on an implausible key.</summary>
     Task<AiCredentialStatus> SaveAsync(string apiKey, Guid? actorUserId, CancellationToken ct = default);
 
@@ -25,6 +22,9 @@ public interface IAiCredentialService
     Task<string?> GetApiKeyAsync(CancellationToken ct = default);
 
     Task MarkVerifiedAsync(CancellationToken ct = default);
+
+    /// <summary>Records that the provider refused the key, so the assistant stops offering itself.</summary>
+    Task MarkRejectedAsync(CancellationToken ct = default);
 
     /// <summary>Audits a Test-connection attempt — outcome only, never the key.</summary>
     Task RecordTestedAsync(bool ok, string? reason, Guid? actorUserId, CancellationToken ct = default);
@@ -61,11 +61,9 @@ public sealed class AiCredentialService(
             KeyHint = row.KeyHint,
             UpdatedAt = row.UpdatedAt,
             LastVerifiedAt = row.LastVerifiedAt,
+            RejectedAt = row.RejectedAt,
         };
     }
-
-    public async Task<bool> IsConfiguredAsync(CancellationToken ct = default) =>
-        await repository.GetAsync(ct) is not null;
 
     public async Task<AiCredentialStatus> SaveAsync(string apiKey, Guid? actorUserId, CancellationToken ct = default)
     {
@@ -118,6 +116,8 @@ public sealed class AiCredentialService(
     }
 
     public Task MarkVerifiedAsync(CancellationToken ct = default) => repository.MarkVerifiedAsync(ct);
+
+    public Task MarkRejectedAsync(CancellationToken ct = default) => repository.MarkRejectedAsync(ct);
 
     public Task RecordTestedAsync(bool ok, string? reason, Guid? actorUserId, CancellationToken ct = default) =>
         tenantUserService.RecordAuditEventAsync(

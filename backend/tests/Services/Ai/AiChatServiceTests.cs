@@ -266,6 +266,19 @@ public class AiChatServiceTests
         events.OfType<AiChatEvent.Error>().Single().Code.Should().Be("refused");
     }
 
+    [Theory]
+    [InlineData("credential_invalid", 1)]
+    [InlineData("upstream_busy", 0)]
+    public async Task ARefusedKey_IsRecordedSoTheAssistantStopsOfferingItself(string code, int marks)
+    {
+        _gateway.Failure = new AiGatewayException(code, "provider said no");
+
+        var events = await RunAsync();
+
+        events.OfType<AiChatEvent.Error>().Single().Code.Should().Be(code);
+        _credentials.Verify(c => c.MarkRejectedAsync(It.IsAny<CancellationToken>()), Times.Exactly(marks));
+    }
+
     [Fact]
     public async Task ToolFailure_ComesBackAsAResultSoTheModelCanRecover()
     {

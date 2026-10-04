@@ -16,7 +16,7 @@ vi.mock('@foundation/src/lib/api/ai-api', () => ({
     yield { type: 'transcript', messages: [{ role: 'user', content: 'q' }] };
     yield { type: 'done' };
   }),
-  getAiStatus: vi.fn(async () => ({ available: true, dailyTurnLimit: null, usedTurnsToday: 0 })),
+  getAiStatus: vi.fn(async () => ({ available: true, dailyTurnLimit: null, usedTurnsToday: 0, privateChat: false })),
   listAiConversations: vi.fn(async () => []),
   getAiConversation: vi.fn(),
   saveAiConversation: vi.fn(async () => undefined),

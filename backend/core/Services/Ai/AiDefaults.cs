@@ -26,6 +26,13 @@ public static class AiDefaults
     /// </summary>
     public const int MaxToolIterations = 6;
 
+    /// <summary>
+    /// How long the assistant stays unavailable after the provider refused the key. Long
+    /// enough not to fail every visitor's first turn, short enough that topped-up credit
+    /// recovers on its own: the first turn after it tries the key again.
+    /// </summary>
+    public static readonly TimeSpan KeyRejectionHold = TimeSpan.FromHours(1);
+
     /// <summary>Wall-clock ceiling for one turn, independent of client disconnects.</summary>
     public static readonly TimeSpan TurnDeadline = TimeSpan.FromMinutes(5);
 

@@ -13,6 +13,9 @@ public sealed record AiCredentialStatus
     public string? KeyHint { get; init; }
     public DateTime? UpdatedAt { get; init; }
     public DateTime? LastVerifiedAt { get; init; }
+
+    /// <summary>When the provider last refused the key — revoked, or no credit left. Null when it has not.</summary>
+    public DateTime? RejectedAt { get; init; }
 }
 
 /// <summary>Providers this application can talk to. One, deliberately — see the plan's KISS stance.</summary>
@@ -68,6 +71,9 @@ public sealed record AiDailyLimits
 {
     public int? UserDailyTurns { get; init; }
     public int? TenantDailyTurns { get; init; }
+
+    /// <summary>True when the workspace keeps no conversations.</summary>
+    public bool PrivateChat { get; init; }
 }
 
 /// <summary>Request body for the workspace's daily interaction limits. Null clears a limit.</summary>
@@ -78,6 +84,9 @@ public sealed record SaveAiDailyLimitsRequest
 
     /// <summary>Interactions the whole workspace may make each day. Null means no limit.</summary>
     public int? TenantDailyTurns { get; init; }
+
+    /// <summary>Keep no conversations. Turning it on deletes the stored ones.</summary>
+    public bool PrivateChat { get; init; }
 }
 
 /// <summary>
@@ -87,7 +96,7 @@ public sealed record SaveAiDailyLimitsRequest
 public sealed record AiAccessDecision
 {
     public bool Allowed { get; init; }
-    /// <summary>One of: <c>not_entitled</c>, <c>not_configured</c>, <c>not_allowed</c>, <c>allowance_exhausted</c>, <c>daily_limit_reached</c>, <c>workspace_daily_limit_reached</c>. Null when allowed.</summary>
+    /// <summary>One of: <c>not_entitled</c>, <c>not_configured</c>, <c>key_rejected</c>, <c>not_allowed</c>, <c>allowance_exhausted</c>, <c>daily_limit_reached</c>, <c>workspace_daily_limit_reached</c>. Null when allowed.</summary>
     public string? Reason { get; init; }
     /// <summary>Null means unlimited (admins, or an explicit unlimited grant).</summary>
     public long? MonthlyTokenLimit { get; init; }
@@ -135,6 +144,9 @@ public sealed record AiStatus
     /// is everybody at once and an administrator can raise it.
     /// </summary>
     public bool DailyLimitIsWorkspaceWide { get; init; }
+
+    /// <summary>True when the workspace keeps no conversations, so the panel must not save one.</summary>
+    public bool PrivateChat { get; init; }
 }
 
 /// <summary>
