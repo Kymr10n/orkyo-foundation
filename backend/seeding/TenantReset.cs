@@ -50,6 +50,9 @@ public static class TenantReset
         "list_columns",
         "list_instances",
         "list_rows",
+        // Keyed by user id only, so on a shared identity every visitor reads every earlier
+        // visitor's chats. The ai_* configuration tables stay: the reset must not drop the key.
+        "ai_conversations",
     ];
 
     public static async Task TruncateAllAsync(NpgsqlConnection conn, NpgsqlTransaction tx)

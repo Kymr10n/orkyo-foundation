@@ -80,6 +80,7 @@ vi.mock('@foundation/src/contexts/AuthContext', async (importOriginal) => ({
 }));
 
 import { TenantApp } from "./TenantApp";
+import { rememberSessionEndRedirect } from "@foundation/src/lib/utils/session-end";
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
 
@@ -103,7 +104,22 @@ function renderAt(path: string) {
 
 describe("TenantApp", () => {
   beforeEach(() => {
+    sessionStorage.clear();
     vi.mocked(useAuth).mockReturnValue(authState());
+  });
+
+  // ── Shared-demo banner ────────────────────────────────────────────────
+
+  it("shows the shared-demo banner for an ephemeral session", async () => {
+    rememberSessionEndRedirect("demo");
+    renderAt("/");
+    expect(await screen.findByText(/Shared public demo/)).toBeInTheDocument();
+  });
+
+  it("shows no shared-demo banner for an ordinary session", async () => {
+    renderAt("/");
+    expect(await screen.findByTestId("app-layout")).toBeInTheDocument();
+    expect(screen.queryByText(/Shared public demo/)).not.toBeInTheDocument();
   });
 
   // ── Route rendering ───────────────────────────────────────────────────

@@ -54,6 +54,7 @@ public class TenantResetTruncateListTests
     [InlineData("list_columns")]
     [InlineData("list_instances")]
     [InlineData("list_rows")]
+    [InlineData("ai_conversations")]        // per-user chats — shared on the demo identity
     public void TablesToTruncate_ContainsExpectedTable(string tableName)
     {
         TablesToTruncate.Should().Contain(tableName,

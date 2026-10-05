@@ -51,6 +51,7 @@ public static class FloorplanEndpoints
         })
         .DisableAntiforgery()
         .Accepts<IFormFile>("multipart/form-data")
+        .DenyLockedAccount()
         .WithName("UploadFloorplan")
         .WithDescription("Upload a floorplan image for a site");
 
@@ -131,6 +132,7 @@ public static class FloorplanEndpoints
             logger.LogInformation("Deleted floorplan asset for site {SiteId}", siteId);
             return Results.NoContent();
         })
+        .DenyLockedAccount()
         .WithName("DeleteFloorplan")
         .WithDescription("Delete a site's floorplan");
     }
