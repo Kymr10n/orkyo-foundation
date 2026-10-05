@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor } from '@testing-library/react';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
@@ -90,6 +90,21 @@ describe('FeedbackButton', () => {
     const user = await openDialog();
     await user.click(screen.getByRole('button', { name: /cancel/i }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('clears its pending reset timer on unmount', async () => {
+    const user = await openDialog();
+    const set = vi.spyOn(globalThis, 'setTimeout');
+    const clear = vi.spyOn(globalThis, 'clearTimeout');
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    const reset = set.mock.results[set.mock.calls.findIndex(([, ms]) => ms === 200)]?.value;
+    expect(reset).toBeDefined();
+
+    cleanup();
+
+    expect(clear).toHaveBeenCalledWith(reset);
+    set.mockRestore();
+    clear.mockRestore();
   });
 
   it('shows description text matching the selected feedback type', async () => {
