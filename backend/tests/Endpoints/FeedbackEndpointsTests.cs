@@ -138,5 +138,28 @@ public class FeedbackEndpointsTests
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // Feedback mails the team. On a shared identity (the public demo) that is an anonymous,
+    // unlimited sender, so a locked account is refused before the handler runs and no mail goes out.
+    [Fact]
+    public async Task SubmitFeedback_LockedAccount_Returns403AndSendsNothing()
+    {
+        var before = _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync));
+        _fixture.Factory.AccountGuard.Locked = true;
+        try
+        {
+            var response = await _client.PostAsJsonAsync("/api/feedback", new CreateFeedbackRequest
+            {
+                FeedbackType = "bug",
+                Title = "Locked account feedback"
+            });
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+            Assert.Equal("account_locked", body.GetProperty("code").GetString());
+            Assert.Equal(before, _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync)));
+        }
+        finally { _fixture.Factory.AccountGuard.Locked = false; }
+    }
+
     #endregion
 }

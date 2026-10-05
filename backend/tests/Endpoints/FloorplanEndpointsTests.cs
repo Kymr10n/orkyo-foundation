@@ -15,11 +15,13 @@ public class FloorplanEndpointsTests
 {
     private static readonly Guid TenantId = TestConstants.TenantId;
 
+    private readonly FoundationWebApplicationFactory _factory;
     private readonly HttpClient _client;
     private readonly string _connectionString;
 
     public FloorplanEndpointsTests(DatabaseFixture fixture)
     {
+        _factory = fixture.Factory;
         _client = fixture.CreateAuthorizedClient();
         _connectionString = fixture.TenantConnectionString;
     }
@@ -247,6 +249,37 @@ public class FloorplanEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await ReadFloorplanAssetAsync(siteId)).Should().BeNull();
+    }
+
+    // The floorplan is what every later visitor sees, so a locked shared account (the public demo)
+    // can neither replace nor remove it. The GET stays open — the filter sits on the writes only.
+    [Fact]
+    public async Task Floorplan_LockedAccount_WritesReturn403AndKeepTheAsset()
+    {
+        var siteId = await CreateTestSiteAsync();
+        (await _client.PostAsync(
+            $"/api/sites/{siteId}/floorplan",
+            BuildImageMultipartContent(CreateTestPngImage(), "image/png", "floorplan.png")))
+            .EnsureSuccessStatusCode();
+
+        _factory.AccountGuard.Locked = true;
+        try
+        {
+            var upload = await _client.PostAsync(
+                $"/api/sites/{siteId}/floorplan",
+                BuildImageMultipartContent(CreateTestJpegImage(), "image/jpeg", "other.jpg"));
+            var delete = await _client.DeleteAsync($"/api/sites/{siteId}/floorplan");
+            var read = await _client.GetAsync($"/api/sites/{siteId}/floorplan");
+
+            upload.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            delete.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            (await delete.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
+                .Should().Be("account_locked");
+            read.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        finally { _factory.AccountGuard.Locked = false; }
+
+        (await ReadFloorplanAssetAsync(siteId))!.ContentType.Should().Be("image/png");
     }
 
     private async Task<Guid> CreateTestSiteAsync()

@@ -143,6 +143,24 @@ public static class AuthorizationExtensions
         => builder.WithMetadata(new AllowMemberWriteMarker());
 
     /// <summary>
+    /// Refuses a route for a locked shared account (see <see cref="IAccountMutationGuard"/>). For
+    /// writes whose effect reaches other people — an upload every visitor sees, a mail to the team,
+    /// leaving the shared workspace — that a shared identity must not be able to trigger.
+    /// </summary>
+    public static RouteHandlerBuilder DenyLockedAccount(this RouteHandlerBuilder builder)
+        => builder.AddEndpointFilter(async (context, next) =>
+        {
+            var services = context.HttpContext.RequestServices;
+            var guard = services.GetRequiredService<IAccountMutationGuard>();
+            var principal = services.GetRequiredService<ICurrentPrincipal>();
+            return guard.IsAccountLocked(principal)
+                ? ErrorResponses.Forbidden(
+                    code: ApiErrorCodes.AccountLocked,
+                    message: "This action is not available for a shared account.")
+                : await next(context);
+        });
+
+    /// <summary>
     /// Adds the verb-aware write gate to a group: mutating methods require Editor (or Admin when
     /// <paramref name="adminOnly"/>), unless the route carries <see cref="AllowMemberWriteMarker"/>.
     /// Stamps <see cref="AuthorizationGoverned"/> so the conformance test can prove coverage.

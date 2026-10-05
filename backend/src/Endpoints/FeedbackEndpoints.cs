@@ -45,6 +45,7 @@ public static class FeedbackEndpoints
                 return Results.Created($"/api/feedback/{feedback.Id}", feedback);
             }, logger, "submit feedback", new { request.FeedbackType, request.Title });
         })
+        .DenyLockedAccount()
         .WithName("SubmitFeedback")
         .WithSummary("Submit user feedback");
     }

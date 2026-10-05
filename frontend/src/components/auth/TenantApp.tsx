@@ -27,6 +27,8 @@ import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoundary';
 import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
+import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
+import { isEphemeralSession } from '@foundation/src/lib/utils/session-end';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ABOUT, ROUTE_ACCOUNT, ROUTE_ASSETS,
   ROUTE_CONFIGURATION, ROUTE_HOME, ROUTE_INSIGHTS, ROUTE_INSIGHTS_BOTTLENECKS,
@@ -206,6 +208,14 @@ function TenantAppRoutes({
     <>
       <FloatingThemeToggle />
       <BreakGlassBanner />
+      {isEphemeralSession() && (
+        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
+          <AlertDescription>
+            Shared public demo: other visitors see the same data, and it resets daily. Do not
+            enter real or personal information.
+          </AlertDescription>
+        </Alert>
+      )}
       <Suspense fallback={<LoadingSpinner message="Loading…" />}>
       <Routes>
         {/* /login is intentionally kept for direct navigation recovery when a
