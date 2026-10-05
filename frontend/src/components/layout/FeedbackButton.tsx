@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { MessageSquarePlus, Bug, Lightbulb, HelpCircle, MoreHorizontal, CheckCircle } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
@@ -45,6 +45,14 @@ export function FeedbackButton() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The one pending close/reset timer; cleared on unmount so it never sets state afterwards
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const schedule = (fn: () => void, ms: number) => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(fn, ms);
+  };
 
   const resetForm = () => {
     setFeedbackType('bug');
@@ -58,7 +66,7 @@ export function FeedbackButton() {
     setOpen(newOpen);
     if (!newOpen) {
       // Reset form when closing (after a short delay to not show reset during close animation)
-      setTimeout(resetForm, 200);
+      schedule(resetForm, 200);
     }
   };
 
@@ -80,7 +88,7 @@ export function FeedbackButton() {
       });
       setSubmitted(true);
       // Auto-close after success
-      setTimeout(() => {
+      schedule(() => {
         handleOpenChange(false);
       }, 1500);
     } catch (err) {
