@@ -113,7 +113,9 @@ public class UserLifecycleServiceTests
 
     /// <summary>
     /// Seeds one row per tenant-side table the purge must clear: the FK-less per-user tables
-    /// and one cascading dependent (preferences) of the <c>users</c> mirror.
+    /// and one cascading dependent (preferences) of the <c>users</c> mirror. The token hash is
+    /// derived from the user id because <c>ix_calendar_feed_tokens_hash</c> is unique and the
+    /// tests share one tenant database.
     /// </summary>
     private async Task SeedTenantUserDataAsync(Guid userId)
     {
@@ -121,7 +123,7 @@ public class UserLifecycleServiceTests
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(@"
             INSERT INTO calendar_feed_tokens (user_id, token_hash, label)
-                VALUES (@id, repeat('a', 64), 'Outlook');
+                VALUES (@id, encode(sha256(@idText::bytea), 'hex'), 'Outlook');
             INSERT INTO ai_conversations (id, user_id, title, entries, transcript)
                 VALUES (gen_random_uuid(), @id, 'Shift plan', '[]'::jsonb, '[]'::jsonb);
             INSERT INTO ai_usage (user_id, month, input_tokens, output_tokens, turns)
