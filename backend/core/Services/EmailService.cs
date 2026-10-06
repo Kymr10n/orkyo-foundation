@@ -1,5 +1,5 @@
 using Api.Configuration;
-using MimeKit;
+using Api.Repositories;
 using Orkyo.Shared;
 
 namespace Api.Services;
@@ -40,42 +40,26 @@ public interface IEmailService
     Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Retry policy for outbound SMTP sends. The default matches the behavior ported from the former
-/// private UserLifecycleService email path: 3 attempts with exponential backoff (2^attempt seconds).
-/// Tests pass a zero-backoff instance to keep failure paths fast.
-/// </summary>
-public sealed record EmailSendOptions(int MaxAttempts, Func<int, TimeSpan> Backoff)
-{
-    public static EmailSendOptions Default { get; } = new(3, attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)));
-}
-
 public class EmailService : IEmailService
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
     private readonly ITenantSettingsService _settingsService;
-    private readonly IEmailTransport _transport;
-    private readonly EmailSendOptions _sendOptions;
-
-    /// <summary>
-    /// At most 5 concurrent SMTP sends process-wide — protects the SMTP server during bulk
-    /// runs (e.g. lifecycle warnings). Ported from the former private UserLifecycleService path.
-    /// </summary>
-    private static readonly SemaphoreSlim SendThrottle = new(5, 5);
+    private readonly IEmailOutboxRepository _outbox;
+    private readonly EmailOutboxDeliverer _deliverer;
 
     public EmailService(
         IConfiguration configuration,
         ILogger<EmailService> logger,
         ITenantSettingsService settingsService,
-        IEmailTransport transport,
-        EmailSendOptions? sendOptions = null)
+        IEmailOutboxRepository outbox,
+        EmailOutboxDeliverer deliverer)
     {
         _configuration = configuration;
         _logger = logger;
         _settingsService = settingsService;
-        _transport = transport;
-        _sendOptions = sendOptions ?? EmailSendOptions.Default;
+        _outbox = outbox;
+        _deliverer = deliverer;
     }
 
     private async Task<EmailBranding> GetBrandingAsync()
@@ -108,57 +92,28 @@ public class EmailService : IEmailService
         return await SendEmailAsync(toEmail, toName, subject, htmlBody, textBody, ct);
     }
 
+    /// <summary>
+    /// Writes the rendered mail to the outbox, then makes one delivery attempt. True means the
+    /// mail is durably queued: it has either gone out or will be retried by the worker's
+    /// email-outbox job. False means it could not even be queued (the database refused the
+    /// write), which is the one case where the caller must treat the mail as not sent.
+    /// </summary>
     public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default)
     {
+        Guid id;
         try
         {
-            // The sender is the transport's: it is SMTP identity, and log-only mail has none.
-            var message = new MimeMessage();
-            message.To.Add(new MailboxAddress(toName, toEmail));
-            message.Subject = subject;
-
-            var bodyBuilder = new BodyBuilder
-            {
-                HtmlBody = htmlBody,
-                TextBody = textBody
-            };
-            message.Body = bodyBuilder.ToMessageBody();
-
-            await SendThrottle.WaitAsync(ct);
-            try
-            {
-                for (var attempt = 1; attempt <= _sendOptions.MaxAttempts; attempt++)
-                {
-                    try
-                    {
-                        await _transport.SendAsync(message, ct);
-
-                        _logger.LogInformation("Email sent successfully (subject: {Subject})", subject);
-                        return true;
-                    }
-                    catch (Exception ex) when (attempt < _sendOptions.MaxAttempts)
-                    {
-                        _logger.LogWarning(ex, "Email send attempt {Attempt}/{MaxAttempts} failed (subject: {Subject}); retrying",
-                            attempt, _sendOptions.MaxAttempts, subject);
-                        await Task.Delay(_sendOptions.Backoff(attempt), ct);
-                    }
-                }
-
-                // Unreachable with a valid EmailSendOptions (MaxAttempts >= 1): the final attempt
-                // either returns true or throws past the retry filter to the outer catch.
-                throw new System.Diagnostics.UnreachableException("EmailSendOptions.MaxAttempts must be >= 1");
-            }
-            finally
-            {
-                SendThrottle.Release();
-            }
+            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send email (subject: {Subject}) via {Transport}",
-                subject, _transport.GetType().Name);
+            _logger.LogError(ex, "Failed to queue email (subject: {Subject})", subject);
             return false;
         }
+
+        // Best effort: a failure here is recorded on the row and the worker retries.
+        await _deliverer.TryDeliverNowAsync(id, ct);
+        return true;
     }
 
     private string BuildTokenLink(string path, string queryParam, string token) =>

@@ -51,6 +51,7 @@ public static class WorkerJobNames
     public const string TenantLifecycle = "tenant-lifecycle";
     public const string UserLifecycle = "user-lifecycle";
     public const string AnnouncementBroadcast = "announcement-broadcast";
+    public const string EmailOutbox = "email-outbox";
 }
 
 public sealed class WorkerJobCoordinator : IWorkerJobCoordinator

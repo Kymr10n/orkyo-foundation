@@ -168,6 +168,10 @@ public static class FoundationServiceExtensions
         services.AddScoped<ICandidateRequestService, CandidateRequestService>();
         services.AddScoped<ICriterionValueValidator, CriterionValueValidator>();
         services.AddScoped<ICapabilityAssignmentService, CapabilityAssignmentService>();
+        // Mail is written to the outbox before any delivery attempt; the deliverer makes the
+        // attempt here and the worker's email-outbox job retries what did not go out.
+        services.AddScoped<IEmailOutboxRepository, EmailOutboxRepository>();
+        services.AddScoped<EmailOutboxDeliverer>();
         services.AddScoped<IEmailService, EmailService>();
         // Key-gated like the Turnstile provider above: no SMTP_HOST means the log-only
         // transport. Warned here rather than in core, which carries no logging framework.

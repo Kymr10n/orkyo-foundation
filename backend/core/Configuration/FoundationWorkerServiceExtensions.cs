@@ -38,6 +38,9 @@ public static class FoundationWorkerServiceExtensions
         services.AddSingleton<IWorkerJobCoordinator, WorkerJobCoordinator>();
         // The worker runs outside any tenant context, so branding falls back to defaults.
         services.AddSingleton<ITenantSettingsService, WorkerTenantSettingsService>();
+        services.AddSingleton<IEmailOutboxRepository, EmailOutboxRepository>();
+        // Also the body of the email-outbox job each product declares in its job list.
+        services.AddSingleton<EmailOutboxDeliverer>();
         services.AddSingleton<IEmailService, EmailService>();
         // No SMTP_HOST means the log-only transport. OrkyoWorkerHost logs the warning: core
         // carries no logging framework of its own.

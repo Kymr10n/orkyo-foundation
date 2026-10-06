@@ -110,8 +110,9 @@ public sealed class UserLifecycleService
             {
                 var token = SecureTokens.Generate();
 
-                // The step is committed only once the mail is out: a failed send rolls back and
-                // leaves the user where they were, so an SMTP outage cannot advance them unwarned.
+                // The step is committed only once the mail is in the outbox: a failed queue
+                // write rolls back and leaves the user where they were. Delivery itself is the
+                // outbox's job, so an SMTP outage delays the warning instead of losing it.
                 await using var tx = await db.BeginTransactionAsync(ct);
                 await UpdateLifecycleAsync(db, user.Id, status: "warned", warningCount: nextCount,
                     lastWarnedAt: _time.GetUtcNow().UtcDateTime, dormantSince: null, confirmToken: SecureTokens.LifecycleConfirmTokenHash(token), ct);

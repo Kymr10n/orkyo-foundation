@@ -1,18 +1,18 @@
 using Api.Models;
+using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MimeKit;
+using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Services;
 
 public class EmailServiceTests
 {
-    // Zero backoff keeps the transport-failure tests fast while still
-    // exercising the retry loop (3 attempts, as in production).
-    private static readonly EmailSendOptions FastRetry = new(MaxAttempts: 3, Backoff: _ => TimeSpan.Zero);
-
     private readonly Mock<IConfiguration> _mockConfiguration;
+    private readonly InMemoryEmailOutbox _outbox = new();
     private readonly EmailService _emailService;
 
     public EmailServiceTests()
@@ -28,12 +28,17 @@ public class EmailServiceTests
         _mockConfiguration.Setup(c => c["SMTP_FROM_NAME"]).Returns("Test");
         _mockConfiguration.Setup(c => c["APP_BASE_URL"]).Returns("http://localhost:5173");
 
-        _emailService = new EmailService(_mockConfiguration.Object,
+        _emailService = CreateService(_outbox, CreateTransportMock(fails: false));
+    }
+
+    /// <summary>The production shape: the service queues into the outbox and the deliverer
+    /// makes the one immediate attempt through the transport.</summary>
+    private EmailService CreateService(IEmailOutboxRepository outbox, IEmailTransport transport) =>
+        new(_mockConfiguration.Object,
             new Mock<ILogger<EmailService>>().Object,
             CreateSettingsServiceMock(),
-            CreateTransportMock(fails: false),
-            FastRetry);
-    }
+            outbox,
+            new EmailOutboxDeliverer(outbox, transport, NullLogger<EmailOutboxDeliverer>.Instance, TimeProvider.System));
 
     private static ITenantSettingsService CreateSettingsServiceMock()
     {
@@ -145,58 +150,72 @@ public class EmailServiceTests
         await act.Should().NotThrowAsync();
     }
 
-    private EmailService CreateFailingTransportService() =>
-        new(_mockConfiguration.Object,
-            new Mock<ILogger<EmailService>>().Object,
-            CreateSettingsServiceMock(),
-            CreateTransportMock(fails: true),
-            FastRetry);
+    private (EmailService Service, InMemoryEmailOutbox Outbox) CreateFailingTransportService()
+    {
+        var outbox = new InMemoryEmailOutbox();
+        return (CreateService(outbox, CreateTransportMock(fails: true)), outbox);
+    }
 
     [Fact]
-    public async Task SendEmailAsync_WhenTransportFails_ShouldReturnFalse()
+    public async Task SendEmailAsync_WhenTransportSucceeds_QueuesTheMailAndMarksItSent()
     {
-        var service = CreateFailingTransportService();
+        var result = await _emailService.SendEmailAsync("to@example.com", "User", "Subject", "<p>html</p>", "text");
+
+        result.Should().BeTrue();
+        var row = _outbox.Single();
+        row.Status.Should().Be("sent");
+        row.Attempts.Should().Be(1);
+        row.HtmlBody.Should().BeNull("bodies carry live tokens and are cleared on delivery");
+        row.TextBody.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SendEmailAsync_WhenTransportFails_QueuesTheMailAndLeavesItPendingForTheWorker()
+    {
+        var (service, outbox) = CreateFailingTransportService();
+
         var result = await service.SendEmailAsync("to@example.com", "User", "Subject", "<p>html</p>", "text");
-        result.Should().BeFalse();
+
+        result.Should().BeTrue("the mail is durable in the outbox; delivery is the outbox's job");
+        var row = outbox.Single();
+        row.Status.Should().Be("pending");
+        row.Attempts.Should().Be(1);
+        row.LastError.Should().Contain("transport unavailable");
+        row.NextAttemptAtUtc.Should().BeAfter(DateTime.UtcNow, "the retry is scheduled, not immediate");
+        row.HtmlBody.Should().Be("<p>html</p>", "an undelivered mail keeps its body for the retry");
     }
 
     [Fact]
-    public async Task SendWelcomeEmailAsync_WhenTransportFails_ShouldReturnFalse()
+    public async Task SendEmailAsync_WhenTheOutboxWriteFails_ReturnsFalse()
     {
-        var service = CreateFailingTransportService();
-        var result = await service.SendWelcomeEmailAsync("to@example.com", "User");
-        result.Should().BeFalse();
+        var outbox = new Mock<IEmailOutboxRepository>();
+        outbox.Setup(o => o.EnqueueAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("database unavailable"));
+        var service = CreateService(outbox.Object, CreateTransportMock(fails: false));
+
+        var result = await service.SendEmailAsync("to@example.com", "User", "Subject", "<p>html</p>", "text");
+
+        result.Should().BeFalse("a mail that could not be queued is the one case the caller must treat as not sent");
     }
 
     [Fact]
-    public async Task SendInvitationEmailAsync_WhenTransportFails_ShouldReturnFalse()
+    public async Task TemplatedSends_WhenTransportFails_AreQueuedNotLost()
     {
-        var service = CreateFailingTransportService();
-        var result = await service.SendInvitationEmailAsync("to@example.com", "inv-token", DateTime.UtcNow.AddDays(7));
-        result.Should().BeFalse();
-    }
+        var (service, outbox) = CreateFailingTransportService();
 
-    [Fact]
-    public async Task SendLifecycleWarningEmailAsync_WhenTransportFails_ShouldReturnFalse()
-    {
-        var service = CreateFailingTransportService();
-        var result = await service.SendLifecycleWarningEmailAsync("to@example.com", "User", "confirm-token", 1);
-        result.Should().BeFalse();
-    }
+        (await service.SendWelcomeEmailAsync("to@example.com", "User")).Should().BeTrue();
+        (await service.SendInvitationEmailAsync("to@example.com", "inv-token", DateTime.UtcNow.AddDays(7))).Should().BeTrue();
+        (await service.SendLifecycleWarningEmailAsync("to@example.com", "User", "confirm-token", 1)).Should().BeTrue();
+        (await service.SendDormancyNoticeEmailAsync("to@example.com", "User")).Should().BeTrue();
 
-    [Fact]
-    public async Task SendDormancyNoticeEmailAsync_WhenTransportFails_ShouldReturnFalse()
-    {
-        var service = CreateFailingTransportService();
-        var result = await service.SendDormancyNoticeEmailAsync("to@example.com", "User");
-        result.Should().BeFalse();
+        outbox.Rows.Should().HaveCount(4).And.AllSatisfy(r => r.Status.Should().Be("pending"));
     }
 
     [Fact]
     public async Task SendNewUserAlertAsync_WhenAdminEmailConfigured_ShouldNotThrow()
     {
         _mockConfiguration.Setup(c => c["ALERT_EMAIL_TO"]).Returns("admin@example.com");
-        var service = CreateFailingTransportService();
+        var (service, _) = CreateFailingTransportService();
 
         var act = async () => await service.SendNewUserAlertAsync("user@example.com", "Alice");
         await act.Should().NotThrowAsync();
@@ -206,34 +225,40 @@ public class EmailServiceTests
     public async Task SendNewTenantAlertAsync_WhenAdminEmailConfigured_ShouldNotThrow()
     {
         _mockConfiguration.Setup(c => c["ALERT_EMAIL_TO"]).Returns("admin@example.com");
-        var service = CreateFailingTransportService();
+        var (service, _) = CreateFailingTransportService();
 
         var act = async () => await service.SendNewTenantAlertAsync("my-slug", "My Tenant", "owner@example.com");
         await act.Should().NotThrowAsync();
     }
 
     [Fact]
-    public async Task NewLifecycleAndAdminSends_WhenTransportFails_ReturnFalse()
+    public async Task NewLifecycleAndAdminSends_WhenTransportFails_AreQueuedForRetry()
     {
-        // Exercises the template-build + dispatch path for every email added 2026-06 (covers the
-        // EmailService delegations). Unreachable SMTP → false, deterministic in CI.
-        var s = CreateFailingTransportService();
-        (await s.SendTenantInactivityWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();
-        (await s.SendTenantSuspendedAsync("a@x.com", "Acme", "https://app", 90)).Should().BeFalse();
-        (await s.SendTenantDeletingWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeFalse();
-        (await s.SendTenantDeletedAsync("a@x.com", "Acme")).Should().BeFalse();
-        (await s.SendTenantWelcomeAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
-        (await s.SendRoleChangedAsync("a@x.com", "Acme", "editor", "https://app")).Should().BeFalse();
-        (await s.SendMemberRemovedAsync("a@x.com", "Acme")).Should().BeFalse();
-        (await s.SendOwnershipReceivedAsync("a@x.com", "Acme", "https://app")).Should().BeFalse();
-        (await s.SendOwnershipTransferredAsync("a@x.com", "Acme", "new@x.com")).Should().BeFalse();
-        (await s.SendQuotaLimitReachedAsync("a@x.com", "Acme", "active seats", 25, "https://app")).Should().BeFalse();
-        (await s.SendTierChangedAsync("a@x.com", "Acme", "professional", "https://app")).Should().BeFalse();
-        (await s.SendPasswordChangedAsync("a@x.com", "Dana")).Should().BeFalse();
-        (await s.SendMfaChangedAsync("a@x.com", "Dana", true)).Should().BeFalse();
-        (await s.SendMfaChangedAsync("a@x.com", "Dana", false)).Should().BeFalse();
-        (await s.SendEmailChangeRequestedOldAddressAsync("a@x.com", "Dana", "new@x.com")).Should().BeFalse();
-        (await s.SendEmailChangedAsync("a@x.com", "Dana", "new@x.com")).Should().BeFalse();
+        // Exercises the template-build + queue path for every email added 2026-06 (covers the
+        // EmailService delegations). Unreachable SMTP leaves each one pending in the outbox.
+        var (s, outbox) = CreateFailingTransportService();
+        (await s.SendTenantInactivityWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeTrue();
+        (await s.SendTenantSuspendedAsync("a@x.com", "Acme", "https://app", 90)).Should().BeTrue();
+        (await s.SendTenantDeletingWarningAsync("a@x.com", "Acme", "https://app", 7)).Should().BeTrue();
+        (await s.SendTenantDeletedAsync("a@x.com", "Acme")).Should().BeTrue();
+        (await s.SendTenantWelcomeAsync("a@x.com", "Acme", "https://app")).Should().BeTrue();
+        (await s.SendRoleChangedAsync("a@x.com", "Acme", "editor", "https://app")).Should().BeTrue();
+        (await s.SendMemberRemovedAsync("a@x.com", "Acme")).Should().BeTrue();
+        (await s.SendOwnershipReceivedAsync("a@x.com", "Acme", "https://app")).Should().BeTrue();
+        (await s.SendOwnershipTransferredAsync("a@x.com", "Acme", "new@x.com")).Should().BeTrue();
+        (await s.SendQuotaLimitReachedAsync("a@x.com", "Acme", "active seats", 25, "https://app")).Should().BeTrue();
+        (await s.SendTierChangedAsync("a@x.com", "Acme", "professional", "https://app")).Should().BeTrue();
+        (await s.SendPasswordChangedAsync("a@x.com", "Dana")).Should().BeTrue();
+        (await s.SendMfaChangedAsync("a@x.com", "Dana", true)).Should().BeTrue();
+        (await s.SendMfaChangedAsync("a@x.com", "Dana", false)).Should().BeTrue();
+        (await s.SendEmailChangeRequestedOldAddressAsync("a@x.com", "Dana", "new@x.com")).Should().BeTrue();
+        (await s.SendEmailChangedAsync("a@x.com", "Dana", "new@x.com")).Should().BeTrue();
+
+        outbox.Rows.Should().HaveCount(16).And.AllSatisfy(r =>
+        {
+            r.Status.Should().Be("pending");
+            r.Attempts.Should().Be(1);
+        });
     }
 }
 
