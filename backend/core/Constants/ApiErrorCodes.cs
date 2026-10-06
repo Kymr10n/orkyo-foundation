@@ -21,6 +21,12 @@ public static class ApiErrorCodes
     /// <summary>A mail the operation depends on could not be sent (502); nothing was changed.</summary>
     public const string EmailDeliveryFailed = "email_delivery_failed";
 
+    /// <summary>Self-service account deletion refused (409): the caller owns an organization.</summary>
+    public const string AccountOwnsOrganizations = "account_owns_organizations";
+
+    /// <summary>Self-service account deletion refused (409): the caller is an organization's only active admin.</summary>
+    public const string AccountLastAdmin = "account_last_admin";
+
     /// <summary>Resource not found (404)</summary>
     public const string NotFound = "NOT_FOUND";
 

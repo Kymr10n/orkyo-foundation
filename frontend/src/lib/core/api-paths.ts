@@ -155,6 +155,8 @@ export const API_PATHS = {
     PROFILE: '/api/account/profile',
     EMAIL: '/api/account/email',
     NOTIFICATION_PREFERENCES: '/api/account/notification-preferences',
+    EXPORT: '/api/account/export',
+    DELETE: '/api/account/delete',
     session: (sessionId: string) => `/api/account/sessions/${sessionId}`,
   },
 

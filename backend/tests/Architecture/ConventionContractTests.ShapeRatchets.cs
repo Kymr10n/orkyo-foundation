@@ -62,6 +62,7 @@ public partial class ConventionContractTests
         // not error responses — Results.Ok would lose the formatting.
         "src:Endpoints/PresetEndpoints.cs",
         "src:Endpoints/ExportEndpoints.cs",
+        "src:Endpoints/AccountLifecycleEndpoints.cs",
         // The reporting surface's own error shape (see ReportingErrorShapeFiles).
         "src:Endpoints/Reporting/ReportingEndpoints.cs",
     };

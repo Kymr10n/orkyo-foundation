@@ -222,6 +222,8 @@ public static class FoundationServiceExtensions
         services.AddScoped<IPlatformTenantAuditWriter, PlatformTenantAuditWriter>();
         services.AddScoped<ISignInAuditRecorder, SignInAuditRecorder>();
         services.AddScoped<IUserManagementService, UserManagementService>();
+        services.AddScoped<IPersonalDataExportService, PersonalDataExportService>();
+        services.AddScoped<IAccountDeletionService, AccountDeletionService>();
         services.AddScoped<IUtilizationService, UtilizationService>();
         // The conflict timeline is the same answer for every report on the page — it varies by
         // window and site, never by resource type — so it is computed behind its own cache and

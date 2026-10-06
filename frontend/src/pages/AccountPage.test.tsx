@@ -59,6 +59,8 @@ vi.mock("@foundation/src/lib/api/tenant-account-api", () => ({
   getTenantMemberships: () => mockGetTenantMemberships(),
   leaveTenant: (...args: unknown[]) => mockLeaveTenant(...args),
   deleteTenant: (...args: unknown[]) => mockDeleteTenant(...args),
+  exportPersonalData: vi.fn(),
+  deleteOwnAccount: vi.fn(),
 }));
 
 // Mock security-api (used by Profile tab)

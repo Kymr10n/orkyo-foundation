@@ -12,6 +12,12 @@ namespace Api.Validators;
 /// assembly (Core cannot reference them). Registered by the same
 /// <c>AddValidatorsFromAssemblyContaining&lt;RequestEmailChangeRequestValidator&gt;()</c> scan.
 /// </summary>
+public class DeleteAccountRequestValidator : AbstractValidator<DeleteAccountRequest>
+{
+    public DeleteAccountRequestValidator() =>
+        RuleFor(x => x.ConfirmEmail).NotEmpty().EmailAddress();
+}
+
 public class AddGroupCapabilityRequestValidator : AbstractValidator<AddGroupCapabilityRequest>
 {
     public AddGroupCapabilityRequestValidator() =>

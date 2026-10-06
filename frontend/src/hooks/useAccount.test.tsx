@@ -4,10 +4,51 @@ import { toast } from 'sonner';
 import * as securityApi from '@foundation/src/lib/api/security-api';
 import { createTestQueryClient } from '@foundation/src/test-utils';
 import * as tenantAccountApi from '@foundation/src/lib/api/tenant-account-api';
-import { useDeleteTenant, useRequestEmailChange, useTenantMemberships } from './useAccount';
+import {
+  useDeleteOwnAccount,
+  useDeleteTenant,
+  useExportPersonalData,
+  useRequestEmailChange,
+  useTenantMemberships,
+} from './useAccount';
+import { downloadFile } from '@foundation/src/lib/utils/import-export';
 
 vi.mock('@foundation/src/lib/api/security-api');
 vi.mock('@foundation/src/lib/api/tenant-account-api');
+vi.mock('@foundation/src/lib/utils/import-export', () => ({ downloadFile: vi.fn() }));
+
+describe('useExportPersonalData', () => {
+  it('toasts when the export cannot be prepared and downloads nothing', async () => {
+    vi.mocked(tenantAccountApi.exportPersonalData).mockRejectedValue(new Error('Server down'));
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useExportPersonalData(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync().catch(() => {});
+    });
+
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith('Could not prepare your data export', { description: 'Server down' }),
+    );
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+});
+
+describe('useDeleteOwnAccount', () => {
+  it('passes the typed email through and reports a failure inline only', async () => {
+    vi.mocked(tenantAccountApi.deleteOwnAccount).mockRejectedValue(new Error('You are the only admin of ACME.'));
+    const { wrapper } = createTestQueryClient({ feedback: true });
+    const { result } = renderHook(() => useDeleteOwnAccount(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync('alex@example.com').catch(() => {});
+    });
+
+    expect(tenantAccountApi.deleteOwnAccount).toHaveBeenCalledWith('alex@example.com');
+    await waitFor(() => expect(result.current.error?.message).toBe('You are the only admin of ACME.'));
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+});
 
 describe('useRequestEmailChange', () => {
   it('reports a failure inline only: no error toast next to the alert', async () => {

@@ -19,6 +19,10 @@ export const API_ERROR_CODES = {
   QUOTA_EXCEEDED: 'quota_exceeded',
   /** The server could not deliver a mail the action depends on (e.g. an email-change confirmation). */
   EMAIL_DELIVERY_FAILED: 'email_delivery_failed',
+  /** Self-service account deletion refused: the caller still owns an organization. */
+  ACCOUNT_OWNS_ORGANIZATIONS: 'account_owns_organizations',
+  /** Self-service account deletion refused: the caller is an organization's only active admin. */
+  ACCOUNT_LAST_ADMIN: 'account_last_admin',
 } as const;
 
 /**

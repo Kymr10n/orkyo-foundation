@@ -6,7 +6,9 @@ import {
   canCreateTenant,
   cancelTenantDeletion,
   createTenant,
+  deleteOwnAccount,
   deleteTenant,
+  exportPersonalData,
   getStarterTemplates,
   getTenantMemberships,
   leaveTenant,
@@ -19,6 +21,25 @@ vi.mock("../core/api-client");
 const noTenant = expect.objectContaining({ omitHeaders: [TENANT_HEADER_NAME] });
 
 describe("tenant-account-api", () => {
+  it("exportPersonalData reads the person's export without a tenant", async () => {
+    const doc = { schemaVersion: "1.0" };
+    vi.mocked(apiClient.apiGet).mockResolvedValue(doc);
+
+    expect(await exportPersonalData()).toEqual(doc);
+    expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ACCOUNT.EXPORT, noTenant);
+  });
+
+  it("deleteOwnAccount posts the typed email and expects an empty body", async () => {
+    vi.mocked(apiClient.apiPost).mockResolvedValue(undefined);
+
+    await deleteOwnAccount("alex@example.com");
+    expect(apiClient.apiPost).toHaveBeenCalledWith(
+      API_PATHS.ACCOUNT.DELETE,
+      { confirmEmail: "alex@example.com" },
+      expect.objectContaining({ omitHeaders: [TENANT_HEADER_NAME], skipJsonParse: true }),
+    );
+  });
+
   it("canCreateTenant reads the quota answer", async () => {
     const answer = { canCreate: true, currentCount: 1, maxAllowed: 5 };
     vi.mocked(apiClient.apiGet).mockResolvedValue(answer);

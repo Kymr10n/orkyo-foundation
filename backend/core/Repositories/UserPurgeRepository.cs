@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Services;
 using Npgsql;
@@ -57,6 +58,39 @@ public sealed class UserPurgeRepository
         while (await reader.ReadAsync(ct))
             databases.Add(reader.GetString("db_identifier"));
         return databases;
+    }
+
+    /// <summary>Names of the organizations the user owns, excluding ones already being deleted.</summary>
+    public async Task<List<string>> ListOwnedTenantNamesAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.QueryListAsync(
+            "SELECT display_name FROM tenants WHERE owner_user_id = @id AND status <> 'deleting' ORDER BY display_name",
+            p => p.AddWithValue("id", userId), r => r.GetString("display_name"), ct);
+    }
+
+    /// <summary>
+    /// Names of the organizations where the user is the only active admin: the read-only form of
+    /// <see cref="ActiveAdminGuard"/>'s rule, asked before an erasure rather than enforced by it.
+    /// </summary>
+    public async Task<List<string>> ListTenantNamesWhereLastActiveAdminAsync(Guid userId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.QueryListAsync(@"
+            SELECT t.display_name
+            FROM tenant_memberships m JOIN tenants t ON t.id = m.tenant_id
+            WHERE m.user_id = @id AND m.role = @adminRole AND m.status = @active AND t.status <> 'deleting'
+              AND NOT EXISTS (
+                  SELECT 1 FROM tenant_memberships o
+                  WHERE o.tenant_id = m.tenant_id AND o.user_id <> m.user_id
+                    AND o.role = @adminRole AND o.status = @active)
+            ORDER BY t.display_name",
+            p =>
+            {
+                p.AddWithValue("id", userId);
+                p.AddWithValue("adminRole", RoleConstants.Admin);
+                p.AddWithValue("active", MembershipStatusConstants.Active);
+            }, r => r.GetString("display_name"), ct);
     }
 
     /// <summary>Removes the user's rows from one tenant database, in one transaction.</summary>
