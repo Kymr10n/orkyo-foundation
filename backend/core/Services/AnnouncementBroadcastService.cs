@@ -71,7 +71,9 @@ public sealed class AnnouncementBroadcastService : IAnnouncementBroadcastService
                 }
             });
 
-            // Mark complete even if some individual sends failed — announcements are not re-broadcast.
+            // Each send is a row in the mail outbox, so a failed attempt is retried by the
+            // email-outbox job; marking the announcement complete records that every recipient
+            // has been queued, and announcements are not re-broadcast.
             await _repository.MarkEmailSentAsync(announcement.Id, ct);
             _logger.LogInformation("Announcement {AnnouncementId} email broadcast complete", announcement.Id);
         }

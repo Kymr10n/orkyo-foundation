@@ -15,6 +15,17 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   (CVE-2026-84939) and Jackson (CVE-2026-68497). Only the `mssql-jdbc` false positive remains.
 
 ### Added
+- **Mail goes through a transactional outbox.** `EmailService` writes every rendered mail to the
+  new control-plane `email_outbox` table (migration 1210) before the first delivery attempt, so a
+  crash, an OOM kill or a slot drain between "decided to send" and "sent" loses nothing. The
+  attempt that follows is best effort; `EmailOutboxDeliverer` retries pending rows from the
+  worker's new `email-outbox` job (`WorkerJobNames.EmailOutbox`) on a growing schedule and marks a
+  mail dead after ten attempts. Bodies carry live tokens, so they are cleared on delivery; sent
+  rows are pruned after a day, dead rows after thirty. `IEmailService.Send*Async` now returns true
+  when the mail is durably queued and false only when the queue write itself failed. **Products
+  add the job** to their worker's list: `new WorkerJob(WorkerJobNames.EmailOutbox, (_, _) => true,
+  ct => deliverer.DeliverPendingAsync(ct))`; until they do, a mail the first attempt could not
+  deliver waits in the table.
 - **Presets carry resource types, applicability, typed groups and sample resources (schema 1.1.0).**
   `PresetContents` gains `ResourceTypes` (a catalog key is activated from the catalog spec, any other
   key is an ad-hoc type) and `Resources` (named rooms, people, machines, tools with capabilities and
@@ -128,6 +139,9 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   `LastUpdateEmailCall` are removed** (no callers; `UpdateEmailForAccountAsync` and its counters stay).
 
 ### Removed
+- **`EmailSendOptions` and the in-process SMTP retry loop.** The outbox is the retry; the
+  `EmailService` constructor takes `IEmailOutboxRepository` and `EmailOutboxDeliverer` instead of
+  `IEmailTransport` and `EmailSendOptions`. No consumer constructed the service directly.
 - **Declutter, backend (package API).** Deleted with zero callers in either product: `ICriteriaService`
   and `CriteriaService` (endpoints take `ICriteriaRepository`), `EffectiveConfig`, the `Tenant`, `Site`
   and `UserIdentity` models in `Auth.cs`, `PredecessorLogics`, `UpsertResourceCapabilityRequest` and
