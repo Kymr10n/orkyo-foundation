@@ -16,7 +16,9 @@ namespace Api.Services;
 ///   2. No response in 14 days    → warning email #2.
 ///   3. No response in 14 days    → warning email #3 (final).
 ///   4. No response in 14 days    → account disabled in Keycloak (dormant), dormancy notice sent.
-///   5. Dormant 90+ days          → purged from Keycloak and app data deleted.
+///   5. Dormant 90+ days          → purged from Keycloak and app data deleted, in every tenant
+///                                  database the person belonged to and then the control plane
+///                                  (<see cref="UserDataPurger"/>).
 ///
 /// State is stored in the <c>users</c> table (lifecycle_* columns).
 /// Reset occurs on login (<c>/api/session/bootstrap</c>) or confirm-activity link.
@@ -35,6 +37,7 @@ public sealed class UserLifecycleService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _time;
+    private readonly UserDataPurger _purger;
 
     public UserLifecycleService(
         ILogger<UserLifecycleService> logger,
@@ -46,6 +49,7 @@ public sealed class UserLifecycleService
         _connectionFactory = connectionFactory;
         _scopeFactory = scopeFactory;
         _time = time;
+        _purger = new UserDataPurger(connectionFactory, logger);
     }
 
     public async Task ProcessAsync(CancellationToken ct)
@@ -221,11 +225,9 @@ public sealed class UserLifecycleService
                     }
                 }
 
-                await using var tx = await db.BeginTransactionAsync(ct);
-                await using var deleteCmd = new Npgsql.NpgsqlCommand("DELETE FROM users WHERE id = @id", db);
-                deleteCmd.Parameters.AddWithValue("id", user.Id);
-                await deleteCmd.ExecuteNonQueryAsync(ct);
-                await tx.CommitAsync(ct);
+                // Tenant databases first, control plane last. An unreachable tenant database
+                // throws out of here, the row stays dormant, and the next run retries.
+                await _purger.PurgeAsync(user.Id, ct);
 
                 _logger.LogWarning("GDPR purge: user {UserId} permanently deleted", user.Id);
             }

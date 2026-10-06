@@ -77,6 +77,12 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   allow-list can drift safely.
 
 ### Fixed
+- **The user purge erases tenant data too.** The GDPR lifecycle purge and the site-admin permanent
+  delete removed the control-plane `users` row only. The mirror row in each tenant database the
+  person belonged to stayed, with their calendar feed tokens, assistant conversations, allowances
+  and usage. Both paths now run `UserDataPurger`: every tenant database first, the control plane
+  last, so an unreachable tenant database leaves the person in the purge queue for the next run
+  instead of a half-erased account.
 - **Utilization reported every resource as "Off" at Month and Year scale.** Two independent causes,
   both a boolean where the truth was a fraction. The frontend asked whether any off-time range
   *overlapped* a bucket; at Month scale a bucket is a week and the page supplies one range per

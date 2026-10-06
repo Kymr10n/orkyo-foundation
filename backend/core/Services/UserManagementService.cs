@@ -17,7 +17,10 @@ public interface IUserManagementService
     /// <summary>Updates users.status globally. Accepts only <see cref="UserStatusConstants"/> values.</summary>
     Task SetGlobalStatusAsync(Guid userId, string status, CancellationToken ct = default);
 
-    /// <summary>Hard-deletes the user row; cascade removes memberships and identities.</summary>
+    /// <summary>
+    /// Erases the user everywhere: their rows in every tenant database they belong to, then the
+    /// control-plane row (cascade removes memberships and identities). See <see cref="UserDataPurger"/>.
+    /// </summary>
     Task PermanentlyDeleteAsync(Guid userId, CancellationToken ct = default);
 }
 
@@ -145,14 +148,7 @@ public class UserManagementService : IUserManagementService
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    public async Task PermanentlyDeleteAsync(Guid userId, CancellationToken ct = default)
-    {
-        await using var conn = _connectionFactory.CreateControlPlaneConnection();
-        await conn.OpenAsync(ct);
-
-        await using var cmd = new NpgsqlCommand("DELETE FROM users WHERE id = @userId", conn);
-        cmd.Parameters.AddWithValue("userId", userId);
-        await cmd.ExecuteNonQueryAsync(ct);
-    }
+    public Task PermanentlyDeleteAsync(Guid userId, CancellationToken ct = default) =>
+        new UserDataPurger(_connectionFactory, _logger).PurgeAsync(userId, ct);
 
 }
