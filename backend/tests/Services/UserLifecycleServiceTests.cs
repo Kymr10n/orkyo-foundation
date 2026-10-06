@@ -18,6 +18,7 @@ public class UserLifecycleServiceTests
     private readonly MockKeycloakAdminService _mockKeycloak;
     private readonly MockEmailService _mockEmail;
     private readonly string _cpConnectionString;
+    private readonly string _tenantConnectionString;
 
     public UserLifecycleServiceTests(DatabaseFixture databaseFixture)
     {
@@ -27,6 +28,7 @@ public class UserLifecycleServiceTests
         _mockEmail = _factory.MockEmailService;
         _mockEmail.Reset();
         _cpConnectionString = databaseFixture.ControlPlaneConnectionString;
+        _tenantConnectionString = databaseFixture.TenantConnectionString;
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────
@@ -50,11 +52,12 @@ public class UserLifecycleServiceTests
         int? lastWarnedDaysAgo = null,
         int? dormantDaysAgo = null,
         string? keycloakId = null,
-        int? lastLoginDaysAgo = null)
+        int? lastLoginDaysAgo = null,
+        string? tenantSlug = null)
     {
         var email = $"ulc_{Guid.NewGuid()}@example.com";
         var userId = await DatabaseTestUtils.CreateTestUserAsync(
-            email, displayName: "Lifecycle Service Test", tenantSlug: null, active: true);
+            email, displayName: "Lifecycle Service Test", tenantSlug: tenantSlug, active: true);
 
         var warnedSql = lastWarnedDaysAgo is null ? "NULL" : "NOW() - make_interval(days => @warnedDaysAgo)";
         var dormantSql = dormantDaysAgo is null ? "NULL" : "NOW() - make_interval(days => @dormantDaysAgo)";
@@ -106,6 +109,56 @@ public class UserLifecycleServiceTests
         await using var cmd = new NpgsqlCommand("DELETE FROM users WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", userId);
         await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>
+    /// Seeds one row per tenant-side table the purge must clear: the FK-less per-user tables
+    /// and one cascading dependent (preferences) of the <c>users</c> mirror. The token hash is
+    /// derived from the user id because <c>ix_calendar_feed_tokens_hash</c> is unique and the
+    /// tests share one tenant database.
+    /// </summary>
+    private async Task SeedTenantUserDataAsync(Guid userId)
+    {
+        await using var conn = new NpgsqlConnection(_tenantConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(@"
+            INSERT INTO calendar_feed_tokens (user_id, token_hash, label)
+                VALUES (@id, encode(sha256(@idText::bytea), 'hex'), 'Outlook');
+            INSERT INTO ai_conversations (id, user_id, title, entries, transcript)
+                VALUES (gen_random_uuid(), @id, 'Shift plan', '[]'::jsonb, '[]'::jsonb);
+            INSERT INTO ai_usage (user_id, month, input_tokens, output_tokens, turns)
+                VALUES (@id, date_trunc('month', NOW())::date, 10, 20, 1);
+            INSERT INTO ai_daily_usage (subject, day, turns)
+                VALUES (@idText, CURRENT_DATE, 1);
+            INSERT INTO ai_user_allowances (user_id, monthly_token_limit)
+                VALUES (@id, 1000);
+            INSERT INTO user_preferences (user_id, preferences)
+                VALUES (@id, '{""theme"":""dark""}'::jsonb)", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        cmd.Parameters.AddWithValue("idText", userId.ToString());
+        await cmd.ExecuteNonQueryAsync();
+    }
+
+    /// <summary>Rows that still name the user in the tenant database, per table.</summary>
+    private async Task<Dictionary<string, long>> CountTenantUserRowsAsync(Guid userId)
+    {
+        await using var conn = new NpgsqlConnection(_tenantConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(@"
+            SELECT 'users',                (SELECT count(*) FROM users                WHERE id = @id)
+            UNION ALL SELECT 'calendar_feed_tokens', (SELECT count(*) FROM calendar_feed_tokens WHERE user_id = @id)
+            UNION ALL SELECT 'ai_conversations',     (SELECT count(*) FROM ai_conversations     WHERE user_id = @id)
+            UNION ALL SELECT 'ai_usage',             (SELECT count(*) FROM ai_usage             WHERE user_id = @id)
+            UNION ALL SELECT 'ai_daily_usage',       (SELECT count(*) FROM ai_daily_usage       WHERE subject = @idText)
+            UNION ALL SELECT 'ai_user_allowances',   (SELECT count(*) FROM ai_user_allowances   WHERE user_id = @id)
+            UNION ALL SELECT 'user_preferences',     (SELECT count(*) FROM user_preferences     WHERE user_id = @id)", conn);
+        cmd.Parameters.AddWithValue("id", userId);
+        cmd.Parameters.AddWithValue("idText", userId.ToString());
+        var counts = new Dictionary<string, long>();
+        await using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            counts[reader.GetString(0)] = reader.GetInt64(1);
+        return counts;
     }
 
     // ─── warning phase ──────────────────────────────────────────────────────────
@@ -324,5 +377,63 @@ public class UserLifecycleServiceTests
         _mockKeycloak.DeleteUserCallCount.Should().Be(0);
         var (exists, _, _, _) = await GetUserStateAsync(userId);
         exists.Should().BeFalse();
+    }
+
+    // ─── purge reaches the tenant databases ─────────────────────────────────────
+
+    [Fact]
+    public async Task ProcessAsync_DormantPastRetention_PurgesTheUsersRowsInEveryTenantDatabase()
+    {
+        var userId = await CreateLifecycleUserAsync(
+            lifecycleStatus: "dormant", warningCount: 3, dormantDaysAgo: 91,
+            tenantSlug: TestConstants.TenantSlug);
+        await SeedTenantUserDataAsync(userId);
+        (await CountTenantUserRowsAsync(userId)).Values.Should().AllSatisfy(n => n.Should().Be(1),
+            "the seed must put one row in every table the purge is responsible for");
+
+        await ProcessAsync();
+
+        var (exists, _, _, _) = await GetUserStateAsync(userId);
+        exists.Should().BeFalse("the control-plane row goes last");
+        var counts = await CountTenantUserRowsAsync(userId);
+        counts.Should().HaveCount(7);
+        counts.Should().AllSatisfy(kv => kv.Value.Should().Be(0,
+            $"the purge must clear {kv.Key} in the tenant database — a GDPR erasure that leaves the mirror behind is no erasure"));
+    }
+
+    [Fact]
+    public async Task ProcessAsync_WhenATenantDatabaseIsUnreachable_KeepsTheControlPlaneRowForTheNextRun()
+    {
+        // A registered tenant whose database does not exist: the purge cannot prove the
+        // person's rows there are gone, so it must not delete the control-plane row either.
+        var (ghostTenantId, _) = await DatabaseTestUtils.CreateTestTenantAsync("ghost");
+        var userId = await CreateLifecycleUserAsync(
+            lifecycleStatus: "dormant", warningCount: 3, dormantDaysAgo: 91,
+            tenantSlug: TestConstants.TenantSlug);
+        await SeedTenantUserDataAsync(userId);
+        try
+        {
+            await using (var conn = new NpgsqlConnection(_cpConnectionString))
+            {
+                await conn.OpenAsync();
+                await using var cmd = new NpgsqlCommand(@"
+                    INSERT INTO tenant_memberships (user_id, tenant_id, role, status, created_at, updated_at)
+                    VALUES (@userId, @tenantId, 'viewer', 'active', NOW(), NOW())", conn);
+                cmd.Parameters.AddWithValue("userId", userId);
+                cmd.Parameters.AddWithValue("tenantId", ghostTenantId);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            await ProcessAsync();
+
+            var (exists, lifecycleStatus, _, _) = await GetUserStateAsync(userId);
+            exists.Should().BeTrue("a purge that could not reach every tenant database must leave the account in the queue");
+            lifecycleStatus.Should().Be("dormant");
+        }
+        finally
+        {
+            await DeleteUserAsync(userId);
+            await DatabaseTestUtils.DeleteTestTenantAsync(ghostTenantId);
+        }
     }
 }
