@@ -42,6 +42,7 @@ public static class FoundationEndpointExtensions
         app.MapAutoScheduleEndpoints();
         app.MapConflictsEndpoints();
         app.MapContactEndpoints();
+        app.MapClientErrorEndpoints();
         app.MapCriteriaEndpoints();
         app.MapCriterionApplicabilityEndpoints();
         app.MapExportEndpoints();

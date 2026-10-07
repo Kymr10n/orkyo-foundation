@@ -1,5 +1,11 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { initRUM } from "./rum";
+import { installGlobalErrorHandlers, reportWebVital } from "./client-errors";
+
+vi.mock("./client-errors", () => ({
+  installGlobalErrorHandlers: vi.fn(),
+  reportWebVital: vi.fn(),
+}));
 
 // Control isDev so we can cover both dev and non-dev record() paths
 const { mockRuntimeConfig } = vi.hoisted(() => ({
@@ -68,10 +74,22 @@ describe("rum", () => {
   });
 
   describe("production build", () => {
-    it("registers no observer, so nothing runs and nothing is kept", () => {
+    it("installs the global error handlers and ships LCP and CLS to the server, not the console", () => {
       mockRuntimeConfig.isDev = false;
       initRUM();
-      expect(capturedCallbacks).toEqual({});
+      expect(installGlobalErrorHandlers).toHaveBeenCalledTimes(1);
+      expect(Object.keys(capturedCallbacks).sort()).toEqual(["largest-contentful-paint", "layout-shift"]);
+
+      capturedCallbacks["largest-contentful-paint"]?.({ getEntries: () => [{ startTime: 1200 }] });
+      expect(reportWebVital).toHaveBeenCalledWith("LCP", 1200);
+      expect(console.log).not.toHaveBeenCalled();
+    });
+
+    it("keeps FID and long tasks development-only", () => {
+      mockRuntimeConfig.isDev = false;
+      initRUM();
+      expect(capturedCallbacks["first-input"]).toBeUndefined();
+      expect(capturedCallbacks.longtask).toBeUndefined();
     });
   });
 

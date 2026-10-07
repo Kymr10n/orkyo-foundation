@@ -23,6 +23,7 @@ public static class FoundationRateLimitPolicies
     public const string BffAuth = "bff-auth";
     public const string ReportingApi = "reporting-api";
     public const string McpApi = "mcp-api";
+    public const string ClientErrors = "client-errors";
 }
 
 /// <summary>
@@ -83,6 +84,14 @@ public static class RateLimitingServiceExtensions
                 RateLimitPartition.GetFixedWindowLimiter(
                     IpKey(ctx),
                     _ => Window(permitLimit: 5, TimeSpan.FromHours(1))));
+
+            // ClientErrorEndpoints — per-IP ceiling on browser error reports. The frontend caps
+            // itself at ten reports per page load and samples vitals; this bounds a client that
+            // does not, or a script that posts here directly.
+            options.AddPolicy(FoundationRateLimitPolicies.ClientErrors, ctx =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    IpKey(ctx),
+                    _ => Window(permitLimit: 30, TimeSpan.FromMinutes(1))));
 
             // BffAuthEndpoints — per-IP ceiling on the anonymous login/callback/logout endpoints.
             options.AddPolicy(FoundationRateLimitPolicies.BffAuth, ctx =>

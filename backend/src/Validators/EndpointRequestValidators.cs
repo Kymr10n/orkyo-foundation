@@ -12,6 +12,30 @@ namespace Api.Validators;
 /// assembly (Core cannot reference them). Registered by the same
 /// <c>AddValidatorsFromAssemblyContaining&lt;RequestEmailChangeRequestValidator&gt;()</c> scan.
 /// </summary>
+public class ClientReportRequestValidator : AbstractValidator<ClientReportRequest>
+{
+    public ClientReportRequestValidator()
+    {
+        RuleFor(x => x.Kind).NotEmpty().Must(ClientReportKinds.All.Contains)
+            .WithMessage($"Kind must be one of: {string.Join(", ", ClientReportKinds.All)}.");
+        RuleFor(x => x.Message).MaximumLength(DomainLimits.ClientReportMessageMaxLength);
+        RuleFor(x => x.Stack).MaximumLength(DomainLimits.ClientReportStackMaxLength);
+        RuleFor(x => x.ComponentStack).MaximumLength(DomainLimits.ClientReportStackMaxLength);
+        RuleFor(x => x.Route).MaximumLength(DomainLimits.ClientReportRouteMaxLength);
+        RuleFor(x => x.Release).MaximumLength(DomainLimits.ClientReportReleaseMaxLength);
+
+        When(x => x.Kind == ClientReportKinds.Vital, () =>
+        {
+            RuleFor(x => x.VitalName).NotEmpty().Must(n => ClientReportKinds.VitalNames.Contains(n!))
+                .WithMessage($"VitalName must be one of: {string.Join(", ", ClientReportKinds.VitalNames)}.");
+            RuleFor(x => x.VitalValue).NotNull().GreaterThanOrEqualTo(0);
+        }).Otherwise(() =>
+        {
+            RuleFor(x => x.Message).NotEmpty();
+        });
+    }
+}
+
 public class DeleteAccountRequestValidator : AbstractValidator<DeleteAccountRequest>
 {
     public DeleteAccountRequestValidator() =>

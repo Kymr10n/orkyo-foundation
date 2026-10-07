@@ -2,6 +2,7 @@ import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertCircle, RefreshCw, RotateCcw } from 'lucide-react';
 import { Button } from '@foundation/src/components/ui/button';
 import { logger } from '@foundation/src/lib/core/logger';
+import { reportClientError } from '@foundation/src/lib/core/client-errors';
 import { isStaleChunkError } from '@foundation/src/lib/core/stale-chunk';
 
 interface RouteErrorBoundaryProps {
@@ -63,6 +64,8 @@ export class RouteErrorBoundary extends Component<RouteErrorBoundaryProps, Route
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     logger.error(`RouteErrorBoundary${this.props.label ? ` [${this.props.label}]` : ''}:`, error, info.componentStack);
+    // The console line above dies with the tab; this one reaches the server's log.
+    reportClientError('render', error, { componentStack: info.componentStack ?? undefined });
   }
 
   private reset = () => {
