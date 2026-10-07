@@ -6,11 +6,14 @@ import {
   updateUserProfile,
 } from "@foundation/src/lib/api/security-api";
 import {
+  deleteOwnAccount,
   deleteTenant,
+  exportPersonalData,
   getTenantMemberships,
   leaveTenant,
   type AccountMembership,
 } from "@foundation/src/lib/api/tenant-account-api";
+import { downloadFile } from "@foundation/src/lib/utils/import-export";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { logger } from "@foundation/src/lib/core/logger";
 import { useInvalidateKeys } from "@foundation/src/hooks/useInvalidateKeys";
@@ -82,6 +85,21 @@ export const useTenantMemberships = () => {
 /** Leave one organization. No `meta`: the account page shows a failure inline. */
 export const useLeaveTenant = () =>
   useMutation({ mutationFn: (tenantId: string) => leaveTenant(tenantId) });
+
+/** Download the signed-in person's data as a JSON file named by the day. */
+export const useExportPersonalData = () =>
+  useMutation({
+    mutationFn: async () => {
+      const data = await exportPersonalData();
+      const day = new Date().toISOString().slice(0, 10);
+      downloadFile(JSON.stringify(data, null, 2), `orkyo-personal-data-${day}.json`, "application/json");
+    },
+    meta: { errorMessage: "Could not prepare your data export" },
+  });
+
+/** Permanently delete the signed-in person's account. No `meta`: the confirm dialog shows a failure inline. */
+export const useDeleteOwnAccount = () =>
+  useMutation({ mutationFn: (confirmEmail: string) => deleteOwnAccount(confirmEmail) });
 
 /**
  * Start deleting one organization. Without `meta` the account page shows a failure inline;

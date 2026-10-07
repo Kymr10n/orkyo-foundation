@@ -19,6 +19,8 @@ public static class SecurityAuditActions
     public const string UserDeactivated = "user.deactivated";
     public const string UserReactivated = "user.reactivated";
     public const string UserDeleted = "user.deleted";
+    /// <summary>The person erased their own account (self-service, no tenant).</summary>
+    public const string AccountDeleted = "account.deleted";
     public const string SiteAdminGranted = "site_admin.granted";
     public const string SiteAdminRevoked = "site_admin.revoked";
 }

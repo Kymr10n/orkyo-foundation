@@ -35,6 +35,7 @@ import { Building2, LogOut, Trash2, ArrowRight, Crown, AlertCircle, ChevronLeft,
 import { useAuth, type AppUser, type TenantMembership as AuthTenantMembership } from "@foundation/src/contexts/AuthContext";
 import { SecuritySettings } from "@foundation/src/components/settings/SecuritySettings";
 import { NotificationPreferencesSection } from "@foundation/src/components/settings/NotificationPreferencesSection";
+import { DataPrivacySection } from "@foundation/src/components/settings/DataPrivacySection";
 import { FocusedPageLayout } from "@foundation/src/components/layout/FocusedPageLayout";
 import { PageHeader } from "@foundation/src/components/layout/PageHeader";
 import { PageTabs } from "@foundation/src/components/layout/PageTabs";
@@ -513,6 +514,13 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
 
           <div className="mt-6">
             <NotificationPreferencesSection locked={accountLocked} />
+          </div>
+
+          <div className="mt-6">
+            <DataPrivacySection
+              email={profile?.email ?? appUser?.email ?? ""}
+              locked={accountLocked}
+            />
           </div>
 
         </TabsContent>

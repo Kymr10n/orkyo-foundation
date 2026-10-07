@@ -81,8 +81,69 @@ public static class AccountLifecycleEndpoints
         .WithSummary("Confirm account activity from lifecycle warning email")
         .WithTags("Account")
         .WithMetadata(new SkipTenantResolutionAttribute());
+
+        // GET /api/account/export — everything stored about the caller, as a JSON download
+        // (GDPR Art. 15 / 20). Account-scoped: it spans every organization the person belongs
+        // to, so it carries no tenant and is not behind the tenant export's tier gate.
+        app.MapGet("/api/account/export", async (
+            ICurrentPrincipal principal,
+            IPersonalDataExportService exportService,
+            CancellationToken ct) =>
+        {
+            var export = await exportService.ExportAsync(principal.RequireUserId(), ct);
+            return export is null ? Results.NotFound() : Results.Json(export, DownloadJson.Options);
+        })
+        .RequireAuthorization()
+        .WithMetadata(new SkipTenantResolutionAttribute())
+        .WithName("ExportPersonalData")
+        .WithSummary("Download the personal data Orkyo holds about the signed-in user")
+        .WithTags("Account");
+
+        // POST /api/account/delete — self-service erasure (GDPR Art. 17). The caller types their
+        // email to confirm. Refused for a shared/locked identity, for an organization owner and
+        // for an organization's last active admin; the 409 names the organizations.
+        app.MapPost("/api/account/delete", async (
+            DeleteAccountRequest request,
+            IValidator<DeleteAccountRequest> validator,
+            ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
+            IAccountDeletionService deletionService,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
+            var userId = principal.RequireUserId();
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var result = await deletionService.DeleteOwnAccountAsync(userId, request.ConfirmEmail, ct);
+                return result.Outcome switch
+                {
+                    AccountDeletionOutcome.Deleted => Results.NoContent(),
+                    AccountDeletionOutcome.NotFound => Results.NotFound(),
+                    AccountDeletionOutcome.EmailMismatch => ErrorResponses.BadRequest(
+                        "The email address you typed does not match your account."),
+                    AccountDeletionOutcome.OwnsOrganizations => ProblemResults.Problem(
+                        StatusCodes.Status409Conflict, ApiErrorCodes.AccountOwnsOrganizations,
+                        detail: $"You own {Join(result.Organizations)}. Delete the organization or transfer ownership first.",
+                        title: "Account owns organizations"),
+                    AccountDeletionOutcome.LastAdmin => ProblemResults.Problem(
+                        StatusCodes.Status409Conflict, ApiErrorCodes.AccountLastAdmin,
+                        detail: $"You are the only admin of {Join(result.Organizations)}. Promote another member to admin first.",
+                        title: "Account is the last admin"),
+                    _ => throw new InvalidOperationException($"Unhandled outcome {result.Outcome}"),
+                };
+            }, logger, "delete own account");
+        })
+        .RequireAuthorization()
+        .WithMetadata(new SkipTenantResolutionAttribute())
+        .WithName("DeleteOwnAccount")
+        .WithSummary("Permanently delete the signed-in user's account and personal data")
+        .WithTags("Account");
     }
+
+    private static string Join(IReadOnlyList<string> names) => string.Join(", ", names);
 }
+
+public sealed record DeleteAccountRequest(string ConfirmEmail);
 
 public sealed record RequestEmailChangeRequest(string NewEmail);
 

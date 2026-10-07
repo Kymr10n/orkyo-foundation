@@ -90,6 +90,26 @@ export async function deleteTenant(tenantId: string): Promise<void> {
 }
 
 /**
+ * Everything Orkyo stores about the signed-in person, across every organization (GDPR
+ * access/portability). Returned as the parsed JSON document; the caller offers it as a file.
+ */
+export async function exportPersonalData(): Promise<unknown> {
+  return apiGet<unknown>(API_PATHS.ACCOUNT.EXPORT, tenantOptions);
+}
+
+/**
+ * Permanently delete the signed-in person's account and data. `confirmEmail` must match the
+ * account's email; a 409 names the organizations that must be handed over or deleted first.
+ */
+export async function deleteOwnAccount(confirmEmail: string): Promise<void> {
+  await apiPost<void>(
+    API_PATHS.ACCOUNT.DELETE,
+    { confirmEmail },
+    { ...tenantOptions, skipJsonParse: true },
+  );
+}
+
+/**
  * Cancel a pending tenant deletion (owner only, during grace period)
  */
 export async function cancelTenantDeletion(tenantId: string): Promise<void> {

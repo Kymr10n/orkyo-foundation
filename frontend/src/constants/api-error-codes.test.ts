@@ -3,8 +3,8 @@ import { API_ERROR_CODES } from "./api-error-codes";
 import type { ApiErrorBody } from "./api-error-codes";
 
 describe("API_ERROR_CODES", () => {
-  it("has 7 error codes", () => {
-    expect(Object.keys(API_ERROR_CODES)).toHaveLength(7);
+  it("has 9 error codes", () => {
+    expect(Object.keys(API_ERROR_CODES)).toHaveLength(9);
   });
 
   it("values are all lowercase snake_case", () => {
