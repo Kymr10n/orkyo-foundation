@@ -163,6 +163,9 @@ export const API_PATHS = {
   // Preferences
   PREFERENCES: '/api/preferences',
 
+  // Browser error and web-vital beacon (lib/core/client-errors.ts)
+  CLIENT_ERRORS: '/api/client-errors',
+
   // Announcements
   ANNOUNCEMENTS: '/api/announcements',
   announcementRead: (id: string) => `/api/announcements/${id}/read`,

@@ -8,11 +8,14 @@
  *   - Cumulative Layout Shift (CLS)
  *   - Long tasks (> 50ms)
  *
- * Development only: the vitals are logged to the console and nowhere else. In a
- * production build `initRUM` registers no observer, so nothing runs and nothing is kept.
+ * In development every vital is logged to the console. In a production build LCP, CLS and
+ * TTFB go to the server through `client-errors.ts`, sampled, as structured log events; FID and
+ * long tasks stay development-only. `initRUM` also installs the global error handlers, so a
+ * product's one call at startup covers both.
  */
 
 import { runtimeConfig } from '@foundation/src/config/runtime';
+import { installGlobalErrorHandlers, reportWebVital, type WebVitalName } from './client-errors';
 
 interface WebVital {
   name: string;
@@ -42,6 +45,11 @@ function rate(
 // ── Reporting ───────────────────────────────────────────────────────────────
 
 function record(vital: WebVital) {
+  if (!runtimeConfig.isDev) {
+    if (vital.name === "LCP" || vital.name === "CLS" || vital.name === "TTFB")
+      reportWebVital(vital.name as WebVitalName, vital.value);
+    return;
+  }
   const colour =
     vital.rating === "good"
       ? "color: green"
@@ -154,15 +162,19 @@ function observeLongTasks() {
 // ── Public API ──────────────────────────────────────────────────────────────
 
 /**
- * Initialize all RUM observers in development. Call once at app startup (e.g. in main.tsx);
- * in a production build it does nothing.
+ * Initialize RUM. Call once at app startup (e.g. in main.tsx). In every build it installs the
+ * global error handlers and observes LCP, CLS and navigation timing; FID and long tasks are
+ * development-only noise.
  */
 export function initRUM() {
-  if (typeof window === "undefined" || !runtimeConfig.isDev) return;
+  if (typeof window === "undefined") return;
 
+  installGlobalErrorHandlers();
   observeLCP();
-  observeFID();
   observeCLS();
   observeNavigation();
+  if (!runtimeConfig.isDev) return;
+
+  observeFID();
   observeLongTasks();
 }

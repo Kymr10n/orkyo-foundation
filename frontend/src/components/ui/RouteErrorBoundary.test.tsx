@@ -6,8 +6,12 @@ import { RouteErrorBoundary } from './RouteErrorBoundary';
 vi.mock('@foundation/src/lib/core/logger', () => ({
   logger: { error: vi.fn() },
 }));
+vi.mock('@foundation/src/lib/core/client-errors', () => ({
+  reportClientError: vi.fn(),
+}));
 
 import { logger } from '@foundation/src/lib/core/logger';
+import { reportClientError } from '@foundation/src/lib/core/client-errors';
 
 // Suppress React's noisy console.error for caught errors in tests
 beforeEach(() => {
@@ -37,6 +41,19 @@ describe('RouteErrorBoundary', () => {
     );
     expect(screen.getByText('Something went wrong')).toBeInTheDocument();
     expect(screen.getByText('boom')).toBeInTheDocument();
+  });
+
+  it('reports the caught error to the server with its component stack', () => {
+    render(
+      <RouteErrorBoundary label="page">
+        <Bomb shouldThrow />
+      </RouteErrorBoundary>,
+    );
+    expect(reportClientError).toHaveBeenCalledWith(
+      'render',
+      expect.objectContaining({ message: 'boom' }),
+      expect.objectContaining({ componentStack: expect.stringContaining('Bomb') }),
+    );
   });
 
   it('includes label in fallback text when provided', () => {

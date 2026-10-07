@@ -37,6 +37,9 @@ public static class AuthorizationContract
         // membership but deliberately has no write gate (a viewer manages their own feeds), so
         // it carries no governed marker and stays on this list.
         "/api/calendar/subscriptions",
+        // The browser's error beacon: anonymous by design (the login page can fail before any
+        // session exists) and it changes nothing — one structured log event per report.
+        "/api/client-errors",
     ];
 
     /// <summary>
@@ -55,6 +58,7 @@ public static class AuthorizationContract
         "/api/auth/bff/me",
         "/api/auth/create-account",
         "/api/calendar/feed/{token}.ics",
+        "/api/client-errors",
         "/api/contact/",
         "/api/invitations/accept",
         "/api/invitations/validate",

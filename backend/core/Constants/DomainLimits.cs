@@ -76,6 +76,18 @@ public static class DomainLimits
     /// <summary>Maximum length for an email address — matches users.email VARCHAR(320).</summary>
     public const int EmailMaxLength = 320;
 
+    /// <summary>A browser error message: one line of an exception, with room for a long URL in it.</summary>
+    public const int ClientReportMessageMaxLength = 2000;
+
+    /// <summary>A browser stack trace or React component stack, truncated by the frontend before sending.</summary>
+    public const int ClientReportStackMaxLength = 8000;
+
+    /// <summary>A route path as the frontend reports it (pathname only, never query or host).</summary>
+    public const int ClientReportRouteMaxLength = 500;
+
+    /// <summary>A package version string such as <c>1.4.0</c> or a nightly prerelease.</summary>
+    public const int ClientReportReleaseMaxLength = 100;
+
     /// <summary>
     /// Maximum length for a first or a last name. The display name is "first last" in
     /// users.display_name VARCHAR(255), so each half gets 127.
