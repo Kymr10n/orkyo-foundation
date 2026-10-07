@@ -53,8 +53,21 @@ jobs:
           token: ${{ secrets.GHCR_TOKEN }}
           path: orkyo-community
 
+      # Optional: the realm contract below reads the production realm when infra is present.
+      - name: Checkout orkyo-infra
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: kymr10n/orkyo-infra
+          token: ${{ secrets.GHCR_TOKEN }}
+          path: orkyo-infra
+
       - name: Check synced files (G4)
         run: bash orkyo-foundation/scripts/ci/check-synced-files.sh "$GITHUB_WORKSPACE"
+
+      # Every realm export keeps the names the code reads (roles, backend client, theme), none
+      # lists client scopes, and the two orkyo-saas local copies differ only where documented.
+      - name: Check Keycloak realm contract
+        run: python3 orkyo-foundation/scripts/ci/check-realm-contract.py "$GITHUB_WORKSPACE"
 
       - name: Check frontend path collisions (G8)
         run: bash orkyo-foundation/scripts/ci/check-frontend-path-collisions.sh "$GITHUB_WORKSPACE"
