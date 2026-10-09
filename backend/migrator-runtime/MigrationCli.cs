@@ -98,34 +98,10 @@ public static class MigrationCli
                 var tenants = await registry.ListActiveTenantsAsync(connectionString, cancellationToken);
                 tenants = ApplyTenantFilter(tenants, parsed);
 
-                logger.LogInformation("== Tenant migrations ({Mode}): {Count} tenant(s) ==",
-                    migrationOptions.Mode, tenants.Count);
+                logger.LogInformation("== Tenant migrations ({Mode}): {Count} tenant(s), {Concurrency} at a time ==",
+                    migrationOptions.Mode, tenants.Count, options.TenantConcurrency);
 
-                foreach (var tenant in tenants)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    logger.LogInformation("-- tenant {Slug} ({Id}) --", tenant.Slug, tenant.Id);
-
-                    // Tenant databases may not yet exist (new tenants provisioned via a seed
-                    // migration, CI environments, first-run deployments). Apply creates the
-                    // database if absent — a no-op for already-provisioned tenants. Validate
-                    // must not change what it inspects, so a missing database fails the check.
-                    if (migrationOptions.Mode == MigrationExecutionMode.Apply)
-                        EnsureDatabase.For.PostgresqlDatabase(tenant.ConnectionString);
-
-                    // Lock on the DATABASE NAME, not the tenant UUID: TenantProvisioningService
-                    // locks the same database as `orkyo:tenant:{dbIdentifier}` while creating it,
-                    // and the two keys must hash identically or a migrate run and a concurrent
-                    // provisioning of the same DB would not mutually exclude.
-                    var tenantDbName = new NpgsqlConnectionStringBuilder(tenant.ConnectionString).Database;
-                    var tResults = await runner.RunAsync(
-                        tenant.ConnectionString,
-                        MigrationTargetDatabase.Tenant,
-                        $"orkyo:tenant:{tenantDbName}",
-                        migrationOptions,
-                        cancellationToken);
-                    ReportRun(logger, $"tenant:{tenant.Slug}", tResults);
-                }
+                await RunTenantsAsync(logger, runner, tenants, migrationOptions, options.TenantConcurrency, cancellationToken);
             }
 
             if (migrationOptions.Mode == MigrationExecutionMode.ValidateOnly)
@@ -154,6 +130,116 @@ public static class MigrationCli
         {
             logger.LogCritical(ex, "Migration failed: {Message}", ex.Message);
             return 1;
+        }
+    }
+
+    private sealed record TenantRun(TenantDatabase Tenant, IReadOnlyList<MigrationResult> Results, Exception? Error, TimeSpan Elapsed);
+
+    /// <summary>
+    /// Migrates the tenants with at most <paramref name="concurrency"/> in flight. Each run is
+    /// independent (own advisory lock, own connections), so the only shared thing is the bound.
+    /// The first failure cancels the tenants not yet started; the ones in flight finish, so a
+    /// tenant is never left half-migrated by this layer. Every run is reported, then the
+    /// failures throw once, with the deploy stopping as it did when the loop was sequential.
+    /// The per-tenant duration is the number the deploy window grows with (saas#295).
+    /// </summary>
+    private static async Task RunTenantsAsync(
+        ILogger logger,
+        MigrationRunner runner,
+        IReadOnlyList<TenantDatabase> tenants,
+        MigrationOptions migrationOptions,
+        int concurrency,
+        CancellationToken cancellationToken)
+    {
+        using var stopOnFailure = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var slots = new SemaphoreSlim(concurrency, concurrency);
+        var phase = System.Diagnostics.Stopwatch.StartNew();
+
+        var runs = await Task.WhenAll(tenants.Select(async tenant =>
+        {
+            try
+            {
+                await slots.WaitAsync(stopOnFailure.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Another tenant failed before this one started: not attempted, not an error of its own.
+                return new TenantRun(tenant, [], null, TimeSpan.Zero);
+            }
+            try
+            {
+                var run = await RunTenantAsync(logger, runner, tenant, migrationOptions, cancellationToken);
+                if (run.Error is not null) stopOnFailure.Cancel();
+                return run;
+            }
+            finally
+            {
+                slots.Release();
+            }
+        }));
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var attempted = runs.Where(r => r.Results.Count > 0 || r.Error is not null).ToList();
+        var failed = runs.Where(r => r.Error is not null).ToList();
+        var slowest = attempted.OrderByDescending(r => r.Elapsed).FirstOrDefault();
+        logger.LogInformation(
+            "Tenant migrations: {Attempted} of {Total} tenant(s) in {Seconds:F1}s, {Concurrency} at a time; slowest {SlowestSlug} at {SlowestMs} ms; mean {MeanMs} ms",
+            attempted.Count, tenants.Count, phase.Elapsed.TotalSeconds, concurrency,
+            slowest?.Tenant.Slug ?? "-", (long)(slowest?.Elapsed.TotalMilliseconds ?? 0),
+            attempted.Count == 0 ? 0 : (long)attempted.Average(r => r.Elapsed.TotalMilliseconds));
+
+        if (failed.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"{failed.Count} tenant migration(s) failed: {string.Join(", ", failed.Select(f => f.Tenant.Slug))}. "
+                + $"{tenants.Count - attempted.Count} tenant(s) were not attempted. See log for details.",
+                failed[0].Error);
+        }
+    }
+
+    private static async Task<TenantRun> RunTenantAsync(
+        ILogger logger,
+        MigrationRunner runner,
+        TenantDatabase tenant,
+        MigrationOptions migrationOptions,
+        CancellationToken cancellationToken)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        try
+        {
+            logger.LogInformation("-- tenant {Slug} ({Id}) --", tenant.Slug, tenant.Id);
+
+            // Tenant databases may not yet exist (new tenants provisioned via a seed
+            // migration, CI environments, first-run deployments). Apply creates the
+            // database if absent — a no-op for already-provisioned tenants. Validate
+            // must not change what it inspects, so a missing database fails the check.
+            if (migrationOptions.Mode == MigrationExecutionMode.Apply)
+                EnsureDatabase.For.PostgresqlDatabase(tenant.ConnectionString);
+
+            // Lock on the DATABASE NAME, not the tenant UUID: TenantProvisioningService
+            // locks the same database as `orkyo:tenant:{dbIdentifier}` while creating it,
+            // and the two keys must hash identically or a migrate run and a concurrent
+            // provisioning of the same DB would not mutually exclude.
+            var tenantDbName = new NpgsqlConnectionStringBuilder(tenant.ConnectionString).Database;
+            var results = await runner.RunAsync(
+                tenant.ConnectionString,
+                MigrationTargetDatabase.Tenant,
+                $"orkyo:tenant:{tenantDbName}",
+                migrationOptions,
+                cancellationToken);
+            ReportRun(logger, $"tenant:{tenant.Slug}", results);
+            logger.LogInformation("tenant:{Slug}: done in {Ms} ms", tenant.Slug, watch.ElapsedMilliseconds);
+            return new TenantRun(tenant, results, null, watch.Elapsed);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "tenant:{Slug}: failed after {Ms} ms — {Message}", tenant.Slug, watch.ElapsedMilliseconds, ex.Message);
+            return new TenantRun(tenant, [], ex, watch.Elapsed);
         }
     }
 
@@ -279,5 +365,6 @@ internal static class CliUsage
         Optional env:
           APP_VERSION                       recorded as applied_by_version
           MIGRATION_LOCK_TIMEOUT_SECONDS    advisory-lock acquisition timeout (default 60)
+          MIGRATION_TENANT_CONCURRENCY      tenant databases migrated at once (default 4; 1 = sequential)
         """;
 }

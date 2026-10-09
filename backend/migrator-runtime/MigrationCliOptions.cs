@@ -9,16 +9,25 @@ namespace Orkyo.Migrator;
 /// <param name="ControlPlaneConnectionString">The control-plane database (Community: its only database).</param>
 /// <param name="AppVersion">Recorded as <c>applied_by_version</c>; null when unknown.</param>
 /// <param name="LockTimeoutSeconds">Advisory-lock acquisition timeout.</param>
+/// <param name="TenantConcurrency">
+/// How many tenant databases migrate at once. Each tenant takes its own advisory lock and its
+/// own connections, so the runs are independent; the bound keeps the migrator's connection
+/// use inside the budget (<c>docs/40-compose-stacks.md</c> in orkyo-infra). 1 is the
+/// sequential behaviour the migrator had before 1.5.0.
+/// </param>
 public sealed record MigrationCliOptions(
     string ControlPlaneConnectionString,
     string? AppVersion = null,
-    int LockTimeoutSeconds = MigrationCliOptions.DefaultLockTimeoutSeconds)
+    int LockTimeoutSeconds = MigrationCliOptions.DefaultLockTimeoutSeconds,
+    int TenantConcurrency = MigrationCliOptions.DefaultTenantConcurrency)
 {
     public const string ConnectionStringEnvVar = "ConnectionStrings__ControlPlane";
     public const string LegacyConnectionStringEnvVar = "CONTROL_PLANE_CONNECTION_STRING";
     public const string AppVersionEnvVar = "APP_VERSION";
     public const string LockTimeoutEnvVar = "MIGRATION_LOCK_TIMEOUT_SECONDS";
+    public const string TenantConcurrencyEnvVar = "MIGRATION_TENANT_CONCURRENCY";
     public const int DefaultLockTimeoutSeconds = 60;
+    public const int DefaultTenantConcurrency = 4;
 
     public static MigrationCliOptions FromEnvironment() => FromEnvironment(Environment.GetEnvironmentVariable);
 
@@ -37,18 +46,20 @@ public sealed record MigrationCliOptions(
         }
 
         var appVersion = read(AppVersionEnvVar);
+        var lockTimeout = PositiveInt(read, LockTimeoutEnvVar, DefaultLockTimeoutSeconds);
+        var tenantConcurrency = PositiveInt(read, TenantConcurrencyEnvVar, DefaultTenantConcurrency);
+        return new MigrationCliOptions(
+            connectionString, string.IsNullOrEmpty(appVersion) ? null : appVersion, lockTimeout, tenantConcurrency);
+    }
 
-        var rawTimeout = read(LockTimeoutEnvVar);
-        var lockTimeout = DefaultLockTimeoutSeconds;
-        if (!string.IsNullOrWhiteSpace(rawTimeout))
+    private static int PositiveInt(Func<string, string?> read, string name, int fallback)
+    {
+        var raw = read(name);
+        if (string.IsNullOrWhiteSpace(raw)) return fallback;
+        if (!int.TryParse(raw, out var value) || value <= 0)
         {
-            if (!int.TryParse(rawTimeout, out lockTimeout) || lockTimeout <= 0)
-            {
-                throw new InvalidOperationException(
-                    $"{LockTimeoutEnvVar} must be a positive integer (got '{rawTimeout}').");
-            }
+            throw new InvalidOperationException($"{name} must be a positive integer (got '{raw}').");
         }
-
-        return new MigrationCliOptions(connectionString, string.IsNullOrEmpty(appVersion) ? null : appVersion, lockTimeout);
+        return value;
     }
 }
