@@ -481,6 +481,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          # This job never pushes; nothing it runs later should find a git credential.
           persist-credentials: false
 
       # detect-changes does not run on tags, so this job derives KC_VERSION itself.
@@ -509,6 +510,13 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+
+      # Install first, before any registry login and with no token on disk: foundation's
+      # own dependencies are public, so a dependency's install script runs with nothing
+      # to steal. The publish token is written only for the publish step, below.
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -553,15 +561,6 @@ jobs:
             --skip-duplicate
 
       # ── npm package ───────────────────────────────────────────────────────
-      - name: Configure npm for GitHub Packages
-        run: |
-          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> frontend/.npmrc
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
       - name: Set npm package version
         run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
         working-directory: frontend
@@ -569,6 +568,11 @@ jobs:
       - name: Build type declarations
         run: npm run typecheck
         working-directory: frontend
+
+      - name: Configure npm for GitHub Packages (publish only)
+        run: |
+          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> frontend/.npmrc
 
       - name: Publish npm package
         run: |
@@ -579,6 +583,10 @@ jobs:
               || exit $CODE
           }
         working-directory: frontend
+
+      - name: Remove the npm token
+        if: always()
+        run: rm -f frontend/.npmrc
 
       # ── KC image promotion (re-tag, no rebuild) ───────────────────────────
       - name: Promote KC image to version tags
@@ -781,6 +789,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          # This job never pushes; nothing it runs later should find a git credential.
 
       - name: Compute nightly version
         id: version
@@ -813,6 +822,13 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # Install first, before any registry login and with no token on disk: foundation's
+      # own dependencies are public, so a dependency's install script runs with nothing
+      # to steal. The publish token is written only for the publish step, below.
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
       - name: Restore
         run: dotnet restore Orkyo.Foundation.slnx --locked-mode
 
@@ -832,15 +848,6 @@ jobs:
             --api-key ${{ secrets.GITHUB_TOKEN }} \
             --skip-duplicate
 
-      - name: Configure npm for GitHub Packages
-        run: |
-          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> frontend/.npmrc
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
       - name: Set npm package version
         run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
         working-directory: frontend
@@ -848,6 +855,11 @@ jobs:
       - name: Build type declarations
         run: npm run typecheck
         working-directory: frontend
+
+      - name: Configure npm for GitHub Packages (publish only)
+        run: |
+          echo "@kymr10n:registry=https://npm.pkg.github.com" > frontend/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> frontend/.npmrc
 
       - name: Publish npm package (dist-tag nightly)
         run: |
@@ -858,6 +870,10 @@ jobs:
               || exit $CODE
           }
         working-directory: frontend
+
+      - name: Remove the npm token
+        if: always()
+        run: rm -f frontend/.npmrc
 
       - name: Update dist-tag next → this nightly
         run: npm dist-tag add @kymr10n/foundation@${{ steps.version.outputs.VERSION }} next

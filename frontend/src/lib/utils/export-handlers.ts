@@ -62,9 +62,9 @@ export async function exportUtilization(
     resources.map((r) => [r.id, { name: r.name, typeKey: r.resourceTypeKey }]),
   );
 
-  // Dynamically import PDF export to reduce initial bundle size
-  const { exportGanttChartToPDF } = await import('./gantt-pdf-export');
-  exportGanttChartToPDF({
+  // Dynamic import: the print markup and styles stay out of the main chunk.
+  const { printGanttChart } = await import('./gantt-print');
+  printGanttChart({
     requests,
     resources: resourceMap,
     resourceTypes,
