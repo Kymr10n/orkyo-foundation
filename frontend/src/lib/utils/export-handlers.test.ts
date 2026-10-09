@@ -18,7 +18,7 @@ import {
   exportUtilization,
 } from './export-handlers';
 import { getResources } from '@foundation/src/lib/api/resources-api';
-import { exportGanttChartToPDF } from './gantt-pdf-export';
+import { printGanttChart } from './gantt-print';
 import type { Request, Conflict } from '@foundation/src/types/requests';
 import type { Criterion } from '@foundation/src/types/criterion';
 import type { Site } from '@foundation/src/types/site';
@@ -40,9 +40,9 @@ vi.mock('./import-export', async () => {
   };
 });
 
-// Mock gantt-pdf-export
-vi.mock('./gantt-pdf-export', () => ({
-  exportGanttChartToPDF: vi.fn(),
+// Mock the print module: exportUtilization only has to hand it the right data.
+vi.mock('./gantt-print', () => ({
+  printGanttChart: vi.fn(),
 }));
 
 // Mock the resources API — exportUtilization fetches row labels from it.
@@ -569,7 +569,7 @@ describe('Export Handlers', () => {
   describe('exportUtilization', () => {
     beforeEach(() => {
       vi.mocked(getResources).mockReset();
-      vi.mocked(exportGanttChartToPDF).mockClear();
+      vi.mocked(printGanttChart).mockClear();
     });
 
     const page = (ids: number[], total: number) =>
@@ -593,7 +593,7 @@ describe('Export Handlers', () => {
       expect(getResources).toHaveBeenNthCalledWith(1, { isActive: true, page: 1, pageSize: 100 });
       expect(getResources).toHaveBeenNthCalledWith(2, { isActive: true, page: 2, pageSize: 100 });
 
-      const { resources } = vi.mocked(exportGanttChartToPDF).mock.calls[0][0];
+      const { resources } = vi.mocked(printGanttChart).mock.calls[0][0];
       expect(resources.size).toBe(150);
       expect(resources.get('res-0')).toEqual({ name: 'Resource 0', typeKey: 'space' });
       expect(resources.get('res-149')).toEqual({ name: 'Resource 149', typeKey: 'space' });
@@ -608,7 +608,7 @@ describe('Export Handlers', () => {
         personType,
       ]);
 
-      const { resourceTypes } = vi.mocked(exportGanttChartToPDF).mock.calls[0][0];
+      const { resourceTypes } = vi.mocked(printGanttChart).mock.calls[0][0];
       expect(resourceTypes).toEqual([spaceType, personType]);
     });
 
