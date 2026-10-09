@@ -66,4 +66,29 @@ public sealed class MigrationCliOptionsTests
         options.AppVersion.Should().BeNull();
         options.LockTimeoutSeconds.Should().Be(60);
     }
+    [Fact]
+    public void ReadsTheTenantConcurrency_AndDefaultsToFour()
+    {
+        var explicitValue = MigrationCliOptions.FromEnvironment(Env(
+            (MigrationCliOptions.ConnectionStringEnvVar, "Host=cp"),
+            (MigrationCliOptions.TenantConcurrencyEnvVar, "3")));
+        explicitValue.TenantConcurrency.Should().Be(3);
+
+        var defaulted = MigrationCliOptions.FromEnvironment(Env((MigrationCliOptions.ConnectionStringEnvVar, "Host=cp")));
+        defaulted.TenantConcurrency.Should().Be(MigrationCliOptions.DefaultTenantConcurrency);
+        new MigrationCliOptions("Host=single").TenantConcurrency.Should().Be(4);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("many")]
+    public void RefusesANonPositiveOrNonNumericTenantConcurrency(string raw)
+    {
+        var act = () => MigrationCliOptions.FromEnvironment(Env(
+            (MigrationCliOptions.ConnectionStringEnvVar, "Host=cp"),
+            (MigrationCliOptions.TenantConcurrencyEnvVar, raw)));
+        act.Should().Throw<InvalidOperationException>().WithMessage("*MIGRATION_TENANT_CONCURRENCY*");
+    }
+
 }
