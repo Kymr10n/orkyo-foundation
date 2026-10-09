@@ -180,8 +180,46 @@ public partial class ConventionContractTests
     [GeneratedRegex(@"[?:]\s*(?:\(object\??\)\s*)?DBNull\.Value")]
     private static partial Regex HandRolledNullBindingRegex();
 
+    // ── (n) a tenant database opened by identifier, not through the resolved context ─
+
+    /// <summary>
+    /// Tenant isolation rests on the application choosing the right connection string (saas#296):
+    /// one database role, no row-level security. <c>CreateConnectionForDatabase(identifier)</c>
+    /// is the one door past the resolved <c>TenantContext</c>; these callers resolve the
+    /// identifier from the control plane themselves. A new caller is a review event.
+    /// </summary>
+    private static readonly HashSet<string> KnownTenantConnectionByIdentifierFiles = new(StringComparer.Ordinal)
+    {
+        "core:Repositories/PersonalDataExportRepository.cs",   // the person's own memberships → db_identifier
+        "core:Repositories/UserPurgeRepository.cs",            // the person's own memberships → db_identifier
+        "core:Services/InvitationService.cs",                  // the invitation's tenant row → db_identifier
+        "core:Services/StarterTemplateService.cs",             // provisioning, before a TenantContext exists
+    };
+
+    /// <summary>The factory contract, its default member, and the single-database implementation.</summary>
+    private static readonly HashSet<string> TenantConnectionByIdentifierExemptFiles = new(StringComparer.Ordinal)
+    {
+        "core:Services/IDbConnectionFactory.cs",
+        "core:Services/SingleTenantDbConnectionFactory.cs",   // Community: every identifier is the one database
+    };
+
+    [GeneratedRegex(@"CreateConnectionForDatabase\s*\(")]
+    private static partial Regex TenantConnectionByIdentifierRegex();
+
     private static IEnumerable<Ratchet> ConventionRatchets() =>
     [
+        new("TenantConnectionByIdentifier", TenantConnectionByIdentifierRegex(), ["src", "core"],
+            Baseline: KnownTenantConnectionByIdentifierFiles,
+            Exempt: TenantConnectionByIdentifierExemptFiles,
+            Exemplars:
+            [
+                new("await using var db = _connectionFactory.CreateConnectionForDatabase(dbIdentifier);"),
+                new("await using var db = _connectionFactory.CreateTenantConnection(tenant);", false, "the resolved TenantContext route is the sanctioned one"),
+            ],
+            ForbidMessage: "a tenant database is opened through the resolved TenantContext, never by an identifier "
+                + "a caller supplied (saas#296). A new caller of CreateConnectionForDatabase must resolve its "
+                + "identifier from the control plane and be listed in KnownTenantConnectionByIdentifierFiles."),
+
         new("SqlWritingService", ServiceSqlAccessRegex(), ["core"],
             Scope: f => f.Rel.StartsWith("Services/", StringComparison.Ordinal)
                 || f.Rel.StartsWith("Integrations/", StringComparison.Ordinal),

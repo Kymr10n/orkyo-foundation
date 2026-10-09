@@ -134,6 +134,25 @@ public class UserPreferencesEndpointsTests
         spaceOrder[2].GetString().Should().Be("z");
     }
 
+    [Theory]
+    [InlineData("GET")]
+    [InlineData("PUT")]
+    public async Task Preferences_RefuseASignedInUserWhoIsNotAMemberOfTheTenant(string method)
+    {
+        // The preferences row lives in the tenant database. Without the membership gate a
+        // signed-in user could read or write their own row in any tenant whose slug they name
+        // (orkyo-saas#296).
+        using var outsider = _factory.CreateClient();
+        outsider.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TenantSlug);
+        outsider.DefaultRequestHeaders.Add("Authorization", $"Bearer {TestConstants.BearerTokenForRole(RoleConstants.None)}");
+
+        var response = method == "GET"
+            ? await outsider.GetAsync("/api/preferences")
+            : await outsider.PutAsJsonAsync("/api/preferences", new { theme = "dark" });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
     private record LoginResponse(string Token, UserResponse User);
     private record UserResponse(Guid Id, string Email, string DisplayName, bool IsTenantAdmin);
 }
