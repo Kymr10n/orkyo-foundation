@@ -45,6 +45,16 @@ public class MfaStatus
 }
 
 /// <summary>
+/// A passkey (Keycloak credential type <c>webauthn-passwordless</c>) as the account page lists it.
+/// </summary>
+public class PasskeyCredential
+{
+    public string Id { get; set; } = string.Empty;
+    public string? Label { get; set; }
+    public DateTime? CreatedDate { get; set; }
+}
+
+/// <summary>
 /// User profile fields surfaced by the Keycloak admin pipeline.
 /// </summary>
 public class UserProfile

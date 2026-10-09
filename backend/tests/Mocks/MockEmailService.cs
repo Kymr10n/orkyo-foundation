@@ -113,6 +113,8 @@ public class MockEmailService : IEmailService
         => Record(nameof(SendPasswordChangedAsync), toEmail);
     public Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default)
         => Record(nameof(SendMfaChangedAsync), toEmail);
+    public Task<bool> SendPasskeyRemovedAsync(string toEmail, string displayName, CancellationToken ct = default)
+        => Record(nameof(SendPasskeyRemovedAsync), toEmail);
     public Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default)
         => Record(nameof(SendEmailChangeRequestedOldAddressAsync), toEmail);
 

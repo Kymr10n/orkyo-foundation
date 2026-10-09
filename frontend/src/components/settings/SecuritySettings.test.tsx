@@ -26,6 +26,10 @@ vi.mock('./MfaSection', () => ({
   MfaSection: () => <div data-testid="mfa-section" />,
 }));
 
+vi.mock('./PasskeysSection', () => ({
+  PasskeysSection: () => <div data-testid="passkeys-section" />,
+}));
+
 vi.mock('./SessionsSection', () => ({
   SessionsSection: () => <div data-testid="sessions-section" />,
 }));

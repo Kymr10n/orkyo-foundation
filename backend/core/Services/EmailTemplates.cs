@@ -394,6 +394,17 @@ public static class EmailTemplates
         return ($"Two-factor authentication {what} on your {b.ProductName} account", html, text);
     }
 
+    public static (string subject, string htmlBody, string textBody) GetPasskeyRemovedEmail(
+        string displayName, EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            "A passkey was removed",
+            [$"Hi {E(displayName)}, a passkey was just removed from your {b.ProductName} account."],
+            footerNote: "If you didn't make this change, change your password and contact us immediately.");
+        return ($"A passkey was removed from your {b.ProductName} account", html, text);
+    }
+
     public static (string subject, string htmlBody, string textBody) GetEmailChangeRequestedOldAddressEmail(
         string displayName, string newEmail, EmailBranding? branding = null)
     {

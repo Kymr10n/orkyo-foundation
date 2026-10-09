@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // hoisted vi.mock factory runs.
 // --------------------------------------------------------------------------
 
-const mockConfig = vi.hoisted(() => ({ baseDomain: '', subdomainPrefix: '' }));
+const mockConfig = vi.hoisted(() => ({ baseDomain: '', subdomainPrefix: '', apiBaseUrl: 'https://api.example' }));
 
 vi.mock('@foundation/src/config/runtime', () => ({
   runtimeConfig: mockConfig,
@@ -21,6 +21,7 @@ import {
   navigateToApex,
   goToApex,
   isSafeRelativePath,
+  buildBffLoginUrl,
   redirectToLogin,
   setBreakGlassCookie,
   consumeBreakGlassCookie,
@@ -281,6 +282,23 @@ describe('tenant-navigation', () => {
       stubLocation('staging.orkyo.com');
 
       expect(navigateToApex('/admin')).toBe(false);
+    });
+  });
+
+  describe('buildBffLoginUrl', () => {
+    it('adds login_hint and kc_action only when given', () => {
+      expect(buildBffLoginUrl({ returnTo: 'https://app/x?y=1' })).toBe(
+        'https://api.example/api/auth/bff/login?returnTo=https%3A%2F%2Fapp%2Fx%3Fy%3D1',
+      );
+      expect(
+        buildBffLoginUrl({
+          returnTo: 'https://app/account?tab=security',
+          loginHint: 'a@b.c',
+          kcAction: 'webauthn-register-passwordless',
+        }),
+      ).toBe(
+        'https://api.example/api/auth/bff/login?returnTo=https%3A%2F%2Fapp%2Faccount%3Ftab%3Dsecurity&login_hint=a%40b.c&kc_action=webauthn-register-passwordless',
+      );
     });
   });
 

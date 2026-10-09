@@ -208,6 +208,29 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.CompletedTask;
     }
 
+    // ── Passkeys ──────────────────────────────────────────────────
+    public List<PasskeyCredential> MockPasskeys { get; set; } = new();
+    public int GetPasskeysCallCount { get; private set; }
+
+    public Task<List<PasskeyCredential>> GetPasskeysAsync(string keycloakSub, CancellationToken ct = default)
+    {
+        GetPasskeysCallCount++;
+        return Task.FromResult(MockPasskeys);
+    }
+
+    public bool RenameCredentialSuccess { get; set; } = true;
+    public int RenameCredentialCallCount { get; private set; }
+    public (string CredentialId, string Label) LastRenameCall { get; private set; }
+
+    public Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default)
+    {
+        RenameCredentialCallCount++;
+        LastRenameCall = (credentialId, label);
+        if (!RenameCredentialSuccess)
+            throw new KeycloakAdminException("Credential not found for this user", 404);
+        return Task.CompletedTask;
+    }
+
     // ── User profile ──────────────────────────────────────────────
     public UserProfile MockUserProfile { get; set; } = new() { Email = "test@example.com", FirstName = "Test", LastName = "User", EmailVerified = true };
     public string? GetUserProfileError { get; set; }
@@ -381,6 +404,12 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         DeleteCredentialError = null;
         DeleteCredentialCallCount = 0;
         LastDeletedCredentialId = null;
+
+        MockPasskeys = new List<PasskeyCredential>();
+        GetPasskeysCallCount = 0;
+        RenameCredentialSuccess = true;
+        RenameCredentialCallCount = 0;
+        LastRenameCall = default;
 
         MockUserProfile = new UserProfile { Email = "test@example.com", FirstName = "Test", LastName = "User", EmailVerified = true };
         GetUserProfileError = null;

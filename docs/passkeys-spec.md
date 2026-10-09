@@ -1,7 +1,8 @@
 # Passkeys — specification and implementation plan
 
-Status: **proposed**, written 2026-09-27 on branch `claude/orkyo-qr-resource-linking-u77if7`.
-Nothing in this document is implemented yet.
+Status: **in progress**. Written 2026-09-27, revised 2026-10-09 for the v1 implementation.
+Done: the login theme (0.28), the Community realm and converger (1.5.0). In review: the hosted
+Keycloak configuration (orkyo-infra) and the account API, BFF and Security card (this repo).
 
 This document adds passkeys as a sign-in method for Orkyo. A passkey is a WebAuthn
 credential that a device or a password manager stores. The user signs in with a fingerprint,
@@ -12,8 +13,8 @@ Three product decisions apply:
 1. Passkeys are an addition. Password plus TOTP stays available. No user is locked out
    because a device is lost.
 2. Keycloak is the relying party. Orkyo does not implement WebAuthn itself.
-3. One passkey serves the apex and every tenant host. The relying-party ID is the base
-   domain.
+3. One passkey serves the apex and every tenant host. Every passkey ceremony runs on the
+   Keycloak host, so that host is the relying-party ID.
 
 ## 1. Evaluation
 
@@ -62,7 +63,7 @@ other realm settings. Community carries the same values in `realm.json`.
 | Setting | Value | Reason |
 |---|---|---|
 | Relying party entity name | `Orkyo` | Shown by the platform dialog. |
-| Relying party ID | base domain (`orkyo.com`, or the Community host) | One passkey for the apex and every tenant host. The session cookie already spans this domain. |
+| Relying party ID | hosted: the Keycloak host (`KEYCLOAK_HOSTNAME`); Community: the `APP_BASE_URL` host | Every ceremony runs on the Keycloak host, so one passkey covers the apex and every tenant host. Staging and production keep separate IDs. |
 | Signature algorithms | ES256, RS256 | Broad device support. |
 | Attestation conveyance | none | Orkyo does not verify authenticator makes. |
 | Authenticator attachment | not specified | Platform and roaming authenticators both work. |
@@ -79,19 +80,21 @@ changes. Section 9 records the decision.
 
 The `orkyo-browser` flow is a copy of the built-in browser flow with two changes. Recovery
 codes are an alternative to TOTP, and the OTP form is an alternative step. The configure script
-rebuilds the flow from the current built-in flow, then applies the same two changes. The
-rebuilt flow gains the **Condition - credential** execution in the 2FA sub-flow. This
-condition skips the sub-flow after a passkey login.
+does not rebuild the flow. It adds the **Condition - credential** execution to the existing
+2FA sub-flow, sets it to Required with `credentials=webauthn-passwordless`, and moves it
+directly after **Condition - user configured**. This condition skips the sub-flow after a
+passkey login. Every write follows a read, so a converged realm gets no write.
 
-Community uses the built-in `browser` flow. Keycloak updates that flow itself.
+Community's converger (`release/scripts/keycloak-converge.py`) applies the same step to the
+bound flow on every start.
 
 ### 3.3 Login theme
 
 The custom `login.ftl` gets the same username input as the base template, with
 `autocomplete="username webauthn"`. It also gets the passkey button block. The base template
-renders that block when the realm has passkeys enabled. Two new templates take the Orkyo look:
-`webauthn-authenticate.ftl` and `webauthn-register.ftl`. Both inherit `template.ftl` and
-keep the base JavaScript unchanged.
+renders that block when the realm has passkeys enabled. `webauthn-authenticate.ftl` and
+`webauthn-register.ftl` come from the base theme unchanged. `theme.properties` maps their
+classes to the Orkyo styles, so their JavaScript and script paths stay the upstream ones.
 
 The password form keeps its **Sign in with Passkey** button for users that typed a username
 first.
@@ -104,22 +107,22 @@ account.
 
 | Route | Purpose | Notes |
 |---|---|---|
-| `GET /api/account/passkeys` | Lists the user's passwordless WebAuthn credentials. | Reads Keycloak credentials of type `webauthn-passwordless`. Returns id, label, created date. |
-| `POST /api/account/passkeys/enrol` | Starts enrolment. | Adds the `webauthn-register-passwordless` required action to the Keycloak user. Returns the BFF login URL with `kc_action=webauthn-register-passwordless`, so the browser goes to Keycloak now, not at the next login. |
-| `DELETE /api/account/passkeys/{credentialId}` | Removes one passkey. | Refuses when the credential is not a passwordless WebAuthn credential of this user. |
-| `PATCH /api/account/passkeys/{credentialId}` | Renames a passkey. | Sets the credential label in Keycloak. |
+| `GET /api/account/passkeys` | Lists the user's passkeys. | Reads Keycloak credentials of type `webauthn-passwordless`, oldest first. Returns id, label, created date. |
+| `PATCH /api/account/passkeys/{credentialId}` | Renames a passkey. | Sets the credential label in Keycloak. Refuses a credential of another user with 404. |
+| `DELETE /api/account/passkeys/{credentialId}` | Removes one passkey. | Re-checks the current password, and the TOTP code for a TOTP user, as removing MFA does. Refuses a credential of another user with 404. Sends a "passkey removed" email. |
 
-The BFF login endpoint accepts a `kc_action` query parameter and forwards it to Keycloak.
-Only values from an allow-list pass: `webauthn-register-passwordless` and, later,
-`CONFIGURE_TOTP`. This is the Keycloak "application initiated action" mechanism. After the
-action Keycloak returns to the BFF callback as after a normal login.
+Enrolment has no route. The **Add a passkey** button sends the browser to the BFF login with
+`kc_action=webauthn-register-passwordless`. The BFF forwards the parameter only from an
+allow-list with that one value. This is Keycloak's application-initiated action: the user
+can cancel it, which a required action set through the admin API does not allow. Keycloak
+returns to the BFF callback with `kc_action_status` (`success`, `cancelled` or `error`). The
+callback appends that status to `returnTo` and skips the landing-page choice of a plain
+sign-in, so the browser comes back to the Security tab. The account page turns the status
+into a toast.
 
-`KeycloakAdminService` gains three methods: list credentials of a user, set a credential
-label, and add a required action by name. `EnableMfaAsync` then becomes a call of the last
-one. `KeycloakRequiredActions` gains `WebAuthnRegisterPasswordless`.
-
-Both enrolment and removal send the existing security-changed email and write an audit
-entry with the credential label.
+`KeycloakAdminService` gains two methods: list the passkeys of a user, and set a credential
+label. Removal uses the existing `DeleteUserCredentialAsync`. No required action and no
+`KeycloakRequiredActions` entry are needed.
 
 ## 5. User interface
 
@@ -153,18 +156,20 @@ The BFF `login_hint` continues to prefill the email.
   guidance: the authenticator already verified the user.
 - Removal of the last passkey is allowed. The password stays as a sign-in method, so the
   user is never locked out. Removal of the password is not possible today.
-- Enrolment requires a fresh session. The BFF login with `kc_action` re-authenticates the
-  user at Keycloak before the required action runs. This is the Keycloak default for
+- Enrolment requires a recent sign-in. Keycloak asks for the password again when the session
+  is older than the action's maximum authentication age. This is the Keycloak default for
   application-initiated actions.
 - The `kc_action` allow-list prevents an open redirect into arbitrary required actions.
 - Recovery codes stay the break-glass path for TOTP. They do not apply to passkey logins.
-- Audit entries record enrolment and removal, with the credential label and the actor.
+- No audit entries yet: the security endpoints write none today, for MFA either. Audit
+  entries and a "passkey added" email are follow-ups. The added email needs a Keycloak event,
+  because the backend does not see the enrolment.
 
 ## 7. Documentation
 
 `orkyo-documentation` `user-guide/account-and-security.md` gets a **Passkeys** subsection
 under **Security**, in the same descriptive style as the TOTP one, with the UI strings quoted
-verbatim. The 0.28.0 release note announces the feature.
+verbatim. The release note of the release that ships the card announces the feature.
 
 ## 8. Rollout
 
@@ -178,46 +183,34 @@ verbatim. The 0.28.0 release note announces the feature.
 
 Decided:
 
-- Relying-party ID is the base domain. One passkey for all tenant hosts.
+- Relying-party ID is the Keycloak host on the hosted service (decided 2026-10-09). The base
+  domain would let staging and production share passkeys.
+- Community relying-party ID is the `APP_BASE_URL` host. The entrypoint sets it on first
+  import and the converger on every start (1.5.0).
 - Passkeys replace the password step, not the second factor.
 - Enrolment goes through the app, with the Keycloak account console as a fallback.
+- The configure script edits the existing `orkyo-browser` flow. It does not rebuild it.
+- Passkeys need HTTPS. A Community installation on plain HTTP gets none; the converger warns.
 
-Open:
-
-- **Community relying-party ID.** Self-hosters set `APP_BASE_URL`. The policy takes its host.
-  The realm export cannot carry a per-installation value, so the entrypoint must set it at
-  start. This needs a small change in `backend/keycloak/docker-entrypoint.sh`.
-- **Rebuild of `orkyo-browser`.** A rebuilt flow gets a new ID. The configure script must
-  set the realm's browser flow to the new one and delete the old one in one deploy.
-- **Theme templates.** The base `webauthn-register.ftl` loads a script from the theme
-  resources. The Orkyo theme must keep that script path valid.
+Open: none for v1.
 
 ## 10. Implementation plan
 
-### Phase 1 — Keycloak (orkyo-infra, orkyo-community)
+v1 ships in five pull requests:
 
-- Configure script: WebAuthn Passwordless policy, rebuilt `orkyo-browser` flow, verification
-  step that the realm reports `passkeys` as enabled.
-- Community: policy values in `realm.json`, relying-party ID from `APP_BASE_URL` in the
-  entrypoint.
-- Verify on staging: passkey sign-in on iOS Safari, Android Chrome, and a desktop browser.
-  Password plus TOTP unchanged.
+1. orkyo-infra: the passwordless policy with the Keycloak host as ID, the
+   **Condition - credential** step in `orkyo-browser`, the required action enabled, a smoke
+   check for `username webauthn` on the login page, and the MFA documentation.
+2. orkyo-foundation: the three routes of section 4, the BFF `kc_action` allow-list and
+   `kc_action_status` passthrough, the Passkeys card on the Security tab, and this document.
+3. orkyo-saas and orkyo-community: the foundation pin bump.
+4. orkyo-community: the converger warns on an `http://` `APP_BASE_URL`.
+5. orkyo-documentation: a **Passkeys** subsection in the user guide and the HTTPS note for
+   Community operators.
 
-### Phase 2 — theme (orkyo-foundation)
+The realm change goes to staging first. Production gets it in the same release train as the
+card, so the passkey UI never appears on the production login page before the card exists.
 
-- `login.ftl`: username input with `webauthn` autofill and the passkey button block.
-- New `webauthn-authenticate.ftl` and `webauthn-register.ftl` in the Orkyo look.
-- The Keycloak dry build in CI covers the templates.
-
-### Phase 3 — backend and frontend (orkyo-foundation)
-
-- `KeycloakAdminService`: list credentials, set label, add required action.
-- BFF login: `kc_action` allow-list.
-- Security endpoints: the four routes of section 4, with tests for refusal paths.
-- Frontend: `PasskeysSection` with hooks, tests, and the demo lock.
-- Coverage at or above 80 percent for the patch, as for every change.
-
-### Phase 4 — documentation and release
-
-- User guide subsection, release note, marketing mention.
-- Release as 0.28.0. The realm changes deploy first, the app changes ride the same train.
+Follow-ups: a one-time notice for users with no passkey, a passkey requirement for site
+admins, an end-to-end test with a virtual authenticator, audit entries, and a "passkey added"
+email.

@@ -8,6 +8,9 @@ import {
   getMfaStatus,
   removeMfa,
   enableMfa,
+  getPasskeys,
+  renamePasskey,
+  removePasskey,
   getUserProfile,
   updateUserProfile,
   requestEmailChange,
@@ -136,6 +139,26 @@ describe('security-api', () => {
       vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
       await removeMfa({ currentPassword: 'secret', currentCode: '123456' });
       expect(apiClient.apiDelete).toHaveBeenCalledWith(API_PATHS.ACCOUNT.MFA, undefined, {
+        currentPassword: 'secret',
+        currentCode: '123456',
+      });
+    });
+  });
+
+  describe('passkeys', () => {
+    it('lists, renames and removes through the passkey routes', async () => {
+      vi.mocked(apiClient.apiGet).mockResolvedValue([]);
+      vi.mocked(apiClient.apiPatch).mockResolvedValue(undefined);
+      vi.mocked(apiClient.apiDelete).mockResolvedValue(undefined);
+
+      await getPasskeys();
+      await renamePasskey({ id: 'pk/1', label: 'Phone' });
+      await removePasskey({ id: 'pk/1', currentPassword: 'secret', currentCode: '123456' });
+
+      expect(apiClient.apiGet).toHaveBeenCalledWith(API_PATHS.ACCOUNT.PASSKEYS);
+      // The id is a path segment, so it is encoded.
+      expect(apiClient.apiPatch).toHaveBeenCalledWith('/api/account/passkeys/pk%2F1', { label: 'Phone' });
+      expect(apiClient.apiDelete).toHaveBeenCalledWith('/api/account/passkeys/pk%2F1', undefined, {
         currentPassword: 'secret',
         currentCode: '123456',
       });

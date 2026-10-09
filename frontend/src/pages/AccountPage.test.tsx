@@ -87,6 +87,9 @@ vi.mock("@foundation/src/lib/api/security-api", () => ({
     Promise.resolve({ totpEnabled: false, recoveryCodesConfigured: false }),
   removeMfa: vi.fn(),
   enableMfa: vi.fn().mockResolvedValue({ message: "ok" }),
+  getPasskeys: () => Promise.resolve([]),
+  renamePasskey: vi.fn(),
+  removePasskey: vi.fn(),
   getNotificationPreferences: () =>
     Promise.resolve({ announcementEmailOptOut: false }),
   updateNotificationPreferences: vi.fn().mockResolvedValue({ message: "ok" }),
@@ -645,6 +648,29 @@ describe("AccountPage", () => {
         description,
       });
     });
+  });
+
+  it.each([
+    ["success", "success", "Passkey added"],
+    ["cancelled", "info", "Passkey setup cancelled"],
+    ["error", "error", "Could not add the passkey. Please try again."],
+  ] as const)("shows the passkey step's %s result as a toast", async (status, kind, title) => {
+    const Wrapper = createWrapper(`/account?tab=security&kc_action_status=${status}`);
+    render(<Wrapper><AccountPage /></Wrapper>);
+
+    await waitFor(() => {
+      expect(vi.mocked(toast[kind])).toHaveBeenCalledWith(title, { id: `passkey-${status}` });
+    });
+  });
+
+  it("ignores an unknown kc_action_status", async () => {
+    const Wrapper = createWrapper("/account?kc_action_status=bogus");
+    render(<Wrapper><AccountPage /></Wrapper>);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Account");
+    });
+    expect(vi.mocked(toast.success)).not.toHaveBeenCalledWith("Passkey added", expect.anything());
   });
 
   it("enters name edit mode on Edit click", async () => {

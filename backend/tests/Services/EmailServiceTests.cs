@@ -251,10 +251,11 @@ public class EmailServiceTests
         (await s.SendPasswordChangedAsync("a@x.com", "Dana")).Should().BeTrue();
         (await s.SendMfaChangedAsync("a@x.com", "Dana", true)).Should().BeTrue();
         (await s.SendMfaChangedAsync("a@x.com", "Dana", false)).Should().BeTrue();
+        (await s.SendPasskeyRemovedAsync("a@x.com", "Dana")).Should().BeTrue();
         (await s.SendEmailChangeRequestedOldAddressAsync("a@x.com", "Dana", "new@x.com")).Should().BeTrue();
         (await s.SendEmailChangedAsync("a@x.com", "Dana", "new@x.com")).Should().BeTrue();
 
-        outbox.Rows.Should().HaveCount(16).And.AllSatisfy(r =>
+        outbox.Rows.Should().HaveCount(17).And.AllSatisfy(r =>
         {
             r.Status.Should().Be("pending");
             r.Attempts.Should().Be(1);

@@ -96,4 +96,7 @@ public static class DomainLimits
 
     /// <summary>Maximum length for an API access or reporting token name — matches both name columns, VARCHAR(255).</summary>
     public const int TokenNameMaxLength = 255;
+
+    /// <summary>A passkey's label as the person names it on the account page. Stored by Keycloak, not by us.</summary>
+    public const int PasskeyLabelMaxLength = 64;
 }

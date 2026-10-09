@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@foundation/src/components/
 import { useSecurityInfo } from "@foundation/src/hooks/useSecuritySettings";
 import { PasswordSection } from "./PasswordSection";
 import { MfaSection } from "./MfaSection";
+import { PasskeysSection } from "./PasskeysSection";
 import { SessionsSection } from "./SessionsSection";
 
 export function SecuritySettings() {
@@ -42,8 +43,8 @@ export function SecuritySettings() {
           <Lock className="h-4 w-4" />
           <AlertTitle>Shared demo account</AlertTitle>
           <AlertDescription>
-            This is a shared demo account. Its password, email, profile, and two-factor
-            settings cannot be changed.
+            This is a shared demo account. Its password, email, profile, passkeys, and
+            two-factor settings cannot be changed.
           </AlertDescription>
         </Alert>
       )}
@@ -52,6 +53,7 @@ export function SecuritySettings() {
         identityProvider={securityInfo?.identityProvider}
         locked={accountLocked}
       />
+      <PasskeysSection locked={accountLocked} />
       <MfaSection locked={accountLocked} />
       <SessionsSection onLogoutAll={() => send({ type: "LOGOUT" })} />
     </div>

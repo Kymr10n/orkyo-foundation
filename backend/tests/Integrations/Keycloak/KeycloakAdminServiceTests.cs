@@ -569,6 +569,60 @@ public class KeycloakAdminServiceTests
         status.RecoveryCodesConfigured.Should().BeFalse();
     }
 
+    // ── GetPasskeysAsync / RenameCredentialAsync ──────────────────────────
+
+    [Fact]
+    public async Task GetPasskeysAsync_ReturnsOnlyPasswordlessCredentials_OldestFirst()
+    {
+        var credJson = JsonSerializer.Serialize(new object[]
+        {
+            new { id = "pk-new", type = "webauthn-passwordless", userLabel = "Phone", createdDate = 2_000_000_000_000L },
+            new { id = "totp", type = "otp", userLabel = "Authenticator App", createdDate = 1_000_000_000_000L },
+            new { id = "second-factor", type = "webauthn", userLabel = "Key", createdDate = 1_000_000_000_000L },
+            new { id = "pk-old", type = "webauthn-passwordless", userLabel = (string?)null, createdDate = 1_500_000_000_000L },
+        });
+        var svc = Build(TokenAndUser([("/users/kc-user-id/credentials", HttpStatusCode.OK, credJson)]));
+
+        var passkeys = await svc.GetPasskeysAsync("kc-user-id");
+
+        passkeys.Select(p => p.Id).Should().Equal("pk-old", "pk-new");
+        passkeys[0].Label.Should().BeNull();
+        passkeys[1].Label.Should().Be("Phone");
+        passkeys[1].CreatedDate.Should().Be(DateTimeOffset.FromUnixTimeMilliseconds(2_000_000_000_000L).DateTime);
+    }
+
+    [Fact]
+    public async Task RenameCredentialAsync_SendsThePlainTextLabel_WhenTheCredentialIsTheUsers()
+    {
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
+            ("/users/kc-user-id/credentials/pk-1/userLabel", HttpStatusCode.NoContent, ""),
+            ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("pk-1", "webauthn-passwordless")),
+        ])));
+
+        await svc.RenameCredentialAsync("kc-user-id", "pk-1", "Work laptop");
+
+        var rename = handler.Requests.Single(r => r.Method == HttpMethod.Put);
+        rename.RequestUri!.AbsolutePath.Should().EndWith("/users/kc-user-id/credentials/pk-1/userLabel");
+        rename.Content!.Headers.ContentType!.MediaType.Should().Be("text/plain");
+        handler.Bodies[handler.Requests.IndexOf(rename)].Should().Be("Work laptop");
+    }
+
+    [Fact]
+    public async Task RenameCredentialAsync_Throws404AndSendsNothing_WhenTheCredentialIsNotTheUsers()
+    {
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
+            ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("someone-elses", "webauthn-passwordless")),
+        ])));
+
+        var act = () => svc.RenameCredentialAsync("kc-user-id", "pk-1", "Mine now");
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Put);
+    }
+
     // ── DeleteUserCredentialAsync ──────────────────────────────────────────
 
     [Fact]

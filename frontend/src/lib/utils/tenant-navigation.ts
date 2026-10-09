@@ -104,11 +104,18 @@ export function getCurrentSubdomain(): string | null {
  * `returnTo` is where the BFF sends the browser after Keycloak completes — it
  * must resolve to the React SPA (e.g. `/login?auto=1`), never the static
  * marketing root. `loginHint` (optional) pre-fills the email on the Keycloak
- * login form via the OIDC-standard `login_hint` param.
+ * login form via the OIDC-standard `login_hint` param. `kcAction` (optional) starts a
+ * Keycloak application-initiated action; the BFF allow-lists it, and Keycloak reports
+ * the result back on `returnTo` as `kc_action_status`.
  */
-export function buildBffLoginUrl(opts: { returnTo: string; loginHint?: string }): string {
+export function buildBffLoginUrl(opts: {
+  returnTo: string;
+  loginHint?: string;
+  kcAction?: "webauthn-register-passwordless";
+}): string {
   let url = `${runtimeConfig.apiBaseUrl}/api/auth/bff/login?returnTo=${encodeURIComponent(opts.returnTo)}`;
   if (opts.loginHint) url += `&login_hint=${encodeURIComponent(opts.loginHint)}`;
+  if (opts.kcAction) url += `&kc_action=${opts.kcAction}`;
   return url;
 }
 
