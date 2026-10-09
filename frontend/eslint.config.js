@@ -59,11 +59,6 @@ const banMutationCallbackFeedback = [
 // `no-restricted-syntax` arrays above are shared.
 const banHeavyAndRawDialogImports = [
   {
-    name: 'jspdf',
-    message:
-      'jspdf is heavy: only src/lib/utils/gantt-pdf-export.ts may load it, via the existing dynamic import(). A static import drags it into the main chunk. See plan G3.',
-  },
-  {
     name: '@zxing/browser',
     message:
       'The QR decoder is heavy: only src/lib/scan/qr-decoder.ts may load it, and QrScannerDialog reaches that file through a dynamic import(). A static import drags it into the main chunk.',
@@ -300,7 +295,7 @@ export default defineConfig(
       ],
     },
   },
-  // Components and pages carry the dialog/jspdf bans AND the data-fetching ban.
+  // Components and pages carry the dialog ban AND the data-fetching ban.
   {
     files: ['src/components/**/*.{ts,tsx}', 'src/pages/**/*.{ts,tsx}'],
     rules: {
@@ -309,7 +304,7 @@ export default defineConfig(
       }],
     },
   },
-  // The sanctioned dialog shells and the sole jspdf and QR-decoder loaders are exempt from the raw-Dialog
+  // The sanctioned dialog shells and the sole QR-decoder loader are exempt from the raw-Dialog
   // and heavy-dep bans — they ARE the primitives those bans steer everything else toward.
   // They are under components/, so they restate the data-fetching ban rather than
   // switching the rule off wholesale.
@@ -320,7 +315,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['src/lib/utils/gantt-pdf-export.ts', 'src/lib/scan/qr-decoder.ts'],
+    files: ['src/lib/scan/qr-decoder.ts'],
     rules: {
       'no-restricted-imports': 'off',
     },
@@ -358,22 +353,6 @@ export default defineConfig(
     ],
     rules: {
       'no-restricted-imports': ['error', { paths: banDirectDataAccess }],
-    },
-  },
-
-  // The utils barrel must never re-export gantt-pdf-export — that is
-  // the exact line that dragged jspdf into the main chunk. `error` here (0
-  // violations since the re-export was removed) locks the fix. Scoped to the one
-  // file, so it overrides — not merges with — the date-format no-restricted-syntax
-  // ban above (index.ts has no date formatting, so nothing is lost).
-  {
-    files: ['src/lib/utils/index.ts'],
-    rules: {
-      'no-restricted-syntax': ['error', {
-        selector: "ExportAllDeclaration[source.value=/gantt-pdf-export/]",
-        message:
-          'Do not re-export gantt-pdf-export from the utils barrel: it statically imports jspdf, and this barrel is on the cn import path of ~48 modules. Reach it via the dynamic import() in export-handlers.ts. See plan G3.',
-      }],
     },
   },
 

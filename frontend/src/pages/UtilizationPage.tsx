@@ -402,7 +402,7 @@ export function UtilizationPage() {
     }
   }, {
     label: `Utilization (${exportScopeLabel})`,
-    description: `Export a PDF of the ${exportScopeLabel} schedule for the visible period.`,
+    description: `Print the ${exportScopeLabel} schedule for the visible period; save it as a PDF from the browser's print dialog.`,
     formats: ['pdf'],
   });
 
