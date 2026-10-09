@@ -1,32 +1,28 @@
 name: reusable / auto-bump
 
-# Extracted from the `auto-bump` job — BYTE-IDENTICAL between:
-#   - orkyo-saas/.github/workflows/release-ci.yml      @ 74bc01cc9211a4dcf48b3f3b36ac0d5bc64339ea
-#   - orkyo-community/.github/workflows/release-ci.yml @ ec14ac98c304f81a61600fc73d2a0ddf0ae85358
-# (diffed byte-for-byte at extraction time — see the W6 PR description for the
-# `diff -u` proof; zero lines differ). orkyo-foundation has no `auto-bump` job
-# of its own — it is the publisher, not a consumer, of `foundation_updated`.
+# Consumes `foundation_updated` (repository_dispatch, payload {version, channel}) in
+# orkyo-saas and orkyo-community: pins the new foundation version with the caller's bump
+# script and lands it without changing main untested (orkyo-saas#306).
 #
-# No repo-specific behavior needed parameterizing, because none differs. The
-# two optional inputs below exist purely so a future third consumer with a
-# different script path or committer identity doesn't require forking this
-# file — they default to the exact values baked into both source jobs, so
-# saas/community migrate with zero behavior change.
+#   stable  — branch foundation-bump/<version>, a pull request, auto-merge on green. Main
+#             changes only after that PR's CI has passed. orkyo-infra's release.yml polls
+#             the pin on main, so the release train simply waits for the merge.
+#   nightly — the `nightly` branch, reset to main plus the prerelease pin and force-pushed.
+#             The callers list `nightly` under on.push.branches, so CI runs against the
+#             prerelease there and builds no images. Main never carries a prerelease pin.
 #
-# `github.event.client_payload.{version,channel}` and `github.sha` are read
-# directly from the run's triggering event context, which is shared with the
-# reusable workflow automatically (no input needed) — this job only runs when
-# the caller's run was triggered by a `repository_dispatch` event carrying
-# that payload.
+# Both paths are idempotent. A redundant dispatch (release.yml re-sends stable once after
+# a timeout) finds the open PR, or finds no diff, and changes nothing.
 #
-# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never
-# reference a local `./.github/actions/...` composite action — that breaks the
-# CALLER with an undiagnosable startup_failure. Every third-party action below
-# is pinned to the exact SHA the source jobs used. Consumers must pin their
-# `uses:` to this file by commit SHA, never `@main`. Call with `secrets: inherit`.
+# `github.event.client_payload.{version,channel}` is read from the triggering event, which
+# a reusable workflow shares with its caller — this job only runs when the caller's run
+# was triggered by a `repository_dispatch` carrying that payload.
 #
-# Behavior must match the source job bodies byte-for-byte (modulo the two
-# opt-in-only inputs above) at extraction time.
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never reference a
+# local `./.github/actions/...` composite action — that breaks the CALLER with an
+# undiagnosable startup_failure. Every third-party action below is pinned by SHA.
+# Consumers pin their `uses:` to this file by commit SHA, never `@main`, and call with
+# `secrets: inherit`.
 
 on:
   workflow_call:
@@ -48,7 +44,10 @@ on:
         default: 'github-actions[bot]@users.noreply.github.com'
     secrets:
       GHCR_TOKEN:
-        description: 'Used for checkout (so the resulting commit triggers downstream CI) and for git push / gh issue creation'
+        description: 'Checkout, branch push, PR and issue creation (a PAT, so the push triggers CI)'
+        required: true
+      AUTOMERGE_TOKEN:
+        description: 'Enables auto-merge on the stable PR; the same fine-grained token dependabot-auto-merge.yml uses'
         required: true
 
 jobs:
@@ -60,6 +59,7 @@ jobs:
     permissions:
       contents: write
       issues: write
+      pull-requests: write
 
     env:
       FOUNDATION_VERSION: ${{ github.event.client_payload.version }}
@@ -68,8 +68,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # GHCR_TOKEN so the resulting commit triggers downstream CI
-          # (commits from GITHUB_TOKEN do not, by design).
+          # GHCR_TOKEN so the resulting push triggers CI (pushes made with
+          # GITHUB_TOKEN do not, by design).
           token: ${{ secrets.GHCR_TOKEN }}
           fetch-depth: 0
 
@@ -85,21 +85,80 @@ jobs:
           git config user.name "${{ inputs.committer-name }}"
           git config user.email "${{ inputs.committer-email }}"
 
+      - name: Resolve the target branch
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          case "${CHANNEL}" in
+            stable)  branch="foundation-bump/${FOUNDATION_VERSION}" ;;
+            nightly) branch="nightly" ;;
+            *) echo "::error::unknown channel '${CHANNEL}' (expected stable or nightly)"; exit 1 ;;
+          esac
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          pr=""
+          if [[ "${CHANNEL}" == "stable" ]]; then
+            pr=$(gh pr list --head "${branch}" --state open --json url --jq '.[0].url // ""')
+          fi
+          echo "pr=${pr}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${pr}" ]]; then
+            echo "Open PR for ${branch} already exists: ${pr}"
+          fi
+
       - name: Bump foundation pin
+        if: steps.target.outputs.pr == ''
+        id: bump
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-        run: ${{ inputs.bump-script-path }} "${FOUNDATION_VERSION}"
-
-      - name: Commit and push to main
+          BRANCH: ${{ steps.target.outputs.branch }}
         run: |
+          set -euo pipefail
+          # Always main plus this one change, whatever the branch held before.
+          git checkout -B "${BRANCH}" origin/main
+          ${{ inputs.bump-script-path }} "${FOUNDATION_VERSION}"
           git add -A
           if git diff --cached --quiet; then
             echo "No changes — foundation pin already at ${FOUNDATION_VERSION}"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # No [skip ci] — the push to main is the validation gate for the new Foundation version.
           git commit -m "chore: bump foundation to ${FOUNDATION_VERSION} (${CHANNEL})"
-          git push origin HEAD:main
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Push the nightly branch
+        if: env.CHANNEL == 'nightly' && steps.bump.outputs.changed == 'true'
+        run: git push --force origin "HEAD:refs/heads/${{ steps.target.outputs.branch }}"
+
+      - name: Open the stable PR
+        if: env.CHANNEL == 'stable' && steps.bump.outputs.changed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          BRANCH: ${{ steps.target.outputs.branch }}
+        run: |
+          set -euo pipefail
+          # --force: a stale branch from an earlier, closed attempt must not block the push.
+          git push --force origin "HEAD:refs/heads/${BRANCH}"
+          url=$(gh pr create --base main --head "${BRANCH}" \
+            --title "chore: bump foundation to ${FOUNDATION_VERSION} (stable)" \
+            --body "Opened by the release train (foundation_updated, channel stable). It merges on its own once the required checks pass; main is untouched until then. If a check fails, foundation ${FOUNDATION_VERSION} broke this product: fix forward on this branch, or close the PR and roll the release.")
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge on the stable PR
+        if: env.CHANNEL == 'stable' && (steps.pr.outputs.url != '' || steps.target.outputs.pr != '')
+        env:
+          # The queued merge runs as whoever enabled it — see dependabot-auto-merge.yml for
+          # why that is this token and not GITHUB_TOKEN.
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          PR_URL: ${{ steps.pr.outputs.url || steps.target.outputs.pr }}
+        run: |
+          set -euo pipefail
+          if [[ "$(gh pr view "${PR_URL}" --json autoMergeRequest --jq '.autoMergeRequest != null')" == "true" ]]; then
+            echo "Auto-merge already enabled on ${PR_URL}"
+            exit 0
+          fi
+          gh pr merge --auto --squash "${PR_URL}"
 
       - name: Create failure issue if auto-bump fails
         if: failure()
