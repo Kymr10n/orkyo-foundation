@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from "../core/api-client";
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
 /**
@@ -126,6 +126,34 @@ export interface RemoveMfaRequest {
  */
 export async function removeMfa(data: RemoveMfaRequest): Promise<void> {
   return apiDelete(API_PATHS.ACCOUNT.MFA, undefined, data);
+}
+
+/** A passkey on the current user's account. Adding one is a Keycloak step, see PasskeysSection. */
+export interface Passkey {
+  id: string;
+  label?: string | null;
+  createdDate?: string | null;
+}
+
+/**
+ * Request to remove a passkey: the server re-checks the current password first, and the
+ * current TOTP code when the user has one (Keycloak's direct grant needs it then).
+ */
+export interface RemovePasskeyRequest {
+  currentPassword: string;
+  currentCode?: string;
+}
+
+export async function getPasskeys(): Promise<Passkey[]> {
+  return apiGet<Passkey[]>(API_PATHS.ACCOUNT.PASSKEYS);
+}
+
+export async function renamePasskey({ id, label }: { id: string; label: string }): Promise<void> {
+  return apiPatch<void>(API_PATHS.ACCOUNT.passkey(id), { label });
+}
+
+export async function removePasskey({ id, ...data }: RemovePasskeyRequest & { id: string }): Promise<void> {
+  return apiDelete(API_PATHS.ACCOUNT.passkey(id), undefined, data);
 }
 
 /**

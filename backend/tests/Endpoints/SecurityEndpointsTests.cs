@@ -678,6 +678,156 @@ public class SecurityEndpointsTests
 
     #endregion
 
+    #region Passkey Tests
+
+    // Test credentials as named constants: literals next to a password parameter read as
+    // leaked secrets to the PR secret scanner.
+    private const string RightSecret = "right-one";
+    private const string WrongSecret = "wrong-one";
+    private const string MalformedCode = "12ab";
+
+    private HttpRequestMessage Authed(HttpRequestMessage request)
+    {
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", GetAuthToken());
+        return request;
+    }
+
+    private static HttpRequestMessage RemovePasskeyRequest(string id, string? currentPassword, string? currentCode = null) =>
+        new(HttpMethod.Delete, $"/api/account/passkeys/{id}") { Content = JsonContent.Create(new { currentPassword, currentCode }) };
+
+    private static HttpRequestMessage RenamePasskeyRequest(string id, string? label) =>
+        new(HttpMethod.Patch, $"/api/account/passkeys/{id}") { Content = JsonContent.Create(new { label }) };
+
+    [Fact]
+    public async Task GetPasskeys_ReturnsTheUsersPasskeys()
+    {
+        var created = new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc);
+        _mockKeycloak.MockPasskeys = [new PasskeyCredential { Id = "pk-1", Label = "MacBook", CreatedDate = created }];
+
+        var response = await _client.SendAsync(Authed(new HttpRequestMessage(HttpMethod.Get, "/api/account/passkeys")));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetArrayLength().Should().Be(1);
+        body[0].GetProperty("id").GetString().Should().Be("pk-1");
+        body[0].GetProperty("label").GetString().Should().Be("MacBook");
+        body[0].GetProperty("createdDate").GetDateTime().Should().Be(created);
+    }
+
+    [Fact]
+    public async Task RenamePasskey_SetsTheTrimmedLabel()
+    {
+        var response = await _client.SendAsync(Authed(RenamePasskeyRequest("pk-1", "  Work laptop ")));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        _mockKeycloak.LastRenameCall.Should().Be(("pk-1", "Work laptop"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("bad\u0007label")]
+    public async Task RenamePasskey_WithInvalidLabel_Returns400(string? label)
+    {
+        var response = await _client.SendAsync(Authed(RenamePasskeyRequest("pk-1", label)));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.RenameCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RenamePasskey_WhenNotTheUsers_Returns404()
+    {
+        _mockKeycloak.RenameCredentialSuccess = false;
+
+        var response = await _client.SendAsync(Authed(RenamePasskeyRequest("someone-elses", "Mine now")));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task RemovePasskey_WithPassword_RemovesItAndSendsTheMail()
+    {
+        var response = await _client.SendAsync(Authed(RemovePasskeyRequest("pk-1", RightSecret)));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
+        _mockKeycloak.LastDeletedCredentialId.Should().Be("pk-1");
+        await _factory.BackgroundWork.WhenIdleAsync();
+        _factory.MockEmailService.CallCount(nameof(IEmailService.SendPasskeyRemovedAsync)).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task RemovePasskey_TotpUser_PassesTheCodeThrough()
+    {
+        // The direct-grant flow refuses a TOTP user's password without the code.
+        _mockKeycloak.RequireTotpForPasswordGrant = true;
+        _mockKeycloak.AcceptedTotp = "654321";
+
+        var response = await _client.SendAsync(Authed(RemovePasskeyRequest("pk-1", RightSecret, "654321")));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _mockKeycloak.LastVerifiedTotp.Should().Be("654321");
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RemovePasskey_TotpUser_WithoutTheCode_Returns400AndKeepsIt()
+    {
+        _mockKeycloak.RequireTotpForPasswordGrant = true;
+        _mockKeycloak.AcceptedTotp = "654321";
+
+        var response = await _client.SendAsync(Authed(RemovePasskeyRequest("pk-1", RightSecret)));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemovePasskey_WithoutOrWithWrongPassword_Returns400AndKeepsIt()
+    {
+        var noBody = await _client.SendAsync(Authed(new HttpRequestMessage(HttpMethod.Delete, "/api/account/passkeys/pk-1")));
+        noBody.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        _mockKeycloak.VerifyPasswordSuccess = false;
+        var wrong = await _client.SendAsync(Authed(RemovePasskeyRequest("pk-1", WrongSecret)));
+        wrong.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        _mockKeycloak.DeleteCredentialCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task RemovePasskey_WithMalformedCode_Returns400BeforeKeycloak()
+    {
+        var response = await _client.SendAsync(Authed(RemovePasskeyRequest("pk-1", RightSecret, MalformedCode)));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.VerifyPasswordCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PasskeyMutations_OnALockedSharedAccount_Return403()
+    {
+        _factory.AccountGuard.Locked = true;
+        try
+        {
+            var rename = await _client.SendAsync(Authed(RenamePasskeyRequest("pk-1", "Demo")));
+            var remove = await _client.SendAsync(Authed(RemovePasskeyRequest("pk-1", RightSecret)));
+
+            foreach (var response in new[] { rename, remove })
+            {
+                response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+                (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("code").GetString()
+                    .Should().Be(Api.Constants.ApiErrorCodes.AccountLocked);
+            }
+            _mockKeycloak.RenameCredentialCallCount.Should().Be(0);
+            _mockKeycloak.VerifyPasswordCallCount.Should().Be(0);
+        }
+        finally { _factory.AccountGuard.Locked = false; }
+    }
+
+    #endregion
+
     #region Get Profile Tests
 
     [Fact]

@@ -33,6 +33,7 @@ public interface IEmailService
     // Security events
     Task<bool> SendPasswordChangedAsync(string toEmail, string displayName, CancellationToken ct = default);
     Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default);
+    Task<bool> SendPasskeyRemovedAsync(string toEmail, string displayName, CancellationToken ct = default);
     Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
     Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
 
@@ -216,6 +217,9 @@ public class EmailService : IEmailService
 
     public Task<bool> SendMfaChangedAsync(string toEmail, string displayName, bool enabled, CancellationToken ct = default) =>
         SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetMfaChangedEmail(displayName, enabled, b), ct);
+
+    public Task<bool> SendPasskeyRemovedAsync(string toEmail, string displayName, CancellationToken ct = default) =>
+        SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetPasskeyRemovedEmail(displayName, b), ct);
 
     public Task<bool> SendEmailChangeRequestedOldAddressAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default) =>
         SendTemplatedAsync(toEmail, displayName, b => EmailTemplates.GetEmailChangeRequestedOldAddressEmail(displayName, newEmail, b), ct);

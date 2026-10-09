@@ -8,6 +8,19 @@ public record RemoveMfaRequest
     public string? CurrentCode { get; init; }
 }
 
+public record RemovePasskeyRequest
+{
+    public string? CurrentPassword { get; init; }
+
+    /// <summary>Required only when the user has TOTP: the password grant refuses such a user without it.</summary>
+    public string? CurrentCode { get; init; }
+}
+
+public record RenamePasskeyRequest
+{
+    public string? Label { get; init; }
+}
+
 public record ChangePasswordRequest
 {
     public string? CurrentPassword { get; init; }

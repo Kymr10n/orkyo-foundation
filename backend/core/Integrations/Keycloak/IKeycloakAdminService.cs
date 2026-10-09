@@ -95,6 +95,17 @@ public interface IKeycloakAdminService
     Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default);
 
     /// <summary>
+    /// The user's passkeys (credential type <c>webauthn-passwordless</c>), oldest first.
+    /// Enrolment is not here: it is Keycloak's application-initiated action, started through the BFF login.
+    /// </summary>
+    Task<List<PasskeyCredential>> GetPasskeysAsync(string keycloakSub, CancellationToken ct = default);
+
+    /// <summary>
+    /// Set the label of one of the user's credentials. Throws 404 when the credential is not theirs.
+    /// </summary>
+    Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default);
+
+    /// <summary>
     /// Get the user's profile (first name, last name, email).
     /// </summary>
     Task<UserProfile> GetUserProfileAsync(string keycloakSub, CancellationToken ct = default);

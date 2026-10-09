@@ -272,6 +272,78 @@ public static class SecurityEndpoints
         .WithTags("Security")
         .RequireRateLimiting(FoundationRateLimitPolicies.PasswordChange);
 
+        // Passkeys. Enrolment is Keycloak's application-initiated action, reached through
+        // /api/auth/bff/login?kc_action=webauthn-register-passwordless, so there is no POST here.
+        security.MapGet("/passkeys", async (
+            ICurrentPrincipal principal,
+            IKeycloakAdminService keycloakService,
+            CancellationToken ct) =>
+        {
+            var sub = principal.RequireExternalSubject();
+            var passkeys = await keycloakService.GetPasskeysAsync(sub, ct);
+            return Results.Ok(passkeys.Select(p => new PasskeyResponse
+            {
+                Id = p.Id,
+                Label = p.Label,
+                CreatedDate = p.CreatedDate,
+            }));
+        })
+        .WithName("GetPasskeys")
+        .WithSummary("List the user's passkeys")
+        .WithTags("Security");
+
+        security.MapPatch("/passkeys/{credentialId}", async (
+            string credentialId,
+            ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
+            IKeycloakAdminService keycloakService,
+            RenamePasskeyRequest request,
+            IValidator<RenamePasskeyRequest> validator,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        {
+            accountGuard.EnsureCanMutateOwnAccount(principal);
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var sub = principal.RequireExternalSubject();
+                await keycloakService.RenameCredentialAsync(sub, credentialId, request.Label!.Trim(), ct);
+                return Results.NoContent();
+            }, logger, "rename passkey");
+        })
+        .WithName("RenamePasskey")
+        .WithSummary("Rename a passkey")
+        .WithTags("Security");
+
+        security.MapDelete("/passkeys/{credentialId}", async (
+            string credentialId,
+            ICurrentPrincipal principal,
+            IAccountMutationGuard accountGuard,
+            IKeycloakAdminService keycloakService,
+            IBackgroundDispatcher background,
+            [FromBody] RemovePasskeyRequest? body,
+            IValidator<RemovePasskeyRequest> validator,
+            CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
+        {
+            // Optional body so the account guard answers first; the validator then refuses a missing password.
+            accountGuard.EnsureCanMutateOwnAccount(principal);
+            var request = body ?? new RemovePasskeyRequest();
+            return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
+            {
+                var sub = principal.RequireExternalSubject();
+                // Same rule as removing MFA: a session alone must not remove a way to sign in.
+                await keycloakService.VerifyCurrentPasswordAsync(sub, request.CurrentPassword!, request.CurrentCode, ct);
+                await keycloakService.DeleteUserCredentialAsync(sub, credentialId, ct);
+                logger.LogInformation("Passkey {CredentialId} removed for user {Sub}", credentialId, sub);
+                var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
+                background.Dispatch<IEmailService>("passkey-removed mail",
+                    (mail, mailCt) => mail.SendPasskeyRemovedAsync(email, name, mailCt));
+                return Results.Ok(new { message = "Passkey removed" });
+            }, logger, "remove passkey");
+        })
+        .WithName("RemovePasskey")
+        .WithSummary("Remove a passkey")
+        .WithTags("Security")
+        .RequireRateLimiting(FoundationRateLimitPolicies.PasswordChange);
+
         security.MapGet("/profile", async (
             ICurrentPrincipal principal,
             IKeycloakAdminService keycloakService,
@@ -403,6 +475,13 @@ public record MfaStatusResponse
     public DateTime? TotpCreatedDate { get; init; }
     public string? TotpLabel { get; init; }
     public bool RecoveryCodesConfigured { get; init; }
+}
+
+public record PasskeyResponse
+{
+    public string Id { get; init; } = string.Empty;
+    public string? Label { get; init; }
+    public DateTime? CreatedDate { get; init; }
 }
 
 public record UpdateProfileRequest

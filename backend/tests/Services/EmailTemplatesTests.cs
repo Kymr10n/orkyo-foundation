@@ -190,6 +190,15 @@ public class EmailTemplatesTests
     }
 
     [Fact]
+    public void PasskeyRemoved_hasSecurityFooter()
+    {
+        var (s, h, t) = EmailTemplates.GetPasskeyRemovedEmail("Dana", CustomBranding);
+        s.Should().Contain("passkey");
+        h.Should().Contain("Dana").And.Contain("contact us");
+        AssertBranded(s, h, t);
+    }
+
+    [Fact]
     public void EmailChange_requestedOldAddressAndChanged()
     {
         var (s1, h1, t1) = EmailTemplates.GetEmailChangeRequestedOldAddressEmail("Dana", "new@x.com", CustomBranding);

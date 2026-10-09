@@ -27,6 +27,9 @@ namespace Api.Endpoints;
 
 public static class BffAuthEndpoints
 {
+    /// <summary>The Keycloak application-initiated actions the SPA may start through /login.</summary>
+    private static readonly HashSet<string> AllowedKcActions = ["webauthn-register-passwordless"];
+
     private const int PkceVerifierLength = 32;
     private const int StateLength = 32;
     private static readonly TimeSpan StateTtl = TimePolicyConstants.BffPkceStateTtl;
@@ -88,6 +91,8 @@ public static class BffAuthEndpoints
         // The SPA sends the OIDC-standard `login_hint` query key; bind it explicitly
         // since the parameter name (loginHint) would otherwise not match.
         [FromQuery(Name = "login_hint")] string? loginHint,
+        // A Keycloak application-initiated action (e.g. enrolling a passkey), allow-listed.
+        [FromQuery(Name = "kc_action")] string? kcAction,
         IOptions<BffOptions> bffOpts,
         KeycloakOptions keycloakOptions,
         IBffPkceStateStore pkceStore,
@@ -101,6 +106,12 @@ public static class BffAuthEndpoints
         {
             logger.LogWarning("BFF login rejected: invalid returnTo={ReturnTo}", returnTo);
             return ErrorResponses.BadRequest("Invalid returnTo URL");
+        }
+
+        if (kcAction is not null && !AllowedKcActions.Contains(kcAction))
+        {
+            logger.LogWarning("BFF login rejected: kc_action={KcAction} is not allowed", kcAction);
+            return ErrorResponses.BadRequest("Invalid kc_action");
         }
 
         var codeVerifier = GenerateRandomBase64Url(PkceVerifierLength);
@@ -124,6 +135,8 @@ public static class BffAuthEndpoints
         // have to re-type the email they just registered).
         if (!string.IsNullOrWhiteSpace(loginHint))
             queryParams["login_hint"] = loginHint;
+        if (kcAction is not null)
+            queryParams["kc_action"] = kcAction;
         var authUrl = QueryHelpers.AddQueryString(
             $"{keycloakOptions.Authority}/protocol/openid-connect/auth", queryParams);
 
@@ -136,6 +149,8 @@ public static class BffAuthEndpoints
     private static async Task<IResult> HandleCallback(
         string? code,
         string? state,
+        // Keycloak's result for an application-initiated action: success, cancelled or error.
+        [FromQuery(Name = "kc_action_status")] string? kcActionStatus,
         HttpContext ctx,
         IOptions<BffOptions> bffOpts,
         IBffPkceStateStore pkceStore,
@@ -206,7 +221,11 @@ public static class BffAuthEndpoints
             await sessionEstablisher.EstablishAsync(
                 ctx, linkResult.UserId.Value, tokenProfile, tokenResponse);
 
-            var returnTo = await ResolvePostLoginRedirectAsync(pkceState.ReturnTo, linkResult.UserId.Value, tokenProfile.IsSiteAdmin, bffOptions, sessionService, tenantMiddlewareOpts.Value, logger, ct);
+            // An application-initiated action returns to the page that started it, with its
+            // result; only a plain sign-in picks a landing page.
+            var returnTo = kcActionStatus is "success" or "cancelled" or "error"
+                ? QueryHelpers.AddQueryString(pkceState.ReturnTo, "kc_action_status", kcActionStatus)
+                : await ResolvePostLoginRedirectAsync(pkceState.ReturnTo, linkResult.UserId.Value, tokenProfile.IsSiteAdmin, bffOptions, sessionService, tenantMiddlewareOpts.Value, logger, ct);
 
             // Log only the host component — path may contain invite tokens or other PII
             logger.LogInformation("BFF session created for user {UserId}, redirecting to {ReturnToHost}",

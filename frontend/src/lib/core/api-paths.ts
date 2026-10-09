@@ -157,7 +157,9 @@ export const API_PATHS = {
     NOTIFICATION_PREFERENCES: '/api/account/notification-preferences',
     EXPORT: '/api/account/export',
     DELETE: '/api/account/delete',
+    PASSKEYS: '/api/account/passkeys',
     session: (sessionId: string) => `/api/account/sessions/${sessionId}`,
+    passkey: (credentialId: string) => `/api/account/passkeys/${encodeURIComponent(credentialId)}`,
   },
 
   // Preferences

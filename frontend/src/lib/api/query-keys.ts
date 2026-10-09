@@ -241,6 +241,11 @@ export const qk = {
     status: () => ["mfa-status"] as const,
   },
 
+  passkeys: {
+    /** The current user's passkeys (also its own invalidation prefix). */
+    all: () => ["passkeys"] as const,
+  },
+
   reportingTokens: {
     /** The tenant's reporting API tokens (also its own invalidation prefix). */
     all: () => ["reporting-tokens"] as const,

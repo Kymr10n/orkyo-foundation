@@ -50,7 +50,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "@foundation/src/hooks/useAccount";
-import { useSecurityInfo } from "@foundation/src/hooks/useSecuritySettings";
+import { useInvalidatePasskeys, useSecurityInfo } from "@foundation/src/hooks/useSecuritySettings";
 import {
   navigateToTenantSubdomain,
   goToApex,
@@ -98,6 +98,13 @@ const emailChangeStatusMessages: Record<
   },
 };
 
+/** Keycloak's result for "Add a passkey", passed back by the BFF as `kc_action_status`. */
+const passkeyActionMessages: Record<string, { kind: "success" | "info" | "error"; title: string }> = {
+  success: { kind: "success", title: "Passkey added" },
+  cancelled: { kind: "info", title: "Passkey setup cancelled" },
+  error: { kind: "error", title: "Could not add the passkey. Please try again." },
+};
+
 function isEmailChangeStatus(status: string | null): status is EmailChangeStatus {
   return status === "confirmed" ||
     status === "expired" ||
@@ -138,6 +145,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     setAppUser,
   } = useAuth();
   const invalidateUserProfile = useInvalidateUserProfile();
+  const invalidatePasskeys = useInvalidatePasskeys();
   const [activeTab, handleTabChange] = useTabParam("profile");
   const {
     memberships,
@@ -157,6 +165,7 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const handledEmailChangeStatusRef = useRef<string | null>(null);
+  const handledPasskeyStatusRef = useRef<string | null>(null);
   const extraTabContext: AccountPageExtraTabContext = {
     activeMembership,
     isSiteAdmin,
@@ -206,6 +215,31 @@ export function AccountPage({ accountTabs = [] }: AccountPageProps = {}) {
     next.set("tab", "profile");
     setSearchParams(next, { replace: true });
   }, [invalidateUserProfile, searchParams, setSearchParams]);
+
+  // Read ?kc_action_status once (the return from Keycloak's "add a passkey" step) and strip it.
+  useEffect(() => {
+    const status = searchParams.get("kc_action_status");
+    const message = status ? passkeyActionMessages[status] : undefined;
+    if (!status || !message || handledPasskeyStatusRef.current === status) {
+      return;
+    }
+    handledPasskeyStatusRef.current = status;
+
+    const id = `passkey-${status}`;
+    if (message.kind === "success") {
+      toast.success(message.title, { id });
+      void invalidatePasskeys();
+    } else if (message.kind === "info") {
+      toast.info(message.title, { id });
+    } else {
+      toast.error(message.title, { id });
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete("kc_action_status");
+    next.set("tab", "security");
+    setSearchParams(next, { replace: true });
+  }, [invalidatePasskeys, searchParams, setSearchParams]);
 
   const handleStartEditName = () => {
     setNameForm({

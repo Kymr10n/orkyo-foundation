@@ -70,6 +70,39 @@ public class BffAuthEndpointsTests
     }
 
     [Fact]
+    public async Task Login_WithAllowedKcAction_ForwardsItToKeycloak()
+    {
+        // "Add a passkey" starts Keycloak's application-initiated passkey registration.
+        var response = await _client.GetAsync(
+            "/api/auth/bff/login?returnTo=http://localhost:5173/account?tab=security&kc_action=webauthn-register-passwordless");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().Contain("kc_action=webauthn-register-passwordless");
+    }
+
+    [Theory]
+    [InlineData("UPDATE_PASSWORD")]
+    [InlineData("delete_account")]
+    [InlineData("")]
+    public async Task Login_WithKcActionOutsideTheAllowList_Returns400(string kcAction)
+    {
+        // Any other action (deleting the account, resetting credentials) must not be
+        // reachable from a link that only needs a signed-in browser.
+        var response = await _client.GetAsync(
+            $"/api/auth/bff/login?returnTo=http://localhost:5173/&kc_action={kcAction}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task Login_WithoutKcAction_OmitsTheParam()
+    {
+        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=http://localhost:5173/");
+
+        response.Headers.Location!.ToString().Should().NotContain("kc_action");
+    }
+
+    [Fact]
     public async Task Login_WithInvalidReturnTo_Returns400()
     {
         var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://evil.com/phish");

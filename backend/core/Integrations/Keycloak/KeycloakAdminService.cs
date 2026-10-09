@@ -223,6 +223,49 @@ public class KeycloakAdminService : IKeycloakAdminService
         _logger.LogInformation("Deleted credential {CredentialId} for user {Sub}", credentialId, keycloakSub);
     }
 
+    public async Task<List<PasskeyCredential>> GetPasskeysAsync(string keycloakSub, CancellationToken ct = default)
+    {
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
+
+        var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
+            $"users/{userId}/credentials", token, "Failed to retrieve passkeys", ct) ?? new();
+
+        return credentials
+            .Where(c => c.Type == "webauthn-passwordless" && !string.IsNullOrEmpty(c.Id))
+            .OrderBy(c => c.CreatedDate)
+            .Select(c => new PasskeyCredential
+            {
+                Id = c.Id!,
+                Label = c.UserLabel,
+                CreatedDate = c.CreatedDate != null
+                    ? DateTimeOffset.FromUnixTimeMilliseconds(c.CreatedDate.Value).DateTime
+                    : null,
+            })
+            .ToList();
+    }
+
+    public async Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default)
+    {
+        var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
+
+        // Same ownership check as DeleteUserCredentialAsync: fails closed.
+        var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
+            $"users/{userId}/credentials", token, "Failed to verify credential ownership", ct) ?? new();
+        if (!credentials.Any(c => c.Id == credentialId))
+        {
+            throw new KeycloakAdminException("Credential not found for this user", 404);
+        }
+
+        // Keycloak takes the label as a plain-text body, not JSON, so this one request builds its own content.
+        using var request = CreateAdminRequest(HttpMethod.Put,
+            AdminUrl($"users/{userId}/credentials/{Uri.EscapeDataString(credentialId)}/userLabel"), token);
+        request.Content = new StringContent(label, Encoding.UTF8, "text/plain");
+        using var response = await _httpClient.SendAsync(request, ct);
+        await EnsureSuccessAsync(response, "Failed to rename credential", ct);
+
+        _logger.LogInformation("Renamed credential {CredentialId} for user {Sub}", credentialId, keycloakSub);
+    }
+
     public async Task<UserProfile> GetUserProfileAsync(string keycloakSub, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
