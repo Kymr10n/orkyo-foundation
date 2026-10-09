@@ -75,6 +75,8 @@ jobs:
       images: ${{ steps.find.outputs.images }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Collect the runtime-stage base of every Dockerfile
         id: find
@@ -113,6 +115,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check .trivyignore policy (dates present, not lapsed, 14-day window)
         run: |
@@ -154,6 +158,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
         if: startsWith(matrix.image, 'ghcr.io/')
