@@ -94,6 +94,44 @@ public class SecurityEndpointsTests
         _mockKeycloak.LastChangePasswordCall.newPassword.Should().Be("NewPass456!");
     }
 
+    // The new credential as a named constant, like the passkey tests' RightSecret: a literal
+    // beside a password field reads as a leaked secret to the PR scanner.
+    private const string NextSecret = "next-one-long-enough";
+
+    [Fact]
+    public async Task ChangePassword_ATotpUser_PassesTheCodeToTheCheck()
+    {
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", GetAuthToken(), new
+        {
+            currentPassword = RightSecret,
+            newPassword = NextSecret,
+            confirmPassword = NextSecret,
+            currentCode = "654321",
+        });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        _mockKeycloak.LastChangePasswordTotp.Should().Be("654321");
+    }
+
+    [Fact]
+    public async Task ChangePassword_WithAMalformedCode_Returns400BeforeKeycloak()
+    {
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/account/password", GetAuthToken(), new
+        {
+            currentPassword = RightSecret,
+            newPassword = NextSecret,
+            confirmPassword = NextSecret,
+            currentCode = MalformedCode,
+        });
+
+        var response = await _client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        _mockKeycloak.ChangePasswordCallCount.Should().Be(0);
+    }
+
     [Fact]
     public async Task ChangePassword_WithMissingCurrentPassword_ShouldReturn400()
     {

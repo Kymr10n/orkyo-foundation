@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@foundation/src/components/ui/dialog";
-import { useChangePassword } from "@foundation/src/hooks/useSecuritySettings";
+import { useChangePassword, useMfaStatus } from "@foundation/src/hooks/useSecuritySettings";
 
 interface PasswordSectionProps {
   isFederated: boolean;
@@ -37,6 +37,10 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
   });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  // The password check also needs the authenticator code for a TOTP user (as removing a passkey does).
+  const [currentCode, setCurrentCode] = useState("");
+  const { data: mfaStatus } = useMfaStatus();
+  const needsCode = mfaStatus?.totpEnabled ?? false;
 
   const changePasswordMutation = useChangePassword();
 
@@ -54,7 +58,12 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
       return;
     }
 
-    changePasswordMutation.mutate(passwordForm, {
+    if (needsCode && !/^\d{6}$/.test(currentCode)) {
+      setPasswordError("Enter the 6-digit code from your authenticator app");
+      return;
+    }
+
+    changePasswordMutation.mutate({ ...passwordForm, currentCode: needsCode ? currentCode : undefined }, {
       onSuccess: () => {
         setPasswordSuccess(true);
         setPasswordError(null);
@@ -63,6 +72,7 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
           newPassword: "",
           confirmPassword: "",
         });
+        setCurrentCode("");
         setTimeout(() => {
           setChangePasswordOpen(false);
           setPasswordSuccess(false);
@@ -153,6 +163,21 @@ export function PasswordSection({ isFederated, identityProvider, locked = false 
                   required
                 />
               </div>
+              {needsCode && (
+                <div className="space-y-2">
+                  <Label htmlFor="passwordCurrentCode">Current Authenticator Code</Label>
+                  <Input
+                    id="passwordCurrentCode"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="6-digit code"
+                    value={currentCode}
+                    onChange={(e) => setCurrentCode(e.target.value.replace(/\D/g, ""))}
+                    required
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="newPassword">New Password</Label>
                 <Input

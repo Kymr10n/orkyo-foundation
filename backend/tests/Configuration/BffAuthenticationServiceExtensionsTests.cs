@@ -109,6 +109,8 @@ public class BffAuthenticationServiceExtensionsTests
                 Realm = "orkyo",
                 BackendClientId = "orkyo-backend",
                 BackendClientSecret = "secret",
+                PasswordCheckClientId = TestConstants.CheckClientId,
+                PasswordCheckClientSecret = TestConstants.CheckClientCredential,
             }));
 
         provider.GetRequiredService<KeycloakTokenClient>().Should().NotBeNull();

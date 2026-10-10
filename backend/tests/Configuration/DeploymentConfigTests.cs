@@ -32,6 +32,8 @@ public class DeploymentConfigTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
             ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
             [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey,
             [ConfigKeys.SmtpHost] = "localhost",
@@ -129,6 +131,8 @@ public class DeploymentConfigTests
             KeycloakRealm = "orkyo",
             KeycloakBackendClientId = "id",
             KeycloakBackendClientSecret = "s",
+            KeycloakPasswordCheckClientId = TestConstants.CheckClientId,
+            KeycloakPasswordCheckClientSecret = TestConstants.CheckClientCredential,
             PostgresConnectionString = "cs",
             MasterEncryptionKey = TestConstants.MasterEncryptionKey,
         };
@@ -153,6 +157,8 @@ public class DeploymentConfigTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "super-secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
             ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
             [ConfigKeys.SmtpHost] = "localhost",
             [ConfigKeys.SmtpPort] = "1025",
@@ -167,6 +173,7 @@ public class DeploymentConfigTests
         var result = DeploymentConfig.FromConfiguration(config).Redacted();
 
         result[nameof(DeploymentConfig.KeycloakBackendClientSecret)].Should().Be("***");
+        result[nameof(DeploymentConfig.KeycloakPasswordCheckClientSecret)].Should().Be("***");
         result[nameof(DeploymentConfig.PostgresConnectionString)].Should().Be("***");
         result[nameof(DeploymentConfig.SmtpPassword)].Should().Be("***");
         result[nameof(DeploymentConfig.SmtpUsername)].Should().Be("***");
@@ -184,6 +191,8 @@ public class DeploymentConfigTests
             BuildConfig(RequiredValues(new Dictionary<string, string?>
             {
                 [ConfigKeys.KeycloakBackendClientSecret] = "super-secret-value",
+                [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+                [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
             })));
 
         var rendered = config.ToString();
@@ -235,6 +244,8 @@ public class DeploymentConfigTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
             ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
             [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey,
             [ConfigKeys.SmtpHost] = "localhost",

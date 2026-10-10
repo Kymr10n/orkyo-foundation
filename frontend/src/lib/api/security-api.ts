@@ -39,6 +39,8 @@ export interface ChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+  /** The current 6-digit TOTP code; required by Keycloak's password check for a TOTP user. */
+  currentCode?: string;
 }
 
 /**

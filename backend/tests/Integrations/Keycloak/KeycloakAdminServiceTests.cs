@@ -24,7 +24,9 @@ public class KeycloakAdminServiceTests
         BaseUrl = "http://keycloak:8080",
         Realm = "test-realm",
         BackendClientId = "backend",
-        BackendClientSecret = "secret"
+        BackendClientSecret = "secret",
+        PasswordCheckClientId = TestConstants.CheckClientId,
+        PasswordCheckClientSecret = TestConstants.CheckClientCredential
     };
 
     private static IConfiguration DefaultConfiguration =>
@@ -359,6 +361,51 @@ public class KeycloakAdminServiceTests
 
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(400);
+    }
+
+    [Fact]
+    public async Task VerifyCurrentPasswordAsync_RunsOnTheCheckClient_NotTheBackendClient()
+    {
+        // The password grant is off on the backend client (foundation#101); the dedicated
+        // check client carries it.
+        var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: null));
+
+        await svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential);
+
+        var grant = handler.Bodies.Single(b => b.Contains("grant_type=password"));
+        grant.Should().Contain($"client_id={TestConstants.CheckClientId}");
+        grant.Should().NotContain($"client_id={DefaultOptions.BackendClientId}");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, """{"error":"unauthorized_client","error_description":"Client not allowed for direct access grants"}""")]
+    [InlineData(HttpStatusCode.Unauthorized, """{"error":"invalid_client"}""")]
+    [InlineData(HttpStatusCode.InternalServerError, "upstream failure, not JSON")]
+    public async Task VerifyCurrentPasswordAsync_ARefusalOfTheCheckItself_IsUnavailable_NotAWrongPassword(
+        HttpStatusCode status, string body)
+    {
+        // These used to surface as "Current password is incorrect" and hid a broken
+        // configuration for months.
+        var (svc, _) = BuildCapturing(req => req.RequestUri!.ToString().Contains("openid-connect/token")
+            && req.Content!.ReadAsStringAsync().Result.Contains("grant_type=password")
+                ? Json(status, body)
+                : PasswordGrantResponder(req, requiredTotp: null));
+
+        var act = () => svc.VerifyCurrentPasswordAsync(KcUserId, CurrentCredential);
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(502);
+        ex.Which.Message.Should().Be("Password check unavailable");
+    }
+
+    [Fact]
+    public async Task ChangePasswordAsync_PassesTheTotpCodeToTheCheck()
+    {
+        var (svc, handler) = BuildCapturing(req => PasswordGrantResponder(req, requiredTotp: "654321"));
+
+        await svc.ChangePasswordAsync(KcUserId, CurrentCredential, "a-new-one-long-enough", totp: "654321");
+
+        handler.Bodies.Single(b => b.Contains("grant_type=password")).Should().Contain("totp=654321");
     }
 
     [Fact]

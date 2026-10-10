@@ -19,7 +19,7 @@ public interface IKeycloakAdminService
     /// <summary>
     /// Change password for a user identified by Keycloak subject ID.
     /// </summary>
-    Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default);
+    Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, string? totp = null, CancellationToken ct = default);
 
     /// <summary>
     /// Verify a user's current password. Throws <see cref="KeycloakAdminException"/> with

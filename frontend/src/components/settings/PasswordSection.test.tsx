@@ -5,9 +5,10 @@ import { createTestQueryWrapper } from '@foundation/src/test-utils';
 
 vi.mock('@foundation/src/lib/api/security-api', () => ({
   changePassword: vi.fn(),
+  getMfaStatus: vi.fn(() => Promise.resolve({ totpEnabled: false, recoveryCodesConfigured: false })),
 }));
 
-const { changePassword } = await import('@foundation/src/lib/api/security-api');
+const { changePassword, getMfaStatus } = await import('@foundation/src/lib/api/security-api');
 
 const defaultProps = {
   isFederated: false,
@@ -94,6 +95,57 @@ describe('PasswordSection', () => {
         expect.anything(),
       );
     });
+  });
+
+  it('asks a TOTP user for the code and sends it', async () => {
+    vi.mocked(getMfaStatus).mockResolvedValueOnce({ totpEnabled: true, recoveryCodesConfigured: false });
+    vi.mocked(changePassword).mockResolvedValue({ message: 'ok' } as never);
+    renderPassword();
+    fireEvent.click(screen.getByRole('button', { name: 'Change Password' }));
+
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'oldpass1' } });
+    fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'newpass12' } });
+    fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'newpass12' } });
+    fireEvent.change(await screen.findByLabelText('Current Authenticator Code'), { target: { value: '12a3456' } });
+    fireEvent.submit(screen.getByLabelText('Current Password').closest('form')!);
+
+    await waitFor(() => {
+      expect(changePassword).toHaveBeenCalledWith(
+        expect.objectContaining({ currentPassword: 'oldpass1', currentCode: '123456' }),
+        expect.anything(),
+      );
+    });
+  });
+
+  it('refuses a TOTP user without a full code', async () => {
+    vi.mocked(changePassword).mockClear();
+    vi.mocked(getMfaStatus).mockResolvedValueOnce({ totpEnabled: true, recoveryCodesConfigured: false });
+    renderPassword();
+    fireEvent.click(screen.getByRole('button', { name: 'Change Password' }));
+
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'oldpass1' } });
+    fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'newpass12' } });
+    fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'newpass12' } });
+    fireEvent.change(await screen.findByLabelText('Current Authenticator Code'), { target: { value: '123' } });
+    fireEvent.submit(screen.getByLabelText('Current Password').closest('form')!);
+
+    expect(await screen.findByText('Enter the 6-digit code from your authenticator app')).toBeInTheDocument();
+    expect(changePassword).not.toHaveBeenCalled();
+  });
+
+  it('shows no code field and sends no code without TOTP', async () => {
+    vi.mocked(changePassword).mockResolvedValue({ message: 'ok' } as never);
+    renderPassword();
+    fireEvent.click(screen.getByRole('button', { name: 'Change Password' }));
+
+    fireEvent.change(screen.getByLabelText('Current Password'), { target: { value: 'oldpass1' } });
+    fireEvent.change(screen.getByLabelText('New Password'), { target: { value: 'newpass12' } });
+    fireEvent.change(screen.getByLabelText('Confirm New Password'), { target: { value: 'newpass12' } });
+    fireEvent.submit(screen.getByLabelText('Current Password').closest('form')!);
+
+    await waitFor(() => expect(changePassword).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Current Authenticator Code')).not.toBeInTheDocument();
+    expect(vi.mocked(changePassword).mock.calls.at(-1)![0]).toMatchObject({ currentCode: undefined });
   });
 
   it('shows success message on successful change', async () => {

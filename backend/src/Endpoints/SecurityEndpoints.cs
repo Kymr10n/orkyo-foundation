@@ -37,7 +37,7 @@ public static class SecurityEndpoints
             {
                 var sub = principal.RequireExternalSubject();
 
-                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword!, ct);
+                await keycloakService.ChangePasswordAsync(sub, request.CurrentPassword!, request.NewPassword!, request.CurrentCode, ct);
                 logger.LogInformation("Password changed for user {Sub}", sub);
                 // Security confirmation (best-effort, non-blocking).
                 var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);

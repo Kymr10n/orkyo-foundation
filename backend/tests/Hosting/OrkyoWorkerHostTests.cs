@@ -105,6 +105,8 @@ public class OrkyoWorkerHostTests
                 [ConfigKeys.KeycloakRealm] = "orkyo",
                 [ConfigKeys.KeycloakBackendClientId] = "backend",
                 [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+                [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+                [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
             }).Build(),
         };
 
@@ -139,6 +141,8 @@ public class OrkyoWorkerHostTests
                 [ConfigKeys.KeycloakRealm] = "orkyo",
                 [ConfigKeys.KeycloakBackendClientId] = "backend",
                 [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+                [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+                [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
                 [ConfigKeys.SmtpHost] = smtpHost,
             }).Build(),
         };

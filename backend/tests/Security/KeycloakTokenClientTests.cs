@@ -19,6 +19,8 @@ public class KeycloakTokenClientTests
         Realm = "orkyo",
         BackendClientId = "orkyo-backend",
         BackendClientSecret = "secret",
+        PasswordCheckClientId = TestConstants.CheckClientId,
+        PasswordCheckClientSecret = TestConstants.CheckClientCredential,
     };
 
     private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;

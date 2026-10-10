@@ -36,10 +36,10 @@ public class KeycloakAdminService : IKeycloakAdminService
         _tokenCache = tokenCache;
     }
 
-    public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
+    public async Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, string? totp = null, CancellationToken ct = default)
     {
         // Verify current password first — "incorrect password" is a user error (400), not an upstream failure.
-        await VerifyCurrentPasswordAsync(keycloakSub, currentPassword, ct: ct);
+        await VerifyCurrentPasswordAsync(keycloakSub, currentPassword, totp, ct);
 
         var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
@@ -456,19 +456,18 @@ public class KeycloakAdminService : IKeycloakAdminService
             throw new KeycloakAdminException("Could not determine username");
         }
 
-        // Verify the user's password by attempting an ROPC token exchange.
-        // ROPC (directAccessGrantsEnabled) is intentionally kept on orkyo-backend
-        // for this single use case — Keycloak has no Admin API for password verification.
-        // This is safe because: (1) it requires the confidential client_secret,
-        // (2) Keycloak brute-force protection applies (5 failures → 900s lockout),
-        // (3) the token endpoint is rate-limited in Nginx.
+        // Verify the user's password with a password grant (Keycloak has no Admin API for
+        // password verification). The grant runs on the dedicated password-check client: it
+        // is off on the backend client (foundation#101), and the check client's tokens carry
+        // no API audience, so a token minted here is useless to anyone holding it. Keycloak's
+        // brute-force protection applies, and the endpoints that call this are rate-limited.
         var tokenUrl = $"{_kc.EffectiveInternalBaseUrl}/realms/{_kc.Realm}/protocol/openid-connect/token";
 
         var form = new Dictionary<string, string>
         {
             ["grant_type"] = "password",
-            ["client_id"] = _kc.BackendClientId,
-            ["client_secret"] = _kc.BackendClientSecret,
+            ["client_id"] = _kc.PasswordCheckClientId,
+            ["client_secret"] = _kc.PasswordCheckClientSecret,
             ["username"] = username,
             ["password"] = password
         };
@@ -483,9 +482,39 @@ public class KeycloakAdminService : IKeycloakAdminService
         SetInternalProxyHeaders(verifyRequest);
 
         using var response = await _httpClient.SendAsync(verifyRequest, ct);
-        if (!response.IsSuccessStatusCode)
+        if (response.IsSuccessStatusCode) return;
+
+        // invalid_grant is the user's answer: a wrong password, or a TOTP user without the
+        // code. Anything else means the check itself cannot run (the client is missing, its
+        // secret is wrong, or its password grant is off), which used to read as a wrong
+        // password and hid exactly that outage. Report it as such.
+        var body = await response.Content.ReadAsStringAsync(ct);
+        var error = TokenErrorCode(body);
+        if (error == "invalid_grant")
         {
             throw new KeycloakAdminException("Current password is incorrect", 400);
+        }
+
+        _logger.LogWarning("Password check on client {ClientId} refused: {Error} (HTTP {Status})",
+            _kc.PasswordCheckClientId, error ?? "no error code", (int)response.StatusCode);
+        throw new KeycloakAdminException("Password check unavailable", 502);
+    }
+
+    /// <summary>The OAuth <c>error</c> code of a token-endpoint error body, or null when the body has none.</summary>
+    private static string? TokenErrorCode(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("error", out var e)
+                && e.ValueKind == JsonValueKind.String
+                ? e.GetString()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
         }
     }
 
