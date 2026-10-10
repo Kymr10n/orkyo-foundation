@@ -78,6 +78,7 @@ jobs:
             keycloak:
               - 'keycloak/**'
               - '.trivyignore'
+              - 'scripts/ci/keycloak-*'
 
       - name: Resolve keycloak flag
         id: result
@@ -327,6 +328,15 @@ jobs:
       # 500. Start the built image and render the login form once.
       - name: Render the login page with the Orkyo theme
         run: scripts/ci/keycloak-render-check.sh "keycloak-test:${{ github.sha }}"
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # The theme's own JavaScript (passkey naming) has no frontend toolchain around it.
+      - name: Test the theme scripts
+        run: node --test keycloak/tests/*.test.mjs
 
   # ─────────────────────────────────────────────
   # BUILD & PUSH KC IMAGE — main branch only
