@@ -39,4 +39,10 @@ if docker logs "$NAME" 2>&1 | grep -q 'FreeMarkerException'; then
   docker logs "$NAME" 2>&1 | grep -E 'FreeMarkerException|Caused by|in template' | head -20
   exit 1
 fi
+# Keycloak's WebAuthn module scripts import the bare specifier "rfc4648". Without the import
+# map the page renders fine and every passkey button silently does nothing (1.6.0 staging).
+if ! grep -q '"rfc4648"' "$WORK/login.html"; then
+  echo "::error::Keycloak login page has no rfc4648 import map; passkey scripts cannot load"
+  exit 1
+fi
 echo "Keycloak login page renders with the Orkyo theme (status 200)"

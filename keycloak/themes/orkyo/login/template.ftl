@@ -41,6 +41,18 @@
     </#if>
     <style>body{visibility:hidden}</style>
     <noscript><style>body{visibility:visible}</style></noscript>
+
+    <#-- Keycloak's WebAuthn scripts (passkey registration, passkey sign-in and autofill)
+         import the bare module "rfc4648". The base template maps it here; this template
+         replaces the base one, so it must carry the same map, or those module scripts fail
+         to load and their buttons do nothing. -->
+    <script type="importmap"<#if cspNonce??> nonce="${cspNonce}"</#if>>
+        {
+            "imports": {
+                "rfc4648": "${url.resourcesCommonPath}/vendor/rfc4648/rfc4648.js"
+            }
+        }
+    </script>
 </head>
 
 <body class="orkyo-login">
