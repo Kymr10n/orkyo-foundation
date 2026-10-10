@@ -149,6 +149,8 @@ public static class BffAuthEndpoints
     private static async Task<IResult> HandleCallback(
         string? code,
         string? state,
+        // An OAuth2 error response (RFC 6749 §4.1.2.1) carries `error` in place of `code`.
+        [FromQuery(Name = "error")] string? error,
         // Keycloak's result for an application-initiated action: success, cancelled or error.
         [FromQuery(Name = "kc_action_status")] string? kcActionStatus,
         HttpContext ctx,
@@ -164,26 +166,33 @@ public static class BffAuthEndpoints
     {
         var bffOptions = bffOpts.Value;
 
+        // The callback is a browser navigation, so every failure lands on the SPA's /login:
+        // it shows the code's message to a signed-out user and sends a signed-in one home.
+        IResult LoginError(string errorCode) =>
+            Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error={Uri.EscapeDataString(errorCode)}");
+
         try
         {
-            if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
-                return ErrorResponses.BadRequest("Missing code or state parameter");
-
-            // Atomic get-and-remove — a replayed state returns null immediately
-            var pkceState = await pkceStore.GetAndRemoveAsync(state, ct);
+            // Atomic get-and-remove: a state serves exactly one callback, whatever its outcome.
+            var pkceState = string.IsNullOrEmpty(state) ? null : await pkceStore.GetAndRemoveAsync(state, ct);
             if (pkceState is null)
             {
-                logger.LogWarning("BFF callback: state not found, expired, or already consumed");
-                // Redirect to /login with a user-friendly error code so the frontend
-                // can display a "session expired, please try again" message instead of a
-                // blank or broken page.
-                return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=invalid_state");
+                // Missing, expired or already used, e.g. the back button reopened a finished
+                // Keycloak page and Keycloak answered `authentication_expired`.
+                logger.LogWarning("BFF callback: state not found, expired, or already consumed (error={Error})", error);
+                return LoginError("invalid_state");
+            }
+
+            if (string.IsNullOrEmpty(code))
+            {
+                logger.LogWarning("BFF callback: Keycloak returned no code (error={Error})", error);
+                return LoginError("auth_failed");
             }
 
             var tokenResponse = await tokenClient.ExchangeCodeAsync(code, pkceState.CodeVerifier, bffOptions.RedirectUri, ct);
 
             if (tokenResponse is null)
-                return ErrorResponses.BadRequest("Token exchange failed");
+                return LoginError("auth_failed");
 
             // Build a ClaimsPrincipal from the token, then use KeycloakTokenProfile
             // for all claim extraction — the single authoritative claims mapper.
@@ -193,14 +202,14 @@ public static class BffAuthEndpoints
             if (!tokenProfile.IsValid || string.IsNullOrEmpty(tokenProfile.Subject))
             {
                 logger.LogError("BFF callback: access token missing 'sub' claim");
-                return ErrorResponses.BadRequest("Invalid access token");
+                return LoginError("auth_failed");
             }
 
             var externalToken = tokenProfile.ToExternalIdentityToken();
             if (externalToken is null)
             {
                 logger.LogError("BFF callback: could not build external identity token");
-                return ErrorResponses.BadRequest("Invalid access token");
+                return LoginError("auth_failed");
             }
 
             var linkResult = await identityLinkService.LinkIdentityAsync(externalToken, ct);
@@ -212,10 +221,9 @@ public static class BffAuthEndpoints
                 // product will never admit to retry is a loop — the Keycloak SSO
                 // cookie survives this redirect, so the retry re-authenticates
                 // silently and lands right back here.
-                var errorCode = string.IsNullOrEmpty(linkResult.ErrorCode)
+                return LoginError(string.IsNullOrEmpty(linkResult.ErrorCode)
                     ? "identity_link_failed"
-                    : linkResult.ErrorCode;
-                return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error={Uri.EscapeDataString(errorCode)}");
+                    : linkResult.ErrorCode);
             }
 
             await sessionEstablisher.EstablishAsync(
@@ -236,7 +244,7 @@ public static class BffAuthEndpoints
         catch (Exception ex)
         {
             logger.LogError(ex, "BFF callback failed unexpectedly");
-            return Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error=auth_failed");
+            return LoginError("auth_failed");
         }
     }
 

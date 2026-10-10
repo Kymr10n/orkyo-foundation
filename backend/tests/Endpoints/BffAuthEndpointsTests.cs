@@ -130,16 +130,7 @@ public class BffAuthEndpointsTests
     [Fact]
     public async Task Login_StoresStateInPkceStore()
     {
-        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://orkyo.com/");
-
-        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var location = response.Headers.Location?.ToString();
-
-        // Extract state from the redirect URL
-        var uri = new Uri(location!);
-        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-        var state = query["state"];
-        state.Should().NotBeNullOrEmpty();
+        var state = await StartLoginAsync();
 
         // Verify state was stored in IBffPkceStateStore (not IDistributedCache)
         using var scope = _factory.Services.CreateScope();
@@ -151,25 +142,34 @@ public class BffAuthEndpointsTests
 
     // ── GET /api/auth/bff/callback ───────────────────────────────────────────
 
-    [Fact]
-    public async Task Callback_WithMissingParams_Returns400()
+    // The callback is a browser navigation: every failure redirects to the SPA login with an
+    // error code, never a JSON body.
+    [Theory]
+    [InlineData("")]
+    [InlineData("?code=test-code")]
+    [InlineData("?state=unknown")]
+    [InlineData("?code=test-code&state=unknown")]
+    // The browser's back button reopened a finished Keycloak page (state already used).
+    [InlineData("?error=temporarily_unavailable&error_description=authentication_expired&state=unknown")]
+    public async Task Callback_WithoutAUsableState_RedirectsToLoginWithInvalidState(string query)
     {
-        var response = await _client.GetAsync("/api/auth/bff/callback");
+        var response = await _client.GetAsync($"/api/auth/bff/callback{query}");
 
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().EndWith("/login?error=invalid_state");
     }
 
     [Fact]
-    public async Task Callback_WithInvalidState_RedirectsToLoginWithError()
+    public async Task Callback_WithKeycloakError_FailsOnceThenTheStateIsGone()
     {
-        // An expired/replayed state can't be recovered. Rather than a blank 400, the callback
-        // redirects to the SPA login with a friendly error code so the user sees a clear message.
-        var response = await _client.GetAsync("/api/auth/bff/callback?code=test-code&state=invalid-state");
+        var callback = $"/api/auth/bff/callback?error=access_denied&state={await StartLoginAsync()}";
 
-        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var location = response.Headers.Location?.ToString();
-        location.Should().NotBeNull();
-        location.Should().Contain("/login?error=invalid_state");
+        var first = await _client.GetAsync(callback);
+        first.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        first.Headers.Location!.ToString().Should().EndWith("/login?error=auth_failed");
+
+        var second = await _client.GetAsync(callback);
+        second.Headers.Location!.ToString().Should().EndWith("/login?error=invalid_state");
     }
 
     // ── GET /api/auth/bff/logout ─────────────────────────────────────────────
@@ -242,24 +242,6 @@ public class BffAuthEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.MethodNotAllowed);
     }
 
-    // ── GET /api/auth/bff/callback (additional error paths) ────────────────────
-
-    [Fact]
-    public async Task Callback_WithCodeButNoState_Returns400()
-    {
-        var response = await _client.GetAsync("/api/auth/bff/callback?code=test-code");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Callback_WithStateButNoCode_Returns400()
-    {
-        var response = await _client.GetAsync("/api/auth/bff/callback?state=test-state");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
     // ── GET /api/auth/bff/login (additional paths) ──────────────────────────────
 
     [Fact]
@@ -317,4 +299,14 @@ public class BffAuthEndpointsTests
     // is verified by orkyo-saas RateLimitPolicyRegistrationTests, which assert the
     // policy is declared and registered. Behavioural 429 testing is not possible in
     // this host because rate limiting is globally disabled here (DISABLE_RATE_LIMITING).
+
+    /// <summary>Starts a sign-in and returns the state the callback must present.</summary>
+    private async Task<string> StartLoginAsync()
+    {
+        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://orkyo.com/");
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var state = System.Web.HttpUtility.ParseQueryString(response.Headers.Location!.Query)["state"];
+        state.Should().NotBeNullOrEmpty();
+        return state!;
+    }
 }
