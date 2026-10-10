@@ -45,4 +45,18 @@ if ! grep -q '"rfc4648"' "$WORK/login.html"; then
   echo "::error::Keycloak login page has no rfc4648 import map; passkey scripts cannot load"
   exit 1
 fi
+# The Orkyo theme carries its own copy of Keycloak's webauthnRegister.js, changed in two
+# lines (keycloak-webauthn-register.sed) to name a passkey instead of prompting. Rebuild the
+# copy from the upstream file in this image: any difference means Keycloak changed the
+# script, and the copy must be regenerated from it.
+docker cp "$NAME:/opt/keycloak/lib/lib/main" "$WORK/kclib" >/dev/null
+THEMES_JAR=$(find "$WORK/kclib" -name 'org.keycloak.keycloak-themes-*.jar' | head -1)
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+if ! unzip -p "$THEMES_JAR" theme/base/login/resources/js/webauthnRegister.js \
+  | sed -f "$ROOT/scripts/ci/keycloak-webauthn-register.sed" \
+  | diff - "$ROOT/keycloak/themes/orkyo/login/resources/js/webauthnRegister.js"; then
+  echo "::error::Keycloak's webauthnRegister.js changed upstream. Regenerate the Orkyo copy:"
+  echo "::error::  unzip -p <themes jar> theme/base/login/resources/js/webauthnRegister.js | sed -f scripts/ci/keycloak-webauthn-register.sed > keycloak/themes/orkyo/login/resources/js/webauthnRegister.js"
+  exit 1
+fi
 echo "Keycloak login page renders with the Orkyo theme (status 200)"
