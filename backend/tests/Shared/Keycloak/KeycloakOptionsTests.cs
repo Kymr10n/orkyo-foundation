@@ -16,6 +16,8 @@ public class KeycloakOptionsTests
         Realm = "orkyo",
         BackendClientId = "backend",
         BackendClientSecret = "secret",
+        PasswordCheckClientId = TestConstants.CheckClientId,
+        PasswordCheckClientSecret = TestConstants.CheckClientCredential,
     };
 
     [Fact]
@@ -53,6 +55,8 @@ public class KeycloakOptionsTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         });
 
         var opts = KeycloakOptions.FromConfiguration(config);
@@ -73,6 +77,8 @@ public class KeycloakOptionsTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         });
 
         KeycloakOptions.FromConfiguration(config).InternalBaseUrl.Should().BeNull();
@@ -83,6 +89,8 @@ public class KeycloakOptionsTests
     [InlineData(nameof(ConfigKeys.KeycloakRealm))]
     [InlineData(nameof(ConfigKeys.KeycloakBackendClientId))]
     [InlineData(nameof(ConfigKeys.KeycloakBackendClientSecret))]
+    [InlineData(nameof(ConfigKeys.KeycloakPasswordCheckClientId))]
+    [InlineData(nameof(ConfigKeys.KeycloakPasswordCheckClientSecret))]
     public void FromConfiguration_Throws_WhenRequiredKeyMissing(string keyToOmit)
     {
         var values = new Dictionary<string, string?>
@@ -91,6 +99,8 @@ public class KeycloakOptionsTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         };
         var configKeyValue = (string)typeof(ConfigKeys).GetField(keyToOmit)!.GetRawConstantValue()!;
         values.Remove(configKeyValue);
@@ -105,6 +115,8 @@ public class KeycloakOptionsTests
     [InlineData(nameof(ConfigKeys.KeycloakRealm))]
     [InlineData(nameof(ConfigKeys.KeycloakBackendClientId))]
     [InlineData(nameof(ConfigKeys.KeycloakBackendClientSecret))]
+    [InlineData(nameof(ConfigKeys.KeycloakPasswordCheckClientId))]
+    [InlineData(nameof(ConfigKeys.KeycloakPasswordCheckClientSecret))]
     public void FromConfiguration_Throws_WhenRequiredKeyIsEmpty(string keyToEmpty)
     {
         // The deploy pipeline writes KEY= for an unset key: empty must fail like absent.
@@ -114,6 +126,8 @@ public class KeycloakOptionsTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         };
         var configKeyValue = (string)typeof(ConfigKeys).GetField(keyToEmpty)!.GetRawConstantValue()!;
         values[configKeyValue] = "";
@@ -135,6 +149,8 @@ public class KeycloakOptionsTests
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientId] = "backend",
             [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         }));
 
         opts.InternalBaseUrl.Should().BeNull();

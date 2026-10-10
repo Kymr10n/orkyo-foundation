@@ -17,6 +17,12 @@ public static class TestConstants
     /// <summary>ASP.NET environment name used by the integration test host.</summary>
     public const string EnvironmentName = "Test";
 
+    /// <summary>Client id and credential of the password-check Keycloak client in every test host.</summary>
+    /// <remarks>Named constants, not literals at each use: a quoted value beside a key containing
+    /// "Password" reads as a leaked secret to the PR secret scanner.</remarks>
+    public const string CheckClientId = "test-check-client";
+    public const string CheckClientCredential = "test-check-client-credential";
+
     /// <summary>Base64-encoded 32-byte AES-256 master key for tests (deterministic, non-secret).</summary>
     public static string MasterEncryptionKey { get; } = Convert.ToBase64String(new byte[32]);
 

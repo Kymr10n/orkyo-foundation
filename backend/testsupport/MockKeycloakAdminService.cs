@@ -20,11 +20,14 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public string? ChangePasswordError { get; set; }
     public int ChangePasswordCallCount { get; private set; }
     public (string? keycloakSub, string? currentPassword, string? newPassword) LastChangePasswordCall { get; private set; }
+    /// <summary>The TOTP code of the last change-password call (kept apart so the tuple above keeps its shape).</summary>
+    public string? LastChangePasswordTotp { get; private set; }
 
-    public Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, CancellationToken ct = default)
+    public Task ChangePasswordAsync(string keycloakSub, string currentPassword, string newPassword, string? totp = null, CancellationToken ct = default)
     {
         ChangePasswordCallCount++;
         LastChangePasswordCall = (keycloakSub, currentPassword, newPassword);
+        LastChangePasswordTotp = totp;
         if (!ChangePasswordSuccess)
             throw new KeycloakAdminException(ChangePasswordError ?? "Failed to change password", StatusCodes.Status400BadRequest);
         return Task.CompletedTask;
@@ -372,6 +375,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         LogoutAllCallCount = 0;
         LastRevokedSessionId = null;
         LastChangePasswordCall = default;
+        LastChangePasswordTotp = null;
 
         CreateUserSuccess = true;
         CreateUserError = null;

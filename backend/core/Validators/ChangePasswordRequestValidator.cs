@@ -8,6 +8,8 @@ public class ChangePasswordRequestValidator : AbstractValidator<ChangePasswordRe
     public ChangePasswordRequestValidator()
     {
         RuleFor(x => x.CurrentPassword).NotEmpty().WithMessage("Current password is required");
+        RuleFor(x => x.CurrentCode).Matches(@"\A[0-9]{6}\z").WithMessage("Authenticator code must be 6 digits")
+            .When(x => !string.IsNullOrEmpty(x.CurrentCode));
         RuleFor(x => x.NewPassword)
             .NotEmpty().WithMessage("New password is required")
             .MinimumLength(TenantSettings.DefaultPasswordMinLength)

@@ -42,13 +42,23 @@ public sealed class KeycloakOptions
     // ── Backend service-account credentials (server-side only) ──────────────
 
     /// <summary>
-    /// Confidential client ID for server-to-server operations
-    /// (BFF OIDC, client_credentials for Admin API, ROPC for password verification).
+    /// Confidential client ID for server-to-server operations (BFF OIDC code flow,
+    /// client_credentials for the Admin API). Password grants are off on this client.
     /// </summary>
     public required string BackendClientId { get; init; }
 
     /// <summary>Client secret for <see cref="BackendClientId"/>.</summary>
     public required string BackendClientSecret { get; init; }
+
+    /// <summary>
+    /// Confidential client used only to re-check a user's password with a password grant
+    /// (change password, removing MFA or a passkey). Its tokens carry no API audience and are
+    /// thrown away; the grant stays off on <see cref="BackendClientId"/>.
+    /// </summary>
+    public required string PasswordCheckClientId { get; init; }
+
+    /// <summary>Client secret for <see cref="PasswordCheckClientId"/>.</summary>
+    public required string PasswordCheckClientSecret { get; init; }
 
     /// <summary>
     /// Build a <see cref="KeycloakOptions"/> from flat environment variables.
@@ -72,6 +82,8 @@ public sealed class KeycloakOptions
             Realm = Require(ConfigKeys.KeycloakRealm),
             BackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
             BackendClientSecret = Require(ConfigKeys.KeycloakBackendClientSecret),
+            PasswordCheckClientId = Require(ConfigKeys.KeycloakPasswordCheckClientId),
+            PasswordCheckClientSecret = Require(ConfigKeys.KeycloakPasswordCheckClientSecret),
         };
     }
 }

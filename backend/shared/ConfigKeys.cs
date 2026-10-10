@@ -38,6 +38,8 @@ public static class ConfigKeys
     public const string KeycloakRealm = "KEYCLOAK_REALM";
     public const string KeycloakBackendClientId = "KEYCLOAK_BACKEND_CLIENT_ID";
     public const string KeycloakBackendClientSecret = "KEYCLOAK_BACKEND_CLIENT_SECRET";
+    public const string KeycloakPasswordCheckClientId = "KEYCLOAK_PASSWORD_CHECK_CLIENT_ID";
+    public const string KeycloakPasswordCheckClientSecret = "KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET";
     public const string KeycloakInternalUrl = "KEYCLOAK_INTERNAL_URL";
 
     // ── BFF (Backend-For-Frontend) ──────────────────────────────────────────

@@ -30,6 +30,8 @@ public class BffCookieAuthenticationHandlerTests
         Realm = "orkyo",
         BackendClientId = "orkyo-backend",
         BackendClientSecret = "test-secret",
+        PasswordCheckClientId = TestConstants.CheckClientId,
+        PasswordCheckClientSecret = TestConstants.CheckClientCredential,
     };
 
     public BffCookieAuthenticationHandlerTests()

@@ -50,6 +50,8 @@ public class KeycloakActionEmailRedirectTests
             Realm = "orkyo",
             BackendClientId = "orkyo-backend",
             BackendClientSecret = "secret",
+            PasswordCheckClientId = TestConstants.CheckClientId,
+            PasswordCheckClientSecret = TestConstants.CheckClientCredential,
         };
 
         return new KeycloakAdminService(

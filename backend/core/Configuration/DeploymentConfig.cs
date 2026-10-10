@@ -37,6 +37,8 @@ public sealed record DeploymentConfig
     public required string KeycloakRealm { get; init; }
     public required string KeycloakBackendClientId { get; init; }
     public required string KeycloakBackendClientSecret { get; init; }
+    public required string KeycloakPasswordCheckClientId { get; init; }
+    public required string KeycloakPasswordCheckClientSecret { get; init; }
 
     // ── Database ─────────────────────────────────────────────────────────
     public required string PostgresConnectionString { get; init; }
@@ -76,6 +78,8 @@ public sealed record DeploymentConfig
         ConfigKeys.KeycloakRealm,
         ConfigKeys.KeycloakBackendClientId,
         ConfigKeys.KeycloakBackendClientSecret,
+        ConfigKeys.KeycloakPasswordCheckClientId,
+        ConfigKeys.KeycloakPasswordCheckClientSecret,
 
         // Database
         ConfigKeys.ConnectionStringPostgresPath,
@@ -152,6 +156,8 @@ public sealed record DeploymentConfig
             KeycloakRealm = Require(ConfigKeys.KeycloakRealm),
             KeycloakBackendClientId = Require(ConfigKeys.KeycloakBackendClientId),
             KeycloakBackendClientSecret = Require(ConfigKeys.KeycloakBackendClientSecret),
+            KeycloakPasswordCheckClientId = Require(ConfigKeys.KeycloakPasswordCheckClientId),
+            KeycloakPasswordCheckClientSecret = Require(ConfigKeys.KeycloakPasswordCheckClientSecret),
 
             PostgresConnectionString = Require(ConfigKeys.ConnectionStringPostgresPath),
 
@@ -181,6 +187,7 @@ public sealed record DeploymentConfig
         nameof(SmtpPassword),
         nameof(SmtpUsername),
         nameof(KeycloakBackendClientSecret),
+        nameof(KeycloakPasswordCheckClientSecret),
         nameof(PostgresConnectionString),
         nameof(MasterEncryptionKey),
     };

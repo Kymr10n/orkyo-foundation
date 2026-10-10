@@ -30,6 +30,8 @@ public static class TestConfiguration
         ["KEYCLOAK_REALM"] = "test",
         ["KEYCLOAK_BACKEND_CLIENT_ID"] = "test-backend",
         ["KEYCLOAK_BACKEND_CLIENT_SECRET"] = "test-backend-secret",
+        ["KEYCLOAK_PASSWORD_CHECK_CLIENT_ID"] = TestConstants.CheckClientId,
+        ["KEYCLOAK_PASSWORD_CHECK_CLIENT_SECRET"] = TestConstants.CheckClientCredential,
         ["BFF_ENABLED"] = "true",
         ["BFF_REDIRECT_URI"] = "http://localhost/api/auth/bff/callback",
         ["BFF_ALLOWED_HOSTS"] = "orkyo.com,*.orkyo.com,localhost",

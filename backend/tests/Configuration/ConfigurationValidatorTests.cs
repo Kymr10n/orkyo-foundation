@@ -228,6 +228,8 @@ public class ConfigurationValidatorTests
         [ConfigKeys.KeycloakRealm] = "orkyo",
         [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
         [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+        [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+        [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         ["ConnectionStrings:Postgres"] = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=changeme",
         [ConfigKeys.AppBaseUrl] = "http://localhost:8080",
         [ConfigKeys.SmtpHost] = "localhost",

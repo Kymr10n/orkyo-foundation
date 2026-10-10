@@ -33,6 +33,8 @@ public class FoundationServiceExtensionsTests
             [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
             [ConfigKeys.KeycloakRealm] = "orkyo",
             [ConfigKeys.KeycloakBackendClientSecret] = "test-secret",
+            [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+            [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
         };
         if (extra != null)
             foreach (var (k, v) in extra)
@@ -70,6 +72,8 @@ public class FoundationServiceExtensionsTests
                 [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
                 [ConfigKeys.KeycloakRealm] = "orkyo",
                 [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+                [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+                [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
             })
             .Build();
 
@@ -281,6 +285,8 @@ public class FoundationServiceExtensionsTests
                 [ConfigKeys.KeycloakUrl] = "https://auth.example.com",
                 [ConfigKeys.KeycloakRealm] = "orkyo",
                 [ConfigKeys.KeycloakBackendClientSecret] = "test-secret",
+                [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+                [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
                 [ConfigKeys.TurnstileSecretKey] = "0x-turnstile-secret",
             })
             .Build();
