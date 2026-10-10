@@ -53,7 +53,8 @@ on:
 jobs:
   auto-bump:
     name: Auto-bump Foundation (${{ github.event.client_payload.channel }})
-    timeout-minutes: 15
+    # The stable path waits for the bump PR's required checks (a full product CI run).
+    timeout-minutes: 40
     runs-on: ubuntu-latest
     if: github.event_name == 'repository_dispatch'
     permissions:
@@ -159,6 +160,35 @@ jobs:
             exit 0
           fi
           gh pr merge --auto --squash "${PR_URL}"
+
+      # A consumer whose main requires an approving review (orkyo-community) never merges
+      # through auto-merge: the PR is opened with the owner's token, so its author cannot
+      # approve it. Wait for the required checks and, if the PR is still open once they
+      # pass, merge it with the owner's admin bypass. Main still changes only after green
+      # required checks; where no review is required (orkyo-saas), auto-merge has already
+      # landed it and this step only reports that.
+      - name: Merge the stable PR once its required checks pass
+        if: env.CHANNEL == 'stable' && (steps.pr.outputs.url != '' || steps.target.outputs.pr != '')
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+          PR_URL: ${{ steps.pr.outputs.url || steps.target.outputs.pr }}
+        run: |
+          set -euo pipefail
+          # Checks register a few seconds after the push; wait until they exist.
+          for _ in $(seq 1 30); do
+            out=$(gh pr checks "${PR_URL}" --required 2>&1 || true)
+            [[ -n "${out}" && "${out}" != *"no required checks reported"* && "${out}" != *"no checks reported"* ]] && break
+            sleep 10
+          done
+          # Exits non-zero when a required check fails, which fails this job and opens the
+          # failure issue below.
+          gh pr checks "${PR_URL}" --required --watch --interval 30
+          if [[ "$(gh pr view "${PR_URL}" --json state --jq .state)" == "MERGED" ]]; then
+            echo "Auto-merge landed ${PR_URL}"
+            exit 0
+          fi
+          gh pr merge --admin --squash --delete-branch "${PR_URL}"
+          echo "Merged ${PR_URL} after its required checks passed (review requirement bypassed)"
 
       - name: Create failure issue if auto-bump fails
         if: failure()
