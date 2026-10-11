@@ -394,7 +394,7 @@ export function OrkyoDataTable<TData extends RowData>({
                 key={row.id}
                 {...rowInteraction(row.original)}
                 className={
-                  'bg-card shadow-xs hover:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
+                  'hover:bg-transparent [&>td]:bg-card [&>td]:shadow-xs [&:hover>td]:bg-accent/40 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r' +
                   (onRowClick ? ' cursor-pointer focus-visible:outline-2 focus-visible:outline-ring' : '')
                 }
               >
