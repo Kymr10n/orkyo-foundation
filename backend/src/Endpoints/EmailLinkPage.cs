@@ -4,13 +4,14 @@ using Microsoft.AspNetCore.Http;
 namespace Api.Endpoints;
 
 /// <summary>
-/// The self-contained, Orkyo-branded page behind the public announcement unsubscribe link: the
-/// confirmation form the link opens, and the result the form's POST answers with. The recipient
-/// may be logged out, so the page does not redirect into the SPA.
+/// The self-contained, Orkyo-branded page behind a public email link (announcement unsubscribe,
+/// confirm account activity): the confirmation form the link opens, and the result the form's
+/// POST answers with. The recipient may be logged out. A GET must only show the form, because
+/// link previews and mail scanners follow GET links.
 /// </summary>
-internal static class UnsubscribePage
+internal static class EmailLinkPage
 {
-    // Inline styles only; the endpoint relaxes the API's strict CSP for them.
+    // Inline styles only; the endpoint relaxes the API's strict CSP for them (RelaxCsp).
     private const string Template = """
         <!DOCTYPE html>
         <html lang="en">
@@ -64,11 +65,19 @@ internal static class UnsubscribePage
 
     private const string Brand = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
 
+    /// <summary>
+    /// The page renders inline styles and posts its own form; relax the API's strict
+    /// `default-src 'none'` CSP for exactly that. Browsers also check form-action against a
+    /// redirect the POST answers with, so a form whose POST redirects names that origin.
+    /// </summary>
+    public static void RelaxCsp(HttpContext httpContext, string? redirectOrigin = null) =>
+        httpContext.Response.Headers.ContentSecurityPolicy =
+            $"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'{(redirectOrigin is null ? "" : " " + redirectOrigin)}";
+
     /// <summary>The page the email link opens: nothing changes until the recipient presses the button.</summary>
-    public static IResult Confirm(Guid token) => Render(
-        "&#63;", Brand, "Unsubscribe from announcements?",
-        "You will stop receiving announcement emails. You will still see announcements in the app.",
-        $"""<form method="post"><input type="hidden" name="token" value="{token}"><button class="btn" type="submit">Unsubscribe</button></form>""");
+    public static IResult Confirm(string heading, string message, string buttonLabel, string token) => Render(
+        "&#63;", Brand, heading, message,
+        $"""<form method="post"><input type="hidden" name="token" value="{WebUtility.HtmlEncode(token)}"><button class="btn" type="submit">{WebUtility.HtmlEncode(buttonLabel)}</button></form>""");
 
     /// <summary>The outcome, with a link back to the app.</summary>
     public static IResult Result(string appBaseUrl, bool success, string heading, string message) => Render(

@@ -39,9 +39,11 @@ public static class UserAnnouncementEndpoints
         app.MapGet("/api/announcements/unsubscribe", [AllowAnonymous] (
             string? token, HttpContext httpContext, IConfiguration configuration) =>
         {
-            RelaxCsp(httpContext);
+            EmailLinkPage.RelaxCsp(httpContext);
             return Guid.TryParse(token, out var unsubscribeToken)
-                ? UnsubscribePage.Confirm(unsubscribeToken)
+                ? EmailLinkPage.Confirm("Unsubscribe from announcements?",
+                    "You will stop receiving announcement emails. You will still see announcements in the app.",
+                    "Unsubscribe", unsubscribeToken.ToString())
                 : InvalidLink(configuration);
         })
         .WithName("ConfirmUnsubscribeAnnouncements")
@@ -56,7 +58,7 @@ public static class UserAnnouncementEndpoints
             CancellationToken ct,
             ILogger<EndpointLoggerCategory> logger) =>
         {
-            RelaxCsp(httpContext);
+            EmailLinkPage.RelaxCsp(httpContext);
             var form = httpContext.Request.HasFormContentType
                 ? await httpContext.Request.ReadFormAsync(ct)
                 : null;
@@ -73,14 +75,14 @@ public static class UserAnnouncementEndpoints
                 }
 
                 logger.LogInformation("User opted out of announcement emails via unsubscribe link");
-                return UnsubscribePage.Result(appBaseUrl, success: true,
+                return EmailLinkPage.Result(appBaseUrl, success: true,
                     "You're unsubscribed",
                     "You won't receive announcement emails anymore. You'll still see announcements in the app.");
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Error processing announcement unsubscribe token");
-                return UnsubscribePage.Result(appBaseUrl, success: false,
+                return EmailLinkPage.Result(appBaseUrl, success: false,
                     "Something went wrong", "We couldn't process your request. Please try again later.");
             }
         })
@@ -90,17 +92,11 @@ public static class UserAnnouncementEndpoints
         .WithMetadata(new SkipTenantResolutionAttribute(), new CsrfExemptAttribute());
     }
 
-    // The page renders inline styles and posts its own form; relax the API's strict
-    // `default-src 'none'` CSP for exactly that.
-    private static void RelaxCsp(HttpContext httpContext) =>
-        httpContext.Response.Headers.ContentSecurityPolicy =
-            "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'";
-
     private static string AppBaseUrl(IConfiguration configuration) =>
         configuration.GetRequired(ConfigKeys.AppBaseUrl).TrimEnd('/');
 
     private static IResult InvalidLink(IConfiguration configuration) =>
-        UnsubscribePage.Result(AppBaseUrl(configuration), success: false,
+        EmailLinkPage.Result(AppBaseUrl(configuration), success: false,
             "Invalid link", "This unsubscribe link is invalid or has expired.");
 
     private static async Task<IResult> GetActive(IAnnouncementService service, CurrentPrincipal principal, CancellationToken ct = default)
