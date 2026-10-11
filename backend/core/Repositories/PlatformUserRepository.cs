@@ -146,14 +146,14 @@ public class PlatformUserRepository : IPlatformUserRepository
             await conn.ExecuteAsync(@"
                 UPDATE users
                 SET pending_email             = @pending,
-                    email_change_token        = @token,
+                    email_change_token_hash   = @tokenHash,
                     email_change_requested_at = NOW(),
                     updated_at                = NOW()
                 WHERE id = @id",
                 p =>
                 {
                     p.AddWithValue("pending", newEmail);
-                    p.AddWithValue("token", token);
+                    p.AddWithValue("tokenHash", SecureTokens.Sha256Hex(token));
                     p.AddWithValue("id", userId);
                 }, ct);
             return true;
@@ -170,7 +170,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         await conn.ExecuteAsync(@"
             UPDATE users
             SET pending_email             = NULL,
-                email_change_token        = NULL,
+                email_change_token_hash   = NULL,
                 email_change_requested_at = NULL,
                 updated_at                = NOW()
             WHERE id = @id",
@@ -182,6 +182,7 @@ public class PlatformUserRepository : IPlatformUserRepository
         Func<string?, string, string, CancellationToken, Task> updateKeycloakEmailAsync,
         CancellationToken ct = default)
     {
+        var tokenHash = SecureTokens.Sha256Hex(token);
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
         await using var tx = await conn.BeginTransactionAsync(ct);
@@ -198,11 +199,11 @@ public class PlatformUserRepository : IPlatformUserRepository
                    u.pending_email,
                    u.display_name
             FROM users u
-            WHERE u.email_change_token = @token
+            WHERE u.email_change_token_hash = @tokenHash
               AND u.email_change_requested_at > NOW() - INTERVAL '24 hours'
             FOR UPDATE", conn, tx))
         {
-            findCmd.Parameters.AddWithValue("token", token);
+            findCmd.Parameters.AddWithValue("tokenHash", tokenHash);
             await using var reader = await findCmd.ExecuteReaderAsync(ct);
             if (!await reader.ReadAsync(ct))
                 return new EmailChangeConfirmResult(EmailChangeConfirmStatus.NotFoundOrExpired);
@@ -241,13 +242,13 @@ public class PlatformUserRepository : IPlatformUserRepository
                 UPDATE users
                 SET email                      = pending_email,
                     pending_email              = NULL,
-                    email_change_token         = NULL,
+                    email_change_token_hash    = NULL,
                     email_change_requested_at  = NULL,
                     updated_at                 = NOW()
                 WHERE id = @id
-                  AND email_change_token = @token", conn, tx);
+                  AND email_change_token_hash = @tokenHash", conn, tx);
             commitCmd.Parameters.AddWithValue("id", userId);
-            commitCmd.Parameters.AddWithValue("token", token);
+            commitCmd.Parameters.AddWithValue("tokenHash", tokenHash);
             updated = await commitCmd.ExecuteNonQueryAsync(ct);
         }
         catch (PostgresException ex) when (ex.SqlState == PgUniqueViolation)

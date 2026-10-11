@@ -23,7 +23,7 @@ public static class SecureTokens
     /// <summary>The token's SHA-256 digest as base64 (invitations).</summary>
     public static string Sha256Base64(string token) => Convert.ToBase64String(Sha256(token));
 
-    /// <summary>The token's SHA-256 digest as lowercase hex (calendar feeds).</summary>
+    /// <summary>The token's SHA-256 digest as lowercase hex (calendar feeds, email-change confirmations).</summary>
     public static string Sha256Hex(string token) => Convert.ToHexStringLower(Sha256(token));
 
     /// <summary>
