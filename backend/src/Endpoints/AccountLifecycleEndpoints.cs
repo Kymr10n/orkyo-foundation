@@ -206,7 +206,8 @@ public static class AccountEmailChangeEndpoints
                 if (await keycloakAdmin.UserExistsAsync(newEmail, ct))
                     return ErrorResponses.Conflict("That email address is already in use.");
 
-                var token = Guid.NewGuid().ToString();
+                // Mailed to the new address; the repository stores only its digest.
+                var token = SecureTokens.Generate();
 
                 if (!await userRepository.SetPendingEmailChangeAsync(userId, newEmail, token, ct))
                     return ErrorResponses.Conflict("That email address is already in use.");
@@ -242,9 +243,29 @@ public static class AccountEmailChangeEndpoints
         .WithSummary("Request an email address change")
         .WithTags("Account");
 
-        // GET /api/account/confirm-email?token=<uuid> — anonymous; confirms the pending email change.
-        app.MapGet("/api/account/confirm-email", [AllowAnonymous] async (
-            string? token,
+        // GET /api/account/confirm-email?token=<token> — anonymous; the link in the confirmation
+        // email. It only renders a confirmation form, so a mail scanner or link prefetcher that
+        // follows the link changes nothing; the form's POST applies the change.
+        app.MapGet("/api/account/confirm-email", [AllowAnonymous] (
+            string? token, HttpContext httpContext, IConfiguration configuration) =>
+        {
+            var frontendBaseUrl = GetFrontendBaseUrl(configuration);
+            if (string.IsNullOrWhiteSpace(token))
+                return Results.Redirect($"{frontendBaseUrl}/account?email-change=invalid");
+
+            EmailLinkPage.RelaxCsp(httpContext, frontendBaseUrl);
+            return EmailLinkPage.Confirm("Confirm your new email address?",
+                "Your Orkyo account will use this address to sign in and to receive email.",
+                "Confirm email address", token);
+        })
+        .WithName("ConfirmEmailChangePage")
+        .WithSummary("Confirmation page for an email address change")
+        .WithTags("Account")
+        .WithMetadata(new SkipTenantResolutionAttribute());
+
+        // POST /api/account/confirm-email (form field "token") — anonymous; confirms the pending email change.
+        app.MapPost("/api/account/confirm-email", [AllowAnonymous] async (
+            HttpContext httpContext,
             IPlatformUserRepository userRepository,
             IKeycloakAdminService keycloakAdmin,
             IBackgroundDispatcher background,
@@ -254,6 +275,10 @@ public static class AccountEmailChangeEndpoints
             var frontendBaseUrl = GetFrontendBaseUrl(configuration);
             string Redirect(string status) => $"{frontendBaseUrl}/account?email-change={status}";
 
+            var form = httpContext.Request.HasFormContentType
+                ? await httpContext.Request.ReadFormAsync(ct)
+                : null;
+            var token = form?["token"].ToString();
             if (string.IsNullOrWhiteSpace(token))
                 return Results.Redirect(Redirect("invalid"));
 
@@ -292,7 +317,8 @@ public static class AccountEmailChangeEndpoints
         .WithName("ConfirmEmailChange")
         .WithSummary("Confirm email address change from confirmation email")
         .WithTags("Account")
-        .WithMetadata(new SkipTenantResolutionAttribute());
+        .WithMetadata(new SkipTenantResolutionAttribute(), new CsrfExemptAttribute())
+        .RequireRateLimiting(FoundationRateLimitPolicies.BffAuth);
     }
 
     // Resolves the user-facing frontend origin for browser redirects.

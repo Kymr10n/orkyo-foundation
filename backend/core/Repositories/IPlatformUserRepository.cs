@@ -64,8 +64,9 @@ public interface IPlatformUserRepository
     Task<(string Email, string DisplayName)?> GetEmailAndDisplayNameAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Records a pending email change (address + confirmation token). Returns false when the
-    /// address is already claimed by another user's pending change (unique-index conflict).
+    /// Records a pending email change (address + the digest of the mailed confirmation token;
+    /// the token itself is not stored). Returns false when the address is already claimed by
+    /// another user's pending change (unique-index conflict).
     /// </summary>
     Task<bool> SetPendingEmailChangeAsync(Guid userId, string newEmail, string token, CancellationToken ct = default);
 
@@ -73,7 +74,8 @@ public interface IPlatformUserRepository
     Task ClearPendingEmailChangeAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
-    /// Atomically confirms a pending email change: validates the token, checks for a conflicting
+    /// Atomically confirms a pending email change: validates the mailed token (hashed before the
+    /// lookup), checks for a conflicting
     /// address, commits the new email, updates the linked Keycloak identity's provider_email, and
     /// invokes <paramref name="updateKeycloakEmailAsync"/> (the Keycloak profile update) before
     /// committing the transaction — a failure there rolls back the whole change.

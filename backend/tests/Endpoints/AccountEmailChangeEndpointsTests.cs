@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Api.Security;
 using Api.Services;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
@@ -49,7 +50,7 @@ public class AccountEmailChangeEndpointsTests
               SET email = @email,
                   keycloak_id = NULL,
                   pending_email = NULL,
-                  email_change_token = NULL,
+                  email_change_token_hash = NULL,
                   email_change_requested_at = NULL
               WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("email", email);
@@ -77,7 +78,7 @@ public class AccountEmailChangeEndpointsTests
             ON CONFLICT (id) DO UPDATE
             SET email = @email,
                 pending_email = @pending,
-                email_change_token = NULL,
+                email_change_token_hash = NULL,
                 email_change_requested_at = NULL", conn);
         cmd.Parameters.AddWithValue("id", new Guid("22222222-2222-2222-2222-222222222222"));
         cmd.Parameters.AddWithValue("email", email);
@@ -138,7 +139,7 @@ public class AccountEmailChangeEndpointsTests
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
         await using var cmd = new NpgsqlCommand(
-            "SELECT pending_email, email_change_token FROM users WHERE id = @id", conn);
+            "SELECT pending_email, email_change_token_hash FROM users WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("id", userId);
         await using var reader = await cmd.ExecuteReaderAsync();
         if (!await reader.ReadAsync()) return (null, null);
@@ -175,7 +176,7 @@ public class AccountEmailChangeEndpointsTests
     {
         await DeleteOtherUserAsync();
         var userId = TestConstants.UserId;
-        var token = Guid.NewGuid().ToString();
+        var token = SecureTokens.Generate();
 
         await using var conn = new NpgsqlConnection(_cpConnectionString);
         await conn.OpenAsync();
@@ -192,12 +193,12 @@ public class AccountEmailChangeEndpointsTests
         await using var cmd = new NpgsqlCommand(@"
             UPDATE users
             SET pending_email             = @pending,
-                email_change_token        = @token,
+                email_change_token_hash   = @tokenHash,
                 email_change_requested_at = NOW() - (@hours * INTERVAL '1 hour'),
                 keycloak_id                = @keycloakId
             WHERE id = @id", conn);
         cmd.Parameters.AddWithValue("pending", pendingEmail);
-        cmd.Parameters.AddWithValue("token", token);
+        cmd.Parameters.AddWithValue("tokenHash", SecureTokens.Sha256Hex(token));
         cmd.Parameters.AddWithValue("hours", hoursAgo);
         cmd.Parameters.AddWithValue("keycloakId", (object?)keycloakId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("id", userId);
@@ -205,6 +206,10 @@ public class AccountEmailChangeEndpointsTests
 
         return token;
     }
+
+    private static Task<HttpResponseMessage> PostConfirmAsync(HttpClient client, string token) =>
+        client.PostAsync("/api/account/confirm-email",
+            new FormUrlEncodedContent([new KeyValuePair<string, string>("token", token)]));
 
     // ─── POST /api/account/email ─────────────────────────────────────────────────
 
@@ -329,10 +334,10 @@ public class AccountEmailChangeEndpointsTests
         _mockEmail.CallCount(nameof(IEmailService.SendEmailChangeConfirmationAsync)).Should().Be(2);
     }
 
-    // ─── GET /api/account/confirm-email ──────────────────────────────────────────
+    // ─── GET /api/account/confirm-email (confirmation page) ──────────────────────
 
     [Fact]
-    public async Task ConfirmEmail_WithNoToken_RedirectsToInvalid()
+    public async Task ConfirmEmailPage_WithNoToken_RedirectsToInvalid()
     {
         var response = await _client.GetAsync("/api/account/confirm-email");
 
@@ -342,10 +347,58 @@ public class AccountEmailChangeEndpointsTests
     }
 
     [Fact]
+    public async Task ConfirmEmailPage_WithValidToken_ShowsAForm_AndChangesNothing()
+    {
+        await SetUserEmailAsync("old@example.com");
+        var token = await StorePendingEmailChangeAsync("new@example.com", Guid.NewGuid().ToString());
+
+        var response = await _factory.CreateClient().GetAsync($"/api/account/confirm-email?token={token}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.ToString().Should().Contain("text/html");
+        // The POST redirects into the app, and browsers check form-action against that redirect,
+        // so the app origin is allowed after 'self'.
+        response.Headers.GetValues("Content-Security-Policy").Single()
+            .Should().StartWith("default-src 'none'; style-src 'unsafe-inline'; form-action 'self' http");
+        var html = await response.Content.ReadAsStringAsync();
+        html.Should().Contain("Confirm your new email address?");
+        html.Should().Contain("<form method=\"post\">");
+        html.Should().Contain($"value=\"{token}\"");
+
+        // A link prefetcher following the GET must not apply the change.
+        (await GetCurrentEmailAsync()).Should().Be("old@example.com");
+        (await GetPendingEmailStateAsync()).pendingEmail.Should().Be("new@example.com");
+        _mockKeycloak.UpdateEmailForAccountCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ConfirmEmailPage_EncodesTheTokenIntoTheForm()
+    {
+        var response = await _client.GetAsync("/api/account/confirm-email?token=%22%3E%3Cb%3Ex");
+
+        var html = await response.Content.ReadAsStringAsync();
+        html.Should().NotContain("\"><b>x");
+        html.Should().Contain("value=\"&quot;&gt;&lt;b&gt;x\"");
+    }
+
+    // ─── POST /api/account/confirm-email ─────────────────────────────────────────
+
+    [Fact]
+    public async Task ConfirmEmail_WithNoToken_RedirectsToInvalid()
+    {
+        var missing = await _client.PostAsync("/api/account/confirm-email", null);
+        var blank = await PostConfirmAsync(_client, " ");
+
+        missing.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        missing.Headers.Location!.ToString().Should().StartWith("http://localhost:5173/account?");
+        missing.Headers.Location!.ToString().Should().Contain("email-change=invalid");
+        blank.Headers.Location!.ToString().Should().Contain("email-change=invalid");
+    }
+
+    [Fact]
     public async Task ConfirmEmail_WithUnknownToken_RedirectsToExpired()
     {
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={Guid.NewGuid()}");
+        var response = await PostConfirmAsync(_client, SecureTokens.Generate());
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().StartWith("http://localhost:5173/account?");
@@ -359,8 +412,7 @@ public class AccountEmailChangeEndpointsTests
         var keycloakId = Guid.NewGuid().ToString();
         var token = await StorePendingEmailChangeAsync("new@example.com", keycloakId, hoursAgo: 25);
 
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={token}");
+        var response = await PostConfirmAsync(_client, token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=expired");
@@ -377,8 +429,7 @@ public class AccountEmailChangeEndpointsTests
         var keycloakId = Guid.NewGuid().ToString();
         var token = await StorePendingEmailChangeAsync("new@example.com", keycloakId);
 
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={token}");
+        var response = await PostConfirmAsync(_client, token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
@@ -414,7 +465,7 @@ public class AccountEmailChangeEndpointsTests
         var original = (string)(await rename.ExecuteScalarAsync())!;
         try
         {
-            var response = await _client.GetAsync($"/api/account/confirm-email?token={token}");
+            var response = await PostConfirmAsync(_client, token);
             response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
 
             // Sent after the response, from its own scope.
@@ -439,8 +490,7 @@ public class AccountEmailChangeEndpointsTests
         var token = await StorePendingEmailChangeAsync("new@example.com");
         await SetUserIdentityOnlyKeycloakIdAsync(keycloakId);
 
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={token}");
+        var response = await PostConfirmAsync(_client, token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
@@ -454,8 +504,7 @@ public class AccountEmailChangeEndpointsTests
         await SetUserEmailAsync("old@example.com");
         var token = await StorePendingEmailChangeAsync("new@example.com");
 
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={token}");
+        var response = await PostConfirmAsync(_client, token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
@@ -474,8 +523,7 @@ public class AccountEmailChangeEndpointsTests
         var token = await StorePendingEmailChangeAsync("new@example.com", keycloakId);
         await InsertOtherUserAsync("new@example.com");
 
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={token}");
+        var response = await PostConfirmAsync(_client, token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=conflict");
@@ -493,8 +541,7 @@ public class AccountEmailChangeEndpointsTests
         _mockKeycloak.UpdateEmailSuccess = false;
         _mockKeycloak.UpdateEmailError = "Keycloak temporarily unavailable";
 
-        var response = await _client.GetAsync(
-            $"/api/account/confirm-email?token={token}");
+        var response = await PostConfirmAsync(_client, token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("email-change=error");
@@ -513,13 +560,64 @@ public class AccountEmailChangeEndpointsTests
         var keycloakId = Guid.NewGuid().ToString();
         var token = await StorePendingEmailChangeAsync("new@example.com", keycloakId);
 
-        var first = await _client.GetAsync($"/api/account/confirm-email?token={token}");
+        var first = await PostConfirmAsync(_client, token);
         first.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
 
-        var second = await _client.GetAsync($"/api/account/confirm-email?token={token}");
+        var second = await PostConfirmAsync(_client, token);
         second.Headers.Location!.ToString().Should().Contain("email-change=expired");
 
         _mockKeycloak.UpdateEmailForAccountCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task ConfirmEmail_WithTheMailedToken_CompletesTheRequestedChange()
+    {
+        await SetUserEmailAsync("old@example.com");
+        _mockKeycloak.UserExistsResult = false;
+        await _client.PostAsJsonAsync("/api/account/email", new { newEmail = "new@example.com" });
+        var mailedToken = _mockEmail.LastSendEmailChangeConfirmationCall.token;
+
+        var response = await PostConfirmAsync(_factory.CreateClient(), mailedToken);
+
+        response.Headers.Location!.ToString().Should().Contain("email-change=confirmed");
+        (await GetCurrentEmailAsync()).Should().Be("new@example.com");
+    }
+
+    [Fact]
+    public async Task ConfirmEmail_WithATokenFromThePlaintextColumn_RedirectsToExpired()
+    {
+        // Links issued before tokens were stored hashed no longer confirm; they expired within 24h anyway.
+        await SetUserEmailAsync("old@example.com");
+        var legacyToken = Guid.NewGuid().ToString();
+        await using (var conn = new NpgsqlConnection(_cpConnectionString))
+        {
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(@"
+                UPDATE users
+                SET pending_email = 'new@example.com', email_change_token = @token,
+                    email_change_requested_at = NOW()
+                WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("token", legacyToken);
+            cmd.Parameters.AddWithValue("id", TestConstants.UserId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            var response = await PostConfirmAsync(_client, legacyToken);
+
+            response.Headers.Location!.ToString().Should().Contain("email-change=expired");
+            (await GetCurrentEmailAsync()).Should().Be("old@example.com");
+        }
+        finally
+        {
+            await using var conn = new NpgsqlConnection(_cpConnectionString);
+            await conn.OpenAsync();
+            await using var cmd = new NpgsqlCommand(
+                "UPDATE users SET email_change_token = NULL, pending_email = NULL WHERE id = @id", conn);
+            cmd.Parameters.AddWithValue("id", TestConstants.UserId);
+            await cmd.ExecuteNonQueryAsync();
+        }
     }
 
     [Fact]
@@ -528,8 +626,7 @@ public class AccountEmailChangeEndpointsTests
         // The endpoint is [AllowAnonymous] — must work without a Bearer token.
         var anonClient = _factory.CreateClient();
 
-        var response = await anonClient.GetAsync(
-            $"/api/account/confirm-email?token={Guid.NewGuid()}");
+        var response = await PostConfirmAsync(anonClient, SecureTokens.Generate());
 
         // Token won't be found but the endpoint should respond (redirect), not 401
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
