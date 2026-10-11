@@ -102,11 +102,14 @@ public static class FoundationServiceExtensions
         // Bot-challenge verification for public anonymous forms. Key-gated: the real
         // Turnstile provider is registered only when the secret key is non-empty —
         // CloudflareTurnstileProvider uses GetRequired, so this invariant must hold.
-        // Without a key every edition gets the fail-open NoOp provider (dev, Community).
+        // Without a key every edition gets the fail-open NoOp provider (dev, Community);
+        // outside Development that is announced at startup.
         if (!string.IsNullOrEmpty(configuration[ConfigKeys.TurnstileSecretKey]))
             services.AddHttpClient<IChallengeProvider, CloudflareTurnstileProvider>();
         else
             services.AddSingleton<IChallengeProvider, NoOpChallengeProvider>();
+        if (IsChallengeVerificationDisabledOutsideDevelopment(configuration))
+            Log.Warning("Bot-challenge verification is disabled: {Key} is not set", ConfigKeys.TurnstileSecretKey);
         // Single seam for establishing a BFF session (record + cookies + device capture).
         services.AddScoped<IBffSessionEstablisher, BffSessionEstablisher>();
         // Refresh-time credential resolution per session AuthClient. TryAdd so an
@@ -279,4 +282,14 @@ public static class FoundationServiceExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// True when no Turnstile secret is set and the environment is not Development. The
+    /// environment comes from configuration because no host environment exists at registration;
+    /// an unset name counts as not Development.
+    /// </summary>
+    internal static bool IsChallengeVerificationDisabledOutsideDevelopment(IConfiguration configuration) =>
+        string.IsNullOrEmpty(configuration[ConfigKeys.TurnstileSecretKey]) &&
+        !string.Equals(configuration[ConfigKeys.AspNetCoreEnvironment], EnvironmentNames.Development,
+            StringComparison.OrdinalIgnoreCase);
 }
