@@ -8,6 +8,7 @@ using Api.Services.AutoSchedule;
 using Api.Services.Reporting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Orkyo.Shared;
 using Orkyo.Shared.Keycloak;
 
@@ -288,13 +289,16 @@ public class FoundationServiceExtensionsTests
                 [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
                 [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
                 [ConfigKeys.TurnstileSecretKey] = "0x-turnstile-secret",
+                [ConfigKeys.AppBaseUrl] = "https://app.example.com",
             })
             .Build();
 
         var services = new ServiceCollection();
         services.AddLogging();
-        // The host registers IConfiguration in a real app; the provider is constructed from it.
+        // The host registers IConfiguration and IHostEnvironment in a real app; the provider
+        // is constructed from both.
         services.AddSingleton<IConfiguration>(config);
+        services.AddSingleton(Mock.Of<IHostEnvironment>(e => e.EnvironmentName == EnvironmentNames.Production));
         services.AddFoundationServices(config);
 
         // AddHttpClient registers via factory rather than ImplementationType.
@@ -308,6 +312,27 @@ public class FoundationServiceExtensionsTests
         using var provider = services.BuildServiceProvider();
         provider.GetRequiredService<IChallengeProvider>()
             .Should().BeOfType<CloudflareTurnstileProvider>();
+    }
+
+    [Theory]
+    [InlineData(null, EnvironmentNames.Production, true)]
+    [InlineData("", EnvironmentNames.Production, true)]
+    [InlineData(null, null, true)]
+    [InlineData(null, EnvironmentNames.Development, false)]
+    [InlineData("0x-turnstile-secret", EnvironmentNames.Production, false)]
+    public void IsChallengeVerificationDisabledOutsideDevelopment_DecidesTheStartupWarning(
+        string? secretKey, string? environment, bool expected)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [ConfigKeys.TurnstileSecretKey] = secretKey,
+                [ConfigKeys.AspNetCoreEnvironment] = environment,
+            })
+            .Build();
+
+        FoundationServiceExtensions.IsChallengeVerificationDisabledOutsideDevelopment(config)
+            .Should().Be(expected);
     }
 
     // ── Email transport: key-gated like the challenge provider ────────────────

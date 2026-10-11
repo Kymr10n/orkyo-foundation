@@ -21,8 +21,9 @@ namespace Api.Security;
 /// </summary>
 public sealed class ClientIpAccessor : IClientIpAccessor
 {
-    // Set by the trusted edge (nginx from Cloudflare's connection); a client cannot
-    // forge this end-to-end because nginx overwrites it.
+    // Believed whenever the direct peer is trusted, so the reverse proxy in front of the
+    // API must overwrite or strip it on every request. A proxy that forwards the client's
+    // own value lets the client choose its IP, and with it every per-IP rate-limit bucket.
     private const string CfConnectingIpHeader = "CF-Connecting-IP";
     private const string XForwardedForHeader = "X-Forwarded-For";
 
