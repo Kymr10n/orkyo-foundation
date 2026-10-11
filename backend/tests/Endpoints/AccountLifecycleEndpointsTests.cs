@@ -1,8 +1,17 @@
 using System.Net;
+using Api.Configuration;
+using Api.Middleware;
 using Api.Security;
 using Api.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Foundation.Tests.Mocks;
+using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -10,12 +19,14 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class AccountLifecycleEndpointsTests
 {
     private readonly HttpClient _client;
+    private readonly FoundationWebApplicationFactory _factory;
     private readonly MockKeycloakAdminService _mockKeycloak;
     private readonly string _cpConnectionString;
 
     public AccountLifecycleEndpointsTests(DatabaseFixture databaseFixture)
     {
         var factory = databaseFixture.Factory;
+        _factory = factory;
         _mockKeycloak = factory.MockKeycloakAdminService;
         _mockKeycloak.Reset();
         _cpConnectionString = databaseFixture.ControlPlaneConnectionString;
@@ -94,10 +105,69 @@ public class AccountLifecycleEndpointsTests
         return (status, count, confirmToken);
     }
 
+    private Task<HttpResponseMessage> PostTokenAsync(string token) =>
+        _client.PostAsync("/api/account/confirm-activity",
+            new FormUrlEncodedContent([new KeyValuePair<string, string>("token", token)]));
+
+    // ─── GET renders a confirmation form only ───────────────────────────────────
+
+    [Fact]
+    public async Task ConfirmActivity_Get_WithValidDormantToken_ShowsConfirmationForm_AndChangesNothing()
+    {
+        var keycloakId = Guid.NewGuid().ToString();
+        var (userId, token) = await CreateUserWithLifecycleTokenAsync("dormant", keycloakId);
+
+        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Content.Headers.ContentType!.ToString().Should().Contain("text/html");
+        // The form's POST redirects into the app, and browsers check form-action against that
+        // redirect too, so the app origin must be allowed alongside 'self'.
+        var appBaseUrl = _factory.Services.GetRequiredService<IConfiguration>().GetRequired(ConfigKeys.AppBaseUrl);
+        response.Headers.GetValues("Content-Security-Policy").Single()
+            .Should().Be($"default-src 'none'; style-src 'unsafe-inline'; form-action 'self' {appBaseUrl}");
+        var html = await response.Content.ReadAsStringAsync();
+        html.Should().Contain("Keep your Orkyo account active");
+        html.Should().Contain("<form method=\"post\">");
+        html.Should().Contain($"<input type=\"hidden\" name=\"token\" value=\"{token}\">");
+
+        // Link previews and mail scanners follow GET links; they must not confirm activity.
+        _mockKeycloak.EnableUserCallCount.Should().Be(0);
+        var (status, count, confirmToken) = await GetUserLifecycleStateAsync(userId);
+        status.Should().Be("dormant");
+        count.Should().Be(1);
+        confirmToken.Should().Be(SecureTokens.LifecycleConfirmTokenHash(token));
+    }
+
+    [Fact]
+    public async Task ConfirmActivity_Get_HtmlEncodesTheToken()
+    {
+        var response = await _client.GetAsync(
+            $"/api/account/confirm-activity?token={Uri.EscapeDataString("a\"><b>x")}");
+
+        var html = await response.Content.ReadAsStringAsync();
+        html.Should().Contain("value=\"a&quot;&gt;&lt;b&gt;x\"");
+        html.Should().NotContain("<b>x");
+    }
+
+    [Fact]
+    public void ConfirmActivity_Post_IsAnonymousCsrfExemptAndRateLimited()
+    {
+        var endpoint = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Single(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == "ConfirmAccountActivity");
+
+        endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()!.HttpMethods.Should().Equal("POST");
+        endpoint.Metadata.GetMetadata<IAllowAnonymous>().Should().NotBeNull();
+        endpoint.Metadata.GetMetadata<SkipTenantResolutionAttribute>().Should().NotBeNull();
+        endpoint.Metadata.GetMetadata<CsrfExemptAttribute>().Should().NotBeNull();
+        endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName
+            .Should().Be(FoundationRateLimitPolicies.BffAuth);
+    }
+
     // ─── no-token / invalid-token ────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConfirmActivity_WithNoToken_RedirectsToInvalid()
+    public async Task ConfirmActivity_Get_WithNoToken_RedirectsToInvalid()
     {
         var response = await _client.GetAsync("/api/account/confirm-activity");
 
@@ -106,7 +176,7 @@ public class AccountLifecycleEndpointsTests
     }
 
     [Fact]
-    public async Task ConfirmActivity_WithEmptyToken_RedirectsToInvalid()
+    public async Task ConfirmActivity_Get_WithEmptyToken_RedirectsToInvalid()
     {
         var response = await _client.GetAsync("/api/account/confirm-activity?token=");
 
@@ -115,11 +185,20 @@ public class AccountLifecycleEndpointsTests
     }
 
     [Fact]
-    public async Task ConfirmActivity_WithUnknownToken_RedirectsToExpired()
+    public async Task ConfirmActivity_Post_WithNoToken_RedirectsToInvalid()
+    {
+        var response = await _client.PostAsync("/api/account/confirm-activity", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().Contain("lifecycle=invalid");
+    }
+
+    [Fact]
+    public async Task ConfirmActivity_Post_WithUnknownToken_RedirectsToExpired()
     {
         var fakeToken = Guid.NewGuid().ToString();
 
-        var response = await _client.GetAsync($"/api/account/confirm-activity?token={fakeToken}");
+        var response = await PostTokenAsync(fakeToken);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("lifecycle=expired");
@@ -128,11 +207,11 @@ public class AccountLifecycleEndpointsTests
     // ─── warned user ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConfirmActivity_WithValidWarnedToken_ClearsLifecycleStateAndRedirectsToConfirmed()
+    public async Task ConfirmActivity_Post_WithValidWarnedToken_ClearsLifecycleStateAndRedirectsToConfirmed()
     {
         var (userId, token) = await CreateUserWithLifecycleTokenAsync("warned");
 
-        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var response = await PostTokenAsync(token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("lifecycle=confirmed");
@@ -150,12 +229,12 @@ public class AccountLifecycleEndpointsTests
     // ─── dormant user ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConfirmActivity_WithValidDormantToken_ReEnablesKeycloakAndClearsState()
+    public async Task ConfirmActivity_Post_WithValidDormantToken_ReEnablesKeycloakAndClearsState()
     {
         var keycloakId = Guid.NewGuid().ToString();
         var (userId, token) = await CreateUserWithLifecycleTokenAsync("dormant", keycloakId);
 
-        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var response = await PostTokenAsync(token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("lifecycle=confirmed");
@@ -172,14 +251,14 @@ public class AccountLifecycleEndpointsTests
     }
 
     [Fact]
-    public async Task ConfirmActivity_WhenKeycloakReEnableFails_StillClearsLifecycleState()
+    public async Task ConfirmActivity_Post_WhenKeycloakReEnableFails_StillClearsLifecycleState()
     {
         var keycloakId = Guid.NewGuid().ToString();
         var (userId, token) = await CreateUserWithLifecycleTokenAsync("dormant", keycloakId);
         _mockKeycloak.EnableUserSuccess = false;
         _mockKeycloak.EnableUserError = "Keycloak temporarily unavailable";
 
-        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var response = await PostTokenAsync(token);
 
         // Endpoint continues on Keycloak failure — state is still cleared and redirect is confirmed
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
@@ -192,12 +271,12 @@ public class AccountLifecycleEndpointsTests
     }
 
     [Fact]
-    public async Task ConfirmActivity_DormantUserWithNoKeycloakId_StillClearsStateWithoutCallingKeycloak()
+    public async Task ConfirmActivity_Post_DormantUserWithNoKeycloakId_StillClearsStateWithoutCallingKeycloak()
     {
         // keycloakId = null — user has no Keycloak account (e.g. created directly in DB)
         var (userId, token) = await CreateUserWithLifecycleTokenAsync("dormant", keycloakId: null);
 
-        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var response = await PostTokenAsync(token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("lifecycle=confirmed");
@@ -211,11 +290,11 @@ public class AccountLifecycleEndpointsTests
     // ─── expiry guard ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConfirmActivity_WithExpiredToken_RedirectsToExpiredAndLeavesStateUntouched()
+    public async Task ConfirmActivity_Post_WithExpiredToken_RedirectsToExpiredAndLeavesStateUntouched()
     {
         var (userId, token) = await CreateUserWithLifecycleTokenAsync("dormant", keycloakId: Guid.NewGuid().ToString(), tokenExpiresInDays: -1);
 
-        var response = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var response = await PostTokenAsync(token);
 
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         response.Headers.Location!.ToString().Should().Contain("lifecycle=expired");
@@ -231,16 +310,16 @@ public class AccountLifecycleEndpointsTests
     // ─── idempotency guard ────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ConfirmActivity_CannotBeConfirmedTwice_SecondCallRedirectsToExpired()
+    public async Task ConfirmActivity_Post_CannotBeConfirmedTwice_SecondCallRedirectsToExpired()
     {
         var (_, token) = await CreateUserWithLifecycleTokenAsync("warned");
 
-        var first = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var first = await PostTokenAsync(token);
         first.StatusCode.Should().Be(HttpStatusCode.Redirect);
         first.Headers.Location!.ToString().Should().Contain("lifecycle=confirmed");
 
         // Token is consumed on first use; second call should not find it
-        var second = await _client.GetAsync($"/api/account/confirm-activity?token={token}");
+        var second = await PostTokenAsync(token);
         second.StatusCode.Should().Be(HttpStatusCode.Redirect);
         second.Headers.Location!.ToString().Should().Contain("lifecycle=expired");
     }

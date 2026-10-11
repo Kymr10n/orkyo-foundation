@@ -21,15 +21,38 @@ public static class AccountLifecycleEndpoints
     {
         // GET /api/account/confirm-activity?token=<token>
         // Public endpoint — no auth required. User clicks this link from a lifecycle warning email.
+        // GET only renders a confirmation form, so a mail scanner or link prefetcher that follows
+        // the link changes nothing; the form's POST confirms the activity.
+        app.MapGet("/api/account/confirm-activity", [AllowAnonymous] (
+            string? token, HttpContext httpContext, IConfiguration configuration) =>
+        {
+            var appBaseUrl = configuration.GetRequired(ConfigKeys.AppBaseUrl);
+            if (string.IsNullOrWhiteSpace(token))
+                return Results.Redirect($"{appBaseUrl}?lifecycle=invalid");
+
+            EmailLinkPage.RelaxCsp(httpContext, appBaseUrl);
+            return EmailLinkPage.Confirm("Keep your Orkyo account active",
+                "Press the button to confirm that you still use your Orkyo account.",
+                "Keep my account active", token);
+        })
+        .WithName("ConfirmAccountActivityForm")
+        .WithSummary("Confirmation page for confirming account activity from a lifecycle warning email")
+        .WithTags("Account")
+        .WithMetadata(new SkipTenantResolutionAttribute());
+
+        // POST /api/account/confirm-activity (form field: token)
         // Clears lifecycle state and redirects to the app. If the account was dormant, re-enables it in Keycloak.
-        app.MapGet("/api/account/confirm-activity", [AllowAnonymous] async (
-            string? token,
+        app.MapPost("/api/account/confirm-activity", [AllowAnonymous] async (
+            HttpContext httpContext,
             IPlatformUserRepository userRepository,
             IKeycloakAdminService keycloakAdmin,
             IConfiguration configuration,
             CancellationToken ct, ILogger<EndpointLoggerCategory> logger) =>
         {
             var appBaseUrl = configuration.GetRequired(ConfigKeys.AppBaseUrl);
+            var token = httpContext.Request.HasFormContentType
+                ? (await httpContext.Request.ReadFormAsync(ct))["token"].ToString()
+                : null;
 
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -80,7 +103,8 @@ public static class AccountLifecycleEndpoints
         .WithName("ConfirmAccountActivity")
         .WithSummary("Confirm account activity from lifecycle warning email")
         .WithTags("Account")
-        .WithMetadata(new SkipTenantResolutionAttribute());
+        .WithMetadata(new SkipTenantResolutionAttribute(), new CsrfExemptAttribute())
+        .RequireRateLimiting(FoundationRateLimitPolicies.BffAuth);
 
         // GET /api/account/export — everything stored about the caller, as a JSON download
         // (GDPR Art. 15 / 20). Account-scoped: it spans every organization the person belongs
