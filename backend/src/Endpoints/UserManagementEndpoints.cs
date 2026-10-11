@@ -1,3 +1,4 @@
+using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
 using Api.Models;
@@ -73,6 +74,7 @@ public static class UserManagementEndpoints
                 };
             }))
         .AllowAnonymous()
+        .RequireRateLimiting(FoundationRateLimitPolicies.BffAuth)
         .WithMetadata(new SkipTenantResolutionAttribute())
         .WithTags("User Management")
         .WithName("AcceptInvitation")

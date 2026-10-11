@@ -2,12 +2,15 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Api.Configuration;
 using Api.Constants;
 using Api.Endpoints;
 using Api.Models;
 using Api.Security;
 using Api.Services;
 using Api.Services.Caching;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Orkyo.Shared;
@@ -608,6 +611,17 @@ public class UserManagementEndpointsTests
             "/api/invitations/accept", request, _jsonOptions);
 
         Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public void AcceptInvitation_IsRateLimitedPerClient()
+    {
+        var endpoint = _factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
+            .Single(e => e.Metadata.GetMetadata<IEndpointNameMetadata>()?.EndpointName == "AcceptInvitation");
+
+        // Parenthesised: without them, a missing attribute short-circuits the whole assertion.
+        (endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName)
+            .Should().Be(FoundationRateLimitPolicies.BffAuth);
     }
 
     #endregion
