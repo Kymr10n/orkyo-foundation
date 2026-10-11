@@ -102,9 +102,11 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
             AuthClient = authClient,
         };
 
+        var protector = _dataProtection.CreateProtector(BffSessionCookies.DataProtectionPurpose);
+        await RemovePreviousSessionAsync(ctx, protector);
+
         await _sessionStore.SetAsync(session);
 
-        var protector = _dataProtection.CreateProtector(BffSessionCookies.DataProtectionPurpose);
         BffSessionCookies.WriteSessionCookie(ctx, _bffOptions, protector.Protect(sessionId), lifetime);
         BffSessionCookies.WriteCsrfCookie(ctx, _bffOptions,
             Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(CsrfTokenLength)), lifetime);
@@ -114,6 +116,30 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         // Audit the sign-in once, here at the single session-creation seam, so every login path (OIDC
         // callback and SaaS demo login) is covered. Best-effort — the recorder swallows its own failures.
         await _signInAudit.RecordAsync(userId, tokenProfile.Email);
+    }
+
+    /// <summary>
+    /// A new sign-in replaces the session this browser already holds: the new cookie overwrites
+    /// the old one, so the old server-side session is removed rather than left valid.
+    /// </summary>
+    private async Task RemovePreviousSessionAsync(HttpContext ctx, IDataProtector protector)
+    {
+        var cookieValue = ctx.Request.Cookies[_bffOptions.CookieName];
+        if (string.IsNullOrEmpty(cookieValue))
+            return;
+
+        string previousSessionId;
+        try
+        {
+            previousSessionId = protector.Unprotect(cookieValue);
+        }
+        catch (Exception ex) when (ex is CryptographicException or FormatException)
+        {
+            // Not a cookie this app sealed (or sealed under a retired key): nothing to remove.
+            return;
+        }
+
+        await _sessionStore.RemoveAsync(previousSessionId);
     }
 
     /// <summary>

@@ -12,7 +12,7 @@ public class InMemoryBffPkceStateStoreTests
     public InMemoryBffPkceStateStoreTests() => _store = new(_time);
 
     private static PkceStateData SampleState(string returnTo = "https://orkyo.com/")
-        => new("verifier-abc", returnTo);
+        => new("verifier-abc", returnTo, "binding-hash");
 
     [Fact]
     public async Task SetAndGetAndRemove_RoundTrip()

@@ -26,13 +26,28 @@ public static class BffSessionCookies
     public static void WriteCsrfCookie(HttpContext ctx, BffOptions options, string value, TimeSpan lifetime) =>
         ctx.Response.Cookies.Append(BffOptions.CsrfCookieName, value, Build(options, httpOnly: false, lifetime));
 
-    private static CookieOptions Build(BffOptions options, bool httpOnly, TimeSpan lifetime) => new()
+    /// <summary>The path the login binding cookie is sent on: the BFF auth routes only.</summary>
+    public const string LoginBindingPath = "/api/auth/bff";
+
+    /// <summary>
+    /// The login binding cookie: HttpOnly, sent back only to the BFF auth routes. Lax, because the
+    /// return from Keycloak is a cross-site top-level navigation that Strict would strip it from.
+    /// </summary>
+    public static void WriteLoginBindingCookie(HttpContext ctx, BffOptions options, string value, TimeSpan lifetime) =>
+        ctx.Response.Cookies.Append(BffOptions.LoginBindingCookieName, value,
+            Build(options, httpOnly: true, lifetime, LoginBindingPath));
+
+    public static void DeleteLoginBindingCookie(HttpContext ctx, BffOptions options) =>
+        ctx.Response.Cookies.Delete(BffOptions.LoginBindingCookieName,
+            Build(options, httpOnly: true, lifetime: null, LoginBindingPath));
+
+    private static CookieOptions Build(BffOptions options, bool httpOnly, TimeSpan? lifetime, string path = "/") => new()
     {
         HttpOnly = httpOnly,
         Secure = options.CookieSecure,
         SameSite = SameSiteMode.Lax,
         Domain = options.CookieDomain,
-        Path = "/",
+        Path = path,
         MaxAge = lifetime,
     };
 }

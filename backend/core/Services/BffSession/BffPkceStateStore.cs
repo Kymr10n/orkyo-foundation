@@ -4,8 +4,10 @@ namespace Api.Services.BffSession;
 
 /// <summary>
 /// PKCE state stored during the OAuth2 authorization code flow.
+/// <paramref name="BindingHash"/> is the SHA-256 (hex) of the login binding cookie's value,
+/// never the value itself.
 /// </summary>
-public sealed record PkceStateData(string CodeVerifier, string ReturnTo);
+public sealed record PkceStateData(string CodeVerifier, string ReturnTo, string BindingHash);
 
 /// <summary>
 /// Storage abstraction for short-lived PKCE state entries.
