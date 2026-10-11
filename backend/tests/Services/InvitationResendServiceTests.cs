@@ -1,6 +1,7 @@
 using Api.Constants;
 using Api.Integrations.Keycloak;
 using Api.Models;
+using Api.Security;
 using Api.Security.Quotas;
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,8 +11,8 @@ using Orkyo.Shared;
 namespace Orkyo.Foundation.Tests.Services;
 
 /// <summary>
-/// DB-backed tests for <see cref="InvitationService.ResendInvitationAsync"/> and
-/// <see cref="InvitationService.InviteAsync"/>.
+/// DB-backed tests for <see cref="InvitationService.ResendInvitationAsync"/>,
+/// <see cref="InvitationService.InviteAsync"/> and <see cref="InvitationService.AcceptInvitationAsync"/>.
 ///
 /// <para>These are service-level, not endpoint-level, on purpose:
 /// <see cref="FoundationWebApplicationFactory"/> registers
@@ -33,7 +34,8 @@ public sealed class InvitationResendServiceTests
         _connString = fixture.ControlPlaneConnectionString;
     }
 
-    private (InvitationService Service, Mock<IEmailService> Email, Mock<ITenantUserService> TenantUsers) BuildService()
+    private (InvitationService Service, Mock<IEmailService> Email, Mock<ITenantUserService> TenantUsers) BuildService(
+        IDbConnectionFactory? connectionFactory = null, IUserProvisioningService? userProvisioning = null)
     {
         var settings = new Mock<ITenantSettingsService>();
         settings.Setup(s => s.GetSettingsAsync(It.IsAny<CancellationToken>()))
@@ -43,10 +45,10 @@ public sealed class InvitationResendServiceTests
         var tenantUsers = new Mock<ITenantUserService>();
 
         var service = new InvitationService(
-            new SingleTenantDbConnectionFactory(_connString),
+            connectionFactory ?? new SingleTenantDbConnectionFactory(_connString),
             email.Object,
             tenantUsers.Object,
-            Mock.Of<IUserProvisioningService>(),
+            userProvisioning ?? Mock.Of<IUserProvisioningService>(),
             settings.Object,
             Mock.Of<IQuotaEnforcer>(),
             NullLogger<InvitationService>.Instance,
@@ -179,6 +181,71 @@ public sealed class InvitationResendServiceTests
             It.IsAny<string>(), ((InviteUserResult.Invited)result).Token, It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    // ── AcceptInvitationAsync ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Accept_TwoConcurrentAcceptsOfOneInvitation_ExactlyOneSucceeds()
+    {
+        var (userId, _) = await SeedUserAsync();
+        var token = SecureTokens.Generate();
+        await SeedInvitationAsync(tokenHash: SecureTokens.Sha256Base64(token));
+
+        // Both requests must finish reading the invitation before either writes. The service
+        // resolves the tenant connection between the read and the write, so both wait there.
+        using var bothRead = new Barrier(2);
+        var factory = new BarrierConnectionFactory(new SingleTenantDbConnectionFactory(_connString), bothRead);
+        var (service, _, tenantUsers) = BuildService(factory, ProvisioningReturning(userId));
+
+        var results = await Task.WhenAll(
+            Task.Run(() => service.AcceptInvitationAsync(token, "Invitee", "Secret-Passw0rd!")),
+            Task.Run(() => service.AcceptInvitationAsync(token, "Invitee", "Secret-Passw0rd!")));
+
+        results.Count(r => r.error == null).Should().Be(1, "an invitation can be used once");
+        results.Single(r => r.error != null).error.Should().Be("Invitation has already been accepted");
+        (await CountMembershipsAsync(userId)).Should().Be(1);
+        tenantUsers.Verify(t => t.CreateUserStubInTenantDatabaseAsync(
+            It.IsAny<OrgContext>(), userId, It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Accept_AlreadyAcceptedInvitation_ReturnsAlreadyAccepted_AndAddsNoMembership()
+    {
+        var (userId, _) = await SeedUserAsync();
+        var token = SecureTokens.Generate();
+        await SeedInvitationAsync(accepted: true, tokenHash: SecureTokens.Sha256Base64(token));
+        var (service, _, _) = BuildService(userProvisioning: ProvisioningReturning(userId));
+
+        var (user, error) = await service.AcceptInvitationAsync(token, "Invitee", "Secret-Passw0rd!");
+
+        user.Should().BeNull();
+        error.Should().Be("Invitation has already been accepted");
+        (await CountMembershipsAsync(userId)).Should().Be(0);
+    }
+
+    private static IUserProvisioningService ProvisioningReturning(Guid userId)
+    {
+        var provisioning = new Mock<IUserProvisioningService>();
+        provisioning.Setup(p => p.ResolveOrCreateAsync(
+                It.IsAny<NpgsqlConnection>(), It.IsAny<NpgsqlTransaction?>(), It.IsAny<string>(),
+                It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new UserProvisioningResult(userId, Created: false));
+        return provisioning.Object;
+    }
+
+    /// <summary>Delegates every call; holds <see cref="CreateConnectionForDatabase"/> until all participants arrive.</summary>
+    private sealed class BarrierConnectionFactory(IDbConnectionFactory inner, Barrier barrier) : IDbConnectionFactory
+    {
+        public NpgsqlConnection CreateControlPlaneConnection() => inner.CreateControlPlaneConnection();
+        public NpgsqlConnection CreateTenantConnection(TenantContext tenant) => inner.CreateTenantConnection(tenant);
+        public NpgsqlConnection CreateOrgConnection(OrgContext org) => inner.CreateOrgConnection(org);
+
+        public NpgsqlConnection CreateConnectionForDatabase(string dbIdentifier)
+        {
+            barrier.SignalAndWait(TimeSpan.FromSeconds(10));
+            return inner.CreateConnectionForDatabase(dbIdentifier);
+        }
+    }
+
     // ── seed / read helpers ───────────────────────────────────────────────────
 
     private async Task<(Guid Id, string Email)> SeedUserAsync()
@@ -206,11 +273,22 @@ public sealed class InvitationResendServiceTests
         return await cmd.ExecuteScalarAsync() as string;
     }
 
+    private async Task<int> CountMembershipsAsync(Guid userId)
+    {
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM tenant_memberships WHERE user_id = @uid AND tenant_id = @tid", conn);
+        cmd.Parameters.AddWithValue("uid", userId);
+        cmd.Parameters.AddWithValue("tid", TestTenantId);
+        return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+    }
+
     private async Task<(Guid Id, string TokenHash, DateTime ExpiresAt)> SeedInvitationAsync(
-        bool accepted = false, int expiresInDays = 3)
+        bool accepted = false, int expiresInDays = 3, string? tokenHash = null)
     {
         var id = Guid.NewGuid();
-        var tokenHash = $"seed-hash-{id:N}";
+        tokenHash ??= $"seed-hash-{id:N}";
         var expiresAt = DateTime.UtcNow.AddDays(expiresInDays);
 
         await using var conn = new NpgsqlConnection(_connString);

@@ -198,6 +198,18 @@ public sealed class InvitationService : IInvitationService
         await using var transaction = await conn.BeginTransactionAsync(ct);
         try
         {
+            // Claim the invitation first. The read above is unlocked, so two requests can both
+            // pass it; the conditional UPDATE lets only one of them through, and the other
+            // rolls back before it provisions an account or writes a membership.
+            await using var acceptCmd = new NpgsqlCommand(
+                "UPDATE invitations SET accepted_at = NOW() WHERE id = @id AND accepted_at IS NULL", conn, transaction);
+            acceptCmd.Parameters.AddWithValue("id", invitationId);
+            if (await acceptCmd.ExecuteNonQueryAsync(ct) == 0)
+            {
+                await transaction.RollbackAsync(ct);
+                return (null, "Invitation has already been accepted");
+            }
+
             Guid userId;
             try
             {
@@ -224,11 +236,6 @@ public sealed class InvitationService : IInvitationService
             membershipCmd.Parameters.AddWithValue("tenantId", tenantId);
             membershipCmd.Parameters.AddWithValue("role", role.ToString().ToLowerInvariant());
             await membershipCmd.ExecuteNonQueryAsync(ct);
-
-            await using var acceptCmd = new NpgsqlCommand(
-                "UPDATE invitations SET accepted_at = NOW() WHERE id = @id", conn, transaction);
-            acceptCmd.Parameters.AddWithValue("id", invitationId);
-            await acceptCmd.ExecuteNonQueryAsync(ct);
 
             await transaction.CommitAsync(ct);
 
