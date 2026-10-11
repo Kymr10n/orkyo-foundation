@@ -20,6 +20,12 @@ public sealed class BffOptions
     /// </summary>
     public const string CsrfCookieName = "orkyo-csrf";
 
+    /// <summary>
+    /// Binds a sign-in to the browser that started it: /login sets it, the callback requires it.
+    /// HttpOnly and scoped to the BFF auth routes.
+    /// </summary>
+    public const string LoginBindingCookieName = "orkyo-bff-login";
+
     /// <summary>CSRF header name that must match the cookie value.</summary>
     public const string CsrfHeaderName = HeaderConstants.CsrfToken;
 

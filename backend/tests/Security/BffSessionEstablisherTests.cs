@@ -31,6 +31,7 @@ public class BffSessionEstablisherTests
         SessionMaxDuration = TimeSpan.FromDays(14),
     };
 
+    private readonly IDataProtectionProvider _protection = DataProtectionProvider.Create("EstablisherTests");
     private BffSessionRecord? _stored;
 
     public BffSessionEstablisherTests()
@@ -42,7 +43,7 @@ public class BffSessionEstablisherTests
 
     private BffSessionEstablisher Create() => new(
         _store.Object,
-        DataProtectionProvider.Create("EstablisherTests"),
+        _protection,
         _userSessions.Object,
         _clientIp.Object,
         _audit.Object,
@@ -115,5 +116,30 @@ public class BffSessionEstablisherTests
         setCookie.Should().Contain("orkyo-csrf");
         // 45 minutes = 2700s — the max-age observed on demo sessions in production.
         setCookie.Should().Contain("max-age=2700");
+    }
+
+    [Fact]
+    public async Task SigningInOverAnExistingSession_RemovesThePreviousServerSideSession()
+    {
+        var ctx = new DefaultHttpContext();
+        var previous = _protection.CreateProtector(BffSessionCookies.DataProtectionPurpose).Protect("previous-session");
+        ctx.Request.Headers.Cookie = $"orkyo-session={previous}";
+
+        await Create().EstablishAsync(ctx, Guid.NewGuid(), Profile(), Tokens());
+
+        _store.Verify(s => s.RemoveAsync("previous-session", It.IsAny<CancellationToken>()), Times.Once);
+        _stored!.SessionId.Should().NotBe("previous-session");
+    }
+
+    [Fact]
+    public async Task AnUnreadableSessionCookie_DoesNotBlockTheSignIn()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Request.Headers.Cookie = "orkyo-session=not-a-sealed-value";
+
+        await Create().EstablishAsync(ctx, Guid.NewGuid(), Profile(), Tokens());
+
+        _store.Verify(s => s.RemoveAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _stored.Should().NotBeNull();
     }
 }

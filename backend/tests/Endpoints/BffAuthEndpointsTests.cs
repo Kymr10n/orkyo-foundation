@@ -1,8 +1,13 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Net;
+using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text.Json;
+using Api.Security;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection;
+using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
@@ -11,7 +16,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// BFF_ENABLED=true is set in the shared FoundationWebApplicationFactory config,
 /// so BFF endpoints are always mapped alongside existing JWT endpoints.
 /// Tests focus on login redirect generation, returnTo validation, and error paths.
-/// Callback tests that require real Keycloak token exchange are deferred to E2E.
+/// The callback reaches a session through the host's stubbed Keycloak token endpoint.
 /// </summary>
 [Collection("Database collection")]
 public class BffAuthEndpointsTests
@@ -130,7 +135,7 @@ public class BffAuthEndpointsTests
     [Fact]
     public async Task Login_StoresStateInPkceStore()
     {
-        var state = await StartLoginAsync();
+        var (state, _) = await StartLoginAsync();
 
         // Verify state was stored in IBffPkceStateStore (not IDistributedCache)
         using var scope = _factory.Services.CreateScope();
@@ -162,14 +167,110 @@ public class BffAuthEndpointsTests
     [Fact]
     public async Task Callback_WithKeycloakError_FailsOnceThenTheStateIsGone()
     {
-        var callback = $"/api/auth/bff/callback?error=access_denied&state={await StartLoginAsync()}";
+        var (state, binding) = await StartLoginAsync();
+        var callback = $"/api/auth/bff/callback?error=access_denied&state={state}";
 
-        var first = await _client.GetAsync(callback);
+        var first = await CallbackAsync(callback, binding);
         first.StatusCode.Should().Be(HttpStatusCode.Redirect);
         first.Headers.Location!.ToString().Should().EndWith("/login?error=auth_failed");
+        BindingCookieIsCleared(first);
 
-        var second = await _client.GetAsync(callback);
+        var second = await CallbackAsync(callback, binding);
         second.Headers.Location!.ToString().Should().EndWith("/login?error=invalid_state");
+    }
+
+    // The callback completes a sign-in only in the browser that started it: /login leaves a
+    // cookie there, and the state remembers its hash.
+
+    [Fact]
+    public async Task Login_SetsTheSignInBindingCookie_HttpOnlyLaxAndScopedToTheAuthRoutes()
+    {
+        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://orkyo.com/");
+
+        var cookie = SetCookie(response, BindingCookie);
+        cookie.Should().NotBeNull();
+        cookie.Should().ContainEquivalentOf("httponly");
+        // Lax, not Strict: the return from Keycloak is a cross-site top-level navigation.
+        cookie.Should().ContainEquivalentOf("samesite=lax");
+        cookie.Should().ContainEquivalentOf("path=/api/auth/bff");
+        cookie.Should().ContainEquivalentOf("max-age=600");
+        // BFF_COOKIE_SECURE=false in the test host.
+        cookie.Should().NotContainEquivalentOf("secure");
+    }
+
+    [Fact]
+    public async Task Callback_WithoutTheBindingCookie_RedirectsToLoginWithInvalidState()
+    {
+        var (state, _) = await StartLoginAsync();
+
+        var response = await CallbackAsync($"/api/auth/bff/callback?code=test-code&state={state}", binding: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        response.Headers.Location!.ToString().Should().EndWith("/login?error=invalid_state");
+        SetCookie(response, "orkyo-session").Should().BeNull();
+        BindingCookieIsCleared(response);
+    }
+
+    [Fact]
+    public async Task Callback_WithTheBindingCookieOfAnotherSignIn_RedirectsToLoginWithInvalidState()
+    {
+        var (state, _) = await StartLoginAsync();
+        var (_, otherBinding) = await StartLoginAsync();
+
+        var response = await CallbackAsync($"/api/auth/bff/callback?code=test-code&state={state}", otherBinding);
+
+        response.Headers.Location!.ToString().Should().EndWith("/login?error=invalid_state");
+        SetCookie(response, "orkyo-session").Should().BeNull();
+        BindingCookieIsCleared(response);
+    }
+
+    [Fact]
+    public async Task Callback_RejectedForItsBindingCookie_StillConsumesTheState()
+    {
+        var (state, binding) = await StartLoginAsync();
+        var callback = $"/api/auth/bff/callback?code=test-code&state={state}";
+
+        await CallbackAsync(callback, binding: null);
+        var retry = await CallbackAsync(callback, binding);
+
+        retry.Headers.Location!.ToString().Should().EndWith("/login?error=invalid_state");
+    }
+
+    [Fact]
+    public async Task Callback_InTheBrowserThatStartedTheSignIn_EstablishesASessionAndClearsTheBindingCookie()
+    {
+        var tokenEndpoint = _factory.Services.GetRequiredService<StubKeycloakTokenEndpoint>();
+        var identityLink = _factory.Services.GetRequiredService<StubIdentityLinkService>();
+        var previousLink = identityLink.LinkResult;
+        var accessToken = new JwtSecurityTokenHandler().WriteToken(
+            new JwtSecurityToken(claims: [new Claim("sub", Guid.NewGuid().ToString())]));
+        tokenEndpoint.Responder = _ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                access_token = accessToken,
+                refresh_token = "rt",
+                id_token = "header.payload.signature",
+                expires_in = 300,
+            }),
+        };
+        identityLink.LinkResult = IdentityLinkResult.Linked(Guid.NewGuid(), "user@orkyo.com", "User");
+        try
+        {
+            var (state, binding) = await StartLoginAsync();
+
+            var response = await CallbackAsync($"/api/auth/bff/callback?code=test-code&state={state}", binding);
+
+            response.StatusCode.Should().Be(HttpStatusCode.Redirect);
+            response.Headers.Location!.ToString().Should().Be("https://orkyo.com/");
+            SetCookie(response, "orkyo-session").Should().NotBeNull();
+            BindingCookieIsCleared(response);
+        }
+        finally
+        {
+            tokenEndpoint.Responder = null;
+            identityLink.LinkResult = previousLink;
+        }
     }
 
     // ── GET /api/auth/bff/logout ─────────────────────────────────────────────
@@ -300,13 +401,43 @@ public class BffAuthEndpointsTests
     // policy is declared and registered. Behavioural 429 testing is not possible in
     // this host because rate limiting is globally disabled here (DISABLE_RATE_LIMITING).
 
-    /// <summary>Starts a sign-in and returns the state the callback must present.</summary>
-    private async Task<string> StartLoginAsync()
+    private const string BindingCookie = "orkyo-bff-login";
+
+    /// <summary>
+    /// Starts a sign-in and returns the state the callback must present, with the value of the
+    /// binding cookie /login left in this browser.
+    /// </summary>
+    private async Task<(string State, string Binding)> StartLoginAsync()
     {
         var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://orkyo.com/");
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         var state = System.Web.HttpUtility.ParseQueryString(response.Headers.Location!.Query)["state"];
         state.Should().NotBeNullOrEmpty();
-        return state!;
+        var cookie = SetCookie(response, BindingCookie);
+        cookie.Should().NotBeNull();
+        return (state!, cookie!.Split(';')[0][(BindingCookie.Length + 1)..]);
+    }
+
+    /// <summary>Calls the callback the way a browser holding <paramref name="binding"/> would.</summary>
+    private Task<HttpResponseMessage> CallbackAsync(string url, string? binding)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (binding is not null)
+            request.Headers.Add("Cookie", $"{BindingCookie}={binding}");
+        return _client.SendAsync(request);
+    }
+
+    /// <summary>The response's Set-Cookie header for <paramref name="name"/>, or null.</summary>
+    private static string? SetCookie(HttpResponseMessage response, string name) =>
+        response.Headers.TryGetValues("Set-Cookie", out var values)
+            ? values.FirstOrDefault(v => v.StartsWith($"{name}=", StringComparison.Ordinal))
+            : null;
+
+    private static void BindingCookieIsCleared(HttpResponseMessage response)
+    {
+        var cookie = SetCookie(response, BindingCookie);
+        cookie.Should().NotBeNull();
+        cookie.Should().ContainEquivalentOf("expires=thu, 01 jan 1970");
+        cookie.Should().ContainEquivalentOf("path=/api/auth/bff");
     }
 }

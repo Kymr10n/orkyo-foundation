@@ -250,6 +250,12 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         builder.Services.AddSingleton<Api.Services.Ai.IAnthropicGateway>(
             sp => sp.GetRequiredService<StubAnthropicGateway>());
 
+        // Keycloak's token endpoint, so a test can drive the sign-in callback to a session.
+        builder.Services.AddSingleton<StubKeycloakTokenEndpoint>();
+        builder.Services.AddHttpClient(KeycloakTokenClient.HttpClientName)
+            .ConfigurePrimaryHttpMessageHandler(sp =>
+                new StubHttpMessageHandler(sp.GetRequiredService<StubKeycloakTokenEndpoint>().Respond));
+
         // Same all-enabled behaviour as AllFeaturesEnabledGate, but a test can disable one
         // key to reach an entitlement refusal that only SaaS would otherwise produce.
         builder.Services.AddSingleton<StubFeatureGate>();

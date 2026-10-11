@@ -93,6 +93,7 @@ public static class BffAuthEndpoints
         [FromQuery(Name = "login_hint")] string? loginHint,
         // A Keycloak application-initiated action (e.g. enrolling a passkey), allow-listed.
         [FromQuery(Name = "kc_action")] string? kcAction,
+        HttpContext ctx,
         IOptions<BffOptions> bffOpts,
         KeycloakOptions keycloakOptions,
         IBffPkceStateStore pkceStore,
@@ -118,7 +119,12 @@ public static class BffAuthEndpoints
         var codeChallenge = ComputeCodeChallenge(codeVerifier);
         var state = GenerateRandomHex(StateLength);
 
-        await pkceStore.SetAsync(state, new PkceStateData(codeVerifier, returnTo), StateTtl);
+        // Binds the sign-in to this browser: the callback completes it only where this cookie
+        // comes back. The state keeps the value's hash, never the value.
+        var binding = SecureTokens.Generate();
+        BffSessionCookies.WriteLoginBindingCookie(ctx, bffOptions, binding, StateTtl);
+
+        await pkceStore.SetAsync(state, new PkceStateData(codeVerifier, returnTo, SecureTokens.Sha256Hex(binding)), StateTtl);
 
         var queryParams = new Dictionary<string, string?>
         {
@@ -171,6 +177,10 @@ public static class BffAuthEndpoints
         IResult LoginError(string errorCode) =>
             Results.Redirect($"{bffOptions.GetDefaultReturnToBase()}/login?error={Uri.EscapeDataString(errorCode)}");
 
+        // The binding cookie serves one callback, whatever its outcome.
+        var binding = ctx.Request.Cookies[BffOptions.LoginBindingCookieName];
+        BffSessionCookies.DeleteLoginBindingCookie(ctx, bffOptions);
+
         try
         {
             // Atomic get-and-remove: a state serves exactly one callback, whatever its outcome.
@@ -180,6 +190,13 @@ public static class BffAuthEndpoints
                 // Missing, expired or already used, e.g. the back button reopened a finished
                 // Keycloak page and Keycloak answered `authentication_expired`.
                 logger.LogWarning("BFF callback: state not found, expired, or already consumed (error={Error})", error);
+                return LoginError("invalid_state");
+            }
+
+            // A sign-in completes only in the browser that started it.
+            if (!IsBindingValid(binding, pkceState.BindingHash))
+            {
+                logger.LogWarning("BFF callback: sign-in binding cookie missing or not matching, state={StatePrefix}…", state![..8]);
                 return LoginError("invalid_state");
             }
 
@@ -429,6 +446,11 @@ public static class BffAuthEndpoints
             return returnTo;
         }
     }
+
+    private static bool IsBindingValid(string? binding, string expectedHash) =>
+        !string.IsNullOrEmpty(binding) &&
+        CryptographicOperations.FixedTimeEquals(
+            Encoding.ASCII.GetBytes(SecureTokens.Sha256Hex(binding)), Encoding.ASCII.GetBytes(expectedHash));
 
     private static string GenerateRandomBase64Url(int byteLength)
     {
