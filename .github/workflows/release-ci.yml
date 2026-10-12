@@ -881,13 +881,15 @@ jobs:
           }
         working-directory: frontend
 
-      - name: Remove the npm token
-        if: always()
-        run: rm -f frontend/.npmrc
-
+      # Needs the .npmrc above: without the @kymr10n registry mapping npm asks registry.npmjs.org
+      # and gets a 401. So the token is removed only after this step.
       - name: Update dist-tag next → this nightly
         run: npm dist-tag add @kymr10n/foundation@${{ steps.version.outputs.VERSION }} next
         working-directory: frontend
+
+      - name: Remove the npm token
+        if: always()
+        run: rm -f frontend/.npmrc
 
       # ── Keycloak image for this nightly ───────────────────────────────────
       # The nightly version is what the saas auto-bump pins into

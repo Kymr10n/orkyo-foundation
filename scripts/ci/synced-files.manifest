@@ -20,7 +20,8 @@ Directory.Build.props	orkyo-saas	orkyo-community
 nuget.config	orkyo-saas	orkyo-community
 frontend/eslint.config.js	orkyo-saas	orkyo-community
 frontend/src/index.css	orkyo-saas	orkyo-community
-scripts/bump-foundation.sh	orkyo-saas	orkyo-community
+# scripts/bump-foundation.sh is an intentional fork: community also pins the foundation
+# Keycloak image by digest in backend/keycloak/Dockerfile (community #157); saas has no such image.
 scripts/check-foundation-parity.sh	orkyo-saas	orkyo-community
 frontend/scripts/sync-foundation-build.mjs	orkyo-saas	orkyo-community
 frontend/scripts/validate-foundation-imports.mjs	orkyo-saas	orkyo-community
