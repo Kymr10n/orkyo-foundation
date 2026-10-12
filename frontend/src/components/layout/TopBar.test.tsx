@@ -20,6 +20,8 @@ import { useSiteStore } from '@foundation/src/store/site-store';
 import { useLayoutStore } from '@foundation/src/store/layout-store';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { mockAuth, type MockAuthOptions } from '@foundation/src/test-utils/auth';
+import { rememberSessionEndRedirect } from '@foundation/src/lib/utils/session-end';
+import { useSharedDemoStore } from '@foundation/src/store/shared-demo-store';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -62,6 +64,8 @@ const initialLayoutState = useLayoutStore.getState();
 beforeEach(() => {
   useSiteStore.setState({ ...initialSiteState, selectedSiteId: null }, true);
   useLayoutStore.setState({ ...initialLayoutState, resolvedTheme: 'dark' }, true);
+  sessionStorage.clear();
+  useSharedDemoStore.setState({ noticeHidden: false });
 });
 
 const baseMembership = {
@@ -410,5 +414,39 @@ describe('TopBar — Scan QR code', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Scan QR code' }));
 
     expect(useUiActionsStore.getState().scannerOpen).toBe(true);
+  });
+});
+
+// ── Shared-demo badge ─────────────────────────────────────────────────────────
+
+describe('TopBar — shared-demo badge', () => {
+  it('is absent in an ordinary session', () => {
+    vi.mocked(useAuth).mockReturnValue(authState());
+    renderTopBar();
+    expect(screen.queryByTestId('shared-demo-badge')).not.toBeInTheDocument();
+  });
+
+  it('opens the notice and hides the banner for the session', async () => {
+    rememberSessionEndRedirect('demo');
+    vi.mocked(useAuth).mockReturnValue(authState());
+    renderTopBar();
+    await userEvent.click(screen.getByTestId('shared-demo-badge'));
+    expect(screen.getByText(/Do not enter real or personal information/)).toBeInTheDocument();
+
+    const toggle = screen.getByTestId('shared-demo-notice-toggle');
+    expect(toggle).toHaveTextContent('Hide the notice');
+    await userEvent.click(toggle);
+    expect(useSharedDemoStore.getState().noticeHidden).toBe(true);
+    expect(toggle).toHaveTextContent('Show the notice again');
+  });
+
+  it('brings a hidden notice back', async () => {
+    rememberSessionEndRedirect('demo');
+    useSharedDemoStore.setState({ noticeHidden: true });
+    vi.mocked(useAuth).mockReturnValue(authState());
+    renderTopBar();
+    await userEvent.click(screen.getByTestId('shared-demo-badge'));
+    await userEvent.click(screen.getByTestId('shared-demo-notice-toggle'));
+    expect(useSharedDemoStore.getState().noticeHidden).toBe(false);
   });
 });

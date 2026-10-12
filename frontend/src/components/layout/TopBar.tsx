@@ -23,6 +23,9 @@ import { FeatureKeys } from "@foundation/contracts/plans";
 import { useFeatureEnabled } from "@foundation/src/hooks/useFeatureEnabled";
 import { useAiStatus } from "@foundation/src/hooks/useAiAssistant";
 import { useLayoutStore } from "@foundation/src/store/layout-store";
+import { useSharedDemoStore } from "@foundation/src/store/shared-demo-store";
+import { isEphemeralSession } from "@foundation/src/lib/utils/session-end";
+import { SHARED_DEMO_NOTICE } from "@foundation/src/components/layout/SharedDemoBanner";
 import { useSiteStore } from "@foundation/src/store/site-store";
 import { navigateToApex } from "@foundation/src/lib/utils/tenant-navigation";
 import { ThemeToggle } from "@foundation/src/components/layout/ThemeToggle";
@@ -42,6 +45,7 @@ import {
     Compass,
     Download,
     EllipsisVertical,
+    FlaskConical,
     Info,
     LogOut,
     Megaphone,
@@ -190,6 +194,8 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
       <div className="font-semibold text-base whitespace-nowrap">
         Orkyo
       </div>
+
+      {isEphemeralSession() && <SharedDemoBadge />}
 
       {/* Current Organisation — tablet+ inline (hidden on phone, shown in overflow menu) */}
       {membership && (
@@ -535,5 +541,40 @@ export function TopBar({ onOpenMobileNav, upgradeHref }: TopBarProps = {}) {
         </Suspense>
       )}
     </header>
+  );
+}
+
+/**
+ * Marks a shared public demo in the top bar. Its popover repeats the notice the banner carries,
+ * so the warning stays one tap away after the visitor hides the banner, and brings it back.
+ */
+function SharedDemoBadge() {
+  const noticeHidden = useSharedDemoStore((s) => s.noticeHidden);
+  const setNoticeHidden = useSharedDemoStore((s) => s.setNoticeHidden);
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
+        aria-label="About the shared demo"
+        data-testid="shared-demo-badge"
+      >
+        <FlaskConical className="h-3 w-3" aria-hidden />
+        Demo
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 space-y-3 text-sm">
+        <p className="font-medium">Shared public demo</p>
+        <p className="text-muted-foreground">{SHARED_DEMO_NOTICE}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setNoticeHidden(!noticeHidden)}
+          data-testid="shared-demo-notice-toggle"
+        >
+          {noticeHidden ? "Show the notice again" : "Hide the notice"}
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }
