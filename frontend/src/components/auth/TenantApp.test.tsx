@@ -113,13 +113,15 @@ describe("TenantApp", () => {
   it("shows the shared-demo banner for an ephemeral session", async () => {
     rememberSessionEndRedirect("demo");
     renderAt("/");
-    expect(await screen.findByText(/Shared public demo/)).toBeInTheDocument();
+    const banner = await screen.findByTestId("shared-demo-banner");
+    expect(banner).toHaveTextContent(/Shared demo/);
+    expect(banner).toHaveTextContent(/Do not enter real or personal information/);
   });
 
   it("shows no shared-demo banner for an ordinary session", async () => {
     renderAt("/");
     expect(await screen.findByTestId("app-layout")).toBeInTheDocument();
-    expect(screen.queryByText(/Shared public demo/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("shared-demo-banner")).not.toBeInTheDocument();
   });
 
   // ── Route rendering ───────────────────────────────────────────────────

@@ -27,7 +27,7 @@ import { LoadingSpinner } from '@foundation/src/components/ui/LoadingSpinner';
 import { RouteErrorBoundary } from '@foundation/src/components/ui/RouteErrorBoundary';
 import { NotFound } from '@foundation/src/components/layout/NotFound';
 import { BreakGlassBanner } from '@foundation/src/components/break-glass/BreakGlassBanner';
-import { Alert, AlertDescription } from '@foundation/src/components/ui/alert';
+import { FlaskConical } from 'lucide-react';
 import { isEphemeralSession } from '@foundation/src/lib/utils/session-end';
 import { useAuth } from '@foundation/src/contexts/AuthContext';
 import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ABOUT, ROUTE_ACCOUNT, ROUTE_ASSETS,
@@ -209,12 +209,20 @@ function TenantAppRoutes({
       <FloatingThemeToggle />
       <BreakGlassBanner />
       {isEphemeralSession() && (
-        <Alert variant="warning" className="rounded-none border-x-0 border-t-0">
-          <AlertDescription>
-            Shared public demo: other visitors see the same data, and it resets daily. Do not
-            enter real or personal information.
-          </AlertDescription>
-        </Alert>
+        // One slim line, styled like the break-glass banner above it. The warning stays
+        // visible on every page, so it must not take a third of a phone screen.
+        <div
+          role="status"
+          data-testid="shared-demo-banner"
+          className="flex items-center gap-2 border-b border-amber-500/40 bg-amber-500/10 px-4 py-1.5 text-xs text-amber-900 dark:text-amber-200"
+        >
+          <FlaskConical className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span className="font-medium">Shared demo</span>
+          <span className="opacity-80 sm:hidden">· resets daily · no personal data</span>
+          <span className="hidden opacity-80 sm:inline">
+            · Everyone sees the same data · Resets daily · Do not enter real or personal information
+          </span>
+        </div>
       )}
       <Suspense fallback={<LoadingSpinner message="Loading…" />}>
       <Routes>
