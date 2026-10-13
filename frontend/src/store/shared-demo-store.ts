@@ -7,8 +7,9 @@ import { createJSONStorage, persist } from "zustand/middleware";
  *
  * The notice strip (`SharedDemoBanner`) and the "Demo" badge in the top bar both read it, so
  * hiding from one place and restoring from the other stay in step. It persists in
- * sessionStorage, the same lifetime as the ephemeral-session flag it accompanies: a reload
- * keeps the choice, a new demo session starts with the notice shown.
+ * sessionStorage so a reload keeps the choice. sessionStorage outlives the demo session
+ * itself, so the two places that end an ephemeral session (the 401 branch in `api-utils`
+ * and `performLogin` in the auth machine) reset it before they send the visitor away.
  */
 interface SharedDemoState {
   noticeHidden: boolean;

@@ -554,13 +554,15 @@ function SharedDemoBadge() {
 
   return (
     <Popover>
+      {/* Icon-only on phones: the bar already holds the menu, the brand and four 40px
+          controls there, and a wider badge would shrink those touch targets. */}
       <PopoverTrigger
-        className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
+        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-md bg-amber-500/10 px-2 text-xs font-semibold text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
         aria-label="About the shared demo"
         data-testid="shared-demo-badge"
       >
-        <FlaskConical className="h-3 w-3" aria-hidden />
-        Demo
+        <FlaskConical className="h-3.5 w-3.5" aria-hidden />
+        <span className="hidden sm:inline">Demo</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 space-y-3 text-sm">
         <p className="font-medium">Shared public demo</p>
