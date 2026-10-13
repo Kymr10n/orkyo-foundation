@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { STORAGE_KEYS } from "./storage";
 
 describe("STORAGE_KEYS", () => {
-  it("has 6 keys", () => {
-    expect(Object.keys(STORAGE_KEYS)).toHaveLength(6);
+  it("has 7 keys", () => {
+    expect(Object.keys(STORAGE_KEYS)).toHaveLength(7);
   });
 
   it("values are all non-empty strings", () => {
@@ -25,5 +25,6 @@ describe("STORAGE_KEYS", () => {
     expect(STORAGE_KEYS.REQUEST_TREE).toBe("orkyo.requestTree");
     expect(STORAGE_KEYS.ASSISTANT_WIDTH).toBe("orkyo.assistant.width");
     expect(STORAGE_KEYS.TYPE_FILTER_PREFIX).toBe("orkyo.typeFilter.");
+    expect(STORAGE_KEYS.SHARED_DEMO_NOTICE).toBe("orkyo.sharedDemoNotice");
   });
 });
