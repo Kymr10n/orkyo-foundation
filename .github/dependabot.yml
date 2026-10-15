@@ -77,6 +77,12 @@ updates:
       time: "05:00"
     cooldown:
       default-days: 7
+    # FullCalendar 7 folded the daygrid/timegrid/list/interaction plugins into
+    # `@fullcalendar/react/*` subpaths, so a bump of core+react alone cannot resolve.
+    # The v7 move is a deliberate migration (imports, temporal-polyfill, theme CSS).
+    ignore:
+      - dependency-name: "@fullcalendar/*"
+        update-types: ["version-update:semver-major"]
 
     # A conventional subject so the bump is exempt from the docs-impact trailer
     # rule by type (`build:`), instead of escaping it by having no type at all.
