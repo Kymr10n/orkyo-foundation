@@ -16,6 +16,36 @@ interface SharedDemoState {
   setNoticeHidden: (hidden: boolean) => void;
 }
 
+/**
+ * sessionStorage that never throws. The session-end paths write this store right before they
+ * navigate the visitor away, and `persist` writes synchronously inside `set`, so a quota or
+ * private-mode failure would otherwise propagate out of `setNoticeHidden` and skip the
+ * redirect. Losing the preference is the acceptable outcome; a stranded visitor is not.
+ */
+const quietSessionStorage = {
+  getItem: (name: string) => {
+    try {
+      return sessionStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      sessionStorage.setItem(name, value);
+    } catch {
+      // Preference not saved; the live store still holds it for this page.
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      sessionStorage.removeItem(name);
+    } catch {
+      // Nothing to do: there is no stored value to clear.
+    }
+  },
+};
+
 export const useSharedDemoStore = create<SharedDemoState>()(
   persist(
     (set) => ({
@@ -24,7 +54,7 @@ export const useSharedDemoStore = create<SharedDemoState>()(
     }),
     {
       name: STORAGE_KEYS.SHARED_DEMO_NOTICE,
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => quietSessionStorage),
     },
   ),
 );
