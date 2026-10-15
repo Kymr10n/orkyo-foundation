@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { STORAGE_KEYS } from "@foundation/src/constants/storage";
 import { useSharedDemoStore } from "@foundation/src/store/shared-demo-store";
 
@@ -8,9 +8,8 @@ describe("useSharedDemoStore", () => {
     useSharedDemoStore.setState({ noticeHidden: false });
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  // Restore each spy inside its test: `vi.restoreAllMocks()` does not take a spy off jsdom's
+  // sessionStorage proxy, so one left behind would fail every later test's storage call.
 
   it("persists the choice in sessionStorage", () => {
     useSharedDemoStore.getState().setNoticeHidden(true);
@@ -31,5 +30,26 @@ describe("useSharedDemoStore", () => {
     expect(useSharedDemoStore.getState().noticeHidden).toBe(true);
     expect(() => useSharedDemoStore.getState().setNoticeHidden(false)).not.toThrow();
     expect(useSharedDemoStore.getState().noticeHidden).toBe(false);
+    setItem.mockRestore();
+  });
+
+  it("starts from the default when storage cannot be read", async () => {
+    sessionStorage.setItem(STORAGE_KEYS.SHARED_DEMO_NOTICE, '{"state":{"noticeHidden":true},"version":0}');
+    const getItem = vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+
+    await expect(useSharedDemoStore.persist.rehydrate()).resolves.toBeUndefined();
+    expect(useSharedDemoStore.getState().noticeHidden).toBe(false);
+    getItem.mockRestore();
+  });
+
+  it("clears quietly when storage cannot be written", () => {
+    const removeItem = vi.spyOn(window.sessionStorage, "removeItem").mockImplementation(() => {
+      throw new DOMException("blocked", "SecurityError");
+    });
+
+    expect(() => useSharedDemoStore.persist.clearStorage()).not.toThrow();
+    removeItem.mockRestore();
   });
 });
