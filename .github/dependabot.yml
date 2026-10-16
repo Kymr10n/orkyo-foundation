@@ -87,6 +87,12 @@ updates:
       # group that carries it cannot install.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # ESLint 10 is unsupported by eslint-plugin-react (eslint <=9); a major group that
+      # carries it cannot install. @eslint/js moves with eslint.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
 
     # A conventional subject so the bump is exempt from the docs-impact trailer
     # rule by type (`build:`), instead of escaping it by having no type at all.
