@@ -10,10 +10,18 @@ name: reusable / dependabot-auto-merge
 # because the answer really is repo-specific.
 #
 # Turns the safe half of the Dependabot queue into maintenance nobody clicks: minor, patch
-# and digest updates enable auto-merge and land on their own once the required status
-# checks pass. Majors are never auto-merged — they are the class that actually breaks
-# (peer-dependency conflicts, removed APIs), and a green CI run does not prove a major is
-# behaviourally safe.
+# and digest updates are approved and queued for auto-merge, and land on their own once
+# the required status checks pass. Majors are never auto-merged — they are the class that
+# actually breaks (peer-dependency conflicts, removed APIs), and a green CI run does not
+# prove a major is behaviourally safe.
+#
+# WHY AN APPROVING REVIEW: every main ruleset requires one approving review from a code
+# owner, and GitHub's deferred auto-merge never re-checks ruleset bypass actors, so a
+# queued merge without a review stays BLOCKED for good (community discussion 162623).
+# The review is the thing the rule asks for. AUTOMERGE_TOKEN belongs to the owner, who is
+# the code owner in every repo, and the pull request author is dependabot[bot], so this is
+# not a self-approval. `dismiss_stale_reviews_on_push` drops the approval when Dependabot
+# rebases; `pull_request_target` fires again on synchronize and re-approves.
 #
 # WHY AUTOMERGE_TOKEN AND NOT GITHUB_TOKEN: the queued merge runs as whoever enabled
 # auto-merge, and GITHUB_TOKEN can never hold the `workflows` permission. GitHub therefore
@@ -57,7 +65,7 @@ jobs:
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
-      - name: Enable auto-merge
+      - name: Approve and enable auto-merge
         # The test is "not a major", not "is a minor or a patch". A digest-only
         # bump carries no semver update-type, so update-type is empty for the
         # *-digest groups and an equality test against minor/patch would skip
@@ -65,13 +73,14 @@ jobs:
         #
         # For a grouped pull request fetch-metadata reports the HIGHEST
         # update-type in the group, so a group holding one major is held back
-        # whole. dependabot.yml keeps majors in their own group anyway.
+        # whole. dependabot.yml opens majors alone anyway.
         if: steps.metadata.outputs.update-type != 'version-update:semver-major'
         run: |
           if [[ -z "${GH_TOKEN}" ]]; then
             echo "::error::AUTOMERGE_TOKEN secret is not set; GITHUB_TOKEN cannot merge workflow-file changes."
             exit 1
           fi
+          gh pr review --approve --body "Non-major Dependabot update: approved for auto-merge once the required checks pass." "$PR_URL"
           gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
