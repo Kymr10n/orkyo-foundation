@@ -50,7 +50,7 @@ fi
 # copy from the upstream file in this image: any difference means Keycloak changed the
 # script, and the copy must be regenerated from it.
 docker cp "$NAME:/opt/keycloak/lib/lib/main" "$WORK/kclib" >/dev/null
-THEMES_JAR=$(find "$WORK/kclib" -name 'org.keycloak.keycloak-themes-*.jar' | head -1)
+THEMES_JAR=$(find "$WORK/kclib" -name 'org.keycloak.keycloak-themes-[0-9]*.jar' | head -1)
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 if ! unzip -p "$THEMES_JAR" theme/base/login/resources/js/webauthnRegister.js \
   | sed -f "$ROOT/scripts/ci/keycloak-webauthn-register.sed" \
