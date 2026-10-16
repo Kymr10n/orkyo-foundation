@@ -9,9 +9,5 @@
 # Reviewed 2026-10-01: The 26.7.5 pin cleared five vulnerable-library exceptions:
 # Bouncy Castle (1.86), netty (4.1.138), FreeMarker (2.3.35), and Jackson (2.21.7).
 # Jackson also closed CVE-2026-91776/91777, published 2026-10-01. The `mssql-jdbc`
-# false-positive exception remains. Git history contains the review narrative.
-
-# ── Trivy false positive ───────────────────────────────────────────────────────
-# Renewed on a 14-day cadence while it stays a false positive; a permanent-exception
-# class (VEX) would end the churn — see the base-image-scan follow-ups.
-CVE-2025-59250  # HIGH | mssql-jdbc: improper input validation — Trivy compares the installed 13.2.1 against a fix list ending 13.2.1.jre11 and calls it older; the shipped JAR is the fixed version, false positive (re-verified 2026-10-01 on quay.io/keycloak/keycloak:26.7.5, which still pins 13.2.1.jre11) | Added: 2026-10-01 | Review: 2026-10-15
+# false-positive exception was dropped on 2026-10-16: the 26.8.0 pin ships 13.4.0.jre11.
+# Git history contains the review narrative.
