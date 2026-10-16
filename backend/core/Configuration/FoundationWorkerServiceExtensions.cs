@@ -4,7 +4,6 @@ using Api.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Orkyo.Shared.Keycloak;
 
 namespace Api.Configuration;
 
@@ -28,9 +27,8 @@ public static class FoundationWorkerServiceExtensions
         // worker host too. AddMemoryCache is TryAdd: a product's own IMemoryCache wins.
         services.AddMemoryCache();
         services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
-        services.AddSingleton(KeycloakOptions.FromConfiguration(configuration));
         // UserLifecycleService resolves IKeycloakAdminService per run-cycle for disable/purge.
-        services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>();
+        services.AddKeycloakAdmin(configuration);
         // Org connections resolve through whichever IDbConnectionFactory the product registered.
         services.AddSingleton<IOrgDbConnectionFactory>(sp => sp.GetRequiredService<IDbConnectionFactory>());
         // Cross-instance, restart-safe scheduling guard for the worker loops (journal +

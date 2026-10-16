@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Hosting;
+using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Services;
 using Microsoft.Extensions.Configuration;
@@ -86,54 +87,11 @@ public class OrkyoWorkerHostTests
         Assert.True(announcements.IsDue(DateTime.UtcNow, DateTime.UtcNow));
     }
     /// <summary>
-    /// The edition registers AFTER the shared graph, so it can replace a foundation service.
-    /// Most of AddFoundationWorkerServices uses plain AddSingleton, where the last registration
-    /// wins; with the order reversed a product's own IEmailService was silently discarded.
+    /// AddFoundationWorkerServices builds KeycloakOptions eagerly, so the keys it requires have
+    /// to be present. Values are irrelevant; nothing here connects.
     /// </summary>
-    [Fact]
-    public void ComposeServices_LetsTheEditionReplaceASharedService()
-    {
-        var editionEmail = Mock.Of<IEmailService>();
-        var services = new ServiceCollection();
-        var context = new HostBuilderContext(new Dictionary<object, object>())
-        {
-            // AddFoundationWorkerServices builds KeycloakOptions eagerly, so the four keys it
-            // requires have to be present. Values are irrelevant; nothing here connects.
-            Configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [ConfigKeys.KeycloakUrl] = "http://keycloak.invalid",
-                [ConfigKeys.KeycloakRealm] = "orkyo",
-                [ConfigKeys.KeycloakBackendClientId] = "backend",
-                [ConfigKeys.KeycloakBackendClientSecret] = "secret",
-                [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
-                [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
-            }).Build(),
-        };
-
-        OrkyoWorkerHost.ComposeServices(
-            context,
-            services,
-            (_, s) => s.AddSingleton(editionEmail),
-            _ => []);
-
-        var resolved = services
-            .Where(d => d.ServiceType == typeof(IEmailService))
-            .Select(d => d.ImplementationInstance)
-            .Last();
-        Assert.Same(editionEmail, resolved);
-    }
-
-    /// <summary>
-    /// The worker sends the lifecycle mail, so the SMTP_HOST switch has to reach its graph too —
-    /// an edition that configures no mail must get the log-only transport, not a broken SMTP one.
-    /// </summary>
-    [Theory]
-    [InlineData(null, typeof(LogOnlyEmailTransport))]
-    [InlineData("smtp.example.com", typeof(SmtpEmailTransport))]
-    public void ComposeServices_SelectsTheEmailTransportFromSmtpHost(string? smtpHost, Type expected)
-    {
-        var services = new ServiceCollection();
-        var context = new HostBuilderContext(new Dictionary<object, object>())
+    private static HostBuilderContext BuildContext(string? smtpHost = null) =>
+        new(new Dictionary<object, object>())
         {
             Configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -147,7 +105,68 @@ public class OrkyoWorkerHostTests
             }).Build(),
         };
 
-        OrkyoWorkerHost.ComposeServices(context, services, (_, _) => { }, _ => []);
+    /// <summary>
+    /// The edition registers AFTER the shared graph, so it can replace a foundation service.
+    /// Most of AddFoundationWorkerServices uses plain AddSingleton, where the last registration
+    /// wins; with the order reversed a product's own IEmailService was silently discarded.
+    /// </summary>
+    [Fact]
+    public void ComposeServices_LetsTheEditionReplaceASharedService()
+    {
+        var editionEmail = Mock.Of<IEmailService>();
+        var services = new ServiceCollection();
+
+        OrkyoWorkerHost.ComposeServices(
+            BuildContext(),
+            services,
+            (_, s) => s.AddSingleton(editionEmail),
+            _ => []);
+
+        var resolved = services
+            .Where(d => d.ServiceType == typeof(IEmailService))
+            .Select(d => d.ImplementationInstance)
+            .Last();
+        Assert.Same(editionEmail, resolved);
+    }
+
+    /// <summary>
+    /// Every service the worker graph registers can be built. A typed HttpClient resolves its
+    /// constructor dependencies lazily, so ValidateOnBuild cannot see them: the worker ran for
+    /// days with KeycloakAdminService missing its token cache, failing every lifecycle pass.
+    /// </summary>
+    [Fact]
+    public void ComposeServices_EveryRegisteredServiceResolves()
+    {
+        var context = BuildContext();
+        var services = new ServiceCollection();
+        // What the generic host registers before ConfigureServices runs.
+        services.AddLogging();
+        services.AddSingleton(context.Configuration);
+        OrkyoWorkerHost.ComposeServices(
+            context, services, (_, s) => s.AddSingleton(Mock.Of<IDbConnectionFactory>()), _ => []);
+        using var provider = services.BuildServiceProvider();
+
+        var closedTypes = services.Select(d => d.ServiceType).Where(t => !t.IsGenericTypeDefinition).Distinct();
+        foreach (var type in closedTypes)
+            provider.GetRequiredService(type);
+
+        // The cache is only a cache if every KeycloakAdminService shares the one instance.
+        provider.GetRequiredService<KeycloakAdminTokenCache>()
+            .Should().BeSameAs(provider.GetRequiredService<KeycloakAdminTokenCache>());
+    }
+
+    /// <summary>
+    /// The worker sends the lifecycle mail, so the SMTP_HOST switch has to reach its graph too —
+    /// an edition that configures no mail must get the log-only transport, not a broken SMTP one.
+    /// </summary>
+    [Theory]
+    [InlineData(null, typeof(LogOnlyEmailTransport))]
+    [InlineData("smtp.example.com", typeof(SmtpEmailTransport))]
+    public void ComposeServices_SelectsTheEmailTransportFromSmtpHost(string? smtpHost, Type expected)
+    {
+        var services = new ServiceCollection();
+
+        OrkyoWorkerHost.ComposeServices(BuildContext(smtpHost), services, (_, _) => { }, _ => []);
 
         services
             .Last(d => d.ServiceType == typeof(IEmailTransport))

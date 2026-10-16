@@ -15,7 +15,6 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Orkyo.Shared;
-using Orkyo.Shared.Keycloak;
 using Serilog;
 
 namespace Api.Configuration;
@@ -61,9 +60,7 @@ public static class FoundationServiceExtensions
         services.AddValidatorsFromAssemblyContaining<RequestEmailChangeRequestValidator>(ServiceLifetime.Scoped);
 
         // ── Keycloak ──────────────────────────────────────────────────────────
-        services.AddSingleton(KeycloakOptions.FromConfiguration(configuration));
-        services.AddSingleton<KeycloakAdminTokenCache>();
-        services.AddHttpClient<IKeycloakAdminService, KeycloakAdminService>();
+        services.AddKeycloakAdmin(configuration);
 
         // ── Auth ──────────────────────────────────────────────────────────────
         services.AddOrkyoAuthentication(configuration);
