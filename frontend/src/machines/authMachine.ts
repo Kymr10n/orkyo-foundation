@@ -53,6 +53,7 @@ import {
   buildBffLoginUrl,
 } from '@foundation/src/lib/utils/tenant-navigation';
 import { rememberSessionEndRedirect, sessionEndRedirect } from '@foundation/src/lib/utils/session-end';
+import { useSharedDemoStore } from '@foundation/src/store/shared-demo-store';
 import { logger } from '@foundation/src/lib/core/logger';
 import { PlanCodes, isKnownPlanCode } from '@foundation/contracts/plans';
 import type { AppUser, TenantMembership, SessionBootstrapResponse } from '@foundation/src/contexts/AuthContext';
@@ -266,6 +267,8 @@ export const authMachine = setup({
       // marketing site rather than to Keycloak, where they have no credentials to enter.
       const sessionEnd = sessionEndRedirect();
       if (sessionEnd) {
+        // Same boundary as the 401 branch in api-utils: the next demo in this tab starts fresh.
+        useSharedDemoStore.getState().setNoticeHidden(false);
         window.location.replace(sessionEnd);
         return;
       }

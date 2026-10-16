@@ -84,6 +84,7 @@ vi.mock('@foundation/src/constants/auth', () => ({
 // Import after mocks are set up
 import { authMachine, getUrlAuthError } from './authMachine';
 import { rememberSessionEndRedirect, sessionEndRedirect } from '@foundation/src/lib/utils/session-end';
+import { useSharedDemoStore } from '@foundation/src/store/shared-demo-store';
 
 /** The current window.location.replace spy — captured here (rather than read back off
  *  window.location) to avoid the unbound-method lint on the DOM method reference. */
@@ -755,12 +756,15 @@ describe('performLogin (redirecting_login entry)', () => {
     // handler (api-utils) reaches the same destination rather than the login flow.
     setLocation({ pathname: '/requests', href: 'http://localhost:5173/requests' });
     rememberSessionEndRedirect('demo');
+    useSharedDemoStore.getState().setNoticeHidden(true);
     const actor = createActor(machineWithOutput({ kind: 'empty' }));
     actor.start();
 
     await waitFor(actor, (s) => s.value === 'redirecting_login', { timeout: 2000 });
     expect(locationReplace).toHaveBeenCalledWith('http://localhost:5173/');
     expect(sessionEndRedirect()).toBe('http://localhost:5173/');
+    // The notice choice ends with the demo session; the next demo in this tab starts fresh.
+    expect(useSharedDemoStore.getState().noticeHidden).toBe(false);
     sessionStorage.clear();
     actor.stop();
   });

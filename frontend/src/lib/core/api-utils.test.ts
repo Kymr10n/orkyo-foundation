@@ -9,6 +9,7 @@ import {
 } from './api-utils';
 import { runtimeConfig } from '../../config/runtime';
 import { rememberSessionEndRedirect } from '../utils/session-end';
+import { useSharedDemoStore } from '@foundation/src/store/shared-demo-store';
 
 const { mockRedirectToLogin, mockGoToApex } = vi.hoisted(() => ({
   mockRedirectToLogin: vi.fn(),
@@ -230,6 +231,9 @@ describe('api-utils', () => {
       // form is a dead end. AuthContext marks the session on bootstrap; this is the payoff.
       (runtimeConfig as any).baseDomain = 'orkyo.com';
       rememberSessionEndRedirect('demo');
+      // What the visitor chose during the demo ends with it: the tab's sessionStorage
+      // would otherwise hand a hidden notice to the next demo opened in the same tab.
+      useSharedDemoStore.getState().setNoticeHidden(true);
       const replace = vi.fn();
       // A minimal stand-in rather than a spread of the real Location: spreading a class
       // instance drops its prototype (and eslint rightly flags it). The 401 branch only
@@ -255,6 +259,7 @@ describe('api-utils', () => {
       expect(replace).toHaveBeenCalledTimes(2);
       expect(replace).toHaveBeenCalledWith('https://orkyo.com/');
       expect(mockRedirectToLogin).not.toHaveBeenCalled();
+      expect(useSharedDemoStore.getState().noticeHidden).toBe(false);
       (runtimeConfig as any).baseDomain = '';
     });
 

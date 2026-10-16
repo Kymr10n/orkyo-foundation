@@ -16,4 +16,6 @@ export const STORAGE_KEYS = {
   ASSISTANT_WIDTH: 'orkyo.assistant.width',
   /** Prefix of the per-tab resource-type filter; the tab's URL parameter name follows */
   TYPE_FILTER_PREFIX: 'orkyo.typeFilter.',
+  /** Whether the shared-demo notice is hidden — sessionStorage, so it lives as long as the demo session */
+  SHARED_DEMO_NOTICE: 'orkyo.sharedDemoNotice',
 } as const;

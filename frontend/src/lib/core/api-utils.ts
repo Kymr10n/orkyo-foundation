@@ -20,6 +20,7 @@ import {
   redirectToLogin,
 } from "@foundation/src/lib/utils/tenant-navigation";
 import { sessionEndRedirect } from "@foundation/src/lib/utils/session-end";
+import { useSharedDemoStore } from "@foundation/src/store/shared-demo-store";
 
 /**
  * Get common headers for API requests.
@@ -158,6 +159,9 @@ export async function handleApiError(response: Response): Promise<never> {
     // all read the same answer, so no later one can override this navigation with the login flow.
     const sessionEnd = sessionEndRedirect();
     if (sessionEnd) {
+      // The tab's sessionStorage outlives the demo session, so what the visitor chose
+      // during it must not leak into the next demo opened in the same tab.
+      useSharedDemoStore.getState().setNoticeHidden(false);
       window.location.replace(sessionEnd);
     } else {
       redirectToLogin();
