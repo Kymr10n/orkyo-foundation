@@ -112,9 +112,9 @@ public class RoutingServiceTests
     private (CreateRequestRequest Parent, IReadOnlyList<CreateRequestRequest> Children, IReadOnlyList<ChainEdge> Edges) Captured()
     {
         var call = _requests.Invocations.Single(i => i.Method.Name == nameof(IRequestRepository.CreateChainAsync));
-        return ((CreateRequestRequest)call.Arguments[0],
-            (IReadOnlyList<CreateRequestRequest>)call.Arguments[1],
-            (IReadOnlyList<ChainEdge>)call.Arguments[2]);
+        return ((CreateRequestRequest)call.Arguments[0]!,
+            (IReadOnlyList<CreateRequestRequest>)call.Arguments[1]!,
+            (IReadOnlyList<ChainEdge>)call.Arguments[2]!);
     }
 
     [Fact]

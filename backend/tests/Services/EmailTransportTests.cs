@@ -95,9 +95,9 @@ public class LogOnlyEmailTransportTests
                 LogLevel.Information,
                 It.IsAny<EventId>(),
                 It.Is<It.IsAnyType>((v, _) =>
-                    v.ToString()!.Contains("to@example.com")
-                    && v.ToString()!.Contains("Your invitation")
-                    && v.ToString()!.Contains("invitation=tok")),
+                    v!.ToString()!.Contains("to@example.com")
+                    && v!.ToString()!.Contains("Your invitation")
+                    && v!.ToString()!.Contains("invitation=tok")),
                 null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);

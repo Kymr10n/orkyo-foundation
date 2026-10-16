@@ -35,7 +35,7 @@ public class RequestLoggingMiddlewareTests
             l => l.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("200")),
+                It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("200")),
                 null,
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
@@ -111,7 +111,7 @@ public class RequestLoggingMiddlewareTests
             l => l.Log(
                 LogLevel.Information,
                 It.IsAny<EventId>(),
-                It.Is<It.IsAnyType>((v, _) => v.ToString()!.Contains("499")),
+                It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("499")),
                 It.IsAny<Exception?>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
