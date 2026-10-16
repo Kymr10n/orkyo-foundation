@@ -1,0 +1,24 @@
+name: Freshness report
+
+# Monthly, one tracking issue: packages a major behind, the majors dependabot.yml
+# ignores, runtimes near end of support, Dependabot PRs older than 14 days. The job
+# body lives in reusable-freshness-report.yml — the same file the products call by SHA.
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  freshness-report:
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+      issues: write
+    uses: ./.github/workflows/reusable-freshness-report.yml
+    with:
+      solution-path: Orkyo.Foundation.slnx
+      with-private-registry: false

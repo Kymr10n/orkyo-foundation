@@ -1,0 +1,232 @@
+name: reusable / freshness-report
+
+# The safety net under batched, auto-merged dependency updates: once a month, ONE
+# tracking issue per repo says what is falling behind. Dependabot only proposes what it
+# is allowed to, so an ignored major or a runtime near end-of-life is invisible until
+# something lists it. This does.
+#
+# The issue body is replaced on every run (not appended), so it is always the current
+# state. The issue is found by title and the `maintenance` label, reopened if closed.
+#
+# Sections:
+#   1. NuGet and npm packages whose latest release is a newer MAJOR than the one pinned.
+#      Two or more majors behind is marked.
+#   2. Majors Dependabot is told to ignore in dependabot.yml (upstream-blocked), so they
+#      are re-checked rather than forgotten.
+#   3. Runtimes and base images with a known end-of-support date; under 180 days is marked.
+#   4. Dependabot pull requests open for more than 14 days.
+#
+# COUPLING RULE: this is a `workflow_call` reusable workflow. It must never reference a
+# local `./.github/actions/...` composite action. Consumers pin their `uses:` by commit
+# SHA, never `@main`, and call with `secrets: inherit` (GHCR_TOKEN for the private npm
+# feed in the products; foundation has none).
+
+on:
+  workflow_call:
+    inputs:
+      solution-path:
+        description: 'Path to the .slnx the NuGet outdated check reads'
+        required: true
+        type: string
+      frontend-dir:
+        description: 'Directory with package.json and package-lock.json'
+        required: false
+        type: string
+        default: frontend
+      with-private-registry:
+        description: 'Restore NuGet from nuget.pkg.github.com/Kymr10n and npm @kymr10n from npm.pkg.github.com'
+        required: false
+        type: boolean
+        default: false
+      extra-eol:
+        description: 'Extra rows for the end-of-support table, one per line: component|pinned|YYYY-MM-DD or unknown|note'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      GHCR_TOKEN:
+        description: 'Read access to the private npm feed (products only)'
+        required: false
+
+jobs:
+  freshness-report:
+    name: freshness-report
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+      issues: write
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET (private registry)
+        if: inputs.with-private-registry
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          source-url: https://nuget.pkg.github.com/Kymr10n/index.json
+        env:
+          NUGET_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup .NET
+        if: ${{ !inputs.with-private-registry }}
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: NuGet — outdated direct packages
+        run: |
+          dotnet restore ${{ inputs.solution-path }} -p:NuGetAudit=false
+          dotnet list ${{ inputs.solution-path }} package --outdated --format json > nuget-outdated.json || true
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+
+      - name: npm — outdated packages
+        working-directory: ${{ inputs.frontend-dir }}
+        run: |
+          if [ "${{ inputs.with-private-registry }}" = "true" ]; then
+            echo "@kymr10n:registry=https://npm.pkg.github.com" > .npmrc
+            echo "//npm.pkg.github.com/:_authToken=${{ secrets.GHCR_TOKEN }}" >> .npmrc
+          fi
+          npm ci --ignore-scripts --no-audit --no-fund
+          rm -f .npmrc
+          # npm outdated exits 1 whenever anything is outdated; the JSON is still complete.
+          npm outdated --json > ../npm-outdated.json || true
+
+      - name: Dependabot pull requests open for more than 14 days
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" --author app/dependabot --state open --limit 100 \
+            --json number,title,createdAt,url > dependabot-prs.json
+
+      - name: Compose the report
+        env:
+          EXTRA_EOL: ${{ inputs.extra-eol }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, datetime, pathlib
+          today = datetime.date.today()
+
+          def major(v):
+              m = re.match(r"\D*(\d+)", v or "")
+              return int(m.group(1)) if m else None
+
+          # 1. majors behind
+          rows = []
+          try:
+              d = json.load(open("nuget-outdated.json"))
+              seen = set()
+              for proj in d.get("projects", []):
+                  for fw in proj.get("frameworks", []):
+                      for p in fw.get("topLevelPackages", []):
+                          cur, latest = p.get("resolvedVersion"), p.get("latestVersion")
+                          cm, lm = major(cur), major(latest)
+                          if cm is not None and lm is not None and lm > cm and p["id"] not in seen:
+                              seen.add(p["id"]); rows.append(("NuGet", p["id"], cur, latest, lm - cm))
+          except Exception as e:
+              rows.append(("NuGet", f"(could not parse nuget-outdated.json: {e})", "", "", 0))
+          try:
+              d = json.load(open("npm-outdated.json"))
+              for name, info in sorted(d.items()):
+                  cur, latest = info.get("current") or info.get("wanted"), info.get("latest")
+                  cm, lm = major(cur), major(latest)
+                  if cm is not None and lm is not None and lm > cm:
+                      rows.append(("npm", name, cur, latest, lm - cm))
+          except Exception as e:
+              rows.append(("npm", f"(could not parse npm-outdated.json: {e})", "", "", 0))
+
+          # 2. ignored majors in dependabot.yml (names only; the reason is a comment next to each)
+          ignored = []
+          try:
+              import yaml
+              cfg = yaml.safe_load(open(".github/dependabot.yml"))
+              for u in cfg.get("updates", []):
+                  for ig in u.get("ignore", []) or []:
+                      if any("semver-major" in t for t in ig.get("update-types", [])):
+                          ignored.append((u["package-ecosystem"], ig["dependency-name"]))
+          except Exception as e:
+              ignored.append(("?", f"(could not parse dependabot.yml: {e})"))
+
+          # 3. end of support. Dates are upstream announcements; "unknown" when none is published.
+          eol = [
+              (".NET", "10 (LTS)", "2028-11-10", "runtime and SDK base images"),
+              ("PostgreSQL", "16", "2028-11-09", "compose and CI service"),
+              ("Alpine", "3.24", "2028-05-01", "aspnet/runtime/nginx/node base images"),
+              ("Node.js", "26", "2029-04-30", "build stage only"),
+              ("nginx", "1.31 mainline", "unknown", "mainline is supported until the next mainline release"),
+              ("Keycloak", "latest minor only", "unknown", "upstream supports only the newest minor"),
+              ("Valkey", "8", "unknown", "no published end date"),
+          ]
+          for line in (os.environ.get("EXTRA_EOL") or "").splitlines():
+              parts = [x.strip() for x in line.split("|")]
+              if len(parts) == 4 and parts[0]:
+                  eol.append(tuple(parts))
+
+          # 4. stale Dependabot PRs
+          stale = []
+          try:
+              for pr in json.load(open("dependabot-prs.json")):
+                  opened = datetime.date.fromisoformat(pr["createdAt"][:10])
+                  age = (today - opened).days
+                  if age > 14:
+                      stale.append((pr["number"], pr["title"], age, pr["url"]))
+          except Exception as e:
+              stale.append((0, f"(could not read dependabot-prs.json: {e})", 0, ""))
+
+          out = [f"# Dependency freshness report", "",
+                 f"Generated {today.isoformat()} by the monthly `freshness-report` workflow. "
+                 "The body is replaced on every run; do not edit it by hand.", ""]
+          out += ["## Packages a major version behind", ""]
+          if rows:
+              out += ["| Ecosystem | Package | Pinned | Latest | Majors behind |", "|---|---|---|---|---|"]
+              for eco, name, cur, latest, n in sorted(rows, key=lambda r: (-r[4], r[0], r[1])):
+                  flag = f"**{n}**" if n >= 2 else str(n)
+                  out.append(f"| {eco} | {name} | {cur} | {latest} | {flag} |")
+          else:
+              out.append("None.")
+          out += ["", "## Majors Dependabot ignores (upstream-blocked)", "",
+                  "Each entry has the blocker named in `.github/dependabot.yml`. Re-check the blocker; drop the ignore when it ships.", ""]
+          out += [f"- {eco}: `{name}`" for eco, name in ignored] or ["None."]
+          out += ["", "## End of support", "", "| Component | Pinned | End of support | Note |", "|---|---|---|---|"]
+          for comp, pinned, date, note in eol:
+              mark = ""
+              try:
+                  days = (datetime.date.fromisoformat(date) - today).days
+                  mark = f" **({days} days)**" if days < 180 else f" ({days} days)"
+              except ValueError:
+                  pass
+              out.append(f"| {comp} | {pinned} | {date}{mark} | {note} |")
+          out += ["", "## Dependabot pull requests open for more than 14 days", ""]
+          out += [f"- #{n} {t} — {age} days — {url}" for n, t, age, url in stale] or ["None."]
+          pathlib.Path("report.md").write_text("\n".join(out) + "\n")
+          print("\n".join(out))
+          PY
+
+      - name: Create or update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "Dependency freshness report"
+        run: |
+          gh label create maintenance --repo "$GITHUB_REPOSITORY" --color C5DEF5 \
+            --description "Recurring upkeep, not a defect" --force >/dev/null
+          number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state all --label maintenance \
+            --search "\"$TITLE\" in:title" --json number,title,state \
+            --jq "[.[] | select(.title == \"$TITLE\")][0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue reopen "$number" --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+            gh issue edit "$number" --repo "$GITHUB_REPOSITORY" --body-file report.md
+            echo "Updated #$number"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --label maintenance --body-file report.md
+          fi
