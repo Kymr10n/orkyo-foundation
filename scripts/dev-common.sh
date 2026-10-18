@@ -182,6 +182,97 @@ cmd_frontend() {
   npm run dev -- --host 0.0.0.0 --port "${FRONTEND_PORT}"
 }
 
+# ── check: the CI sequence, locally ────────────────────────────────────────────
+# Runs what the backend-ci job runs, in its order, against one Postgres container that
+# per repo that stays up between runs. Test fixtures pick it up through the CI switch they already have
+# (CI=true + ConnectionStrings__Postgres), so no test code knows about this script.
+# `--fast` runs only the architecture and convention tests, which need no database; the
+# pre-push hook uses it. The image pin is the smoke-tests job's.
+TEST_POSTGRES_IMAGE="postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685"
+# One server per repo: the suites create databases with the same names (control_plane,
+# tenant_test) from different migration sets, so they must not share a server.
+case "$PRODUCT_REPO" in
+  orkyo-foundation) TEST_POSTGRES_PORT=5440 ;;
+  orkyo-saas)       TEST_POSTGRES_PORT=5441 ;;
+  orkyo-community)  TEST_POSTGRES_PORT=5442 ;;
+  *) TEST_POSTGRES_PORT=5449 ;;
+esac
+TEST_POSTGRES_CONTAINER="orkyo-test-postgres-${PRODUCT_REPO#orkyo-}"
+FAST_TEST_FILTER="(FullyQualifiedName~.Architecture.|FullyQualifiedName~ConventionContract|FullyQualifiedName~PublicEndpointTenantSkip)&FullyQualifiedName!~RouteInventory&FullyQualifiedName!~AuthorizationContract"
+
+ensure_test_postgres() {
+  if ! docker inspect -f '{{.State.Running}}' "$TEST_POSTGRES_CONTAINER" 2>/dev/null | grep -q true; then
+    docker rm -f "$TEST_POSTGRES_CONTAINER" >/dev/null 2>&1 || true
+    log "Starting ${TEST_POSTGRES_CONTAINER} on 127.0.0.1:${TEST_POSTGRES_PORT}"
+    docker run -d --name "$TEST_POSTGRES_CONTAINER" -p "127.0.0.1:${TEST_POSTGRES_PORT}:5432" \
+      -e POSTGRES_PASSWORD=postgres "$TEST_POSTGRES_IMAGE" -c max_connections=300 >/dev/null
+  fi
+  local i
+  for i in $(seq 1 30); do
+    docker exec "$TEST_POSTGRES_CONTAINER" pg_isready -U postgres -q 2>/dev/null && return 0
+    sleep 1
+  done
+  error "${TEST_POSTGRES_CONTAINER} did not become ready"
+  exit 1
+}
+
+check_step() {
+  local job="$1" name="$2"
+  shift 2
+  log "[${job}] ${name}"
+  "$@" || { error "FAILED [${job}] ${name}"; exit 1; }
+}
+
+frontend_changed() {
+  [[ -d "$FRONTEND_ROOT" ]] || return 1
+  local base
+  base=$(git -C "$ROOT_DIR" merge-base HEAD origin/main 2>/dev/null) || return 0
+  ! git -C "$ROOT_DIR" diff --quiet "$base" -- frontend
+}
+
+cmd_check() {
+  local fast=false
+  [[ "${1:-}" == "--fast" ]] && fast=true
+  local sln
+  sln=$(find "$ROOT_DIR" -maxdepth 1 -name '*.slnx' | head -1)
+  [[ -n "$sln" ]] || { error "no .slnx in $ROOT_DIR"; exit 1; }
+  local sql_dir="$ROOT_DIR/backend/migrations/sql"
+  [[ -d "$ROOT_DIR/backend/migrations-foundation/sql" ]] && sql_dir="$ROOT_DIR/backend/migrations-foundation/sql"
+  local ci_scripts="$(dirname "${BASH_SOURCE[0]}")/ci"
+  cd "$ROOT_DIR"
+
+  if $fast; then
+    check_step backend-ci "build" dotnet build "$sln" -c Release -warnaserror --nologo -v q
+    check_step backend-ci "architecture tests (no database)" dotnet test "$sln" -c Release --no-build --nologo --filter "$FAST_TEST_FILTER"
+    success "fast check passed"
+    return 0
+  fi
+
+  if [[ -n "$(find "$ROOT_DIR/backend" -maxdepth 3 -name packages.lock.json -print -quit)" ]]; then
+    check_step backend-ci "restore (locked)" dotnet restore "$sln" --locked-mode
+  else
+    check_step backend-ci "restore" dotnet restore "$sln"
+  fi
+  check_step backend-ci "format" dotnet format "$sln" --verify-no-changes --no-restore
+  check_step backend-ci "build" dotnet build "$sln" -c Release --no-restore -warnaserror --nologo -v q
+  check_step audit-secrets "migration headers" bash "$ci_scripts/lint-migration-headers.sh" "$sql_dir"
+  check_step template-sync "dead registrations" python3 "$ROOT_DIR/scripts/ci/check-dead-registrations.py" --strict
+
+  ensure_test_postgres
+  export CI=true
+  export ConnectionStrings__Postgres="Host=localhost;Port=${TEST_POSTGRES_PORT};Database=postgres;Username=postgres;Password=postgres"
+  check_step backend-ci "tests" dotnet test "$sln" -c Release --no-build --nologo
+
+  if frontend_changed; then
+    check_step frontend-ci "lint" npm --prefix "$FRONTEND_ROOT" run lint
+    check_step frontend-ci "typecheck" npm --prefix "$FRONTEND_ROOT" run typecheck
+    check_step frontend-ci "tests" npm --prefix "$FRONTEND_ROOT" test
+  else
+    log "[frontend-ci] skipped: no frontend changes against origin/main"
+  fi
+  success "check passed — this is what CI runs"
+}
+
 dev_dispatch() {
   local command="${1:-help}"
 
@@ -200,6 +291,7 @@ dev_dispatch() {
     seed) shift; cmd_seed "$@" ;;
     frontend) cmd_frontend ;;
     doctor) cmd_doctor ;;
+    check) shift; cmd_check "$@" ;;
     help|-h|--help) show_help ;;
     *)
       error "Unknown command: $command"

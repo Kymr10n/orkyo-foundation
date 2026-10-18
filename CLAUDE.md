@@ -107,6 +107,11 @@ nightly channel.
 - **`scripts/ci/lint-migration-headers.sh` enforces this in CI** (Rule 3 — diff-filter=M). The check runs in the `audit-secrets` job on every PR and push to `main`. If CI rejects your change with "existing migration files must never be modified", create a new migration file instead.
 - **Testcontainers failures caused by `IF EXISTS` additions are a signal, not an invitation to patch.** If a migration fails on a fresh DB because of a missing object, the migration itself was wrong — do not add `IF EXISTS` guards after the fact. Either fix the migration in the same PR before it is merged, or write a compensating migration.
 
+## Before every push
+
+Run `scripts/check.sh`. It is the backend-ci job, step for step, against a local Postgres; a
+push that skipped it is how a red CI run starts. `--fast` is the pre-push hook's subset.
+
 ## Test coverage (every code change)
 
 **Every change ships at or above 80% patch coverage.** Measure locally before opening a PR —

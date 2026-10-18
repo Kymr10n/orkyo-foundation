@@ -83,8 +83,8 @@ public abstract class ProductDatabaseFixtureBase<TProgram, TFactory>
     {
         if (UseCiDatabase)
         {
-            DatabasePort = 5432;
-            AdminConnectionString = "Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres";
+            DatabasePort = TestDatabase.CiDatabasePort;
+            AdminConnectionString = $"Host=localhost;Port={DatabasePort};Database=postgres;Username=postgres;Password=postgres";
         }
         else
         {

@@ -86,11 +86,17 @@ dotnet build Orkyo.Foundation.slnx
 dotnet test Orkyo.Foundation.slnx
 ```
 
-**Integration tests require Docker.** The `backend/tests/Integration/*` tests use [Testcontainers](https://dotnet.testcontainers.org/) to boot a real Postgres container and apply the foundation-owned migrations against it. If your host doesn't have Docker (or the daemon isn't running), scope the run to unit tests only:
+**Run what CI runs before you push:**
 
 ```bash
-dotnet test Orkyo.Foundation.slnx --filter "FullyQualifiedName!~Integration"
+scripts/check.sh          # restore, format, build, migration lint, dead registrations, every test
+scripts/check.sh --fast   # architecture and convention tests only, no database (the pre-push hook)
 ```
+
+The full check keeps one Postgres container (`orkyo-test-postgres-foundation`, port 5440) running
+between runs and points the test fixtures at it through the same `CI=true` + `ConnectionStrings__Postgres`
+switch the fixtures already have. Nothing else starts Testcontainers, which cannot map ports under
+rootless Docker. A bare `dotnet test Orkyo.Foundation.slnx` still works where Testcontainers does.
 
 ## Placement rule
 

@@ -18,6 +18,15 @@ public static class TestDatabase
         Environment.GetEnvironmentVariable("CI") == "true"
         && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ConfigKeys.ConnectionStringPostgresEnvVar));
 
+    /// <summary>
+    /// The port of the external server when <see cref="UseCiDatabase"/> is on. Host, user and
+    /// password are fixed (<c>localhost</c>, <c>postgres</c>/<c>postgres</c>); the port comes from
+    /// the configured connection string so a local run can keep its dev stack on 5432
+    /// (<c>./dev.sh check</c> starts one server per repo on 5440-5442).
+    /// </summary>
+    public static int CiDatabasePort =>
+        new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable(ConfigKeys.ConnectionStringPostgresEnvVar)).Port;
+
     /// <summary>Creates <paramref name="database"/> through <paramref name="adminConnectionString"/> unless it already exists.</summary>
     public static async Task CreateIfMissingAsync(string adminConnectionString, string database)
     {
