@@ -27,6 +27,19 @@ public class AesGcmEncryptionServiceTests
     // ── String roundtrip ───────────────────────────────────────────────────────
 
     [Fact]
+    public void Purpose_SealsAndOpens_AndIsNotInterchangeableWithATenantOrAnotherPurpose()
+    {
+        var crypto = new AesGcmEncryptionService(RandomNumberGenerator.GetBytes(32));
+        var sealed_ = crypto.ProtectString("secret", "BffSession.Record")!;
+
+        crypto.UnprotectString(sealed_, "BffSession.Record").Should().Be("secret");
+        FluentActions.Invoking(() => crypto.UnprotectString(sealed_, "DataProtection-Keys")).Should().Throw<EncryptionException>();
+        FluentActions.Invoking(() => crypto.UnprotectString(sealed_, Guid.Empty)).Should().Throw<EncryptionException>();
+        var bytes = crypto.ProtectBytes("bytes"u8, "p");
+        crypto.UnprotectBytes(bytes, "p").Should().Equal("bytes"u8.ToArray());
+    }
+
+    [Fact]
     public void ProtectString_Roundtrips()
     {
         var svc = NewService();

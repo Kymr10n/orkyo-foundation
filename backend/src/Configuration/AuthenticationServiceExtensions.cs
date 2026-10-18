@@ -89,9 +89,11 @@ public static class AuthenticationServiceExtensions
             {
                 ValidateIssuer = true,
                 ValidIssuer = oidcAuthority,
-                // Validate audience against the client ID and the standard "account" service
+                // Only tokens minted for this API. "account" is Keycloak's own account console
+                // and every client in the realm carries it, so accepting it made any realm
+                // token (Grafana's, for one) an API token.
                 ValidateAudience = true,
-                ValidAudiences = [oidcClientId, "account"],
+                ValidAudience = oidcClientId,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
                 NameClaimType = KeycloakClaims.PreferredUsername,
@@ -113,6 +115,18 @@ public static class AuthenticationServiceExtensions
                 {
                     var logger = context.HttpContext.RequestServices
                         .GetRequiredService<ILogger<EndpointLoggerCategory>>();
+                    // The audience says who may consume the token; azp says who it was issued
+                    // to and typ that it is an access token. A token issued to another client
+                    // that happens to carry our audience, or an ID token, is not an API call.
+                    var typ = context.Principal?.FindFirst("typ")?.Value;
+                    var azp = context.Principal?.FindFirst("azp")?.Value;
+                    if (typ != "Bearer" || azp != oidcClientId)
+                    {
+                        logger.LogWarning("Rejected token: typ={Typ} azp={Azp}, expected a Bearer token issued to {ClientId}",
+                            typ, azp, oidcClientId);
+                        context.Fail("Token was not issued to this API");
+                        return Task.CompletedTask;
+                    }
                     var sub = context.Principal?.FindFirst(KeycloakClaims.Subject)?.Value ?? "(none)";
                     logger.LogDebug("Token validated for subject {Sub}", sub);
                     return Task.CompletedTask;

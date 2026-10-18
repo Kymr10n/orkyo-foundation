@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using Api.Constants;
 using Api.Integrations.Keycloak;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
@@ -93,6 +94,15 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         var session = await _sessionStore.GetAsync(sessionId, Context.RequestAborted);
         if (session is null)
             return AuthenticateResult.Fail("Session not found or expired");
+        if (string.IsNullOrEmpty(session.CsrfToken))
+        {
+            // Written before the CSRF token lived on the session: nothing to check mutating
+            // requests against, so the session ends and the user signs in again.
+            Logger.LogInformation("BFF session {SessionIdPrefix}… predates the CSRF binding; ending it", sessionId[..8]);
+            await _sessionStore.RemoveAsync(sessionId, Context.RequestAborted);
+            return AuthenticateResult.Fail("Session predates the CSRF binding");
+        }
+        Context.Items[HttpContextItemKeys.BffCsrfToken] = session.CsrfToken;
 
         // Proactive token refresh if access token is nearing expiry. A burst of concurrent
         // requests (e.g. the People tab firing many parallel API calls on a site switch) must
@@ -201,12 +211,10 @@ public sealed class BffCookieAuthenticationHandler : AuthenticationHandler<Authe
         // The browser copy must move too, or the cookie would lapse while the server-side session
         // is still alive — the user would be logged out despite the extension.
         var cookieValue = Request.Cookies[_bffOptions.CookieName];
-        var csrfValue = Request.Cookies[Configuration.BffOptions.CsrfCookieName];
         var lifetime = target - now;
         if (!string.IsNullOrEmpty(cookieValue))
             BffSessionCookies.WriteSessionCookie(Context, _bffOptions, cookieValue, lifetime);
-        if (!string.IsNullOrEmpty(csrfValue))
-            BffSessionCookies.WriteCsrfCookie(Context, _bffOptions, csrfValue, lifetime);
+        BffSessionCookies.WriteCsrfCookie(Context, _bffOptions, session.CsrfToken!, lifetime);
     }
 
     /// <summary>

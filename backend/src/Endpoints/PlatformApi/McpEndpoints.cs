@@ -34,7 +34,6 @@ public static class McpEndpoints
             .RequireRateLimiting(FoundationRateLimitPolicies.McpApi)
             // The token's scopes become a tenant role, so this is the same membership gate every
             // tenant-scoped HTTP group applies.
-            .RequireTenantMembership()
             // Stamped explicitly: this route is a POST, and the conformance test requires every
             // mutating /api route to declare a convention. The convention here is the per-tool
             // Editor check described above, not the verb-aware gate.

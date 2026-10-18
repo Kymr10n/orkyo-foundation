@@ -49,47 +49,24 @@ public static class FoundationApiHostExtensions
     public static IServiceCollection AddOrkyoApiCors(
         this IServiceCollection services,
         IConfiguration configuration,
-        IWebHostEnvironment environment,
-        bool allowBaseDomainSubdomains = false)
+        IWebHostEnvironment environment)
     {
         services.AddCors(options =>
         {
             options.AddDefaultPolicy(policy =>
             {
+                // The explicit list only. Under the BFF the SPA calls the API on its own origin,
+                // so no tenant subdomain needs credentialed cross-origin access; the wildcard
+                // over every single-label subdomain that used to sit here made any host on the
+                // base domain (staging, Grafana, a dangling record) a credentialed caller.
                 var rawOrigins = configuration.GetOptionalString(ConfigKeys.CorsAllowedOrigins);
                 var allowedOrigins = rawOrigins
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                var baseDomain = allowBaseDomainSubdomains
-                    ? configuration[ConfigKeys.TenantResolutionBaseDomain]
-                    : null;
-
-                if (allowedOrigins.Count > 0 || !string.IsNullOrEmpty(baseDomain))
+                if (allowedOrigins.Count > 0)
                 {
-                    if (!string.IsNullOrEmpty(baseDomain))
-                    {
-                        var subdomainSuffix = $".{baseDomain}";
-                        policy.SetIsOriginAllowed(origin =>
-                        {
-                            if (allowedOrigins.Contains(origin))
-                                return true;
-                            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
-                                uri.Scheme != "https" ||
-                                !uri.Host.EndsWith(subdomainSuffix, StringComparison.OrdinalIgnoreCase))
-                                return false;
-                            // Only a single tenant subdomain label (slug.baseDomain) is trusted —
-                            // reject nested hosts like a.b.baseDomain to shrink the credentialed-CORS
-                            // surface exposed to dangling/takeover subdomains.
-                            var label = uri.Host[..^subdomainSuffix.Length];
-                            return label.Length > 0 && !label.Contains('.');
-                        });
-                    }
-                    else
-                    {
-                        policy.WithOrigins([.. allowedOrigins]);
-                    }
-
-                    policy.WithMethods(CorsMethods)
+                    policy.WithOrigins([.. allowedOrigins])
+                        .WithMethods(CorsMethods)
                         .WithHeaders(CorsHeaders)
                         .AllowCredentials();
                 }

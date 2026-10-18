@@ -1,12 +1,19 @@
+using System.Security.Cryptography;
+using System.Text;
 using Api.Configuration;
 using Api.Constants;
 using Api.Helpers;
 using Api.Security;
+using Api.Services.BffSession;
 
 namespace Api.Middleware;
 
 /// <summary>
-/// Double-submit cookie CSRF protection for BFF-authenticated requests.
+/// Synchronizer-token CSRF protection for BFF-authenticated requests: the CSRF header must
+/// equal the token stored on the session (<see cref="BffSessionRecord.CsrfToken"/>, surfaced by
+/// the cookie handler under <see cref="HttpContextItemKeys.BffCsrfToken"/>). The non-HttpOnly
+/// CSRF cookie only carries that value to the SPA; it is never what the check compares against,
+/// so a cookie planted from another host on the registrable domain cannot satisfy it.
 ///
 /// Only activates for mutating requests (POST/PUT/PATCH/DELETE) authenticated
 /// via the BFF cookie scheme. JWT Bearer requests pass through untouched
@@ -46,13 +53,13 @@ public sealed class CsrfMiddleware
             return;
         }
 
-        // Validate double-submit: header must match cookie
-        var csrfCookie = context.Request.Cookies[BffOptions.CsrfCookieName];
+        var sessionToken = context.Items[HttpContextItemKeys.BffCsrfToken] as string;
         var csrfHeader = context.Request.Headers[BffOptions.CsrfHeaderName].FirstOrDefault();
 
-        if (string.IsNullOrEmpty(csrfCookie) ||
+        if (string.IsNullOrEmpty(sessionToken) ||
             string.IsNullOrEmpty(csrfHeader) ||
-            !string.Equals(csrfCookie, csrfHeader, StringComparison.Ordinal))
+            !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(sessionToken), Encoding.UTF8.GetBytes(csrfHeader)))
         {
             _logger.LogWarning("CSRF validation failed for {Method} {Path}", context.Request.Method, context.Request.Path);
             await ProblemResults.Problem(

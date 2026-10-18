@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using System.Text.Json;
 using Api.Constants;
+using Api.Endpoints.Admin;
 using Api.Middleware;
 using Api.Security;
 using Api.Services;
@@ -270,16 +271,6 @@ public class AuthorizationExtensionsTests
     // ── RequireMemberReadEditorWrite: a write needs Editor ────────────────
 
     [Fact]
-    public async Task EditorWrite_WhenNoAuthContext_Returns401()
-    {
-        // No principal, no auth context → BuildMembershipDenial → unauthenticated → 401
-        var status = await InvokeGroupEndpointAsync(
-            group => group.RequireMemberReadEditorWrite(), HttpMethod.Post);
-
-        status.Should().Be((int)HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
     public async Task EditorWrite_WhenNotMember_Returns403()
     {
         var principal = new CurrentPrincipal();
@@ -331,57 +322,6 @@ public class AuthorizationExtensionsTests
 
         var status = await InvokeGroupEndpointAsync(
             group => group.RequireMemberReadEditorWrite(), HttpMethod.Post,
-            authContext: authCtx);
-
-        status.Should().Be((int)HttpStatusCode.OK);
-    }
-
-    // ── RequireTenantMembership ────────────────────────────────────────────
-
-    [Fact]
-    public async Task RequireTenantMembership_WhenNoAuthContext_Returns401()
-    {
-        // No principal, no auth context → BuildMembershipDenial → unauthenticated → 401
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireTenantMembership());
-
-        status.Should().Be((int)HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task RequireTenantMembership_WhenNotMember_Returns403()
-    {
-        var principal = new CurrentPrincipal();
-        principal.SetContext(new PrincipalContext
-        {
-            UserId = Guid.NewGuid(),
-            Email = "user@test.example",
-            AuthProvider = AuthProvider.Keycloak,
-            IsSiteAdmin = false,
-        });
-        var authCtx = new CurrentAuthorizationContext(); // no context set → IsMember = false
-
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireTenantMembership(),
-            principal: principal,
-            authContext: authCtx);
-
-        status.Should().Be((int)HttpStatusCode.Forbidden);
-    }
-
-    [Fact]
-    public async Task RequireTenantMembership_WhenMember_CallsNext()
-    {
-        var authCtx = new CurrentAuthorizationContext();
-        authCtx.SetContext(new AuthorizationContext
-        {
-            TenantId = Guid.NewGuid(),
-            TenantSlug = "acme",
-            Role = TenantRole.Viewer,
-        });
-
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireTenantMembership(),
             authContext: authCtx);
 
         status.Should().Be((int)HttpStatusCode.OK);

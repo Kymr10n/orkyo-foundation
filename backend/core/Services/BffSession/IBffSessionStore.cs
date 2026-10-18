@@ -41,6 +41,15 @@ public sealed record BffSessionRecord
     /// client when presented with another's credentials.
     /// </summary>
     public string? AuthClient { get; init; }
+
+    /// <summary>
+    /// The CSRF synchronizer token for this session. Login mints it and hands the same value to
+    /// the SPA in the non-HttpOnly CSRF cookie; a mutating request must echo it in the CSRF
+    /// header, and the check compares the header to <em>this</em> value, never to the cookie.
+    /// A cookie planted from another host on the same registrable domain therefore proves
+    /// nothing. Null on records written before the binding existed: those sessions end.
+    /// </summary>
+    public string? CsrfToken { get; init; }
 }
 
 /// <summary>

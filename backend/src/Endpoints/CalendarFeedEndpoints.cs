@@ -102,7 +102,7 @@ public static class CalendarFeedEndpoints
         // handed out. Only creating a new one requires the plan. Any member may manage their
         // own feeds, so there is no write gate — but a non-member of this tenant may not
         // mint one: the anonymous feed route would then serve them the tenant's schedule.
-        var group = app.MapGroup("/api/calendar/subscriptions").RequireAuthorization().RequireTenantMembership();
+        var group = app.MapGroup("/api/calendar/subscriptions").RequireAuthorization();
 
         group.MapGet("/", async (
             ICalendarFeedTokenRepository tokenRepo,

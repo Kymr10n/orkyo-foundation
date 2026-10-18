@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Api.Configuration;
 using Api.Security;
 using Microsoft.AspNetCore.Authentication;
@@ -125,6 +126,46 @@ public class AuthenticationServiceExtensionsTests
             internalAuthority: "http://keycloak:8080/realms/orkyo");
 
         options.TokenValidationParameters.ValidIssuer.Should().Be("https://auth.example.com/realms/orkyo");
+    }
+
+    // ── Token boundary ────────────────────────────────────────────────────────
+    // The audience says who may consume a token; azp says who it was issued to; typ that it
+    // is an access token. Any realm client's token carries aud=account, so that audience is
+    // not accepted, and a token issued to another client (Grafana) or an ID token is refused
+    // even when the audience matches.
+
+    [Fact]
+    public void AddOrkyoAuthentication_AcceptsOnlyTheBackendClientAudience()
+    {
+        var options = BuildJwtOptions(oidcAuthority: "https://auth.example.com/realms/orkyo", internalAuthority: null);
+
+        options.TokenValidationParameters.ValidAudience.Should().Be("orkyo-backend");
+        options.TokenValidationParameters.ValidAudiences.Should().BeNullOrEmpty("\"account\" is every realm client's audience");
+    }
+
+    [Theory]
+    [InlineData("Bearer", "orkyo-backend", true)]
+    [InlineData("Bearer", "orkyo-grafana", false)]
+    [InlineData("ID", "orkyo-backend", false)]
+    [InlineData(null, "orkyo-backend", false)]
+    [InlineData("Bearer", null, false)]
+    public async Task OnTokenValidated_AcceptsOnlyBearerTokensIssuedToTheBackendClient(string? typ, string? azp, bool accepted)
+    {
+        var options = BuildJwtOptions(oidcAuthority: "https://auth.example.com/realms/orkyo", internalAuthority: null);
+        var claims = new List<Claim> { new("sub", "user-1") };
+        if (typ is not null) claims.Add(new("typ", typ));
+        if (azp is not null) claims.Add(new("azp", azp));
+        var services = new ServiceCollection().AddLogging().BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = services };
+        var scheme = new AuthenticationScheme(JwtBearerDefaults.AuthenticationScheme, null, typeof(JwtBearerHandler));
+        var context = new TokenValidatedContext(httpContext, scheme, options)
+        {
+            Principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer")),
+        };
+
+        await options.Events!.OnTokenValidated(context);
+
+        (context.Result?.Failure is null).Should().Be(accepted);
     }
 
     // ── Idempotency ───────────────────────────────────────────────────────────

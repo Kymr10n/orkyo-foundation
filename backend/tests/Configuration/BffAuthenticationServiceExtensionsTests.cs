@@ -1,5 +1,6 @@
 using Api.Configuration;
 using Api.Security;
+using Api.Security.Encryption;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -440,6 +441,8 @@ public class BffAuthenticationServiceExtensionsTests
 
         var services = new ServiceCollection();
         services.AddLogging(b => b.AddConsole());
+        // AddFoundationServices registers the master-key service the key-ring encryptor needs.
+        services.AddSingleton<IEncryptionService>(new AesGcmEncryptionService(new byte[32]));
         services.AddSingleton<IConfiguration>(config);
         services.AddSingleton<IHostEnvironment>(new FakeHostEnvironment(environmentName));
         services.AddSingleton(TimeProvider.System);

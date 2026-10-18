@@ -1,5 +1,6 @@
 using Api.Middleware;
 using Api.Security;
+using Api.Security.Encryption;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -112,8 +113,13 @@ public static class BffAuthenticationServiceExtensions
         // The keys go through the process's one IConnectionMultiplexer (AddOrkyoValkey), resolved
         // when Data Protection first needs them — not a second connection opened here, eagerly,
         // at registration.
+        // The ring itself is sealed with the master key (MasterKeyXmlEncryptor): wherever it is
+        // persisted, it is not readable without the one secret that lives outside that store.
         services.AddDataProtection()
             .SetApplicationName("orkyo");
+        services.AddOptions<KeyManagementOptions>()
+            .Configure<IEncryptionService>((options, crypto) =>
+                options.XmlEncryptor = new MasterKeyXmlEncryptor(crypto));
         if (!string.IsNullOrEmpty(valkeyConnection))
             services.AddOptions<KeyManagementOptions>()
                 .Configure<IConnectionMultiplexer>((options, valkey) =>

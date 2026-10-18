@@ -84,8 +84,10 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         var sessionId = Guid.NewGuid().ToString("N");
         var now = _time.GetUtcNow();
         var expiresAt = now.Add(lifetime);
+        var csrfToken = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(CsrfTokenLength));
         var session = new BffSessionRecord
         {
+            CsrfToken = csrfToken,
             SessionId = sessionId,
             UserId = userId.ToString(),
             ExternalSubject = tokenProfile.Subject!,
@@ -108,8 +110,7 @@ public sealed class BffSessionEstablisher : IBffSessionEstablisher
         await _sessionStore.SetAsync(session);
 
         BffSessionCookies.WriteSessionCookie(ctx, _bffOptions, protector.Protect(sessionId), lifetime);
-        BffSessionCookies.WriteCsrfCookie(ctx, _bffOptions,
-            Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(CsrfTokenLength)), lifetime);
+        BffSessionCookies.WriteCsrfCookie(ctx, _bffOptions, csrfToken, lifetime);
 
         await CaptureDeviceAsync(ctx, userId, tokenProfile);
 

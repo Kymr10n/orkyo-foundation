@@ -48,18 +48,34 @@ public sealed class AesGcmEncryptionService : IEncryptionService
     public bool IsProtected(string? stored) =>
         stored is not null && stored.StartsWith(StringPrefix, StringComparison.Ordinal);
 
-    public string? ProtectString(string? plaintext, Guid tenantId)
+    public string? ProtectString(string? plaintext, Guid tenantId) => ProtectString(plaintext, tenantId.ToByteArray());
+    public string? ProtectString(string? plaintext, string purpose) => ProtectString(plaintext, PurposeData(purpose));
+    public string? UnprotectString(string? stored, Guid tenantId) => UnprotectString(stored, tenantId.ToByteArray());
+    public string? UnprotectString(string? stored, string purpose) => UnprotectString(stored, PurposeData(purpose));
+    public byte[] ProtectBytes(ReadOnlySpan<byte> plaintext, Guid tenantId) => ProtectBytes(plaintext, tenantId.ToByteArray());
+    public byte[] ProtectBytes(ReadOnlySpan<byte> plaintext, string purpose) => ProtectBytes(plaintext, PurposeData(purpose));
+    public byte[] UnprotectBytes(byte[] stored, Guid tenantId) => UnprotectBytes(stored, tenantId.ToByteArray());
+    public byte[] UnprotectBytes(byte[] stored, string purpose) => UnprotectBytes(stored, PurposeData(purpose));
+
+    /// <summary>A purpose is namespaced so it can never collide with a tenant id's 16 bytes.</summary>
+    private static byte[] PurposeData(string purpose)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(purpose);
+        return Encoding.UTF8.GetBytes("purpose:" + purpose);
+    }
+
+    private string? ProtectString(string? plaintext, byte[] associatedData)
     {
         if (string.IsNullOrEmpty(plaintext)) return plaintext; // null/empty carry no secret
         if (IsProtected(plaintext)) return plaintext;          // idempotent — already an envelope
 
-        var (nonce, sealed_) = Seal(Encoding.UTF8.GetBytes(plaintext), tenantId);
+        var (nonce, sealed_) = Seal(Encoding.UTF8.GetBytes(plaintext), associatedData);
         return string.Join(':',
             "orkyoenc", $"v{Version}", AlgName, _keyVersion.ToString(),
             Base64Url.EncodeToString(nonce), Base64Url.EncodeToString(sealed_));
     }
 
-    public string? UnprotectString(string? stored, Guid tenantId)
+    private string? UnprotectString(string? stored, byte[] associatedData)
     {
         if (string.IsNullOrEmpty(stored) || !IsProtected(stored)) return stored; // legacy plaintext passthrough
 
@@ -78,7 +94,7 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         {
             throw new EncryptionException("Malformed encryption envelope.", ex);
         }
-        return Encoding.UTF8.GetString(Open(nonce, sealed_, tenantId));
+        return Encoding.UTF8.GetString(Open(nonce, sealed_, associatedData));
     }
 
     // ── Binary envelope ──────────────────────────────────────────────────────
@@ -86,11 +102,11 @@ public sealed class AesGcmEncryptionService : IEncryptionService
     public bool IsProtected(ReadOnlySpan<byte> stored) =>
         stored.Length >= BinaryMagic.Length && stored[..BinaryMagic.Length].SequenceEqual(BinaryMagic);
 
-    public byte[] ProtectBytes(ReadOnlySpan<byte> plaintext, Guid tenantId)
+    private byte[] ProtectBytes(ReadOnlySpan<byte> plaintext, byte[] associatedData)
     {
         if (IsProtected(plaintext)) return plaintext.ToArray(); // idempotent
 
-        var (nonce, sealed_) = Seal(plaintext, tenantId);
+        var (nonce, sealed_) = Seal(plaintext, associatedData);
         var result = new byte[BinaryHeaderSize + NonceSize + sealed_.Length];
         var span = result.AsSpan();
         BinaryMagic.CopyTo(span);
@@ -101,7 +117,7 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         return result;
     }
 
-    public byte[] UnprotectBytes(byte[] stored, Guid tenantId)
+    private byte[] UnprotectBytes(byte[] stored, byte[] associatedData)
     {
         ArgumentNullException.ThrowIfNull(stored);
         if (!IsProtected(stored)) return stored; // legacy plaintext blob passthrough
@@ -114,18 +130,18 @@ public sealed class AesGcmEncryptionService : IEncryptionService
 
         var nonce = stored.AsSpan(BinaryHeaderSize, NonceSize).ToArray();
         var sealed_ = stored.AsSpan(BinaryHeaderSize + NonceSize).ToArray();
-        return Open(nonce, sealed_, tenantId);
+        return Open(nonce, sealed_, associatedData);
     }
 
     // ── AES-GCM core (tag is prepended to ciphertext in the sealed buffer) ─────
 
-    private (byte[] nonce, byte[] sealed_) Seal(ReadOnlySpan<byte> plaintext, Guid tenantId)
+    private (byte[] nonce, byte[] sealed_) Seal(ReadOnlySpan<byte> plaintext, byte[] associatedData)
     {
         var nonce = RandomNumberGenerator.GetBytes(NonceSize);
         var ciphertext = new byte[plaintext.Length];
         var tag = new byte[TagSize];
         using var aes = new AesGcm(_masterKey, TagSize);
-        aes.Encrypt(nonce, plaintext, ciphertext, tag, tenantId.ToByteArray());
+        aes.Encrypt(nonce, plaintext, ciphertext, tag, associatedData);
 
         var sealed_ = new byte[TagSize + ciphertext.Length];
         tag.CopyTo(sealed_, 0);
@@ -133,7 +149,7 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         return (nonce, sealed_);
     }
 
-    private byte[] Open(byte[] nonce, byte[] sealed_, Guid tenantId)
+    private byte[] Open(byte[] nonce, byte[] sealed_, byte[] associatedData)
     {
         if (nonce.Length != NonceSize || sealed_.Length < TagSize)
             throw new EncryptionException("Malformed encryption envelope.");
@@ -144,7 +160,7 @@ public sealed class AesGcmEncryptionService : IEncryptionService
         try
         {
             using var aes = new AesGcm(_masterKey, TagSize);
-            aes.Decrypt(nonce, ciphertext, tag, plaintext, tenantId.ToByteArray());
+            aes.Decrypt(nonce, ciphertext, tag, plaintext, associatedData);
         }
         catch (CryptographicException ex)
         {

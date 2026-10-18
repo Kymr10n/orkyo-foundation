@@ -24,6 +24,16 @@ public interface IEncryptionService
     /// <summary>Encrypts a text value into a string envelope. Null/empty pass through unchanged; already-protected values are returned as-is.</summary>
     string? ProtectString(string? plaintext, Guid tenantId);
 
+    /// <summary>
+    /// Seals a value that belongs to no tenant — a session record, a key ring — under a named
+    /// purpose instead of a tenant id. The purpose is the GCM associated data, so an envelope
+    /// opened under another purpose fails authentication exactly like a wrong tenant would.
+    /// </summary>
+    string? ProtectString(string? plaintext, string purpose);
+    string? UnprotectString(string? stored, string purpose);
+    byte[] ProtectBytes(ReadOnlySpan<byte> plaintext, string purpose);
+    byte[] UnprotectBytes(byte[] stored, string purpose);
+
     /// <summary>Decrypts a string envelope. Values that are not Orkyo envelopes (legacy plaintext) pass through unchanged.</summary>
     string? UnprotectString(string? stored, Guid tenantId);
 

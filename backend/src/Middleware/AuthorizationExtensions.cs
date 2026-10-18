@@ -45,7 +45,10 @@ public static class AuthorizationExtensions
     /// </summary>
     public static RouteHandlerBuilder RequireSiteAdmin(this RouteHandlerBuilder builder)
     {
-        builder.WithMetadata(new AuthorizationGoverned());
+        // The site-admin surface is the control plane: the realm role governs it, not a tenant
+        // membership, so the membership-by-default gate stands aside (Community resolves its one
+        // tenant on every request, admin routes included).
+        builder.WithMetadata(new AuthorizationGoverned(), new AllowNonMemberAttribute());
         return builder.AddEndpointFilter(SiteAdminFilter);
     }
 
@@ -56,7 +59,7 @@ public static class AuthorizationExtensions
     /// </summary>
     public static RouteGroupBuilder RequireSiteAdmin(this RouteGroupBuilder group)
     {
-        group.WithMetadata(new AuthorizationGoverned());
+        group.WithMetadata(new AuthorizationGoverned(), new AllowNonMemberAttribute());
         return group.AddEndpointFilter(SiteAdminFilter);
     }
 
@@ -86,8 +89,8 @@ public static class AuthorizationExtensions
     }
 
     /// <summary>
-    /// The write gate's role check. Membership is already settled: both conventions that call it
-    /// put <see cref="RequireTenantMembership{TBuilder}"/> first, so a non-member never gets here.
+    /// The write gate's role check. Membership is already settled: <c>TenantMembershipMiddleware</c>
+    /// denies a non-member on every tenant-scoped route, so a non-member never gets here.
     /// Returns a 403 when the role is not one of <paramref name="roles"/>, or <c>null</c> to
     /// continue. Editor-or-Admin mirrors <see cref="IAuthorizationContext.CanEdit"/>.
     /// </summary>
@@ -115,14 +118,14 @@ public static class AuthorizationExtensions
     /// non-mutating POST (validate/preview) with <see cref="AllowMemberWrite"/> to keep it member-open.
     /// </summary>
     public static RouteGroupBuilder RequireMemberReadEditorWrite(this RouteGroupBuilder group)
-        => group.RequireTenantMembership().WithWriteGate(adminOnly: false);
+        => group.WithWriteGate(adminOnly: false);
 
     /// <summary>
     /// Reads open to any tenant member; writes require Admin. For content whose list/get is needed
     /// app-wide but whose mutation is governance (Sites).
     /// </summary>
     public static RouteGroupBuilder RequireMemberReadAdminWrite(this RouteGroupBuilder group)
-        => group.RequireTenantMembership().WithWriteGate(adminOnly: true);
+        => group.WithWriteGate(adminOnly: true);
 
     /// <summary>
     /// Every method (reads and writes) requires Admin. For the Administration area — Users, tenant
@@ -189,35 +192,6 @@ public static class AuthorizationExtensions
         || HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
 
     /// <summary>
-    /// Requires the user to be a member of the current tenant (any role).
-    /// Apply at the MapGroup level on all tenant-scoped route groups to block
-    /// authenticated users who are not members of the resolved tenant.
-    /// </summary>
-    public static TBuilder RequireTenantMembership<TBuilder>(this TBuilder builder)
-        where TBuilder : IEndpointConventionBuilder
-    {
-        return builder.AddEndpointFilter(async (context, next) =>
-        {
-            var httpContext = context.HttpContext;
-            var authContext = httpContext.RequestServices.GetService<IAuthorizationContext>();
-
-            if (authContext == null || !authContext.IsMember)
-            {
-                var logger = httpContext.RequestServices
-                    .GetRequiredService<ILoggerFactory>()
-                    .CreateLogger(typeof(AuthorizationExtensions));
-                var principal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
-                logger.LogWarning(
-                    "Tenant membership check failed for user {UserId} — not a member of tenant",
-                    principal?.UserId);
-                return BuildMembershipDenial(httpContext);
-            }
-
-            return await next(context);
-        });
-    }
-
-    /// <summary>
     /// Core admin check (site-admin OR tenant Admin) shared by
     /// the <see cref="RequireAdminArea"/> / <see cref="RequireMemberReadAdminWrite"/> conventions.
     /// Returns a denial <see cref="IResult"/> when the caller is not an admin, or <c>null</c>.
@@ -268,7 +242,7 @@ public static class AuthorizationExtensions
     /// a site-admin whose break-glass session ended should be routed back to /admin, while a genuine
     /// non-member should see a plain 403 (toast). Unauthenticated callers get 401.
     /// </summary>
-    private static IResult BuildMembershipDenial(HttpContext httpContext)
+    internal static IResult BuildMembershipDenial(HttpContext httpContext)
     {
         var principal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
         var denialKind = AuthorizationPolicy.GetMembershipDenialKind(
