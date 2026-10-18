@@ -86,7 +86,7 @@ public sealed class EmailOutboxRepository : IEmailOutboxRepository
         cmd.Parameters.AddWithValue("subject", subject);
         cmd.Parameters.AddWithValue("html", htmlBody);
         cmd.Parameters.AddWithValue("text", textBody);
-        cmd.Parameters.AddWithValue("dedupeKey", (object?)dedupeKey ?? DBNull.Value);
+        cmd.Parameters.AddNullable("dedupeKey", dedupeKey);
         return (Guid)(await cmd.ExecuteScalarAsync(ct))!;
     }
 

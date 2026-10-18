@@ -1,3 +1,4 @@
+using Api.Helpers;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 
@@ -163,31 +164,34 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
         await using var reader = await cmd.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct)) return new JobState(DateTime.MinValue, null, 0);
         return new JobState(
-            reader.IsDBNull(0) ? DateTime.MinValue : reader.GetDateTime(0).ToUniversalTime(),
-            reader.IsDBNull(1) ? null : reader.GetDateTime(1).ToUniversalTime(),
-            reader.GetInt32(2));
+            reader.GetNullableDateTime("last_succeeded_at")?.ToUniversalTime() ?? DateTime.MinValue,
+            reader.GetNullableDateTime("completed_at")?.ToUniversalTime(),
+            reader.GetInt32("consecutive_failures"));
     }
 
     /// <summary>Marks an attempt in flight. last_succeeded_at and consecutive_failures are
-    /// untouched: a start is not an outcome.</summary>
-    private static async Task RecordStartedAsync(NpgsqlConnection connection, string jobName, CancellationToken ct)
+    /// untouched: a start is not an outcome. The journal is stamped from the injected clock,
+    /// not <c>NOW()</c>, so the due check and the backoff read the same time they wrote.</summary>
+    private async Task RecordStartedAsync(NpgsqlConnection connection, string jobName, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand("""
             INSERT INTO worker_job_runs (job_name, started_at, completed_at, result)
-            VALUES (@job, NOW(), NULL, NULL)
-            ON CONFLICT (job_name) DO UPDATE SET started_at = NOW(), completed_at = NULL, result = NULL
+            VALUES (@job, @now, NULL, NULL)
+            ON CONFLICT (job_name) DO UPDATE SET started_at = EXCLUDED.started_at, completed_at = NULL, result = NULL
             """, connection);
         cmd.Parameters.AddWithValue("job", jobName);
+        cmd.Parameters.AddWithValue("now", _time.GetUtcNow().UtcDateTime);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
-    private static async Task RecordResultAsync(NpgsqlConnection connection, string jobName, bool succeeded, CancellationToken ct)
+    private async Task RecordResultAsync(NpgsqlConnection connection, string jobName, bool succeeded, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand(succeeded
-            ? "UPDATE worker_job_runs SET completed_at = NOW(), result = 'succeeded', last_succeeded_at = NOW(), consecutive_failures = 0 WHERE job_name = @job"
-            : "UPDATE worker_job_runs SET completed_at = NOW(), result = 'failed', consecutive_failures = consecutive_failures + 1 WHERE job_name = @job",
+            ? "UPDATE worker_job_runs SET completed_at = @now, result = 'succeeded', last_succeeded_at = @now, consecutive_failures = 0 WHERE job_name = @job"
+            : "UPDATE worker_job_runs SET completed_at = @now, result = 'failed', consecutive_failures = consecutive_failures + 1 WHERE job_name = @job",
             connection);
         cmd.Parameters.AddWithValue("job", jobName);
+        cmd.Parameters.AddWithValue("now", _time.GetUtcNow().UtcDateTime);
         await cmd.ExecuteNonQueryAsync(ct);
     }
 

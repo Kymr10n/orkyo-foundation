@@ -123,7 +123,7 @@ public static class DiagnosticsAdminEndpoints
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             await reader.ReadAsync(ct);
             lastWorkerActivity = reader.GetNullableDateTime("last_completed");
-            workerStatus = reader.GetInt32(reader.GetOrdinal("worst_failures")) >= 3 ? "failing"
+            workerStatus = reader.GetInt32("worst_failures") >= 3 ? "failing"
                 : reader.GetBoolean("recent") ? "running" : "idle";
         }
         catch (Exception ex)

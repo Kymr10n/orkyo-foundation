@@ -11,12 +11,13 @@ public static class WorkerHeartbeat
     /// <summary>Same path in every worker image; the Dockerfile HEALTHCHECK reads it.</summary>
     public const string Path = "/tmp/orkyo-worker.heartbeat";
 
-    /// <summary>Best effort: a heartbeat that cannot be written must never fail the loop.</summary>
+    /// <summary>Best effort: a heartbeat that cannot be written must never fail the loop.
+    /// The file's modification time is the signal (truncating updates it); it has no content.</summary>
     public static void Touch()
     {
         try
         {
-            System.IO.File.WriteAllText(Path, DateTimeOffset.UtcNow.ToString("O"));
+            System.IO.File.WriteAllText(Path, string.Empty);
         }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
