@@ -1,3 +1,4 @@
+using Api.Security.Encryption;
 using Api.Services.BffSession;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
@@ -10,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// </summary>
 public class ValkeyBffSessionStoreTests
 {
+    private static readonly AesGcmEncryptionService Crypto = new(new byte[32]);
     private readonly Mock<IDatabase> _db = new();
     private readonly ValkeyBffSessionStore _store;
 
@@ -17,7 +19,7 @@ public class ValkeyBffSessionStoreTests
     {
         var valkey = new Mock<IConnectionMultiplexer>();
         valkey.Setup(v => v.GetDatabase(It.IsAny<int>(), It.IsAny<object?>())).Returns(_db.Object);
-        _store = new ValkeyBffSessionStore(valkey.Object, NullLogger<ValkeyBffSessionStore>.Instance, TimeProvider.System);
+        _store = new ValkeyBffSessionStore(valkey.Object, Crypto, NullLogger<ValkeyBffSessionStore>.Instance, TimeProvider.System);
     }
 
     [Fact]
@@ -117,5 +119,63 @@ public class ValkeyBffSessionStoreTests
         var act = () => _store.RemoveAllForUserAsync("user-1");
 
         await act.Should().ThrowAsync<RedisException>();
+    }
+
+    [Fact]
+    public async Task Set_SealsTheRecord_AndGetOpensIt()
+    {
+        RedisValue stored = default;
+        // The store's three-argument call binds to the (key, value, expiry, when) overload.
+        _db.Setup(d => d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), It.IsAny<When>()))
+            .Callback<RedisKey, RedisValue, TimeSpan?, When>((_, v, _, _) => stored = v)
+            .ReturnsAsync(true);
+        var session = new BffSessionRecord
+        {
+            SessionId = "session-cccccccc",
+            UserId = "user-1",
+            ExternalSubject = "sub",
+            AccessToken = "the-access-token",
+            RefreshToken = "r",
+            IdToken = "i",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            CreatedAt = DateTimeOffset.UtcNow,
+            CsrfToken = "csrf",
+        };
+
+        await _store.SetAsync(session);
+
+        stored.ToString().Should().StartWith("orkyoenc:").And.NotContain("the-access-token", "a copy of Valkey yields no token");
+        _db.Setup(d => d.StringGetAsync("bff:s:session-cccccccc", It.IsAny<CommandFlags>())).ReturnsAsync(stored);
+        (await _store.GetAsync("session-cccccccc")).Should().BeEquivalentTo(session);
+    }
+
+    [Fact]
+    public async Task Get_ReadsARecordWrittenBeforeSealing()
+    {
+        var session = new BffSessionRecord
+        {
+            SessionId = "session-dddddddd",
+            UserId = "user-1",
+            ExternalSubject = "sub",
+            AccessToken = "a",
+            RefreshToken = "r",
+            IdToken = "i",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        _db.Setup(d => d.StringGetAsync("bff:s:session-dddddddd", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(System.Text.Json.JsonSerializer.Serialize(session));
+
+        (await _store.GetAsync("session-dddddddd")).Should().BeEquivalentTo(session);
+    }
+
+    [Fact]
+    public async Task Get_TreatsARecordSealedUnderAnotherKey_AsNoSession()
+    {
+        var other = new AesGcmEncryptionService(Enumerable.Repeat((byte)7, 32).ToArray());
+        _db.Setup(d => d.StringGetAsync("bff:s:session-eeeeeeee", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(other.ProtectString("{}", ValkeyBffSessionStore.RecordPurpose));
+
+        (await _store.GetAsync("session-eeeeeeee")).Should().BeNull();
     }
 }

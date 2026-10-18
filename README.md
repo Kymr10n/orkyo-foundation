@@ -93,9 +93,9 @@ scripts/check.sh          # restore, format, build, migration lint, dead registr
 scripts/check.sh --fast   # architecture and convention tests only, no database (the pre-push hook)
 ```
 
-The full check keeps one Postgres container (`orkyo-test-postgres-foundation`, port 5440) running
-between runs and points the test fixtures at it through the same `CI=true` + `ConnectionStrings__Postgres`
-switch the fixtures already have. Nothing else starts Testcontainers, which cannot map ports under
+The full check starts a fresh Postgres container per run (`orkyo-test-postgres-foundation`, port
+5440; CI gets a new one per run too) and points the test fixtures at it through the same `CI=true` +
+`ConnectionStrings__Postgres` switch the fixtures already have. Nothing else starts Testcontainers, which cannot map ports under
 rootless Docker. A bare `dotnet test Orkyo.Foundation.slnx` still works where Testcontainers does.
 
 ## Placement rule
