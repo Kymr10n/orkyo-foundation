@@ -34,8 +34,15 @@ public class OrkyoWorkerHostTests
         services.AddSingleton(Mock.Of<IServiceScopeFactory>());
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<UserLifecycleService>();
+        services.AddSingleton(Mock.Of<IEmailOutboxRepository>());
+        services.AddSingleton(Mock.Of<IEmailTransport>());
+        services.AddSingleton<EmailOutboxDeliverer>();
         return services.BuildServiceProvider();
     }
+
+    /// <summary>The shared jobs, in the order BuildJobs emits them after the edition's own.</summary>
+    private static readonly string[] SharedJobs =
+        [WorkerJobNames.EmailOutbox, WorkerJobNames.UserLifecycle, WorkerJobNames.AnnouncementBroadcast];
 
     [Fact]
     public async Task RunAsync_RejectsABlankServiceName()
@@ -61,19 +68,40 @@ public class OrkyoWorkerHostTests
 
         var names = OrkyoWorkerHost.BuildJobs(sp, _ => [extra]).Select(j => j.Name).ToArray();
 
-        Assert.Equal(
-            ["edition-job", WorkerJobNames.UserLifecycle, WorkerJobNames.AnnouncementBroadcast],
-            names);
+        Assert.Equal(["edition-job", .. SharedJobs], names);
     }
 
     [Fact]
-    public void BuildJobs_WithNoEditionJobs_YieldsOnlyTheSharedPair()
+    public void BuildJobs_WithNoEditionJobs_YieldsOnlyTheSharedJobs()
     {
         using var sp = BuildProvider();
-
         var names = OrkyoWorkerHost.BuildJobs(sp, _ => []).Select(j => j.Name).ToArray();
+        Assert.Equal(SharedJobs, names);
+    }
 
-        Assert.Equal([WorkerJobNames.UserLifecycle, WorkerJobNames.AnnouncementBroadcast], names);
+    /// <summary>
+    /// Every job name foundation declares is registered by the shared host unless a product
+    /// owns it. The email-outbox drain was declared in 1.4.0 and registered by nobody until
+    /// 1.6.8: queued mail that failed once was never retried. This test turns that class of
+    /// omission into a build break.
+    /// </summary>
+    [Fact]
+    public void BuildJobs_RegistersEveryDeclaredJobAProductDoesNotOwn()
+    {
+        using var sp = BuildProvider();
+        var declared = typeof(WorkerJobNames).GetFields()
+            .Select(f => (string)f.GetValue(null)!)
+            .Except([WorkerJobNames.TenantLifecycle]); // saas-only, in its extraJobs
+        var registered = OrkyoWorkerHost.BuildJobs(sp, _ => []).Select(j => j.Name);
+        declared.Should().BeSubsetOf(registered);
+    }
+
+    [Fact]
+    public void BuildJobs_RunsTheEmailOutboxDrainOnEveryPass()
+    {
+        using var sp = BuildProvider();
+        var outbox = OrkyoWorkerHost.BuildJobs(sp, _ => []).Single(j => j.Name == WorkerJobNames.EmailOutbox);
+        Assert.True(outbox.IsDue(DateTime.UtcNow, DateTime.UtcNow));
     }
 
     [Fact]
