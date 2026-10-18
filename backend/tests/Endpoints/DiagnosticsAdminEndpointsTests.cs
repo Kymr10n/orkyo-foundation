@@ -174,8 +174,8 @@ public class DiagnosticsAdminEndpointsTests
         {
             await conn.OpenAsync();
             await using var insert = new NpgsqlCommand(
-                "INSERT INTO worker_job_runs (job_name, started_at, completed_at, result) " +
-                "VALUES (@job, NOW(), NOW() + INTERVAL '1 hour', 'ok')", conn);
+                "INSERT INTO worker_job_runs (job_name, started_at, completed_at, last_succeeded_at, result) " +
+                "VALUES (@job, NOW(), NOW() + INTERVAL '1 hour', NOW() + INTERVAL '1 hour', 'succeeded')", conn);
             insert.Parameters.AddWithValue("job", job);
             await insert.ExecuteNonQueryAsync();
         }

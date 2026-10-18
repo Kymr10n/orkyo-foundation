@@ -20,8 +20,10 @@ public sealed record WorkerJob(
 /// The worker loop both editions used to carry as their own <c>BackgroundService</c>: run
 /// every declared job through <see cref="IWorkerJobCoordinator"/> (journal + per-job lock, so
 /// a restart resumes the cadence and a second instance skips instead of double-running),
-/// sleep with jitter, retry after an error. The product keeps a few-line hosted service that
-/// calls <see cref="RunAsync"/>; this class has no hosting dependency so it can live in core.
+/// touch the heartbeat, sleep with jitter. Failure handling is the coordinator's: a job that
+/// throws is journaled, backed off and reported, and never stops the jobs after it. The
+/// product keeps a few-line hosted service that calls <see cref="RunAsync"/>; this class has
+/// no hosting dependency so it can live in core.
 /// </summary>
 public sealed class FoundationWorkerLoop
 {
@@ -67,6 +69,10 @@ public sealed class FoundationWorkerLoop
                 var heldElsewhere = false;
                 foreach (var job in _jobList)
                 {
+                    // The coordinator owns every outcome, including a thrown exception, so a
+                    // broken job is one Failed outcome here — the loop never leaves this list
+                    // early. The only exception that escapes is a journal connection failure,
+                    // which is the infrastructure being down, not a job.
                     var outcome = await _jobs.RunIfDueAsync(job.Name, job.IsDue, job.Run, stoppingToken);
                     heldElsewhere |= outcome == WorkerJobOutcome.HeldElsewhere;
                 }
@@ -74,6 +80,7 @@ public sealed class FoundationWorkerLoop
                 if (heldElsewhere)
                     _logger.LogDebug("A job is running on another worker instance this cycle");
 
+                WorkerHeartbeat.Touch();
                 var jitter = TimeSpan.FromSeconds(Random.Shared.Next(0, 15));
                 await Task.Delay(WorkerSchedulePolicy.GetLoopDelay(jitter), _time, stoppingToken);
             }
@@ -84,7 +91,7 @@ public sealed class FoundationWorkerLoop
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unexpected error in worker loop");
+                _logger.LogError(ex, "Worker loop could not reach the job journal");
                 await Task.Delay(WorkerSchedulePolicy.GetErrorRetryDelay(), _time, stoppingToken);
             }
         }

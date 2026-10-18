@@ -61,6 +61,22 @@ public class EmailOutboxDelivererTests
     }
 
     [Fact]
+    public async Task Enqueue_WithTheSameDedupeKey_IsANoOpThatReturnsTheExistingRow()
+    {
+        var key = $"announcement:{Guid.NewGuid()}:{Guid.NewGuid()}";
+        var first = await _repo.EnqueueAsync("to@example.com", "To", "Once", "<p/>", "", dedupeKey: key);
+        var second = await _repo.EnqueueAsync("to@example.com", "To", "Once again", "<p/>", "", dedupeKey: key);
+
+        second.Should().Be(first, "a re-run of the producer must not queue the mail twice");
+        (await ReadRowAsync(first)).Status.Should().Be("pending");
+        await using var conn = new NpgsqlConnection(_cp);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("SELECT subject FROM email_outbox WHERE dedupe_key = @k", conn);
+        cmd.Parameters.AddWithValue("k", key);
+        (await cmd.ExecuteScalarAsync()).Should().Be("Once", "the conflict is a no-op, not an overwrite");
+    }
+
+    [Fact]
     public async Task TryDeliverNow_SendsTheMailAndMarksItSent()
     {
         var transport = Transport(fails: false);

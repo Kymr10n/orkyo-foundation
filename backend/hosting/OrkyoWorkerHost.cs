@@ -128,11 +128,21 @@ public static class OrkyoWorkerHost
     {
         var userLifecycle = sp.GetRequiredService<UserLifecycleService>();
         var announcements = sp.GetRequiredService<IAnnouncementBroadcastService>();
+        var outbox = sp.GetRequiredService<EmailOutboxDeliverer>();
         var logger = sp.GetRequiredService<ILogger<WorkerHost>>();
 
+        // The shared jobs are the ones every edition must run. They live here, not in the
+        // products, so a product cannot forget one: no released worker image ran the
+        // email-outbox drain until 1.6.8 because both products hand-copied this list.
+        // OrkyoWorkerHostTests pins that every WorkerJobNames constant a product does not own
+        // is in this list.
         return
         [
             .. extraJobs(sp),
+            // Mail is queued durably by the API and the jobs above; this is the retry path.
+            // Every loop, single-flighted across instances.
+            new WorkerJob(WorkerJobNames.EmailOutbox, (_, _) => true,
+                ct => outbox.DeliverPendingAsync(ct)),
             // User lifecycle (GDPR inactivity management) once per day
             new WorkerJob(WorkerJobNames.UserLifecycle, WorkerSchedulePolicy.ShouldRunUserLifecycle, async ct =>
             {

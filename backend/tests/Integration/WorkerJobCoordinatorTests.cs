@@ -1,5 +1,6 @@
 using Api.Services;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using Npgsql;
 
 namespace Orkyo.Foundation.Tests.Integration;
@@ -7,12 +8,15 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// <summary>
 /// DB-backed tests for <see cref="WorkerJobCoordinator"/> — the restart-safe,
 /// cross-instance scheduling guard for worker jobs (journal row + per-job Postgres
-/// advisory lock). Each test uses a unique job name so runs don't interfere.
+/// advisory lock). Each test uses a unique job name so runs don't interfere. The journal is
+/// stamped from the injected clock, so a <see cref="FakeTimeProvider"/> drives both the due
+/// check and the backoff without waiting.
 /// </summary>
 [Collection(PostgresCollection.Name)]
 public sealed class WorkerJobCoordinatorTests
 {
     private readonly PostgresFixture _fixture;
+    private readonly FakeTimeProvider _time = new(DateTimeOffset.UtcNow);
 
     public WorkerJobCoordinatorTests(PostgresFixture fixture)
     {
@@ -20,7 +24,9 @@ public sealed class WorkerJobCoordinatorTests
     }
 
     private WorkerJobCoordinator BuildCoordinator() =>
-        new(_fixture.CreateConnectionFactory(), NullLogger<WorkerJobCoordinator>.Instance, TimeProvider.System);
+        new(_fixture.CreateConnectionFactory(), NullLogger<WorkerJobCoordinator>.Instance, _time);
+
+    private static Task Throw(CancellationToken _) => throw new InvalidOperationException("boom");
 
     private static string UniqueJob() => $"test-job-{Guid.NewGuid():N}";
 
@@ -41,7 +47,7 @@ public sealed class WorkerJobCoordinatorTests
         outcome.Should().Be(WorkerJobOutcome.Ran);
         ran.Should().BeTrue();
 
-        var (completedAt, result) = await ReadJournalAsync(job);
+        var (completedAt, result, _, _) = await ReadJournalAsync(job);
         completedAt.Should().NotBeNull();
         result.Should().Be("succeeded");
     }
@@ -89,22 +95,58 @@ public sealed class WorkerJobCoordinatorTests
     }
 
     [Fact]
-    public async Task RunIfDueAsync_FailingJob_JournalsFailureAndStaysDue()
+    public async Task RunIfDueAsync_FailingJob_IsAnOutcomeThatCountsAndKeepsTheLastSuccess()
     {
         var coordinator = BuildCoordinator();
         var job = UniqueJob();
-        var isDue = DueIfOlderThan(TimeSpan.FromHours(1));
 
-        var act = () => coordinator.RunIfDueAsync(
-            job, isDue, _ => throw new InvalidOperationException("boom"), CancellationToken.None);
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        (await coordinator.RunIfDueAsync(job, AlwaysDue, _ => Task.CompletedTask, CancellationToken.None))
+            .Should().Be(WorkerJobOutcome.Ran);
+        var succeededAt = (await ReadJournalAsync(job)).LastSucceededAt;
+        succeededAt.Should().NotBeNull();
 
-        var (_, result) = await ReadJournalAsync(job);
-        result.Should().Be("failed");
+        _time.Advance(TimeSpan.FromHours(2));
+        (await coordinator.RunIfDueAsync(job, AlwaysDue, Throw, CancellationToken.None))
+            .Should().Be(WorkerJobOutcome.Failed, "a failing job is journaled, not rethrown");
 
-        // A failure must not advance the schedule: the next attempt still runs.
-        var outcome = await coordinator.RunIfDueAsync(job, isDue, _ => Task.CompletedTask, CancellationToken.None);
-        outcome.Should().Be(WorkerJobOutcome.Ran);
+        var row = await ReadJournalAsync(job);
+        row.Result.Should().Be("failed");
+        row.ConsecutiveFailures.Should().Be(1);
+        row.LastSucceededAt.Should().Be(succeededAt, "a failed attempt never erases the last success");
+    }
+
+    [Fact]
+    public async Task RunIfDueAsync_AfterAFailure_WaitsForTheBackoff_AndASuccessResetsIt()
+    {
+        var coordinator = BuildCoordinator();
+        var job = UniqueJob();
+        var attempts = 0;
+        Task Flaky(CancellationToken ct) { attempts++; return attempts <= 2 ? Throw(ct) : Task.CompletedTask; }
+        Task<WorkerJobOutcome> Run() => coordinator.RunIfDueAsync(job, AlwaysDue, Flaky, CancellationToken.None);
+
+        (await Run()).Should().Be(WorkerJobOutcome.Failed);                        // 1 failure → wait 2 min
+        (await Run()).Should().Be(WorkerJobOutcome.NotDue, "inside the backoff");
+        _time.Advance(TimeSpan.FromMinutes(2) + TimeSpan.FromSeconds(1));
+        (await Run()).Should().Be(WorkerJobOutcome.Failed);                        // 2 failures → wait 4 min
+        _time.Advance(TimeSpan.FromMinutes(3));
+        (await Run()).Should().Be(WorkerJobOutcome.NotDue, "4 minutes have not elapsed");
+        _time.Advance(TimeSpan.FromMinutes(2));
+        (await Run()).Should().Be(WorkerJobOutcome.Ran);
+
+        var row = await ReadJournalAsync(job);
+        row.Result.Should().Be("succeeded");
+        row.ConsecutiveFailures.Should().Be(0);
+        row.LastSucceededAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void BackoffAfter_DoublesPerFailure_AndCapsAtAnHour()
+    {
+        var at = new DateTime(2026, 10, 18, 12, 0, 0, DateTimeKind.Utc);
+        WorkerJobCoordinator.BackoffAfter(new WorkerJobCoordinator.JobState(DateTime.MinValue, at, 0)).Should().Be(DateTime.MinValue);
+        WorkerJobCoordinator.BackoffAfter(new WorkerJobCoordinator.JobState(DateTime.MinValue, at, 1)).Should().Be(at.AddMinutes(2));
+        WorkerJobCoordinator.BackoffAfter(new WorkerJobCoordinator.JobState(DateTime.MinValue, at, 3)).Should().Be(at.AddMinutes(8));
+        WorkerJobCoordinator.BackoffAfter(new WorkerJobCoordinator.JobState(DateTime.MinValue, at, 20)).Should().Be(at.AddMinutes(60));
     }
 
     [Fact]
@@ -116,22 +158,25 @@ public sealed class WorkerJobCoordinatorTests
         (await coordinator.RunIfDueAsync(job, AlwaysDue, _ => Task.CompletedTask, CancellationToken.None))
             .Should().Be(WorkerJobOutcome.Ran);
 
-        // Zero-interval due-ness: a completed run is immediately due again.
+        // Zero-interval due-ness: a completed run is due again as soon as the clock moves.
+        _time.Advance(TimeSpan.FromMilliseconds(1));
         (await coordinator.RunIfDueAsync(job, DueIfOlderThan(TimeSpan.Zero), _ => Task.CompletedTask, CancellationToken.None))
             .Should().Be(WorkerJobOutcome.Ran);
     }
 
-    private async Task<(DateTime? CompletedAt, string? Result)> ReadJournalAsync(string jobName)
+    private async Task<(DateTime? CompletedAt, string? Result, DateTime? LastSucceededAt, int ConsecutiveFailures)> ReadJournalAsync(string jobName)
     {
         await using var conn = await _fixture.OpenControlPlaneConnectionAsync();
         await using var cmd = new NpgsqlCommand(
-            "SELECT completed_at, result FROM worker_job_runs WHERE job_name = @job", conn);
+            "SELECT completed_at, result, last_succeeded_at, consecutive_failures FROM worker_job_runs WHERE job_name = @job", conn);
         cmd.Parameters.AddWithValue("job", jobName);
         await using var reader = await cmd.ExecuteReaderAsync();
         (await reader.ReadAsync()).Should().BeTrue($"journal row for {jobName} should exist");
         return (
             reader.IsDBNull(0) ? null : reader.GetDateTime(0),
-            reader.IsDBNull(1) ? null : reader.GetString(1));
+            reader.IsDBNull(1) ? null : reader.GetString(1),
+            reader.IsDBNull(2) ? null : reader.GetDateTime(2),
+            reader.GetInt32(3));
     }
 
     /// <summary>Mirror of the coordinator's key hash, to contend on the same lock id.</summary>
