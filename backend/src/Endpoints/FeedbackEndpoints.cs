@@ -18,7 +18,7 @@ public static class FeedbackEndpoints
 {
     public static void MapFeedbackEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/feedback").WithTags("Feedback").RequireAuthorization().RequireTenantMembership();
+        var group = app.MapGroup("/api/feedback").WithTags("Feedback").RequireAuthorization();
 
         group.MapPost("/", async (
             CreateFeedbackRequest request,

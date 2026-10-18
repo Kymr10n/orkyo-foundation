@@ -22,15 +22,14 @@ namespace Orkyo.Foundation.Tests.Configuration;
 /// transitively via a product's integration suite.
 ///
 /// The CORS cases mirror saas' <c>CorsOriginValidationTests</c> but assert against the
-/// built <see cref="CorsPolicy"/> directly — no host needed — and cover the
-/// single-tenant-label tightening of the wildcard subdomain rule.
+/// built <see cref="CorsPolicy"/> directly — no host needed — and pin that only the
+/// explicit allow-list grants an origin: the tenant base domain is never a wildcard.
 /// </summary>
 public class FoundationApiHostCorsTests
 {
     private static ServiceProvider BuildProvider(
         Dictionary<string, string?> settings,
-        string environmentName,
-        bool allowBaseDomainSubdomains)
+        string environmentName)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(settings)
@@ -40,24 +39,18 @@ public class FoundationApiHostCorsTests
         env.SetupGet(e => e.EnvironmentName).Returns(environmentName);
 
         var services = new ServiceCollection();
-        services.AddOrkyoApiCors(configuration, env.Object, allowBaseDomainSubdomains);
+        services.AddOrkyoApiCors(configuration, env.Object);
         return services.BuildServiceProvider();
     }
 
     private static CorsPolicy ResolvePolicy(
         Dictionary<string, string?> settings,
-        string environmentName = EnvironmentNames.Production,
-        bool allowBaseDomainSubdomains = true)
+        string environmentName = EnvironmentNames.Production)
     {
-        var provider = BuildProvider(settings, environmentName, allowBaseDomainSubdomains);
+        var provider = BuildProvider(settings, environmentName);
         var options = provider.GetRequiredService<IOptions<CorsOptions>>().Value;
         return options.GetPolicy(options.DefaultPolicyName)!;
     }
-
-    private static Dictionary<string, string?> WithBaseDomain(string baseDomain) => new()
-    {
-        [ConfigKeys.TenantResolutionBaseDomain] = baseDomain,
-    };
 
     // ── Return value ──────────────────────────────────────────────────────────
 
@@ -83,8 +76,7 @@ public class FoundationApiHostCorsTests
             new Dictionary<string, string?>
             {
                 [ConfigKeys.CorsAllowedOrigins] = "https://app.orkyo.com, https://admin.orkyo.com",
-            },
-            allowBaseDomainSubdomains: false);
+            });
 
         policy.IsOriginAllowed("https://app.orkyo.com").Should().BeTrue();
         policy.IsOriginAllowed("https://admin.orkyo.com").Should().BeTrue();
@@ -98,62 +90,22 @@ public class FoundationApiHostCorsTests
             new Dictionary<string, string?>
             {
                 [ConfigKeys.CorsAllowedOrigins] = "https://app.orkyo.com",
-            },
-            allowBaseDomainSubdomains: false);
+            });
 
         policy.SupportsCredentials.Should().BeTrue();
         policy.Methods.Should().Contain(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]);
         policy.Headers.Should().Contain(HeaderConstants.Authorization);
     }
 
-    // ── Wildcard subdomain matching (base domain) ──────────────────────────────
+    // ── The base domain is never an origin rule ────────────────────────────────
 
     [Fact]
-    public void BaseDomain_HttpsSubdomain_IsAllowed()
+    public void BaseDomain_GrantsNoSubdomain_OnlyTheAllowlistApplies()
     {
-        var policy = ResolvePolicy(WithBaseDomain("orkyo.test"));
-
-        policy.IsOriginAllowed("https://acme.orkyo.test").Should().BeTrue();
-    }
-
-    [Fact]
-    public void BaseDomain_HttpSubdomain_IsRejected()
-    {
-        var policy = ResolvePolicy(WithBaseDomain("orkyo.test"));
-
-        policy.IsOriginAllowed("http://acme.orkyo.test").Should().BeFalse();
-    }
-
-    [Fact]
-    public void BaseDomain_NestedSubdomain_IsRejected()
-    {
-        // Only a single tenant label (acme.orkyo.test) is trusted; a nested host
-        // (a.acme.orkyo.test) must be rejected to shrink the credentialed-CORS surface.
-        var policy = ResolvePolicy(WithBaseDomain("orkyo.test"));
-
-        policy.IsOriginAllowed("https://a.acme.orkyo.test").Should().BeFalse();
-    }
-
-    [Fact]
-    public void BaseDomain_Itself_IsRejected()
-    {
-        // The base domain is not a subdomain of itself; only "<label>.orkyo.test" matches.
-        var policy = ResolvePolicy(WithBaseDomain("orkyo.test"));
-
-        policy.IsOriginAllowed("https://orkyo.test").Should().BeFalse();
-    }
-
-    [Fact]
-    public void BaseDomain_UnrelatedOrigin_IsRejected()
-    {
-        var policy = ResolvePolicy(WithBaseDomain("orkyo.test"));
-
-        policy.IsOriginAllowed("https://evil.com").Should().BeFalse();
-    }
-
-    [Fact]
-    public void BaseDomain_ExplicitOrigin_StillAllowedAlongsideWildcard()
-    {
+        // The wildcard that used to accept any single-label https subdomain of the tenant base
+        // domain is gone: under the BFF the SPA and the API share an origin, and the wildcard
+        // made every host on the base domain (staging, Grafana, a dangling record) a
+        // credentialed caller.
         var policy = ResolvePolicy(new Dictionary<string, string?>
         {
             [ConfigKeys.CorsAllowedOrigins] = "https://partner.example.com",
@@ -161,32 +113,16 @@ public class FoundationApiHostCorsTests
         });
 
         policy.IsOriginAllowed("https://partner.example.com").Should().BeTrue();
-        policy.IsOriginAllowed("https://acme.orkyo.test").Should().BeTrue();
-    }
-
-    [Fact]
-    public void CommunityMode_IgnoresBaseDomain_OnlyAllowlistApplies()
-    {
-        // allowBaseDomainSubdomains:false (Community) → the configured base domain is
-        // ignored, so a subdomain that is not on the explicit allow-list is rejected.
-        var policy = ResolvePolicy(
-            new Dictionary<string, string?>
-            {
-                [ConfigKeys.CorsAllowedOrigins] = "https://community.local",
-                [ConfigKeys.TenantResolutionBaseDomain] = "orkyo.test",
-            },
-            allowBaseDomainSubdomains: false);
-
-        policy.IsOriginAllowed("https://community.local").Should().BeTrue();
         policy.IsOriginAllowed("https://acme.orkyo.test").Should().BeFalse();
+        policy.IsOriginAllowed("https://orkyo.test").Should().BeFalse();
     }
 
     // ── Empty configuration fallbacks ──────────────────────────────────────────
 
     [Fact]
-    public void Production_NoOriginsAndNoBaseDomain_ThrowsAtStartup()
+    public void Production_NoOrigins_ThrowsAtStartup()
     {
-        var provider = BuildProvider(new Dictionary<string, string?>(), EnvironmentNames.Production, allowBaseDomainSubdomains: true);
+        var provider = BuildProvider(new Dictionary<string, string?>(), EnvironmentNames.Production);
 
         Action act = () => _ = provider.GetRequiredService<IOptions<CorsOptions>>().Value;
 
@@ -195,7 +131,7 @@ public class FoundationApiHostCorsTests
     }
 
     [Fact]
-    public void NonProduction_NoOriginsAndNoBaseDomain_AllowsAnyOrigin()
+    public void NonProduction_NoOrigins_AllowsAnyOrigin()
     {
         var policy = ResolvePolicy(new Dictionary<string, string?>(), environmentName: EnvironmentNames.Development);
 

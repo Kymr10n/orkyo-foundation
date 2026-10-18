@@ -12,4 +12,8 @@ public static class HttpContextItemKeys
 {
     public const string TenantContext = "TenantContext";
     public const string OrgContext = "OrgContext";
+
+    /// <summary>The authenticated BFF session's CSRF token, set by the cookie handler and read by
+    /// <c>CsrfMiddleware</c>.</summary>
+    public const string BffCsrfToken = "BffCsrfToken";
 }

@@ -62,7 +62,7 @@ the Model Context Protocol's transport does. A verb-aware write gate cannot tell
 `tools/call`, so applying one would demand Editor merely to *discover* the tools, and a read-only
 token could do nothing at all.
 
-So that group declares `RequireTenantMembership()` plus an explicit `AuthorizationGoverned` marker,
+So that group declares only the explicit `AuthorizationGoverned` marker (membership is enforced for every tenant-scoped route by `ContextEnrichmentMiddleware`),
 and each **tool** gates itself through one shared guard:
 
 ```csharp

@@ -1,5 +1,7 @@
 using Api.Middleware;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.Logging;
 
 namespace Orkyo.Foundation.Tests.Middleware;
@@ -18,6 +20,26 @@ public class RequestLoggingMiddlewareTests
         ctx.Request.Path = path;
         ctx.Response.Body = new MemoryStream();
         return ctx;
+    }
+
+    [Fact]
+    public async Task InvokeAsync_LogsTheRouteTemplate_NotThePathThatCarriesASecret()
+    {
+        var ctx = CreateContext(path: "/api/calendar/feed/the-secret-token.ics");
+        ctx.SetEndpoint(new RouteEndpoint(_ => Task.CompletedTask,
+            RoutePatternFactory.Parse("/api/calendar/feed/{token}.ics"), 0, EndpointMetadataCollection.Empty, "feed"));
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(ctx);
+
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("{token}") && !v.ToString()!.Contains("the-secret-token")),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
     }
 
     // ── 2xx — Information level ────────────────────────────────────────────

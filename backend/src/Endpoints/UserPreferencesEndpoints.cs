@@ -19,7 +19,6 @@ public static class UserPreferencesEndpoints
         // other person's data, but a write into a database they have no membership in.
         var prefs = app.MapGroup("/api/preferences")
             .RequireAuthorization()
-            .RequireTenantMembership()
             .WithTags("User Preferences");
 
         prefs.MapGet("/", async (ICurrentPrincipal currentPrincipal, IUserPreferencesRepository repo, CancellationToken ct) =>

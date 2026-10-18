@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Api.Configuration;
+using Api.Constants;
 using Api.Middleware;
 using Api.Security;
 using Microsoft.AspNetCore.Http;
@@ -19,7 +20,7 @@ public class CsrfMiddlewareTests
     private DefaultHttpContext CreateContext(
         string method = "GET",
         string? authType = null,
-        string? csrfCookie = null,
+        string? sessionCsrf = null,
         string? csrfHeader = null)
     {
         var context = new DefaultHttpContext();
@@ -32,8 +33,8 @@ public class CsrfMiddlewareTests
             context.User = new ClaimsPrincipal(identity);
         }
 
-        if (csrfCookie is not null)
-            context.Request.Headers.Cookie = $"{BffOptions.CsrfCookieName}={csrfCookie}";
+        if (sessionCsrf is not null)
+            context.Items[HttpContextItemKeys.BffCsrfToken] = sessionCsrf;
 
         if (csrfHeader is not null)
             context.Request.Headers[BffOptions.CsrfHeaderName] = csrfHeader;
@@ -118,6 +119,22 @@ public class CsrfMiddlewareTests
         var called = false;
         var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
         var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName, "token-abc", "token-wrong");
+
+        await middleware.InvokeAsync(context);
+
+        called.Should().BeFalse();
+        context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
+    }
+
+    [Fact]
+    public async Task Post_WithBffAuth_CookieMatchesHeaderButNotTheSession_Returns403()
+    {
+        // The planted-cookie case: a script on another host of the registrable domain sets the
+        // CSRF cookie and sends its value as the header. Double-submit would accept it.
+        var called = false;
+        var middleware = CreateMiddleware(_ => { called = true; return Task.CompletedTask; });
+        var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName, "session-token", "planted");
+        context.Request.Headers.Cookie = $"{BffOptions.CsrfCookieName}=planted";
 
         await middleware.InvokeAsync(context);
 

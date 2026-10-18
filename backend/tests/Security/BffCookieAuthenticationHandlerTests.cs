@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Api.Configuration;
+using Api.Constants;
 using Api.Security;
 using Api.Services.BffSession;
 using Microsoft.AspNetCore.Authentication;
@@ -88,6 +89,7 @@ public class BffCookieAuthenticationHandlerTests
             TokenExpiresAt = tokenExpiresAt ?? DateTimeOffset.UtcNow.AddMinutes(5),
             CreatedAt = DateTimeOffset.UtcNow,
             AuthClient = authClient,
+            CsrfToken = "csrf-token-value",
         };
 
     private async Task<AuthenticateResult> RunAuthenticateAsync(
@@ -422,7 +424,7 @@ public class BffCookieAuthenticationHandlerTests
         _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(session);
 
         var ctx = CreateHttpContext();
-        ctx.Request.Headers.Cookie = $"{CookieName}={EncryptSessionId(TestSessionId)}; orkyo-csrf=csrf-value";
+        ctx.Request.Headers.Cookie = $"{CookieName}={EncryptSessionId(TestSessionId)}";
         var result = await RunAuthenticateAsync(ctx);
 
         result.Succeeded.Should().BeTrue();
@@ -433,7 +435,7 @@ public class BffCookieAuthenticationHandlerTests
         // is still alive and the user is logged out despite the extension.
         var setCookies = ctx.Response.Headers.SetCookie.ToString();
         setCookies.Should().Contain(CookieName);
-        setCookies.Should().Contain("orkyo-csrf");
+        setCookies.Should().Contain("orkyo-csrf=csrf-token-value", "the CSRF cookie is reissued from the session, not from the request");
     }
 
     [Fact]
@@ -524,6 +526,32 @@ public class BffCookieAuthenticationHandlerTests
         result.Succeeded.Should().BeTrue();
         _sessionStore.Verify(s => s.SlideExpiryAsync(It.IsAny<string>(), It.IsAny<DateTimeOffset>(),
             It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ValidSession_ExposesTheCsrfTokenToTheCsrfMiddleware()
+    {
+        var ctx = CreateHttpContext(CookieName, EncryptSessionId(TestSessionId));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>())).ReturnsAsync(CreateSession());
+
+        var result = await RunAuthenticateAsync(ctx);
+
+        result.Succeeded.Should().BeTrue();
+        ctx.Items[HttpContextItemKeys.BffCsrfToken].Should().Be("csrf-token-value");
+    }
+
+    [Fact]
+    public async Task SessionWithoutACsrfToken_IsEndedAndFails()
+    {
+        var ctx = CreateHttpContext(CookieName, EncryptSessionId(TestSessionId));
+        _sessionStore.Setup(s => s.GetAsync(TestSessionId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(CreateSession() with { CsrfToken = null });
+
+        var result = await RunAuthenticateAsync(ctx);
+
+        result.Succeeded.Should().BeFalse();
+        result.Failure!.Message.Should().Contain("CSRF");
+        _sessionStore.Verify(s => s.RemoveAsync(TestSessionId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -30,6 +30,7 @@
     <PackageReference Include="Anthropic" />
     <PackageReference Include="FluentValidation" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Npgsql" />
     <PackageReference Include="MailKit" />
