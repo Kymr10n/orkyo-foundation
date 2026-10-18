@@ -206,7 +206,8 @@ ensure_test_postgres() {
   docker rm -f "$TEST_POSTGRES_CONTAINER" >/dev/null 2>&1 || true
   log "Starting a fresh ${TEST_POSTGRES_CONTAINER} on 127.0.0.1:${TEST_POSTGRES_PORT}"
   docker run -d --name "$TEST_POSTGRES_CONTAINER" -p "127.0.0.1:${TEST_POSTGRES_PORT}:5432" \
-    -e POSTGRES_PASSWORD=postgres "$TEST_POSTGRES_IMAGE" -c max_connections=300 >/dev/null
+    -e POSTGRES_PASSWORD=postgres "$TEST_POSTGRES_IMAGE" -c max_connections=300 \
+    -c fsync=off -c synchronous_commit=off -c full_page_writes=off >/dev/null
   local i
   for i in $(seq 1 30); do
     docker exec "$TEST_POSTGRES_CONTAINER" pg_isready -U postgres -q 2>/dev/null && return 0
@@ -230,7 +231,15 @@ frontend_changed() {
   ! git -C "$ROOT_DIR" diff --quiet "$base" -- frontend
 }
 
+# Leave nothing running: the test server is fresh per run anyway, and the MSBuild and
+# Roslyn compiler servers would otherwise idle for 10-15 minutes holding hundreds of MB.
+check_cleanup() {
+  docker rm -f "$TEST_POSTGRES_CONTAINER" >/dev/null 2>&1 || true
+  dotnet build-server shutdown >/dev/null 2>&1 || true
+}
+
 cmd_check() {
+  trap check_cleanup EXIT
   local fast=false
   [[ "${1:-}" == "--fast" ]] && fast=true
   local sln
