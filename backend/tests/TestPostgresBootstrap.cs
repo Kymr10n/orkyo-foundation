@@ -50,8 +50,9 @@ public static class TestPostgresBootstrap
     {
         if (TestDatabase.UseCiDatabase)
         {
-            Console.WriteLine("⚡ CI detected — using service container on port 5432 (skipping Testcontainers)");
-            return new TestPostgresServer(5432);
+            var ciPort = TestDatabase.CiDatabasePort;
+            Console.WriteLine($"⚡ External database — localhost:{ciPort} (skipping Testcontainers)");
+            return new TestPostgresServer(ciPort);
         }
 
         Console.WriteLine("🚀 Starting PostgreSQL test container...");

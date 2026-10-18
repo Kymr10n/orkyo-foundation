@@ -64,6 +64,14 @@ repos:
         pass_filenames: false
         files: '^frontend/.*\.(ts|tsx)$'
 
+      - id: backend-fast-tests
+        name: architecture tests (no database)
+        entry: scripts/check.sh --fast
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+        files: '\.(cs|csproj|slnx|props)$'
+
       - id: load-dotenv-test
         name: load-dotenv.sh parser tests
         entry: bash scripts/load-dotenv.test.sh
