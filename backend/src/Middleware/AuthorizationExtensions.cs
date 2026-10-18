@@ -45,7 +45,10 @@ public static class AuthorizationExtensions
     /// </summary>
     public static RouteHandlerBuilder RequireSiteAdmin(this RouteHandlerBuilder builder)
     {
-        builder.WithMetadata(new AuthorizationGoverned());
+        // The site-admin surface is the control plane: the realm role governs it, not a tenant
+        // membership, so the membership-by-default gate stands aside (Community resolves its one
+        // tenant on every request, admin routes included).
+        builder.WithMetadata(new AuthorizationGoverned(), new AllowNonMemberAttribute());
         return builder.AddEndpointFilter(SiteAdminFilter);
     }
 
@@ -56,7 +59,7 @@ public static class AuthorizationExtensions
     /// </summary>
     public static RouteGroupBuilder RequireSiteAdmin(this RouteGroupBuilder group)
     {
-        group.WithMetadata(new AuthorizationGoverned());
+        group.WithMetadata(new AuthorizationGoverned(), new AllowNonMemberAttribute());
         return group.AddEndpointFilter(SiteAdminFilter);
     }
 
