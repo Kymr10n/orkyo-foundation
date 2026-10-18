@@ -50,7 +50,7 @@ public class MockEmailService : IEmailService
     }
 
     public Task<bool> SendEmailAsync(string toEmail, string toName, string subject,
-        string htmlBody, string textBody, CancellationToken ct = default)
+        string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
         => ThrowOnSendEmail
             ? throw new InvalidOperationException("SMTP connection refused")
             : Record(nameof(SendEmailAsync), toEmail);
@@ -125,7 +125,7 @@ public class MockEmailService : IEmailService
     }
 
     public Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body,
-        bool isImportant, Guid unsubscribeToken, CancellationToken ct = default)
+        bool isImportant, Guid unsubscribeToken, string dedupeKey, CancellationToken ct = default)
         => Record(nameof(SendAnnouncementEmailAsync), toEmail);
 
     public void Reset()

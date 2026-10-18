@@ -22,8 +22,13 @@ public sealed record OutboxMessage(
 /// </summary>
 public interface IEmailOutboxRepository
 {
-    /// <summary>Stores a rendered mail as pending and due now. Returns its id.</summary>
-    Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default);
+    /// <summary>
+    /// Stores a rendered mail as pending and due now. Returns its id. With a
+    /// <paramref name="dedupeKey"/>, a second enqueue of the same key is a no-op that returns
+    /// the existing row's id, so a producer that is re-run after an interruption cannot queue
+    /// the same mail twice.
+    /// </summary>
+    Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null);
 
     /// <summary>
     /// Claims one pending row by id for <see cref="EmailOutboxPolicy.ClaimLease"/>. Null when
@@ -64,19 +69,24 @@ public sealed class EmailOutboxRepository : IEmailOutboxRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default)
+    public async Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
+        // The no-op update on conflict makes RETURNING yield the existing row; DO NOTHING
+        // would return no row at all. The partial unique index ignores NULL keys.
         await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO email_outbox (to_email, to_name, subject, html_body, text_body)
-            VALUES (@toEmail, @toName, @subject, @html, @text)
+            INSERT INTO email_outbox (to_email, to_name, subject, html_body, text_body, dedupe_key)
+            VALUES (@toEmail, @toName, @subject, @html, @text, @dedupeKey)
+            ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
+                DO UPDATE SET dedupe_key = EXCLUDED.dedupe_key
             RETURNING id", conn);
         cmd.Parameters.AddWithValue("toEmail", toEmail);
         cmd.Parameters.AddWithValue("toName", toName);
         cmd.Parameters.AddWithValue("subject", subject);
         cmd.Parameters.AddWithValue("html", htmlBody);
         cmd.Parameters.AddWithValue("text", textBody);
+        cmd.Parameters.AddWithValue("dedupeKey", (object?)dedupeKey ?? DBNull.Value);
         return (Guid)(await cmd.ExecuteScalarAsync(ct))!;
     }
 

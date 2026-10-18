@@ -37,7 +37,7 @@ public sealed class InMemoryEmailOutbox : IEmailOutboxRepository
 
     public Row Single() => Rows.Should().ContainSingle().Subject;
 
-    public Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default)
+    public Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
     {
         var row = new Row { Id = Guid.NewGuid(), ToEmail = toEmail, Subject = subject, HtmlBody = htmlBody, TextBody = textBody };
         lock (_lock) _rows[row.Id] = row;

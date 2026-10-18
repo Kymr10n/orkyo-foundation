@@ -6,7 +6,7 @@ namespace Api.Services;
 
 public interface IEmailService
 {
-    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default);
+    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null);
     Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
     Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default);
     Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default);
@@ -38,7 +38,9 @@ public interface IEmailService
     Task<bool> SendEmailChangedAsync(string toEmail, string displayName, string newEmail, CancellationToken ct = default);
 
     // Platform announcements
-    Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default);
+    /// <param name="dedupeKey">Outbox idempotency key, e.g. <c>announcement:{id}:{userId}</c>; a
+    /// re-run of the broadcast enqueues nothing twice.</param>
+    Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, string dedupeKey, CancellationToken ct = default);
 }
 
 public class EmailService : IEmailService
@@ -87,10 +89,11 @@ public class EmailService : IEmailService
         string toEmail,
         string toName,
         Func<EmailBranding, (string subject, string htmlBody, string textBody)> build,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? dedupeKey = null)
     {
         var (subject, htmlBody, textBody) = build(await GetBrandingAsync());
-        return await SendEmailAsync(toEmail, toName, subject, htmlBody, textBody, ct);
+        return await SendEmailAsync(toEmail, toName, subject, htmlBody, textBody, ct, dedupeKey);
     }
 
     /// <summary>
@@ -99,12 +102,12 @@ public class EmailService : IEmailService
     /// email-outbox job. False means it could not even be queued (the database refused the
     /// write), which is the one case where the caller must treat the mail as not sent.
     /// </summary>
-    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default)
+    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
     {
         Guid id;
         try
         {
-            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct);
+            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct, dedupeKey);
         }
         catch (Exception ex)
         {
@@ -127,13 +130,13 @@ public class EmailService : IEmailService
             b => EmailTemplates.GetWelcomeEmail(displayName, b), ct);
     }
 
-    public async Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, CancellationToken ct = default)
+    public async Task<bool> SendAnnouncementEmailAsync(string toEmail, string displayName, string title, string body, bool isImportant, Guid unsubscribeToken, string dedupeKey, CancellationToken ct = default)
     {
         // APP_BASE_URL proxies /api/* to the backend, so the unsubscribe link can target it directly.
         var appBaseUrl = _configuration.GetRequired(ConfigKeys.AppBaseUrl).TrimEnd('/');
         var unsubscribeUrl = $"{appBaseUrl}/api/announcements/unsubscribe?token={unsubscribeToken}";
         return await SendTemplatedAsync(toEmail, displayName,
-            b => EmailTemplates.GetAnnouncementEmail(title, body, isImportant, unsubscribeUrl, b), ct);
+            b => EmailTemplates.GetAnnouncementEmail(title, body, isImportant, unsubscribeUrl, b), ct, dedupeKey);
     }
 
     public async Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default)

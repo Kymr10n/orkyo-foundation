@@ -8,8 +8,11 @@ namespace Api.Services;
 /// <summary>
 /// Sends the email channel of platform announcements to all registered users. Runs in the worker
 /// (never inline in the create request): for each announcement with the 'email' channel whose
-/// broadcast hasn't run yet, it emails every active, non-opted-out user — throttled — then marks
-/// the announcement's broadcast complete so it isn't re-sent.
+/// broadcast hasn't run yet, it queues one outbox row per active, non-opted-out user — throttled —
+/// then marks the announcement's broadcast complete. Each row carries the idempotency key
+/// <c>announcement:{id}:{userId}</c>, so a broadcast interrupted by a deploy or a crash is simply
+/// re-run: already-queued recipients are no-ops. A recipient that cannot be queued fails the job
+/// (the coordinator backs off and retries) instead of being silently skipped.
 /// </summary>
 public interface IAnnouncementBroadcastService
 {
@@ -58,22 +61,17 @@ public sealed class AnnouncementBroadcastService : IAnnouncementBroadcastService
             var options = new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentSends, CancellationToken = ct };
             await Parallel.ForEachAsync(audience, options, async (user, token) =>
             {
-                try
-                {
-                    await _emailService.SendAnnouncementEmailAsync(
-                        user.Email, user.DisplayName, announcement.Title, announcement.Body,
-                        announcement.IsImportant, user.UnsubscribeToken, token);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to email announcement {AnnouncementId} to {Email}",
-                        announcement.Id, user.Email);
-                }
+                var queued = await _emailService.SendAnnouncementEmailAsync(
+                    user.Email, user.DisplayName, announcement.Title, announcement.Body,
+                    announcement.IsImportant, user.UnsubscribeToken,
+                    dedupeKey: $"announcement:{announcement.Id}:{user.Id}", token);
+                if (!queued)
+                    throw new InvalidOperationException(
+                        $"Announcement {announcement.Id}: could not queue mail for user {user.Id}");
             });
 
-            // Each send is a row in the mail outbox, so a failed attempt is retried by the
-            // email-outbox job; marking the announcement complete records that every recipient
-            // has been queued, and announcements are not re-broadcast.
+            // Every recipient now has an outbox row (delivery and retries are the email-outbox
+            // job's); marking the announcement complete stops it being re-broadcast.
             await _repository.MarkEmailSentAsync(announcement.Id, ct);
             _logger.LogInformation("Announcement {AnnouncementId} email broadcast complete", announcement.Id);
         }
