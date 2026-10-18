@@ -177,4 +177,56 @@ public class ValkeyBffSessionStoreTests
 
         (await _store.GetAsync("session-eeeeeeee")).Should().BeNull();
     }
+
+    private BffSessionRecord SealedSessionInValkey(string id)
+    {
+        var session = new BffSessionRecord
+        {
+            SessionId = id,
+            UserId = "user-1",
+            ExternalSubject = "sub",
+            AccessToken = "old-access",
+            RefreshToken = "old-refresh",
+            IdToken = "i",
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1),
+            CreatedAt = DateTimeOffset.UtcNow,
+            CsrfToken = "csrf",
+        };
+        _db.Setup(d => d.StringGetAsync($"bff:s:{id}", It.IsAny<CommandFlags>()))
+            .ReturnsAsync(Crypto.ProtectString(System.Text.Json.JsonSerializer.Serialize(session), ValkeyBffSessionStore.RecordPurpose));
+        return session;
+    }
+
+    private BffSessionRecord? LastWrittenRecord(string id)
+    {
+        var written = (RedisValue)_db.Invocations
+            .Last(i => i.Method.Name == nameof(IDatabase.StringSetAsync) && i.Arguments[0] is RedisKey k && k == $"bff:s:{id}")
+            .Arguments[1]!;
+        written.ToString().Should().StartWith("orkyoenc:", "a rewritten record stays sealed");
+        return System.Text.Json.JsonSerializer.Deserialize<BffSessionRecord>(
+            Crypto.UnprotectString(written.ToString(), ValkeyBffSessionStore.RecordPurpose)!);
+    }
+
+    [Fact]
+    public async Task RefreshTokens_OpensTheSealedRecord_AndSealsTheUpdate()
+    {
+        SealedSessionInValkey("session-ffffffff");
+
+        await _store.RefreshTokensAsync("session-ffffffff", "new-access", "new-refresh", DateTimeOffset.UtcNow.AddMinutes(5));
+
+        var updated = LastWrittenRecord("session-ffffffff");
+        updated!.AccessToken.Should().Be("new-access");
+        updated.RefreshToken.Should().Be("new-refresh");
+    }
+
+    [Fact]
+    public async Task SlideExpiry_OpensTheSealedRecord_AndSealsTheUpdate()
+    {
+        var session = SealedSessionInValkey("session-gggggggg");
+        var target = session.ExpiresAt.AddMinutes(30);
+
+        await _store.SlideExpiryAsync("session-gggggggg", target);
+
+        LastWrittenRecord("session-gggggggg")!.ExpiresAt.Should().Be(target);
+    }
 }
