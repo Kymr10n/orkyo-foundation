@@ -103,9 +103,10 @@ public static class DiagnosticsAdminEndpoints
         }
 
         // ── Worker status ───────────────────────────────────────────────
-        // The worker runs as a separate container and journals every scheduled job it finishes
-        // in worker_job_runs (the API never writes there). The tenant lifecycle job runs hourly,
-        // so no completion in two hours means the worker is idle or stopped.
+        // The worker runs as a separate container and journals every scheduled job in
+        // worker_job_runs (the API never writes there). last_succeeded_at survives failures, so
+        // "running" means a job actually succeeded in the last two hours; a job failing three
+        // times in a row reads "failing" even while others still succeed.
         string workerStatus;
         DateTime? lastWorkerActivity = null;
 
@@ -115,13 +116,15 @@ public static class DiagnosticsAdminEndpoints
             await conn.OpenAsync(ct);
 
             await using var cmd = new Npgsql.NpgsqlCommand(
-                "SELECT MAX(completed_at) AS last_completed, " +
-                "COALESCE(MAX(completed_at) > NOW() - INTERVAL '2 hours', false) AS recent " +
+                "SELECT MAX(last_succeeded_at) AS last_completed, " +
+                "COALESCE(MAX(last_succeeded_at) > NOW() - INTERVAL '2 hours', false) AS recent, " +
+                "COALESCE(MAX(consecutive_failures), 0) AS worst_failures " +
                 "FROM worker_job_runs", conn);
             await using var reader = await cmd.ExecuteReaderAsync(ct);
             await reader.ReadAsync(ct);
             lastWorkerActivity = reader.GetNullableDateTime("last_completed");
-            workerStatus = reader.GetBoolean("recent") ? "running" : "idle";
+            workerStatus = reader.GetInt32(reader.GetOrdinal("worst_failures")) >= 3 ? "failing"
+                : reader.GetBoolean("recent") ? "running" : "idle";
         }
         catch (Exception ex)
         {

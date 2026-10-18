@@ -14,6 +14,10 @@ public enum WorkerJobOutcome
 
     /// <summary>Another worker instance holds the job's advisory lock right now.</summary>
     HeldElsewhere,
+
+    /// <summary>The job threw. Journaled (consecutive_failures + 1) and logged; the next
+    /// attempt waits for the backoff in <see cref="WorkerJobCoordinator.BackoffAfter"/>.</summary>
+    Failed,
 }
 
 /// <summary>
@@ -30,9 +34,12 @@ public interface IWorkerJobCoordinator
     /// Runs <paramref name="job"/> iff <paramref name="isDue"/>(nowUtc, lastCompletedUtc)
     /// says it is due, under a per-job advisory lock. Due-ness is evaluated INSIDE the lock
     /// (double-checked) so a second instance that raced past an earlier check cannot re-run
-    /// the job right after the winner finishes. Only a successful run advances the journal;
-    /// a failing job is recorded as <c>failed</c> and its exception rethrown, so the worker
-    /// loop's existing retry/backoff semantics are preserved.
+    /// the job right after the winner finishes. Only a successful run advances
+    /// <c>last_succeeded_at</c>. A failing job is journaled (<c>consecutive_failures</c> + 1),
+    /// logged, and reported as <see cref="WorkerJobOutcome.Failed"/> — never thrown — so one
+    /// broken job can neither stop the jobs after it nor hide its own last success. Its next
+    /// attempt waits for an exponential backoff, which also stops a permanently broken daily
+    /// job from hammering its dependencies every loop.
     /// </summary>
     /// <param name="jobName">Stable job identifier — one journal row and one lock per name.</param>
     /// <param name="isDue">(nowUtc, lastCompletedUtc) → should the job run. Last completed is
@@ -90,8 +97,9 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
 
         try
         {
-            var lastCompleted = await ReadLastCompletedAsync(connection, jobName, cancellationToken);
-            if (!isDue(_time.GetUtcNow().UtcDateTime, lastCompleted))
+            var now = _time.GetUtcNow().UtcDateTime;
+            var state = await ReadStateAsync(connection, jobName, cancellationToken);
+            if (!isDue(now, state.LastSucceeded) || now < BackoffAfter(state))
             {
                 return WorkerJobOutcome.NotDue;
             }
@@ -101,12 +109,12 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
             {
                 await job(cancellationToken);
             }
-            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
-                // Journal the failure (for the ops heartbeat) without advancing completed_at,
-                // so the job stays due and the loop's retry semantics apply unchanged.
                 await RecordResultAsync(connection, jobName, succeeded: false, CancellationToken.None);
-                throw;
+                _logger.LogError(ex, "Job {JobName} failed ({ConsecutiveFailures} in a row)",
+                    jobName, state.ConsecutiveFailures + 1);
+                return WorkerJobOutcome.Failed;
             }
 
             await RecordResultAsync(connection, jobName, succeeded: true, cancellationToken);
@@ -132,15 +140,36 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
         await cmd.ExecuteScalarAsync(CancellationToken.None);
     }
 
-    private static async Task<DateTime> ReadLastCompletedAsync(NpgsqlConnection connection, string jobName, CancellationToken ct)
+    /// <summary>The journal row as the scheduler reads it. Never-succeeded reads as
+    /// <see cref="DateTime.MinValue"/>, matching the <c>isDue</c> contract.</summary>
+    internal sealed record JobState(DateTime LastSucceeded, DateTime? LastCompleted, int ConsecutiveFailures);
+
+    /// <summary>
+    /// Earliest time the next attempt is allowed after a failure: 2^n minutes, capped at an
+    /// hour. Zero failures means no wait. Exposed for the tests and the diagnostics page.
+    /// </summary>
+    internal static DateTime BackoffAfter(JobState state)
     {
-        await using var cmd = new NpgsqlCommand(
-            "SELECT completed_at FROM worker_job_runs WHERE job_name = @job AND result = 'succeeded'", connection);
-        cmd.Parameters.AddWithValue("job", jobName);
-        var value = await cmd.ExecuteScalarAsync(ct);
-        return value is DateTime completed ? completed.ToUniversalTime() : DateTime.MinValue;
+        if (state.ConsecutiveFailures == 0 || state.LastCompleted is null) return DateTime.MinValue;
+        var minutes = Math.Min(Math.Pow(2, state.ConsecutiveFailures), 60);
+        return state.LastCompleted.Value + TimeSpan.FromMinutes(minutes);
     }
 
+    private static async Task<JobState> ReadStateAsync(NpgsqlConnection connection, string jobName, CancellationToken ct)
+    {
+        await using var cmd = new NpgsqlCommand(
+            "SELECT last_succeeded_at, completed_at, consecutive_failures FROM worker_job_runs WHERE job_name = @job", connection);
+        cmd.Parameters.AddWithValue("job", jobName);
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct)) return new JobState(DateTime.MinValue, null, 0);
+        return new JobState(
+            reader.IsDBNull(0) ? DateTime.MinValue : reader.GetDateTime(0).ToUniversalTime(),
+            reader.IsDBNull(1) ? null : reader.GetDateTime(1).ToUniversalTime(),
+            reader.GetInt32(2));
+    }
+
+    /// <summary>Marks an attempt in flight. last_succeeded_at and consecutive_failures are
+    /// untouched: a start is not an outcome.</summary>
     private static async Task RecordStartedAsync(NpgsqlConnection connection, string jobName, CancellationToken ct)
     {
         await using var cmd = new NpgsqlCommand("""
@@ -154,10 +183,11 @@ public sealed class WorkerJobCoordinator : IWorkerJobCoordinator
 
     private static async Task RecordResultAsync(NpgsqlConnection connection, string jobName, bool succeeded, CancellationToken ct)
     {
-        await using var cmd = new NpgsqlCommand(
-            "UPDATE worker_job_runs SET completed_at = NOW(), result = @result WHERE job_name = @job", connection);
+        await using var cmd = new NpgsqlCommand(succeeded
+            ? "UPDATE worker_job_runs SET completed_at = NOW(), result = 'succeeded', last_succeeded_at = NOW(), consecutive_failures = 0 WHERE job_name = @job"
+            : "UPDATE worker_job_runs SET completed_at = NOW(), result = 'failed', consecutive_failures = consecutive_failures + 1 WHERE job_name = @job",
+            connection);
         cmd.Parameters.AddWithValue("job", jobName);
-        cmd.Parameters.AddWithValue("result", succeeded ? "succeeded" : "failed");
         await cmd.ExecuteNonQueryAsync(ct);
     }
 
