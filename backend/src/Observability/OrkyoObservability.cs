@@ -39,7 +39,11 @@ public static class OrkyoObservability
 
         builder.Host.UseSerilog((ctx, _, cfg) =>
         {
-            cfg.ReadFrom.Configuration(ctx.Configuration)
+            // The framework's "Request finished ... <url>" line carries the raw path, token and
+            // all; RequestLoggingMiddleware logs every request by its route template instead.
+            // Set before the configuration is read, so a product's own Serilog section still wins.
+            cfg.MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", LogEventLevel.Warning)
+               .ReadFrom.Configuration(ctx.Configuration)
                .Enrich.FromLogContext()
                .Enrich.WithProperty("service", serviceName)
                .WriteTo.Console();

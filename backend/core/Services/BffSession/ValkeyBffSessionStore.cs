@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Api.Security.Encryption;
 using StackExchange.Redis;
 
 namespace Api.Services.BffSession;
@@ -13,7 +14,12 @@ namespace Api.Services.BffSession;
 /// </summary>
 public sealed class ValkeyBffSessionStore : IBffSessionStore
 {
+    /// <summary>The record holds the user's access, refresh and id tokens, so it is sealed with
+    /// the master key at rest: a copy of Valkey yields no token.</summary>
+    internal const string RecordPurpose = "BffSession.Record";
+
     private readonly IConnectionMultiplexer _valkey;
+    private readonly IEncryptionService _crypto;
     private readonly ILogger<ValkeyBffSessionStore> _logger;
     private readonly TimeProvider _time;
 
@@ -23,13 +29,23 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
 
     public ValkeyBffSessionStore(
         IConnectionMultiplexer valkey,
+        IEncryptionService crypto,
         ILogger<ValkeyBffSessionStore> logger,
         TimeProvider time)
     {
         _valkey = valkey;
+        _crypto = crypto;
         _logger = logger;
         _time = time;
     }
+
+    private string Seal(BffSessionRecord session) =>
+        _crypto.ProtectString(JsonSerializer.Serialize(session), RecordPurpose)!;
+
+    /// <summary>A record written before sealing is plaintext and still reads; one that does not
+    /// open under this key or purpose throws, and the caller's catch reads it as no session.</summary>
+    private BffSessionRecord? Open(string stored) =>
+        JsonSerializer.Deserialize<BffSessionRecord>(_crypto.UnprotectString(stored, RecordPurpose)!);
 
     public async Task<BffSessionRecord?> GetAsync(string sessionId, CancellationToken ct = default)
     {
@@ -40,7 +56,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (string.IsNullOrEmpty(json))
                 return null;
 
-            var session = JsonSerializer.Deserialize<BffSessionRecord>(json);
+            var session = Open(json);
             if (session is null || session.ExpiresAt <= _time.GetUtcNow())
                 return null;
 
@@ -63,7 +79,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (ttl <= TimeSpan.Zero)
                 return;
 
-            var json = JsonSerializer.Serialize(session);
+            var json = Seal(session);
             await db.StringSetAsync(SessionKey(session.SessionId), json, ttl);
             await IndexForUserAsync(db, session.UserId, session.SessionId, ttl);
 
@@ -127,7 +143,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (string.IsNullOrEmpty(json))
                 return;
 
-            var session = JsonSerializer.Deserialize<BffSessionRecord>(json);
+            var session = Open(json);
             if (session is null)
                 return;
 
@@ -143,7 +159,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (ttl <= TimeSpan.Zero)
                 return;
 
-            await db.StringSetAsync(SessionKey(session.SessionId), JsonSerializer.Serialize(updated), ttl);
+            await db.StringSetAsync(SessionKey(session.SessionId), Seal(updated), ttl);
             _logger.LogDebug("BFF session tokens refreshed in Valkey: SessionId={SessionIdPrefix}…", sessionId[..8]);
         }
         catch (Exception ex)
@@ -163,7 +179,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (string.IsNullOrEmpty(json))
                 return;
 
-            var session = JsonSerializer.Deserialize<BffSessionRecord>(json);
+            var session = Open(json);
             if (session is null)
                 return;
 
@@ -177,7 +193,7 @@ public sealed class ValkeyBffSessionStore : IBffSessionStore
             if (ttl <= TimeSpan.Zero)
                 return;
 
-            await db.StringSetAsync(SessionKey(sessionId), JsonSerializer.Serialize(updated), ttl);
+            await db.StringSetAsync(SessionKey(sessionId), Seal(updated), ttl);
             await IndexForUserAsync(db, updated.UserId, sessionId, ttl);
             _logger.LogDebug("BFF session expiry slid in Valkey: SessionId={SessionIdPrefix}… ExpiresAt={ExpiresAt}",
                 sessionId[..8], expiresAt);
