@@ -124,11 +124,6 @@ public class ValkeyBffSessionStoreTests
     [Fact]
     public async Task Set_SealsTheRecord_AndGetOpensIt()
     {
-        RedisValue stored = default;
-        // The store's three-argument call binds to the (key, value, expiry, when) overload.
-        _db.Setup(d => d.StringSetAsync(It.IsAny<RedisKey>(), It.IsAny<RedisValue>(), It.IsAny<TimeSpan?>(), It.IsAny<When>()))
-            .Callback<RedisKey, RedisValue, TimeSpan?, When>((_, v, _, _) => stored = v)
-            .ReturnsAsync(true);
         var session = new BffSessionRecord
         {
             SessionId = "session-cccccccc",
@@ -144,6 +139,10 @@ public class ValkeyBffSessionStoreTests
 
         await _store.SetAsync(session);
 
+        // Read the value from the recorded call, whichever StringSetAsync overload it bound to.
+        var stored = (RedisValue)_db.Invocations
+            .Single(i => i.Method.Name == nameof(IDatabase.StringSetAsync) && i.Arguments[0] is RedisKey k && k == "bff:s:session-cccccccc")
+            .Arguments[1]!;
         stored.ToString().Should().StartWith("orkyoenc:").And.NotContain("the-access-token", "a copy of Valkey yields no token");
         _db.Setup(d => d.StringGetAsync("bff:s:session-cccccccc", It.IsAny<CommandFlags>())).ReturnsAsync(stored);
         (await _store.GetAsync("session-cccccccc")).Should().BeEquivalentTo(session);
