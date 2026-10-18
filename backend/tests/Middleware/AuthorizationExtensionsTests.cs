@@ -327,19 +327,6 @@ public class AuthorizationExtensionsTests
         status.Should().Be((int)HttpStatusCode.OK);
     }
 
-    [Fact]
-    public void RequireSiteAdmin_StandsAsideFromTheMembershipGate()
-    {
-        // Community resolves its single tenant on every request, admin routes included; a site
-        // admin need not be a member to reach the control plane.
-        var app = WebApplication.CreateBuilder().Build();
-        app.MapSiteAdminGroup().MapGet("/x", () => "x");
-        app.MapGet("/api/admin/y", () => "y").RequireSiteAdmin();
-        var endpoints = new CompositeEndpointDataSource(((IEndpointRouteBuilder)app).DataSources).Endpoints;
-
-        endpoints.Should().HaveCount(2).And.OnlyContain(e => e.Metadata.GetMetadata<IAllowNonMember>() != null);
-    }
-
     // ── RequireAdminArea ───────────────────────────────────────────────────
 
     [Fact]

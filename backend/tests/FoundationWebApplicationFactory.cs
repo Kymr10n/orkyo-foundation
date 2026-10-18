@@ -439,6 +439,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             await next(context);
         });
 
+        // The real membership gate, in the position UseOrkyoPipeline gives it: after the
+        // security context is populated, before any endpoint runs.
+        app.UseMiddleware<TenantMembershipMiddleware>();
         // Map every foundation endpoint through the SAME extension production uses, so the
         // test surface can never silently drift from FoundationEndpointExtensions (F1).
         app.MapFoundationEndpoints();

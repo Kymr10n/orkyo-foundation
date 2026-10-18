@@ -7,7 +7,6 @@ using Api.Services;
 using Api.Services.Caching;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Orkyo.Foundation.Tests.Middleware;
@@ -34,24 +33,13 @@ public class ContextEnrichmentMiddlewareTests
     private ContextEnrichmentMiddleware CreateMiddleware(RequestDelegate next) =>
         new(next, _mockLogger.Object, _cache);
 
-    private HttpContext CreateHttpContext(ClaimsPrincipal? user = null, TenantContext? tenantContext = null, params object[] endpointMetadata)
+    private static HttpContext CreateHttpContext(ClaimsPrincipal? user = null, TenantContext? tenantContext = null)
     {
         var context = new DefaultHttpContext();
         if (user != null) context.User = user;
         if (tenantContext != null) context.Items["TenantContext"] = tenantContext;
-        if (endpointMetadata.Length > 0)
-            context.SetEndpoint(new Endpoint(null, new EndpointMetadataCollection(endpointMetadata), "route"));
-        // The membership denial renders a problem result, which needs logging and the principal.
-        context.Response.Body = new MemoryStream();
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddSingleton<ICurrentPrincipal>(_currentPrincipal);
-        context.RequestServices = services.BuildServiceProvider();
         return context;
     }
-
-    /// <summary>A plain tenant route: no anonymous, skip-tenant or allow-non-member metadata.</summary>
-    private static readonly object[] TenantRoute = [new Microsoft.AspNetCore.Routing.EndpointNameMetadata("tenant-route")];
 
     private static ClaimsPrincipal CreateLegacyUser(Guid userId, string email = "test@example.com", string? name = "Test User")
     {
@@ -78,69 +66,11 @@ public class ContextEnrichmentMiddlewareTests
             Status = "active"
         };
 
-    private Task InvokeMiddleware(HttpContext context) => InvokeMiddleware(context, _ => Task.CompletedTask);
-
-    private Task InvokeMiddleware(HttpContext context, RequestDelegate next) =>
-        CreateMiddleware(next).InvokeAsync(
+    private Task InvokeMiddleware(HttpContext context) =>
+        CreateMiddleware(_ => Task.CompletedTask).InvokeAsync(
             context, _currentPrincipal, _currentTenant, _currentAuthContext,
             _mockIdentityLinkService.Object, _mockTenantUserService.Object,
             _mockBreakGlass.Object);
-
-    // ── Membership by default ────────────────────────────────────────────────
-
-    private HttpContext NonMemberOn(params object[] endpointMetadata)
-    {
-        var userId = Guid.NewGuid();
-        var tenant = CreateTenantContext();
-        _mockIdentityLinkService.Setup(s => s.GetUserTenantRoleAsync(userId, tenant.TenantId)).ReturnsAsync(TenantRole.None);
-        return CreateHttpContext(CreateLegacyUser(userId), tenant, endpointMetadata);
-    }
-
-    [Fact]
-    public async Task NonMember_OnATenantRoute_IsDeniedBeforeTheEndpoint()
-    {
-        var called = false;
-        var context = NonMemberOn(TenantRoute);
-
-        await InvokeMiddleware(context, _ => { called = true; return Task.CompletedTask; });
-
-        called.Should().BeFalse("membership is the default on a tenant-scoped route");
-        context.Response.StatusCode.Should().Be(StatusCodes.Status403Forbidden);
-    }
-
-    [Theory]
-    [MemberData(nameof(OptOutMetadata))]
-    public async Task NonMember_OnARouteThatOptsOut_ReachesTheEndpoint(object metadata)
-    {
-        var called = false;
-        var context = NonMemberOn(metadata);
-
-        await InvokeMiddleware(context, _ => { called = true; return Task.CompletedTask; });
-
-        called.Should().BeTrue();
-        context.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
-    }
-
-    public static TheoryData<object> OptOutMetadata => new()
-    {
-        new Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute(),
-        new SkipTenantResolutionAttribute(),
-        new AllowNonMemberAttribute(),
-    };
-
-    [Fact]
-    public async Task Member_OnATenantRoute_ReachesTheEndpoint()
-    {
-        var called = false;
-        var userId = Guid.NewGuid();
-        var tenant = CreateTenantContext();
-        _mockIdentityLinkService.Setup(s => s.GetUserTenantRoleAsync(userId, tenant.TenantId)).ReturnsAsync(TenantRole.Viewer);
-        var context = CreateHttpContext(CreateLegacyUser(userId), tenant, TenantRoute);
-
-        await InvokeMiddleware(context, _ => { called = true; return Task.CompletedTask; });
-
-        called.Should().BeTrue();
-    }
 
     [Fact]
     public async Task AnonymousUser_SetsPrincipalToAnonymous()

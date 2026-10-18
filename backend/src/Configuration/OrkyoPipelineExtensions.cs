@@ -74,6 +74,7 @@ public static class OrkyoPipelineExtensions
         if (!options.RateLimitingDisabled)
             options.PostTenantRateLimiting?.Invoke(app);
         app.UseMiddleware<ContextEnrichmentMiddleware>();
+        app.UseMiddleware<TenantMembershipMiddleware>();
         return app;
     }
 }

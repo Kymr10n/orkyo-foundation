@@ -89,7 +89,7 @@ public static class AuthorizationExtensions
     }
 
     /// <summary>
-    /// The write gate's role check. Membership is already settled: <c>ContextEnrichmentMiddleware</c>
+    /// The write gate's role check. Membership is already settled: <c>TenantMembershipMiddleware</c>
     /// denies a non-member on every tenant-scoped route, so a non-member never gets here.
     /// Returns a 403 when the role is not one of <paramref name="roles"/>, or <c>null</c> to
     /// continue. Editor-or-Admin mirrors <see cref="IAuthorizationContext.CanEdit"/>.

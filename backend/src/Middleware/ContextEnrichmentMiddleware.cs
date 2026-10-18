@@ -6,7 +6,6 @@ using Api.Security;
 using Api.Services;
 using Api.Services.Caching;
 using Api.Services.PlatformApi;
-using Microsoft.AspNetCore.Authorization;
 using Orkyo.Shared;
 
 namespace Api.Middleware;
@@ -81,19 +80,6 @@ public sealed class ContextEnrichmentMiddleware
                         principal.IsSiteAdmin);
                 currentAuthContext.SetContext(authContext);
 
-                // Membership by default: a tenant-scoped route is for members. A route that is
-                // anonymous, skips tenant resolution, or declares [AllowNonMember] is the only
-                // way past this, so a GET group that forgot its guard is no longer a cross-tenant
-                // read (saas#296).
-                if (!authContext.IsMember && RequiresMembership(context.GetEndpoint()))
-                {
-                    _logger.LogWarning(
-                        "Tenant membership check failed for user {UserId} on tenant {TenantSlug}",
-                        principal.UserId, tenantContext.TenantSlug);
-                    await AuthorizationExtensions.BuildMembershipDenial(context).ExecuteAsync(context);
-                    return;
-                }
-
                 // Step 4: Ensure user stub exists in tenant DB for FK references
                 // Tracked in-memory: skip redundant INSERT ON CONFLICT after first success
                 if (authContext.IsMember)
@@ -119,12 +105,6 @@ public sealed class ContextEnrichmentMiddleware
 
         await _next(context);
     }
-
-    private static bool RequiresMembership(Endpoint? endpoint) =>
-        endpoint is not null
-        && endpoint.Metadata.GetMetadata<IAllowAnonymous>() is null
-        && endpoint.Metadata.GetMetadata<ISkipTenantResolution>() is null
-        && endpoint.Metadata.GetMetadata<IAllowNonMember>() is null;
 
     private async Task<PrincipalContext> ResolvePrincipalAsync(
         HttpContext context,
