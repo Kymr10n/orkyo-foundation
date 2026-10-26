@@ -59,13 +59,16 @@ public static class TenantAuditEndpoints
         // Professional+ in SaaS; no-op (allow-all) in Community/foundation. Throws → 403.
         await featureGate.EnsureEnabledAsync(FeatureKeys.AuditLog, ct);
 
+        if (!AuditQuery.TryParseActorId(actorId, out var actorUserId))
+            return ErrorResponses.BadRequest("actorId must be a GUID");
+
         // The connection targets THIS tenant's database, so every row already belongs to it —
         // no tenant_id predicate (and the tenant DB's audit_events has no such column).
         var org = currentTenant.ToOrgContext();
 
         var (where, parameters) = AuditQuery.BuildWhere("a.", new AuditEventListFilter(
             Action: action,
-            ActorUserId: Guid.TryParse(actorId, out var actorGuid) ? actorGuid : null,
+            ActorUserId: actorUserId,
             TargetType: targetType,
             TargetId: null,
             FromUtc: from?.ToUniversalTime(),

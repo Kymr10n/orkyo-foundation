@@ -61,7 +61,7 @@ public class TenantMiddlewareOptions
         if (!string.IsNullOrEmpty(SubdomainPrefix))
         {
             var prefix = SubdomainPrefix.ToLowerInvariant();
-            return subdomain.StartsWith(prefix) ? subdomain[prefix.Length..] : null;
+            return subdomain.Length > prefix.Length && subdomain.StartsWith(prefix) ? subdomain[prefix.Length..] : null;
         }
 
         return subdomain;

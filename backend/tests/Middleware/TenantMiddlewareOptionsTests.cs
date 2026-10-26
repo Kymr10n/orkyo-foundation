@@ -123,4 +123,24 @@ public class TenantMiddlewareOptionsTests
 
         slug.Should().Be("acme");
     }
+
+    [Fact]
+    public void ExtractSlugFromHost_ReturnsNull_WhenTheHostIsOnlyThePrefix()
+    {
+        // "staging-.orkyo.com" starts with the prefix and nothing follows: no slug, not an empty one.
+        var options = new TenantMiddlewareOptions { BaseDomain = "orkyo.com", SubdomainPrefix = "staging-" };
+
+        options.ExtractSlugFromHost("staging-.orkyo.com").Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("orkyo.com.evil.test")]
+    [InlineData("notorkyo.com")]
+    [InlineData("acme.orkyo.com.evil.test")]
+    public void ExtractSlugFromHost_ReturnsNull_ForALookalikeHost(string host)
+    {
+        var options = new TenantMiddlewareOptions { BaseDomain = "orkyo.com" };
+
+        options.ExtractSlugFromHost(host).Should().BeNull();
+    }
 }

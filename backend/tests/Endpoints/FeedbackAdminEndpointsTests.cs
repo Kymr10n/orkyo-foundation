@@ -114,11 +114,13 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
         root.GetProperty("pageSize").GetInt32().Should().Be(100);
     }
 
-    [Fact]
-    public async Task List_InvalidStatusFilter_Returns400()
+    [Theory]
+    [InlineData("status=archived")]
+    [InlineData("type=complaint")]
+    public async Task List_AnUnknownFilterValue_Returns400(string query)
     {
         var token = await CreateUserTokenAsync(siteAdmin: true);
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/feedback?status=archived", token));
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/feedback?{query}", token));
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -196,5 +198,24 @@ public class FeedbackAdminEndpointsTests : IAsyncLifetime
         var token = await CreateUserTokenAsync(siteAdmin: true);
         var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Patch, $"/api/admin/feedback/{Guid.NewGuid()}", token, new { status = "reviewed" }));
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Patch_WithTheStatusUnchanged_WritesNoAuditRow()
+    {
+        var id = await SubmitAsync();
+        var token = await CreateUserTokenAsync(siteAdmin: true);
+
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Patch, $"/api/admin/feedback/{id}", token,
+            new { status = "new", adminNotes = "Still new." }));
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await StatusOfAsync(id)).Should().Be("new");
+
+        await using var conn = new NpgsqlConnection(_conn);
+        await conn.OpenAsync();
+        await using var ac = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM audit_events WHERE action = 'feedback.status_changed' AND target_id = @id", conn);
+        ac.Parameters.AddWithValue("id", id.ToString());
+        Convert.ToInt32(await ac.ExecuteScalarAsync()).Should().Be(0);
     }
 }

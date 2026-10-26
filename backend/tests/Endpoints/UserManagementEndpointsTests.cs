@@ -574,4 +574,45 @@ public class UserManagementEndpointsTests
 
     #endregion
 
+    #region Self and outside-tenant guards
+
+    private async Task<string?> RoleOfAsync(Guid userId)
+    {
+        await using var conn = new NpgsqlConnection(_connString);
+        await conn.OpenAsync();
+        await using var read = new NpgsqlCommand(
+            "SELECT role FROM tenant_memberships WHERE user_id = @uid AND tenant_id = @tid", conn);
+        read.Parameters.AddWithValue("uid", userId);
+        read.Parameters.AddWithValue("tid", TestTenantId);
+        return (string?)await read.ExecuteScalarAsync();
+    }
+
+    [Fact]
+    public async Task UpdateUserRole_ForYourself_Returns400AndKeepsTheRole()
+    {
+        var response = await _client.PatchAsJsonAsync(
+            $"/api/users/{TestConstants.UserId}/role", new UpdateUserRoleRequest(UserRole.Viewer), _jsonOptions);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(RoleConstants.Admin, await RoleOfAsync(TestConstants.UserId));
+    }
+
+    [Fact]
+    public async Task DeleteUser_Yourself_Returns400AndKeepsTheMembership()
+    {
+        var response = await _client.DeleteAsync($"/api/users/{TestConstants.UserId}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(RoleConstants.Admin, await RoleOfAsync(TestConstants.UserId));
+    }
+
+    [Fact]
+    public async Task DeleteUser_ForAUserWhoIsNotAMember_Returns404()
+    {
+        var response = await _client.DeleteAsync($"/api/users/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    #endregion
 }

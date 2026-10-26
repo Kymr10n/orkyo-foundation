@@ -225,4 +225,37 @@ public class SettingsAdminEndpointsTests
         var body = await getResp.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(uniqueName, body.GetProperty("runtime").GetProperty("brandingName").GetString());
     }
+
+    [Fact]
+    public async Task UpdateSettings_UnknownKeyBesideAValidOne_Returns400AndAppliesNothing()
+    {
+        var (userId, token) = await DatabaseTestUtils.CreateLinkedUserAsync("settings-admin", siteAdmin: true);
+        var before = $"Before-{Guid.NewGuid():N}";
+        var seed = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
+        {
+            settings = new Dictionary<string, string> { ["BrandingName"] = before }
+        }));
+        Assert.Equal(HttpStatusCode.OK, seed.StatusCode);
+
+        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/admin/settings", token, new
+        {
+            settings = new Dictionary<string, string>
+            {
+                ["BrandingName"] = "Should-Not-Apply",
+                ["NonExistentSetting"] = "value",
+            }
+        }));
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var current = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/settings", token));
+        var body = await current.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(before, body.GetProperty("runtime").GetProperty("brandingName").GetString());
+
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT COUNT(*) FROM audit_events WHERE actor_user_id = @userId AND action = 'settings.updated'", conn);
+        cmd.Parameters.AddWithValue("userId", userId);
+        Assert.Equal(1L, await cmd.ExecuteScalarAsync());
+    }
 }

@@ -136,4 +136,15 @@ public class AuditEndpointsTests
         Assert.Contains(events, e => e.GetProperty("id").GetGuid() == id);
         Assert.All(events, e => Assert.InRange(e.GetProperty("createdAt").GetDateTime().ToUniversalTime(), from, to));
     }
+
+    [Fact]
+    public async Task GetAuditEvents_WithAMalformedActorId_Returns400()
+    {
+        // An unparseable filter must not silently widen the query to every actor.
+        var token = (await DatabaseTestUtils.CreateLinkedUserAsync("audit-admin", siteAdmin: true)).Token;
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/audit?actorId=not-a-guid", token));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }
