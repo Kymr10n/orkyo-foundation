@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// and nothing else, so these tests assert the contract at the boundary: what is accepted, what
 /// is refused, and that no session is needed.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ClientErrorEndpointsTests
 {

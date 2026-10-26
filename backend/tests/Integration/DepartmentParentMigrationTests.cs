@@ -16,6 +16,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// The SQL is read from the embedded migration rather than restated here. A copy would prove the
 /// copy works.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class DepartmentParentMigrationTests
 {

@@ -7,6 +7,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// <summary>
 /// Verifies exclusive allocation rules for Tool resources end-to-end via HTTP.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ToolResourceAllocationTests
 {

@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Integration tests for Preset endpoints.
 /// Tests the complete preset import/export/apply workflow.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class PresetEndpointsTests
 {

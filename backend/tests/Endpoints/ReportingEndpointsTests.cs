@@ -17,6 +17,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests for reporting token CRUD, auth security, parameter validation, tenant isolation,
 /// CSV export coverage, audit logging, and role enforcement.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ReportingEndpointsTests
 {

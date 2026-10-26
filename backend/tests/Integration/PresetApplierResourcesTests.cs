@@ -15,6 +15,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// preset here uses a fresh id and fresh names, so nothing collides between tests; nothing is
 /// deleted.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class PresetApplierResourcesTests : IAsyncLifetime
 {
@@ -195,6 +196,7 @@ public sealed class PresetApplierResourcesTests : IAsyncLifetime
 /// The once-only rule a host relies on: applying a starter template at every start must leave a
 /// database with exactly one application row and untouched edits after the first run.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class StarterTemplateServiceOnceOnlyTests
 {

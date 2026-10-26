@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Configuration;
 /// Description into a payload that is scraped from outside the host, so a failing probe
 /// must not disclose the server, database, user, or driver internals.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class PostgresHealthCheckTests(DatabaseFixture fixture)
 {

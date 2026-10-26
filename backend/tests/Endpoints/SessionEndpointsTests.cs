@@ -24,6 +24,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// earliest possible point — rather than silently producing wrong runtime
 /// values.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SessionEndpointsTests
 {

@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// and data type never change once cells could exist behind them, and that deleting either a
 /// definition in use or a column with data does the safe thing rather than the convenient one.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ListDefinitionEndpointsTests
 {

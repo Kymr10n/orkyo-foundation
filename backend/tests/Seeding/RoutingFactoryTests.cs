@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Seeding;
 ///
 /// Everything runs inside a rolled-back transaction so the shared DB stays clean.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RoutingFactoryTests
 {

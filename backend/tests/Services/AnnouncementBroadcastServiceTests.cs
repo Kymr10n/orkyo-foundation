@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// Integration tests for <see cref="AnnouncementBroadcastService"/> — the worker path that emails the
 /// 'email' channel of announcements to all active, non-opted-out users (then marks them sent).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AnnouncementBroadcastServiceTests
 {

@@ -200,7 +200,11 @@ case "$PRODUCT_REPO" in
   *) TEST_POSTGRES_PORT=5449 ;;
 esac
 TEST_POSTGRES_CONTAINER="orkyo-test-postgres-${PRODUCT_REPO#orkyo-}"
-FAST_TEST_FILTER="(FullyQualifiedName~.Architecture.|FullyQualifiedName~ConventionContract|FullyQualifiedName~PublicEndpointTenantSkip)&FullyQualifiedName!~RouteInventory&FullyQualifiedName!~AuthorizationContract"
+# Every test that does not need a database. The fixture collections carry
+# [Trait("Category", "Database")] (TestSupport.TestCategories; DatabaseTraitContractTests keeps
+# the two in step), so the fast run is the whole suite minus them: unit tests, policies,
+# validators and the architecture ratchets, with no server to start.
+FAST_TEST_FILTER="Category!=Database"
 
 ensure_test_postgres() {
   docker rm -f "$TEST_POSTGRES_CONTAINER" >/dev/null 2>&1 || true
@@ -243,7 +247,7 @@ cmd_check() {
 
   if $fast; then
     check_step backend-ci "build" dotnet build "$sln" -c Release -warnaserror --nologo -v q
-    check_step backend-ci "architecture tests (no database)" dotnet test "$sln" -c Release --no-build --nologo --filter "$FAST_TEST_FILTER"
+    check_step backend-ci "tests that need no database" dotnet test "$sln" -c Release --no-build --nologo --filter "$FAST_TEST_FILTER"
     success "fast check passed"
     return 0
   fi

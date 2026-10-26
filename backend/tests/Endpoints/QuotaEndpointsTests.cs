@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// admin-area; an authenticated admin must reach the handler (not a routing 404),
 /// and an unauthenticated caller must be rejected.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class QuotaEndpointsTests
 {

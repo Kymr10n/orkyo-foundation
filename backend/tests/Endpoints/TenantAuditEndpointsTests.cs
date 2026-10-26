@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// physically (no tenant_id filter). The site-admin /api/admin/audit (control-plane, all
 /// tenants) is covered separately in <see cref="AuditEndpointsTests"/>.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class TenantAuditEndpointsTests
 {

@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// Running ApplyAsync exercises every statement against the live schema (catching any SQL error);
 /// the assertions cover the space-immovable and person-distribution effects.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SiteModelFactoryTests
 {

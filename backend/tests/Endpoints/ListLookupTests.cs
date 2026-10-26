@@ -17,6 +17,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// editing a shared row is seen by every resource that picked it, and deleting one takes the id
 /// out of every value that referenced it rather than leaving a dangling pointer.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ListLookupTests
 {

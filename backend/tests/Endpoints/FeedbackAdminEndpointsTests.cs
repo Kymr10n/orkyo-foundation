@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// (GET/PATCH /api/admin/feedback) against the real control-plane DB.
 /// Feedback is created through the public submit endpoint (which now writes to control-plane).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class FeedbackAdminEndpointsTests : IAsyncLifetime
 {

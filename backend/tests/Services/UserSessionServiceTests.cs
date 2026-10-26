@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Orkyo.Foundation.Tests.Services;
 
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UserSessionServiceTests
 {

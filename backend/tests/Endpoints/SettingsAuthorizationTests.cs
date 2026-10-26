@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// writable by Editor+ — these tests lock that contract so the role gate can't silently
 /// regress (e.g. the criterion-applicability PUT that was previously admin-only).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SettingsAuthorizationTests
 {

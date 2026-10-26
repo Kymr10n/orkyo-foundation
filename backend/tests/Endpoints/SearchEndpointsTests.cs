@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests for Global Search endpoint.
 /// Verifies fuzzy search, tenant isolation, and permission handling.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SearchEndpointsTests
 {

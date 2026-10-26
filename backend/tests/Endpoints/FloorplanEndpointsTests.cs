@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// <summary>
 /// Integration tests for DB-backed floorplan endpoints.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class FloorplanEndpointsTests
 {

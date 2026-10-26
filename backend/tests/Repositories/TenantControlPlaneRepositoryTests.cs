@@ -14,6 +14,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// 0.8.0. Ports the triplet flows' behavior contracts (not-found → null, NULL owner
 /// handling, no-rows scalar semantics, membership ordering) onto the repository.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class TenantControlPlaneRepositoryTests
 {

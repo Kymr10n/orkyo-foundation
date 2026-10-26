@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// Verifies sites.description / sites.address are encrypted at rest (stored as
 /// Orkyo envelopes) yet returned as plaintext through the repository.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SiteRepositoryEncryptionTests
 {

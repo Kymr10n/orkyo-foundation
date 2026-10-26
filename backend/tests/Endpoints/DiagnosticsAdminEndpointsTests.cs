@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// GET /api/version — public version info (no auth required).
 /// GET /api/admin/diagnostics — full platform diagnostics (site-admin only).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class DiagnosticsAdminEndpointsTests
 {

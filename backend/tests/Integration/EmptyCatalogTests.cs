@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// deactivate every placeable type for the duration, which no test sharing a database with
 /// others could do safely. The flag is restored in a finally, and nothing is deleted.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class EmptyCatalogTests
 {

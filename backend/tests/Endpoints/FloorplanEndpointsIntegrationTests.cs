@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Integration tests for Floorplan endpoints that go through the full middleware pipeline.
 /// Verifies that a Bearer token is required for protected endpoints.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class FloorplanEndpointsIntegrationTests
 {

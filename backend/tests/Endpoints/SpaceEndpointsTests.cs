@@ -15,6 +15,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// site-scoped list. What deliberately did not move is the site-scoped 404 on writes — the
 /// generic routes address a resource by id, so the site is no longer in the path.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SpaceEndpointsTests
 {

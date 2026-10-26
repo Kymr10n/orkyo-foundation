@@ -44,6 +44,7 @@ public class NpgsqlQueryExtensionsAllowlistTests
     }
 }
 
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class NpgsqlQueryExtensionsIntegrationTests
 {

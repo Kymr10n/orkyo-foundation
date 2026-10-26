@@ -14,6 +14,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// (migration 1680) — criteria absorbed its job, so its coverage moved here rather than being
 /// deleted with it.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceCapabilityValueTests
 {

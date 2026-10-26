@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// chain (a refused instantiation leaves no rows), and the leaves' requirements and edges as
 /// the request endpoints read them back.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RoutingEndpointsTests
 {

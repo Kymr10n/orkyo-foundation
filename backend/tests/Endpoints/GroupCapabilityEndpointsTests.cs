@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Routes: /api/resource-groups/{groupId}/capabilities
 /// Requires authentication and tenant membership.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class GroupCapabilityEndpointsTests
 {

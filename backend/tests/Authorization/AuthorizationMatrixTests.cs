@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Authorization;
 /// Allowed cases assert "not 403" (the request may still 400/404 on body/state — we only care that
 /// the authorization gate let it through); denied cases assert exactly 403.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AuthorizationMatrixTests
 {

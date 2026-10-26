@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// (<c>tenants</c>, <c>tenant_memberships</c>, <c>service_tier</c>) are intentionally
 /// absent — those smoke tests live in <c>orkyo-saas/backend/tests</c>.
 /// </remarks>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class MigrationHarnessSmokeTests
 {

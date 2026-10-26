@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// failing transport leaves it pending with a later attempt, the attempt limit kills it, and
 /// a row another sender holds is not sent twice.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class EmailOutboxDelivererTests
 {

@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// connection factory + foundation migrations + foundation query contracts all
 /// operate on the same real Postgres schema.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class TenantUserServiceIntegrationTests
 {

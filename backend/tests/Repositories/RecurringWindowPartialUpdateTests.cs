@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// old read-merge-write rewrote every column from a read taken before the UPDATE, so a
 /// concurrent change to another field committed in between was silently undone.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RecurringWindowPartialUpdateTests(DatabaseFixture fixture)
 {

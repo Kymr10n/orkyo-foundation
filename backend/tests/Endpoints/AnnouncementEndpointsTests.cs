@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests GET/POST/PUT/DELETE /api/admin/announcements against the real DB.
 /// All endpoints require authentication + site-admin realm role.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AnnouncementEndpointsTests
 {

@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// The values resources carry for their type's custom fields: typing, requiredness, and the
 /// replace-vs-untouched semantics of an update.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceCustomFieldValueTests
 {

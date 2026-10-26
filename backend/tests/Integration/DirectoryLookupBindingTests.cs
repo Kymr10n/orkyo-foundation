@@ -16,6 +16,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// Runs against the isolated integration database: the setup renames a shared list, which no test
 /// sharing a database with others could do safely. The name is restored in a finally.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class DirectoryLookupBindingTests
 {

@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// GetUnscheduledAsync narrowed to start_ts IS NULL. Rows are created over the HTTP stack (real
 /// create/schedule paths); the query is exercised against the resolved repository.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestRepositoryPartialScheduleTests
 {

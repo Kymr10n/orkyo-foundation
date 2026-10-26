@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// somebody's working notes, so another member reading it — or overwriting it by guessing
 /// an id — would be a real breach, not an inconvenience.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AiConversationRepositoryTests
 {

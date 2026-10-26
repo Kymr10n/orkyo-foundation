@@ -70,6 +70,7 @@ public class UserHelperTests
 /// Integration tests for <see cref="UserHelper.MapUser"/>.
 /// Uses literal SELECT queries so tests are independent of specific seeded rows.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UserHelperMapUserTests
 {

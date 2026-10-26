@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests for Feedback endpoints.
 /// POST /api/feedback requires authentication and tenant membership.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class FeedbackEndpointsTests
 {

@@ -7,6 +7,7 @@ using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AccountEmailChangeEndpointsTests
 {

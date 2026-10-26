@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests for Request CRUD endpoints.
 /// Uses unique identifiers to prevent test conflicts.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestEndpointsTests
 {

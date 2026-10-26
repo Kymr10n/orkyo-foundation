@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// validator rejects a percent on Exclusive resources), holidays/shutdowns + absences exist, and
 /// conflicts are only the small injected set.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public class NarrativeYearSeederTests
 {

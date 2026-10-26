@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// <c>IKeycloakAdminService</c> (mocked) and emails through <c>IEmailService</c> (mocked) —
 /// the service no longer maintains a private Keycloak client or SMTP stack.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UserLifecycleServiceTests
 {

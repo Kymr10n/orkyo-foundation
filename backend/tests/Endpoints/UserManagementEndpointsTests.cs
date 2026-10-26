@@ -23,6 +23,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Public endpoints (GET /api/invitations/validate, POST /api/invitations/accept) are anonymous.
 /// Note: Full invite/accept flow is tested in InvitationEndpointsTests.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UserManagementEndpointsTests
 {

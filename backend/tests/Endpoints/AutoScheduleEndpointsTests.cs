@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests for AutoSchedule endpoints (preview + apply).
 /// These endpoints require authentication and tenant membership.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AutoScheduleEndpointsTests
 {

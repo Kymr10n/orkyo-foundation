@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// editor. Requests are seeded directly — a dependency is about order, not placement, and these
 /// tests set dates explicitly where "done" has to mean something.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestPlanEndpointTests
 {

@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// the resource), cell validation against the definition's columns, and the delete rules —
 /// deleting a resource must take its list data with it.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ListRowTests
 {

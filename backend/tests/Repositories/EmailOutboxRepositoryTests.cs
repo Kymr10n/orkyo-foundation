@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// lease, delivery clears the bodies that carry live tokens, a failure reschedules or kills
 /// the row, and pruning touches only settled rows.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class EmailOutboxRepositoryTests
 {

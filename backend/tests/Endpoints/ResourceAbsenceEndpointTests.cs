@@ -4,6 +4,7 @@ using Api.Models;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
 
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceAbsenceEndpointTests
 {

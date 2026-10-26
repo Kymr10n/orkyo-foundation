@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Seeding;
 /// tools are part of the default seed. Without the targets every request fails the scheduled
 /// predicate forever, so utilization and insights come up empty on a fresh demo.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestTargetSeedingTests
 {

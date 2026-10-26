@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// <c>assets.data</c> are an Orkyo envelope, never plaintext) and decrypt
 /// byte-identically on read.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AssetRepositoryEncryptionTests
 {

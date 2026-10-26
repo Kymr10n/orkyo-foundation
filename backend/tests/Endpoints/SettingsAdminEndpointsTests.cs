@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// GET /api/admin/settings — returns runtime + deployment + system info.
 /// PUT /api/admin/settings — updates runtime settings with audit trail.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SettingsAdminEndpointsTests
 {

@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// removes edges with their endpoints. Requests are seeded directly so no scheduling is
 /// implied — an edge is about order, not placement.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestDependencyEndpointsTests
 {

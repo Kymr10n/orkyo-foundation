@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints.Ai;
 /// participates in a turn, so the shape guard matters more than the storage: a conversation
 /// saved with the wrong shape would restore into a broken panel rather than fail here.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AiConversationEndpointsTests
 {
