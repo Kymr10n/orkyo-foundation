@@ -138,6 +138,12 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.FromResult(ExecuteActionsEmailResult);
     }
 
+    /// <summary>
+    /// The status the disable/enable/delete failures carry (502 unless set). 404 reaches the
+    /// endpoints' "already gone from the identity provider" branch.
+    /// </summary>
+    public int? UserMutationErrorStatusCode { get; set; }
+
     // ── Disable user ──────────────────────────────────────────────
     public bool DisableUserSuccess { get; set; } = true;
     public string? DisableUserError { get; set; }
@@ -149,7 +155,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         DisableUserCallCount++;
         LastDisabledKeycloakId = keycloakId;
         if (!DisableUserSuccess)
-            throw new KeycloakAdminException(DisableUserError ?? "Failed to disable user");
+            throw new KeycloakAdminException(DisableUserError ?? "Failed to disable user", UserMutationErrorStatusCode ?? StatusCodes.Status502BadGateway);
         return Task.CompletedTask;
     }
 
@@ -164,7 +170,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         EnableUserCallCount++;
         LastEnabledKeycloakId = keycloakId;
         if (!EnableUserSuccess)
-            throw new KeycloakAdminException(EnableUserError ?? "Failed to enable user");
+            throw new KeycloakAdminException(EnableUserError ?? "Failed to enable user", UserMutationErrorStatusCode ?? StatusCodes.Status502BadGateway);
         return Task.CompletedTask;
     }
 
@@ -179,7 +185,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         DeleteUserCallCount++;
         LastDeletedKeycloakId = keycloakId;
         if (!DeleteUserSuccess)
-            throw new KeycloakAdminException(DeleteUserError ?? "Failed to delete user");
+            throw new KeycloakAdminException(DeleteUserError ?? "Failed to delete user", UserMutationErrorStatusCode ?? StatusCodes.Status502BadGateway);
         return Task.CompletedTask;
     }
 
@@ -363,6 +369,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
     public void Reset()
     {
+        UserMutationErrorStatusCode = null;
         ChangePasswordSuccess = true;
         ChangePasswordError = null;
         VerifyPasswordSuccess = true;

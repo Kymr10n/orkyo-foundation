@@ -357,6 +357,43 @@ public class UserAdminEndpointsTests
     }
 
     [Fact]
+    public async Task DeactivateUser_WhenKeycloakNoLongerHasTheUser_StillDisablesTheUser()
+    {
+        // 404 from the identity provider means the account is already gone there; the
+        // platform status and the audit row must still be written.
+        ResetKeycloak();
+        _fixture.Factory.MockKeycloakAdminService.DisableUserSuccess = false;
+        _fixture.Factory.MockKeycloakAdminService.UserMutationErrorStatusCode = 404;
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-gone");
+        var (adminId, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-gone-admin", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/deactivate", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(UserStatusConstants.Disabled, await GetStatusAsync(targetId));
+        Assert.Equal(1, await CountAuditAsync(SecurityAuditActions.UserDeactivated, adminId, targetId));
+    }
+
+    [Fact]
+    public async Task DeleteUser_WhenKeycloakNoLongerHasTheUser_StillDeletesTheUser()
+    {
+        ResetKeycloak();
+        _fixture.Factory.MockKeycloakAdminService.DeleteUserSuccess = false;
+        _fixture.Factory.MockKeycloakAdminService.UserMutationErrorStatusCode = 404;
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-del-gone");
+        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-del-gone-admin", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/admin/users/{targetId}", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Null(await GetStatusAsync(targetId));
+    }
+
+    [Fact]
     public async Task DeleteUser_WhenKeycloakFails_ReturnsAnErrorAndKeepsTheUser()
     {
         ResetKeycloak();
