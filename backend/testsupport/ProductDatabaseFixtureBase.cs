@@ -39,7 +39,7 @@ public abstract class ProductDatabaseFixtureBase<TProgram, TFactory>
     /// <summary>The product's factory, started by <see cref="InitializeAsync"/>.</summary>
     public TFactory Factory { get; private set; } = null!;
 
-    /// <summary>True when the CI service container on port 5432 is used instead of a local server.</summary>
+    /// <summary>True when an external server (<c>CI=true</c> with <c>ConnectionStrings__Postgres</c>) is used instead of Testcontainers; see <see cref="TestDatabase.UseCiDatabase"/>.</summary>
     protected static bool UseCiDatabase => TestDatabase.UseCiDatabase;
 
     /// <summary>Starts the product's local PostgreSQL server (not called in CI).</summary>

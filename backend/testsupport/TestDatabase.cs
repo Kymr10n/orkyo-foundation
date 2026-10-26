@@ -7,13 +7,17 @@ using Orkyo.Shared;
 namespace Orkyo.Foundation.TestSupport;
 
 /// <summary>
-/// The database bootstrap steps every test fixture repeats: whether the CI service container
+/// The database bootstrap steps every test fixture repeats: whether an external server
 /// serves the run, creating a database once, and a migration runner over a module set.
 /// <see cref="ProductDatabaseFixtureBase{TProgram, TFactory}"/> and foundation's own fixtures use them.
 /// </summary>
 public static class TestDatabase
 {
-    /// <summary>True when the CI service container on port 5432 serves the run (<c>CI=true</c> with <c>ConnectionStrings__Postgres</c> set).</summary>
+    /// <summary>
+    /// True when an external server serves the run: <c>CI=true</c> with <c>ConnectionStrings__Postgres</c>
+    /// set. That is the Postgres service container in a GitHub Actions job that declares one, or the
+    /// server <c>./dev.sh check</c> starts locally. Without both, the fixture starts Testcontainers.
+    /// </summary>
     public static bool UseCiDatabase =>
         Environment.GetEnvironmentVariable("CI") == "true"
         && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(ConfigKeys.ConnectionStringPostgresEnvVar));
