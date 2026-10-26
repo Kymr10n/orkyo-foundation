@@ -189,8 +189,8 @@ public class KeycloakAdminService : IKeycloakAdminService
         var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
             $"users/{userId}/credentials", token, "Failed to retrieve MFA status", ct) ?? new();
 
-        var totpCred = credentials.FirstOrDefault(c => c.Type == "otp");
-        var recoveryCred = credentials.FirstOrDefault(c => c.Type == "recovery-authn-codes");
+        var totpCred = credentials.FirstOrDefault(c => c.Type == KeycloakCredentialTypes.Totp);
+        var recoveryCred = credentials.FirstOrDefault(c => c.Type == KeycloakCredentialTypes.RecoveryCodes);
 
         return new MfaStatus
         {
@@ -205,15 +205,15 @@ public class KeycloakAdminService : IKeycloakAdminService
         };
     }
 
-    public async Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default)
+    public async Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, string expectedType, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-        // Verify the credential belongs to this user before deleting. Fails closed: when the
-        // list cannot be read, nothing is deleted.
+        // Verify the credential belongs to this user and is the kind the caller is removing.
+        // Fails closed: when the list cannot be read, nothing is deleted.
         var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
             $"users/{userId}/credentials", token, "Failed to verify credential ownership", ct) ?? new();
-        if (!credentials.Any(c => c.Id == credentialId))
+        if (!credentials.Any(c => c.Id == credentialId && c.Type == expectedType))
         {
             throw new KeycloakAdminException("Credential not found for this user", 404);
         }
@@ -231,7 +231,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             $"users/{userId}/credentials", token, "Failed to retrieve passkeys", ct) ?? new();
 
         return credentials
-            .Where(c => c.Type == "webauthn-passwordless" && !string.IsNullOrEmpty(c.Id))
+            .Where(c => c.Type == KeycloakCredentialTypes.Passkey && !string.IsNullOrEmpty(c.Id))
             .OrderBy(c => c.CreatedDate)
             .Select(c => new PasskeyCredential
             {
@@ -244,14 +244,14 @@ public class KeycloakAdminService : IKeycloakAdminService
             .ToList();
     }
 
-    public async Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default)
+    public async Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, string expectedType, CancellationToken ct = default)
     {
         var (token, userId) = await ResolveUserAsync(keycloakSub, ct);
 
-        // Same ownership check as DeleteUserCredentialAsync: fails closed.
+        // Same ownership and type check as DeleteUserCredentialAsync: fails closed.
         var credentials = await GetAdminJsonAsync<List<KeycloakCredential>>(
             $"users/{userId}/credentials", token, "Failed to verify credential ownership", ct) ?? new();
-        if (!credentials.Any(c => c.Id == credentialId))
+        if (!credentials.Any(c => c.Id == credentialId && c.Type == expectedType))
         {
             throw new KeycloakAdminException("Credential not found for this user", 404);
         }

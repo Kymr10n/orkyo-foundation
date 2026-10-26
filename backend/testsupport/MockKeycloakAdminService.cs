@@ -201,11 +201,13 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public string? DeleteCredentialError { get; set; }
     public int DeleteCredentialCallCount { get; private set; }
     public string? LastDeletedCredentialId { get; private set; }
+    public string? LastDeletedCredentialType { get; private set; }
 
-    public Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default)
+    public Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, string expectedType, CancellationToken ct = default)
     {
         DeleteCredentialCallCount++;
         LastDeletedCredentialId = credentialId;
+        LastDeletedCredentialType = expectedType;
         if (!DeleteCredentialSuccess)
             throw new KeycloakAdminException(DeleteCredentialError ?? "Failed to remove credential");
         return Task.CompletedTask;
@@ -224,11 +226,13 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public bool RenameCredentialSuccess { get; set; } = true;
     public int RenameCredentialCallCount { get; private set; }
     public (string CredentialId, string Label) LastRenameCall { get; private set; }
+    public string? LastRenamedCredentialType { get; private set; }
 
-    public Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default)
+    public Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, string expectedType, CancellationToken ct = default)
     {
         RenameCredentialCallCount++;
         LastRenameCall = (credentialId, label);
+        LastRenamedCredentialType = expectedType;
         if (!RenameCredentialSuccess)
             throw new KeycloakAdminException("Credential not found for this user", 404);
         return Task.CompletedTask;

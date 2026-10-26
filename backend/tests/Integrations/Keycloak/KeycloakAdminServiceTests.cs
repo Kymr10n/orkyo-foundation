@@ -647,7 +647,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("pk-1", "webauthn-passwordless")),
         ])));
 
-        await svc.RenameCredentialAsync("kc-user-id", "pk-1", "Work laptop");
+        await svc.RenameCredentialAsync("kc-user-id", "pk-1", "Work laptop", KeycloakCredentialTypes.Passkey);
 
         var rename = handler.Requests.Single(r => r.Method == HttpMethod.Put);
         rename.RequestUri!.AbsolutePath.Should().EndWith("/users/kc-user-id/credentials/pk-1/userLabel");
@@ -663,7 +663,23 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("someone-elses", "webauthn-passwordless")),
         ])));
 
-        var act = () => svc.RenameCredentialAsync("kc-user-id", "pk-1", "Mine now");
+        var act = () => svc.RenameCredentialAsync("kc-user-id", "pk-1", "Mine now", KeycloakCredentialTypes.Passkey);
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Put);
+    }
+
+    [Fact]
+    public async Task RenameCredentialAsync_Throws404AndSendsNothing_WhenTheCredentialIsAnotherType()
+    {
+        // The id is the user's, but it names a password credential: the passkey route must not touch it.
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
+            ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("pw-1", "password")),
+        ])));
+
+        var act = () => svc.RenameCredentialAsync("kc-user-id", "pw-1", "Mine now", KeycloakCredentialTypes.Passkey);
 
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
@@ -671,6 +687,23 @@ public class KeycloakAdminServiceTests
     }
 
     // ── DeleteUserCredentialAsync ──────────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteUserCredentialAsync_Throws404AndSendsNoDelete_WhenTheCredentialIsAnotherType()
+    {
+        // Ownership alone is not enough: a TOTP credential id handed to the passkey route stays.
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
+            ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("otp-1", KeycloakCredentialTypes.Totp)),
+            ("/users/kc-user-id/credentials/otp-1", HttpStatusCode.NoContent, ""),
+        ])));
+
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "otp-1", KeycloakCredentialTypes.Passkey);
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Delete);
+    }
 
     [Fact]
     public async Task DeleteUserCredentialAsync_Succeeds_WhenCredentialBelongsToUser()
@@ -683,7 +716,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials/cred-abc", HttpStatusCode.NoContent, "") // delete
         }));
 
-        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc");
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc", KeycloakCredentialTypes.Totp);
         await act.Should().NotThrowAsync();
     }
 
@@ -697,7 +730,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.OK, credJson)
         }));
 
-        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "missing-cred");
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "missing-cred", KeycloakCredentialTypes.Totp);
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
     }
@@ -710,7 +743,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.InternalServerError, "")
         })));
 
-        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc");
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc", KeycloakCredentialTypes.Totp);
 
         await act.Should().ThrowAsync<KeycloakAdminException>();
         handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Delete,

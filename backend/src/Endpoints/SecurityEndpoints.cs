@@ -254,10 +254,10 @@ public static class SecurityEndpoints
                 var status = await keycloakService.GetMfaStatusAsync(sub, ct);
                 if (!status.TotpEnabled || string.IsNullOrEmpty(status.TotpCredentialId))
                     return ErrorResponses.BadRequest("MFA is not enabled");
-                await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, ct);
+                await keycloakService.DeleteUserCredentialAsync(sub, status.TotpCredentialId, KeycloakCredentialTypes.Totp, ct);
                 if (status.RecoveryCodesConfigured && !string.IsNullOrEmpty(status.RecoveryCodesCredentialId))
                 {
-                    try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, ct); }
+                    try { await keycloakService.DeleteUserCredentialAsync(sub, status.RecoveryCodesCredentialId, KeycloakCredentialTypes.RecoveryCodes, ct); }
                     catch (KeycloakAdminException ex) { logger.LogWarning(ex, "Failed to remove recovery codes for user {Sub}", sub); }
                 }
                 logger.LogInformation("MFA removed for user {Sub}", sub);
@@ -305,7 +305,7 @@ public static class SecurityEndpoints
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
                 var sub = principal.RequireExternalSubject();
-                await keycloakService.RenameCredentialAsync(sub, credentialId, request.Label!.Trim(), ct);
+                await keycloakService.RenameCredentialAsync(sub, credentialId, request.Label!.Trim(), KeycloakCredentialTypes.Passkey, ct);
                 return Results.NoContent();
             }, logger, "rename passkey");
         })
@@ -331,7 +331,7 @@ public static class SecurityEndpoints
                 var sub = principal.RequireExternalSubject();
                 // Same rule as removing MFA: a session alone must not remove a way to sign in.
                 await keycloakService.VerifyCurrentPasswordAsync(sub, request.CurrentPassword!, request.CurrentCode, ct);
-                await keycloakService.DeleteUserCredentialAsync(sub, credentialId, ct);
+                await keycloakService.DeleteUserCredentialAsync(sub, credentialId, KeycloakCredentialTypes.Passkey, ct);
                 logger.LogInformation("Passkey {CredentialId} removed for user {Sub}", credentialId, sub);
                 var (email, name) = (principal.Email, principal.DisplayName ?? principal.Email);
                 background.Dispatch<IEmailService>("passkey-removed mail",

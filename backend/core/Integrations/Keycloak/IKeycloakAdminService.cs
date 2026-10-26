@@ -90,9 +90,12 @@ public interface IKeycloakAdminService
     Task<MfaStatus> GetMfaStatusAsync(string keycloakSub, CancellationToken ct = default);
 
     /// <summary>
-    /// Delete a specific credential for a user (e.g., remove TOTP to allow re-enrollment).
+    /// Delete a specific credential for a user (e.g., remove TOTP to allow re-enrollment). Throws 404
+    /// unless the credential is the user's and of <paramref name="expectedType"/>
+    /// (<see cref="KeycloakCredentialTypes"/>): the route that removes passkeys must not remove a
+    /// password or a second factor by id.
     /// </summary>
-    Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default);
+    Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, string expectedType, CancellationToken ct = default);
 
     /// <summary>
     /// The user's passkeys (credential type <c>webauthn-passwordless</c>), oldest first.
@@ -101,9 +104,10 @@ public interface IKeycloakAdminService
     Task<List<PasskeyCredential>> GetPasskeysAsync(string keycloakSub, CancellationToken ct = default);
 
     /// <summary>
-    /// Set the label of one of the user's credentials. Throws 404 when the credential is not theirs.
+    /// Set the label of one of the user's credentials. Throws 404 when the credential is not theirs
+    /// or not of <paramref name="expectedType"/>.
     /// </summary>
-    Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default);
+    Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, string expectedType, CancellationToken ct = default);
 
     /// <summary>
     /// Get the user's profile (first name, last name, email).
