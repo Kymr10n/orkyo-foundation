@@ -8,40 +8,19 @@ namespace Orkyo.Foundation.Tests.Integrations.Keycloak;
 
 public class KeycloakAdminExceptionMapperTests
 {
-    [Fact]
-    public async Task Map_Status400_ReturnsBadRequest_WithValidationCode()
+    [Theory]
+    [InlineData(StatusCodes.Status400BadRequest, ApiErrorCodes.ValidationError)]
+    [InlineData(StatusCodes.Status404NotFound, ApiErrorCodes.NotFound)]
+    [InlineData(StatusCodes.Status409Conflict, ApiErrorCodes.Conflict)]
+    public async Task Map_AKnownStatus_KeepsTheStatusAndMapsTheCode(int keycloakStatus, string code)
     {
-        var ex = new KeycloakAdminException("bad input", StatusCodes.Status400BadRequest);
+        var ex = new KeycloakAdminException("from keycloak", keycloakStatus);
 
         var (status, payload) = await ExecuteAsync(KeycloakAdminExceptionMapper.Map(ex));
 
-        status.Should().Be(StatusCodes.Status400BadRequest);
-        payload.GetProperty("code").GetString().Should().Be(nameof(ApiErrorCodes.ValidationError));
-        payload.GetProperty("detail").GetString().Should().Be("bad input");
-    }
-
-    [Fact]
-    public async Task Map_Status404_ReturnsNotFound_WithNotFoundCode()
-    {
-        var ex = new KeycloakAdminException("kc missing", StatusCodes.Status404NotFound);
-
-        var (status, payload) = await ExecuteAsync(KeycloakAdminExceptionMapper.Map(ex));
-
-        status.Should().Be(StatusCodes.Status404NotFound);
-        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.NotFound);
-        payload.GetProperty("detail").GetString().Should().Be("kc missing");
-    }
-
-    [Fact]
-    public async Task Map_Status409_ReturnsConflict_WithConflictCode()
-    {
-        var ex = new KeycloakAdminException("conflict", StatusCodes.Status409Conflict);
-
-        var (status, payload) = await ExecuteAsync(KeycloakAdminExceptionMapper.Map(ex));
-
-        status.Should().Be(StatusCodes.Status409Conflict);
-        payload.GetProperty("code").GetString().Should().Be(ApiErrorCodes.Conflict);
-        payload.GetProperty("detail").GetString().Should().Be("conflict");
+        status.Should().Be(keycloakStatus);
+        payload.GetProperty("code").GetString().Should().Be(code);
+        payload.GetProperty("detail").GetString().Should().Be("from keycloak");
     }
 
     [Fact]

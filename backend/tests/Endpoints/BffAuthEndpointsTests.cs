@@ -108,18 +108,13 @@ public class BffAuthEndpointsTests
         response.Headers.Location!.ToString().Should().NotContain("kc_action");
     }
 
-    [Fact]
-    public async Task Login_WithInvalidReturnTo_Returns400()
+    [Theory]
+    [InlineData("https://evil.com/phish")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("data:text/html,<h1>xss</h1>")]
+    public async Task Login_WithADisallowedReturnTo_Returns400(string returnTo)
     {
-        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=https://evil.com/phish");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Login_WithJavascriptScheme_Returns400()
-    {
-        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=javascript:alert(1)");
+        var response = await _client.GetAsync($"/api/auth/bff/login?returnTo={returnTo}");
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
@@ -354,14 +349,6 @@ public class BffAuthEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.Redirect);
         var location = response.Headers.Location?.ToString();
         location.Should().Contain("/protocol/openid-connect/auth");
-    }
-
-    [Fact]
-    public async Task Login_WithDataScheme_Returns400()
-    {
-        var response = await _client.GetAsync("/api/auth/bff/login?returnTo=data:text/html,<h1>xss</h1>");
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // ── GET /api/auth/bff/me ─────────────────────────────────────────────────

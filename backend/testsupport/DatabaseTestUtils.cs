@@ -4,15 +4,19 @@ namespace Orkyo.Foundation.TestSupport;
 
 public static class DatabaseTestUtils
 {
-    private static int _databasePort = 5433;
+    private static int? _databasePort;
 
+    /// <summary>The fixture that started (or found) the server sets this before any test runs.</summary>
     public static void SetDatabasePort(int port) => _databasePort = port;
 
+    private static int DatabasePort => _databasePort
+        ?? throw new InvalidOperationException("DatabaseTestUtils.SetDatabasePort was not called by the database fixture.");
+
     private static string TestControlPlaneConnectionString =>
-        $"Host=localhost;Port={_databasePort};Database=control_plane;Username=postgres;Password=postgres";
+        $"Host=localhost;Port={DatabasePort};Database=control_plane;Username=postgres;Password=postgres";
 
     private static string GetTenantConnectionString(string tenantSlug) =>
-        $"Host=localhost;Port={_databasePort};Database=tenant_{tenantSlug};Username=postgres;Password=postgres";
+        $"Host=localhost;Port={DatabasePort};Database=tenant_{tenantSlug};Username=postgres;Password=postgres";
 
     public static async Task<(Guid TenantId, string TenantSlug)> CreateTestTenantAsync(string? prefix = null)
     {

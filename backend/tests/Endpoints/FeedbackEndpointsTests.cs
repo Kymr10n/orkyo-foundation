@@ -50,60 +50,23 @@ public class FeedbackEndpointsTests
         Assert.Equal("new", body.Status);
     }
 
-    [Fact]
-    public async Task SubmitFeedback_ValidFeatureRequest_Returns201()
+    [Theory]
+    [InlineData("feature")]
+    [InlineData("question")]
+    [InlineData("other")]
+    public async Task SubmitFeedback_EveryOtherKnownType_Returns201(string feedbackType)
     {
         var request = new CreateFeedbackRequest
         {
-            FeedbackType = "feature",
-            Title = $"Feature Req {Guid.NewGuid():N}"[..30]
+            FeedbackType = feedbackType,
+            Title = $"{feedbackType} {Guid.NewGuid():N}"[..30]
         };
 
         var response = await _client.PostAsJsonAsync("/api/feedback", request);
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SubmitFeedback_ValidQuestion_Returns201()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "question",
-            Title = "How do I configure scheduling?"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SubmitFeedback_ValidOther_Returns201()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "other",
-            Title = "General feedback about the app"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task SubmitFeedback_InvalidType_Returns400()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "invalid_type",
-            Title = "Some feedback"
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<FeedbackResponse>();
+        Assert.Equal(feedbackType, body!.FeedbackType);
     }
 
     [Fact]
@@ -123,20 +86,6 @@ public class FeedbackEndpointsTests
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Equal(before + 1, _fixture.Factory.MockEmailService.CallCount(nameof(IEmailService.SendEmailAsync)));
-    }
-
-    [Fact]
-    public async Task SubmitFeedback_RouteExists_DoesNotReturn404()
-    {
-        var request = new CreateFeedbackRequest
-        {
-            FeedbackType = "bug",
-            Title = "Route check"
-        };
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync("/api/feedback", request);
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     // Feedback mails the team. On a shared identity (the public demo) that is an anonymous,

@@ -309,6 +309,6 @@ public class AccountSelfServiceEndpointsTests
 
         var second = await DeleteAsync(client, EmailOf(user));
 
-        second.StatusCode.Should().BeOneOf(HttpStatusCode.NotFound, HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+        second.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

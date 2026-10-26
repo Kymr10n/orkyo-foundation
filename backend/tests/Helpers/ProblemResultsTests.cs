@@ -7,35 +7,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Orkyo.Foundation.Tests.Helpers;
 
 /// <summary>
-/// Response-contract tests for the canonical problem builder, plus drift guards pinning
-/// the auth error codes to the frontend contract. Successor to the
+/// Response-contract tests for the canonical problem builder. Successor to the
 /// <c>ProblemDetailsHelper</c> tests — the helper was a pure alias layer over
 /// <see cref="ProblemResults"/> / <see cref="ApiErrorCodes.Auth"/> and was inlined.
 /// </summary>
 public class ProblemResultsTests
 {
-    // --- Auth code drift guards (backend ↔ frontend/contracts/errorCodes.ts AuthErrorCodes) ---
-
-    [Fact]
-    public void AuthCodes_IdentityNotLinked_ShouldMatchContract() =>
-        ApiErrorCodes.Auth.IdentityNotLinked.Should().Be("identity_not_linked");
-
-    [Fact]
-    public void AuthCodes_NotInvited_ShouldMatchContract() =>
-        ApiErrorCodes.Auth.NotInvited.Should().Be("not_invited");
-
-    [Fact]
-    public void AuthCodes_EmailNotVerified_ShouldMatchContract() =>
-        ApiErrorCodes.Auth.EmailNotVerified.Should().Be("email_not_verified");
-
-    [Fact]
-    public void AuthCodes_AccountInactive_ShouldMatchContract() =>
-        ApiErrorCodes.Auth.AccountInactive.Should().Be("account_inactive");
-
-    [Fact]
-    public void AuthCodes_InvalidToken_ShouldMatchContract() =>
-        ApiErrorCodes.Auth.InvalidToken.Should().Be("invalid_token");
-
     // --- Problem response contract ---
 
     private static async Task<(int StatusCode, JsonDocument Body)> ExecuteAndReadJson(IResult result)

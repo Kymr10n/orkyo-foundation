@@ -15,54 +15,20 @@ public class ConflictsEndpointTests
         _client = databaseFixture.CreateAuthorizedClient();
     }
 
-    [Fact]
-    public async Task GetConflicts_Returns200_Array()
+    [Theory]
+    [InlineData("/api/conflicts")]
+    [InlineData("/api/conflicts?from={from}&to={to}")]
+    [InlineData("/api/requests?conflicted=true")]
+    [InlineData("/api/requests?scheduled=false")]
+    [InlineData("/api/sites/{siteId}/requests?from={from}&to={to}")]
+    public async Task EachListRead_Returns200WithAnArray(string urlTemplate)
     {
-        var response = await _client.GetAsync("/api/conflicts");
+        var url = urlTemplate
+            .Replace("{from}", Uri.EscapeDataString(DateTime.UtcNow.AddDays(-7).ToString("o")))
+            .Replace("{to}", Uri.EscapeDataString(DateTime.UtcNow.AddDays(7).ToString("o")))
+            .Replace("{siteId}", Guid.NewGuid().ToString());
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(JsonValueKind.Array, body.ValueKind);
-    }
-
-    [Fact]
-    public async Task GetConflicts_WithWindow_Returns200_Array()
-    {
-        var from = Uri.EscapeDataString(DateTime.UtcNow.AddDays(-7).ToString("o"));
-        var to = Uri.EscapeDataString(DateTime.UtcNow.AddDays(7).ToString("o"));
-        var response = await _client.GetAsync($"/api/conflicts?from={from}&to={to}");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(JsonValueKind.Array, body.ValueKind);
-    }
-
-    [Fact]
-    public async Task GetRequests_ConflictedTrue_Returns200_Array()
-    {
-        var response = await _client.GetAsync("/api/requests?conflicted=true");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(JsonValueKind.Array, body.ValueKind);
-    }
-
-    [Fact]
-    public async Task GetRequests_BacklogScheduledFalse_Returns200_Array()
-    {
-        var response = await _client.GetAsync("/api/requests?scheduled=false");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(JsonValueKind.Array, body.ValueKind);
-    }
-
-    [Fact]
-    public async Task GetSiteRequests_WithWindow_Returns200_Array()
-    {
-        var from = Uri.EscapeDataString(DateTime.UtcNow.AddDays(-7).ToString("o"));
-        var to = Uri.EscapeDataString(DateTime.UtcNow.AddDays(7).ToString("o"));
-        var response = await _client.GetAsync($"/api/sites/{Guid.NewGuid()}/requests?from={from}&to={to}");
+        var response = await _client.GetAsync(url);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();

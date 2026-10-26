@@ -31,51 +31,18 @@ public class PagedResultTests
         request.Offset.Should().Be(expectedOffset);
     }
 
-    [Fact]
-    public void PageRequest_Sanitize_ClampsNegativePage()
+    [Theory]
+    [InlineData(-5, 20, 1, 20)]                        // negative page
+    [InlineData(0, 20, 1, 20)]                         // zero page
+    [InlineData(1, 500, 1, PageRequest.MaxPageSize)]   // page size above the max
+    [InlineData(1, 0, 1, 1)]                           // page size below one
+    [InlineData(3, 25, 3, 25)]                         // valid values are kept
+    public void PageRequest_Sanitize_ClampsPageAndPageSize(int page, int pageSize, int expectedPage, int expectedPageSize)
     {
-        var request = new PageRequest { Page = -5, PageSize = 20 };
-        var sanitized = request.Sanitize();
+        var sanitized = new PageRequest { Page = page, PageSize = pageSize }.Sanitize();
 
-        sanitized.Page.Should().Be(1);
-        sanitized.PageSize.Should().Be(20);
-    }
-
-    [Fact]
-    public void PageRequest_Sanitize_ClampsZeroPage()
-    {
-        var request = new PageRequest { Page = 0 };
-        var sanitized = request.Sanitize();
-
-        sanitized.Page.Should().Be(1);
-    }
-
-    [Fact]
-    public void PageRequest_Sanitize_ClampsPageSizeAboveMax()
-    {
-        var request = new PageRequest { PageSize = 500 };
-        var sanitized = request.Sanitize();
-
-        sanitized.PageSize.Should().Be(PageRequest.MaxPageSize);
-    }
-
-    [Fact]
-    public void PageRequest_Sanitize_ClampsPageSizeBelowMin()
-    {
-        var request = new PageRequest { PageSize = 0 };
-        var sanitized = request.Sanitize();
-
-        sanitized.PageSize.Should().Be(1);
-    }
-
-    [Fact]
-    public void PageRequest_Sanitize_DoesNotModifyValidValues()
-    {
-        var request = new PageRequest { Page = 3, PageSize = 25 };
-        var sanitized = request.Sanitize();
-
-        sanitized.Page.Should().Be(3);
-        sanitized.PageSize.Should().Be(25);
+        sanitized.Page.Should().Be(expectedPage);
+        sanitized.PageSize.Should().Be(expectedPageSize);
     }
 
     [Fact]
@@ -103,68 +70,27 @@ public class PagedResultTests
         result.TotalItems.Should().Be(25);
     }
 
-    [Fact]
-    public void PagedResult_TotalPages_CalculatesCorrectly()
+    [Theory]
+    [InlineData(101, 3)]   // ceil(101/50)
+    [InlineData(100, 2)]   // exact division
+    [InlineData(1, 1)]
+    [InlineData(0, 0)]
+    public void PagedResult_TotalPages_IsTheCeilingOfItemsOverPageSize(int totalItems, int expectedPages)
     {
-        var result = PagedResult<int>.Create([], 101, new PageRequest { PageSize = 50 });
+        var result = PagedResult<int>.Create([], totalItems, new PageRequest { PageSize = 50 });
 
-        result.TotalPages.Should().Be(3); // ceil(101/50) = 3
+        result.TotalPages.Should().Be(expectedPages);
     }
 
-    [Fact]
-    public void PagedResult_TotalPages_ExactDivision()
+    [Theory]
+    [InlineData(1, true, false)]
+    [InlineData(2, false, true)]
+    public void PagedResult_HasNextAndPreviousPage_FollowThePage(int page, bool hasNext, bool hasPrevious)
     {
-        var result = PagedResult<int>.Create([], 100, new PageRequest { PageSize = 50 });
+        var result = PagedResult<int>.Create([], 100, new PageRequest { Page = page, PageSize = 50 });
 
-        result.TotalPages.Should().Be(2);
-    }
-
-    [Fact]
-    public void PagedResult_TotalPages_SingleItem()
-    {
-        var result = PagedResult<int>.Create([], 1, new PageRequest { PageSize = 50 });
-
-        result.TotalPages.Should().Be(1);
-    }
-
-    [Fact]
-    public void PagedResult_TotalPages_ZeroItems()
-    {
-        var result = PagedResult<int>.Create([], 0, new PageRequest { PageSize = 50 });
-
-        result.TotalPages.Should().Be(0);
-    }
-
-    [Fact]
-    public void PagedResult_HasNextPage_TrueWhenMorePages()
-    {
-        var result = PagedResult<int>.Create([], 100, new PageRequest { Page = 1, PageSize = 50 });
-
-        result.HasNextPage.Should().BeTrue();
-    }
-
-    [Fact]
-    public void PagedResult_HasNextPage_FalseOnLastPage()
-    {
-        var result = PagedResult<int>.Create([], 100, new PageRequest { Page = 2, PageSize = 50 });
-
-        result.HasNextPage.Should().BeFalse();
-    }
-
-    [Fact]
-    public void PagedResult_HasPreviousPage_FalseOnFirstPage()
-    {
-        var result = PagedResult<int>.Create([], 100, new PageRequest { Page = 1, PageSize = 50 });
-
-        result.HasPreviousPage.Should().BeFalse();
-    }
-
-    [Fact]
-    public void PagedResult_HasPreviousPage_TrueOnSecondPage()
-    {
-        var result = PagedResult<int>.Create([], 100, new PageRequest { Page = 2, PageSize = 50 });
-
-        result.HasPreviousPage.Should().BeTrue();
+        result.HasNextPage.Should().Be(hasNext);
+        result.HasPreviousPage.Should().Be(hasPrevious);
     }
 
     [Fact]
@@ -181,31 +107,16 @@ public class PagedResultTests
 
     // ─── PageRequest.From / ClampLimit ───────────────────────────
 
-    [Fact]
-    public void From_AbsentValues_FallBackToTheFirstDefaultPage()
+    [Theory]
+    [InlineData(null, null, 1, PageRequest.DefaultPageSize)]   // absent → the first default page
+    [InlineData(3, 25, 3, 25)]                                 // supplied values are kept
+    [InlineData(-2, 999, 1, PageRequest.MaxPageSize)]          // out of range → sanitized
+    public void From_BuildsASanitizedRequest(int? page, int? pageSize, int expectedPage, int expectedPageSize)
     {
-        var request = PageRequest.From(null, null);
+        var request = PageRequest.From(page, pageSize);
 
-        request.Page.Should().Be(1);
-        request.PageSize.Should().Be(PageRequest.DefaultPageSize);
-    }
-
-    [Fact]
-    public void From_KeepsSuppliedValues()
-    {
-        var request = PageRequest.From(3, 25);
-
-        request.Page.Should().Be(3);
-        request.PageSize.Should().Be(25);
-    }
-
-    [Fact]
-    public void From_SanitizesOutOfRangeValues()
-    {
-        var request = PageRequest.From(-2, 999);
-
-        request.Page.Should().Be(1);
-        request.PageSize.Should().Be(PageRequest.MaxPageSize);
+        request.Page.Should().Be(expectedPage);
+        request.PageSize.Should().Be(expectedPageSize);
     }
 
     [Theory]

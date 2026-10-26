@@ -27,28 +27,14 @@ public class DiagnosticsAdminEndpointsTests
     // ── GET /api/version ────────────────────────────────────────
 
     [Fact]
-    public async Task GetVersion_NoAuth_Returns200()
+    public async Task GetVersion_NoAuth_Returns200WithVersionAndBuild()
     {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/api/version");
-        var response = await _client.SendAsync(request);
+        var response = await _client.GetAsync("/api/version");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(body.TryGetProperty("version", out _));
-        Assert.True(body.TryGetProperty("build", out _));
-    }
-
-    [Fact]
-    public async Task GetVersion_ReturnsNonEmptyValues()
-    {
-        var response = await _client.GetFromJsonAsync<JsonElement>("/api/version");
-
-        var version = response.GetProperty("version").GetString();
-        var build = response.GetProperty("build").GetString();
-
-        Assert.False(string.IsNullOrWhiteSpace(version));
-        Assert.False(string.IsNullOrWhiteSpace(build));
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("version").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("build").GetString()));
     }
 
     // ── GET /api/admin/diagnostics ──────────────────────────────
@@ -63,7 +49,7 @@ public class DiagnosticsAdminEndpointsTests
     }
 
     [Fact]
-    public async Task GetDiagnostics_SiteAdmin_Returns200WithAllSections()
+    public async Task GetDiagnostics_SiteAdmin_ReportsEverySection()
     {
         var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
         var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
@@ -73,97 +59,31 @@ public class DiagnosticsAdminEndpointsTests
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
 
-        // Top-level fields
-        Assert.True(body.TryGetProperty("version", out _));
-        Assert.True(body.TryGetProperty("build", out _));
-        Assert.True(body.TryGetProperty("deploymentMode", out _));
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("version").GetString()));
+        Assert.False(string.IsNullOrWhiteSpace(body.GetProperty("build").GetString()));
+        // Foundation's host sets no deployment mode; a product does.
+        Assert.Equal("unknown", body.GetProperty("deploymentMode").GetString());
 
-        // Database section
-        Assert.True(body.TryGetProperty("database", out var db));
+        var db = body.GetProperty("database");
         Assert.Equal("healthy", db.GetProperty("status").GetString());
         Assert.True(db.GetProperty("migrationsApplied").GetInt32() > 0);
         Assert.True(db.GetProperty("tenantCount").GetInt32() >= 0);
 
-        // SMTP section
-        Assert.True(body.TryGetProperty("smtp", out var smtp));
-        Assert.True(smtp.TryGetProperty("status", out _));
-        Assert.True(smtp.TryGetProperty("host", out _));
+        // SMTP_HOST is "localhost" in the test configuration; MaskHost keeps a host of two parts or fewer as it is.
+        var smtp = body.GetProperty("smtp");
+        Assert.Equal("configured", smtp.GetProperty("status").GetString());
+        Assert.Equal("localhost", smtp.GetProperty("host").GetString());
 
-        // Auth section
-        Assert.True(body.TryGetProperty("auth", out var auth));
+        var auth = body.GetProperty("auth");
+        Assert.Equal("keycloak", auth.GetProperty("provider").GetString());
         Assert.True(auth.TryGetProperty("status", out _));
-        Assert.True(auth.TryGetProperty("provider", out _));
         Assert.True(auth.TryGetProperty("realm", out _));
 
-        // Worker section
-        Assert.True(body.TryGetProperty("worker", out var worker));
-        Assert.True(worker.TryGetProperty("status", out _));
+        Assert.Contains(body.GetProperty("worker").GetProperty("status").GetString(), new[] { "running", "idle", "unknown" });
 
-        // Modules section
-        Assert.True(body.TryGetProperty("modules", out var modules));
-        Assert.True(modules.TryGetProperty("observability", out _));
-        Assert.True(modules.TryGetProperty("logAggregation", out _));
-    }
-
-    [Fact]
-    public async Task GetDiagnostics_SiteAdmin_DatabaseShowsHealthy()
-    {
-        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
-
-        var response = await _client.SendAsync(request);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        var dbStatus = body.GetProperty("database").GetProperty("status").GetString();
-        Assert.Equal("healthy", dbStatus);
-    }
-
-    [Fact]
-    public async Task GetDiagnostics_SiteAdmin_DeploymentModeIsUnknown_WhenTheProductDoesNotSetIt()
-    {
-        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
-
-        var response = await _client.SendAsync(request);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        Assert.Equal("unknown", body.GetProperty("deploymentMode").GetString());
-    }
-
-    [Fact]
-    public async Task GetDiagnostics_SiteAdmin_SmtpHostIsMaskedOrShort()
-    {
-        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
-
-        var response = await _client.SendAsync(request);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        var smtpStatus = body.GetProperty("smtp").GetProperty("status").GetString();
-        var smtpHost = body.GetProperty("smtp").GetProperty("host").GetString();
-
-        if (smtpStatus == "configured")
-        {
-            // Host is present and either masked (3+ parts: smtp.*****.com) or short (<= 2 parts: kept as-is)
-            Assert.NotNull(smtpHost);
-            Assert.NotEmpty(smtpHost);
-        }
-        else
-        {
-            Assert.Equal("not-configured", smtpStatus);
-        }
-    }
-
-    [Fact]
-    public async Task GetDiagnostics_SiteAdmin_AuthProviderIsKeycloak()
-    {
-        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
-
-        var response = await _client.SendAsync(request);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        Assert.Equal("keycloak", body.GetProperty("auth").GetProperty("provider").GetString());
+        var modules = body.GetProperty("modules");
+        Assert.True(modules.GetProperty("observability").ValueKind is JsonValueKind.True or JsonValueKind.False);
+        Assert.True(modules.GetProperty("logAggregation").ValueKind is JsonValueKind.True or JsonValueKind.False);
     }
 
     [Fact]
@@ -201,34 +121,5 @@ public class DiagnosticsAdminEndpointsTests
             delete.Parameters.AddWithValue("job", job);
             await delete.ExecuteNonQueryAsync();
         }
-    }
-
-    [Fact]
-    public async Task GetDiagnostics_SiteAdmin_WorkerStatusIsValid()
-    {
-        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
-
-        var response = await _client.SendAsync(request);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        var workerStatus = body.GetProperty("worker").GetProperty("status").GetString();
-        Assert.Contains(workerStatus, new[] { "running", "idle", "unknown" });
-    }
-
-    [Fact]
-    public async Task GetDiagnostics_SiteAdmin_ModulesAreBooleans()
-    {
-        var (_, token) = await DatabaseTestUtils.CreateLinkedUserAsync("diag-admin", siteAdmin: true);
-        var request = TestHelpers.AuthRequest(HttpMethod.Get, "/api/admin/diagnostics", token);
-
-        var response = await _client.SendAsync(request);
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-
-        var modules = body.GetProperty("modules");
-        var obsKind = modules.GetProperty("observability").ValueKind;
-        Assert.True(obsKind is JsonValueKind.True or JsonValueKind.False);
-        var logKind = modules.GetProperty("logAggregation").ValueKind;
-        Assert.True(logKind is JsonValueKind.True or JsonValueKind.False);
     }
 }

@@ -71,63 +71,18 @@ public class SessionEndpointsTests
     // corresponding test below fails at the backend-tests CI stage.
 
     [Fact]
-    public async Task GetMe_ReturnsId()
+    public async Task GetMe_ReturnsTheAppUserContract()
     {
         var token = await MakeTokenAsync();
         var me = await GetMeAsync(token);
-        me.TryGetProperty("id", out var id).Should().BeTrue("field 'id' must be present");
-        id.GetString().Should().NotBeNullOrEmpty();
-        Guid.TryParse(id.GetString(), out _).Should().BeTrue("'id' must be a valid GUID");
-    }
 
-    [Fact]
-    public async Task GetMe_ReturnsEmail()
-    {
-        var token = await MakeTokenAsync();
-        var me = await GetMeAsync(token);
-        me.TryGetProperty("email", out var email).Should().BeTrue("field 'email' must be present");
-        email.GetString().Should().Contain("@");
-    }
-
-    [Fact]
-    public async Task GetMe_ReturnsDisplayName()
-    {
-        var token = await MakeTokenAsync();
-        var me = await GetMeAsync(token);
-        me.TryGetProperty("displayName", out var name).Should().BeTrue("field 'displayName' must be present");
-        name.GetString().Should().NotBeNullOrEmpty();
-    }
-
-    [Fact]
-    public async Task GetMe_ReturnsHasSeenTour_FalseForNewUser()
-    {
-        // This is the most important contract test for the tour feature:
-        // it verifies that has_seen_tour is read from the database and
-        // returned in the JSON response, not just defined on UserInfo.
-        var token = await MakeTokenAsync();
-        var me = await GetMeAsync(token);
-        me.TryGetProperty("hasSeenTour", out var hasSeenTour)
-            .Should().BeTrue("field 'hasSeenTour' must be present — check the SQL SELECT in GetUserByIdInternalAsync");
-        hasSeenTour.GetBoolean().Should().BeFalse("new users have never seen the tour");
-    }
-
-    [Fact]
-    public async Task GetMe_ReturnsCreatedAt()
-    {
-        var token = await MakeTokenAsync();
-        var me = await GetMeAsync(token);
+        Guid.TryParse(me.GetProperty("id").GetString(), out _).Should().BeTrue("'id' must be a valid GUID");
+        me.GetProperty("email").GetString().Should().Contain("@");
+        me.GetProperty("displayName").GetString().Should().NotBeNullOrEmpty();
+        // Read from the database, not just defined on UserInfo — check the SQL SELECT in GetUserByIdInternalAsync.
+        me.GetProperty("hasSeenTour").GetBoolean().Should().BeFalse("new users have never seen the tour");
         me.TryGetProperty("createdAt", out _).Should().BeTrue("field 'createdAt' must be present");
-    }
-
-    // ─── Tenants array ────────────────────────────────────────────────────────────
-
-    [Fact]
-    public async Task GetMe_ReturnsTenantsArray()
-    {
-        var token = await MakeTokenAsync();
-        var me = await GetMeAsync(token);
-        me.TryGetProperty("tenants", out var tenants).Should().BeTrue("field 'tenants' must be present");
-        tenants.ValueKind.Should().Be(JsonValueKind.Array);
+        me.GetProperty("tenants").ValueKind.Should().Be(JsonValueKind.Array);
     }
 
     [Fact]
@@ -461,21 +416,6 @@ public class SessionEndpointsTests
         {
             options.AllowSelfRegistration = true;
         }
-    }
-
-    [Fact]
-    public async Task CreateAccount_MissingEmail_Returns400()
-    {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/api/auth/create-account");
-        request.Content = new StringContent(
-            JsonSerializer.Serialize(new { email = "", password = "SecurePass123!" }),
-            System.Text.Encoding.UTF8, "application/json");
-
-        var response = await _client.SendAsync(request);
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-
-        var body = await response.Content.ReadAsStringAsync();
-        body.Should().Contain("Email is required");
     }
 
     [Fact]

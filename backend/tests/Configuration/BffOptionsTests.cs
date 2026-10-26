@@ -27,32 +27,15 @@ public class BffOptionsTests
         options.IsReturnToAllowed("https://orkyo.com/").Should().BeTrue();
     }
 
-    [Fact]
-    public void IsReturnToAllowed_RejectsUnrelatedHost()
+    [Theory]
+    [InlineData("https://evil.com/")]              // unrelated host
+    [InlineData("https://evil-orkyo.com/")]        // suffix attack
+    [InlineData("javascript:alert(1)")]            // not an http(s) URL
+    [InlineData("/login")]                         // relative
+    public void IsReturnToAllowed_RejectsAnUnlistedTarget(string returnTo)
     {
         var options = new BffOptions { AllowedReturnToHosts = ["orkyo.com", "*.orkyo.com"] };
-        options.IsReturnToAllowed("https://evil.com/").Should().BeFalse();
-    }
-
-    [Fact]
-    public void IsReturnToAllowed_RejectsSuffixAttack()
-    {
-        var options = new BffOptions { AllowedReturnToHosts = ["orkyo.com"] };
-        options.IsReturnToAllowed("https://evil-orkyo.com/").Should().BeFalse();
-    }
-
-    [Fact]
-    public void IsReturnToAllowed_RejectsJavascriptScheme()
-    {
-        var options = new BffOptions { AllowedReturnToHosts = ["orkyo.com"] };
-        options.IsReturnToAllowed("javascript:alert(1)").Should().BeFalse();
-    }
-
-    [Fact]
-    public void IsReturnToAllowed_RejectsRelativeUrl()
-    {
-        var options = new BffOptions { AllowedReturnToHosts = ["orkyo.com"] };
-        options.IsReturnToAllowed("/login").Should().BeFalse();
+        options.IsReturnToAllowed(returnTo).Should().BeFalse();
     }
 
     [Fact]

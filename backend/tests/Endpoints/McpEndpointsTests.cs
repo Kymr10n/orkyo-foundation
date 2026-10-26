@@ -167,10 +167,11 @@ public class McpEndpointsTests
 
         var response = await RpcAsync(ClientWithToken(foreign), ListTools());
 
-        ((int)response.StatusCode).Should().BeOneOf(401, 403);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         var call = await RpcAsync(ClientWithToken(foreign),
             CallTool("list_requests", new { limit = 1 }));
-        ((int)call.StatusCode).Should().BeOneOf(401, 403);
+        call.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await call.Content.ReadAsStringAsync()).Should().NotContain("\"result\"", "no tool may have run");
     }
 
     [Fact]

@@ -25,22 +25,31 @@ public class SecurityHeadersMiddlewareTests
 
     // ── Headers present in all environments ───────────────────────────────
 
-    [Fact]
-    public async Task InvokeAsync_AlwaysSets_XContentTypeOptions()
+    [Theory]
+    [InlineData(HeaderConstants.XContentTypeOptions, "nosniff")]
+    [InlineData(HeaderConstants.XFrameOptions, "DENY")]
+    [InlineData(HeaderConstants.ReferrerPolicy, "strict-origin-when-cross-origin")]
+    [InlineData(HeaderConstants.XPermittedCrossDomainPolicies, "none")]
+    [InlineData("Cache-Control", "no-store")]
+    public async Task InvokeAsync_AlwaysSetsTheHeader(string header, string expected)
     {
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers[HeaderConstants.XContentTypeOptions].ToString().Should().Be("nosniff");
+        ctx.Response.Headers[header].ToString().Should().Be(expected);
     }
 
     [Fact]
-    public async Task InvokeAsync_ForbidsSharedCaching()
+    public async Task InvokeAsync_AlwaysSetsThePolicyHeaders()
     {
         var ctx = CreateContext();
         await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
 
-        ctx.Response.Headers.CacheControl.ToString().Should().Be("no-store");
+        ctx.Response.Headers[HeaderConstants.ContentSecurityPolicy].ToString().Should()
+           .Contain("default-src 'none'")
+           .And.Contain("frame-ancestors 'none'");
+        ctx.Response.Headers[HeaderConstants.PermissionsPolicy].ToString().Should()
+           .Contain("camera=()").And.Contain("microphone=()");
     }
 
     [Fact]
@@ -55,55 +64,6 @@ public class SecurityHeadersMiddlewareTests
         await middleware.InvokeAsync(ctx);
 
         ctx.Response.Headers.CacheControl.ToString().Should().Be("private, max-age=300");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_AlwaysSets_XFrameOptions()
-    {
-        var ctx = CreateContext();
-        await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
-
-        ctx.Response.Headers[HeaderConstants.XFrameOptions].ToString().Should().Be("DENY");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_AlwaysSets_ReferrerPolicy()
-    {
-        var ctx = CreateContext();
-        await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
-
-        ctx.Response.Headers[HeaderConstants.ReferrerPolicy].ToString()
-           .Should().Be("strict-origin-when-cross-origin");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_AlwaysSets_XPermittedCrossDomainPolicies()
-    {
-        var ctx = CreateContext();
-        await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
-
-        ctx.Response.Headers[HeaderConstants.XPermittedCrossDomainPolicies].ToString().Should().Be("none");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_AlwaysSets_ContentSecurityPolicy()
-    {
-        var ctx = CreateContext();
-        await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
-
-        ctx.Response.Headers[HeaderConstants.ContentSecurityPolicy].ToString().Should()
-           .Contain("default-src 'none'")
-           .And.Contain("frame-ancestors 'none'");
-    }
-
-    [Fact]
-    public async Task InvokeAsync_AlwaysSets_PermissionsPolicy()
-    {
-        var ctx = CreateContext();
-        await CreateMiddleware(isProduction: false).InvokeAsync(ctx);
-
-        ctx.Response.Headers[HeaderConstants.PermissionsPolicy].ToString().Should()
-           .Contain("camera=()").And.Contain("microphone=()");
     }
 
     // ── HSTS: production only ──────────────────────────────────────────────

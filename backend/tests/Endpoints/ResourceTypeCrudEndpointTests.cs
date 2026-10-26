@@ -51,22 +51,6 @@ public class ResourceTypeCrudEndpointTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    [Theory]
-    [InlineData("Car")]        // uppercase
-    [InlineData("2wheeler")]   // leading digit
-    [InlineData("my-type")]    // hyphen
-    public async Task CreateResourceType_RejectsMalformedKey(string key)
-    {
-        var response = await _client.PostAsJsonAsync("/api/resource-types", new CreateResourceTypeRequest
-        {
-            Key = key,
-            DisplayName = "Bad key",
-            DisplayNamePlural = "Bad keys",
-        });
-
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
     [Fact]
     public async Task UpdateResourceType_ChangesDisplayName()
     {

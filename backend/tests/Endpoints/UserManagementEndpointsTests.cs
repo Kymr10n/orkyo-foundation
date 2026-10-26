@@ -123,22 +123,6 @@ public class UserManagementEndpointsTests
     #region POST /api/users/invite (Admin only)
 
     [Fact]
-    public async Task InviteUser_ValidRequest_ReachesEndpoint()
-    {
-        // The full invite flow (email sending) is tested in InvitationEndpointsTests.
-        // Here we verify the route is reachable and auth-gated correctly.
-        var email = $"invite-{Guid.NewGuid():N}@test.com";
-        var request = new InviteUserRequest(email, UserRole.Viewer);
-
-        var response = await _client.PostAsJsonAsync(
-            "/api/users/invite", request, _jsonOptions);
-
-        // Should not be 401/404 — the endpoint is registered and auth passes
-        Assert.NotEqual(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
     public async Task InviteUser_AlreadyMember_Returns409()
     {
         var invitations = _factory.Services.GetRequiredService<Mock<IInvitationService>>();
@@ -266,19 +250,6 @@ public class UserManagementEndpointsTests
     // prove the route is registered, correctly auth-gated, and that the handler maps both the
     // service's answers. The behaviour itself (token rotation, expiry reset, accepted guard,
     // tenant scoping) is covered against a real database in Services/InvitationResendServiceTests.
-
-    [Fact]
-    public async Task ResendInvitation_Authenticated_RouteIsRegistered()
-    {
-        // Guards the route's existence — the whole point of the bug this fixes. The mocked service
-        // returns false, so the handler's KeyNotFoundException → 404 is the expected outcome here;
-        // what matters is that it is the handler's 404 and not a routing 401/405.
-        var response = await _client.PostAsync(
-            $"/api/users/invitations/{Guid.NewGuid()}/resend", content: null);
-
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.NotEqual(HttpStatusCode.MethodNotAllowed, response.StatusCode);
-    }
 
     [Fact]
     public async Task ResendInvitation_WhenTheServiceResendsIt_Returns200()
@@ -572,15 +543,6 @@ public class UserManagementEndpointsTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    [Fact]
-    public async Task ValidateInvitation_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.GetAsync(
-            "/api/invitations/validate?token=test");
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
     #endregion
 
     #region POST /api/invitations/accept (Public)
@@ -596,22 +558,7 @@ public class UserManagementEndpointsTests
         var response = await _unauthenticatedClient.PostAsJsonAsync(
             "/api/invitations/accept", request, _jsonOptions);
 
-        // Invalid token results in validation error or argument exception
-        Assert.True(
-            response.StatusCode == HttpStatusCode.BadRequest ||
-            response.StatusCode == HttpStatusCode.InternalServerError,
-            $"Expected 400 or 500, got {response.StatusCode}");
-    }
-
-    [Fact]
-    public async Task AcceptInvitation_RouteExists_DoesNotReturn404()
-    {
-        var request = new AcceptInvitationRequest("test", "User", "pass");
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/invitations/accept", request, _jsonOptions);
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]
@@ -627,29 +574,4 @@ public class UserManagementEndpointsTests
 
     #endregion
 
-    #region Route existence
-
-    [Fact]
-    public async Task Users_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/users");
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task UsersInvite_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/users/invite", new InviteUserRequest("test@test.com", UserRole.Viewer), _jsonOptions);
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task UsersInvitations_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/users/invitations");
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    #endregion
 }

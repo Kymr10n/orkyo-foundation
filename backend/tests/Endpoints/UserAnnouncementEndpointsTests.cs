@@ -15,14 +15,12 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class UserAnnouncementEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _unauthenticatedClient;
     private readonly HttpClient _noRedirect;
     private readonly string _conn;
 
     public UserAnnouncementEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _unauthenticatedClient = databaseFixture.Factory.CreateClient();
         _noRedirect = databaseFixture.Factory.CreateClient();
         _conn = databaseFixture.ControlPlaneConnectionString;
     }
@@ -76,31 +74,6 @@ public class UserAnnouncementEndpointsTests
 
     #endregion
 
-    #region Route existence
-
-    [Fact]
-    public async Task Announcements_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/announcements");
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task UnreadCount_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.GetAsync("/api/announcements/unread-count");
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task MarkRead_RouteExists_DoesNotReturn404()
-    {
-        var response = await _unauthenticatedClient.PostAsync(
-            $"/api/announcements/{Guid.NewGuid()}/read", null);
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    #endregion
 
     #region /api/announcements/unsubscribe (public)
 

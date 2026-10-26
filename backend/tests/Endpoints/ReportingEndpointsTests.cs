@@ -215,7 +215,7 @@ public class ReportingEndpointsTests
 
         var response = await client.GetAsync(
             "/api/reporting/v1/allocations?from=2025-12-01&to=2025-01-01");
-        ((int)response.StatusCode).Should().BeOneOf(400, 422);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public class ReportingEndpointsTests
         using var client = _fixture.CreateClientWithToken(created.RawToken);
 
         var response = await client.GetAsync("/api/reporting/v1/allocations?pageSize=99999");
-        ((int)response.StatusCode).Should().BeOneOf(400, 422);
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // ── CSV content negotiation ───────────────────────────────────────────────

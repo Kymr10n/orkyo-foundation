@@ -59,8 +59,6 @@ public class ResourceTypeEndpointTests
         var anon = _fixture.Factory.CreateClient();
         anon.DefaultRequestHeaders.Add(HeaderConstants.TenantSlug, TestConstants.TenantSlug);
         var response = await anon.GetAsync("/api/resource-types");
-        Assert.True(
-            response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden,
-            $"Expected 401 or 403, got {response.StatusCode}");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 }
