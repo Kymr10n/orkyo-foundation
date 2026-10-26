@@ -7,8 +7,7 @@ import { configDefaults, defineConfig } from "vitest/config";
 // allowlist, never "a directory minus exceptions": the dom project excludes exactly these
 // patterns, so a file that matches here runs in node and nowhere else, and a file that
 // matches nowhere here runs in dom. A test that needs window, document, storage, a
-// @testing-library helper, a zustand persist store or config/runtime (it reads
-// window.__RUNTIME_CONFIG__ at load) belongs in dom.
+// @testing-library helper or a zustand persist store belongs in dom.
 const NODE_TESTS = [
   "contracts/{plans,request-contract}.test.ts",
   "src/domain/**/*.test.ts",
@@ -17,9 +16,11 @@ const NODE_TESTS = [
   "src/lib/utils/{custom-field-value,duplicate-resource,export-handlers,picker-utils,spreadsheet-import,stable-stringify,time-navigation,utils,validation,variants}.test.ts",
   "src/lib/core/{api-paths,ids,invalidate-request-data,logger}.test.ts",
   "src/lib/{formatters,quotas/quota-display,table/filter-fns}.test.ts",
-  "src/lib/api/{api-access-tokens-api,insights-api,lists-api,resource-assignments-api,resource-type-catalog-api}.test.ts",
+  // Every api module test that automocks api-client. Not ai-api (asserts window.location),
+  // preset-api (spies document) and floorplan-api (FileReader).
+  "src/lib/api/{admin-api,announcement-api,api-access-tokens-api,auto-schedule-api,availability-events-api,conflicts-api,create-crud-api,criteria-api,export-api,feedback-api,group-capability-api,insights-api,lists-api,reporting-tokens-api,request-api,request-plan-api,resource-absences-api,resource-assignments-api,resource-capabilities-api,resource-custom-fields-api,resource-groups-api,resources-api,resource-scan-codes-api,resource-status-api,resource-type-catalog-api,resource-utilization-api,routing-api,scheduling-api,search-api,security-api,session-api,site-api,template-api,tenant-account-api,tenant-management-api,tenant-settings-api,user-announcements-api,user-api,utilization-api}.test.ts",
   "src/store/{scheduler-store,ui-actions-store}.test.ts",
-  "src/hooks/useTemplateForm.test.ts",
+  "src/hooks/{useRequestForm,useTemplateForm}.test.ts",
 ];
 
 const ALL_TESTS = ["contracts/**/*.test.ts", "src/**/*.test.ts", "src/**/*.test.tsx"];

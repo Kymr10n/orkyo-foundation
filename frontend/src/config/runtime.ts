@@ -15,7 +15,7 @@ declare global {
 }
 
 /** Runtime config source — container-injected values take precedence over Vite env. */
-const cfg = window.__RUNTIME_CONFIG__ ?? {};
+const cfg = (typeof window !== 'undefined' ? window.__RUNTIME_CONFIG__ : undefined) ?? {};
 
 function optionalEnv(name: string, fallback: string): string {
   const runtimeKey = name.replace(/^VITE_/, '');
