@@ -32,6 +32,7 @@ public sealed class OrkyoMetricsEndpointTests : IAsyncLifetime
     private async Task<HttpClient> StartAppAsync(string? metricsToken)
     {
         var builder = WebApplication.CreateBuilder();
+        builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; o.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
         builder.Logging.SetMinimumLevel(LogLevel.Warning);
 

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Orkyo.Shared;
 
@@ -39,6 +40,7 @@ public class FoundationMiddlewareOrderTests
     {
         var logs = new CapturingProvider();
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = EnvironmentNames.Test });
+        builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; o.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
         builder.Logging.ClearProviders().AddProvider(logs).SetMinimumLevel(LogLevel.Trace);
         builder.Services.AddExceptionHandler<AppExceptionHandler>();

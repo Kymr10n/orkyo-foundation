@@ -57,6 +57,16 @@ public abstract class ProductWebApplicationFactoryBase<TProgram> : WebApplicatio
     {
         builder.UseEnvironment(TestConstants.EnvironmentName);
 
+        // Validate the real container. ASP.NET Core does this only in Development, and the test
+        // host runs as "Test". This has to be the builder call: the minimal-hosting
+        // DefaultServiceProviderFactory never reads a ServiceProviderOptions registered through
+        // IOptions, so a services.Configure<ServiceProviderOptions>() here validated nothing.
+        builder.UseDefaultServiceProvider(o =>
+        {
+            o.ValidateOnBuild = true;
+            o.ValidateScopes = true;
+        });
+
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.Sources.Clear();
@@ -72,12 +82,6 @@ public abstract class ProductWebApplicationFactoryBase<TProgram> : WebApplicatio
 
         builder.ConfigureServices(services =>
         {
-            services.Configure<ServiceProviderOptions>(o =>
-            {
-                o.ValidateOnBuild = true;
-                o.ValidateScopes = true;
-            });
-
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = TestConstants.AuthScheme;
