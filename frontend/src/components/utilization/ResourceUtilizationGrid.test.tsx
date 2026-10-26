@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { generateWeekendRanges } from '@foundation/src/domain/scheduling/weekend-ranges';
 import { EMPTY_RESOURCE_GRID_FILTER, type ResourceGridFilter } from './resource-grid-filter';
+import { CONFLICT_CHECK_DELAY_MS } from './time-grid-utils';
 import { ResourceUtilizationGrid } from './ResourceUtilizationGrid';
 import { useLayoutStore } from '@foundation/src/store/layout-store';
 import type { ResourceUtilizationBucket } from '@foundation/src/lib/api/resource-utilization-api';
@@ -144,6 +145,10 @@ function renderGrid(props?: Partial<React.ComponentProps<typeof ResourceUtilizat
 }
 
 describe('ResourceUtilizationGrid', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     lookupLabels = {};
     useLayoutStore.setState({ collapsedGroupIds: [] });
@@ -429,8 +434,10 @@ describe('ResourceUtilizationGrid', () => {
   });
 
   it('runs the deferred capability conflict-check after the delay', async () => {
-    // Real timers (not fake) so react-query's own scheduling stays intact; the deferred
-    // check fires ~CONFLICT_CHECK_DELAY_MS later, so allow a generous waitFor window.
+    // Fake timers with shouldAdvanceTime keep react-query's own scheduling on real time;
+    // advancing the clock by CONFLICT_CHECK_DELAY_MS fires the deferral (a plain setTimeout
+    // in the grid) at once instead of the test waiting 1.5 s for it.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.mocked(getAssignmentsByResourceType).mockResolvedValue([oneAssignment]);
     vi.mocked(validateAssignmentsBatch).mockResolvedValue([
       {
@@ -441,7 +448,8 @@ describe('ResourceUtilizationGrid', () => {
     ] as never);
     renderGrid();
     await waitFor(() => screen.getByText('Alice Smith'));
-    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await act(async () => { vi.advanceTimersByTime(CONFLICT_CHECK_DELAY_MS); });
+    await waitFor(() => expect(validateAssignmentsBatch).toHaveBeenCalledTimes(1));
   });
 
   // ── Grouping ────────────────────────────────────────────────────────────────

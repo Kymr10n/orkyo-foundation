@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { act, screen, fireEvent, waitFor } from '@testing-library/react';
 import { RequestPeopleSection } from './RequestPeopleSection';
 import { REQUEST_DERIVED_QUERY_KEYS } from '@foundation/src/lib/core/invalidate-request-data';
 import type { ReactNode } from 'react';
@@ -111,6 +111,10 @@ describe('RequestPeopleSection', () => {
     (validateAssignment as Mock).mockResolvedValue({ severity: 'ok', blockers: [], warnings: [] });
     (createAssignment as Mock).mockResolvedValue({ ...mockAssignment });
     (cancelAssignment as Mock).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders the section heading', () => {
@@ -519,6 +523,7 @@ describe('RequestPeopleSection', () => {
     // component: closing the dialog inside that window still fires the request and then writes
     // the result into an unmounted tree. In the suite the same leak let a timer from one test
     // land inside another and fail an unrelated assertion.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const { unmount } = renderWithQuery(<RequestPeopleSection {...defaultProps} />);
 
     await waitFor(() => screen.getByTestId('add-person-btn'));
@@ -527,11 +532,10 @@ describe('RequestPeopleSection', () => {
 
     unmount();
 
-    // A wall-clock wait is right here, unlike the ones removed elsewhere in this file: it is
-    // longer than the 400ms window it bounds, so load can only stretch it and give a leaked timer
-    // *more* chance to fire. A sleep is unsafe when it is shorter than the window it waits on —
-    // the old 50ms one — not when it is longer.
-    await new Promise((r) => setTimeout(r, 500));
+    // Fake timers make the window exact: advancing 1000 ms fires every timer the 400 ms
+    // debounce could have left behind, whatever the machine load, where the former 500 ms
+    // wall-clock sleep only bounded it as long as the process got the CPU in time.
+    await act(async () => { vi.advanceTimersByTime(1000); });
     expect(validateAssignment).not.toHaveBeenCalled();
   });
 
