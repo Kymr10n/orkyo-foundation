@@ -31,6 +31,7 @@
     "build": "tsc -b && tsc-alias -p tsconfig.json && find src -name '*.css' | xargs cp --parents -t .tsbuild/",
     "typecheck": "tsc -b && tsc-alias -p tsconfig.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src contracts --max-warnings=0"
   },
   "peerDependencies": {

@@ -31,6 +31,8 @@ export default defineConfig({
       thresholds: { lines: 80, statements: 80, branches: 70, functions: 80 },
       exclude: [
         "src/test/**",
+        // Test fixtures and helpers: codecov.yml ignores them too
+        "src/test-utils/**",
         "**/*.test.{ts,tsx}",
         "**/*.d.ts",
         // Pure type definitions — nothing to assert at runtime

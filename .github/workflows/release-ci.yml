@@ -61,6 +61,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/tags/v')"
     outputs:
       keycloak: ${{ steps.result.outputs.keycloak }}
+      frontend: ${{ steps.result.outputs.frontend }}
       kc_version: ${{ steps.kc.outputs.KC_VERSION }}
     permissions:
       contents: read
@@ -79,14 +80,27 @@ jobs:
               - 'keycloak/**'
               - '.trivyignore'
               - 'scripts/ci/keycloak-*'
+            # This workflow is in the list on purpose: an Actions bump changes only the
+            # workflow, and it must still prove frontend-ci runs (same reasoning as
+            # reusable-product-ci.yml).
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/release-ci.yml'
 
-      - name: Resolve keycloak flag
+      - name: Resolve change flags
         id: result
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "keycloak=true" >> "$GITHUB_OUTPUT"
           else
             echo "keycloak=${{ steps.filter.outputs.keycloak }}" >> "$GITHUB_OUTPUT"
+          fi
+          # frontend-ci is path-gated on pull requests only; push, schedule and dispatch
+          # always run it (the nightly publish and the KC image build depend on it).
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "frontend=${{ steps.filter.outputs.frontend }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "frontend=true" >> "$GITHUB_OUTPUT"
           fi
 
 
@@ -247,7 +261,11 @@ jobs:
     name: frontend-ci
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    if: "!startsWith(github.ref, 'refs/tags/v')"
+    # Skipped on a pull request that touches no frontend file; every downstream job
+    # already tolerates a skipped frontend-ci through `!failure() && !cancelled()`.
+    if: >-
+      !startsWith(github.ref, 'refs/tags/v') &&
+      needs.detect-changes.outputs.frontend == 'true'
     # detect-changes only, not the audits: build/test and the dependency audits share
     # no artifacts, and gating on them means a slow npm registry (2026-09-03: ~10min
     # of registry traffic timing out audit/npm) hides whether the code is even green.
@@ -281,7 +299,7 @@ jobs:
         working-directory: frontend
 
       - name: Test with coverage
-        run: npm test -- --coverage --reporter=verbose
+        run: npm run test:coverage -- --reporter=dot
         working-directory: frontend
 
       - name: Upload frontend coverage to Codecov
