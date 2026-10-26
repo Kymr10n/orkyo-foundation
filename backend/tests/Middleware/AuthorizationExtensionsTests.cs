@@ -1,16 +1,21 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Text.Json;
+using Api.Configuration;
 using Api.Constants;
 using Api.Endpoints.Admin;
+using Api.Integrations.Keycloak;
 using Api.Middleware;
 using Api.Security;
 using Api.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Orkyo.Shared;
 
 namespace Orkyo.Foundation.Tests.Middleware;
@@ -118,27 +123,6 @@ public class AuthorizationExtensionsTests
         return doc.RootElement.Clone();
     }
 
-    // ── Endpoint filter helper ─────────────────────────────────────────────
-
-    private static async Task<int> InvokeFilteredEndpointAsync(
-        Action<RouteHandlerBuilder> applyFilter,
-        ICurrentPrincipal? principal = null,
-        IAuthorizationContext? authContext = null,
-        ICurrentTenant? currentTenant = null)
-    {
-        var response = await InvokeFilteredEndpointResponseAsync(
-            applyFilter, principal, authContext, currentTenant);
-        return (int)response.StatusCode;
-    }
-
-    private static Task<HttpResponseMessage> InvokeFilteredEndpointResponseAsync(
-        Action<RouteHandlerBuilder> applyFilter,
-        ICurrentPrincipal? principal = null,
-        IAuthorizationContext? authContext = null,
-        ICurrentTenant? currentTenant = null)
-        => SendAsync(app => applyFilter(app.MapGet("/test", () => Results.Ok())), HttpMethod.Get,
-            principal, authContext, currentTenant);
-
     /// <summary>One route under a group carrying <paramref name="convention"/>, called with <paramref name="method"/>.</summary>
     private static async Task<int> InvokeGroupEndpointAsync(
         Func<RouteGroupBuilder, RouteGroupBuilder> convention,
@@ -170,6 +154,7 @@ public class AuthorizationExtensionsTests
     {
         var builder = WebApplication.CreateBuilder(
             new WebApplicationOptions { EnvironmentName = EnvironmentNames.Test });
+        builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; o.ValidateScopes = true; });
         builder.WebHost.UseTestServer();
         builder.Services.AddLogging();
 
@@ -209,63 +194,98 @@ public class AuthorizationExtensionsTests
     }
 
     // ── RequireSiteAdmin ───────────────────────────────────────────────────
+    // A policy evaluated in UseAuthorization, so the host needs the authentication stack: the
+    // TestSupport scheme decodes the bearer token into the realm_access claim the policy reads.
 
-    [Fact]
-    public async Task RequireSiteAdmin_WhenNoPrincipal_Returns401()
+    private static string Token(params string[] realmRoles) => TestConstants.BearerToken(
+        userId: Guid.NewGuid().ToString(), email: "user@test.example", displayName: "User",
+        tenantId: Guid.Empty.ToString(), tenantSlug: "", isTenantAdmin: false, role: "viewer",
+        sub: "kc-sub", realmRoles: realmRoles);
+
+    private static async Task<HttpResponseMessage> SendSiteAdminAsync(string? token, HttpMethod? method = null, HttpContent? body = null)
     {
-        var status = await InvokeFilteredEndpointAsync(route => route.RequireSiteAdmin());
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = EnvironmentNames.Test });
+        builder.Host.UseDefaultServiceProvider(o => { o.ValidateOnBuild = true; o.ValidateScopes = true; });
+        builder.WebHost.UseTestServer();
+        builder.Services.AddLogging();
+        builder.Services.AddAuthentication(TestConstants.AuthScheme)
+            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestConstants.AuthScheme, _ => { });
+        builder.Services.AddOrkyoAuthorizationPolicies();
 
-        status.Should().Be((int)HttpStatusCode.Unauthorized);
-    }
+        var app = builder.Build();
+        app.UseAuthentication();
+        app.UseAuthorization();
+        app.MapGet("/test", () => Results.Ok()).RequireSiteAdmin();
+        // A JSON body: binding malformed JSON fails with 400 when it runs at all.
+        app.MapPost("/test", (ProbeBody probe) => Results.Ok(probe)).RequireSiteAdmin();
 
-    [Fact]
-    public async Task RequireSiteAdmin_WhenNotAuthenticated_Returns401()
-    {
-        var principal = new CurrentPrincipal(); // not authenticated
-
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireSiteAdmin(),
-            principal: principal);
-
-        status.Should().Be((int)HttpStatusCode.Unauthorized);
-    }
-
-    [Fact]
-    public async Task RequireSiteAdmin_WhenAuthenticatedNotSiteAdmin_Returns403()
-    {
-        var principal = new CurrentPrincipal();
-        principal.SetContext(new PrincipalContext
+        await app.StartAsync();
+        try
         {
-            UserId = Guid.NewGuid(),
-            Email = "user@test.example",
-            AuthProvider = AuthProvider.Keycloak,
-            IsSiteAdmin = false,
-        });
+            var request = new HttpRequestMessage(method ?? HttpMethod.Get, "/test");
+            if (token is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            if (body is not null) request.Content = body;
+            return await app.GetTestClient().SendAsync(request);
+        }
+        finally
+        {
+            await app.StopAsync();
+            await app.DisposeAsync();
+        }
+    }
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireSiteAdmin(),
-            principal: principal);
+    private sealed record ProbeBody(string Name);
 
-        status.Should().Be((int)HttpStatusCode.Forbidden);
+    private static StringContent MalformedJson() => new("not json", System.Text.Encoding.UTF8, "application/json");
+
+    private static async Task<JsonElement> ReadBody(HttpResponseMessage response)
+    {
+        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return doc.RootElement.Clone();
     }
 
     [Fact]
-    public async Task RequireSiteAdmin_WhenSiteAdmin_CallsNext()
+    public async Task RequireSiteAdmin_WhenNotAuthenticated_Returns401Problem()
     {
-        var principal = new CurrentPrincipal();
-        principal.SetContext(new PrincipalContext
-        {
-            UserId = Guid.NewGuid(),
-            Email = "admin@test.example",
-            AuthProvider = AuthProvider.Keycloak,
-            IsSiteAdmin = true,
-        });
+        var response = await SendSiteAdminAsync(token: null);
 
-        var status = await InvokeFilteredEndpointAsync(
-            route => route.RequireSiteAdmin(),
-            principal: principal);
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "the policy answers with the API's problem body, not the scheme's challenge");
+        (await ReadBody(response)).GetProperty("code").GetString().Should().Be(ApiErrorCodes.SessionExpired);
+    }
 
-        status.Should().Be((int)HttpStatusCode.OK);
+    [Fact]
+    public async Task RequireSiteAdmin_WhenAuthenticatedNotSiteAdmin_Returns403Problem()
+    {
+        var response = await SendSiteAdminAsync(Token("user"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await ReadBody(response)).GetProperty("code").GetString().Should().Be(ApiErrorCodes.Forbidden);
+    }
+
+    [Fact]
+    public async Task RequireSiteAdmin_WhenSiteAdmin_ReachesTheEndpoint()
+    {
+        var response = await SendSiteAdminAsync(Token("user", KeycloakClaims.SiteAdminRole));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task RequireSiteAdmin_NonSiteAdminWithAnInvalidBody_Returns403NotBadRequest()
+    {
+        // Authorization runs before body binding: a caller without the role learns nothing about
+        // the request's shape. With the former endpoint filter this was a 400.
+        var response = await SendSiteAdminAsync(Token("user"), HttpMethod.Post, MalformedJson());
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task RequireSiteAdmin_SiteAdminWithAnInvalidBody_Returns400()
+    {
+        var response = await SendSiteAdminAsync(Token(KeycloakClaims.SiteAdminRole), HttpMethod.Post, MalformedJson());
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // ── RequireMemberReadEditorWrite: a write needs Editor ────────────────

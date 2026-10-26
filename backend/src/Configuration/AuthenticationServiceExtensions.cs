@@ -6,7 +6,10 @@ using Api.Reporting.Auth;
 using Api.Security;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Orkyo.Shared;
 
@@ -179,7 +182,25 @@ public static class AuthenticationServiceExtensions
                 policy.RequireAuthenticatedUser();
             });
         });
+        services.AddOrkyoAuthorizationPolicies();
 
+        return services;
+    }
+
+    /// <summary>
+    /// The policies <c>RequireSiteAdmin</c> and friends refer to, with their handlers and the
+    /// result handler that writes the API's problem bodies. Part of
+    /// <see cref="AddOrkyoAuthentication"/>; a host that mounts the gates without the full
+    /// authentication stack (a test) calls it directly.
+    /// </summary>
+    public static IServiceCollection AddOrkyoAuthorizationPolicies(this IServiceCollection services)
+    {
+        services.AddAuthorization(options =>
+            options.AddPolicy(AuthorizationPolicies.SiteAdmin, policy =>
+                policy.RequireAuthenticatedUser().AddRequirements(new SiteAdminRequirement())));
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IAuthorizationHandler, SiteAdminAuthorizationHandler>());
+        // AddAuthorization has just registered the framework's result handler; this one wraps it.
+        services.Replace(ServiceDescriptor.Singleton<IAuthorizationMiddlewareResultHandler, OrkyoAuthorizationResultHandler>());
         return services;
     }
 
