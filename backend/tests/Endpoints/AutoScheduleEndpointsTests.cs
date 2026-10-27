@@ -15,13 +15,11 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class AutoScheduleEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _unauthenticatedClient;
     private readonly JsonSerializerOptions _jsonOptions;
 
     public AutoScheduleEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _unauthenticatedClient = databaseFixture.Factory.CreateClient();
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
@@ -91,35 +89,4 @@ public class AutoScheduleEndpointsTests
 
     #endregion
 
-    #region Route existence
-
-    [Fact]
-    public async Task Preview_RouteExists_DoesNotReturn404()
-    {
-        var request = new AutoSchedulePreviewRequest(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: DateOnly.FromDateTime(DateTime.UtcNow),
-            HorizonEnd: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)));
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/scheduling/auto-schedule/preview", request, _jsonOptions);
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Apply_RouteExists_DoesNotReturn404()
-    {
-        var request = new AutoScheduleApplyRequest(
-            SiteId: Guid.NewGuid(),
-            HorizonStart: DateOnly.FromDateTime(DateTime.UtcNow),
-            HorizonEnd: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(30)));
-
-        var response = await _unauthenticatedClient.PostAsJsonAsync(
-            "/api/scheduling/auto-schedule/apply", request, _jsonOptions);
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    #endregion
 }

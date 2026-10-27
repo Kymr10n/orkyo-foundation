@@ -48,11 +48,14 @@ public static class AuditEndpoints
         int pageSize = 50,
         CancellationToken ct = default)
     {
+        if (!AuditQuery.TryParseActorId(actorId, out var actorUserId))
+            return ErrorResponses.BadRequest("actorId must be a GUID");
+
         await using var conn = connectionFactory.CreateControlPlaneConnection();
 
         var filter = new AuditEventListFilter(
             Action: action,
-            ActorUserId: Guid.TryParse(actorId, out var actorGuid) ? actorGuid : null,
+            ActorUserId: actorUserId,
             TargetType: targetType,
             TargetId: targetId,
             FromUtc: from?.ToUniversalTime(),
@@ -97,6 +100,19 @@ public static class AuditEndpoints
 /// </summary>
 internal static class AuditQuery
 {
+    /// <summary>
+    /// An absent <paramref name="actorId"/> is no filter; a malformed one is refused rather than
+    /// silently widening the query to every actor.
+    /// </summary>
+    internal static bool TryParseActorId(string? actorId, out Guid? actorUserId)
+    {
+        actorUserId = null;
+        if (actorId is null) return true;
+        if (!Guid.TryParse(actorId, out var parsed)) return false;
+        actorUserId = parsed;
+        return true;
+    }
+
     /// <summary>
     /// Builds the WHERE clause for <paramref name="filter"/>, or an empty string when nothing
     /// filters. <paramref name="alias"/> prefixes each column, e.g. <c>"a."</c> for a joined query.

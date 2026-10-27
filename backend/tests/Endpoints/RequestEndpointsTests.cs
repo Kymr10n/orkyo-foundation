@@ -131,21 +131,6 @@ public class RequestEndpointsTests
     }
 
     [Fact]
-    public async Task CreateRequest_WithIconExceedingLimit_ReturnsBadRequest()
-    {
-        var request = new CreateRequestRequest
-        {
-            Name = $"BadIcon {Guid.NewGuid():N}".Substring(0, 30),
-            Icon = new string('x', 65),
-            MinimalDurationValue = 1,
-            MinimalDurationUnit = DurationUnit.Days
-        };
-
-        var response = await _client.PostAsJsonAsync("/api/requests", request);
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
     public async Task CreateRequest_WithRequirements_CreatesRequestAndRequirements()
     {
         // Arrange

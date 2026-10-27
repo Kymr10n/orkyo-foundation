@@ -122,4 +122,25 @@ public class TenantOwnershipTransferPolicyTests
 
         decision.Should().Be(TenantOwnershipTransferDecision.Allowed);
     }
+
+    [Theory]
+    [InlineData("ADMIN", "ACTIVE", TenantOwnershipTransferDecision.Allowed)]   // role and status compare case-insensitively
+    [InlineData(null, "active", TenantOwnershipTransferDecision.NewOwnerNotAdmin)]
+    [InlineData("admin", null, TenantOwnershipTransferDecision.NewOwnerMembershipNotActive)]
+    public void Evaluate_ComparesTheNewOwnersRoleAndStatusCaseInsensitively_AndRefusesNull(
+        string? newOwnerRole, string? newOwnerMembershipStatus, TenantOwnershipTransferDecision expected)
+    {
+        var ownerId = Guid.NewGuid();
+        var decision = TenantOwnershipTransferPolicy.Evaluate(
+            tenantFound: true,
+            ownerUserId: ownerId,
+            currentOwnerId: ownerId,
+            isSiteAdmin: false,
+            tenantStatus: TenantStatusConstants.Active,
+            newOwnerMembershipFound: true,
+            newOwnerRole: newOwnerRole,
+            newOwnerMembershipStatus: newOwnerMembershipStatus);
+
+        decision.Should().Be(expected);
+    }
 }

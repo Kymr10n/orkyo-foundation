@@ -72,4 +72,13 @@ public class TenantDeletionPolicyTests
 
         decision.Should().Be(TenantCancelDeletionDecision.Allowed);
     }
+
+    [Fact]
+    public void EvaluateDelete_AndCancel_AllowASiteAdminWhoIsNotTheOwner()
+    {
+        TenantDeletionPolicy.EvaluateDelete(true, Guid.NewGuid(), Guid.NewGuid(), true, TenantStatusConstants.Active)
+            .Should().Be(TenantDeleteDecision.Allowed);
+        TenantDeletionPolicy.EvaluateCancelDeletion(true, Guid.NewGuid(), Guid.NewGuid(), true, TenantStatusConstants.Deleting)
+            .Should().Be(TenantCancelDeletionDecision.Allowed);
+    }
 }

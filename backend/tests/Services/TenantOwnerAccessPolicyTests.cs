@@ -49,4 +49,14 @@ public class TenantOwnerAccessPolicyTests
     {
         TenantOwnerAccessPolicy.IsDeleting(TenantStatusConstants.Active).Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData(false, TenantOwnerAccessDecision.NotOwner)]
+    [InlineData(true, TenantOwnerAccessDecision.Allowed)]
+    public void Evaluate_AnOwnerlessTenant_IsOnlyASiteAdmins(bool isSiteAdmin, TenantOwnerAccessDecision expected)
+    {
+        var decision = TenantOwnerAccessPolicy.Evaluate(true, ownerUserId: null, Guid.NewGuid(), isSiteAdmin);
+
+        decision.Should().Be(expected);
+    }
 }

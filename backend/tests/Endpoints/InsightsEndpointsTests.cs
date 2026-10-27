@@ -30,47 +30,22 @@ public class InsightsEndpointsTests
 
     // ── Validation (fail fast, no silent defaults) ────────────────────────────
 
-    [Fact]
-    public async Task Overview_MissingDates_Returns400()
+    [Theory]
+    [InlineData("/api/insights/overview")]                                                 // missing dates
+    [InlineData("/api/insights/overview?from=2099-02-01&to=2099-01-01")]                   // from after to
+    [InlineData($"/api/insights/requests?from={From}&to={To}")]                            // missing bucket
+    [InlineData($"/api/insights/requests?from={From}&to={To}&bucket=decade")]              // unknown bucket
+    [InlineData($"/api/insights/utilization?from={From}&to={To}&bucket=month")]            // missing resource type
+    // 'widget' is not a type this tenant defines — validation is a lookup against resource_types.
+    [InlineData($"/api/insights/utilization?from={From}&to={To}&bucket=month&resourceType=widget")]
+    [InlineData("/api/insights/bottlenecks")]                                              // missing dates
+    // Optional, but not unchecked: a typo is a bad request rather than a silent tenant-wide answer.
+    [InlineData("/api/insights/bottlenecks?from=2099-01-01&to=2099-03-01&resourceType=not-a-type")]
+    [InlineData("/api/insights/bottlenecks?from=2000-01-01&to=2050-01-01")]                // beyond the day cap
+    [InlineData("/api/insights/conflicts?from=2000-01-01&to=2050-01-01&bucket=week")]      // 50 years on a weekly bucket
+    public async Task AnInvalidQuery_Returns400(string url)
     {
-        var response = await _client.GetAsync("/api/insights/overview");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Overview_FromAfterTo_Returns400()
-    {
-        var response = await _client.GetAsync("/api/insights/overview?from=2099-02-01&to=2099-01-01");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task RequestTrend_MissingBucket_Returns400()
-    {
-        var response = await _client.GetAsync($"/api/insights/requests?from={From}&to={To}");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task RequestTrend_InvalidBucket_Returns400()
-    {
-        var response = await _client.GetAsync($"/api/insights/requests?from={From}&to={To}&bucket=decade");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Utilization_MissingResourceType_Returns400()
-    {
-        var response = await _client.GetAsync($"/api/insights/utilization?from={From}&to={To}&bucket=month");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Utilization_UnknownResourceType_Returns400()
-    {
-        // 'widget' is not a type this tenant defines — validation is now a lookup against
-        // resource_types rather than a hard-coded space|person|tool list.
-        var response = await _client.GetAsync($"/api/insights/utilization?from={From}&to={To}&bucket=month&resourceType=widget");
+        var response = await _client.GetAsync(url);
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
@@ -137,39 +112,6 @@ public class InsightsEndpointsTests
         // rejected every call the dashboard makes, because the page does not send one.
         var response = await _client.GetAsync("/api/insights/bottlenecks?from=2099-01-01&to=2099-03-01");
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task Bottlenecks_WithAnUnknownResourceType_Returns400()
-    {
-        // Optional, but not unchecked: a typo is still a bad request rather than a silent
-        // tenant-wide answer.
-        var response = await _client.GetAsync(
-            "/api/insights/bottlenecks?from=2099-01-01&to=2099-03-01&resourceType=not-a-type");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Bottlenecks_RangeBeyondTheDayCap_Returns400()
-    {
-        // Measured per day, so the widest windows still have to be refused.
-        var response = await _client.GetAsync("/api/insights/bottlenecks?from=2000-01-01&to=2050-01-01");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Bottlenecks_MissingDates_Returns400()
-    {
-        var response = await _client.GetAsync("/api/insights/bottlenecks");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task Conflicts_RangeTooLargeForBucket_Returns400()
-    {
-        // Weekly bucket caps at ~2 years; 50 years must be rejected.
-        var response = await _client.GetAsync("/api/insights/conflicts?from=2000-01-01&to=2050-01-01&bucket=week");
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]

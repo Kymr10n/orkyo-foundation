@@ -4,12 +4,22 @@ namespace Orkyo.Foundation.Tests.Services;
 
 public class TenantCreationPolicyTests
 {
-    [Fact]
-    public void EvaluateSlug_ShouldReturnReservedSlug_WhenSlugIsReserved()
+    [Theory]
+    [InlineData("admin")]
+    [InlineData("ADMIN")]   // reserved regardless of case, before the format check
+    public void EvaluateSlug_ShouldReturnReservedSlug_WhenSlugIsReserved(string slug)
     {
-        var decision = TenantCreationPolicy.EvaluateSlug("admin");
+        var decision = TenantCreationPolicy.EvaluateSlug(slug);
 
         decision.Should().Be(TenantCreationDecision.ReservedSlug);
+    }
+
+    [Theory]
+    [InlineData(63, TenantCreationDecision.Allowed)]
+    [InlineData(64, TenantCreationDecision.InvalidSlugFormat)]
+    public void EvaluateSlug_BoundsTheLengthAt63(int length, TenantCreationDecision expected)
+    {
+        TenantCreationPolicy.EvaluateSlug(new string('a', length)).Should().Be(expected);
     }
 
     [Theory]
@@ -18,6 +28,7 @@ public class TenantCreationPolicyTests
     [InlineData("AUpper")]
     [InlineData("has_underscore")]
     [InlineData("ends-with-")]
+    [InlineData("1abc")]       // leading digit
     [InlineData("tenant\n")]  // `$` matched before a trailing newline
     [InlineData(null)]         // threw in the reserved-set lookup
     public void EvaluateSlug_ShouldReturnInvalidSlugFormat_WhenSlugIsInvalid(string? slug)

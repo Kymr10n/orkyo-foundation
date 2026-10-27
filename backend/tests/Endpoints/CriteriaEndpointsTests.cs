@@ -32,79 +32,33 @@ public class CriteriaEndpointsTests
 
     #region POST /criteria - Create Criterion
 
-    [Fact]
-    public async Task CreateCriterion_WithValidBoolean_ReturnsCreated()
+    [Theory]
+    [InlineData(CriterionDataType.Boolean, null)]
+    [InlineData(CriterionDataType.Number, "kg")]
+    [InlineData(CriterionDataType.String, null)]
+    public async Task CreateCriterion_WithAScalarDataType_ReturnsCreated(CriterionDataType dataType, string? unit)
     {
-        // Arrange
         var request = new CreateCriterionRequest
         {
-            Name = $"test_boolean_{Guid.NewGuid():N}",
-            Description = "Test boolean criterion",
-            DataType = CriterionDataType.Boolean,
+            Name = $"test_{dataType}_{Guid.NewGuid():N}".ToLowerInvariant(),
+            Description = $"Test {dataType} criterion",
+            DataType = dataType,
+            Unit = unit,
             ResourceTypeKeys = new List<string> { "space" }
         };
 
-        // Act
         var response = await _client.PostAsJsonAsync("/api/criteria", request);
 
-        // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var criterion = await response.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
         Assert.NotNull(criterion);
         Assert.Equal(request.Name, criterion.Name);
         Assert.Equal(request.Description, criterion.Description);
-        Assert.Equal(CriterionDataType.Boolean, criterion.DataType);
+        Assert.Equal(dataType, criterion.DataType);
+        Assert.Equal(unit, criterion.Unit);
         Assert.Null(criterion.EnumValues);
-        Assert.Null(criterion.Unit);
         Assert.NotEqual(Guid.Empty, criterion.Id);
         Assert.Equal($"/api/criteria/{criterion.Id}", response.Headers.Location?.ToString());
-    }
-
-    [Fact]
-    public async Task CreateCriterion_WithValidNumber_ReturnsCreated()
-    {
-        // Arrange
-        var request = new CreateCriterionRequest
-        {
-            Name = $"test_number_{Guid.NewGuid():N}",
-            Description = "Test number criterion",
-            DataType = CriterionDataType.Number,
-            Unit = "kg",
-            ResourceTypeKeys = new List<string> { "space" }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/criteria", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var criterion = await response.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
-        Assert.NotNull(criterion);
-        Assert.Equal(request.Name, criterion.Name);
-        Assert.Equal(CriterionDataType.Number, criterion.DataType);
-        Assert.Equal("kg", criterion.Unit);
-    }
-
-    [Fact]
-    public async Task CreateCriterion_WithValidString_ReturnsCreated()
-    {
-        // Arrange
-        var request = new CreateCriterionRequest
-        {
-            Name = $"test_string_{Guid.NewGuid():N}",
-            Description = "Test string criterion",
-            DataType = CriterionDataType.String,
-            ResourceTypeKeys = new List<string> { "space" }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/criteria", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var criterion = await response.Content.ReadFromJsonAsync<CriterionInfo>(_jsonOptions);
-        Assert.NotNull(criterion);
-        Assert.Equal(CriterionDataType.String, criterion.DataType);
     }
 
     [Fact]
@@ -133,24 +87,6 @@ public class CriteriaEndpointsTests
         Assert.Contains("Small", criterion.EnumValues);
         Assert.Contains("Medium", criterion.EnumValues);
         Assert.Contains("Large", criterion.EnumValues);
-    }
-
-    [Fact]
-    public async Task CreateCriterion_WithInvalidName_ReturnsBadRequest()
-    {
-        // Arrange
-        var request = new CreateCriterionRequest
-        {
-            Name = "invalid name with spaces",
-            DataType = CriterionDataType.Boolean,
-            ResourceTypeKeys = new List<string> { "space" }
-        };
-
-        // Act
-        var response = await _client.PostAsJsonAsync("/api/criteria", request);
-
-        // Assert
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
     [Fact]

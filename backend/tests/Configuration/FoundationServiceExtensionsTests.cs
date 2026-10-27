@@ -53,11 +53,6 @@ public class FoundationServiceExtensionsTests
         return (services, config);
     }
 
-    private static bool IsScoped<TService, TImpl>(ServiceDescriptor sd) =>
-        sd.ServiceType == typeof(TService) &&
-        sd.ImplementationType == typeof(TImpl) &&
-        sd.Lifetime == ServiceLifetime.Scoped;
-
     // ── Return value ──────────────────────────────────────────────────────────
 
     [Fact]
@@ -83,29 +78,41 @@ public class FoundationServiceExtensionsTests
         returned.Should().BeSameAs(services);
     }
 
-    // ── Security context ──────────────────────────────────────────────────────
+    // ── Scoped registrations ──────────────────────────────────────────────────
 
-    [Fact]
-    public void AddFoundationServices_RegistersCurrentPrincipalAsScoped()
+    [Theory]
+    [InlineData(typeof(CurrentPrincipal), typeof(CurrentPrincipal))]
+    [InlineData(typeof(CurrentTenant), typeof(CurrentTenant))]
+    [InlineData(typeof(IResourceRepository), typeof(ResourceRepository))]
+    [InlineData(typeof(ISiteRepository), typeof(SiteRepository))]
+    [InlineData(typeof(IRequestRepository), typeof(RequestRepository))]
+    [InlineData(typeof(IRequestTreeRepository), typeof(RequestTreeRepository))]
+    [InlineData(typeof(IRequestScheduleReadRepository), typeof(RequestScheduleReadRepository))]
+    [InlineData(typeof(ISchedulingRepository), typeof(SchedulingRepository))]
+    [InlineData(typeof(IResourceService), typeof(ResourceService))]
+    [InlineData(typeof(IResourceTypeService), typeof(ResourceTypeService))]
+    [InlineData(typeof(ISiteService), typeof(SiteService))]
+    [InlineData(typeof(ISchedulingService), typeof(SchedulingService))]
+    [InlineData(typeof(ISessionService), typeof(SessionService))]
+    [InlineData(typeof(IReportingTokenService), typeof(ReportingTokenService))]
+    [InlineData(typeof(IReportingQueryService), typeof(ReportingQueryService))]
+    [InlineData(typeof(IAutoScheduleService), typeof(AutoScheduleService))]
+    public void AddFoundationServices_RegistersTheScopedService(Type service, Type implementation)
     {
         var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<CurrentPrincipal, CurrentPrincipal>(sd));
+        services.Should().Contain(sd =>
+            sd.ServiceType == service &&
+            sd.ImplementationType == implementation &&
+            sd.Lifetime == ServiceLifetime.Scoped);
     }
 
     [Fact]
-    public void AddFoundationServices_RegistersICurrentPrincipalMappedToCurrentPrincipal()
+    public void AddFoundationServices_RegistersICurrentPrincipalAsScoped()
     {
         var (services, _) = BuildServices();
         services.Should().Contain(sd =>
             sd.ServiceType == typeof(ICurrentPrincipal) &&
             sd.Lifetime == ServiceLifetime.Scoped);
-    }
-
-    [Fact]
-    public void AddFoundationServices_RegistersCurrentTenant()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<CurrentTenant, CurrentTenant>(sd));
     }
 
     // ── Keycloak ──────────────────────────────────────────────────────────────
@@ -139,102 +146,7 @@ public class FoundationServiceExtensionsTests
         opts.BackendClientId.Should().Be("orkyo-backend");
     }
 
-    // ── Repositories ──────────────────────────────────────────────────────────
-
-    [Fact]
-    public void AddFoundationServices_RegistersResourceRepository()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IResourceRepository, ResourceRepository>(sd));
-    }
-
-
-    [Fact]
-    public void AddFoundationServices_RegistersSiteRepository()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<ISiteRepository, SiteRepository>(sd));
-    }
-
-    [Fact]
-    public void AddFoundationServices_RegistersRequestRepository()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IRequestRepository, RequestRepository>(sd));
-        services.Should().Contain(sd => IsScoped<IRequestTreeRepository, RequestTreeRepository>(sd));
-        services.Should().Contain(sd => IsScoped<IRequestScheduleReadRepository, RequestScheduleReadRepository>(sd));
-    }
-
-
-    [Fact]
-    public void AddFoundationServices_RegistersSchedulingRepository()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<ISchedulingRepository, SchedulingRepository>(sd));
-    }
-
-    // ── Domain services ───────────────────────────────────────────────────────
-
-    [Fact]
-    public void AddFoundationServices_RegistersResourceService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IResourceService, ResourceService>(sd));
-    }
-
-    [Fact]
-    public void AddFoundationServices_RegistersResourceTypeService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IResourceTypeService, ResourceTypeService>(sd));
-    }
-
-
-    [Fact]
-    public void AddFoundationServices_RegistersSiteService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<ISiteService, SiteService>(sd));
-    }
-
-    [Fact]
-    public void AddFoundationServices_RegistersSchedulingService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<ISchedulingService, SchedulingService>(sd));
-    }
-
-    [Fact]
-    public void AddFoundationServices_RegistersSessionService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<ISessionService, SessionService>(sd));
-    }
-
-    // ── Reporting ─────────────────────────────────────────────────────────────
-
-    [Fact]
-    public void AddFoundationServices_RegistersReportingTokenService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IReportingTokenService, ReportingTokenService>(sd));
-    }
-
-    [Fact]
-    public void AddFoundationServices_RegistersReportingQueryService()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IReportingQueryService, ReportingQueryService>(sd));
-    }
-
     // ── Scheduling solver (singleton) ─────────────────────────────────────────
-
-    [Fact]
-    public void AddFoundationServices_RegistersAutoScheduleServiceAsScoped()
-    {
-        var (services, _) = BuildServices();
-        services.Should().Contain(sd => IsScoped<IAutoScheduleService, AutoScheduleService>(sd));
-    }
 
     [Fact]
     public void AddFoundationServices_RegistersSchedulingFeasibilityAnalyzerAsSingleton()

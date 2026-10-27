@@ -152,6 +152,28 @@ public class SubdomainResolutionStrategyTests
         result.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("orkyo.com")]              // apex
+    [InlineData("orkyo.com:443")]          // apex with a port
+    [InlineData("a.b.orkyo.com")]          // nested
+    [InlineData("orkyo.com.evil.test")]    // the base domain as a prefix of another host
+    [InlineData("evilorkyo.com")]          // suffix without the dot
+    [InlineData("orkyo.com.localhost")]    // nested under a local host
+    public void ResolveSlug_ReturnsNull_ForAHostThatIsNotATenantSubdomain(string host)
+    {
+        // With the header fallback off, nothing else may supply a slug for these hosts — and a
+        // base-domain host never falls through to the local-host rule.
+        var strategy = CreateStrategy(new TenantMiddlewareOptions
+        {
+            BaseDomain = "orkyo.com",
+            LocalHosts = ["localhost"],
+            AllowTenantHeader = false
+        });
+
+        strategy.ResolveSlug(CreateContext(host, headerSlug: "header-tenant", querySlug: "query-tenant"))
+            .Should().BeNull();
+    }
+
     private static SubdomainResolutionStrategy CreateStrategy(TenantMiddlewareOptions options)
         => new(options);
 

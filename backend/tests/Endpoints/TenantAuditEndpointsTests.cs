@@ -103,4 +103,12 @@ public class TenantAuditEndpointsTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(100, body.GetProperty("pageSize").GetInt32());
     }
+
+    [Fact]
+    public async Task Get_WithAMalformedActorId_Returns400()
+    {
+        using var client = _fixture.CreateClientWithRole("admin");
+        var response = await client.GetAsync("/api/audit/?actorId=not-a-guid");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
 }

@@ -132,36 +132,25 @@ public class UtilizationEndpointsTests
     }
 
     [Fact]
-    public async Task GetGroupUtilization_NonExistentGroup_ReturnsNotFoundOrEmpty()
+    public async Task GetGroupUtilization_NonExistentGroup_Returns200WithNoData()
     {
-        // Endpoint returns 404 or empty data for unknown groups — either is acceptable
+        // Unlike the resource variant, an unknown group is not a 404: the service answers with an empty series.
         var (from, to) = DateRange();
         var response = await _client.GetAsync(
             $"/api/resource-groups/{Guid.NewGuid()}/utilization?from={from}&to={to}");
 
-        Assert.True(
-            response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.OK,
-            $"Expected NotFound or OK, got {response.StatusCode}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     // ── GET /api/utilization ─────────────────────────────────────────────────
 
-    [Fact]
-    public async Task GetTenantUtilization_WithDateRange_Returns200()
+    [Theory]
+    [InlineData("granularity=day")]
+    [InlineData("resourceTypeKey=person&granularity=week")]
+    public async Task GetTenantUtilization_Returns200(string query)
     {
         var (from, to) = DateRange();
-        var response = await _client.GetAsync(
-            $"/api/utilization/?from={from}&to={to}&granularity=day");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task GetTenantUtilization_WithResourceTypeFilter_Returns200()
-    {
-        var (from, to) = DateRange();
-        var response = await _client.GetAsync(
-            $"/api/utilization/?from={from}&to={to}&resourceTypeKey=person&granularity=week");
+        var response = await _client.GetAsync($"/api/utilization/?from={from}&to={to}&{query}");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

@@ -251,7 +251,7 @@ public class RequestPlanEndpointTests
 
         var write = await viewer.PutAsJsonAsync($"/api/requests/{parent}",
             new UpdateRequestRequest { Status = RequestStatus.InProgress });
-        write.StatusCode.Should().BeOneOf(HttpStatusCode.Forbidden, HttpStatusCode.Unauthorized);
+        write.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     // ── The planner read model ────────────────────────────────────────────────

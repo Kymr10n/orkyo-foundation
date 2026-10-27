@@ -138,6 +138,12 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         return Task.FromResult(ExecuteActionsEmailResult);
     }
 
+    /// <summary>
+    /// The status the disable/enable/delete failures carry (502 unless set). 404 reaches the
+    /// endpoints' "already gone from the identity provider" branch.
+    /// </summary>
+    public int? UserMutationErrorStatusCode { get; set; }
+
     // ── Disable user ──────────────────────────────────────────────
     public bool DisableUserSuccess { get; set; } = true;
     public string? DisableUserError { get; set; }
@@ -149,7 +155,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         DisableUserCallCount++;
         LastDisabledKeycloakId = keycloakId;
         if (!DisableUserSuccess)
-            throw new KeycloakAdminException(DisableUserError ?? "Failed to disable user");
+            throw new KeycloakAdminException(DisableUserError ?? "Failed to disable user", UserMutationErrorStatusCode ?? StatusCodes.Status502BadGateway);
         return Task.CompletedTask;
     }
 
@@ -164,7 +170,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         EnableUserCallCount++;
         LastEnabledKeycloakId = keycloakId;
         if (!EnableUserSuccess)
-            throw new KeycloakAdminException(EnableUserError ?? "Failed to enable user");
+            throw new KeycloakAdminException(EnableUserError ?? "Failed to enable user", UserMutationErrorStatusCode ?? StatusCodes.Status502BadGateway);
         return Task.CompletedTask;
     }
 
@@ -179,7 +185,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
         DeleteUserCallCount++;
         LastDeletedKeycloakId = keycloakId;
         if (!DeleteUserSuccess)
-            throw new KeycloakAdminException(DeleteUserError ?? "Failed to delete user");
+            throw new KeycloakAdminException(DeleteUserError ?? "Failed to delete user", UserMutationErrorStatusCode ?? StatusCodes.Status502BadGateway);
         return Task.CompletedTask;
     }
 
@@ -201,11 +207,13 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public string? DeleteCredentialError { get; set; }
     public int DeleteCredentialCallCount { get; private set; }
     public string? LastDeletedCredentialId { get; private set; }
+    public string? LastDeletedCredentialType { get; private set; }
 
-    public Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, CancellationToken ct = default)
+    public Task DeleteUserCredentialAsync(string keycloakSub, string credentialId, string expectedType, CancellationToken ct = default)
     {
         DeleteCredentialCallCount++;
         LastDeletedCredentialId = credentialId;
+        LastDeletedCredentialType = expectedType;
         if (!DeleteCredentialSuccess)
             throw new KeycloakAdminException(DeleteCredentialError ?? "Failed to remove credential");
         return Task.CompletedTask;
@@ -224,11 +232,13 @@ public class MockKeycloakAdminService : IKeycloakAdminService
     public bool RenameCredentialSuccess { get; set; } = true;
     public int RenameCredentialCallCount { get; private set; }
     public (string CredentialId, string Label) LastRenameCall { get; private set; }
+    public string? LastRenamedCredentialType { get; private set; }
 
-    public Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, CancellationToken ct = default)
+    public Task RenameCredentialAsync(string keycloakSub, string credentialId, string label, string expectedType, CancellationToken ct = default)
     {
         RenameCredentialCallCount++;
         LastRenameCall = (credentialId, label);
+        LastRenamedCredentialType = expectedType;
         if (!RenameCredentialSuccess)
             throw new KeycloakAdminException("Credential not found for this user", 404);
         return Task.CompletedTask;
@@ -359,6 +369,7 @@ public class MockKeycloakAdminService : IKeycloakAdminService
 
     public void Reset()
     {
+        UserMutationErrorStatusCode = null;
         ChangePasswordSuccess = true;
         ChangePasswordError = null;
         VerifyPasswordSuccess = true;

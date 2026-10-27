@@ -177,6 +177,9 @@ public static class UserAdminEndpoints
         ICurrentPrincipal principal,
         CancellationToken ct = default)
     {
+        if (!await userRepository.ExistsAsync(userId, ct))
+            return ErrorResponses.NotFound("User");
+
         // Keycloak first, and a failure fails the request: the DB must not say "disabled"
         // while the identity provider still lets the user sign in. An identity Keycloak no
         // longer has cannot sign in either, so a 404 there is the goal state.
@@ -198,6 +201,9 @@ public static class UserAdminEndpoints
         ICurrentPrincipal principal,
         CancellationToken ct = default)
     {
+        if (!await userRepository.ExistsAsync(userId, ct))
+            return ErrorResponses.NotFound("User");
+
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)
             await keycloak.EnableUserAsync(keycloakId, ct);
@@ -218,6 +224,9 @@ public static class UserAdminEndpoints
     {
         if (userId == principal.UserId)
             return ErrorResponses.BadRequest("Cannot delete your own account");
+
+        if (!await userRepository.ExistsAsync(userId, ct))
+            return ErrorResponses.NotFound("User");
 
         var keycloakId = await userRepository.GetKeycloakSubjectAsync(userId, ct);
         if (keycloakId != null)

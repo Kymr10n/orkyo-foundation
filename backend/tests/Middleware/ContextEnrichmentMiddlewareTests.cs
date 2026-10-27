@@ -245,4 +245,51 @@ public class ContextEnrichmentMiddlewareTests
 
         _mockIdentityLinkService.Verify(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject), Times.Exactly(2));
     }
+
+    [Fact]
+    public async Task KeycloakUserLinked_OnACacheHit_TakesIsSiteAdminFromTheLiveToken()
+    {
+        // The cache holds the DB-sourced principal; the role must come from each request's token,
+        // or a revoked site-admin keeps the flag for the cache TTL — and a promoted one waits for it.
+        var subject = "kc-subject-cached";
+        _mockIdentityLinkService.Setup(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject))
+            .ReturnsAsync(new PrincipalContext
+            {
+                UserId = Guid.NewGuid(),
+                Email = "cached@example.com",
+                DisplayName = "Cached User",
+                AuthProvider = AuthProvider.Keycloak,
+                ExternalSubject = subject
+            });
+
+        await InvokeMiddleware(CreateHttpContext(user: CreateKeycloakUser(subject, isSiteAdmin: false)));
+        _currentPrincipal.IsSiteAdmin.Should().BeFalse();
+
+        var second = new CurrentPrincipal();
+        await CreateMiddleware(_ => Task.CompletedTask).InvokeAsync(
+            CreateHttpContext(user: CreateKeycloakUser(subject, isSiteAdmin: true)),
+            second, new CurrentTenant(), new CurrentAuthorizationContext(),
+            _mockIdentityLinkService.Object, _mockTenantUserService.Object, _mockBreakGlass.Object);
+
+        second.IsSiteAdmin.Should().BeTrue();
+        _mockIdentityLinkService.Verify(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject), Times.Once,
+            "the second request is a cache hit");
+    }
+
+    [Fact]
+    public async Task KeycloakUserNotLinked_OnATenantRequest_GetsNoRoleAndNoStub()
+    {
+        var subject = "kc-subject-unlinked-tenant";
+        var tenant = CreateTenantContext();
+        _mockIdentityLinkService.Setup(s => s.FindByExternalIdentityAsync(AuthProvider.Keycloak, subject))
+            .ReturnsAsync((PrincipalContext?)null);
+
+        await InvokeMiddleware(CreateHttpContext(user: CreateKeycloakUser(subject), tenantContext: tenant));
+
+        _currentPrincipal.UserId.Should().Be(Guid.Empty);
+        _currentAuthContext.IsMember.Should().BeFalse();
+        _mockTenantUserService.Verify(
+            s => s.CreateUserStubInTenantDatabaseAsync(It.IsAny<OrgContext>(), It.IsAny<Guid>(), It.IsAny<string>()),
+            Times.Never);
+    }
 }

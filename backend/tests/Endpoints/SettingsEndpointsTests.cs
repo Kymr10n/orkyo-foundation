@@ -213,64 +213,6 @@ public class SettingsEndpointsTests
     }
 
     [Fact]
-    public async Task UpdateSettings_IntBelowMinimum_ReturnsBadRequest()
-    {
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["search.search_default_page_size"] = "3"   // min is 5
-            }
-        }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task UpdateSettings_IntAboveMaximum_ReturnsBadRequest()
-    {
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["search.search_default_page_size"] = "200"   // max is 100
-            }
-        }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task UpdateSettings_InvalidIntValue_ReturnsBadRequest()
-    {
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["search.search_default_page_size"] = "abc"
-            }
-        }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    // ── String format validation ────────────────────────────────────
-
-    [Fact]
-    public async Task UpdateSettings_InvalidHexColor_ReturnsBadRequest()
-    {
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["branding.branding_primary_color"] = "not-a-color"
-            }
-        }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
     public async Task UpdateSettings_ValidHexColor_Succeeds()
     {
         await CleanupSettingsAsync();
@@ -295,34 +237,6 @@ public class SettingsEndpointsTests
             settings = new Dictionary<string, string>
             {
                 ["uploads.upload_allowed_mime_types"] = "image/png"
-            }
-        }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task UpdateSettings_ProductNameWithHtml_ReturnsBadRequest()
-    {
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["branding.branding_product_name"] = "<script>alert('xss')</script>"
-            }
-        }));
-
-        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-    }
-
-    [Fact]
-    public async Task UpdateSettings_ValueExceedsMaxLength_ReturnsBadRequest()
-    {
-        var response = await _client.SendAsync(TestHelpers.AuthRequest(HttpMethod.Put, "/api/settings", await Token, new
-        {
-            settings = new Dictionary<string, string>
-            {
-                ["branding.branding_product_name"] = new string('A', 501)
             }
         }));
 

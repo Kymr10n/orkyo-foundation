@@ -184,31 +184,29 @@ public class ExportEndpointsTests
             new { code = siteCode, name = $"Export Site {siteCode}" });
         var siteResp = await _client.SendAsync(createSiteReq);
 
-        if (siteResp.StatusCode == HttpStatusCode.OK || siteResp.StatusCode == HttpStatusCode.Created)
+        siteResp.EnsureSuccessStatusCode();
+        var siteJson = await siteResp.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var siteId = siteJson.GetProperty("id").GetGuid();
+
+        // Export with site filter
+        var exportRequest = new ExportRequest
         {
-            var siteJson = await siteResp.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
-            var siteId = siteJson.GetProperty("id").GetGuid();
+            SiteIds = new List<Guid> { siteId },
+            IncludeMasterData = true
+        };
+        var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
+        var response = await _client.SendAsync(request);
 
-            // Export with site filter
-            var exportRequest = new ExportRequest
-            {
-                SiteIds = new List<Guid> { siteId },
-                IncludeMasterData = true
-            };
-            var request = TestHelpers.AuthRequest(HttpMethod.Post, "/api/admin/export", await Token, exportRequest);
-            var response = await _client.SendAsync(request);
-
-            // Assert
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
-            Assert.NotNull(payload);
-            Assert.NotNull(payload.Data.Sites);
-            Assert.Single(payload.Data.Sites);
-            Assert.Equal(siteCode, payload.Data.Sites[0].Code);
-            Assert.NotNull(payload.Provenance.SiteIds);
-            Assert.Single(payload.Provenance.SiteIds);
-            Assert.Equal(siteId, payload.Provenance.SiteIds[0]);
-        }
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<ExportPayload>(_jsonOptions);
+        Assert.NotNull(payload);
+        Assert.NotNull(payload.Data.Sites);
+        Assert.Single(payload.Data.Sites);
+        Assert.Equal(siteCode, payload.Data.Sites[0].Code);
+        Assert.NotNull(payload.Provenance.SiteIds);
+        Assert.Single(payload.Provenance.SiteIds);
+        Assert.Equal(siteId, payload.Provenance.SiteIds[0]);
     }
 
     [Fact]

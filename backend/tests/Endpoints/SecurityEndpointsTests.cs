@@ -677,6 +677,7 @@ public class SecurityEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         _mockKeycloak.DeleteCredentialCallCount.Should().Be(1);
         _mockKeycloak.LastDeletedCredentialId.Should().Be("totp-cred-id");
+        _mockKeycloak.LastDeletedCredentialType.Should().Be(KeycloakCredentialTypes.Totp);
     }
 
     [Fact]
@@ -760,6 +761,7 @@ public class SecurityEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.NoContent);
         _mockKeycloak.LastRenameCall.Should().Be(("pk-1", "Work laptop"));
+        _mockKeycloak.LastRenamedCredentialType.Should().Be(KeycloakCredentialTypes.Passkey);
     }
 
     [Theory]
@@ -792,6 +794,7 @@ public class SecurityEndpointsTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         _mockKeycloak.VerifyPasswordCallCount.Should().Be(1);
         _mockKeycloak.LastDeletedCredentialId.Should().Be("pk-1");
+        _mockKeycloak.LastDeletedCredentialType.Should().Be(KeycloakCredentialTypes.Passkey, "the route must name the type it removes");
         await _factory.BackgroundWork.WhenIdleAsync();
         _factory.MockEmailService.CallCount(nameof(IEmailService.SendPasskeyRemovedAsync)).Should().BeGreaterThan(0);
     }

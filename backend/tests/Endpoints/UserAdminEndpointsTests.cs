@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Api.Constants;
+using Microsoft.AspNetCore.Http;
 using Orkyo.Foundation.Tests.Mocks;
 
 namespace Orkyo.Foundation.Tests.Endpoints;
@@ -103,15 +104,6 @@ public class UserAdminEndpointsTests
         Assert.True(body.TryGetProperty("memberships", out _));
     }
 
-    [Fact]
-    public async Task GetUser_NonExistentUser_Returns404()
-    {
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/users/{Guid.NewGuid()}", adminToken));
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
     // ── GET /api/admin/users/{id}/memberships ─────────────────────────────────
 
     [Fact]
@@ -127,60 +119,6 @@ public class UserAdminEndpointsTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.True(body.TryGetProperty("memberships", out var memberships));
         Assert.Equal(JsonValueKind.Array, memberships.ValueKind);
-    }
-
-    [Fact]
-    public async Task GetUserMemberships_NonExistentUser_Returns404()
-    {
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Get, $"/api/admin/users/{Guid.NewGuid()}/memberships", adminToken));
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    // ── POST /api/admin/users/{id}/deactivate ────────────────────────────────
-
-    [Fact]
-    public async Task DeactivateUser_ExistingUser_Returns204()
-    {
-        ResetKeycloak();
-        var (userId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-user");
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{userId}/deactivate", adminToken));
-
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-    }
-
-    // ── POST /api/admin/users/{id}/reactivate ────────────────────────────────
-
-    [Fact]
-    public async Task ReactivateUser_ExistingUser_Returns204()
-    {
-        ResetKeycloak();
-        var (userId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-user");
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{userId}/reactivate", adminToken));
-
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-    }
-
-    // ── DELETE /api/admin/users/{id} ─────────────────────────────────────────
-
-    [Fact]
-    public async Task DeleteUser_ExistingUser_Returns204()
-    {
-        ResetKeycloak();
-        var (userId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-del");
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/admin/users/{userId}", adminToken));
-
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
     }
 
     // ── POST /api/admin/users/{id}/promote-site-admin ────────────────────────
@@ -246,15 +184,6 @@ public class UserAdminEndpointsTests
         _fixture.Factory.MockKeycloakAdminService.MockRealmRoles.Remove("site-admin");
     }
 
-    [Fact]
-    public async Task PromoteSiteAdmin_NonExistentUser_Returns404()
-    {
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{Guid.NewGuid()}/promote-site-admin", adminToken));
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
     // ── POST /api/admin/users/{id}/revoke-site-admin ─────────────────────────
 
     [Fact]
@@ -264,15 +193,6 @@ public class UserAdminEndpointsTests
         var response = await _client.SendAsync(
             TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{adminId}/revoke-site-admin", adminToken));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task RevokeSiteAdmin_NonExistentUser_Returns404()
-    {
-        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
-        var response = await _client.SendAsync(
-            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{Guid.NewGuid()}/revoke-site-admin", adminToken));
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
@@ -317,6 +237,24 @@ public class UserAdminEndpointsTests
     }
 
     [Theory]
+    [InlineData("GET", "")]
+    [InlineData("GET", "/memberships")]
+    [InlineData("POST", "/deactivate")]
+    [InlineData("POST", "/reactivate")]
+    [InlineData("POST", "/promote-site-admin")]
+    [InlineData("POST", "/revoke-site-admin")]
+    [InlineData("DELETE", "")]
+    public async Task EachAction_OnAnUnknownUser_Returns404(string method, string route)
+    {
+        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-admin", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(new HttpMethod(method), $"/api/admin/users/{Guid.NewGuid()}{route}", adminToken));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Theory]
     [InlineData("deactivate", SecurityAuditActions.UserDeactivated)]
     [InlineData("reactivate", SecurityAuditActions.UserReactivated)]
     [InlineData("promote-site-admin", SecurityAuditActions.SiteAdminGranted)]
@@ -357,6 +295,43 @@ public class UserAdminEndpointsTests
     }
 
     [Fact]
+    public async Task DeactivateUser_WhenKeycloakNoLongerHasTheUser_StillDisablesTheUser()
+    {
+        // 404 from the identity provider means the account is already gone there; the
+        // platform status and the audit row must still be written.
+        ResetKeycloak();
+        _fixture.Factory.MockKeycloakAdminService.DisableUserSuccess = false;
+        _fixture.Factory.MockKeycloakAdminService.UserMutationErrorStatusCode = 404;
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-gone");
+        var (adminId, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-gone-admin", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/deactivate", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(UserStatusConstants.Disabled, await GetStatusAsync(targetId));
+        Assert.Equal(1, await CountAuditAsync(SecurityAuditActions.UserDeactivated, adminId, targetId));
+    }
+
+    [Fact]
+    public async Task DeleteUser_WhenKeycloakNoLongerHasTheUser_StillDeletesTheUser()
+    {
+        ResetKeycloak();
+        _fixture.Factory.MockKeycloakAdminService.DeleteUserSuccess = false;
+        _fixture.Factory.MockKeycloakAdminService.UserMutationErrorStatusCode = 404;
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-del-gone");
+        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-kc-del-gone-admin", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Delete, $"/api/admin/users/{targetId}", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Null(await GetStatusAsync(targetId));
+    }
+
+    [Fact]
     public async Task DeleteUser_WhenKeycloakFails_ReturnsAnErrorAndKeepsTheUser()
     {
         ResetKeycloak();
@@ -384,5 +359,81 @@ public class UserAdminEndpointsTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(0, _fixture.Factory.MockKeycloakAdminService.DeleteUserCallCount);
         Assert.NotNull(await GetStatusAsync(adminId));
+    }
+
+    // ── Site-admin role edges ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task RevokeSiteAdmin_TheLastSiteAdmin_Returns400AndKeepsTheRole()
+    {
+        ResetKeycloak();
+        var keycloak = _fixture.Factory.MockKeycloakAdminService;
+        keycloak.MockRealmRoles.Add("site-admin");
+        keycloak.CountRealmRoleMembersResult = 1;
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-last-admin");
+        var (adminId, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-last-admin-caller", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/revoke-site-admin", adminToken));
+        var revokeCalls = keycloak.RevokeRealmRoleCallCount;
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(0, revokeCalls);
+        Assert.Equal(0, await CountAuditAsync(SecurityAuditActions.SiteAdminRevoked, adminId, targetId));
+    }
+
+    [Fact]
+    public async Task RevokeSiteAdmin_AUserWithoutTheRole_Returns409()
+    {
+        ResetKeycloak();
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-not-admin");
+        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-not-admin-caller", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/revoke-site-admin", adminToken));
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(0, _fixture.Factory.MockKeycloakAdminService.RevokeRealmRoleCallCount);
+    }
+
+    [Theory]
+    [InlineData("promote-site-admin")]
+    [InlineData("revoke-site-admin")]
+    public async Task SiteAdminRoleChange_WhenTheKeycloakIdentityIsStale_Returns422(string route)
+    {
+        // The link row exists, Keycloak no longer has the subject: a 404 on the role read.
+        ResetKeycloak();
+        var keycloak = _fixture.Factory.MockKeycloakAdminService;
+        keycloak.HasRealmRoleError_ = true;
+        keycloak.HasRealmRoleErrorStatusCode = StatusCodes.Status404NotFound;
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-stale");
+        var (_, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-stale-caller", siteAdmin: true);
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/{route}", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task ReactivateUser_WhenKeycloakFails_LeavesTheUserDisabled()
+    {
+        ResetKeycloak();
+        var (targetId, _) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-react-fail");
+        var (adminId, adminToken) = await DatabaseTestUtils.CreateLinkedUserAsync("ua-react-fail-admin", siteAdmin: true);
+        var deactivate = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/deactivate", adminToken));
+        Assert.Equal(HttpStatusCode.NoContent, deactivate.StatusCode);
+        _fixture.Factory.MockKeycloakAdminService.EnableUserSuccess = false;
+
+        var response = await _client.SendAsync(
+            TestHelpers.AuthRequest(HttpMethod.Post, $"/api/admin/users/{targetId}/reactivate", adminToken));
+        ResetKeycloak();
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal(UserStatusConstants.Disabled, await GetStatusAsync(targetId));
+        Assert.Equal(0, await CountAuditAsync(SecurityAuditActions.UserReactivated, adminId, targetId));
     }
 }

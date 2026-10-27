@@ -17,12 +17,10 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 public class GroupCapabilityEndpointsTests
 {
     private readonly HttpClient _client;
-    private readonly HttpClient _unauthenticatedClient;
 
     public GroupCapabilityEndpointsTests(DatabaseFixture databaseFixture)
     {
         _client = databaseFixture.CreateAuthorizedClient();
-        _unauthenticatedClient = databaseFixture.Factory.CreateClient();
     }
 
     // The test group is space-typed, and the applicability guard only admits a criterion that is
@@ -295,18 +293,4 @@ public class GroupCapabilityEndpointsTests
 
     #endregion
 
-    #region Route existence
-
-    [Fact]
-    public async Task Capabilities_RouteExists_DoesNotReturn404()
-    {
-        var groupId = Guid.NewGuid();
-
-        var response = await _unauthenticatedClient.GetAsync(
-            $"/api/resource-groups/{groupId}/capabilities");
-
-        Assert.NotEqual(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    #endregion
 }

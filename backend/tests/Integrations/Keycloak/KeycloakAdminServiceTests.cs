@@ -170,14 +170,17 @@ public class KeycloakAdminServiceTests
     // ── LogoutAllSessionsAsync ─────────────────────────────────────────────
 
     [Fact]
-    public async Task LogoutAllSessionsAsync_Succeeds_On204()
+    public async Task LogoutAllSessionsAsync_PostsToTheUsersLogoutRoute()
     {
-        var svc = Build(TokenAndUser(new[]
-        {
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
             ("/users/kc-user-id/logout", HttpStatusCode.NoContent, "")
-        }));
+        ])));
 
         await svc.LogoutAllSessionsAsync("kc-user-id");
+
+        // The token request is a POST too; the logout is the one on the user's route.
+        handler.Requests.Should().ContainSingle(r => r.Method == HttpMethod.Post && r.RequestUri!.AbsolutePath.EndsWith("/users/kc-user-id/logout"));
     }
 
     // ── GetUserFederationStatusAsync ───────────────────────────────────────
@@ -532,42 +535,40 @@ public class KeycloakAdminServiceTests
 
     // ── DisableUserAsync / EnableUserAsync ────────────────────────────────
 
-    [Fact]
-    public async Task DisableUserAsync_Succeeds_On204()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EnableAndDisable_PutTheEnabledFlag_OnTheUser(bool enabled)
     {
-        var svc = Build(
+        var (svc, handler) = BuildCapturing(Dispatch(
         [
             ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
             ("/users/kc-id-1", HttpStatusCode.NoContent, "")
-        ]);
+        ]));
 
-        await svc.DisableUserAsync("kc-id-1");
-    }
+        if (enabled) await svc.EnableUserAsync("kc-id-1");
+        else await svc.DisableUserAsync("kc-id-1");
 
-    [Fact]
-    public async Task EnableUserAsync_Succeeds_On204()
-    {
-        var svc = Build(
-        [
-            ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
-            ("/users/kc-id-1", HttpStatusCode.NoContent, "")
-        ]);
-
-        await svc.EnableUserAsync("kc-id-1");
+        var put = handler.Requests.Should().ContainSingle(r => r.Method == HttpMethod.Put).Subject;
+        put.RequestUri!.AbsolutePath.Should().EndWith("/users/kc-id-1");
+        handler.Bodies[handler.Requests.IndexOf(put)].Should().Contain($"\"enabled\":{(enabled ? "true" : "false")}");
     }
 
     // ── DeleteUserAsync ────────────────────────────────────────────────────
 
     [Fact]
-    public async Task DeleteUserAsync_Succeeds_On204()
+    public async Task DeleteUserAsync_SendsDelete_ForTheUser()
     {
-        var svc = Build(
+        var (svc, handler) = BuildCapturing(Dispatch(
         [
             ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
             ("/users/kc-id-del", HttpStatusCode.NoContent, "")
-        ]);
+        ]));
 
         await svc.DeleteUserAsync("kc-id-del");
+
+        handler.Requests.Should().ContainSingle(r => r.Method == HttpMethod.Delete)
+            .Which.RequestUri!.AbsolutePath.Should().EndWith("/users/kc-id-del");
     }
 
     [Fact]
@@ -647,7 +648,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("pk-1", "webauthn-passwordless")),
         ])));
 
-        await svc.RenameCredentialAsync("kc-user-id", "pk-1", "Work laptop");
+        await svc.RenameCredentialAsync("kc-user-id", "pk-1", "Work laptop", KeycloakCredentialTypes.Passkey);
 
         var rename = handler.Requests.Single(r => r.Method == HttpMethod.Put);
         rename.RequestUri!.AbsolutePath.Should().EndWith("/users/kc-user-id/credentials/pk-1/userLabel");
@@ -663,7 +664,23 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("someone-elses", "webauthn-passwordless")),
         ])));
 
-        var act = () => svc.RenameCredentialAsync("kc-user-id", "pk-1", "Mine now");
+        var act = () => svc.RenameCredentialAsync("kc-user-id", "pk-1", "Mine now", KeycloakCredentialTypes.Passkey);
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Put);
+    }
+
+    [Fact]
+    public async Task RenameCredentialAsync_Throws404AndSendsNothing_WhenTheCredentialIsAnotherType()
+    {
+        // The id is the user's, but it names a password credential: the passkey route must not touch it.
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
+            ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("pw-1", "password")),
+        ])));
+
+        var act = () => svc.RenameCredentialAsync("kc-user-id", "pw-1", "Mine now", KeycloakCredentialTypes.Passkey);
 
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
@@ -671,6 +688,23 @@ public class KeycloakAdminServiceTests
     }
 
     // ── DeleteUserCredentialAsync ──────────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteUserCredentialAsync_Throws404AndSendsNoDelete_WhenTheCredentialIsAnotherType()
+    {
+        // Ownership alone is not enough: a TOTP credential id handed to the passkey route stays.
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
+            ("/users/kc-user-id/credentials", HttpStatusCode.OK, CredentialsJson("otp-1", KeycloakCredentialTypes.Totp)),
+            ("/users/kc-user-id/credentials/otp-1", HttpStatusCode.NoContent, ""),
+        ])));
+
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "otp-1", KeycloakCredentialTypes.Passkey);
+
+        var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
+        ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
+        handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Delete);
+    }
 
     [Fact]
     public async Task DeleteUserCredentialAsync_Succeeds_WhenCredentialBelongsToUser()
@@ -683,7 +717,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials/cred-abc", HttpStatusCode.NoContent, "") // delete
         }));
 
-        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc");
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc", KeycloakCredentialTypes.Totp);
         await act.Should().NotThrowAsync();
     }
 
@@ -697,7 +731,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.OK, credJson)
         }));
 
-        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "missing-cred");
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "missing-cred", KeycloakCredentialTypes.Totp);
         var ex = await act.Should().ThrowAsync<KeycloakAdminException>();
         ex.Which.StatusCode.Should().Be(StatusCodes.Status404NotFound);
     }
@@ -710,7 +744,7 @@ public class KeycloakAdminServiceTests
             ("/users/kc-user-id/credentials", HttpStatusCode.InternalServerError, "")
         })));
 
-        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc");
+        var act = () => svc.DeleteUserCredentialAsync("kc-user-id", "cred-abc", KeycloakCredentialTypes.Totp);
 
         await act.Should().ThrowAsync<KeycloakAdminException>();
         handler.Requests.Should().NotContain(r => r.Method == HttpMethod.Delete,
@@ -763,14 +797,18 @@ public class KeycloakAdminServiceTests
     // ── UpdateUserProfileAsync ─────────────────────────────────────────────
 
     [Fact]
-    public async Task UpdateUserProfileAsync_Succeeds_On204()
+    public async Task UpdateUserProfileAsync_PutsTheNames_OnTheUser()
     {
-        var svc = Build(TokenAndUser(new[]
-        {
+        var (svc, handler) = BuildCapturing(Dispatch(TokenAndUser(
+        [
             ("/users/kc-user-id", HttpStatusCode.NoContent, "")
-        }));
+        ])));
 
         await svc.UpdateUserProfileAsync("kc-user-id", "Bob", "Jones");
+
+        var put = handler.Requests.Should().ContainSingle(r => r.Method == HttpMethod.Put).Subject;
+        put.RequestUri!.AbsolutePath.Should().EndWith("/users/kc-user-id");
+        handler.Bodies[handler.Requests.IndexOf(put)].Should().Contain("\"firstName\":\"Bob\"").And.Contain("\"lastName\":\"Jones\"");
     }
 
     // ── UpdateEmailForAccountAsync ─────────────────────────────────────────
@@ -778,40 +816,53 @@ public class KeycloakAdminServiceTests
     [Fact]
     public async Task UpdateEmailForAccountAsync_UsesSubject_WhenSubjectResolves()
     {
-        var svc = Build(
+        var (svc, handler) = BuildCapturing(Dispatch(
         [
             ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
             ("/users/kc-user-id", HttpStatusCode.NoContent, "")
-        ]);
+        ]));
 
         await svc.UpdateEmailForAccountAsync("kc-user-id", "old@example.com", "new@example.com");
+
+        AssertEmailPut(handler, "/users/kc-user-id");
+    }
+
+    private static void AssertEmailPut(StubHttpMessageHandler handler, string userPath)
+    {
+        var put = handler.Requests.Should().ContainSingle(r => r.Method == HttpMethod.Put).Subject;
+        put.RequestUri!.AbsolutePath.Should().EndWith(userPath);
+        handler.Bodies[handler.Requests.IndexOf(put)].Should().Contain("\"email\":\"new@example.com\"");
     }
 
     [Fact]
     public async Task UpdateEmailForAccountAsync_FallsBackToCurrentEmail_WhenSubjectMissing()
     {
-        var svc = Build(
+        var (svc, handler) = BuildCapturing(Dispatch(
         [
             ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
             ("/users/missing-sub", HttpStatusCode.NotFound, ""),
             ("/users?email=", HttpStatusCode.OK, UsersJson("fallback-id")),
             ("/users/fallback-id", HttpStatusCode.NoContent, "")
-        ]);
+        ]));
 
         await svc.UpdateEmailForAccountAsync("missing-sub", "old@example.com", "new@example.com");
+
+        AssertEmailPut(handler, "/users/fallback-id");
     }
 
     [Fact]
     public async Task UpdateEmailForAccountAsync_FallsBackToCurrentEmail_WhenSubjectNotStored()
     {
-        var svc = Build(
+        var (svc, handler) = BuildCapturing(Dispatch(
         [
             ("openid-connect/token", HttpStatusCode.OK, TokenJson()),
             ("/users?email=", HttpStatusCode.OK, UsersJson("fallback-id")),
             ("/users/fallback-id", HttpStatusCode.NoContent, "")
-        ]);
+        ]));
 
         await svc.UpdateEmailForAccountAsync(null, "old@example.com", "new@example.com");
+
+        AssertEmailPut(handler, "/users/fallback-id");
     }
 
     // ── EnableMfaAsync ─────────────────────────────────────────────────────

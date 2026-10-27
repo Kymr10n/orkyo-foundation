@@ -6,24 +6,14 @@ public class NoOpChallengeProviderTests
 {
     private readonly NoOpChallengeProvider _sut = new();
 
-    [Fact]
-    public async Task VerifyAsync_AlwaysReturnsSuccess()
+    [Theory]
+    [InlineData("any-token", "1.2.3.4")]
+    [InlineData("", "")]
+    public async Task VerifyAsync_AlwaysSucceedsWithoutAnErrorCode(string token, string remoteIp)
     {
-        var result = await _sut.VerifyAsync("any-token", "1.2.3.4");
-        result.Success.Should().BeTrue();
-    }
+        var result = await _sut.VerifyAsync(token, remoteIp);
 
-    [Fact]
-    public async Task VerifyAsync_EmptyToken_StillReturnsSuccess()
-    {
-        var result = await _sut.VerifyAsync("", "");
         result.Success.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task VerifyAsync_ErrorCode_IsNull()
-    {
-        var result = await _sut.VerifyAsync("any-token", "1.2.3.4");
         result.ErrorCode.Should().BeNull();
     }
 }

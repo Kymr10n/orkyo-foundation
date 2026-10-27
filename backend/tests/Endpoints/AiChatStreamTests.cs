@@ -252,10 +252,8 @@ public class AiChatStreamTests
 
         // Every keepalive line must start with ':' and end the record with a blank line,
         // or the client's parser would treat it as a malformed event instead of skipping it.
-        foreach (var line in ReadBody(body).Split('\n'))
-        {
-            if (line.Contains("keep-alive"))
-                Assert.StartsWith(":", line);
-        }
+        var keepalives = ReadBody(body).Split('\n').Where(line => line.Contains("keep-alive")).ToList();
+        Assert.NotEmpty(keepalives);
+        Assert.All(keepalives, line => Assert.StartsWith(":", line));
     }
 }

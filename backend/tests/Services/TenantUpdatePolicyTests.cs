@@ -56,4 +56,24 @@ public class TenantUpdatePolicyTests
 
         decision.Should().Be(TenantUpdateDecision.Allowed);
     }
+
+    [Fact]
+    public void Evaluate_ShouldReturnAllowed_WhenASiteAdminIsNotTheOwner()
+    {
+        var decision = TenantUpdatePolicy.Evaluate(true, Guid.NewGuid(), Guid.NewGuid(), true, TenantStatusConstants.Active, "Renamed");
+
+        decision.Should().Be(TenantUpdateDecision.Allowed);
+    }
+
+    [Theory]
+    [InlineData(0, TenantUpdateDecision.EmptyDisplayName)]
+    [InlineData(255, TenantUpdateDecision.Allowed)]
+    [InlineData(256, TenantUpdateDecision.DisplayNameTooLong)]
+    public void Evaluate_BoundsTheDisplayNameLength(int length, TenantUpdateDecision expected)
+    {
+        var owner = Guid.NewGuid();
+        var decision = TenantUpdatePolicy.Evaluate(true, owner, owner, false, TenantStatusConstants.Active, new string('n', length));
+
+        decision.Should().Be(expected);
+    }
 }
