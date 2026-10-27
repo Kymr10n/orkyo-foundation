@@ -36,6 +36,17 @@ A vulnerability in a dependency is handled by where it can run.
 - **Everything else.** Development-only packages, build-stage images and test projects are updated in the weekly Dependabot cycle. Minor and patch updates merge on their own when CI is green. Majors wait for a review.
 - **Upstream-blocked majors** are listed as ignores in `.github/dependabot.yml`, with the blocker named. The monthly freshness report issue lists them again so they are re-checked.
 
+## Code scanning
+
+CodeQL (GitHub default setup) scans this repository on every push to `main` and every week.
+
+- **Every alert gets an outcome.** It is fixed, or it is dismissed with a reason (`false positive`, `won't fix` or `used in tests`) and a comment that names the reason. An open alert is an alert that nobody has triaged yet.
+- **Triage happens before the next release train.** New alerts are fixed or dismissed before the next foundation release.
+- **A refactor can move an alert.** CodeQL then closes the old alert and opens a new one. The new alert gets the same triage again. If the same alert keeps coming back, fix its source once.
+- **Coverage.** `orkyo-foundation` and `orkyo-community` are public and scanned. `orkyo-saas` is private and has no GitHub Advanced Security, so it is not scanned. Shared logic belongs in foundation, so most of it is scanned here.
+
+The logging rules that decide most `cs/log-forging` and `cs/exposure-of-sensitive-information` alerts are in `docs/conventions.md`, section Logging.
+
 ## Scope
 
 This policy covers the `orkyo-foundation` shared library. Vulnerabilities in the consuming products (`orkyo-saas`, `orkyo-community`) should be reported to those repositories instead.

@@ -146,8 +146,8 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             await UpdateLastLoginAsync(conn, userId, ct);
 
             _logger.LogInformation(
-                "Linked Keycloak identity {Subject} to existing user {UserId} ({Email})",
-                token.Subject, userId, storedEmail);
+                "Linked Keycloak identity {Subject} to existing user {UserId}",
+                token.Subject, userId);
 
             return IdentityLinkResult.Linked(userId, storedEmail, displayName, isNew: false);
         }
@@ -164,8 +164,8 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         if (!_identityProvisioning.AllowSelfRegistration)
         {
             _logger.LogInformation(
-                "Rejected unknown Keycloak identity {Subject} ({Email}): access is by invitation only",
-                token.Subject, token.Email);
+                "Rejected unknown Keycloak identity {Subject}: access is by invitation only",
+                token.Subject);
 
             return IdentityLinkResult.Failed(
                 AccessMessages.InvitationOnly,
@@ -175,8 +175,8 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
         // No existing user - auto-create for self-registration
         // User registered via Keycloak and verified email, create internal user
         _logger.LogInformation(
-            "Creating new user for Keycloak identity {Subject} with email {Email}",
-            token.Subject, token.Email);
+            "Creating new user for Keycloak identity {Subject}",
+            token.Subject);
 
         var newUser = await CreateUserFromKeycloakAsync(conn, token, email, ct);
         if (newUser == null)
@@ -247,8 +247,8 @@ public sealed class KeycloakIdentityLinkService : IIdentityLinkService
             await transaction.CommitAsync(ct);
 
             _logger.LogInformation(
-                "Created new user {UserId} ({Email}) with Keycloak identity {Subject}",
-                userId, token.Email, token.Subject);
+                "Created new user {UserId} with Keycloak identity {Subject}",
+                userId, token.Subject);
 
             return new PrincipalContext
             {

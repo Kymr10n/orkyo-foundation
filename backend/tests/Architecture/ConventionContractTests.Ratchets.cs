@@ -297,5 +297,17 @@ public partial class ConventionContractTests
             ],
             ForbidMessage: "a log line names the matched route template, never the raw request path (a secret "
                 + "carried in the path lands in the log). Pass context.LoggablePath() instead of Request.Path."),
+
+        // ── (p) an email address or a name in a log line ────────────────────────
+        new("PersonalDataInLog", LogLineContract.PersonalDataInLog(), ["src", "core"],
+            Exemplars:
+            [
+                new("_logger.LogInformation(\"User created: {Email}\", email);"),
+                new("logger.LogInformation(\n    \"User {UserId} ({DisplayName}) confirmed activity\",\n    id, name);"),
+                new("_logger.LogInformation(\"Email updated for user {Sub}\", sub);", false, "the word in the text is not a placeholder"),
+                new("_logger.LogInformation(\"User created: {Sub}\", userId);", false, "naming the person by ID is the rule"),
+            ],
+            ForbidMessage: "a log line names a person by user ID or Keycloak subject, never by email address or "
+                + "name (docs/conventions.md, Logging)."),
     ];
 }

@@ -79,6 +79,29 @@ the constants themselves note. New codes use lowercase snake.
 **Exception mapping is global.** `AppExceptionHandler` owns exception→HTTP. An endpoint
 that catches `ArgumentException` to return a 400 is duplicating it.
 
+## Logging
+
+**Values go in as template properties**, never by string interpolation. Serilog keeps each
+property as a separate field, and the Loki sink writes the event as JSON.
+
+**A log line names a person by ID.** Use the user ID, the tenant ID or the Keycloak subject.
+Do not log an email address, a name, a display name, an IP address or free text that a user
+typed. Before a user exists (sign-up, a rejected identity), the line has no identity at all;
+the correlation ID ties it to its request. Loki keeps logs for 90 days, and every server
+backup contains them. **Done** — the `PersonalDataInLog` ratchet keeps it so. The one
+exception is `LogOnlyEmailTransport`: its job is to write the mail into the log when no SMTP
+server is set.
+
+**A log line names the route template, not the raw path.** Use `HttpContext.LoggablePath()`,
+because a path can carry a secret (the calendar feed token). **Done** — the
+`RawRequestPathInLog` ratchet keeps it so. Log a token prefix at most.
+
+**Request data that goes on every line is checked at the boundary.** `CorrelationIdMiddleware`
+accepts a client correlation ID only as a short token of letters, digits and dashes. Other
+request values are safe as properties: the JSON sink escapes a CR/LF, so it cannot start a
+new entry. CodeQL's `cs/log-forging` does not know this. Its alerts on such properties are
+dismissed as "won't fix" with this paragraph as the reason.
+
 ## Endpoints
 
 Reach for the helper before writing the shape by hand — all in `EndpointHelpers`:

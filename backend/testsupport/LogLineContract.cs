@@ -15,6 +15,13 @@ public static partial class LogLineContract
     public static partial Regex RawRequestPathInLog();
 
     /// <summary>
+    /// A log call whose template names an email address or a display name. A log line names the
+    /// person by user ID or Keycloak subject; logs live 90 days and sit in every server backup.
+    /// </summary>
+    [GeneratedRegex(@"\.Log\w*\([^;]*\{@?\w*(?:Email|DisplayName)\w*\}")]
+    public static partial Regex PersonalDataInLog();
+
+    /// <summary>
     /// The <c>root/relative</c> path of every <c>*.cs</c> file under <paramref name="roots"/>
     /// (children of <paramref name="backendRoot"/>, <c>bin</c> and <c>obj</c> skipped) that offends.
     /// </summary>

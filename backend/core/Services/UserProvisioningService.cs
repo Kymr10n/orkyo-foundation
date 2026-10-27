@@ -54,8 +54,8 @@ public sealed class UserProvisioningService : IUserProvisioningService
         catch (KeycloakAdminException ex) when (ex.StatusCode == 409 && !callerSuppliedPassword)
         {
             _logger.LogInformation(
-                "Keycloak already has an account for {Email}; reusing it — the owner sets " +
-                "their own credential through password setup", normalized);
+                "Keycloak already has an account for the address; reusing it — the owner sets " +
+                "their own credential through password setup");
         }
 
         var userId = Guid.NewGuid();
