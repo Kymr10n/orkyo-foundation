@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// Runs against the isolated integration database with its own resource type, because the point
 /// of the test is to hold more than a thousand rows for the duration.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class ResourceCompleteReadTests
 {

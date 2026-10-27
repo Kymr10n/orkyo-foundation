@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Integration tests for the calendar subscription endpoints: create a token, fetch the
 /// feed anonymously with it, revoke it.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class CalendarFeedEndpointsTests
 {

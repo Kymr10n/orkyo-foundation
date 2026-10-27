@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// GET /api/account/export and POST /api/account/delete: the person's own data, downloaded and
 /// erased. Each test creates its own linked user, so the shared test user is never touched.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AccountSelfServiceEndpointsTests
 {

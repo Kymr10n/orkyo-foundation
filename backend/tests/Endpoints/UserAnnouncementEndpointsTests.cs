@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Routes: GET /api/announcements, GET /api/announcements/unread-count, POST /api/announcements/{id}/read
 /// Requires authentication (SkipTenantResolution — no tenant header needed).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UserAnnouncementEndpointsTests
 {

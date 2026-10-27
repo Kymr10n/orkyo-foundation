@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// shared test factory exercises endpoints in its default tenant context, so a tenant-scoped key is
 /// used for the write round-trip.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ConfigurationAdminEndpointsTests
 {

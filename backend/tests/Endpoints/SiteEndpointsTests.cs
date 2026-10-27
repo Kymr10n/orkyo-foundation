@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// <summary>
 /// Tests for Site CRUD endpoints.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SiteEndpointsTests
 {

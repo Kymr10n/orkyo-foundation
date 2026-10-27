@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// site validation/filtering, empty-period behaviour, and request-count correctness. Data is seeded
 /// into a unique site + a far-future window so assertions are immune to other tests sharing the DB.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class InsightsEndpointsTests
 {

@@ -17,6 +17,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// assignment. Throughput: in-progress and completed counts come from the effective status, since
 /// the stored column never holds them.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class ReportingQueryServiceIntegrationTests
 {

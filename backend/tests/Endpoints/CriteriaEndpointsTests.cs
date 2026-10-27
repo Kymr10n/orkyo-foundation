@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests for Criteria CRUD endpoints.
 /// Uses unique names to prevent test conflicts.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class CriteriaEndpointsTests
 {

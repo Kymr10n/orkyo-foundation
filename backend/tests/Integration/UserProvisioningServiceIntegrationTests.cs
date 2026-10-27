@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// awkward cases (case folding, concurrent inserts, an identity provider that already
 /// knows the address) are pinned here rather than in either caller.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class UserProvisioningServiceIntegrationTests
 {

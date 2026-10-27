@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// POST /api/admin/users/{id}/promote-site-admin
 /// POST /api/admin/users/{id}/revoke-site-admin
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UserAdminEndpointsTests
 {

@@ -14,6 +14,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// don't interfere. The control-plane DB is shared across the test class; rows
 /// are cleaned up at the end of each test.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class SiteSettingsRepositoryIntegrationTests
 {

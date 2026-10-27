@@ -40,8 +40,10 @@ public static class AuthorizationExtensions
     private const string AdminReturnPath = "/site-admin";
 
     /// <summary>
-    /// Requires the user to be a site administrator (global admin role from Keycloak).
-    /// Uses ICurrentPrincipal populated during request processing.
+    /// Requires the user to be a site administrator (global admin role from Keycloak). An
+    /// authorization policy, not an endpoint filter: it runs in <c>UseAuthorization</c>, before
+    /// the request body is bound, so a caller without the role gets 403 and never sees a
+    /// validation 400. <see cref="SiteAdminAuthorizationHandler"/> reads the role from the token.
     /// </summary>
     public static RouteHandlerBuilder RequireSiteAdmin(this RouteHandlerBuilder builder)
     {
@@ -49,7 +51,7 @@ public static class AuthorizationExtensions
         // membership, so the membership-by-default gate stands aside (Community resolves its one
         // tenant on every request, admin routes included).
         builder.WithMetadata(new AuthorizationGoverned(), new AllowNonMemberAttribute());
-        return builder.AddEndpointFilter(SiteAdminFilter);
+        return builder.RequireAuthorization(AuthorizationPolicies.SiteAdmin);
     }
 
     /// <summary>
@@ -60,32 +62,7 @@ public static class AuthorizationExtensions
     public static RouteGroupBuilder RequireSiteAdmin(this RouteGroupBuilder group)
     {
         group.WithMetadata(new AuthorizationGoverned(), new AllowNonMemberAttribute());
-        return group.AddEndpointFilter(SiteAdminFilter);
-    }
-
-    private static async ValueTask<object?> SiteAdminFilter(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
-    {
-        var httpContext = context.HttpContext;
-        var logger = httpContext.RequestServices
-            .GetRequiredService<ILoggerFactory>()
-            .CreateLogger(typeof(AuthorizationExtensions));
-        var currentPrincipal = httpContext.RequestServices.GetService<ICurrentPrincipal>();
-
-        if (currentPrincipal == null || !currentPrincipal.IsAuthenticated)
-        {
-            logger.LogWarning("Site admin check failed: user not authenticated");
-            return ErrorResponses.Unauthorized();
-        }
-
-        if (!currentPrincipal.IsSiteAdmin)
-        {
-            logger.LogWarning("Site admin check failed: user {UserId} is not a site admin",
-                currentPrincipal.UserId);
-            return ErrorResponses.Forbidden();
-        }
-
-        logger.LogDebug("Site admin authorization passed for user {UserId}", currentPrincipal.UserId);
-        return await next(context);
+        return group.RequireAuthorization(AuthorizationPolicies.SiteAdmin);
     }
 
     /// <summary>

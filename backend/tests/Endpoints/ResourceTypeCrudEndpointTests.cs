@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// The fixture database is shared across the suite, so every test mints its own type key.
 /// Attribute definitions live on criteria — see ResourceCapabilityValueTests.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceTypeCrudEndpointTests
 {

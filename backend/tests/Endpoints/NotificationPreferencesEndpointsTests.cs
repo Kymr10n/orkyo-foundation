@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Routes: GET/PUT /api/account/notification-preferences (auth required, control-plane backed).
 /// The test bearer token resolves to user 11111111-1111-1111-1111-111111111111.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class NotificationPreferencesEndpointsTests
 {

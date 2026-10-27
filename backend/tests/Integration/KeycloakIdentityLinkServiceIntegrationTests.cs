@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// Keycloak's HTTP admin API is NOT exercised here — the IEmailService dependency is
 /// mocked, and only the DB side of identity-link is asserted.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class KeycloakIdentityLinkServiceIntegrationTests
 {

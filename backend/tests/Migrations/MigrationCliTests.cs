@@ -10,6 +10,7 @@ namespace Orkyo.Foundation.Tests.Migrations;
 /// <c>validate</c> answers "would this deploy succeed?" and must not change what it inspects:
 /// only <c>migrate</c> creates a missing tenant database.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class MigrationCliTests(PostgresFixture fixture)
 {

@@ -17,6 +17,7 @@ namespace Orkyo.Foundation.Tests.Endpoints.Ai;
 /// only an admin sets who may spend tokens — so its rejection paths matter more than its
 /// happy path.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AiAdminEndpointsTests
 {

@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// GET /api/resource-groups/{id}/utilization
 /// GET /api/utilization
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class UtilizationEndpointsTests
 {

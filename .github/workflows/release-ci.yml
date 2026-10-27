@@ -184,6 +184,23 @@ jobs:
     timeout-minutes: 20
     runs-on: ubuntu-latest
     if: "!startsWith(github.ref, 'refs/tags/v')"
+    # The test fixtures use this server when CI=true (set by Actions) and ConnectionStrings__Postgres
+    # name it (TestDatabase.UseCiDatabase); without it every run started Testcontainers plus its
+    # reaper. Same image and digest as scripts/dev-common.sh starts locally.
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      ConnectionStrings__Postgres: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
     # detect-changes only, not the audits: build/test and the dependency audits share
     # no artifacts, and gating on them means a slow npm registry (2026-09-03: ~10min
     # of registry traffic timing out audit/npm) hides whether the code is even green.

@@ -21,6 +21,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// the behaviour worth guarding (token rotation, expiry reset, the accepted guard, tenant
 /// scoping) lives in the SQL, so it is exercised against a real database here.</para>
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public sealed class InvitationResendServiceTests
 {

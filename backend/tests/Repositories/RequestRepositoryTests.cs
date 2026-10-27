@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// Tests use the full HTTP stack (same as RequestEndpointsTests) so the mapper,
 /// view, and JSON deserialization are all exercised end-to-end.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestRepositoryTests
 {

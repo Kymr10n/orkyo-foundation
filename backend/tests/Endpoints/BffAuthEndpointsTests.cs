@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests focus on login redirect generation, returnTo validation, and error paths.
 /// The callback reaches a session through the host's stubbed Keycloak token endpoint.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class BffAuthEndpointsTests
 {

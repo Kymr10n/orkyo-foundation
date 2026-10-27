@@ -7,6 +7,7 @@ namespace Orkyo.Foundation.Tests.Services;
 /// <summary>
 /// Verifies fractional allocation rules for Person resources end-to-end via HTTP.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class PersonResourceAllocationTests
 {

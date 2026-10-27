@@ -18,6 +18,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// per tool. These tests are what prove that substitution actually holds: a read-only token must
 /// still read, and must still be unable to write.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class McpEndpointsTests
 {

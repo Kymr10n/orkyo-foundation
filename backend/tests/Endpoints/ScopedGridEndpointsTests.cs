@@ -13,6 +13,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// seeded conflict end-to-end. The shared test DB persists across tests, so every assertion is
 /// membership-based (about the rows this test seeds), never absolute counts.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ScopedGridEndpointsTests
 {

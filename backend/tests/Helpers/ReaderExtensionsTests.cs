@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Helpers;
 /// Each test issues a literal SELECT that returns a known value, then exercises
 /// the corresponding extension method through a real <see cref="NpgsqlDataReader"/>.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ReaderExtensionsTests
 {

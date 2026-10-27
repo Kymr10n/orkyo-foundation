@@ -15,6 +15,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// it, that re-activation never duplicates fields, that deactivation keeps data, and that the
 /// purge takes the whole FK graph with it and nothing else.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceTypeCatalogEndpointTests
 {

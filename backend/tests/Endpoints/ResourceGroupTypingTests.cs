@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// 2. SetMembers with same-type resources succeeds.
 /// 3. SetMembers with cross-type resources returns 400.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceGroupTypingTests
 {

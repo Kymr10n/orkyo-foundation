@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// dictionaries keyed by parent id, per-group order identical to the single-parent reads, and
 /// the index-aligned existence count. Committed rows via the repositories, unique names per test.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ListBatchReadTests
 {

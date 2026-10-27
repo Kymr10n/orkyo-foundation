@@ -14,6 +14,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// other group (app-layer move semantics in SetMembersAsync), and a direct duplicate insert
 /// is rejected by the trg_space_single_group guard (migration 1530).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class ResourceGroupMemberRepositoryIntegrationTests
 {

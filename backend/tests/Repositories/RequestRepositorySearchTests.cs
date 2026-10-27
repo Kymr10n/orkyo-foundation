@@ -14,6 +14,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// The database is shared with other suites, so every assertion is scoped to a unique name
 /// prefix rather than to absolute counts.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class RequestRepositorySearchTests
 {

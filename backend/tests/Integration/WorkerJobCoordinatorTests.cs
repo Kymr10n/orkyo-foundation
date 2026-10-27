@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Integration;
 /// stamped from the injected clock, so a <see cref="FakeTimeProvider"/> drives both the due
 /// check and the backoff without waiting.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection(PostgresCollection.Name)]
 public sealed class WorkerJobCoordinatorTests
 {

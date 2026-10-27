@@ -15,6 +15,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Integration tests for POST /api/contact.
 /// This is a public endpoint (no API key, no tenant) used by the marketing site.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ContactEndpointsTests : IAsyncLifetime
 {

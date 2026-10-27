@@ -12,6 +12,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Tests GET/PUT/DELETE /api/settings against the real DB.
 /// GET is member-read (tenant config is read app-wide); PUT/DELETE require Admin.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SettingsEndpointsTests
 {

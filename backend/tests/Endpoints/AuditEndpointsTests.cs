@@ -8,6 +8,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// <summary>
 /// Integration tests for GET /api/admin/audit (site-admin only).
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class AuditEndpointsTests
 {

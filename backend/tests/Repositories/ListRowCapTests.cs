@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// The per-instance row cap under concurrent writers: a count inside the INSERT alone lets two
 /// READ COMMITTED writers both see room, so the cap must be serialized on the instance row.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ListRowCapTests(DatabaseFixture fixture)
 {

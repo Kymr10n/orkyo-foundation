@@ -16,6 +16,7 @@ namespace Orkyo.Foundation.Tests.Repositories;
 /// a real tenant DB. Rows are committed (the repository opens its own connection), so each test uses
 /// unique entities — mirroring the other repository integration tests.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceRepositoryTests
 {

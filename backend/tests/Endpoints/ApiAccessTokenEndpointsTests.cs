@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Issuing an API access token hands an automated caller the ability to change the schedule, so
 /// the surface that mints one is admin-only and its scopes are validated rather than trusted.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ApiAccessTokenEndpointsTests
 {

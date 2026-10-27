@@ -11,6 +11,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// the definitions is not, and the definition's key and data type never change once values
 /// could exist behind them.
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class ResourceCustomFieldEndpointsTests
 {

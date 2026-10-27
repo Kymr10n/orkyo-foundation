@@ -9,6 +9,7 @@ namespace Orkyo.Foundation.Tests.Endpoints;
 /// Integration tests for space resize operations via the API.
 /// Tests the complete workflow of resizing spaces through PUT /sites/{siteId}/spaces/{spaceId}
 /// </summary>
+[Trait(TestCategories.Name, TestCategories.Database)]
 [Collection("Database collection")]
 public class SpaceResizeEndpointsTests
 {
