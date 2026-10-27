@@ -1,7 +1,7 @@
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
-import react from 'eslint-plugin-react';
+import eslintReact from '@eslint-react/eslint-plugin';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import uiPrimitives from './eslint-rules/ui-primitives.js';
@@ -112,8 +112,6 @@ export default defineConfig(
       js.configs.recommended,
       ...tseslint.configs.strictTypeChecked,
       ...tseslint.configs.stylisticTypeChecked,
-      react.configs.flat.recommended,
-      react.configs.flat['jsx-runtime'],
     ],
     languageOptions: {
       ecmaVersion: 'latest',
@@ -125,10 +123,11 @@ export default defineConfig(
       },
     },
     settings: {
-      react: { version: 'detect' },
+      // Stated, not detected: the floor the rules assume moves with the react peer range.
+      'react-x': { version: '19.3.1' },
     },
     plugins: {
-      react,
+      '@eslint-react': eslintReact,
       'react-hooks': reactHooks,
     },
     rules: {
@@ -161,9 +160,81 @@ export default defineConfig(
       'react-hooks/unsupported-syntax': 'error',
       'react-hooks/config': 'error',
       'react-hooks/gating': 'error',
-      'react/prop-types': 'off',
-      'react/display-name': 'off',
-      'react/no-unescaped-entities': 'off',
+      // @eslint-react rules, listed one by one for the same reason as react-hooks above: a
+      // plugin bump that grows `recommended` shows up as a diff here, not as new findings.
+      // This is the plugin's `recommended` set minus the nine rules that duplicate the
+      // react-hooks list (error-boundaries, exhaustive-deps, purity, rules-of-hooks,
+      // set-state-in-effect, set-state-in-render, static-components, unsupported-syntax,
+      // use-memo): react-hooks is the React team's own implementation and stays the
+      // source. Its `disable-conflict-eslint-plugin-react-hooks` preset goes the other way
+      // (turns react-hooks off), so it is not used. All at 'error' (--max-warnings=0).
+      // Successors of the eslint-plugin-react rules this replaced: jsx-key → no-missing-key,
+      // no-children-prop → jsx-no-children-prop, no-danger-with-children →
+      // dom-no-dangerously-set-innerhtml-with-children. jsx-no-undef, jsx-uses-vars,
+      // no-unknown-property and prop-types are TypeScript's job.
+      '@eslint-react/no-access-state-in-setstate': 'error',
+      // Off: every index-keyed list here is static (error lines, SVG points, tour steps),
+      // never reordered or filtered, and the rule cannot tell a static list from a live one.
+      '@eslint-react/no-array-index-key': 'off',
+      '@eslint-react/no-children-count': 'error',
+      '@eslint-react/no-children-for-each': 'error',
+      '@eslint-react/no-children-map': 'error',
+      '@eslint-react/no-children-only': 'error',
+      '@eslint-react/no-children-to-array': 'error',
+      '@eslint-react/no-clone-element': 'error',
+      '@eslint-react/no-component-will-mount': 'error',
+      '@eslint-react/no-component-will-receive-props': 'error',
+      '@eslint-react/no-component-will-update': 'error',
+      '@eslint-react/no-context-provider': 'error',
+      '@eslint-react/no-create-ref': 'error',
+      '@eslint-react/no-direct-mutation-state': 'error',
+      // Off for now: 54 forwardRef wrappers in the published components/ui primitives.
+      // Moving to ref-as-a-prop changes their exported types for saas and community, so it
+      // is its own change, not lint fallout.
+      '@eslint-react/no-forward-ref': 'off',
+      '@eslint-react/no-missing-key': 'error',
+      '@eslint-react/no-nested-component-definitions': 'error',
+      '@eslint-react/no-nested-lazy-component-declarations': 'error',
+      '@eslint-react/no-set-state-in-component-did-mount': 'error',
+      '@eslint-react/no-set-state-in-component-did-update': 'error',
+      '@eslint-react/no-set-state-in-component-will-update': 'error',
+      '@eslint-react/no-unnecessary-use-prefix': 'error',
+      '@eslint-react/no-unsafe-component-will-mount': 'error',
+      '@eslint-react/no-unsafe-component-will-receive-props': 'error',
+      '@eslint-react/no-unsafe-component-will-update': 'error',
+      '@eslint-react/no-unused-class-component-members': 'error',
+      '@eslint-react/no-use-context': 'error',
+      '@eslint-react/use-state': 'error',
+      '@eslint-react/jsx-no-children-prop': 'error',
+      '@eslint-react/jsx-no-children-prop-with-children': 'error',
+      '@eslint-react/jsx-no-comment-textnodes': 'error',
+      '@eslint-react/jsx-no-key-after-spread': 'error',
+      '@eslint-react/jsx-no-leaked-dollar': 'error',
+      '@eslint-react/jsx-no-leaked-semicolon': 'error',
+      '@eslint-react/jsx-no-namespace': 'error',
+      '@eslint-react/rsc-function-definition': 'error',
+      '@eslint-react/dom-no-dangerously-set-innerhtml': 'error',
+      '@eslint-react/dom-no-dangerously-set-innerhtml-with-children': 'error',
+      '@eslint-react/dom-no-find-dom-node': 'error',
+      '@eslint-react/dom-no-flush-sync': 'error',
+      '@eslint-react/dom-no-hydrate': 'error',
+      '@eslint-react/dom-no-render': 'error',
+      '@eslint-react/dom-no-render-return-value': 'error',
+      '@eslint-react/dom-no-script-url': 'error',
+      '@eslint-react/dom-no-unsafe-iframe-sandbox': 'error',
+      '@eslint-react/dom-no-use-form-state': 'error',
+      '@eslint-react/dom-no-void-elements-with-children': 'error',
+      '@eslint-react/web-api-no-leaked-event-listener': 'error',
+      '@eslint-react/web-api-no-leaked-fetch': 'error',
+      '@eslint-react/web-api-no-leaked-intersection-observer': 'error',
+      '@eslint-react/web-api-no-leaked-interval': 'error',
+      '@eslint-react/web-api-no-leaked-resize-observer': 'error',
+      '@eslint-react/web-api-no-leaked-timeout': 'error',
+      '@eslint-react/naming-convention-context-name': 'error',
+      '@eslint-react/naming-convention-id-name': 'error',
+      // Off: a naming style the codebase has not adopted (18 refs without a Ref suffix);
+      // renaming finds no defects.
+      '@eslint-react/naming-convention-ref-name': 'off',
       '@typescript-eslint/no-unused-vars': ['error', {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',

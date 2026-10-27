@@ -52,7 +52,7 @@ interface BannerProps {
 export function BreakGlassBanner({ now = Date.now }: BannerProps = {}) {
   const { membership, clearMembership } = useAuth();
   const [renewed, setRenewed] = useState<BreakGlassSessionStatus | null>(null);
-  const [tick, setTick] = useState(now());
+  const [tick, setTick] = useState(() => now());
 
   const sessionId = membership?.breakGlassSessionId;
   const tenantSlug = membership?.slug;

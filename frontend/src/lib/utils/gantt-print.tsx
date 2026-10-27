@@ -324,6 +324,7 @@ export function printGanttChart(options: GanttPrintOptions): void {
   active = { container, cleanup };
 
   // Synchronous render: the markup must exist before print() snapshots the page.
+  // eslint-disable-next-line @eslint-react/dom-no-flush-sync -- print() snapshots synchronously; see above.
   flushSync(() => root.render(<GanttPrintDocument options={options} generatedAt={new Date()} />));
   window.addEventListener('afterprint', cleanup);
   window.print();

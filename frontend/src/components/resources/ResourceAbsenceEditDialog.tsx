@@ -48,10 +48,10 @@ export function ResourceAbsenceEditDialog({
   const [absenceType, setAbsenceType] = useState<AbsenceType>(absence?.absenceType ?? defaultAbsenceType);
   const [title, setTitle] = useState(absence?.title ?? '');
   const [startDate, setStartDate] = useState<Date | undefined>(
-    absence ? new Date(absence.startTs) : initialStart,
+    () => (absence ? new Date(absence.startTs) : initialStart),
   );
   const [endDate, setEndDate] = useState<Date | undefined>(
-    absence ? new Date(absence.endTs) : initialEnd,
+    () => (absence ? new Date(absence.endTs) : initialEnd),
   );
 
   const saveMutation = useSaveResourceAbsence(resourceId);

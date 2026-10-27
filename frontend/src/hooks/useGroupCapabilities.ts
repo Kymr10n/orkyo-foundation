@@ -20,7 +20,7 @@ import { errorMessage } from "@foundation/src/hooks/mutation-utils";
  */
 export function useGroupCapabilitiesData(groupId: string, open: boolean) {
   const [criteria, setCriteria] = useState<Criterion[]>([]);
-  const [initialAssignments, setInitialAssignments] = useState<Map<string, CriterionValue | null>>(new Map());
+  const [initialAssignments, setInitialAssignments] = useState<Map<string, CriterionValue | null>>(() => new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 

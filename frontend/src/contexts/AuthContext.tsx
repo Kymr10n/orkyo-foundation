@@ -12,7 +12,7 @@
  */
 
 import type React from 'react';
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, use, useMemo } from 'react';
 import { useMachine } from '@xstate/react';
 import { authMachine } from '@foundation/src/machines/authMachine';
 import type { AuthMachineEvent } from '@foundation/src/machines/authMachine';
@@ -166,9 +166,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }), [authStage, ctx, send]);
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext value={value}>
       {children}
-    </AuthContext.Provider>
+    </AuthContext>
   );
 }
 
@@ -176,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
 export function useAuth(): AuthContextValue {
-  const context = useContext(AuthContext);
+  const context = use(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
   }

@@ -223,7 +223,7 @@ function CriticalPathBody({
   diagnostics: string[];
   onOpenRequest: (requestId: string) => void;
 }) {
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
 
   if (!hasNetwork) {
     return (

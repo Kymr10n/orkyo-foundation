@@ -10,6 +10,7 @@ import type { ReactNode } from 'react';
  */
 
 // The scaffolds ask for the phone override; this stub is always above that breakpoint.
+// eslint-disable-next-line @eslint-react/no-unnecessary-use-prefix -- mirrors the real hook's export name.
 export const useFullScreenOnPhone = () => undefined;
 export const DIALOG_SIZE = { sm: '', md: '', lg: '', xl: '' };
 export const Dialog = ({ children, open }: { children: ReactNode; open: boolean }) =>

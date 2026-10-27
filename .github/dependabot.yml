@@ -82,12 +82,6 @@ updates:
       # TypeScript 7: typescript-eslint supports typescript <6.1.0.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
-      # ESLint 10: eslint-plugin-react 7.37.5 (latest) accepts eslint ^9.7 at most.
-      # @eslint/js moves with eslint.
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@eslint/js"
-        update-types: ["version-update:semver-major"]
       # Vitest 5 changed Assertion to two type parameters; @testing-library/jest-dom
       # 7.0.1 no longer augments it (testing-library/jest-dom#738, fix in #742).
       - dependency-name: "vitest"

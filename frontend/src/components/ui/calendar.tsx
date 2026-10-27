@@ -1,9 +1,19 @@
 import type * as React from "react";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, type ChevronProps } from "react-day-picker";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { cn } from "@foundation/src/lib/utils";
 import { buttonVariants } from "@foundation/src/components/ui/button";
+
+// Module level, not inline in `components`: an inline arrow is a new component type on
+// every render, so React would remount both chevrons each time the calendar re-renders.
+function CalendarChevron({ orientation }: ChevronProps) {
+  return orientation === "left" ? (
+    <ChevronLeft className="h-4 w-4" />
+  ) : (
+    <ChevronRight className="h-4 w-4" />
+  );
+}
 
 function Calendar({
   className,
@@ -57,14 +67,7 @@ function Calendar({
         hidden: "invisible",
         ...classNames,
       }}
-      components={{
-        Chevron: ({ orientation }) =>
-          orientation === "left" ? (
-            <ChevronLeft className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          ),
-      }}
+      components={{ Chevron: CalendarChevron }}
       {...props}
     />
   );
