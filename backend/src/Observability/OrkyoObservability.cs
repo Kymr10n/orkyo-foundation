@@ -62,6 +62,10 @@ public static class OrkyoObservability
                 // level="error", never level="Error" — see orkyo-infra
                 // docs/runbooks/api-error-logs.md, where the capitalised form hid three
                 // real production errors.
+                //
+                // The sink writes each event as JSON, which escapes a CR/LF inside a property.
+                // docs/conventions.md (Logging) depends on that to treat request values as safe
+                // log properties; a plain-text sink here would void that reasoning.
                 cfg.WriteTo.GrafanaLoki(
                     lokiUrl,
                     labels:

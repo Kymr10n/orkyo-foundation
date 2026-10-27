@@ -111,7 +111,7 @@ public class EmailService : IEmailService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to queue email (subject: {Subject})", subject);
+            _logger.LogError(ex, "Failed to queue email");
             return false;
         }
 
@@ -170,7 +170,7 @@ public class EmailService : IEmailService
     public Task SendNewUserAlertAsync(string userEmail, string displayName, CancellationToken ct = default) =>
         SendAdminAlertAsync(
             EmailTemplates.GetNewUserAlertEmail(userEmail, displayName, EmailBranding.Default),
-            logContext: userEmail);
+            logContext: "new user");
 
     public Task SendNewTenantAlertAsync(string tenantSlug, string tenantDisplayName, string ownerEmail, CancellationToken ct = default) =>
         SendAdminAlertAsync(

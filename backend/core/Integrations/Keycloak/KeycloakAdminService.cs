@@ -160,7 +160,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             await SendVerificationEmailAsync(userId, token, CancellationToken.None);
         }
 
-        _logger.LogInformation("User created: {Email}", email);
+        _logger.LogInformation("User created: {Sub}", userId);
     }
 
     public async Task<bool> UserExistsAsync(string email, CancellationToken ct = default)
@@ -311,7 +311,7 @@ public class KeycloakAdminService : IKeycloakAdminService
             ?? throw new KeycloakAdminException("User not found in Keycloak", 404);
 
         await UpdateEmailByUserIdAsync(token, fallbackUserId, newEmail, ct);
-        _logger.LogInformation("Email updated for account with previous email {CurrentEmail}", currentEmail);
+        _logger.LogInformation("Email updated for user {Sub}, found by the previous address", fallbackUserId);
     }
 
     private Task UpdateEmailByUserIdAsync(string token, string userId, string newEmail, CancellationToken ct) =>
@@ -707,7 +707,7 @@ public class KeycloakAdminService : IKeycloakAdminService
         var userId = await GetKeycloakUserIdByEmailAsync(email, token, ct);
         if (userId is null)
         {
-            _logger.LogWarning("No Keycloak user for {Email}; cannot send required-actions email", email);
+            _logger.LogWarning("No Keycloak user for the address; cannot send required-actions email");
             return false;
         }
 
@@ -723,8 +723,8 @@ public class KeycloakAdminService : IKeycloakAdminService
             $"users/{userId}/execute-actions-email?client_id={clientId}&redirect_uri={redirectUri}",
             token, "Failed to send required-actions email", ct, actions);
 
-        _logger.LogInformation("Sent required-actions email ({Actions}) to {Email}",
-            string.Join(",", actions), email);
+        _logger.LogInformation("Sent required-actions email ({Actions}) to user {Sub}",
+            string.Join(",", actions), userId);
         return true;
     }
 

@@ -89,8 +89,8 @@ public static class AccountLifecycleEndpoints
                 await userRepository.ClearLifecycleStateAsync(record.UserId, ct);
 
                 logger.LogInformation(
-                    "User {UserId} ({DisplayName}) confirmed activity — lifecycle state cleared (wasDormant={WasDormant})",
-                    record.UserId, record.DisplayName, record.WasDormant);
+                    "User {UserId} confirmed activity — lifecycle state cleared (wasDormant={WasDormant})",
+                    record.UserId, record.WasDormant);
 
                 return Results.Redirect($"{appBaseUrl}?lifecycle=confirmed");
             }
@@ -232,7 +232,7 @@ public static class AccountEmailChangeEndpoints
                 background.Dispatch<IEmailService>("email-change notice to the old address",
                     (mail, mailCt) => mail.SendEmailChangeRequestedOldAddressAsync(currentEmail, displayName, newEmail, mailCt));
 
-                logger.LogInformation("Email change requested for user {UserId}: pending={NewEmail}", userId, newEmail);
+                logger.LogInformation("Email change requested for user {UserId}", userId);
                 return Results.Ok(new { message = "Confirmation email sent. Check your new inbox and click the link to complete the change." });
             }, logger, "request email change");
         })
@@ -276,7 +276,7 @@ public static class AccountEmailChangeEndpoints
                         return Results.Redirect(Redirect("conflict"));
                 }
 
-                logger.LogInformation("Email change confirmed for user {UserId}: new email={PendingEmail}", result.UserId, result.PendingEmail);
+                logger.LogInformation("Email change confirmed for user {UserId}", result.UserId);
                 // Confirm completion to the new address (best-effort).
                 var (newAddress, name) = (result.PendingEmail!, result.DisplayName ?? result.PendingEmail!);
                 background.Dispatch<IEmailService>("email-changed mail",

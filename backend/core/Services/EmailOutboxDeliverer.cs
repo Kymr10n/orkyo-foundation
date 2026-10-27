@@ -90,7 +90,7 @@ public sealed class EmailOutboxDeliverer
 
             await _transport.SendAsync(mime, ct);
             await _outbox.MarkSentAsync(message.Id, ct);
-            _logger.LogInformation("Email sent (subject: {Subject})", message.Subject);
+            _logger.LogInformation("Email {MessageId} sent", message.Id);
             return true;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -101,11 +101,11 @@ public sealed class EmailOutboxDeliverer
             await _outbox.MarkFailedAsync(message.Id, ex.Message, next, dead, ct);
 
             if (dead)
-                _logger.LogError(ex, "Email given up after {Attempts} attempts (subject: {Subject}) via {Transport}",
-                    attemptsMade, message.Subject, _transport.GetType().Name);
+                _logger.LogError(ex, "Email {MessageId} given up after {Attempts} attempts via {Transport}",
+                    message.Id, attemptsMade, _transport.GetType().Name);
             else
-                _logger.LogWarning(ex, "Email attempt {Attempt}/{Max} failed (subject: {Subject}); next try at {Next:u}",
-                    attemptsMade, EmailOutboxPolicy.MaxAttempts, message.Subject, next);
+                _logger.LogWarning(ex, "Email {MessageId} attempt {Attempt}/{Max} failed; next try at {Next:u}",
+                    message.Id, attemptsMade, EmailOutboxPolicy.MaxAttempts, next);
             return false;
         }
         finally

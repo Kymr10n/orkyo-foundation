@@ -100,7 +100,7 @@ public sealed class InvitationService : IInvitationService
             await _tenantUserService.CreateUserStubInTenantDatabaseAsync(org, existingUserId.Value, email, ct);
             await tx.CommitAsync(ct);
 
-            _logger.LogInformation("Added existing user {Email} to tenant {TenantId} with role {Role}", email, tenant.TenantId, role);
+            _logger.LogInformation("Added existing user {UserId} to tenant {TenantId} with role {Role}", existingUserId.Value, tenant.TenantId, role);
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserAddedToTenant, invitedBy, "user", existingUserId.Value.ToString(), new { email, role = role.ToString() }, ct);
             return new InviteUserResult.AddedDirectly(existingUserId.Value, email, role);
         }
@@ -222,7 +222,7 @@ public sealed class InvitationService : IInvitationService
             }
             catch (KeycloakAdminException ex)
             {
-                _logger.LogWarning(ex, "Failed to create Keycloak user for {Email}", email);
+                _logger.LogWarning(ex, "Failed to create Keycloak user for invitation {InvitationId}", invitationId);
                 await transaction.RollbackAsync(ct);
                 return (null, ex.Message);
             }
@@ -254,7 +254,7 @@ public sealed class InvitationService : IInvitationService
 
             await _tenantUserService.RecordAuditEventAsync(org, TenantAuditActions.UserInvitationAccepted, userId, "user", userId.ToString(), ct: ct);
 
-            _logger.LogInformation("User {Email} accepted invitation and joined tenant {TenantId}", email, tenantId);
+            _logger.LogInformation("User {UserId} accepted invitation and joined tenant {TenantId}", userId, tenantId);
             // Welcome the new member (best-effort), after the response.
             _background.Dispatch<IEmailService>("welcome mail",
                 (mail, mailCt) => mail.SendWelcomeEmailAsync(email, displayName, mailCt));

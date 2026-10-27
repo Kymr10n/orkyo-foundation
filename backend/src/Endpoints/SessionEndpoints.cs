@@ -48,9 +48,8 @@ public static class SessionEndpoints
             }
 
             logger.LogInformation(
-                "Session bootstrap for sub={Sub}, email={Email}",
-                tokenProfile.Subject,
-                tokenProfile.Email);
+                "Session bootstrap for sub={Sub}",
+                tokenProfile.Subject);
 
             // Link identity (idempotent - will return existing user if already linked).
             // ToExternalIdentityToken returns null on exactly the condition the guard
@@ -215,7 +214,7 @@ public static class SessionEndpoints
             // while access is invitation-only. See IdentityProvisioningOptions.
             if (!identityProvisioning.Value.AllowSelfRegistration)
             {
-                logger.LogInformation("Rejected create-account for {Email}: access is by invitation only", request.Email);
+                logger.LogInformation("Rejected create-account: access is by invitation only");
                 return ProblemResults.Problem(
                     StatusCodes.Status403Forbidden,
                     ApiErrorCodes.Auth.NotInvited,
@@ -225,7 +224,7 @@ public static class SessionEndpoints
 
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                logger.LogInformation("Creating account for {Email}", request.Email);
+                logger.LogInformation("Creating account");
 
                 string? firstName = null;
                 string? lastName = null;
@@ -241,16 +240,16 @@ public static class SessionEndpoints
                     await keycloakAdminService.CreateUserAsync(
                         request.Email, request.Password, firstName, lastName,
                         emailVerified: false, ct: ct);
-                    logger.LogInformation("Account created for {Email}", request.Email);
+                    logger.LogInformation("Account created");
                 }
                 catch (KeycloakAdminException ex) when (ex.StatusCode == StatusCodes.Status409Conflict)
                 {
                     // Same answer as a new address: a 409 would tell anyone which emails have accounts.
-                    logger.LogInformation("Create-account for existing {Email}; answered as created", request.Email);
+                    logger.LogInformation("Create-account for an existing address; answered as created");
                 }
 
                 return Results.Ok(new { message = "Account created. Please check your email to verify your account." });
-            }, logger, "create account", new { email = request.Email });
+            }, logger, "create account");
         })
         .AllowAnonymous()
         .WithName("CreateAccount")

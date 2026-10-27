@@ -51,7 +51,7 @@ public static class ContactEndpoints
                         p.AddWithValue("createdAt", time.GetUtcNow().UtcDateTime);
                     }, ct);
 
-                logger.LogInformation("Contact form submitted: {Email}, subject={Subject}", request.Email, request.Subject);
+                logger.LogInformation("Contact form submitted (subject={Subject})", request.Subject);
 
                 var notifyEmail = configuration.GetOptionalString(ConfigKeys.ContactNotificationEmail);
                 var subject = $"[Contact] {request.Subject}: {request.Name.Trim()}";
@@ -67,7 +67,7 @@ public static class ContactEndpoints
                 await emailService.TrySendNotificationAsync(notifyEmail, subject, htmlBody, textBody, logger, "contact notification email");
 
                 return Results.Ok(new { message = "Message received. We'll be in touch shortly." });
-            }, logger, "submit contact form", new { email = request.Email, subject = request.Subject });
+            }, logger, "submit contact form", new { subject = request.Subject });
         })
         .WithName("SubmitContactForm")
         .WithSummary("Submit the marketing contact form")
