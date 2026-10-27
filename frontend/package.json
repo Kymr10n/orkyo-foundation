@@ -31,6 +31,7 @@
     "build": "tsc -b && tsc-alias -p tsconfig.json && find src -name '*.css' | xargs cp --parents -t .tsbuild/",
     "typecheck": "tsc -b && tsc-alias -p tsconfig.json",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint src contracts --max-warnings=0"
   },
   "peerDependencies": {
@@ -99,7 +100,7 @@
     "jest-axe": "^11.0.0",
     "tsc-alias": "^1.9.7",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.71.1",
+    "typescript-eslint": "8.71.2",
     "vite": "8.3.4",
     "vitest": "4.1.11"
   },
