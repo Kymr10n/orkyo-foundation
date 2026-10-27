@@ -88,6 +88,14 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   allow-list can drift safely.
 
 ### Fixed
+- **Log lines name the matched route template, not the raw request path.** `CsrfMiddleware` and
+  `ChallengeVerificationFilter` logged `Request.Path`, so a secret carried in the path — the
+  anonymous calendar feed token — reached the log when such a request failed. Both now log through
+  `HttpContext.LoggablePath()` (`Api.Middleware.HttpContextLoggingExtensions`), the helper
+  `RequestLoggingMiddleware` used privately since 1.6.9; the raw path appears only for a request no
+  route matched. A convention ratchet forbids `Request.Path` as a log argument. **TestSupport** gains
+  `CapturingLogger<T>` and `LogLineContract`, so the products pin the same behaviour and guard the
+  same rule in their own middleware (saas `TenantMiddleware`, foundation#277).
 - **The user purge erases tenant data too.** The GDPR lifecycle purge and the site-admin permanent
   delete removed the control-plane `users` row only. The mirror row in each tenant database the
   person belonged to stayed, with their calendar feed tokens, assistant conversations, allowances

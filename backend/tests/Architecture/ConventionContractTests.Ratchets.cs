@@ -286,5 +286,16 @@ public partial class ConventionContractTests
             ForbidMessage: "bind a nullable parameter with AddNullable, not `?? DBNull.Value` "
                 + "(docs/conventions.md, Data access). The grandfathered files are in "
                 + "KnownHandRolledNullBindingFiles and shrink on touch."),
+
+        // ── (o) the raw request path in a log line (foundation#277) ─────────────
+        new("RawRequestPathInLog", LogLineContract.RawRequestPathInLog(), ["src", "core"],
+            Exemplars:
+            [
+                new("_logger.LogWarning(\"Challenge verification failed for {Path}: {Error}\",\n    httpContext.Request.Path, challenge.ErrorCode);"),
+                new("? template : context.Request.Path;", false, "the helper's own fallback is not a log call"),
+                new("_logger.LogWarning(\"CSRF validation failed for {Path}\", context.LoggablePath());", false, "logging through the helper is the rule"),
+            ],
+            ForbidMessage: "a log line names the matched route template, never the raw request path (a secret "
+                + "carried in the path lands in the log). Pass context.LoggablePath() instead of Request.Path."),
     ];
 }

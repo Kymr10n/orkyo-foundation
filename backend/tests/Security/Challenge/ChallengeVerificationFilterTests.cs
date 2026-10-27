@@ -4,7 +4,10 @@ using Api.Models;
 using Api.Security;
 using Api.Security.Challenge;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Orkyo.Foundation.Tests.Security.Challenge;
 
@@ -39,18 +42,20 @@ public class ChallengeVerificationFilterTests
     private static (EndpointFilterInvocationContext Context, StubProvider Provider) BuildContext(
         ChallengeVerificationResult result,
         string? clientIp = "203.0.113.7",
+        ILogger<ChallengeVerificationFilter>? logger = null,
         params object[] arguments)
     {
         var provider = new StubProvider(result);
         var services = new ServiceCollection()
             .AddLogging()
             .AddSingleton<IChallengeProvider>(provider)
-            .AddSingleton<IClientIpAccessor>(new StubClientIpAccessor(clientIp))
-            .BuildServiceProvider();
+            .AddSingleton<IClientIpAccessor>(new StubClientIpAccessor(clientIp));
+        if (logger is not null) services.AddSingleton(logger);
+        var serviceProvider = services.BuildServiceProvider();
 
         var httpContext = new DefaultHttpContext
         {
-            RequestServices = services,
+            RequestServices = serviceProvider,
             Response = { Body = new MemoryStream() }
         };
         httpContext.Request.Path = "/api/contact";
@@ -75,6 +80,21 @@ public class ChallengeVerificationFilterTests
     }
 
     // ── reject path ───────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task InvokeAsync_ChallengeFails_LogsTheRouteTemplate_NotThePath()
+    {
+        var logger = new CapturingLogger<ChallengeVerificationFilter>();
+        var (context, _) = BuildContext(new ChallengeVerificationResult(false, "invalid-input-response"), logger: logger);
+        context.HttpContext.Request.Path = "/api/forms/the-secret-token/submit";
+        context.HttpContext.SetEndpoint(new RouteEndpoint(_ => Task.CompletedTask,
+            RoutePatternFactory.Parse("/api/forms/{token}/submit"), 0, EndpointMetadataCollection.Empty, null));
+
+        await new ChallengeVerificationFilter().InvokeAsync(context, _ => ValueTask.FromResult<object?>(Results.Ok()));
+
+        logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+            .Which.Message.Should().Contain("{token}").And.NotContain("the-secret-token");
+    }
 
     [Fact]
     public async Task InvokeAsync_ChallengeFails_Returns403AndDoesNotCallNext()

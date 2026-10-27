@@ -1,5 +1,6 @@
 using Api.Constants;
 using Api.Helpers;
+using Api.Middleware;
 using Api.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -32,7 +33,7 @@ public sealed class ChallengeVerificationFilter : IEndpointFilter
         {
             services.GetRequiredService<ILogger<ChallengeVerificationFilter>>()
                 .LogWarning("Challenge verification failed for {Path}: {Error}",
-                    httpContext.Request.Path, challenge.ErrorCode);
+                    httpContext.LoggablePath(), challenge.ErrorCode);
             return ProblemResults.Problem(StatusCodes.Status403Forbidden, ApiErrorCodes.ChallengeFailed,
                 detail: "Verification failed. Refresh the page and try again.");
         }
