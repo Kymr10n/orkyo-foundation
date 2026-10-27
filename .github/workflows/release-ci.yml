@@ -35,7 +35,10 @@ on:
 
 concurrency:
   group: release-ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a superseded pull-request push cancels. A push to main must reach a verdict:
+  # the release train awaits the run at the exact commit it bumped, and a newer push
+  # used to cancel it.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 
