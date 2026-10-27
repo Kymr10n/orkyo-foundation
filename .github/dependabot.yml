@@ -114,9 +114,6 @@ updates:
       time: "07:00"
     cooldown:
       default-days: 3
-      semver-major-days: 7
-      semver-minor-days: 3
-      semver-patch-days: 3
     commit-message:
       prefix: "build(deps)"
     open-pull-requests-limit: 5
@@ -144,9 +141,6 @@ updates:
       time: "09:00"
     cooldown:
       default-days: 3
-      semver-major-days: 7
-      semver-minor-days: 3
-      semver-patch-days: 3
     commit-message:
       prefix: "build(deps)"
     open-pull-requests-limit: 5
