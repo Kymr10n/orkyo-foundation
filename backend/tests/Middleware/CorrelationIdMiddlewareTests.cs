@@ -40,6 +40,45 @@ public class CorrelationIdMiddlewareTests
         capturedId.Should().Be(clientId);
     }
 
+    [Theory]
+    [InlineData("3f2b8c1e-9d4a-4e6b-8f0a-1c2d3e4f5a6b")]
+    [InlineData("lzx4k9q2")]
+    public async Task UsesClientCorrelationId_InEitherFormTheFrontendSends(string clientId)
+    {
+        string? capturedId = null;
+        var middleware = CreateMiddleware(ctx => { capturedId = ctx.TraceIdentifier; return Task.CompletedTask; });
+        var context = CreateHttpContext();
+        context.Request.Headers[HeaderConstants.CorrelationId] = clientId;
+        await middleware.InvokeAsync(context);
+        capturedId.Should().Be(clientId);
+    }
+
+    [Theory]
+    [InlineData("forged\nINFO admin logged in")]
+    [InlineData("forged\rline")]
+    [InlineData("has space")]
+    [InlineData("")]
+    public async Task ReplacesClientCorrelationId_WhenItIsNotAPlainToken(string clientId)
+    {
+        string? capturedId = null;
+        var middleware = CreateMiddleware(ctx => { capturedId = ctx.TraceIdentifier; return Task.CompletedTask; });
+        var context = CreateHttpContext();
+        context.Request.Headers[HeaderConstants.CorrelationId] = clientId;
+        await middleware.InvokeAsync(context);
+        Guid.TryParse(capturedId, out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task ReplacesClientCorrelationId_WhenLongerThan64Chars()
+    {
+        string? capturedId = null;
+        var middleware = CreateMiddleware(ctx => { capturedId = ctx.TraceIdentifier; return Task.CompletedTask; });
+        var context = CreateHttpContext();
+        context.Request.Headers[HeaderConstants.CorrelationId] = new string('a', 65);
+        await middleware.InvokeAsync(context);
+        Guid.TryParse(capturedId, out _).Should().BeTrue();
+    }
+
     [Fact]
     public async Task RegistersOnStartingCallback_ThatSetsResponseHeader()
     {

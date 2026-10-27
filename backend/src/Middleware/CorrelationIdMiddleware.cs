@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Api.Constants;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -17,8 +18,8 @@ public class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        var correlationId = context.Request.Headers[HeaderConstants.CorrelationId].FirstOrDefault()
-                            ?? Guid.NewGuid().ToString("D");
+        var supplied = context.Request.Headers[HeaderConstants.CorrelationId].FirstOrDefault();
+        var correlationId = IsWellFormed(supplied) ? supplied : Guid.NewGuid().ToString("D");
 
         context.TraceIdentifier = correlationId;
 
@@ -35,6 +36,12 @@ public class CorrelationIdMiddleware
             await _next(context);
         }
     }
+
+    // The client's id lands on every log line of the request and in the response header, so
+    // anything but a short token of letters, digits and dashes is replaced. Both forms the
+    // frontend's randomId() sends (a UUID, or a base-36 timestamp) pass.
+    private static bool IsWellFormed([NotNullWhen(true)] string? id) =>
+        id is { Length: > 0 and <= 64 } && id.All(c => char.IsAsciiLetterOrDigit(c) || c == '-');
 }
 
 public static class CorrelationIdMiddlewareExtensions
