@@ -190,6 +190,24 @@ jobs:
           gh pr merge --admin --squash --delete-branch "${PR_URL}"
           echo "Merged ${PR_URL} after its required checks passed (review requirement bypassed)"
 
+      - name: Close the failure issues this run supersedes
+        # Runs only when every step above succeeded. A bump that landed (or a pin
+        # that was already current) makes every open "Auto-bump failed" issue for
+        # this channel obsolete; without this step they outlive the fix (community
+        # had six open on 2026-10-27, the oldest from July).
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          set -euo pipefail
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          gh issue list --state open --label ci-failure --limit 50 --json number,title \
+            --jq ".[] | select(.title | test(\"^Auto-bump failed: foundation .*\\\\(${CHANNEL}\\\\)$\")) | .number" |
+          while read -r n; do
+            gh issue close "$n" --reason "not planned" \
+              --comment "Superseded: the ${CHANNEL} auto-bump to foundation ${FOUNDATION_VERSION} succeeded (${RUN_URL})."
+            echo "closed #$n"
+          done
+
       - name: Create failure issue if auto-bump fails
         if: failure()
         env:
