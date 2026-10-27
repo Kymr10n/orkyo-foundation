@@ -53,7 +53,7 @@ on:
 jobs:
   auto-merge:
     name: auto-merge
-    timeout-minutes: 5
+    timeout-minutes: 35
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     permissions:
@@ -64,6 +64,23 @@ jobs:
       - name: Read Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Wait while a foundation bump PR is open
+        # A stable foundation-bump/<version> PR is the release train's hand-off into this
+        # repo. Arming a dependabot merge in that window reorders main under the train, so
+        # wait it out (bounded) rather than skip: a skipped PR is not re-evaluated until
+        # dependabot's next weekly run, whereas waiting costs idle minutes.
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        env:
+          GH_TOKEN: ${{ secrets.AUTOMERGE_TOKEN }}
+        run: |
+          for _ in $(seq 30); do
+            open=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --json headRefName \
+              --jq 'map(select(.headRefName | startswith("foundation-bump/"))) | length' || echo 0)
+            if [[ "${open}" -eq 0 ]]; then echo "::notice::no open foundation bump PR; proceeding"; exit 0; fi
+            echo "${open} open foundation bump PR(s); waiting 60s"; sleep 60
+          done
+          echo "::notice::a foundation bump PR is still open after 30 min; proceeding anyway"
 
       - name: Approve and enable auto-merge
         # The test is "not a major", not "is a minor or a patch". A digest-only

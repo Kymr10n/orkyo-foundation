@@ -118,13 +118,34 @@ jobs:
           # Always main plus this one change, whatever the branch held before.
           git checkout -B "${BRANCH}" origin/main
           ${{ inputs.bump-script-path }} "${FOUNDATION_VERSION}"
+          # Foundation's CentralPackageTransitivePinningEnabled turns its pins into dependency
+          # floors; a lower central pin here restores as NU1109. Raise to foundation's version,
+          # never lower (Mvc.Testing 10.0.13 needs Hosting >= 10.0.13 while foundation pins 10.0.11).
+          ref=$([[ "${CHANNEL}" == stable ]] && echo "v${FOUNDATION_VERSION}" || echo "${FOUNDATION_VERSION##*.}")
+          upstream=$(GH_TOKEN="${GHCR_TOKEN}" gh api -H "Accept: application/vnd.github.raw" "repos/${GITHUB_REPOSITORY_OWNER}/orkyo-foundation/contents/Directory.Packages.props?ref=${ref}")
+          raised=$(python3 - "${upstream}" <<'EOF' | tee /dev/stderr
+          import re, sys
+          rx = re.compile(r'<PackageVersion Include="([^"]+)" Version="([^"$]+)" />')
+          key = lambda v: tuple(int(p) if p.isdigit() else p for p in re.split(r'[.-]', v))
+          fnd = dict(rx.findall(sys.argv[1]))
+          def up(m):
+              n, v = m.groups()
+              if n in fnd and key(fnd[n]) > key(v):
+                  print(f"raised {n}: {v} -> {fnd[n]}")
+                  return m.group(0).replace(f'Version="{v}"', f'Version="{fnd[n]}"', 1)
+              return m.group(0)
+          src = open("Directory.Packages.props").read()
+          out = rx.sub(up, src)
+          if out != src: open("Directory.Packages.props", "w").write(out)
+          EOF
+          )
           git add -A
           if git diff --cached --quiet; then
             echo "No changes — foundation pin already at ${FOUNDATION_VERSION}"
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git commit -m "chore: bump foundation to ${FOUNDATION_VERSION} (${CHANNEL})"
+          git commit -m "chore: bump foundation to ${FOUNDATION_VERSION} (${CHANNEL})" -m "${raised}"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Push the nightly branch
