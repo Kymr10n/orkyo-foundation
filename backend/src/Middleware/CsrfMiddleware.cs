@@ -61,7 +61,7 @@ public sealed class CsrfMiddleware
             !CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(sessionToken), Encoding.UTF8.GetBytes(csrfHeader)))
         {
-            _logger.LogWarning("CSRF validation failed for {Method} {Path}", context.Request.Method, context.Request.Path);
+            _logger.LogWarning("CSRF validation failed for {Method} {Path}", context.Request.Method, context.LoggablePath());
             await ProblemResults.Problem(
                 StatusCodes.Status403Forbidden,
                 ApiErrorCodes.CsrfTokenMismatch,

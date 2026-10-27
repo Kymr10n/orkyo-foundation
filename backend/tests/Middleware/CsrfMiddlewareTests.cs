@@ -4,6 +4,8 @@ using Api.Constants;
 using Api.Middleware;
 using Api.Security;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,9 +15,10 @@ namespace Orkyo.Foundation.Tests.Middleware;
 public class CsrfMiddlewareTests
 {
     private readonly BffOptions _options = new();
+    private readonly CapturingLogger<CsrfMiddleware> _logger = new();
 
     private CsrfMiddleware CreateMiddleware(RequestDelegate next) =>
-        new CsrfMiddleware(next, new Mock<ILogger<CsrfMiddleware>>().Object);
+        new CsrfMiddleware(next, _logger);
 
     private DefaultHttpContext CreateContext(
         string method = "GET",
@@ -46,6 +49,21 @@ public class CsrfMiddlewareTests
         context.RequestServices = services.BuildServiceProvider();
 
         return context;
+    }
+
+    [Fact]
+    public async Task Post_WithBffAuth_MissingCsrf_LogsTheRouteTemplate_NotThePath()
+    {
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+        var context = CreateContext("POST", BffCookieAuthenticationHandler.SchemeName);
+        context.Request.Path = "/api/invitations/the-secret-token/accept";
+        context.SetEndpoint(new RouteEndpoint(_ => Task.CompletedTask,
+            RoutePatternFactory.Parse("/api/invitations/{token}/accept"), 0, EndpointMetadataCollection.Empty, null));
+
+        await middleware.InvokeAsync(context);
+
+        _logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning)
+            .Which.Message.Should().Contain("{token}").And.NotContain("the-secret-token");
     }
 
     [Theory]
