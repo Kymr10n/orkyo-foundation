@@ -42,6 +42,26 @@ public class RequestLoggingMiddlewareTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task InvokeAsync_UnmatchedPath_IsLoggedEscaped_SoALineBreakCannotForgeAnEntry()
+    {
+        // No endpoint: the raw path is the fallback. CodeQL's cs/log-forging flags it; this pins
+        // why that alert is a false positive — PathString logs its escaped form.
+        var ctx = CreateContext(path: "/nope\r\nINFO forged entry");
+        var middleware = CreateMiddleware(_ => Task.CompletedTask);
+
+        await middleware.InvokeAsync(ctx);
+
+        _logger.Verify(
+            l => l.Log(
+                LogLevel.Information,
+                It.IsAny<EventId>(),
+                It.Is<It.IsAnyType>((v, _) => v!.ToString()!.Contains("/nope%0D%0AINFO") && !v.ToString()!.Contains('\n')),
+                null,
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+            Times.Once);
+    }
+
     // ── 2xx — Information level ────────────────────────────────────────────
 
     [Fact]
