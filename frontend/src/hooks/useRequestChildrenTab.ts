@@ -48,7 +48,7 @@ export function useRequestChildrenTab({
   const [pendingExistingIds, setPendingExistingIds] = useState<string[]>([]);
   // Inline "Add existing" picker: pull parentless requests into this group.
   const [addExistingOpen, setAddExistingOpen] = useState(false);
-  const [addExistingSelected, setAddExistingSelected] = useState<Set<string>>(new Set());
+  const [addExistingSelected, setAddExistingSelected] = useState<Set<string>>(() => new Set());
   const [addExistingSearch, setAddExistingSearch] = useState("");
 
   // Opening starts the tab clean: a render-phase update, not an effect (see useEntityFormDialog.ts).

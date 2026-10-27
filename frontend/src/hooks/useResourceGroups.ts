@@ -124,8 +124,8 @@ export function useResourceGroupMembershipRoster(
   singleGroup: boolean,
 ): ResourceGroupMembershipRoster {
   const [allResources, setAllResources] = useState<ResourceInfo[]>([]);
-  const [selectedResourceIds, setSelectedResourceIds] = useState<Set<string>>(new Set());
-  const [otherGroupByResource, setOtherGroupByResource] = useState<Map<string, string>>(new Map());
+  const [selectedResourceIds, setSelectedResourceIds] = useState<Set<string>>(() => new Set());
+  const [otherGroupByResource, setOtherGroupByResource] = useState<Map<string, string>>(() => new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

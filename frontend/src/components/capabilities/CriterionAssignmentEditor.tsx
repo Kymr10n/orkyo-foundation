@@ -97,7 +97,7 @@ export function CriterionAssignmentEditor({
 }: CriterionAssignmentEditorProps) {
   const canEdit = useCanEdit();
   const [assignments, setAssignments] = useState<Map<string, CriterionValue | null>>(
-    new Map(initialAssignments),
+    () => new Map(initialAssignments),
   );
   const [internalSelectedId, setInternalSelectedId] = useState('');
 

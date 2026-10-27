@@ -137,16 +137,16 @@ export function ResourceAssignmentDialog({
   // mirroring RequestPeopleSection. The quick-add dialog has no percent input.
   const allocationPercent =
     allocationMode === ALLOCATION_MODE.EXCLUSIVE ? undefined : 100;
-  const [itemStatus, setItemStatus] = useState<Map<string, ItemStatus>>(new Map());
+  const [itemStatus, setItemStatus] = useState<Map<string, ItemStatus>>(() => new Map());
   // requestId → conflict issues for an already-assigned row (capability / overbook),
   // computed on load so conflicts persist across reopens, not just after toggling.
-  const [conflicts, setConflicts] = useState<Map<string, ValidationResult>>(new Map());
+  const [conflicts, setConflicts] = useState<Map<string, ValidationResult>>(() => new Map());
   const [search, setSearch] = useState("");
   // "Eligible only": hide unassigned candidates the resource can't actually take (hard blockers).
   // Eligibility is validated lazily on first enable and cached (`ineligible` = requestIds with a hard
   // blocker); fail-open — an errored/absent check hides nothing.
   const [eligibleOnly, setEligibleOnly] = useState(false);
-  const [ineligible, setIneligible] = useState<Set<string>>(new Set());
+  const [ineligible, setIneligible] = useState<Set<string>>(() => new Set());
   const [eligibilityLoaded, setEligibilityLoaded] = useState(false);
   const [eligibilityLoading, setEligibilityLoading] = useState(false);
   const [eligibilityError, setEligibilityError] = useState(false);
