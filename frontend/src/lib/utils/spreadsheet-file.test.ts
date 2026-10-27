@@ -1,29 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import ExcelJS from 'exceljs';
+import writeXlsxFile, { type Sheet } from 'write-excel-file/universal';
 import { columnIndexFromRef, readWorkbook } from './spreadsheet-file';
 import { ZipFormatError } from './zip-reader';
 import { cellToIsoDate, parseTemplateWorkbook } from './spreadsheet-import';
 
 /**
- * Builds a real .xlsx in memory and wraps it as a File, so the reader is tested
- * against actual exceljs output rather than a hand-made stub of it. Nothing here
- * depends on a checked-in fixture.
+ * Builds a real .xlsx in memory with write-excel-file and wraps it as a File, so
+ * the reader is tested against a real writer's output (deflated entries, shared
+ * strings, styles) rather than a hand-made stub of it. Nothing here depends on a
+ * checked-in fixture.
  */
-async function workbookFile(build: (wb: ExcelJS.Workbook) => void): Promise<File> {
-  const wb = new ExcelJS.Workbook();
-  build(wb);
-  // exceljs hands back a Node Buffer here; a real File.arrayBuffer() always
-  // yields an ArrayBuffer, so slice to one rather than letting the test pass a
-  // shape the browser never produces.
-  const buffer = (await wb.xlsx.writeBuffer()) as unknown as Uint8Array;
-  const bytes = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+async function workbookFile(sheets: Sheet<never>[]): Promise<File> {
+  const bytes = await (await writeXlsxFile(sheets).toBlob()).arrayBuffer();
   return { arrayBuffer: () => Promise.resolve(bytes) } as unknown as File;
 }
 
 /**
- * Builds a ZIP with every entry STORED (method 0). exceljs always deflates, so
- * without this the uncompressed branch of the reader would never run in tests.
- * CRC is left zero: the reader does not verify it.
+ * Builds a ZIP with every entry STORED (method 0). write-excel-file always
+ * deflates, so without this the uncompressed branch of the reader would never run
+ * in tests. CRC is left zero: the reader does not verify it.
  */
 function buildStoredZip(files: Map<string, string>): File {
   const encoder = new TextEncoder();
@@ -79,14 +74,29 @@ function buildStoredZip(files: Map<string, string>): File {
   return { arrayBuffer: () => Promise.resolve(out.buffer) } as unknown as File;
 }
 
+/**
+ * One-sheet workbook from hand-written sheet XML, for cell shapes write-excel-file
+ * cannot produce: a formula with its cached result, and rich text.
+ */
+function storedWorkbook(sheetName: string, sheetDataXml: string): File {
+  return buildStoredZip(
+    new Map([
+      ['xl/workbook.xml', `<workbook><sheets><sheet name="${sheetName}" r:id="rId1"/></sheets></workbook>`],
+      [
+        'xl/_rels/workbook.xml.rels',
+        '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+      ],
+      ['xl/worksheets/sheet1.xml', `<worksheet><sheetData>${sheetDataXml}</sheetData></worksheet>`],
+    ]),
+  );
+}
+
 describe('readWorkbook', () => {
   it('returns every sheet with 0-based columns and 0-based rows', async () => {
-    const file = await workbookFile((wb) => {
-      const a = wb.addWorksheet('First');
-      a.getCell('A1').value = 'top-left';
-      a.getCell('C2').value = 'c-two';
-      wb.addWorksheet('Second');
-    });
+    const file = await workbookFile([
+      { sheet: 'First', data: [['top-left'], [null, null, 'c-two']] },
+      { sheet: 'Second', data: [] },
+    ]);
 
     const sheets = await readWorkbook(file);
 
@@ -97,11 +107,9 @@ describe('readWorkbook', () => {
   });
 
   it('unwraps the cached result of a formula cell rather than the formula itself', async () => {
-    const file = await workbookFile((wb) => {
-      const ws = wb.addWorksheet('Calc');
-      ws.getCell('A1').value = 2;
-      ws.getCell('B1').value = { formula: 'A1*3', result: 6 };
-    });
+    // Excel stores the last computed value next to the formula; that is what Excel
+    // and LibreOffice write, so the cell is hand-built here.
+    const file = storedWorkbook('Calc', '<row r="1"><c r="A1"><v>2</v></c><c r="B1"><f>A1*3</f><v>6</v></c></row>');
 
     const [sheet] = await readWorkbook(file);
 
@@ -110,12 +118,12 @@ describe('readWorkbook', () => {
   });
 
   it('flattens rich text to a plain string', async () => {
-    const file = await workbookFile((wb) => {
-      const ws = wb.addWorksheet('Rich');
-      ws.getCell('A1').value = {
-        richText: [{ text: 'Mill ' }, { text: '1' }],
-      } as unknown as ExcelJS.CellValue;
-    });
+    // Two formatted runs in one cell. The reader joins <t> runs the same way for
+    // inline and shared strings.
+    const file = storedWorkbook(
+      'Rich',
+      '<row r="1"><c r="A1" t="inlineStr"><is><r><t xml:space="preserve">Mill </t></r><r><t>1</t></r></is></c></row>',
+    );
 
     const [sheet] = await readWorkbook(file);
 
@@ -123,9 +131,9 @@ describe('readWorkbook', () => {
   });
 
   it('yields dates as Excel serials, which the parser converts', async () => {
-    const file = await workbookFile((wb) => {
-      wb.addWorksheet('Dates').getCell('A1').value = new Date(Date.UTC(2026, 7, 10));
-    });
+    const file = await workbookFile([
+      { sheet: 'Dates', data: [[{ value: new Date(Date.UTC(2026, 7, 10)), format: 'yyyy-mm-dd' }]] },
+    ]);
 
     const [sheet] = await readWorkbook(file);
 
@@ -137,21 +145,33 @@ describe('readWorkbook', () => {
   });
 
   it('reads a template-shaped workbook end to end', async () => {
-    const file = await workbookFile((wb) => {
-      const ws = wb.addWorksheet('Workstations');
-      ws.getRow(5).values = ['Code', 'Workstation', 'What stands there', 'Capacity (h/day)', 'Notes'];
-      ws.getRow(6).values = ['WS-01', 'Mill 1', 'Haas VF-2', 8, 'Service Fri'];
-      const jobs = wb.addWorksheet('Jobs');
-      jobs.getRow(5).values = ['Job', 'Description', 'Workstation', 'Start', 'End', 'Hours/day'];
-      jobs.getRow(6).values = [
-        'J-1041',
-        'Brackets',
-        'WS-01',
-        new Date(Date.UTC(2026, 7, 10)),
-        new Date(Date.UTC(2026, 7, 14)),
-        6,
-      ];
-    });
+    // The template's headers sit on row 5, so rows 1-4 are empty.
+    const date = (value: Date) => ({ value, format: 'yyyy-mm-dd' });
+    const file = await workbookFile([
+      {
+        sheet: 'Workstations',
+        data: [
+          [], [], [], [],
+          ['Code', 'Workstation', 'What stands there', 'Capacity (h/day)', 'Notes'],
+          ['WS-01', 'Mill 1', 'Haas VF-2', 8, 'Service Fri'],
+        ],
+      },
+      {
+        sheet: 'Jobs',
+        data: [
+          [], [], [], [],
+          ['Job', 'Description', 'Workstation', 'Start', 'End', 'Hours/day'],
+          [
+            'J-1041',
+            'Brackets',
+            'WS-01',
+            date(new Date(Date.UTC(2026, 7, 10))),
+            date(new Date(Date.UTC(2026, 7, 14))),
+            6,
+          ],
+        ],
+      },
+    ]);
 
     const parsed = parseTemplateWorkbook(await readWorkbook(file));
 
@@ -180,12 +200,13 @@ describe('columnIndexFromRef', () => {
 
 describe('readWorkbook — file shapes', () => {
   it('places cells by their reference, leaving gaps as holes', async () => {
-    const file = await workbookFile((wb) => {
-      const ws = wb.addWorksheet('Sparse');
-      ws.getCell('A1').value = 'first';
-      ws.getCell('D1').value = 'fourth'; // B and C never written
-      ws.getCell('A3').value = 'third row'; // row 2 never written
-    });
+    const file = await workbookFile([
+      {
+        sheet: 'Sparse',
+        // B1, C1 and all of row 2 are never written.
+        data: [['first', null, null, 'fourth'], [], ['third row']],
+      },
+    ]);
 
     const [sheet] = await readWorkbook(file);
 
@@ -196,10 +217,12 @@ describe('readWorkbook — file shapes', () => {
   });
 
   it('reads stored (uncompressed) entries as well as deflated ones', async () => {
-    // exceljs always deflates; build a stored-entry workbook by hand so the
-    // method-0 branch is covered by something other than inspection.
+    // write-excel-file always deflates; build a stored-entry workbook by hand so
+    // the method-0 branch is covered by something other than inspection.
     const stored = buildStoredZip(
       new Map([
+        // Some writers add folder entries; the reader must skip them, not parse them.
+        ['xl/', ''],
         ['xl/workbook.xml', '<workbook><sheets><sheet name="Only" r:id="rId1"/></sheets></workbook>'],
         [
           'xl/_rels/workbook.xml.rels',
