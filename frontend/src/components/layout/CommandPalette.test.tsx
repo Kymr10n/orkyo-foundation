@@ -1,6 +1,6 @@
 /** @jsxImportSource react */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { act, screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithQuery } from '@foundation/src/test-utils';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router';
@@ -65,7 +65,20 @@ function renderCommandPalette(props: { open: boolean; onOpenChange?: (open: bool
 }
 
 describe('CommandPalette', () => {
+  // The palette debounces the search by 200 ms (useDebouncedCallback). Fake timers with
+  // shouldAdvanceTime keep react-query and Testing Library on real time, user-event types
+  // without its per-key delay, and fireDebounce() lands the search at once instead of each
+  // test waiting the 200 ms out.
+  let user: ReturnType<typeof userEvent.setup>;
+  const fireDebounce = () => act(async () => { vi.advanceTimersByTime(200); });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime, delay: null });
     useSiteStore.setState({ selectedSiteId: 'site-1' });
     vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: '', results: [] });
     // usePermissions hooks are globally mocked to true (src/test/setup.ts); reset each test.
@@ -95,7 +108,8 @@ describe('CommandPalette', () => {
       ],
     });
     renderCommandPalette({ open: true });
-    await userEvent.type(screen.getByPlaceholderText(/search/i), 'x');
+    await user.type(screen.getByPlaceholderText(/search/i), 'x');
+    await fireDebounce();
 
     // Viewer-viewable types remain; editor/admin-only ones are filtered out.
     await waitFor(() => expect(screen.getByText('My Space')).toBeInTheDocument());
@@ -128,9 +142,9 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
 
-      // Wait for debounce
       await waitFor(() => {
         expect(searchApi.globalSearch).toHaveBeenCalledWith({
           query: 'conference',
@@ -144,7 +158,8 @@ describe('CommandPalette', () => {
       vi.mocked(searchApi.globalSearch).mockRejectedValue(new Error('Search down'));
       renderCommandPalette({ open: true });
 
-      await userEvent.type(screen.getByPlaceholderText(/search/i), 'conference');
+      await user.type(screen.getByPlaceholderText(/search/i), 'conference');
+      await fireDebounce();
 
       await waitFor(() => expect(searchApi.globalSearch).toHaveBeenCalled());
       await waitFor(() => expect(screen.queryByLabelText(/loading/i)).not.toBeInTheDocument());
@@ -156,10 +171,11 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
       const input = screen.getByPlaceholderText(/search/i);
 
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
       expect(await screen.findByText('Conference Room A')).toBeInTheDocument();
 
-      await userEvent.clear(input);
+      await user.clear(input);
       expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
     });
 
@@ -168,14 +184,16 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
       const input = screen.getByPlaceholderText(/search/i);
 
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
       expect(await screen.findByText('Conference Room A')).toBeInTheDocument();
-      await userEvent.clear(input);
+      await user.clear(input);
 
       vi.mocked(searchApi.globalSearch).mockResolvedValue({ query: 'x', results: [] });
-      await userEvent.type(input, 'x');
+      await user.type(input, 'x');
       // Before the 200 ms debounce: nothing, not the cached "conference" list.
       expect(screen.queryByText('Conference Room A')).not.toBeInTheDocument();
+      await fireDebounce();
       await waitFor(() =>
         expect(searchApi.globalSearch).toHaveBeenLastCalledWith(expect.objectContaining({ query: 'x' })),
       );
@@ -187,7 +205,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText('Conference Room A')).toBeInTheDocument();
@@ -199,7 +218,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText('Main Building')).toBeInTheDocument();
@@ -211,7 +231,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText('Space')).toBeInTheDocument();
@@ -223,7 +244,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'nonexistent');
+      await user.type(input, 'nonexistent');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText(/no results found/i)).toBeInTheDocument();
@@ -235,7 +257,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText('1 result')).toBeInTheDocument();
@@ -260,7 +283,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true, onOpenChange });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'conference');
+      await user.type(input, 'conference');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText('Conference Room A')).toBeInTheDocument();
@@ -306,7 +330,8 @@ describe('CommandPalette', () => {
       const onOpenChange = vi.fn();
       renderCommandPalette({ open: true, onOpenChange });
 
-      await userEvent.type(screen.getByPlaceholderText(/search/i), 'q');
+      await user.type(screen.getByPlaceholderText(/search/i), 'q');
+      await fireDebounce();
       await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument(), { timeout: 500 });
 
       fireEvent.click(screen.getByText(title));
@@ -331,7 +356,8 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'test');
+      await user.type(input, 'test');
+      await fireDebounce();
 
       await waitFor(() => {
         expect(screen.getByText('Space Result')).toBeInTheDocument();
@@ -358,9 +384,9 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'test');
+      await user.type(input, 'test');
+      await fireDebounce();
 
-      // Wait for debounce to trigger the search
       await waitFor(() => {
         expect(searchApi.globalSearch).toHaveBeenCalled();
       }, { timeout: 500 });
@@ -376,7 +402,7 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'test');
+      await user.type(input, 'test');
 
       // Clear button should appear (it's an X icon button)
       await waitFor(() => {
@@ -391,7 +417,7 @@ describe('CommandPalette', () => {
       renderCommandPalette({ open: true });
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'test');
+      await user.type(input, 'test');
 
       await waitFor(() => {
         expect(input).toHaveValue('test');
@@ -416,7 +442,7 @@ describe('CommandPalette', () => {
       );
 
       const input = screen.getByPlaceholderText(/search/i);
-      await userEvent.type(input, 'my search');
+      await user.type(input, 'my search');
 
       expect(input).toHaveValue('my search');
 
