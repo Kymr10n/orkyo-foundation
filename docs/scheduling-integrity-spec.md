@@ -1,8 +1,9 @@
 # Scheduling integrity — specification and implementation plan
 
-Status: **in progress**. Written 2026-10-28. Committed locally, not pushed: steps 0 to 4 and 7,
-the product part of steps 5 and 6, and the user documentation. Open: the auto-bump workflow pin
-in the products (needs step 4 on foundation main).
+Status: **in review**. Written 2026-10-28. In review: steps 0 to 4 and 7 (orkyo-foundation#306),
+the user documentation (orkyo-documentation#40), and the product part of steps 5 and 6
+(orkyo-community#222, orkyo-saas#380). Open: the auto-bump workflow pin in the products, after #306
+is merged.
 
 This document fixes five defects that an end-to-end test of optimistic concurrency (saas#299)
 and a review of the demo seed found. The defects are in resource load checks, conflict
@@ -105,18 +106,18 @@ Follow-ups, outside this plan:
 
 ## 9. Implementation plan
 
-Each step is one change set. The status of a step changes from planned to in progress,
-implemented and committed. The work is tracked in one session, without pull requests.
+Each step is one change set. The status of a step changes from planned to in progress, in
+review and merged.
 
 | Step | Repo | Content | Status |
 |---|---|---|---|
-| 0 | foundation | This document | committed |
-| 1 | foundation | Load model, `ConcurrentCapacity`, conflict policy: backend and frontend (sections 2–4) | committed |
-| 2 | foundation | Recalculation lock (section 5). Builds on saas#299 | committed |
-| 3 | foundation | Seed: `site_id`, quarter-hour starts (section 6) | committed |
-| 4 | foundation | `sync-product-pins.py`, the auto-bump workflow uses it, `./dev.sh check` runs it (section 7) | committed |
-| 5 | orkyo-community | Pins raised and demo docs use `medium` (committed). Auto-bump workflow pin moved to step 4 (needs step 4 on main) | in progress |
-| 6 | orkyo-saas | Pins raised (committed). Auto-bump workflow pin moved to step 4 (needs step 4 on main) | in progress |
-| 7 | foundation | CHANGELOG entries; user documentation (stations, planning model, conflicts) | committed |
+| 0 | foundation | This document | in review |
+| 1 | foundation | Load model, `ConcurrentCapacity`, conflict policy: backend and frontend (sections 2–4) | in review |
+| 2 | foundation | Recalculation lock (section 5). Builds on saas#299 | in review |
+| 3 | foundation | Seed: `site_id`, quarter-hour starts (section 6) | in review |
+| 4 | foundation | `sync-product-pins.py`, the auto-bump workflow uses it, `./dev.sh check` runs it (section 7) | in review |
+| 5 | orkyo-community | Pins raised and demo docs use `medium` (in review). Auto-bump workflow pin moved to step 4 (needs step 4 on main) | in progress |
+| 6 | orkyo-saas | Pins raised (in review). Auto-bump workflow pin moved to step 4 (needs step 4 on main) | in progress |
+| 7 | foundation | CHANGELOG entries; user documentation (stations, planning model, conflicts) | in review |
 
 The products get steps 1 to 3 through the release train.
