@@ -7,9 +7,12 @@ namespace Api.Services;
 public interface ISchedulingService
 {
     Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default);
-    Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default);
+    /// <summary>
+    /// Saves a site's settings and moves its scheduled requests onto them, in one transaction.
+    /// Throws <see cref="Api.Helpers.PreconditionFailedException"/> on a stale <paramref name="expectedVersion"/>.
+    /// </summary>
+    Task<SchedulingSettingsInfo> SaveSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, uint? expectedVersion, CancellationToken ct = default);
     Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default);
-    Task RecalculateScheduledRequestsAsync(Guid siteId, CancellationToken ct = default);
     Task<CreateRequestRequest> ApplySchedulingToCreateAsync(CreateRequestRequest request, CancellationToken ct = default);
     Task<UpdateRequestRequest> ApplySchedulingToUpdateAsync(Guid requestId, UpdateRequestRequest request, CancellationToken ct = default);
     Task<ScheduleRequestRequest> ApplySchedulingToScheduleAsync(Guid requestId, ScheduleRequestRequest request, CancellationToken ct = default);
@@ -62,19 +65,27 @@ public class SchedulingService : ISchedulingService
     public Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default)
         => _schedulingRepository.GetSettingsAsync(siteId, ct);
 
-    public Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default)
-        => _schedulingRepository.UpsertSettingsAsync(siteId, request, ct);
+    public async Task<SchedulingSettingsInfo> SaveSettingsAsync(
+        Guid siteId, UpsertSchedulingSettingsRequest request, uint? expectedVersion, CancellationToken ct = default)
+    {
+        // Calculated from the settings being saved, not re-read after the save: the write and
+        // the recalculated windows commit together, so the new settings are not readable yet.
+        var settings = SchedulingSettingsInfo.From(siteId, request);
+        var recalculated = await RecalculateScheduledRequestsAsync(settings, ct);
+        return await _schedulingRepository.SaveSettingsAsync(settings, expectedVersion, recalculated, ct);
+    }
 
     public Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default)
         => _schedulingRepository.DeleteSettingsAsync(siteId, ct);
 
-    public async Task RecalculateScheduledRequestsAsync(Guid siteId, CancellationToken ct = default)
+    /// <summary>The new window of every scheduled request at the site, under <paramref name="settings"/>.</summary>
+    private async Task<List<(Guid Id, uint Version, ScheduleRequestRequest Data)>> RecalculateScheduledRequestsAsync(
+        SchedulingSettingsInfo settings, CancellationToken ct)
     {
-        var settings = await _schedulingRepository.GetSettingsAsync(siteId, ct)
-            ?? SchedulingSettingsInfo.Default(siteId);
+        var siteId = settings.SiteId;
         var toRecalculate = await _scheduleReads.GetScheduledBySiteAsync(siteId, ct);
 
-        if (toRecalculate.Count == 0) return;
+        if (toRecalculate.Count == 0) return [];
 
         _logger.LogInformation("Recalculating {Count} scheduled requests for site {SiteId}",
             toRecalculate.Count, siteId);
@@ -90,7 +101,7 @@ public class SchedulingService : ISchedulingService
             .ToList();
         var blockedByResource = await _resolver.GetBlockedPeriodsForResourcesAsync(placementResourceIds, ct);
 
-        var updates = new List<(Guid Id, ScheduleRequestRequest Data)>();
+        var updates = new List<(Guid Id, uint Version, ScheduleRequestRequest Data)>();
         foreach (var request in toRecalculate)
         {
             try
@@ -105,7 +116,12 @@ public class SchedulingService : ISchedulingService
                 var result = SchedulingEngine.CalculateSchedule(
                     request.StartTs!.Value, durationMinutes, settings, blockedPeriods);
 
-                updates.Add((request.Id, new ScheduleRequestRequest
+                // A request the new settings do not move is not written: its row version stays,
+                // so an editor holding it open is not refused for a change that did not happen.
+                if (result.ActualStart == request.StartTs && result.ActualEnd == request.EndTs)
+                    continue;
+
+                updates.Add((request.Id, request.Version, new ScheduleRequestRequest
                 {
                     ResourceId = resourceId,
                     StartTs = result.ActualStart,
@@ -120,11 +136,9 @@ public class SchedulingService : ISchedulingService
             }
         }
 
-        if (updates.Count > 0)
-            await _requestRepository.BatchUpdateSchedulesAsync(updates, ct);
-
         _logger.LogInformation("Recalculated {Count} requests for site {SiteId}",
             updates.Count, siteId);
+        return updates;
     }
 
     public async Task<CreateRequestRequest> ApplySchedulingToCreateAsync(CreateRequestRequest request, CancellationToken ct = default)

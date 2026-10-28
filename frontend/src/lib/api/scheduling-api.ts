@@ -1,5 +1,5 @@
 import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
-import { apiGet, apiPut, apiDelete } from "../core/api-client";
+import { apiGet, apiPut, apiDelete, ifMatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
 // ── Wire types (match backend JSON exactly) ─────────────────────
@@ -14,6 +14,7 @@ interface SchedulingSettingsWire {
   weekendsEnabled: boolean;
   publicHolidaysEnabled: boolean;
   publicHolidayRegion: string | null;
+  version: number;
 }
 
 interface UpsertSchedulingSettingsWire {
@@ -44,10 +45,11 @@ function mapSettingsFromWire(w: SchedulingSettingsWire): SchedulingSettings {
     weekendsEnabled: w.weekendsEnabled,
     publicHolidaysEnabled: w.publicHolidaysEnabled,
     publicHolidayRegion: w.publicHolidayRegion,
+    version: w.version,
   };
 }
 
-function mapSettingsToWire(s: Omit<SchedulingSettings, "siteId">): UpsertSchedulingSettingsWire {
+function mapSettingsToWire(s: Omit<SchedulingSettings, "siteId" | "version">): UpsertSchedulingSettingsWire {
   return {
     timeZone: s.timeZone,
     workingHoursEnabled: s.workingHoursEnabled,
@@ -66,13 +68,16 @@ export async function getSchedulingSettings(siteId: string): Promise<SchedulingS
   return mapSettingsFromWire(wire);
 }
 
+/** `version`: the settings' version as read (0: none saved yet); a save after someone else's fails with 412. */
 export async function upsertSchedulingSettings(
   siteId: string,
-  settings: Omit<SchedulingSettings, "siteId">,
+  settings: Omit<SchedulingSettings, "siteId" | "version">,
+  version?: number,
 ): Promise<SchedulingSettings> {
   const wire = await apiPut<SchedulingSettingsWire>(
     API_PATHS.scheduling(siteId),
     mapSettingsToWire(settings),
+    ifMatch(version),
   );
   return mapSettingsFromWire(wire);
 }

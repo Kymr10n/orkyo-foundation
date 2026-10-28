@@ -48,7 +48,19 @@ describe('utilization-api', () => {
 
       await scheduleRequest('req-123', data);
 
-      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), data);
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), data, undefined);
+    });
+
+    it('sends the version as If-Match options', async () => {
+      const options = { headers: { 'If-Match': '"7"' } };
+      vi.mocked(apiClient.ifMatch).mockReturnValueOnce(options);
+      vi.mocked(apiClient.apiPatch).mockResolvedValue(scheduledRequest);
+
+      await scheduleRequest('req-123', { resourceId: 'space-456' }, 7);
+
+      expect(apiClient.ifMatch).toHaveBeenCalledWith(7);
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(
+        API_PATHS.requestSchedule('req-123'), { resourceId: 'space-456' }, options);
     });
 
     it('returns request with computed durationMin', async () => {
@@ -68,7 +80,7 @@ describe('utilization-api', () => {
 
       expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), {
         resourceId: 'space-456',
-      });
+      }, undefined);
     });
 
     it('handles partial update with only timestamps', async () => {
@@ -80,7 +92,7 @@ describe('utilization-api', () => {
       };
       await scheduleRequest('req-123', data);
 
-      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), data);
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), data, undefined);
     });
 
     it('handles null values to clear scheduling', async () => {
@@ -93,7 +105,7 @@ describe('utilization-api', () => {
       };
       await scheduleRequest('req-123', data);
 
-      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), data);
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestSchedule('req-123'), data, undefined);
     });
 
     it('propagates API errors', async () => {

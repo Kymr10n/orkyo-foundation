@@ -162,6 +162,13 @@ public record RequestInfo
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 
+    /// <summary>
+    /// Row version for optimistic concurrency: send it back as <c>If-Match: "&lt;version&gt;"</c>
+    /// on a write, which then fails with 412 if someone else changed the request meanwhile.
+    /// Opaque; compare it only for equality.
+    /// </summary>
+    public uint Version { get; init; }
+
     // Requirements (optional, populated when requested)
     public List<RequestRequirementInfo>? Requirements { get; init; }
 

@@ -37,11 +37,11 @@ describe('useSaveRequest', () => {
     vi.mocked(updateRequest).mockResolvedValue(makeRequest());
     const { wrapper } = createTestQueryClient({ feedback: true });
     const { result } = renderHook(() => useSaveRequest(), { wrapper });
-    const editing = makeRequest({ id: 'req-1', planningMode: 'leaf' });
+    const editing = makeRequest({ id: 'req-1', planningMode: 'leaf', version: 3 });
 
     await result.current.mutateAsync(saveRequestVariables(makeRequestFormData({ planningMode: 'leaf' }), editing));
 
-    expect(updateRequest).toHaveBeenCalledWith('req-1', expect.not.objectContaining({ planningMode: 'leaf' }));
+    expect(updateRequest).toHaveBeenCalledWith('req-1', expect.not.objectContaining({ planningMode: 'leaf' }), 3);
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Request updated'));
   });
 });

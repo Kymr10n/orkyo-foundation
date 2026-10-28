@@ -44,6 +44,7 @@ public static class RequestMapper
             SchedulingSettingsApply = reader.GetBoolean("scheduling_settings_apply"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),
+            Version = reader.GetXid("row_version"),
         };
     }
 

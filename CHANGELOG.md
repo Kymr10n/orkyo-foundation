@@ -15,6 +15,24 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   (CVE-2026-84939) and Jackson (CVE-2026-68497). Only the `mssql-jdbc` false positive remains.
 
 ### Added
+- **`ConcurrentCapacity` allocation mode** (docs/scheduling-integrity-spec.md). A placeable
+  resource in this mode takes up to `capacity` bookings at the same instant (each counts its
+  `allocation_units`, else 1). Only placeable types accept it; the edit dialog offers it for them
+  and its Capacity help text now says which mode uses the value.
+- **Optimistic concurrency for requests, resources and scheduling settings (saas#299).** Their DTOs
+  carry `version` (the row's Postgres `xmin`), on list rows and single reads; there is no `ETag`
+  header, the version travels in the body. A write that sends
+  `If-Match: "<version>"` fails with 412 and code `precondition_failed` when someone else changed
+  the row meanwhile; a write without the header keeps last-write-wins, so MCP tools and Platform
+  API clients are unaffected. Covered writes: `PUT /api/requests/{id}`, `PATCH .../schedule`,
+  `PATCH .../move`, `PUT /api/resources/{id}`, `PUT /api/sites/{id}/scheduling` (version 0 means
+  "no settings stored yet"). A request's version also changes when only its targets, resources,
+  requirements or assignments change. The SPA sends the header from the request and resource edit
+  dialogs, the home-site move, the scheduler's drag, resize and unschedule, the request tree drag
+  and the scheduling settings page; single-field writes made by id (floorplan geometry, start
+  condition, child reparenting, AI proposals, the resource calendar) send none. It shows the
+  conflict inline (or in the drag's toast) and re-reads the stale data; the settings page refills
+  its form. Tenant migration 2020 adds `row_version` to `v_requests_with_assignments`.
 - **Mail goes through a transactional outbox.** `EmailService` writes every rendered mail to the
   new control-plane `email_outbox` table (migration 1210) before the first delivery attempt, so a
   crash, an OOM kill or a slot drain between "decided to send" and "sent" loses nothing. The
@@ -39,6 +57,21 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   Both are flagged `IncludesDemoData` because they carry named sample resources.
 
 ### Changed
+- **Conflict policy.** Done and cancelled requests report no conflicts. Done work still occupies
+  its resources and still counts as a predecessor; a cancelled request's bookings occupy nothing.
+- **Breaking for direct callers:** `IResourceAssignmentRepository.GetTotalAllocatedPercentAsync` is
+  gone (the validator compares the peak load instead), and the recalculated rows passed to
+  `ISchedulingRepository.SaveSettingsAsync` carry the version they were read at.
+- **`scripts/ci/sync-product-pins.py`** holds the rule that a product's package pin is never below
+  foundation's. The auto-bump workflow runs it (fetched at the release ref, like the props), and
+  `./dev.sh check` in a product runs it with `--check` against the sibling foundation checkout.
+- **Breaking for direct callers of these interfaces:** the update methods take
+  `uint? expectedVersion` before the cancellation token (`IRequestService`/`IRequestRepository`
+  `UpdateAsync` and `UpdateScheduleAsync`, `IRequestService.MoveAsync`/`IRequestTreeRepository.MoveAsync`,
+  `IResourceService`/`IResourceRepository.UpdateAsync`); pass `null` for no check.
+  `ISchedulingService.UpsertSettingsAsync` + `RecalculateScheduledRequestsAsync` are replaced by one
+  `SaveSettingsAsync`, and `ISchedulingRepository.UpsertSettingsAsync` by `SaveSettingsAsync`;
+  `IRequestRepository.BatchUpdateSchedulesAsync` is gone. Neither product calls them today.
 - **`StarterTemplateService` applies a preset once.** When `preset_applications` already records the
   preset it logs and returns, so a product can call it at every start (Community's
   `ORKYO_STARTER_TEMPLATE`). A shipped file that fails `PresetValidator` throws with the errors.
@@ -88,6 +121,22 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   allow-list can drift safely.
 
 ### Fixed
+- **Capacity checks compare the peak load, not the sum** (`ResourceLoad`). A Fractional resource
+  was flagged when bookings that never ran at the same time added up past its availability; now
+  only the highest load at one instant counts, and touching bookings do not stack. A stored booking
+  without a percent counts as the whole resource instead of being dropped from the check. The
+  scheduler's draft overlay flags overlap only on Exclusive rows.
+- **A scheduling-settings save no longer overwrites a request changed while it ran.** The
+  recalculation locks the requests it writes and skips any whose version moved since it read them.
+- **The demo seed writes each job's site and starts work on quarter hours.** Jobs without a free
+  room or machine used to stay site-neutral and counted at every site in Insights.
+- **A scheduling-settings save and the recalculation of the site's requests commit together.** A
+  failed recalculation used to leave the new settings stored and the requests on the old windows;
+  now neither is written. The recalculation also skips a request whose window does not move,
+  instead of rewriting every scheduled request at the site.
+- **A request edit reads the row it checks under a lock.** The end-after-start check read the
+  stored window before the transaction began, so a concurrent edit could slip between the read and
+  the write.
 - **Log lines name the matched route template, not the raw request path.** `CsrfMiddleware` and
   `ChallengeVerificationFilter` logged `Request.Path`, so a secret carried in the path — the
   anonymous calendar feed token — reached the log when such a request failed. Both now log through

@@ -137,18 +137,12 @@ public class ResourceAssignmentValidator(
             if (siteByResource.TryGetValue(resource.Id, out var siteId))
                 EvaluateWeekends(request, resource.Id, settingsBySite.GetValueOrDefault(siteId), warnings);
 
-            // Allocation: compute the overlapping set / committed total in memory from the
-            // resource's active assignments, then apply the shared rule. Both modes want the same
-            // set, so it is found once and read differently.
-            var mode = request.AllocationMode ?? resource.AllocationMode;
+            // Allocation: the bookings that overlap this window, found in memory from the
+            // resource's active assignments, then the shared rule.
             var overlapping = activeByResource.TryGetValue(resource.Id, out var index)
                 ? index.Overlapping(request.StartUtc, request.EndUtc, request.ExcludeAssignmentId)
                 : [];
-            var exclusiveOverlaps = mode == AllocationModes.Exclusive ? overlapping : [];
-            var fractionalTotal = mode == AllocationModes.Fractional
-                ? overlapping.Sum(a => a.AllocationPercent ?? 0m)
-                : 0m;
-            EvaluateAllocation(request, resource, exclusiveOverlaps, fractionalTotal, blockers);
+            EvaluateAllocation(request, resource, overlapping, blockers);
 
             results.Add(Correlated(request, Build(blockers, warnings)));
         }
@@ -205,19 +199,9 @@ public class ResourceAssignmentValidator(
     private async Task CheckAllocationAsync(
         ValidateResourceAssignmentRequest request, ResourceInfo resource, List<ValidationIssue> blockers)
     {
-        var mode = request.AllocationMode ?? resource.AllocationMode;
-
-        // Fetch only the data the active mode needs, then apply the shared rule.
-        IReadOnlyList<ResourceAssignmentInfo> overlapping = [];
-        decimal fractionalTotal = 0m;
-        if (mode == AllocationModes.Exclusive)
-            overlapping = await assignmentRepository.GetOverlappingActiveAsync(
-                resource.Id, request.StartUtc, request.EndUtc, request.ExcludeAssignmentId);
-        else if (mode == AllocationModes.Fractional)
-            fractionalTotal = await assignmentRepository.GetTotalAllocatedPercentAsync(
-                resource.Id, request.StartUtc, request.EndUtc, request.ExcludeAssignmentId);
-
-        EvaluateAllocation(request, resource, overlapping, fractionalTotal, blockers);
+        var overlapping = await assignmentRepository.GetOverlappingActiveAsync(
+            resource.Id, request.StartUtc, request.EndUtc, request.ExcludeAssignmentId);
+        EvaluateAllocation(request, resource, overlapping, blockers);
     }
 
     // ── Pure rule evaluators (no I/O) — shared by the single and batch paths ──
@@ -239,28 +223,15 @@ public class ResourceAssignmentValidator(
     }
 
     /// <summary>
-    /// Allocation-mode rules. Callers pre-compute the inputs so this stays pure:
-    /// <paramref name="overlappingActive"/> is the already-overlapping, self-excluded set used for
-    /// Exclusive overbook; <paramref name="committedFractionalTotal"/> is the committed % over the
-    /// window used for Fractional capacity. Each is empty/zero for the non-applicable mode.
+    /// Allocation-mode rules over the bookings that overlap the window (self excluded). Exclusive
+    /// names each overlapping booking, so a conflict can point at its peer. The other modes compare
+    /// the peak load with the resource's limit (<see cref="ResourceLoad"/>).
     /// </summary>
     private static void EvaluateAllocation(
         ValidateResourceAssignmentRequest request, ResourceInfo resource,
-        IReadOnlyList<ResourceAssignmentInfo> overlappingActive, decimal committedFractionalTotal,
-        List<ValidationIssue> blockers)
+        IReadOnlyList<ResourceAssignmentInfo> overlappingActive, List<ValidationIssue> blockers)
     {
         var mode = request.AllocationMode ?? resource.AllocationMode;
-
-        if (mode == AllocationModes.ConcurrentCapacity)
-        {
-            blockers.Add(new ValidationIssue
-            {
-                Code = ValidationReasonCode.InvalidAllocationMode,
-                Message = "ConcurrentCapacity allocation mode is not yet supported",
-                ResourceId = resource.Id,
-            });
-            return;
-        }
 
         if (mode == AllocationModes.Exclusive)
         {
@@ -283,28 +254,35 @@ public class ResourceAssignmentValidator(
             return;
         }
 
-        if (mode == AllocationModes.Fractional)
+        // A new Fractional booking names its share. A stored booking (the conflict registry
+        // passes its own id to exclude) is judged as it is: an empty percent is the whole resource.
+        if (mode == AllocationModes.Fractional && request.ExcludeAssignmentId is null
+            && request.AllocationPercent is not > 0)
         {
-            if (!request.AllocationPercent.HasValue || request.AllocationPercent.Value <= 0)
+            blockers.Add(new ValidationIssue
             {
-                blockers.Add(new ValidationIssue
-                {
-                    Code = ValidationReasonCode.InvalidAllocationPercent,
-                    Message = "allocation_percent is required and must be > 0 for Fractional resources",
-                    ResourceId = resource.Id,
-                });
-                return;
-            }
-
-            var total = committedFractionalTotal + request.AllocationPercent.Value;
-            if (total > resource.BaseAvailabilityPercent)
-                blockers.Add(new ValidationIssue
-                {
-                    Code = ValidationReasonCode.AssignmentCapacityExceeded,
-                    Message = $"Total allocation ({total}%) exceeds available capacity ({resource.BaseAvailabilityPercent}%)",
-                    ResourceId = resource.Id,
-                });
+                Code = ValidationReasonCode.InvalidAllocationPercent,
+                Message = "allocation_percent is required and must be > 0 for Fractional resources",
+                ResourceId = resource.Id,
+            });
+            return;
         }
+
+        var limit = ResourceLoad.Limit(mode, resource);
+        var peak = ResourceLoad.Peak(
+            overlappingActive
+                .Select(a => (a.StartUtc, a.EndUtc, ResourceLoad.Unit(mode, a.AllocationPercent, a.AllocationUnits)))
+                .Append((request.StartUtc, request.EndUtc, ResourceLoad.Unit(mode, request.AllocationPercent, request.AllocationUnits))),
+            request.StartUtc, request.EndUtc);
+        if (peak > limit)
+            blockers.Add(new ValidationIssue
+            {
+                Code = ValidationReasonCode.AssignmentCapacityExceeded,
+                Message = mode == AllocationModes.Fractional
+                    ? $"Peak allocation ({peak}%) exceeds available capacity ({limit}%)"
+                    : $"{peak} concurrent bookings exceed the capacity of {limit}",
+                ResourceId = resource.Id,
+            });
     }
 
     private static void EvaluateBlockedPeriods(

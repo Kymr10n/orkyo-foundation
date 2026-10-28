@@ -66,12 +66,13 @@ public static class RequestEndpoints
         .WithName("CreateRequest")
         .WithSummary("Create a new request");
 
-        group.MapPut("/{id:guid}", async (Guid id, UpdateRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateRequestRequest> validator, CancellationToken ct) =>
+        group.MapPut("/{id:guid}", async (Guid id, UpdateRequestRequest request, HttpRequest http, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<UpdateRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
+                var expectedVersion = IfMatch.Parse(http);
                 var adjusted = await schedulingService.ApplySchedulingToUpdateAsync(id, request, ct);
-                var updated = await requestService.UpdateAsync(id, adjusted, ct);
+                var updated = await requestService.UpdateAsync(id, adjusted, expectedVersion, ct);
                 return EndpointHelpers.OkOrNotFound(updated, "Request", id);
             }, logger, "update request", new { id });
         })
@@ -86,12 +87,13 @@ public static class RequestEndpoints
         .WithName("DeleteRequest")
         .WithSummary("Delete a request");
 
-        group.MapPatch("/{id:guid}/schedule", async (Guid id, ScheduleRequestRequest request, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<ScheduleRequestRequest> validator, CancellationToken ct) =>
+        group.MapPatch("/{id:guid}/schedule", async (Guid id, ScheduleRequestRequest request, HttpRequest http, IRequestService requestService, ISchedulingService schedulingService, ILogger<EndpointLoggerCategory> logger, IValidator<ScheduleRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
+                var expectedVersion = IfMatch.Parse(http);
                 var adjusted = await schedulingService.ApplySchedulingToScheduleAsync(id, request, ct);
-                var updated = await requestService.UpdateScheduleAsync(id, adjusted, ct);
+                var updated = await requestService.UpdateScheduleAsync(id, adjusted, expectedVersion, ct);
                 return EndpointHelpers.OkOrNotFound(updated, "Request", id);
             }, logger, "schedule request", new { id });
         })
@@ -184,11 +186,11 @@ public static class RequestEndpoints
         .WithName("GetRequestChildren")
         .WithSummary("Get child requests");
 
-        group.MapPatch("/{id:guid}/move", async (Guid id, MoveRequestRequest request, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, IValidator<MoveRequestRequest> validator, CancellationToken ct) =>
+        group.MapPatch("/{id:guid}/move", async (Guid id, MoveRequestRequest request, HttpRequest http, IRequestService requestService, ILogger<EndpointLoggerCategory> logger, IValidator<MoveRequestRequest> validator, CancellationToken ct) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var moved = await requestService.MoveAsync(id, request.NewParentRequestId, request.SortOrder, ct);
+                var moved = await requestService.MoveAsync(id, request.NewParentRequestId, request.SortOrder, IfMatch.Parse(http), ct);
                 return EndpointHelpers.OkOrNotFound(moved, "Request", id);
             }, logger, "move request", new { id });
         })

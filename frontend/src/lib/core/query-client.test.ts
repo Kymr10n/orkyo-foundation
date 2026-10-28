@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { createFeedbackMutationCache } from './query-client';
+import { ApiError } from './api-utils';
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -47,6 +48,26 @@ describe('createFeedbackMutationCache', () => {
     });
     await mutation.execute('a@b.com');
     expect(toastSuccess).toHaveBeenCalledWith('Sent to a@b.com (ack a@b.com)');
+  });
+
+  it('invalidates the meta.invalidates query keys on a 412, so the stale view is re-read', async () => {
+    const client = makeClient();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    await runMutation(client, () => Promise.reject(new ApiError('Changed by someone else', 412, 'precondition_failed')), {
+      suppressErrorToast: true,
+      invalidates: [['widgets']],
+    });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['widgets'], exact: false });
+  });
+
+  it('does not invalidate on any other failure', async () => {
+    const client = makeClient();
+    const spy = vi.spyOn(client, 'invalidateQueries');
+    await runMutation(client, () => Promise.reject(new ApiError('Bad input', 400)), {
+      suppressErrorToast: true,
+      invalidates: [['widgets']],
+    });
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('invalidates the meta.invalidates query keys on success', async () => {

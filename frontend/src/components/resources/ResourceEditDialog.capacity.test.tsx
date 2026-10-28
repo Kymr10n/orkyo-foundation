@@ -77,6 +77,16 @@ describe('ResourceEditDialog capacity', () => {
     expect(input).toHaveValue(1);
   });
 
+  it('says what the capacity means for the chosen mode', () => {
+    renderDialog(spaceType, { ...hotDesk, allocationMode: 'ConcurrentCapacity' });
+    expect(screen.getByText(/How many bookings can overlap/)).toBeInTheDocument();
+  });
+
+  it('explains that only Concurrent Capacity lets bookings overlap', () => {
+    renderDialog(spaceType, hotDesk);
+    expect(screen.getByText(/only with Concurrent Capacity/)).toBeInTheDocument();
+  });
+
   it('neither shows nor sends a capacity for a type without geometry', async () => {
     renderDialog(machineResourceType, { ...hotDesk, id: 'mill-1', name: 'Mill' });
 

@@ -11,6 +11,9 @@ export const TENANT_HEADER_NAME = ApiHeaders.TenantSlug;
 /** Header name for end-to-end request correlation */
 export const CORRELATION_ID_HEADER_NAME = ApiHeaders.CorrelationId;
 
+/** Standard header that makes a write conditional on the row version the caller read */
+export const IF_MATCH_HEADER_NAME = 'If-Match';
+
 /** Cookie names used by the frontend */
 export const COOKIE_NAMES = {
   /** Shares resolved theme (dark/light) with Keycloak login pages */

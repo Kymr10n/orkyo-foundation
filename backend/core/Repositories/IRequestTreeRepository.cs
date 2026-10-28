@@ -14,7 +14,7 @@ public interface IRequestTreeRepository
     /// Moves a request to a new parent (or to root when <paramref name="newParentId"/> is <c>null</c>).
     /// Returns <c>null</c> if the request was not found.
     /// </summary>
-    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default);
+    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, uint? expectedVersion, CancellationToken ct = default);
 
     /// <summary>Returns the total count of all descendants (children, grandchildren, etc.).</summary>
     Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default);

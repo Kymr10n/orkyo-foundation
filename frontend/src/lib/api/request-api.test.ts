@@ -113,9 +113,13 @@ describe('request-api', () => {
       const updatedRequest = { ...mockRequest, name: 'Updated Meeting', status: 'in_progress' as const };
       vi.mocked(apiClient.apiPut).mockResolvedValue(updatedRequest);
 
-      const result = await updateRequest('req-123', updateReq);
+      const options = { headers: { 'If-Match': '"7"' } };
+      vi.mocked(apiClient.ifMatch).mockReturnValueOnce(options);
 
-      expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.request('req-123'), updateReq);
+      const result = await updateRequest('req-123', updateReq, 7);
+
+      expect(apiClient.ifMatch).toHaveBeenCalledWith(7);
+      expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.request('req-123'), updateReq, options);
       expect(result).toEqual(updatedRequest);
     });
   });
@@ -138,7 +142,7 @@ describe('request-api', () => {
 
       const result = await moveRequest('req-123', moveData);
 
-      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestMove('req-123'), moveData);
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestMove('req-123'), moveData, undefined);
       expect(result).toEqual(mockRequest);
     });
 
@@ -148,7 +152,7 @@ describe('request-api', () => {
 
       await moveRequest('req-123', moveData);
 
-      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestMove('req-123'), moveData);
+      expect(apiClient.apiPatch).toHaveBeenCalledWith(API_PATHS.requestMove('req-123'), moveData, undefined);
     });
   });
 

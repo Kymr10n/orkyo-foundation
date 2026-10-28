@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from '../core/api-client';
+import { apiGet, apiPost, apiPut, apiDelete, ifMatch } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
 import type { PagedResult } from '../core/paged-result';
 import { logger } from '../core/logger';
@@ -61,6 +61,9 @@ export interface ResourceInfo extends ResourcePlacement, ResourceDirectory {
   linkedUserId?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Row version for optimistic concurrency: pass it to the update call, which sends it as
+   * If-Match. Opaque; compare only for equality. */
+  version?: number;
 }
 
 export interface CreateResourceRequest extends Partial<ResourcePlacement>, ResourceDirectory {
@@ -144,8 +147,9 @@ export async function createResource(request: CreateResourceRequest): Promise<Re
   return apiPost<ResourceInfo>(API_PATHS.RESOURCES, request);
 }
 
-export async function updateResource(id: string, request: UpdateResourceRequest): Promise<ResourceInfo> {
-  return apiPut<ResourceInfo>(API_PATHS.resource(id), request);
+/** `version`: the resource's version as read; the save fails with 412 if it changed meanwhile. */
+export async function updateResource(id: string, request: UpdateResourceRequest, version?: number): Promise<ResourceInfo> {
+  return apiPut<ResourceInfo>(API_PATHS.resource(id), request, ifMatch(version));
 }
 
 /**

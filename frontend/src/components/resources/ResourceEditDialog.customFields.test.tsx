@@ -120,6 +120,7 @@ describe('ResourceEditDialog custom fields', () => {
       customFields: { serial_number: 'SN-42', legacy_code: 'OLD-7' },
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
+      version: 3,
     });
 
     await screen.findByLabelText('Serial number');
@@ -133,6 +134,8 @@ describe('ResourceEditDialog custom fields', () => {
         expect.objectContaining({
           customFields: { serial_number: 'SN-42', legacy_code: 'OLD-7' },
         }),
+        // The version the dialog opened with: a concurrent edit fails the save with 412.
+        3,
       ),
     );
   });

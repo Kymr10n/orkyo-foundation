@@ -274,7 +274,12 @@ export function RequestsPage() {
 
 
   const handleDrop = useCallback((draggedId: string, targetId: string) => {
-    runMove({ draggedId, targetId, sortOrder: getNextSortOrder(targetId, requests) });
+    runMove({
+      draggedId,
+      targetId,
+      sortOrder: getNextSortOrder(targetId, requests),
+      version: requests.find((r) => r.id === draggedId)?.version,
+    });
   }, [runMove, requests]);
 
   const handleEditRequest = useCallback((request: Request) => {

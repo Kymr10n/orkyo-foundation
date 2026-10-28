@@ -31,6 +31,7 @@ import type { SchedulingSettings as SchedulingSettingsType } from "@foundation/s
 import type { AvailabilityEventInfo } from "@foundation/src/lib/api/availability-events-api";
 import { AvailabilityEventDialog } from "./AvailabilityEventDialog";
 import { errorMessage } from "@foundation/src/hooks/mutation-utils";
+import { ApiError } from "@foundation/src/lib/core/api-utils";
 
 const COMMON_TIMEZONES = [
   "Europe/London",
@@ -95,6 +96,8 @@ interface SettingsFormState {
   weekendsEnabled: boolean;
   publicHolidaysEnabled: boolean;
   publicHolidayRegion: string | null;
+  /** The version the form was filled with; sent with each save (see useUpsertSchedulingSettings). */
+  version?: number;
 }
 
 const DEFAULT_SETTINGS: SettingsFormState = {
@@ -116,6 +119,7 @@ function settingsFromApi(s: SchedulingSettingsType): SettingsFormState {
     weekendsEnabled: s.weekendsEnabled,
     publicHolidaysEnabled: s.publicHolidaysEnabled,
     publicHolidayRegion: s.publicHolidayRegion,
+    version: s.version,
   };
 }
 
@@ -125,7 +129,7 @@ export function SchedulingSettings() {
   // (Editor+; see docs/authorization.md): Viewers browse read-only, Editors and Admins write.
   const canEdit = useCanEdit();
 
-  const { data: settings, isLoading: settingsLoading } = useSchedulingSettings(selectedSiteId ?? undefined);
+  const { data: settings, isLoading: settingsLoading, refetch: refetchSettings } = useSchedulingSettings(selectedSiteId ?? undefined);
   const { data: availabilityEvents = [], isLoading: eventsLoading } = useAvailabilityEvents(selectedSiteId ?? undefined);
 
   const upsertMutation = useUpsertSchedulingSettings(selectedSiteId ?? "");
@@ -170,13 +174,19 @@ export function SchedulingSettings() {
     setError(null);
     setSaveStatus("saving");
     try {
-      await upsertMutation.mutateAsync(formState);
+      const { version, ...values } = formState;
+      await upsertMutation.mutateAsync({ settings: values, version });
       setSaveStatus("saved");
     } catch (e) {
       setError(errorMessage(e));
       setSaveStatus("idle");
+      // Someone else saved meanwhile: fill the form again from what is stored now.
+      if (e instanceof ApiError && e.status === 412) {
+        await refetchSettings();
+        setInitializedForSite(null);
+      }
     }
-  }, [selectedSiteId, upsertMutation]);
+  }, [selectedSiteId, upsertMutation, refetchSettings]);
 
   const debouncedSave = useDebouncedCallback(
     (next: SettingsFormState) => { void saveSettings(next); },

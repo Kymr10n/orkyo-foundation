@@ -121,16 +121,17 @@ public sealed class YearCalendar
         return null;
     }
 
-    /// <summary>A shift-aligned [start, end) on the given working day for a job of the given length.
-    /// Authored in site-local hours and returned in UTC.</summary>
+    /// <summary>A [start, end) inside the shift on the given working day for a job of the given
+    /// length, starting on a quarter hour so a calendar does not line up into blocks. Authored in
+    /// site-local time and returned in UTC.</summary>
     public (DateTime Start, DateTime End) MakeSlot(DateTime day, int minHours, int maxHours, Faker faker)
     {
         var (shiftH, shiftLen) = Shifts[faker.Random.Int(0, Shifts.Length - 1)];
         var dur = Math.Clamp(faker.Random.Int(minHours, maxHours), 1, shiftLen);
         // Never start so late that the job would run past the working day.
         var latestStartHour = Math.Min(shiftH + (shiftLen - dur), WorkDayEndHour - dur);
-        var startHour = faker.Random.Int(shiftH, Math.Max(shiftH, latestStartHour));
-        var start = ToUtc(day, startHour);
+        var startQuarter = faker.Random.Int(shiftH * 4, Math.Max(shiftH, latestStartHour) * 4);
+        var start = ToUtc(day, startQuarter / 4).AddMinutes(startQuarter % 4 * 15);
         return (start, start.AddHours(dur));
     }
 

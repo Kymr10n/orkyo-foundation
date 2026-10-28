@@ -93,11 +93,17 @@ describe('scheduling-api', () => {
         publicHolidayRegion: null,
       };
 
-      const result = await upsertSchedulingSettings(SITE_ID, input);
+      const options = { headers: { 'If-Match': '"7"' } };
+      vi.mocked(apiClient.ifMatch).mockReturnValueOnce(options);
 
+      const result = await upsertSchedulingSettings(SITE_ID, input, 7);
+
+      // The version travels as If-Match, never in the body.
+      expect(apiClient.ifMatch).toHaveBeenCalledWith(7);
       expect(apiClient.apiPut).toHaveBeenCalledWith(
         API_PATHS.scheduling(SITE_ID),
         input,
+        options,
       );
       expect(result?.workingDayStart).toBe('08:00');
     });

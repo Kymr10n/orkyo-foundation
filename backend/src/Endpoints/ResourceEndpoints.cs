@@ -87,12 +87,13 @@ public static class ResourceEndpoints
         group.MapPut("/{id:guid}", async (
             Guid id,
             [FromBody] UpdateResourceRequest request,
+            HttpRequest http,
             IValidator<UpdateResourceRequest> validator,
             IResourceService service,
             CancellationToken ct) =>
             await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var r = await service.UpdateAsync(id, request, ct);
+                var r = await service.UpdateAsync(id, request, IfMatch.Parse(http), ct);
                 return EndpointHelpers.OkOrNotFound(r, "Resource", id);
             }))
             .WithName("UpdateResource")

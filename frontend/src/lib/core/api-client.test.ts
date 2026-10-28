@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api-client';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete, ifMatch } from './api-client';
 import * as apiUtils from '../core/api-utils';
 
 vi.mock('./api-utils');
@@ -281,6 +281,26 @@ describe('api-client', () => {
       const headers = (callArgs[1]!).headers as Record<string, string>;
       expect(headers).not.toHaveProperty('X-Tenant-Slug');
       expect(headers).toHaveProperty('Content-Type', 'application/json');
+    });
+  });
+
+  describe('ifMatch', () => {
+    it('sends the version as one quoted If-Match value', async () => {
+      vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
+
+      await apiPut('/items/1', { name: 'x' }, ifMatch(42));
+
+      const headers = vi.mocked(fetch).mock.calls[0][1]!.headers as Record<string, string>;
+      expect(headers).toHaveProperty('If-Match', '"42"');
+      expect(headers).toHaveProperty('Content-Type', 'application/json');
+    });
+
+    it('sends version 0, the version of settings never saved', () => {
+      expect(ifMatch(0)).toEqual({ headers: { 'If-Match': '"0"' } });
+    });
+
+    it('adds no condition without a version', () => {
+      expect(ifMatch(undefined)).toBeUndefined();
     });
   });
 

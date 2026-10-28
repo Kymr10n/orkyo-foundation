@@ -59,7 +59,7 @@ export const useSaveResource = (resourceType: ResourceTypeInfo) =>
     ) =>
       v.id === null
         ? createResource({ resourceTypeKey: resourceType.key, ...v.data })
-        : updateResource(v.id, v.data),
+        : updateResource(v.id, v.data, v.version),
     meta: {
       successMessage: savedMessage(
         `${resourceType.displayName} created`,
@@ -96,7 +96,7 @@ interface MoveResourceSiteVars {
 export const useMoveResourceSite = (resource: ResourceInfo) =>
   useMutation({
     mutationFn: ({ siteId }: MoveResourceSiteVars) =>
-      updateResource(resource.id, { homeSiteId: siteId }),
+      updateResource(resource.id, { homeSiteId: siteId }, resource.version),
     meta: {
       successMessage: (_data, vars) =>
         `${resource.name} moved to ${(vars as MoveResourceSiteVars).siteName}`,

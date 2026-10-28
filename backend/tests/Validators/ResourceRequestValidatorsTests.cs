@@ -15,9 +15,9 @@ public class ResourceRequestValidatorsTests
     private readonly IValidator<UpdateResourceRequest> _updateValidator = new UpdateResourceRequestValidator();
 
     [Fact]
-    public void Create_ConcurrentCapacity_Fails()
+    public void Create_ConcurrentCapacity_IsAccepted()
     {
-        // Accepted at create, then refused on every assignment: not offered until implemented.
+        // A real mode now (ResourceLoad); ResourceService limits it to placeable types.
         var request = new CreateResourceRequest
         {
             ResourceTypeKey = ResourceTypeKeys.Space,
@@ -26,7 +26,7 @@ public class ResourceRequestValidatorsTests
             IsPhysical = false
         };
 
-        Assert.False(_createValidator.Validate(request).IsValid);
+        Assert.True(_createValidator.Validate(request).IsValid);
     }
 
     [Fact]

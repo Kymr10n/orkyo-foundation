@@ -23,6 +23,8 @@ export const API_ERROR_CODES = {
   ACCOUNT_OWNS_ORGANIZATIONS: 'account_owns_organizations',
   /** Self-service account deletion refused: the caller is an organization's only active admin. */
   ACCOUNT_LAST_ADMIN: 'account_last_admin',
+  /** The row changed since the caller read it (stale If-Match version, HTTP 412). */
+  PRECONDITION_FAILED: 'precondition_failed',
 } as const;
 
 /**
@@ -32,6 +34,8 @@ export const API_ERROR_CODES = {
 export const API_ERROR_MESSAGES: Partial<Record<string, string>> = {
   [API_ERROR_CODES.EMAIL_DELIVERY_FAILED]:
     'We could not send the confirmation email. Check the address and try again later.',
+  [API_ERROR_CODES.PRECONDITION_FAILED]:
+    'Someone else changed this item. Your changes were not saved. Reopen it to see the latest version.',
 };
 
 /**

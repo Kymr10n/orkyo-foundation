@@ -33,14 +33,14 @@ public interface IRequestService
     Task<List<RequestInfo>> GetUnscheduledAsync(Guid? siteId = null, bool includeSiteNeutral = true, CancellationToken ct = default);
     /// <summary>Creates a request. Validates parent mode and throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on violations.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
-    /// <summary>Updates a request. Throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on tree violations. Returns <c>null</c> if not found.</summary>
-    Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default);
+    /// <summary>Updates a request. Throws <see cref="NotFoundException"/> / <see cref="ConflictException"/> on tree violations, <see cref="PreconditionFailedException"/> on a stale <paramref name="expectedVersion"/>. Returns <c>null</c> if not found.</summary>
+    Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, uint? expectedVersion, CancellationToken ct = default);
     /// <summary>Deletes a request. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
     /// <summary>Returns <c>true</c> if a request with the given ID exists.</summary>
     Task<bool> ExistsAsync(Guid id, CancellationToken ct = default);
     /// <summary>Updates only the schedule fields of a request. Throws if a non-leaf request is scheduled directly.</summary>
-    Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);
+    Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, uint? expectedVersion, CancellationToken ct = default);
     /// <summary>Adds a requirement to a request.</summary>
     Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, CreateRequestRequirementRequest requirement, CancellationToken ct = default);
     /// <summary>Removes a requirement. Returns <c>false</c> if not found.</summary>
@@ -48,7 +48,7 @@ public interface IRequestService
     /// <summary>Returns direct children of the given parent request.</summary>
     Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default);
     /// <summary>Moves a request to a new parent. Throws on cycle, self-parent, or leaf parent.</summary>
-    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default);
+    Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, uint? expectedVersion, CancellationToken ct = default);
     /// <summary>Returns the total number of descendants.</summary>
     Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default);
     /// <summary>Returns <c>true</c> if reparenting would create a cycle.</summary>
@@ -119,7 +119,7 @@ public class RequestService : IRequestService
         if (parentMode == PlanningMode.Leaf) throw new ConflictException(leafMessage);
     }
 
-    public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
+    public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, uint? expectedVersion, CancellationToken ct = default)
     {
         if (request.ParentRequestId.HasValue)
         {
@@ -151,7 +151,7 @@ public class RequestService : IRequestService
         if (request.Status == RequestStatus.InProgress)
             await EnsurePredecessorsAllowStartAsync(id, ct);
 
-        return await _repository.UpdateAsync(id, request, ct);
+        return await _repository.UpdateAsync(id, request, expectedVersion, ct);
     }
 
     /// <summary>
@@ -208,7 +208,7 @@ public class RequestService : IRequestService
 
     public Task<bool> ExistsAsync(Guid id, CancellationToken ct = default) => _repository.ExistsAsync(id, ct);
 
-    public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default)
+    public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, uint? expectedVersion, CancellationToken ct = default)
     {
         var isSchedulingPayload = request.ResourceId.HasValue || request.StartTs.HasValue || request.EndTs.HasValue;
         if (isSchedulingPayload)
@@ -217,7 +217,7 @@ public class RequestService : IRequestService
             if (mode != null && mode != PlanningMode.Leaf)
                 throw new ArgumentException("Only leaf requests can be directly scheduled to a space");
         }
-        return await _repository.UpdateScheduleAsync(id, request, ct);
+        return await _repository.UpdateScheduleAsync(id, request, expectedVersion, ct);
     }
 
     public Task<RequestRequirementInfo> AddRequirementAsync(Guid requestId, CreateRequestRequirementRequest requirement, CancellationToken ct = default)
@@ -229,7 +229,7 @@ public class RequestService : IRequestService
     public Task<List<RequestInfo>> GetChildrenAsync(Guid parentId, CancellationToken ct = default)
         => _tree.GetChildrenAsync(parentId, ct);
 
-    public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default)
+    public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, uint? expectedVersion, CancellationToken ct = default)
     {
         if (newParentId.HasValue)
         {
@@ -239,7 +239,7 @@ public class RequestService : IRequestService
                 throw new ConflictException("Moving this request would create a circular reference");
             await EnsureCanParentAsync(newParentId.Value, "Cannot move a request under a leaf request", ct);
         }
-        return await _tree.MoveAsync(id, newParentId, sortOrder, ct);
+        return await _tree.MoveAsync(id, newParentId, sortOrder, expectedVersion, ct);
     }
 
     public Task<int> GetDescendantCountAsync(Guid id, CancellationToken ct = default)

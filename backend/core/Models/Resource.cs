@@ -101,6 +101,9 @@ public record ResourceInfo
 
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
+
+    /// <summary>Row version for optimistic concurrency, as on <see cref="RequestInfo.Version"/>.</summary>
+    public uint Version { get; init; }
 }
 
 public record CreateResourceTypeRequest

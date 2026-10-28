@@ -246,8 +246,8 @@ public class NarrativeYearSeederTests
         personPairs.Should().BeLessThanOrEqualTo(year.Conflicts * MaxCrewSize + 2,
             "accidental person overbooking must stay within the intentional conflict band");
 
-        // Site model: pin cohort people to their facility site, then run the full home-site pass
-        // (which also adopts each request's space site). Regression guard for the "every booking
+        // Site model: pin cohort people to their facility site, then run the full home-site pass.
+        // Regression guard for the "every booking
         // conflicted" bug — the post-commit round-robin must NOT scatter cohort people across sites
         // (that made ~56 % of requests cross-site mismatched and painted the whole grid red).
         await SiteModelFactory.ApplyCohortSitesAsync(conn, tx,
@@ -264,13 +264,23 @@ public class NarrativeYearSeederTests
             JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.key = 'person'
             WHERE req.id = ANY(@ids) AND req.site_id IS NOT NULL",
             ("ids", seededIds));
-        sitedReqs.Should().BeGreaterThan(0, "scheduled requests adopt their space's site");
+        sitedReqs.Should().BeGreaterThan(0, "every scheduled job carries its facility's site");
         ((double)crossSiteReqs / sitedReqs).Should().BeLessThan(0.15,
             "cohort people stay at their facility site — only a small deliberate set is cross-site");
         // And that deliberate set exists: without one, site mismatch is a conflict kind the demo
         // can detect and never shows. The seeder lends a person to the next site's work on purpose.
         crossSiteReqs.Should().BeGreaterThan(0,
             "a couple of jobs are staffed from another site, so site mismatch has an example");
+
+        // Every scheduled job belongs to its facility's site, also when no room or machine was
+        // free for it: a site-neutral job would count at every site in Insights.
+        var (unsited, offTheHour) = await TwoLongs(conn, tx, @"
+            SELECT count(*) FILTER (WHERE site_id IS NULL),
+                   count(*) FILTER (WHERE extract(minute FROM start_ts) <> 0)
+            FROM requests WHERE id = ANY(@ids) AND start_ts IS NOT NULL",
+            ("ids", seededIds));
+        unsited.Should().Be(0, "the seed writes each job's facility site");
+        offTheHour.Should().BeGreaterThan(0, "starts fall on quarter hours, so a calendar does not line up in blocks");
 
         // ── Dependencies: a critical path the demo can actually show ──────────────
         // Scoped to this seed's own requests: sibling suites commit their own edges into the

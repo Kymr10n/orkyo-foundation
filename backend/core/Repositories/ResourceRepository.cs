@@ -32,7 +32,7 @@ public interface IResourceRepository
     /// Throws <see cref="Helpers.ConflictException"/> when the code is taken at the home site.
     /// </summary>
     Task<ResourceInfo> CreateAsync(Guid resourceTypeId, CreateResourceRequest request, CancellationToken ct = default);
-    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
+    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, uint? expectedVersion, CancellationToken ct = default);
     /// <summary>Deactivates an active resource. Returns <c>false</c> when it is unknown or already
     /// inactive, so a caller can act on the transition exactly once.</summary>
     Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
@@ -115,7 +115,7 @@ public class ResourceRepository(
         // the same cast PersonProfileRepository makes.
         "r.email::text AS email, r.linked_user_id, r.notes, " +
         "gm.resource_group_id AS group_id, " +
-        "r.is_active, r.created_at, r.updated_at";
+        "r.is_active, r.created_at, r.updated_at, r.xmin AS row_version";
 
     private const string FromClause =
         "FROM resources r JOIN resource_types rt ON rt.id = r.resource_type_id";
@@ -271,7 +271,7 @@ public class ResourceRepository(
                  @homeSiteId, @crossSiteAllowed,
                  @code, @isPhysical, @geometry, @properties, @capacity, @customFields,
                  @email, @notes)
-            RETURNING id, created_at, updated_at",
+            RETURNING id, created_at, updated_at, xmin",
             p =>
             {
                 p.AddWithValue("id", insertedId);
@@ -323,6 +323,7 @@ public class ResourceRepository(
                 IsActive = true,
                 CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
                 UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
+                Version = r.GetXid("xmin"),
             }, ct))!;
     }
 
@@ -355,7 +356,7 @@ public class ResourceRepository(
         if (taken) throw new ConflictException($"Code '{code}' already exists for this site");
     }
 
-    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
+    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, uint? expectedVersion, CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
 
@@ -405,26 +406,35 @@ public class ResourceRepository(
             update.Set("notes", encryption.ProtectString(request.Notes, orgContext.OrgId)!);
 
         if (update.IsEmpty)
-            return await db.QuerySingleOrDefaultAsync(
+        {
+            var unchanged = await db.QuerySingleOrDefaultAsync(
                 $"SELECT {SelectColumns} {ReadFrom} WHERE r.id = @id",
                 p => p.AddWithValue("id", id), Map, ct);
+            if (unchanged is not null) RowVersion.Require(expectedVersion, unchanged.Version, "resource");
+            return unchanged;
+        }
 
         // UPDATE and read-back in one statement, one connection: the CTE is aliased r so
         // SelectColumns and the laterals apply verbatim, and the BEFORE UPDATE trigger's
-        // updated_at is already visible in RETURNING *. Zero CTE rows (unknown id) → null.
-        return await db.QuerySingleOrDefaultAsync(
-            $"WITH updated AS (UPDATE resources SET {update.SetClause} WHERE id = @id RETURNING *) " +
+        // updated_at is already visible in RETURNING *. RETURNING * leaves out system columns,
+        // so xmin is named. Zero CTE rows: unknown id → null, stale version → 412.
+        var updated = await db.QuerySingleOrDefaultAsync(
+            $"WITH updated AS (UPDATE resources r SET {update.SetClause} WHERE r.id = @id AND {RowVersion.Guard("r")} RETURNING *, r.xmin) " +
             $"SELECT {SelectColumns} FROM updated r " +
             "JOIN resource_types rt ON rt.id = r.resource_type_id" +
             CurrentSiteLateral + GroupLateral,
             p =>
             {
                 p.AddWithValue("id", id);
+                p.AddExpectedVersion(expectedVersion);
                 update.Apply(p);
                 if (geometryJson is not null) p.AddJsonb("geometry", geometryJson);
                 if (propertiesJson is not null) p.AddJsonb("properties", propertiesJson);
                 if (customFieldsJson is not null) p.AddJsonb("customFields", customFieldsJson);
             }, Map, ct);
+        if (updated is null)
+            await RowVersion.ThrowIfStaleAsync(db, "resources", id, expectedVersion, "resource", ct);
+        return updated;
     }
 
     public async Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
@@ -500,6 +510,7 @@ public class ResourceRepository(
             IsActive = r.GetBoolean(r.GetOrdinal("is_active")),
             CreatedAt = r.GetDateTime(r.GetOrdinal("created_at")),
             UpdatedAt = r.GetDateTime(r.GetOrdinal("updated_at")),
+            Version = r.GetXid("row_version"),
         };
     }
 }

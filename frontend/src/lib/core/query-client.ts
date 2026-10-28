@@ -1,5 +1,6 @@
-import { QueryClient, MutationCache } from '@tanstack/react-query';
+import { QueryClient, MutationCache, type MutationMeta } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { ApiError } from './api-utils';
 
 // Centralized mutation feedback. Instead of every dialog hand-rolling toast +
 // cache invalidation in its own onSuccess/onError, a mutation declares its intent
@@ -35,7 +36,10 @@ declare module '@tanstack/react-query' {
        * never both. See the error-display rule in ARCHITECTURE.md.
        */
       suppressErrorToast?: boolean;
-      /** Query keys invalidated on success, prefix-style (exact: false). */
+      /**
+       * Query keys invalidated on success, prefix-style (exact: false). Also on a 412: the
+       * write was refused because the data it was based on is stale, so it is re-read.
+       */
       invalidates?: readonly (readonly unknown[])[];
     };
   }
@@ -50,12 +54,15 @@ export function createFeedbackMutationCache(
   getClient: () => QueryClient,
   toastImpl: Pick<typeof toast, 'success' | 'error'> = toast,
 ) {
+  const invalidate = (meta: MutationMeta | undefined) =>
+    meta?.invalidates?.forEach((queryKey) => {
+      void getClient().invalidateQueries({ queryKey, exact: false });
+    });
+
   return new MutationCache({
     onSuccess: (data, vars, _ctx, mutation) => {
       const meta = mutation.meta;
-      meta?.invalidates?.forEach((queryKey) => {
-        void getClient().invalidateQueries({ queryKey, exact: false });
-      });
+      invalidate(meta);
       const successMessage =
         typeof meta?.successMessage === 'function'
           ? meta.successMessage(data, vars)
@@ -64,6 +71,9 @@ export function createFeedbackMutationCache(
     },
     onError: (err, vars, _ctx, mutation) => {
       const meta = mutation.meta;
+      // A stale version (412): what the user saw is out of date, so refresh it exactly as a
+      // successful write would. The failure itself still reaches the surface below.
+      if (err instanceof ApiError && err.status === 412) invalidate(meta);
       // Opt-in guard: only mutations that declared feedback get a global error
       // toast, so un-migrated/legacy mutations are untouched (no double-toast).
       // `suppressErrorToast` opts a declared mutation back out when its caller

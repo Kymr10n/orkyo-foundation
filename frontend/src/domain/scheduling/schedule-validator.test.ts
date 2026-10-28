@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { evaluateSchedule, hasConflicts } from './schedule-validator';
+import { evaluateEntry, evaluateSchedule, hasConflicts } from './schedule-validator';
+import { buildIndex } from './schedule-index';
 import type { PreviewEntry, PreviewSchedule } from './schedule-model';
 import * as scheduleIndex from './schedule-index';
 
@@ -36,6 +37,19 @@ function makeSchedule(...entries: PreviewEntry[]): PreviewSchedule {
 // ---------------------------------------------------------------------------
 // evaluateSchedule
 // ---------------------------------------------------------------------------
+
+describe('evaluateEntry', () => {
+  it('flags no overlap on a shared (non-Exclusive) resource', () => {
+    // A shared resource's limit is a peak-load check the backend makes; the draft overlay
+    // must not call every overlap a conflict there.
+    const a = makeEntry('a', 's1', '2026-01-01T09:00Z', '2026-01-01T11:00Z');
+    const b = makeEntry('b', 's1', '2026-01-01T10:00Z', '2026-01-01T12:00Z');
+    const index = buildIndex(makeSchedule(a, b));
+
+    expect(evaluateEntry(a, index, false)).toEqual([]);
+    expect(evaluateEntry(a, index).map((c) => c.kind)).toEqual(['overlap']);
+  });
+});
 
 describe('evaluateSchedule', () => {
   it('returns empty result for an empty schedule', () => {

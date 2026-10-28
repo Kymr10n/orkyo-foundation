@@ -14,7 +14,15 @@ public interface ISchedulingRepository
     Task<SchedulingSettingsInfo?> GetSettingsAsync(Guid siteId, CancellationToken ct = default);
     /// <summary>Bulk settings for many sites in one query, keyed by site id; sites without settings are omitted.</summary>
     Task<Dictionary<Guid, SchedulingSettingsInfo>> GetSettingsBySitesAsync(IReadOnlyList<Guid> siteIds, CancellationToken ct = default);
-    Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default);
+    /// <summary>
+    /// Stores a site's settings and the request windows recalculated for them in one
+    /// transaction: a failure leaves neither. A non-null <paramref name="expectedVersion"/> must
+    /// match the stored version (0: none stored yet), or it throws
+    /// <see cref="Api.Helpers.PreconditionFailedException"/>.
+    /// </summary>
+    Task<SchedulingSettingsInfo> SaveSettingsAsync(
+        SchedulingSettingsInfo settings, uint? expectedVersion,
+        IReadOnlyList<(Guid Id, uint Version, ScheduleRequestRequest Data)> recalculated, CancellationToken ct = default);
     Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default);
 
     // ── Helpers ──────────────────────────────────────────────────────────────

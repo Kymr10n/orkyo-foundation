@@ -3,8 +3,8 @@ import { API_ERROR_CODES } from "./api-error-codes";
 import type { ApiErrorBody } from "./api-error-codes";
 
 describe("API_ERROR_CODES", () => {
-  it("has 9 error codes", () => {
-    expect(Object.keys(API_ERROR_CODES)).toHaveLength(9);
+  it("has 10 error codes", () => {
+    expect(Object.keys(API_ERROR_CODES)).toHaveLength(10);
   });
 
   it("values are all lowercase snake_case", () => {
@@ -20,6 +20,7 @@ describe("API_ERROR_CODES", () => {
     expect(API_ERROR_CODES.FORBIDDEN).toBe("forbidden");
     expect(API_ERROR_CODES.ACCOUNT_LOCKED).toBe("account_locked");
     expect(API_ERROR_CODES.EMAIL_DELIVERY_FAILED).toBe("email_delivery_failed");
+    expect(API_ERROR_CODES.PRECONDITION_FAILED).toBe("precondition_failed");
   });
 });
 

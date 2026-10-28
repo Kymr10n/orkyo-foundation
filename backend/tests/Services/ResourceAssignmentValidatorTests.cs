@@ -85,10 +85,12 @@ public class ResourceAssignmentValidatorTests
         Guid id = default,
         bool isActive = true,
         string allocationMode = AllocationModes.Exclusive,
-        int baseAvailabilityPercent = 100)
+        int baseAvailabilityPercent = 100,
+        int capacity = 1)
     {
         return new ResourceInfo
         {
+            Capacity = capacity,
             Id = id == default ? Guid.NewGuid() : id,
             ResourceTypeId = Guid.NewGuid(),
             ResourceTypeKey = "person",
@@ -540,9 +542,10 @@ public class ResourceAssignmentValidatorTests
             .ReturnsAsync((RequestInfo?)null);
         _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
             .ReturnsAsync((Guid?)null);
-        _assignmentRepoMock.Setup(a => a.GetTotalAllocatedPercentAsync(
+        // 50% already booked over the whole window, 60% more = a peak of 110% > 100%.
+        _assignmentRepoMock.Setup(a => a.GetOverlappingActiveAsync(
             resource.Id, request.StartUtc, request.EndUtc))
-            .ReturnsAsync(50m); // 50% already allocated, 60% more = 110% > 100%
+            .ReturnsAsync([Booking(resource.Id, request.StartUtc, request.EndUtc, percent: 50m)]);
 
         var result = await _validator.ValidateAsync(request);
 
@@ -630,25 +633,96 @@ public class ResourceAssignmentValidatorTests
         Assert.DoesNotContain(result.Warnings, w => w.Code == ValidationReasonCode.OffTimeOverlap);
     }
 
-    [Fact]
-    public async Task InvalidAllocationMode_ReturnsBlocker()
+    // ── Peak load (docs/scheduling-integrity-spec.md, section 2) ──
+
+    private static readonly DateTime Day = new(2026, 11, 4, 0, 0, 0, DateTimeKind.Utc);
+    private static DateTime At(int hour) => Day.AddHours(hour);
+
+    private static ResourceAssignmentInfo Booking(
+        Guid resourceId, DateTime start, DateTime end, decimal? percent = null, int? units = null) => new()
+        {
+            Id = Guid.NewGuid(),
+            RequestId = Guid.NewGuid(),
+            ResourceId = resourceId,
+            ResourceTypeKey = "tool",
+            StartUtc = start,
+            EndUtc = end,
+            AllocationPercent = percent,
+            AllocationUnits = units,
+            AssignmentStatus = AssignmentStatuses.Planned,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+    private async Task<ValidationResult> ValidateInBatchAsync(
+        ResourceInfo resource, ValidateResourceAssignmentRequest request, params ResourceAssignmentInfo[] committed)
     {
-        var resource = CreateResource(allocationMode: AllocationModes.ConcurrentCapacity);
-        var request = CreateValidationRequest(
-            resourceId: resource.Id,
-            allocationMode: AllocationModes.ConcurrentCapacity);
+        _resourceRepoMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([resource]);
+        _assignmentRepoMock
+            .Setup(a => a.GetActiveByResourcesAsync(It.IsAny<IReadOnlyList<Guid>>(), It.IsAny<DateTime>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([.. committed]);
+        return Assert.Single(await _validator.ValidateBatchAsync([request])).Result;
+    }
 
-        _resourceRepoMock.Setup(r => r.GetByIdAsync(resource.Id)).ReturnsAsync(resource);
-        _requestRepoMock.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), true))
-            .ReturnsAsync((RequestInfo?)null);
-        _schedulingRepoMock.Setup(s => s.GetSiteIdForResourceAsync(resource.Id))
-            .ReturnsAsync((Guid?)null);
+    [Theory]
+    // The concurrency report's crane: B and C never run together, so the peak is 100%, not 150%.
+    [InlineData(6, 8, 8, 10, false)]
+    // Both others overlap 08–09 with the new booking: 150% there.
+    [InlineData(7, 9, 8, 10, true)]
+    public async Task Fractional_ComparesThePeakNotTheSum(int bStart, int bEnd, int cStart, int cEnd, bool exceeded)
+    {
+        var resource = CreateResource(allocationMode: AllocationModes.Fractional);
+        var request = CreateValidationRequest(resourceId: resource.Id, startUtc: At(7), endUtc: At(10), allocationPercent: 50m);
 
-        var result = await _validator.ValidateAsync(request);
+        var result = await ValidateInBatchAsync(resource, request,
+            Booking(resource.Id, At(bStart), At(bEnd), percent: 50m),
+            Booking(resource.Id, At(cStart), At(cEnd), percent: 50m));
 
-        Assert.Equal(ValidationSeverity.Blocker, result.Severity);
-        Assert.Single(result.Blockers);
-        Assert.Equal(ValidationReasonCode.InvalidAllocationMode, result.Blockers[0].Code);
+        Assert.Equal(exceeded, result.Blockers.Any(b => b.Code == ValidationReasonCode.AssignmentCapacityExceeded));
+    }
+
+    [Fact]
+    public async Task Fractional_TouchingBookingsDoNotStack()
+    {
+        var resource = CreateResource(allocationMode: AllocationModes.Fractional);
+        var request = CreateValidationRequest(resourceId: resource.Id, startUtc: At(10), endUtc: At(12), allocationPercent: 100m);
+
+        var result = await ValidateInBatchAsync(resource, request, Booking(resource.Id, At(8), At(10), percent: 100m));
+
+        Assert.Empty(result.Blockers);
+    }
+
+    [Fact]
+    public async Task Fractional_StoredBookingWithoutPercent_CountsAsTheWholeResource()
+    {
+        // The schedule path books with no percent. Re-validating it (the conflict registry passes
+        // its own id) must judge it, not drop it as an invalid percent.
+        var resource = CreateResource(allocationMode: AllocationModes.Fractional);
+        var request = CreateValidationRequest(resourceId: resource.Id, startUtc: At(8), endUtc: At(10))
+            with
+        { ExcludeAssignmentId = Guid.NewGuid() };
+
+        var result = await ValidateInBatchAsync(resource, request, Booking(resource.Id, At(9), At(11), percent: 25m));
+
+        var blocker = Assert.Single(result.Blockers);
+        Assert.Equal(ValidationReasonCode.AssignmentCapacityExceeded, blocker.Code);
+        Assert.Contains("125", blocker.Message);
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    public async Task ConcurrentCapacity_CountsBookingsAgainstTheCapacity(int othersAtOnce, bool exceeded)
+    {
+        var resource = CreateResource(allocationMode: AllocationModes.ConcurrentCapacity, capacity: 2);
+        var request = CreateValidationRequest(resourceId: resource.Id, startUtc: At(8), endUtc: At(12));
+
+        var others = Enumerable.Range(0, othersAtOnce).Select(_ => Booking(resource.Id, At(9), At(11))).ToArray();
+        var result = await ValidateInBatchAsync(resource, request, others);
+
+        Assert.Equal(exceeded, result.Blockers.Any(b => b.Code == ValidationReasonCode.AssignmentCapacityExceeded));
     }
 
     [Fact]

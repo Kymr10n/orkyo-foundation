@@ -392,23 +392,25 @@ public class RequestRepository : IRequestRepository
         return (await ReadByIdAsync(db, parentId, ct), childIds);
     }
 
-    public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default)
+    public async Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, uint? expectedVersion, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
+        await using var transaction = await db.BeginTransactionAsync(ct);
 
-        var fetchCmd = new NpgsqlCommand("SELECT start_ts, end_ts FROM requests WHERE id = @id", db);
-        fetchCmd.Parameters.AddWithValue("id", id);
-
-        DateTime? currentStartTs;
-        DateTime? currentEndTs;
-        await using (var fetchReader = await fetchCmd.ExecuteReaderAsync(ct))
-        {
-            if (!await fetchReader.ReadAsync(ct))
-                return null;
-            currentStartTs = fetchReader.GetNullableDateTime("start_ts");
-            currentEndTs = fetchReader.GetNullableDateTime("end_ts");
-        }
+        // Lock the row before reading it: the window check below and the version check both
+        // see the latest committed state, and no other writer can change it until commit.
+        var current = await db.QuerySingleOrDefaultAsync(
+            "SELECT start_ts, end_ts, xmin FROM requests WHERE id = @id FOR UPDATE",
+            p => p.AddWithValue("id", id),
+            r => ((DateTime? Start, DateTime? End, uint Version)?)(
+                r.GetNullableDateTime("start_ts"), r.GetNullableDateTime("end_ts"),
+                r.GetXid("xmin")),
+            ct);
+        if (current is not { } row)
+            return null;
+        RowVersion.Require(expectedVersion, row.Version, "request");
+        var (currentStartTs, currentEndTs, _) = row;
 
         var finalStartTs = request.StartTs ?? currentStartTs;
         var finalEndTs = request.EndTs ?? currentEndTs;
@@ -454,20 +456,18 @@ public class RequestRepository : IRequestRepository
             && request.ResourceIds is not { Count: > 0 })
             throw new ArgumentException("No fields to update");
 
-        await using var transaction = await db.BeginTransactionAsync(ct);
-
-        if (!update.IsEmpty)
+        // The trigger maintains updated_at anyway; the explicit SET keeps the UPDATE valid when
+        // only child tables change, so the request's version moves with every edit of it.
+        update.SetExpression("updated_at = now()");
+        var cmd = new NpgsqlCommand
         {
-            var cmd = new NpgsqlCommand
-            {
-                Connection = db,
-                Transaction = transaction,
-                CommandText = $"UPDATE requests SET {update.SetClause} WHERE id = @id",
-            };
-            cmd.Parameters.AddWithValue("id", id);
-            update.Apply(cmd.Parameters);
-            await cmd.ExecuteNonQueryAsync(ct);
-        }
+            Connection = db,
+            Transaction = transaction,
+            CommandText = $"UPDATE requests SET {update.SetClause} WHERE id = @id",
+        };
+        cmd.Parameters.AddWithValue("id", id);
+        update.Apply(cmd.Parameters);
+        await cmd.ExecuteNonQueryAsync(ct);
 
         // Targets before assignments: a payload that adds a type and a resource of it in one
         // call must see the new target when the assignment is validated.
@@ -534,7 +534,7 @@ public class RequestRepository : IRequestRepository
         return await db.ExistsAsync("requests", id, ct);
     }
 
-    public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default)
+    public async Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, uint? expectedVersion, CancellationToken ct = default)
     {
         await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
         await db.OpenAsync(ct);
@@ -562,23 +562,27 @@ public class RequestRepository : IRequestRepository
                    actual_duration_unit  = @actual_duration_unit,
                    site_id = COALESCE(site_id, (SELECT home_site_id FROM resources
                                                  WHERE id = @resource_id AND NOT cross_site_allowed))
-               WHERE id = @id
+               WHERE id = @id AND {RowVersion.Guard("requests")}
                RETURNING id",
             db, tx);
 
         cmd.Parameters.AddWithValue("id", id);
+        cmd.Parameters.AddExpectedVersion(expectedVersion);
         cmd.Parameters.AddNullable("resource_id", request.ResourceId);
         cmd.Parameters.AddNullable("start_ts", request.StartTs);
         cmd.Parameters.AddNullable("end_ts", request.EndTs);
         cmd.Parameters.AddNullable("actual_duration_value", actualDurationValue);
         cmd.Parameters.AddNullable("actual_duration_unit", actualDurationUnit);
 
-        // No row updated means no such request; disposing the transaction rolls back. The
-        // UPDATE is the existence check, so a missing request still answers null (404) before
-        // an unknown resource is refused.
+        // No row updated means no such request, or one with another version; disposing the
+        // transaction rolls back. The UPDATE is the existence check, so a missing request still
+        // answers null (404) before an unknown resource is refused.
         var updatedId = (Guid?)await cmd.ExecuteScalarAsync(ct);
         if (!updatedId.HasValue)
+        {
+            await RowVersion.ThrowIfStaleAsync(db, "requests", id, expectedVersion, "request", ct);
             return null;
+        }
 
         if (request.ResourceId.HasValue
             && !await db.ExistsAsync("resources", request.ResourceId.Value, ct))
@@ -607,19 +611,49 @@ public class RequestRepository : IRequestRepository
         return await ReadByIdAsync(db, updatedId.Value, ct);
     }
 
-    public Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates, CancellationToken ct = default)
-        => ExecuteScheduleBatchAsync(
-            updates.Select(u => new ScheduleRow(
+    /// <summary>
+    /// Writes recalculated windows on the caller's transaction, so they commit or roll back with
+    /// the settings they were calculated for (<see cref="SchedulingRepository.SaveSettingsAsync"/>).
+    /// A request that changed after the recalculation read it keeps its new window: the rows are
+    /// locked first, and only those still at the version that was read are written
+    /// (docs/scheduling-integrity-spec.md, section 5).
+    /// </summary>
+    internal static async Task<int> WriteRecalculatedSchedulesAsync(
+        NpgsqlConnection db, NpgsqlTransaction tx,
+        IReadOnlyList<(Guid Id, uint Version, ScheduleRequestRequest Data)> updates, CancellationToken ct)
+    {
+        if (updates.Count == 0) return 0;
+
+        // In id order, so two saves that lock overlapping sets cannot deadlock.
+        var current = (await db.QueryListAsync(
+                "SELECT id, xmin FROM requests WHERE id = ANY(@ids) ORDER BY id FOR UPDATE",
+                p => p.AddWithValue("ids", updates.Select(u => u.Id).ToArray()),
+                r => (Id: r.GetGuid("id"), Version: r.GetXid("xmin")), ct))
+            .ToDictionary(x => x.Id, x => x.Version);
+        var unchanged = updates.Where(u => current.TryGetValue(u.Id, out var version) && version == u.Version);
+
+        return await WriteScheduleBatchAsync(db, tx,
+            unchanged.Select(u => new ScheduleRow(
                 u.Id, u.Data.StartTs, u.Data.EndTs,
                 u.Data.ActualDurationValue,
                 u.Data.ActualDurationUnit.HasValue ? EnumMapper.ToDbValue(u.Data.ActualDurationUnit.Value) : null,
                 u.Data.ResourceId is { } resourceId ? [resourceId] : [])).ToList(),
             ct);
+    }
 
-    public Task<int> BatchApplyPlacementsAsync(IReadOnlyList<PlacementWrite> placements, CancellationToken ct = default)
-        => ExecuteScheduleBatchAsync(
+    public async Task<int> BatchApplyPlacementsAsync(IReadOnlyList<PlacementWrite> placements, CancellationToken ct = default)
+    {
+        if (placements.Count == 0) return 0;
+
+        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
+        await db.OpenAsync(ct);
+        await using var tx = await db.BeginTransactionAsync(ct);
+        var rowsAffected = await WriteScheduleBatchAsync(db, tx,
             placements.Select(p => new ScheduleRow(p.RequestId, p.StartTs, p.EndTs, null, null, p.ResourceIds)).ToList(),
             ct);
+        await tx.CommitAsync(ct);
+        return rowsAffected;
+    }
 
     /// <summary>One request's window plus the resources to book on it, one per targeted type.</summary>
     private sealed record ScheduleRow(
@@ -627,13 +661,10 @@ public class RequestRepository : IRequestRepository
         int? ActualDurationValue, string? ActualDurationUnit,
         IReadOnlyList<Guid> ResourceIds);
 
-    private async Task<int> ExecuteScheduleBatchAsync(IReadOnlyList<ScheduleRow> rows, CancellationToken ct)
+    private static async Task<int> WriteScheduleBatchAsync(
+        NpgsqlConnection db, NpgsqlTransaction tx, IReadOnlyList<ScheduleRow> rows, CancellationToken ct)
     {
         if (rows.Count == 0) return 0;
-
-        await using var db = _connectionFactory.CreateOrgConnection(_orgContext);
-        await db.OpenAsync(ct);
-        await using var tx = await db.BeginTransactionAsync(ct);
 
         await using var batch = new NpgsqlBatch(db, tx);
         var requestUpdateCommands = new List<NpgsqlBatchCommand>(rows.Count);
@@ -698,10 +729,7 @@ public class RequestRepository : IRequestRepository
         await batch.ExecuteNonQueryAsync(ct);
 
         // Only the request UPDATEs count — the assignment statements must not inflate the total.
-        var rowsAffected = (int)requestUpdateCommands.Aggregate(0UL, (sum, c) => sum + c.Rows);
-
-        await tx.CommitAsync(ct);
-        return rowsAffected;
+        return (int)requestUpdateCommands.Aggregate(0UL, (sum, c) => sum + c.Rows);
     }
 
     // ── Resource assignment helpers ───────────────────────────────────────────
@@ -1064,6 +1092,9 @@ public class RequestRepository : IRequestRepository
         var created = (await UpsertRequirementsAsync(conn, requestId, [requirement], ct)).Single();
 
         await CriterionScopeSql.EnsureRequestRequirementsApplyAsync(conn, tx, requestId, ct);
+        // Requirements are part of the request: its row version moves with them.
+        await conn.ExecuteAsync("UPDATE requests SET updated_at = NOW() WHERE id = @request_id",
+            p => p.AddWithValue("request_id", requestId), ct);
         await tx.CommitAsync(ct);
         return created;
     }
@@ -1072,8 +1103,12 @@ public class RequestRepository : IRequestRepository
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 
+        // Requirements are part of the request: its row version moves with them. The request is
+        // touched only when a row was deleted, and the count is of requests touched (1 or 0).
         return await conn.ExecuteAsync(
-            "DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id",
+            "WITH deleted AS (" +
+            "DELETE FROM request_requirements WHERE id = @id AND request_id = @request_id RETURNING request_id) " +
+            "UPDATE requests SET updated_at = NOW() WHERE id IN (SELECT request_id FROM deleted)",
             p =>
             {
                 p.AddWithValue("id", requirementId);

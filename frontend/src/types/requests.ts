@@ -142,6 +142,9 @@ export interface Request {
   requirements?: RequestRequirement[];
   createdAt: string;
   updatedAt: string;
+  /** Row version for optimistic concurrency: pass it to the update call, which sends it as
+   * If-Match. Opaque; compare only for equality. */
+  version?: number;
 
   // Computed by backend
   isScheduled?: boolean;

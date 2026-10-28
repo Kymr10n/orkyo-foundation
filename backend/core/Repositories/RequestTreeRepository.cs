@@ -28,23 +28,27 @@ public class RequestTreeRepository : IRequestTreeRepository
             ct);
     }
 
-    public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, CancellationToken ct = default)
+    public async Task<RequestInfo?> MoveAsync(Guid id, Guid? newParentId, int sortOrder, uint? expectedVersion, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
 
         var updatedId = await conn.ExecuteScalarAsync<Guid?>(
             $@"UPDATE requests
                SET parent_request_id = @parent_id, sort_order = @sort_order, updated_at = NOW()
-               WHERE id = @id
+               WHERE id = @id AND {RowVersion.Guard("requests")}
                RETURNING id",
             p =>
             {
                 p.AddWithValue("id", id);
                 p.AddNullable("parent_id", newParentId);
                 p.AddWithValue("sort_order", sortOrder);
+                p.AddExpectedVersion(expectedVersion);
             }, ct);
         if (!updatedId.HasValue)
+        {
+            await RowVersion.ThrowIfStaleAsync(conn, "requests", id, expectedVersion, "request", ct);
             return null;
+        }
 
         // Re-read from view to get full object with assignments
         return await ReadByIdAsync(conn, updatedId.Value, ct);

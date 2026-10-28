@@ -57,6 +57,18 @@ that still bind a null by hand.
 **Transactions** name the variable `tx`. Rely on `await using` disposal for rollback;
 call `RollbackAsync` explicitly only where the catch does something else as well.
 
+**Optimistic concurrency** uses the Postgres `xmin` system column as the row version
+(`RowVersion`). An editable DTO carries it as `Version`, on list rows and on single reads.
+The API sends no `ETag` header, because the version travels in the DTO.
+A write reads the `If-Match` header with `IfMatch.Parse`. The UPDATE puts `RowVersion.Guard`
+in its WHERE clause. A write that must read the row first locks it with `FOR UPDATE` and calls
+`RowVersion.Require`. When the version is stale, the write fails with 412 and
+`precondition_failed`. A write without the header has no check, so MCP tools and Platform API
+clients work as before. A write to a child table also updates the root row, so the root version
+changes. Requests, resources and scheduling settings use this. Tenant settings do not, because
+a save sends only the keys that changed. A dependency joins two requests, so it changes neither
+version.
+
 ## Errors
 
 **"No such resource"** throws `NotFoundException`. Not `KeyNotFoundException`, not a
