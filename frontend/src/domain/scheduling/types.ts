@@ -13,6 +13,8 @@ export interface SchedulingSettings {
   publicHolidaysEnabled: boolean;
   /** ISO 3166-1 alpha-2, e.g. "DE". Required when publicHolidaysEnabled is true. */
   publicHolidayRegion: string | null;
+  /** Row version for optimistic concurrency; 0 while the site still uses the defaults. */
+  version?: number;
 }
 
 export type OffTimeType = "holiday" | "maintenance" | "custom";

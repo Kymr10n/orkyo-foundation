@@ -108,11 +108,11 @@ public static class TestHelpers
         return created?.Id ?? throw new Exception($"Failed to create placeable resource '{name}'");
     }
 
-    public static async Task<Guid> CreateUniqueTestSpace(HttpClient client)
+    /// <summary>A new space at <paramref name="siteId"/>, or at the shared fixture site when null.</summary>
+    public static async Task<Guid> CreateUniqueTestSpace(HttpClient client, Guid? siteId = null)
     {
-        var siteId = DatabaseFixture.SiteId;
         var uniqueCode = $"TEST-{Guid.NewGuid():N}"[..15];
-        return await CreatePlaceableAsync(client, siteId, $"Test Space {uniqueCode}", uniqueCode);
+        return await CreatePlaceableAsync(client, siteId ?? DatabaseFixture.SiteId, $"Test Space {uniqueCode}", uniqueCode);
     }
 
     public static async Task<List<CriterionInfo>> GetAvailableCriteria(HttpClient client)

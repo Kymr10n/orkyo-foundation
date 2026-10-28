@@ -270,6 +270,11 @@ cmd_check() {
   check_step backend-ci "build" dotnet build "$sln" -c Release --no-restore -warnaserror --nologo -v q
   check_step audit-secrets "migration headers" bash "$ci_scripts/lint-migration-headers.sh" "$sql_dir"
   check_step template-sync "dead registrations" python3 "$ROOT_DIR/scripts/ci/check-dead-registrations.py" --strict
+  # A product builds locally against this foundation checkout, whose pins are dependency floors.
+  if [[ "$PRODUCT_REPO" != orkyo-foundation ]]; then
+    check_step template-sync "package pins" python3 "$ci_scripts/sync-product-pins.py" --check \
+      "$ci_scripts/../../Directory.Packages.props" "$ROOT_DIR/Directory.Packages.props"
+  fi
 
   ensure_test_postgres
   export CI=true

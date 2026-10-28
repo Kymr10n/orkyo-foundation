@@ -1,6 +1,6 @@
 import type { Request } from "@foundation/src/types/requests";
 import { durationToMs } from "@foundation/src/domain/scheduling/schedule-model";
-import { apiGet, apiPatch } from "../core/api-client";
+import { apiGet, apiPatch, ifMatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
 const withDurationMin = (r: Request): Request => ({
@@ -26,11 +26,13 @@ export interface ScheduleRequestData {
   endTs?: string | null;
 }
 
+/** `version`: the request's version as read; the move fails with 412 if it changed meanwhile. */
 export async function scheduleRequest(
   requestId: string,
-  data: ScheduleRequestData
+  data: ScheduleRequestData,
+  version?: number,
 ): Promise<Request> {
-  const result = await apiPatch<Request>(API_PATHS.requestSchedule(requestId), data);
+  const result = await apiPatch<Request>(API_PATHS.requestSchedule(requestId), data, ifMatch(version));
   return {
     ...result,
     durationMin: durationToMs(result.minimalDurationValue, result.minimalDurationUnit) / 60_000,

@@ -46,6 +46,8 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.NotFound(nfe.ResourceType.Length > 0 ? nfe.ResourceType : nfe.Message, nfe.ResourceId),
             ConflictException ce
                 => ErrorResponses.Conflict(ce.Message),
+            PreconditionFailedException pfe
+                => ErrorResponses.PreconditionFailed(pfe.Message),
             CapabilityNotApplicableException cna
                 => ErrorResponses.BadRequest(cna.Message),
             // Guard-clause failures (ThrowIfNull etc.) are programming errors, not

@@ -25,6 +25,7 @@ const mill = {
   name: 'Mill 1',
   resourceTypeKey: 'machine',
   homeSiteId: 'site-1',
+  version: 3,
 } as ResourceInfo;
 
 function renderDialog(resource: ResourceInfo = mill) {
@@ -62,7 +63,7 @@ describe('MoveResourceSiteDialog', () => {
     expect(moveButton()).toBeEnabled();
     await userEvent.click(moveButton());
 
-    await waitFor(() => expect(updateResource).toHaveBeenCalledWith('r-1', { homeSiteId: 'site-2' }));
+    await waitFor(() => expect(updateResource).toHaveBeenCalledWith('r-1', { homeSiteId: 'site-2' }, 3));
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 

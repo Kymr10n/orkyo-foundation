@@ -21,6 +21,7 @@ public static class SchedulingMapper
             PublicHolidayRegion = reader.GetNullableString("public_holiday_region"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at"),
+            Version = reader.GetXid("row_version"),
         };
     }
 

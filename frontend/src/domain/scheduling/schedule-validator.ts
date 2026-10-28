@@ -10,8 +10,9 @@
  * Committed bookings' conflicts come from the backend (the single source of
  * truth, via the tenant-wide conflicts registry). This client check exists only
  * so the grid can give instant overlap/duration feedback for the bar being
- * dragged, before the mutation commits and the registry refetches. It is
- * deliberately capacity-agnostic (Exclusive semantics: any overlap is flagged).
+ * dragged, before the mutation commits and the registry refetches. Overlap is
+ * flagged only for an Exclusive resource; a shared resource's limit is a
+ * peak-load check the backend makes (ResourceLoad).
  *
  * This function is side-effect-free and produces a stable result for any
  * given preview schedule. It must never be called inside a store action.
@@ -27,7 +28,7 @@ import type { PreviewEntry, PreviewSchedule, ValidationResult } from "./schedule
  * Used by the grid to validate only the entries affected by an in-flight
  * draft instead of re-running the whole windowed schedule per pointer frame.
  */
-export function evaluateEntry(entry: PreviewEntry, index: ScheduleIndex): Conflict[] {
+export function evaluateEntry(entry: PreviewEntry, index: ScheduleIndex, exclusive = true): Conflict[] {
   const conflicts: Conflict[] = [];
 
   // --- Rule 1: duration below minimum ---
@@ -41,8 +42,8 @@ export function evaluateEntry(entry: PreviewEntry, index: ScheduleIndex): Confli
     });
   }
 
-  // --- Rule 2: overlap (any overlap in the same space is a conflict) ---
-  for (const other of getOverlapping(index, entry)) {
+  // --- Rule 2: overlap (any overlap on an Exclusive resource is a conflict) ---
+  for (const other of exclusive ? getOverlapping(index, entry) : []) {
     conflicts.push({
       id: `${entry.requestId}-overlap-${other.requestId}`,
       kind: "overlap",

@@ -210,6 +210,35 @@ public class ConflictServiceTests
         Assert.Equal(r2, overlap.PeerRequestId);
     }
 
+    [Theory]
+    [InlineData(RequestStatus.Done)]
+    [InlineData(RequestStatus.Cancelled)]
+    public async Task FinishedAndCancelledWork_ReportsNoConflict_AndIsNotValidated(RequestStatus status)
+    {
+        // Nobody can act on a conflict in finished or cancelled work (spec section 4). Done work
+        // still occupies its resources: that is the validator's occupancy read, not this list.
+        var live = Guid.NewGuid();
+        var finished = Guid.NewGuid();
+        var spaceId = Guid.NewGuid();
+        var liveBooking = SpaceAssignment(Guid.NewGuid(), live, spaceId, Start, Start.AddHours(2));
+        var finishedBooking = SpaceAssignment(Guid.NewGuid(), finished, spaceId, Start, Start.AddHours(2));
+        _scheduleReads.Setup(r => r.GetScheduledAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([
+                ScheduledRequest(live, [liveBooking], Start, Start.AddHours(2)),
+                ScheduledRequest(finished, [finishedBooking], Start, Start.AddHours(2), status: status),
+            ]);
+        IReadOnlyList<ValidateResourceAssignmentRequest>? validated = null;
+        _validator
+            .Setup(v => v.ValidateBatchAsync(It.IsAny<IReadOnlyList<ValidateResourceAssignmentRequest>>(), It.IsAny<CancellationToken>()))
+            .Callback((IReadOnlyList<ValidateResourceAssignmentRequest> items, CancellationToken _) => validated = items)
+            .ReturnsAsync([]);
+
+        var result = await _service.GetAllAsync();
+
+        Assert.DoesNotContain(result, e => e.RequestId == finished);
+        Assert.All(validated!, item => Assert.Equal(live, item.RequestId));
+    }
+
     [Fact]
     public async Task AnOverbookWithoutTheConflictingAssignmentIdIsAProducerBug()
     {

@@ -55,8 +55,12 @@ public interface IRequestRepository
     /// <summary>Creates a new request.</summary>
     Task<RequestInfo> CreateAsync(CreateRequestRequest request, CancellationToken ct = default);
 
-    /// <summary>Updates an existing request. Returns <c>null</c> if not found.</summary>
-    Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, CancellationToken ct = default);
+    /// <summary>
+    /// Updates an existing request. Returns <c>null</c> if not found. A non-null
+    /// <paramref name="expectedVersion"/> must match the row version, or it throws
+    /// <see cref="Api.Helpers.PreconditionFailedException"/>.
+    /// </summary>
+    Task<RequestInfo?> UpdateAsync(Guid id, UpdateRequestRequest request, uint? expectedVersion, CancellationToken ct = default);
 
     /// <summary>Deletes a request. Returns <c>false</c> if not found.</summary>
     Task<bool> DeleteAsync(Guid id, CancellationToken ct = default);
@@ -66,11 +70,8 @@ public interface IRequestRepository
 
     // ── Scheduling ───────────────────────────────────────────────────────────
 
-    /// <summary>Updates the schedule (space, start, end) of a request. Returns <c>null</c> if not found.</summary>
-    Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, CancellationToken ct = default);
-
-    /// <summary>Applies schedule updates to a batch of requests in a single transaction.</summary>
-    Task<int> BatchUpdateSchedulesAsync(IReadOnlyList<(Guid Id, ScheduleRequestRequest Data)> updates, CancellationToken ct = default);
+    /// <summary>Updates the schedule (space, start, end) of a request. Returns <c>null</c> if not found. Version check as in <see cref="UpdateAsync"/>.</summary>
+    Task<RequestInfo?> UpdateScheduleAsync(Guid id, ScheduleRequestRequest request, uint? expectedVersion, CancellationToken ct = default);
 
     /// <summary>
     /// Writes auto-scheduled placements: each request's window and one resource per targeted

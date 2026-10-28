@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SchedulingSettings } from "@foundation/src/domain/scheduling/types";
 import { qk } from "@foundation/src/lib/api/query-keys";
 import { STALE } from "@foundation/src/lib/core/query-client";
@@ -28,14 +29,34 @@ export function useSchedulingSettings(siteId: string | undefined) {
   });
 }
 
+/**
+ * Saves the settings form, which autosaves while it keeps the version it was filled with.
+ * Saves run one after another (one scope per site). A save that starts from the same version as
+ * the previous one sends the version that save stored instead, so the user's own saves chain and
+ * only someone else's change fails with 412. A refill (after a 412 or a reset) brings a new
+ * version, and the chain starts over from it.
+ */
 export function useUpsertSchedulingSettings(siteId: string) {
+  const queryClient = useQueryClient();
+  const chain = useRef<{ from?: number; to?: number }>({});
   return useMutation({
-    mutationFn: (settings: Omit<SchedulingSettings, "siteId">) =>
-      upsertSchedulingSettings(siteId, settings),
+    scope: { id: `scheduling-settings:${siteId}` },
+    mutationFn: ({ settings, version }: SaveSchedulingSettingsVariables) =>
+      upsertSchedulingSettings(siteId, settings, chain.current.from === version ? chain.current.to : version),
+    onSuccess: (saved, { version }) => {
+      chain.current = { from: version, to: saved.version };
+      queryClient.setQueryData(qk.scheduling.settings(siteId), saved);
+    },
     meta: {
-      invalidates: [qk.scheduling.settings(siteId), qk.requests.all()],
+      invalidates: [qk.requests.all()],
     },
   });
+}
+
+/** The form's values, and the version the form was filled with. */
+export interface SaveSchedulingSettingsVariables {
+  settings: Omit<SchedulingSettings, "siteId" | "version">;
+  version?: number;
 }
 
 export function useDeleteSchedulingSettings(siteId: string) {

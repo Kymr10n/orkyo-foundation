@@ -513,7 +513,7 @@ describe('RequestsPage', () => {
     vi.mocked(moveRequest).mockResolvedValue(undefined as any);
     mockGetRequests.mockResolvedValue([
       { id: 'r1', name: 'Task A', planningMode: 'leaf', parentRequestId: null, sortOrder: 0 },
-      { id: 'r-drag', name: 'Dragged', planningMode: 'leaf', parentRequestId: null, sortOrder: 1 },
+      { id: 'r-drag', name: 'Dragged', planningMode: 'leaf', parentRequestId: null, sortOrder: 1, version: 3 },
     ]);
     const Wrapper = createWrapper();
     render(<Wrapper><RequestsPage /></Wrapper>);
@@ -522,7 +522,8 @@ describe('RequestsPage', () => {
     });
     fireEvent.click(screen.getByTestId('drop-r1'));
     await waitFor(() => {
-      expect(moveRequest).toHaveBeenCalledWith('r-drag', expect.objectContaining({ newParentRequestId: 'r1' }));
+      // The dragged request's version as the tree shows it.
+      expect(moveRequest).toHaveBeenCalledWith('r-drag', expect.objectContaining({ newParentRequestId: 'r1' }), 3);
     });
   });
 

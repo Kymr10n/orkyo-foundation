@@ -49,6 +49,10 @@ public static class ErrorResponses
     public static IResult Conflict(string message)
         => ProblemResults.Problem(StatusCodes.Status409Conflict, ApiErrorCodes.Conflict, message);
 
+    /// <summary>412 Precondition Failed: the If-Match version is stale.</summary>
+    public static IResult PreconditionFailed(string message)
+        => ProblemResults.Problem(StatusCodes.Status412PreconditionFailed, ApiErrorCodes.PreconditionFailed, message);
+
     /// <summary>
     /// 422 Unprocessable Entity — well-formed but unactionable (e.g. a stale identity link),
     /// as distinct from a 400 validation failure.

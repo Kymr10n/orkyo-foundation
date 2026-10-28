@@ -50,9 +50,13 @@ public class ConflictService(
 
     public async Task<List<RequestConflictInfo>> GetAllAsync(DateTime? from = null, DateTime? to = null, CancellationToken ct = default)
     {
-        var requests = from.HasValue && to.HasValue
+        var scheduled = from.HasValue && to.HasValue
             ? await scheduleReads.GetScheduledAsync(from.Value, to.Value, ct)
             : await scheduleReads.GetScheduledAsync(ct);
+        // Conflicts are reported on live work only: nobody can act on one in finished or cancelled
+        // work. Done work still occupies its resources (the validator's occupancy reads) and still
+        // counts as a predecessor (byId below, built from every scheduled request).
+        var requests = scheduled.Where(r => r.Status is not (RequestStatus.Done or RequestStatus.Cancelled)).ToList();
         if (requests.Count == 0) return [];
 
         // Validate every non-cancelled assignment (room + people + tools) of each request in one
@@ -83,7 +87,7 @@ public class ConflictService(
 
         // Predecessor placements are needed even when the predecessor itself is outside the
         // window being examined, so resolve any that the batch does not already carry.
-        var byId = requests.ToDictionary(r => r.Id);
+        var byId = scheduled.ToDictionary(r => r.Id);
         var missingPredecessors = edgesBySuccessor.Values
             .SelectMany(list => list.Select(e => e.PredecessorRequestId))
             .Where(id => !byId.ContainsKey(id))
@@ -135,6 +139,7 @@ public class ConflictService(
         StartUtc = a.StartUtc,
         EndUtc = a.EndUtc,
         AllocationPercent = a.AllocationPercent,
+        AllocationUnits = a.AllocationUnits,
         ExcludeAssignmentId = a.Id,
     };
 
@@ -217,7 +222,7 @@ public class ConflictService(
                 }
 
             case ValidationReasonCode.AssignmentCapacityExceeded:
-                // Fractional capacity overbook has no peer → capacity_exceeded.
+                // A shared resource over its limit (Fractional or ConcurrentCapacity) has no single peer → capacity_exceeded.
                 return new ConflictInfo
                 {
                     Id = $"{requestId}-{issue.ResourceId}-capacity-exceeded",

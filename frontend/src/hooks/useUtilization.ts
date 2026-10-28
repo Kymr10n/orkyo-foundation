@@ -53,11 +53,22 @@ export function useBacklogRequests() {
 export function useScheduleRequest() {
   const queryClient = useQueryClient();
   const placeableKeys = usePlaceableTypeKeys();
+  // The request's version in the caches this page draws from: the scheduled bars and the backlog.
+  const cachedVersion = (requestId: string) =>
+    [qk.requests.scheduledAll(), qk.requests.backlog()]
+      .flatMap((queryKey) => queryClient.getQueriesData<Request[]>({ queryKey }))
+      .flatMap(([, rows]) => rows ?? [])
+      .find((r) => r.id === requestId)?.version;
 
   return useMutation({
     // resourceTypeKey is client-side only — it never reaches the API, which resolves the type from
     // the resource id. The optimistic assignment needs it so the synthetic entry carries the same
     // type key the server will write back, otherwise the bar would jump on the next refetch.
+    //
+    // Moves run one after another, and each sends the version the cache holds when it starts:
+    // onSuccess writes the server's row (new version) back, so a second drag of the same bar
+    // sends the first one's result, while a change by someone else still fails with 412.
+    scope: { id: "schedule-request" },
     mutationFn: ({
       requestId,
       data,
@@ -65,7 +76,7 @@ export function useScheduleRequest() {
       requestId: string;
       data: ScheduleRequestData;
       resourceTypeKey?: string;
-    }) => scheduleRequest(requestId, data),
+    }) => scheduleRequest(requestId, data, cachedVersion(requestId)),
 
     // Optimistically update every cached scheduled-window so the bar moves immediately on
     // release. Requests now live under scoped keys (["requests","scheduled",site,from,to]), so we

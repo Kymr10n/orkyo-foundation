@@ -651,7 +651,8 @@ describe("UtilizationPage", () => {
     // Click save inside the dialog
     fireEvent.click(screen.getByTestId("save-request"));
     await waitFor(() => {
-      expect(vi.mocked(updateRequest)).toHaveBeenCalledWith("r1", expect.anything());
+      // The fixture carries no version, so the save is unconditional (no If-Match).
+      expect(vi.mocked(updateRequest)).toHaveBeenCalledWith("r1", expect.anything(), undefined);
     });
   });
 

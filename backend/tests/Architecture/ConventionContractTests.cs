@@ -36,7 +36,6 @@ public partial class ConventionContractTests
     /// </summary>
     private static readonly HashSet<string> KnownParamUpsertFiles = new(StringComparer.Ordinal)
     {
-        "core:Repositories/SchedulingRepository.cs",
         "core:Repositories/AiAllowanceRepository.cs",
         "core:Repositories/AiCredentialRepository.cs",
         "core:Repositories/UserPreferencesRepository.cs",

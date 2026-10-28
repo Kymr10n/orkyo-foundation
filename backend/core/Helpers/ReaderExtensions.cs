@@ -60,6 +60,10 @@ public static class ReaderExtensions
         return reader.IsDBNull(ordinal) ? null : reader.GetDouble(ordinal);
     }
 
+    /// <summary>A Postgres <c>xid</c>, such as the <c>xmin</c> row version (see <c>RowVersion</c>).</summary>
+    public static uint GetXid(this NpgsqlDataReader reader, string columnName)
+        => reader.GetFieldValue<uint>(reader.GetOrdinal(columnName));
+
     public static DateTime GetDateTime(this NpgsqlDataReader reader, string columnName)
         => reader.GetDateTime(reader.GetOrdinal(columnName));
 

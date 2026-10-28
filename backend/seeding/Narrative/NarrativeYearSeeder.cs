@@ -21,7 +21,7 @@ public static class NarrativeYearSeeder
     private sealed record Job(
         Guid Id, string Name, Guid? ParentId, DateTime Start, DateTime End, string Status,
         int DurationHours, IReadOnlyList<Guid> RequiredCriteria, JobArchetype Archetype,
-        Guid? SpaceId, List<(Guid ResId, decimal? Pct)> Assignees);
+        Guid? SpaceId, List<(Guid ResId, decimal? Pct)> Assignees, Guid SiteId);
 
     // Shared storage rooms (Fractional) hold several jobs concurrently at this per-job load,
     // tracked so they never exceed 100 % (≈4 simultaneous jobs before full).
@@ -85,7 +85,7 @@ public static class NarrativeYearSeeder
         IReadOnlyList<(Guid PersonId, DateTime Start, DateTime End)> vacations,
         IReadOnlyList<(Guid ResourceId, DateTime Start, DateTime End)> absences)
     {
-        var parents = new List<(Guid Id, string Name, int SortOrder)>();
+        var parents = new List<(Guid Id, string Name, int SortOrder, Guid SiteId)>();
         var jobs = new List<Job>();
         // Curated within-campaign sequences, built where the jobs are: see the campaign loop.
         var chainEdges = new List<(Guid Pred, Guid Succ)>();
@@ -103,7 +103,7 @@ public static class NarrativeYearSeeder
 
             // Campaign summary parent.
             var parentId = Guid.NewGuid();
-            parents.Add((parentId, $"{cohort.Facility.CampaignName} ({cohort.Facility.SiteCode})", parents.Count));
+            parents.Add((parentId, $"{cohort.Facility.CampaignName} ({cohort.Facility.SiteCode})", parents.Count, cohort.SiteId));
 
             var campaignArchetypes = cohort.Facility.Archetypes.Where(a => a.Cadence == JobCadence.Campaign).ToList();
             var routineArchetypes = cohort.Facility.Archetypes.Where(a => a.Cadence == JobCadence.Routine).ToList();
@@ -278,7 +278,7 @@ public static class NarrativeYearSeeder
                 Guid NewRoutineParent(Job baseJob)
                 {
                     var id = Guid.NewGuid();
-                    parents.Add((id, $"{baseJob.Archetype.Verb} {baseJob.Archetype.Noun} — {cohort.Facility.SiteCode}", parents.Count));
+                    parents.Add((id, $"{baseJob.Archetype.Verb} {baseJob.Archetype.Noun} — {cohort.Facility.SiteCode}", parents.Count, cohort.SiteId));
                     return id;
                 }
 
@@ -492,7 +492,7 @@ public static class NarrativeYearSeeder
                 start, end, cal.StatusFor(start, end, faker),
                 (int)(end - start).TotalHours,
                 arch.RequiredSkills.Select(sk => criteria[sk]).ToList(), arch,
-                spaceId, assignees));
+                spaceId, assignees, cohort.SiteId));
             injected++;
         }
         return injected;
@@ -554,7 +554,7 @@ public static class NarrativeYearSeeder
         jobs.Add(new Job(
             Guid.NewGuid(), $"{arch.Verb} {arch.Noun} — {cohort.Facility.SiteCode}", null,
             start, end, cal.StatusFor(start, end, faker),
-            (int)(end - start).TotalHours, required, arch, spaceId, assignees));
+            (int)(end - start).TotalHours, required, arch, spaceId, assignees, cohort.SiteId));
         return 1;
     }
 
@@ -708,7 +708,7 @@ public static class NarrativeYearSeeder
         }
 
         var hours = (int)Math.Round((end - start).TotalHours);
-        return new Job(Guid.NewGuid(), name, parentId, start, end, status, hours, requiredCriteria, arch, spaceId, assignees);
+        return new Job(Guid.NewGuid(), name, parentId, start, end, status, hours, requiredCriteria, arch, spaceId, assignees, cohort.SiteId);
     }
 
     // ── Assignment context: per-facility timelines, capability lookup, tool pools ──
@@ -928,7 +928,7 @@ public static class NarrativeYearSeeder
     /// conflicts the seeder injects deliberately elsewhere.
     /// </summary>
     private static ShowcasePlan AddShowcasePlan(
-        List<(Guid Id, string Name, int SortOrder)> parents,
+        List<(Guid Id, string Name, int SortOrder, Guid SiteId)> parents,
         List<Job> jobs,
         IReadOnlyList<FacilityCohort> cohorts,
         YearCalendar cal)
@@ -942,7 +942,7 @@ public static class NarrativeYearSeeder
         var now = cal.ReferenceDate;
 
         var parentId = Guid.NewGuid();
-        parents.Add((parentId, $"Line changeover ({site})", parents.Count));
+        parents.Add((parentId, $"Line changeover ({site})", parents.Count, cohort.SiteId));
 
         // Whole days at a fixed hour: the readers all work in day buckets, and a mid-shift time
         // would only invite a same-day comparison to read as a violation.
@@ -991,7 +991,7 @@ public static class NarrativeYearSeeder
                 // No assignees: this plan is about sequence. Leaving it unbooked also keeps it
                 // out of the overbooking and capability injections, which choose their own
                 // victims and would otherwise have their counts disturbed.
-                Assignees: []));
+                Assignees: [], cohort.SiteId));
         }
 
         Guid Id(string name) => ids[name];
@@ -1036,7 +1036,7 @@ public static class NarrativeYearSeeder
     /// chain tests hold every edge to.
     /// </summary>
     private static ShowcasePlan AddRetoolPlan(
-        List<(Guid Id, string Name, int SortOrder)> parents,
+        List<(Guid Id, string Name, int SortOrder, Guid SiteId)> parents,
         List<Job> jobs,
         IReadOnlyList<FacilityCohort> cohorts,
         YearCalendar cal,
@@ -1050,7 +1050,7 @@ public static class NarrativeYearSeeder
         var now = cal.ReferenceDate;
 
         var parentId = Guid.NewGuid();
-        parents.Add((parentId, $"Bracket line retool ({site})", parents.Count));
+        parents.Add((parentId, $"Bracket line retool ({site})", parents.Count, cohort.SiteId));
 
         DateTime Day(int offset) => now.Date.AddDays(offset).AddHours(8);
 
@@ -1080,7 +1080,7 @@ public static class NarrativeYearSeeder
                 RequiredCriteria: [],
                 Archetype: cohort.Facility.Archetypes[0],
                 SpaceId: null,
-                Assignees: []));
+                Assignees: [], cohort.SiteId));
         }
 
         Guid Id(string name) => ids[name];
@@ -1281,15 +1281,15 @@ public static class NarrativeYearSeeder
     private const string RequestCopy =
         "COPY public.requests (id, name, description, start_ts, end_ts, minimal_duration_value, " +
         "minimal_duration_unit, status, created_at, updated_at, scheduling_settings_apply, planning_mode, " +
-        "sort_order, parent_request_id) FROM STDIN (FORMAT BINARY)";
+        "sort_order, parent_request_id, site_id) FROM STDIN (FORMAT BINARY)";
 
     private static async Task WriteRequestsAsync(
-        NpgsqlConnection conn, IReadOnlyList<(Guid Id, string Name, int SortOrder)> parents, IReadOnlyList<Job> jobs)
+        NpgsqlConnection conn, IReadOnlyList<(Guid Id, string Name, int SortOrder, Guid SiteId)> parents, IReadOnlyList<Job> jobs)
     {
         var now = DateTime.UtcNow;
         using (var w = await conn.BeginBinaryImportAsync(RequestCopy))
         {
-            foreach (var (id, name, sort) in parents)
+            foreach (var (id, name, sort, siteId) in parents)
             {
                 await w.StartRowAsync();
                 await w.WriteAsync(id, NpgsqlDbType.Uuid);
@@ -1306,6 +1306,7 @@ public static class NarrativeYearSeeder
                 await w.WriteAsync("summary", NpgsqlDbType.Varchar);
                 await w.WriteAsync(sort, NpgsqlDbType.Integer);
                 await w.WriteNullAsync();
+                await w.WriteAsync(siteId, NpgsqlDbType.Uuid);
             }
             await w.CompleteAsync();
         }
@@ -1329,6 +1330,7 @@ public static class NarrativeYearSeeder
                 await w.WriteAsync("leaf", NpgsqlDbType.Varchar);
                 await w.WriteAsync(sort++, NpgsqlDbType.Integer);
                 if (j.ParentId is { } pid) await w.WriteAsync(pid, NpgsqlDbType.Uuid); else await w.WriteNullAsync();
+                await w.WriteAsync(j.SiteId, NpgsqlDbType.Uuid);
             }
             await w.CompleteAsync();
         }
@@ -1336,9 +1338,8 @@ public static class NarrativeYearSeeder
 
     /// <summary>
     /// Writes <paramref name="count"/> unscheduled, top-level leaf requests (no start/end, no
-    /// assignments/requirements) — the demo backlog. They stay site-neutral (SiteModelFactory only
-    /// sites assigned requests), so they appear in every site's backlog and can be dragged onto any
-    /// space. Names mirror the scheduled jobs' "{Verb} {Noun} — {Site}".
+    /// assignments/requirements) — the demo backlog. They stay site-neutral, so they appear in every
+    /// site's backlog and can be dragged onto any space. Names mirror the scheduled jobs' "{Verb} {Noun} — {Site}".
     /// </summary>
     /// <summary>One unscheduled backlog item, with what it needs and what can satisfy it.</summary>
     private sealed record BacklogItem(Guid Id, IReadOnlyList<Guid> RequiredCriteria, string? TargetTypeKey);
@@ -1408,6 +1409,7 @@ public static class NarrativeYearSeeder
                 await w.WriteAsync("leaf", NpgsqlDbType.Varchar);         // planning_mode
                 await w.WriteAsync(i, NpgsqlDbType.Integer);              // sort_order
                 await w.WriteNullAsync();                                  // parent_request_id → top-level
+                await w.WriteNullAsync();                                  // site_id → site-neutral by design
             }
             await w.CompleteAsync();
         }

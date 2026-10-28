@@ -37,6 +37,7 @@ const mockRequest = {
   durationMin: 60,
   createdAt: '2026-01-01T00:00Z',
   updatedAt: '2026-01-01T00:00Z',
+  version: 3,
 } as Request;
 
 const mockFormData = makeRequestFormData({ name: 'Updated Name' });
@@ -77,7 +78,7 @@ describe('useRequestEditor', () => {
       fireEvent.click(screen.getByTestId('open-btn'));
       fireEvent.click(screen.getByTestId('save-btn'));
       await waitFor(() => {
-        expect(mockUpdateRequest).toHaveBeenCalledWith('req-1', expect.anything());
+        expect(mockUpdateRequest).toHaveBeenCalledWith('req-1', expect.anything(), 3);
       });
     });
 

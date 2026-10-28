@@ -25,7 +25,7 @@ public interface IResourceService
     /// Updates a resource. Returns <c>null</c> if not found.
     /// Throws <see cref="Api.Helpers.NotFoundException"/> if the resource was deleted between the existence check and the update.
     /// </summary>
-    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default);
+    Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, uint? expectedVersion, CancellationToken ct = default);
     /// <summary>Deactivates a resource. Returns <c>false</c> if not found.</summary>
     Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default);
 }
@@ -81,17 +81,18 @@ public class ResourceService(
         return resource;
     }
 
-    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, CancellationToken ct = default)
+    public async Task<ResourceInfo?> UpdateAsync(Guid id, UpdateResourceRequest request, uint? expectedVersion, CancellationToken ct = default)
     {
         var existing = await resourceRepository.GetByIdAsync(id, ct)
             ?? throw new NotFoundException("Resource", id);
 
-        if (request.Code is not null || request.Geometry is not null || request.Properties is not null || request.Capacity.HasValue)
+        if (request.Code is not null || request.Geometry is not null || request.Properties is not null || request.Capacity.HasValue
+            || request.AllocationMode == AllocationModes.ConcurrentCapacity)
         {
             var resourceType = await resourceTypeRepository.GetByIdAsync(existing.ResourceTypeId, ct)
                 ?? throw new InvalidOperationException($"Resource type {existing.ResourceTypeId} not found");
             if (!resourceType.HasGeometry)
-                throw new ArgumentException($"Resource type '{resourceType.Key}' cannot be placed, so it has no code, geometry, properties or capacity");
+                throw new ArgumentException(NotPlaceable(resourceType));
         }
 
         if (request.Email is not null || request.Notes is not null)
@@ -107,7 +108,7 @@ public class ResourceService(
         if (request.CustomFields is not null)
             await customFieldService.ValidateValuesAsync(existing.ResourceTypeId, request.CustomFields, ct);
 
-        return await resourceRepository.UpdateAsync(id, request, ct);
+        return await resourceRepository.UpdateAsync(id, request, expectedVersion, ct);
     }
 
     public async Task<bool> DeactivateAsync(Guid id, CancellationToken ct = default)
@@ -131,14 +132,19 @@ public class ResourceService(
     /// for a type that declares it has one. Rejecting them elsewhere keeps a "vehicle" from
     /// carrying a shape no page will ever draw.
     /// </summary>
+    // ConcurrentCapacity counts bookings against the capacity, which only a placeable type has.
+    private static string NotPlaceable(ResourceTypeInfo resourceType) =>
+        $"Resource type '{resourceType.Key}' cannot be placed, so it has no code, geometry, properties or capacity, and cannot use ConcurrentCapacity";
+
     private static void ValidatePlacement(ResourceTypeInfo resourceType, CreateResourceRequest request)
     {
         if (!resourceType.HasGeometry)
         {
             if (request.Code is not null || request.IsPhysical || request.Geometry is not null
-                || request.Properties is not null || request.Capacity != 1)
+                || request.Properties is not null || request.Capacity != 1
+                || request.AllocationMode == AllocationModes.ConcurrentCapacity)
             {
-                throw new ArgumentException($"Resource type '{resourceType.Key}' cannot be placed, so it has no code, geometry, properties or capacity");
+                throw new ArgumentException(NotPlaceable(resourceType));
             }
 
             return;

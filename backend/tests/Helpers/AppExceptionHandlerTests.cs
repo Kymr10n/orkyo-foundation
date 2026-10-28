@@ -67,6 +67,18 @@ public class AppExceptionHandlerTests
     }
 
     [Fact]
+    public async Task PreconditionFailedException_Maps_To412()
+    {
+        var ctx = CreateHttpContext();
+        var handled = await Handler.TryHandleAsync(ctx, new PreconditionFailedException("request"), default);
+
+        handled.Should().BeTrue();
+        ctx.Response.StatusCode.Should().Be(StatusCodes.Status412PreconditionFailed);
+        var body = await ReadJsonAsync(ctx);
+        body.GetProperty("code").GetString().Should().Be(ApiErrorCodes.PreconditionFailed);
+    }
+
+    [Fact]
     public async Task TimeZoneNotFoundException_Maps_To422()
     {
         // Reachable through stored data, not only through a broken image: seeds write

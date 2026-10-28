@@ -94,6 +94,91 @@ public class ResourceAssignmentEndpointTests
     }
 
     [Fact]
+    public async Task CancelledRequest_NoLongerOccupiesTheResource()
+    {
+        // A cancelled request's work does not happen, so its bookings block nobody (spec section 4).
+        var resource = await CreateExclusiveResource();
+        var cancelled = await GetTestRequestIdAsync();
+        var live = await GetTestRequestIdAsync();
+        await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(resource.Id, cancelled));
+        Assert.True((await _client.PutAsJsonAsync($"/api/requests/{cancelled}",
+            new UpdateRequestRequest { Status = RequestStatus.Cancelled })).IsSuccessStatusCode);
+
+        var check = await ValidateAsync(MakeRequest(resource.Id, live));
+
+        Assert.DoesNotContain(check.Blockers, b => b.Code == ValidationReasonCode.AssignmentOverbooked);
+    }
+
+    [Fact]
+    public async Task CancelledRequest_LeavesTheResourceBookingViews()
+    {
+        // The resource's booking list and the per-type grid read the same occupancy rule as the
+        // checks: a cancelled request's booking is no longer there.
+        var resource = await CreateExclusiveResource();
+        var request = await GetTestRequestIdAsync();
+        var booking = MakeRequest(resource.Id, request);
+        await _client.PostAsJsonAsync("/api/resource-assignments", booking);
+        var window = $"from={booking.StartUtc.AddDays(-1):O}&to={booking.EndUtc.AddDays(1):O}";
+        Assert.Single(await _client.GetFromJsonAsync<List<ResourceAssignmentInfo>>($"/api/resources/{resource.Id}/assignments?{window}") ?? []);
+
+        await _client.PutAsJsonAsync($"/api/requests/{request}", new UpdateRequestRequest { Status = RequestStatus.Cancelled });
+
+        Assert.Empty(await _client.GetFromJsonAsync<List<ResourceAssignmentInfo>>($"/api/resources/{resource.Id}/assignments?{window}") ?? []);
+    }
+
+    [Fact]
+    public async Task ConcurrentCapacity_AllowsUpToTheCapacityAtOnce()
+    {
+        var created = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = ResourceTypeKeys.Space,
+            Name = $"Hot desks {Guid.NewGuid():N}"[..20],
+            Code = $"HD-{Guid.NewGuid():N}"[..10],
+            AllocationMode = AllocationModes.ConcurrentCapacity,
+            Capacity = 2,
+            HomeSiteId = DatabaseFixture.SiteId,
+            CrossSiteAllowed = false,
+        });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var desks = (await created.Content.ReadFromJsonAsync<ResourceInfo>())!;
+
+        await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(desks.Id, await GetTestRequestIdAsync()));
+        var second = await ValidateAsync(MakeRequest(desks.Id, await GetTestRequestIdAsync()));
+        await _client.PostAsJsonAsync("/api/resource-assignments", MakeRequest(desks.Id, await GetTestRequestIdAsync()));
+        var third = await ValidateAsync(MakeRequest(desks.Id, await GetTestRequestIdAsync()));
+
+        Assert.DoesNotContain(second.Blockers, b => b.Code == ValidationReasonCode.AssignmentCapacityExceeded);
+        Assert.Contains(third.Blockers, b => b.Code == ValidationReasonCode.AssignmentCapacityExceeded);
+    }
+
+    [Fact]
+    public async Task ConcurrentCapacity_OnATypeWithoutCapacity_IsRefused()
+    {
+        var response = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
+        {
+            ResourceTypeKey = "tool",
+            Name = $"Tool-{Guid.NewGuid():N}"[..20],
+            AllocationMode = AllocationModes.ConcurrentCapacity,
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private async Task<ValidationResult> ValidateAsync(CreateResourceAssignmentRequest booking)
+    {
+        var response = await _client.PostAsJsonAsync("/api/resource-assignments/validate", new ValidateResourceAssignmentRequest
+        {
+            RequestId = booking.RequestId,
+            ResourceId = booking.ResourceId,
+            StartUtc = booking.StartUtc,
+            EndUtc = booking.EndUtc,
+            AllocationPercent = booking.AllocationPercent,
+        });
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ValidationResult>())!;
+    }
+
+    [Fact]
     public async Task CreateAssignment_Exclusive_AdjacentSlots_BothAllowed()
     {
         var resource = await CreateExclusiveResource();

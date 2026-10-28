@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { SchedulingSettings } from './SchedulingSettings';
 import { useCanEdit } from '@foundation/src/hooks/usePermissions';
 import { useSiteStore } from '@foundation/src/store/site-store';
+import { ApiError } from '@foundation/src/lib/core/api-utils';
 
 // Availability-event write actions are gated on useCanEdit (Editor+), which is globally
 // mocked to true in src/test/setup.ts, so the add/edit/delete interaction tests keep those
@@ -18,6 +19,7 @@ const mockSettings = {
   weekendsEnabled: true,
   publicHolidaysEnabled: false,
   publicHolidayRegion: null,
+  version: 4,
 };
 
 const mockUseSchedulingSettings = vi.fn((_?: any): any => ({ data: mockSettings, isLoading: false }));
@@ -217,11 +219,27 @@ describe('SchedulingSettings — interactions', () => {
     await user.click(screen.getByRole('switch', { name: /Exclude weekends/i }));
 
     await waitFor(
-      () => expect(mockUpsertMutateAsync).toHaveBeenCalledWith(
-        expect.objectContaining({ weekendsEnabled: expect.any(Boolean) }),
-      ),
+      // The form's values, and the version the form was filled with.
+      () => expect(mockUpsertMutateAsync).toHaveBeenCalledWith({
+        settings: expect.objectContaining({ weekendsEnabled: expect.any(Boolean) }),
+        version: 4,
+      }),
       { timeout: 2000 },
     );
+  });
+
+  it('refills the form from the server when someone else saved meanwhile (412)', async () => {
+    const refetch = vi.fn().mockResolvedValue({});
+    mockUseSchedulingSettings.mockReturnValue({ data: mockSettings, isLoading: false, refetch });
+    mockUpsertMutateAsync.mockRejectedValueOnce(
+      new ApiError('Someone else changed this item.', 412, 'precondition_failed'));
+    const user = userEvent.setup();
+    render(<SchedulingSettings />);
+
+    await user.click(screen.getByRole('switch', { name: /Exclude weekends/i }));
+
+    await waitFor(() => expect(refetch).toHaveBeenCalled(), { timeout: 2000 });
+    expect(await screen.findByText('Someone else changed this item.')).toBeInTheDocument();
   });
 
   it('toggling working hours switch fires updateField', async () => {

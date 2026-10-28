@@ -28,12 +28,11 @@ public static class SchedulingEndpoints
         .WithDescription("Get scheduling settings for a site")
         .Produces<SchedulingSettingsInfo>(StatusCodes.Status200OK);
 
-        settings.MapPut("/", async (Guid siteId, UpsertSchedulingSettingsRequest request, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpsertSchedulingSettingsRequest> validator) =>
+        settings.MapPut("/", async (Guid siteId, UpsertSchedulingSettingsRequest request, HttpRequest http, ISchedulingService schedulingService, CancellationToken ct, ILogger<EndpointLoggerCategory> logger, IValidator<UpsertSchedulingSettingsRequest> validator) =>
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                var result = await schedulingService.UpsertSettingsAsync(siteId, request, ct);
-                await schedulingService.RecalculateScheduledRequestsAsync(siteId, ct);
+                var result = await schedulingService.SaveSettingsAsync(siteId, request, IfMatch.Parse(http), ct);
                 return Results.Ok(result);
             }, logger, "upsert scheduling settings", new { siteId });
         })

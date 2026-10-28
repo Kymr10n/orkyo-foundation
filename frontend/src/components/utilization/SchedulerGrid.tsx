@@ -5,6 +5,7 @@ import { useResourceGroupsOfTypes } from "@foundation/src/hooks/useResourceGroup
 import { buildCommittedSchedule, applyDraft } from "@foundation/src/domain/scheduling/schedule-preview";
 import { buildIndex, replaceIndexEntry, getOverlapping } from "@foundation/src/domain/scheduling/schedule-index";
 import { evaluateEntry } from "@foundation/src/domain/scheduling/schedule-validator";
+import { ALLOCATION_MODE } from "@foundation/src/constants/allocation-mode";
 import { getPlacementResourceId } from "@foundation/src/domain/scheduling/request-assignments";
 import { usePlaceableTypeKeys } from "@foundation/src/hooks/usePlaceableResources";
 import { useConflictRegistry } from "@foundation/src/hooks/useConflictRegistry";
@@ -148,6 +149,11 @@ export function SchedulerGrid({
   // Backend-only conflict kinds for those ids are restored on the next refetch.
   // Only the draft's space gets a new validation slice — all affected entries
   // (draft + overlap peers) live in that space.
+  // A draft overlapping a booking is a conflict only on an Exclusive row (schedule-validator.ts).
+  const sharedSpaceIds = useMemo(
+    () => new Set(spaces.filter((s) => s.allocationMode !== ALLOCATION_MODE.EXCLUSIVE).map((s) => s.id)),
+    [spaces],
+  );
   const validationBySpace = useMemo(() => {
     if (!draft) return committedValidationBySpace;
     const draftEntry = previewSchedule.get(draft.requestId);
@@ -163,7 +169,7 @@ export function SchedulerGrid({
     for (const id of affected) {
       const entry = previewSchedule.get(id);
       if (!entry) continue;
-      const conflicts = evaluateEntry(entry, scheduleIndex);
+      const conflicts = evaluateEntry(entry, scheduleIndex, !sharedSpaceIds.has(entry.resourceId));
       if (conflicts.length > 0) slice.set(id, conflicts);
       else slice.delete(id);
     }
@@ -171,7 +177,7 @@ export function SchedulerGrid({
     const merged = new Map(committedValidationBySpace);
     merged.set(spaceId, slice);
     return merged;
-  }, [committedValidationBySpace, draft, previewSchedule, scheduleIndex]);
+  }, [committedValidationBySpace, draft, previewSchedule, scheduleIndex, sharedSpaceIds]);
   // ---------------------------------------------------------------------------
 
   // Groups for every placeable type, merged — the rows on one floorplan can come from several

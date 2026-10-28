@@ -156,6 +156,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     | "requirements"
     | "createdAt"
     | "updatedAt"
+    | "version"
     | "isScheduled"
     | "durationMin" // FE-computed, not sent by BE
   >;
@@ -189,6 +190,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
     "requirements",
     "createdAt",
     "updatedAt",
+    "version",
     "isScheduled",
   ] as const;
 
@@ -224,6 +226,7 @@ describe("Contract - Request (FE) ↔ RequestInfo (BE) field alignment", () => {
       requirements: [],
       createdAt: "2025-01-01T00:00:00Z",
       updatedAt: "2025-01-01T00:00:00Z",
+      version: 1,
       isScheduled: false,
     };
 

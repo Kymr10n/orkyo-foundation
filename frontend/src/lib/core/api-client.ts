@@ -6,6 +6,7 @@
  */
 
 import { API_BASE_URL, getApiHeaders, handleApiError } from '../core/api-utils';
+import { IF_MATCH_HEADER_NAME } from '@foundation/src/constants/http';
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
@@ -20,6 +21,15 @@ export interface ApiRequestOptions {
   cache?: RequestCache;
   /** Whether to skip automatic JSON parsing (for void returns) */
   skipJsonParse?: boolean;
+}
+
+/**
+ * Options that make a write conditional on the row version the caller read: the server answers
+ * 412 (`PRECONDITION_FAILED`) when someone else changed the row meanwhile. No version, no
+ * condition (last write wins), which also covers data cached before the server sent versions.
+ */
+export function ifMatch(version: number | undefined): ApiRequestOptions | undefined {
+  return version === undefined ? undefined : { headers: { [IF_MATCH_HEADER_NAME]: `"${version}"` } };
 }
 
 /** Build final header set: defaults + overrides - omits */

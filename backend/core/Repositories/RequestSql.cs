@@ -69,7 +69,7 @@ internal static class RequestSql
           minimal_duration_value, minimal_duration_unit,
           actual_duration_value, actual_duration_unit,
           status, scheduling_settings_apply, created_at, updated_at, assignments,
-          predecessor_logic, predecessor_logic_k";
+          predecessor_logic, predecessor_logic_k, row_version";
 
     internal static async Task<RequestInfo> ReadByIdAsync(NpgsqlConnection conn, Guid id, CancellationToken ct = default)
     {

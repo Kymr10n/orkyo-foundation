@@ -332,7 +332,7 @@ public class ScheduleToolsTests
         var adjusted = new ScheduleRequestRequest { ResourceId = ResourceId, StartTs = Start, EndTs = End };
         _scheduling.Setup(s => s.ApplySchedulingToScheduleAsync(RequestId,
             It.IsAny<ScheduleRequestRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(adjusted);
-        _requests.Setup(s => s.UpdateScheduleAsync(RequestId, adjusted, It.IsAny<CancellationToken>()))
+        _requests.Setup(s => s.UpdateScheduleAsync(RequestId, adjusted, null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(Request());
         SetupConflicts();
 
@@ -341,7 +341,7 @@ public class ScheduleToolsTests
         _scheduling.Verify(s => s.ApplySchedulingToScheduleAsync(RequestId,
             It.Is<ScheduleRequestRequest>(r => r.ResourceId == ResourceId && r.StartTs == Start),
             It.IsAny<CancellationToken>()), Times.Once);
-        _requests.Verify(s => s.UpdateScheduleAsync(RequestId, adjusted, It.IsAny<CancellationToken>()),
+        _requests.Verify(s => s.UpdateScheduleAsync(RequestId, adjusted, null, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 
@@ -354,7 +354,7 @@ public class ScheduleToolsTests
             It.IsAny<ScheduleRequestRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScheduleRequestRequest());
         _requests.Setup(s => s.UpdateScheduleAsync(It.IsAny<Guid>(), It.IsAny<ScheduleRequestRequest>(),
-            It.IsAny<CancellationToken>())).ReturnsAsync(Request());
+            null, It.IsAny<CancellationToken>())).ReturnsAsync(Request());
         SetupConflicts(ConflictFor(RequestId));
 
         var result = await CreateTools().RescheduleRequestAsync(RequestId, Start, End, ResourceId);
@@ -369,7 +369,7 @@ public class ScheduleToolsTests
             It.IsAny<ScheduleRequestRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScheduleRequestRequest());
         _requests.Setup(s => s.UpdateScheduleAsync(It.IsAny<Guid>(), It.IsAny<ScheduleRequestRequest>(),
-            It.IsAny<CancellationToken>())).ReturnsAsync(Request());
+            null, It.IsAny<CancellationToken>())).ReturnsAsync(Request());
         SetupConflicts(ConflictFor(Guid.NewGuid()));
 
         var result = await CreateTools().RescheduleRequestAsync(RequestId, Start, End, ResourceId);
@@ -384,7 +384,7 @@ public class ScheduleToolsTests
             It.IsAny<ScheduleRequestRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScheduleRequestRequest());
         _requests.Setup(s => s.UpdateScheduleAsync(It.IsAny<Guid>(), It.IsAny<ScheduleRequestRequest>(),
-            It.IsAny<CancellationToken>())).ReturnsAsync((RequestInfo?)null);
+            null, It.IsAny<CancellationToken>())).ReturnsAsync((RequestInfo?)null);
 
         var thrown = await Assert.ThrowsAsync<McpException>(
             () => CreateTools().RescheduleRequestAsync(RequestId, Start, End, ResourceId));
@@ -434,7 +434,7 @@ public class ScheduleToolsTests
             It.IsAny<ScheduleRequestRequest>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ScheduleRequestRequest());
         _requests.Setup(s => s.UpdateScheduleAsync(RequestId, It.IsAny<ScheduleRequestRequest>(),
-            It.IsAny<CancellationToken>())).ReturnsAsync(Request(scheduled: false));
+            null, It.IsAny<CancellationToken>())).ReturnsAsync(Request(scheduled: false));
         SetupConflicts();
 
         var result = await CreateTools().RescheduleRequestAsync(RequestId);

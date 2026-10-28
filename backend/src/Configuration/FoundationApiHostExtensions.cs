@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi;
 using Orkyo.Shared;
 
@@ -33,6 +34,8 @@ public static class FoundationApiHostExtensions
         HeaderConstants.TenantSlug,
         HeaderConstants.CorrelationId,
         HeaderConstants.CsrfToken,
+        // The row version a write expects (optimistic concurrency, see IfMatch).
+        HeaderNames.IfMatch,
     ];
 
     /// <summary>

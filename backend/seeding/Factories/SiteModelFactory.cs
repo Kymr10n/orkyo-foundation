@@ -12,8 +12,8 @@ namespace Orkyo.Foundation.Seed.Factories;
 /// - people get a home site: the narrative path pins them to their facility cohort's site up front
 ///   via <see cref="ApplyCohortSitesAsync"/> (so cohort work stays same-site); the round-robin below
 ///   only fills people still un-sited. On top, ~1 in 4 are not cross-site capable;
-/// - scheduled requests adopt the site of the space they were placed in (parity with the runtime
-///   implicit-site-on-schedule rule); unscheduled requests stay site-neutral.
+/// - requests are not touched here: the narrative seed writes each job's facility site when it
+///   creates the job, and the unscheduled backlog stays site-neutral.
 /// Where a person actually is at a point in time is no longer stored — it is derived from the
 /// assignment covering that time, anchored to the home site when idle — so cross-site cases arise
 /// naturally wherever a person's home site differs from a request's site. Single-site tenants degrade naturally: every "another site" lookup
@@ -57,18 +57,6 @@ public static class SiteModelFactory
             $"WHERE resource_type_id = @person AND {PinnedToHomeSite}",
             ("person", personTypeId));
 
-        // Scheduled requests adopt the site of the space they were placed in (implicit-site parity);
-        // spaceless / unscheduled requests stay site-neutral.
-        await ExecAsync(conn, tx, """
-            UPDATE requests req
-            SET site_id = res.home_site_id
-            FROM resource_assignments ra
-            JOIN resources res ON res.id = ra.resource_id
-            JOIN resource_types rt ON rt.id = res.resource_type_id AND rt.has_geometry
-            WHERE ra.request_id = req.id
-              AND ra.assignment_status <> 'Cancelled'
-              AND req.site_id IS NULL
-            """);
     }
 
     /// <summary>

@@ -193,7 +193,8 @@ public sealed class ScheduleTools
         // service normalises the window against the request's duration and calendar before the
         // write; skipping it would let a tool produce a schedule the UI could not have produced.
         var adjusted = await _scheduling.ApplySchedulingToScheduleAsync(requestId, requested, ct);
-        var updated = await _requests.UpdateScheduleAsync(requestId, adjusted, ct);
+        // A tool call reads and writes in one step, so it carries no version (last write wins).
+        var updated = await _requests.UpdateScheduleAsync(requestId, adjusted, expectedVersion: null, ct);
 
         if (updated is null)
             throw new McpException($"No request found with id {requestId}.");

@@ -6,7 +6,7 @@ import type {
   UpdateRequestRequest,
 } from "@foundation/src/types/requests";
 import { DEFAULT_DURATION_VALUE, DEFAULT_DURATION_UNIT } from "@foundation/src/constants/app";
-import { apiGet, apiPost, apiPut, apiDelete, apiPatch } from "../core/api-client";
+import { apiGet, apiPost, apiPut, apiDelete, apiPatch, ifMatch } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
 /**
@@ -83,24 +83,29 @@ export async function createChildRequest(
   });
 }
 
+/** `version`: the request's version as read; the save fails with 412 if it changed meanwhile. */
 export async function updateRequest(
   requestId: string,
   request: UpdateRequestRequest,
+  version?: number,
 ): Promise<Request> {
-  return apiPut<Request>(API_PATHS.request(requestId), request);
+  return apiPut<Request>(API_PATHS.request(requestId), request, ifMatch(version));
 }
 
 export async function deleteRequest(requestId: string): Promise<void> {
   return apiDelete(API_PATHS.request(requestId));
 }
 
+/** `version`: as in {@link updateRequest}. */
 export async function moveRequest(
   requestId: string,
   request: MoveRequestRequest,
+  version?: number,
 ): Promise<Request> {
   return apiPatch<Request>(
     API_PATHS.requestMove(requestId),
     request,
+    ifMatch(version),
   );
 }
 

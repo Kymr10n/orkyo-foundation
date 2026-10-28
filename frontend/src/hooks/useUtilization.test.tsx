@@ -77,7 +77,7 @@ describe("useScheduleRequest", () => {
     vi.mocked(utilizationApi.scheduleRequest).mockResolvedValue(updatedRequest);
 
     const { queryClient, wrapper } = createTestQueryClient();
-    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [mockRequest]);
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [{ ...mockRequest, version: 3 }]);
 
     const { result } = renderHook(() => useScheduleRequest(), { wrapper });
 
@@ -94,10 +94,34 @@ describe("useScheduleRequest", () => {
       });
     });
 
+    // The version comes from the cache the bar was drawn from.
     expect(utilizationApi.scheduleRequest).toHaveBeenCalledWith(
       "req-001",
-      scheduleData
+      scheduleData,
+      3,
     );
+  });
+
+  it("runs a second move after the first and sends the version the first one returned", async () => {
+    // Without the queue the second drag would send the version the first replaced: a 412 for
+    // the user's own change.
+    vi.mocked(utilizationApi.scheduleRequest)
+      .mockResolvedValueOnce({ ...mockRequest, version: 4 })
+      .mockResolvedValueOnce({ ...mockRequest, version: 5 });
+    const { queryClient, wrapper } = createTestQueryClient();
+    queryClient.setQueryData<Request[]>(["requests", "scheduled"], [{ ...mockRequest, version: 3 }]);
+    const { result } = renderHook(() => useScheduleRequest(), { wrapper });
+    const data: utilizationApi.ScheduleRequestData = { resourceId: "space-B" };
+
+    await act(async () => {
+      await Promise.all([
+        result.current.mutateAsync({ requestId: "req-001", data }),
+        result.current.mutateAsync({ requestId: "req-001", data }),
+      ]);
+    });
+
+    expect(utilizationApi.scheduleRequest).toHaveBeenNthCalledWith(1, "req-001", data, 3);
+    expect(utilizationApi.scheduleRequest).toHaveBeenNthCalledWith(2, "req-001", data, 4);
   });
 
   it("optimistically updates the cache before mutation settles", async () => {

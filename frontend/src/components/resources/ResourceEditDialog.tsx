@@ -132,7 +132,7 @@ export function ResourceEditDialog({
             }
           : {}),
       };
-      return r ? { id: r.id, data: fields } : { id: null, data: fields };
+      return r ? { id: r.id, data: fields, version: r.version } : { id: null, data: fields };
     },
   });
 
@@ -218,9 +218,10 @@ export function ResourceEditDialog({
             <SelectContent>
               <SelectItem value={ALLOCATION_MODE.EXCLUSIVE}>Exclusive</SelectItem>
               <SelectItem value={ALLOCATION_MODE.FRACTIONAL}>Fractional</SelectItem>
-              <SelectItem value={ALLOCATION_MODE.CONCURRENT_CAPACITY} disabled>
-                Concurrent Capacity (not yet supported)
-              </SelectItem>
+              {/* Counts bookings against the capacity, which only a placeable type has. */}
+              {isPlaceable && (
+                <SelectItem value={ALLOCATION_MODE.CONCURRENT_CAPACITY}>Concurrent Capacity</SelectItem>
+              )}
             </SelectContent>
           </Select>
         </div>
@@ -248,7 +249,9 @@ export function ResourceEditDialog({
             onChange={(e) => set({ capacity: Math.max(1, parseInt(e.target.value) || 1) })}
           />
           <p className="text-xs text-muted-foreground">
-            Number of concurrent allocations allowed (e.g., 5 for a hot desk area with 5 desks)
+            {form.allocationMode === ALLOCATION_MODE.CONCURRENT_CAPACITY
+              ? "How many bookings can overlap (e.g., 5 for a hot desk area with 5 desks)"
+              : "Seats or places. Bookings can overlap up to this number only with Concurrent Capacity."}
           </p>
         </div>
       )}

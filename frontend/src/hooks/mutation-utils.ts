@@ -6,10 +6,13 @@ export function errorMessage(err: unknown, fallback?: string): string {
   return err instanceof Error ? err.message : (fallback ?? String(err));
 }
 
-/** Variables of a create-or-update save: `id: null` creates, an id updates that entity. */
+/**
+ * Variables of a create-or-update save: `id: null` creates, an id updates that entity. An update
+ * may carry the entity's `version` as read, so a concurrent change fails it with 412.
+ */
 export type SaveVariables<TCreate, TUpdate = TCreate> =
   | { id: null; data: TCreate }
-  | { id: string; data: TUpdate };
+  | { id: string; data: TUpdate; version?: number };
 
 /** `meta.successMessage` for a {@link SaveVariables} mutation: one text per branch. */
 export const savedMessage =

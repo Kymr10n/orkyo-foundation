@@ -350,7 +350,7 @@ public class ResourceRepositoryTests
         var second = await CreateSpaceAsync(site, $"B-{Guid.NewGuid():N}"[..10]);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
-            _repo.UpdateAsync(second.Id, new UpdateResourceRequest { Code = first.Code! }));
+            _repo.UpdateAsync(second.Id, new UpdateResourceRequest { Code = first.Code! }, expectedVersion: null));
     }
 
     [Fact]
@@ -363,7 +363,7 @@ public class ResourceRepositoryTests
         {
             Code = space.Code!,
             Name = $"Renamed-{Guid.NewGuid():N}"[..16],
-        });
+        }, expectedVersion: null);
 
         Assert.Equal(space.Code, updated!.Code);
     }
@@ -380,7 +380,7 @@ public class ResourceRepositoryTests
         var mover = await CreateSpaceAsync(siteA, shared);
 
         await Assert.ThrowsAsync<ConflictException>(() =>
-            _repo.UpdateAsync(mover.Id, new UpdateResourceRequest { HomeSiteId = siteB }));
+            _repo.UpdateAsync(mover.Id, new UpdateResourceRequest { HomeSiteId = siteB }, expectedVersion: null));
     }
 
     private async Task<ResourceInfo> CreateSpaceAsync(Guid siteId, string code) =>

@@ -87,8 +87,11 @@ describe('resources-api', () => {
   it('updateResource puts the update to the item', async () => {
     const updated = { ...mockResource, name: 'Alice Updated' };
     vi.mocked(apiClient.apiPut).mockResolvedValue(updated);
-    expect(await updateResource('res-1', { name: 'Alice Updated' })).toEqual(updated);
-    expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.resource('res-1'), { name: 'Alice Updated' });
+    const options = { headers: { 'If-Match': '"7"' } };
+    vi.mocked(apiClient.ifMatch).mockReturnValueOnce(options);
+    expect(await updateResource('res-1', { name: 'Alice Updated' }, 7)).toEqual(updated);
+    expect(apiClient.ifMatch).toHaveBeenCalledWith(7);
+    expect(apiClient.apiPut).toHaveBeenCalledWith(API_PATHS.resource('res-1'), { name: 'Alice Updated' }, options);
   });
 
   it('deleteResource deletes the item', async () => {

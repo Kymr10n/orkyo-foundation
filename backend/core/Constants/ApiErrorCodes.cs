@@ -38,6 +38,9 @@ public static class ApiErrorCodes
     /// <summary>Conflict error (409)</summary>
     public const string Conflict = "CONFLICT";
 
+    /// <summary>The row changed since the caller read it: the If-Match version is stale (412)</summary>
+    public const string PreconditionFailed = "precondition_failed";
+
     /// <summary>Unprocessable entity (422)</summary>
     public const string UnprocessableEntity = "UNPROCESSABLE_ENTITY";
 

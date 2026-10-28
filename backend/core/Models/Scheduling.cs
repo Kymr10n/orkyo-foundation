@@ -23,6 +23,26 @@ public record SchedulingSettingsInfo
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 
+    /// <summary>
+    /// Row version for optimistic concurrency, as on <see cref="RequestInfo.Version"/>. 0 for
+    /// <see cref="Default"/>: no row is stored yet, and a write expecting 0 only creates one.
+    /// </summary>
+    public uint Version { get; init; }
+
+    /// <summary>The settings a save of <paramref name="request"/> will store, before it is stored.</summary>
+    public static SchedulingSettingsInfo From(Guid siteId, UpsertSchedulingSettingsRequest request) => new()
+    {
+        Id = Guid.Empty,
+        SiteId = siteId,
+        TimeZone = request.TimeZone,
+        WorkingHoursEnabled = request.WorkingHoursEnabled,
+        WorkingDayStart = WorkingTime.Parse(request.WorkingDayStart),
+        WorkingDayEnd = WorkingTime.Parse(request.WorkingDayEnd),
+        WeekendsEnabled = request.WeekendsEnabled,
+        PublicHolidaysEnabled = request.PublicHolidaysEnabled,
+        PublicHolidayRegion = request.PublicHolidayRegion,
+    };
+
     public static SchedulingSettingsInfo Default(Guid siteId) => new()
     {
         Id = Guid.Empty,

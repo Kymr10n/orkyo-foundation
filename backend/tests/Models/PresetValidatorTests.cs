@@ -255,9 +255,9 @@ public class PresetValidatorTests
     public void AResourceWithAnUnknownAllocationMode_IsRejected()
     {
         var preset = CreateWorkshopPreset();
-        preset.Contents.Resources[0] = preset.Contents.Resources[0] with { AllocationMode = "ConcurrentCapacity" };
+        preset.Contents.Resources[0] = preset.Contents.Resources[0] with { AllocationMode = "Shared" };
 
-        Validate(preset).Errors.Should().ContainSingle(e => e.Contains("AllocationMode must be one of: Exclusive, Fractional"));
+        Validate(preset).Errors.Should().ContainSingle(e => e.Contains("AllocationMode must be one of: Exclusive, Fractional, ConcurrentCapacity"));
     }
 
     [Fact]

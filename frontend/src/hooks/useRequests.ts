@@ -74,12 +74,15 @@ export function useMoveRequestToParent(handlers: {
       draggedId,
       targetId,
       sortOrder,
+      version,
     }: {
       draggedId: string;
       targetId: string;
       sortOrder: number;
+      /** The dragged request's version as the tree shows it. */
+      version?: number;
     }) => {
-      await moveRequest(draggedId, { newParentRequestId: targetId, sortOrder });
+      await moveRequest(draggedId, { newParentRequestId: targetId, sortOrder }, version);
       return targetId;
     },
     meta: { errorMessage: "Failed to move request", invalidates: REQUEST_DERIVED_QUERY_KEYS },
@@ -128,7 +131,7 @@ export type SaveRequestVariables = SaveVariables<
 
 /** The save's variables for a form: an update of `editing`, or a create when there is none. */
 export const saveRequestVariables = (form: RequestFormData, editing: Request | null): SaveRequestVariables =>
-  editing ? { id: editing.id, data: { form, previous: editing } } : { id: null, data: form };
+  editing ? { id: editing.id, data: { form, previous: editing }, version: editing.version } : { id: null, data: form };
 
 export function useSaveRequest(handlers: {
   onSuccess?: () => void;
@@ -138,7 +141,11 @@ export function useSaveRequest(handlers: {
     mutationFn: (v: SaveRequestVariables) =>
       v.id === null
         ? createRequest(buildCreatePayload(v.data))
-        : updateRequest(v.id, buildUpdatePayload(v.data.form, v.data.previous.planningMode, v.data.previous.siteId)),
+        : updateRequest(
+            v.id,
+            buildUpdatePayload(v.data.form, v.data.previous.planningMode, v.data.previous.siteId),
+            v.version,
+          ),
     meta: {
       successMessage: savedMessage("Request created", "Request updated"),
       suppressErrorToast: true,

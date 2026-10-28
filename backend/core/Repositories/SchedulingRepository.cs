@@ -9,13 +9,14 @@ public class SchedulingRepository : ISchedulingRepository
 {
     private const string SettingsSelectColumns =
         "id, site_id, time_zone, working_hours_enabled, working_day_start, working_day_end, " +
-        "weekends_enabled, public_holidays_enabled, public_holiday_region, created_at, updated_at";
+        "weekends_enabled, public_holidays_enabled, public_holiday_region, created_at, updated_at, xmin AS row_version";
 
     private const string SettingsSelectColumnsQualified =
         "scheduling_settings.id, scheduling_settings.site_id, scheduling_settings.time_zone, " +
         "scheduling_settings.working_hours_enabled, scheduling_settings.working_day_start, scheduling_settings.working_day_end, " +
         "scheduling_settings.weekends_enabled, scheduling_settings.public_holidays_enabled, " +
-        "scheduling_settings.public_holiday_region, scheduling_settings.created_at, scheduling_settings.updated_at";
+        "scheduling_settings.public_holiday_region, scheduling_settings.created_at, scheduling_settings.updated_at, " +
+        "scheduling_settings.xmin AS row_version";
 
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
@@ -97,37 +98,56 @@ public class SchedulingRepository : ISchedulingRepository
         return rows.ToDictionary(s => s.SiteId);
     }
 
-    public async Task<SchedulingSettingsInfo> UpsertSettingsAsync(Guid siteId, UpsertSchedulingSettingsRequest request, CancellationToken ct = default)
+    // The columns a save writes. Each binds a parameter of the same name, so the one list builds
+    // the INSERT, the upsert's SET (from EXCLUDED) and the version-guarded UPDATE's SET.
+    private static readonly string[] SettingsColumns =
+    [
+        "time_zone", "working_hours_enabled", "working_day_start", "working_day_end",
+        "weekends_enabled", "public_holidays_enabled", "public_holiday_region",
+    ];
+
+    private static string SettingsSet(string source) =>
+        string.Join(", ", SettingsColumns.Select(c => $"{c} = {source}{c}"));
+
+    public async Task<SchedulingSettingsInfo> SaveSettingsAsync(
+        SchedulingSettingsInfo settings, uint? expectedVersion,
+        IReadOnlyList<(Guid Id, uint Version, ScheduleRequestRequest Data)> recalculated, CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
+        await conn.OpenAsync(ct);
+        await using var tx = await conn.BeginTransactionAsync(ct);
 
-        return (await conn.QuerySingleOrDefaultAsync($@"
-            INSERT INTO scheduling_settings (site_id, time_zone, working_hours_enabled,
-                working_day_start, working_day_end, weekends_enabled,
-                public_holidays_enabled, public_holiday_region)
-            VALUES (@siteId, @timeZone, @workingHoursEnabled,
-                @workingDayStart, @workingDayEnd, @weekendsEnabled,
-                @publicHolidaysEnabled, @publicHolidayRegion)
-            ON CONFLICT (site_id) DO UPDATE SET
-                time_zone = @timeZone,
-                working_hours_enabled = @workingHoursEnabled,
-                working_day_start = @workingDayStart,
-                working_day_end = @workingDayEnd,
-                weekends_enabled = @weekendsEnabled,
-                public_holidays_enabled = @publicHolidaysEnabled,
-                public_holiday_region = @publicHolidayRegion
-            RETURNING {SettingsSelectColumnsQualified}",
+        // A caller that read stored settings (version > 0) updates that row at that version only.
+        // Any other save creates the row: without a version it upserts (last write wins); with
+        // version 0 (the caller read the defaults) a row someone created meanwhile is left alone.
+        var sql = expectedVersion is > 0
+            ? $@"UPDATE scheduling_settings SET {SettingsSet("@")}
+                 WHERE site_id = @site_id AND {RowVersion.Guard("scheduling_settings")}
+                 RETURNING {SettingsSelectColumnsQualified}"
+            : $@"INSERT INTO scheduling_settings (site_id, {string.Join(", ", SettingsColumns)})
+                 VALUES (@site_id, {string.Join(", ", SettingsColumns.Select(c => "@" + c))})
+                 ON CONFLICT (site_id) DO UPDATE SET {SettingsSet("EXCLUDED.")}
+                 WHERE @{RowVersion.Parameter} IS NULL
+                 RETURNING {SettingsSelectColumnsQualified}";
+
+        var saved = await conn.QuerySingleOrDefaultAsync(sql,
             p =>
             {
-                p.AddWithValue("siteId", siteId);
-                p.AddWithValue("timeZone", request.TimeZone);
-                p.AddWithValue("workingHoursEnabled", request.WorkingHoursEnabled);
-                p.AddWithValue("workingDayStart", WorkingTime.Parse(request.WorkingDayStart).ToTimeSpan());
-                p.AddWithValue("workingDayEnd", WorkingTime.Parse(request.WorkingDayEnd).ToTimeSpan());
-                p.AddWithValue("weekendsEnabled", request.WeekendsEnabled);
-                p.AddWithValue("publicHolidaysEnabled", request.PublicHolidaysEnabled);
-                p.AddNullable("publicHolidayRegion", request.PublicHolidayRegion);
-            }, SchedulingMapper.MapSettingsFromReader, ct))!;
+                p.AddWithValue("site_id", settings.SiteId);
+                p.AddWithValue("time_zone", settings.TimeZone);
+                p.AddWithValue("working_hours_enabled", settings.WorkingHoursEnabled);
+                p.AddWithValue("working_day_start", settings.WorkingDayStart.ToTimeSpan());
+                p.AddWithValue("working_day_end", settings.WorkingDayEnd.ToTimeSpan());
+                p.AddWithValue("weekends_enabled", settings.WeekendsEnabled);
+                p.AddWithValue("public_holidays_enabled", settings.PublicHolidaysEnabled);
+                p.AddNullable("public_holiday_region", settings.PublicHolidayRegion);
+                p.AddExpectedVersion(expectedVersion);
+            }, SchedulingMapper.MapSettingsFromReader, ct)
+            ?? throw new PreconditionFailedException("scheduling settings");
+
+        await RequestRepository.WriteRecalculatedSchedulesAsync(conn, tx, recalculated, ct);
+        await tx.CommitAsync(ct);
+        return saved;
     }
 
     public async Task<bool> DeleteSettingsAsync(Guid siteId, CancellationToken ct = default)
