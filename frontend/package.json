@@ -95,7 +95,7 @@
     "eslint": "9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "17.13.0",
-    "happy-dom": "20.14.6",
+    "happy-dom": "21.0.4",
     "jest-axe": "^11.0.0",
     "tsc-alias": "^1.9.9",
     "typescript": "6.0.3",
