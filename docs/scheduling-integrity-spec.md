@@ -61,7 +61,8 @@ tells which mode uses the value. The draft overlay on the scheduler marks an ove
   `done` and not `cancelled`.
 - The bookings of `done` work occupy the resource. Other work that overlaps them reports a
   conflict.
-- The bookings of `cancelled` work occupy nothing.
+- The bookings of `cancelled` work occupy nothing. They do not show in the bookings, the
+  utilization or the status of a resource.
 - When two bookings exceed a limit together, both report the conflict.
 
 ## 5. Recalculation

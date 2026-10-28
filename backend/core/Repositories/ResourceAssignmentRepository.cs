@@ -31,7 +31,9 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         "ra.created_at, ra.updated_at";
 
     // A booking occupies its resource unless it or its request is cancelled
-    // (docs/scheduling-integrity-spec.md, section 4). Done work still occupies.
+    // (docs/scheduling-integrity-spec.md, section 4). Done work still occupies. Every read of
+    // what occupies a resource over a window uses it: the limit checks, Insights, utilization
+    // and a resource's own booking list.
     private static readonly string Occupying =
         "ra.assignment_status != @cancelled AND NOT EXISTS (SELECT 1 FROM requests q " +
         $"WHERE q.id = ra.request_id AND q.status = '{EnumMapper.ToDbValue(RequestStatus.Cancelled)}')";
@@ -111,7 +113,7 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         return await db.QueryListAsync(
             $"SELECT {SelectColumns} {FromJoin} " +
             "WHERE ra.resource_id = @resourceId " +
-            "  AND ra.assignment_status != @cancelled " +
+            $"  AND {Occupying} " +
             "  AND ra.start_utc < @toUtc AND ra.end_utc > @fromUtc " +
             "ORDER BY ra.start_utc",
             p =>
@@ -130,7 +132,7 @@ public class ResourceAssignmentRepository(OrgContext orgContext, IOrgDbConnectio
         return await db.QueryListAsync(
             $"SELECT {SelectColumns} {FromJoin} " +
             "WHERE rt.key = @typeKey " +
-            "  AND ra.assignment_status != @cancelled " +
+            $"  AND {Occupying} " +
             "  AND ra.start_utc < @toUtc AND ra.end_utc > @fromUtc " +
             "ORDER BY ra.resource_id, ra.start_utc",
             p =>

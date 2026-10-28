@@ -110,6 +110,23 @@ public class ResourceAssignmentEndpointTests
     }
 
     [Fact]
+    public async Task CancelledRequest_LeavesTheResourceBookingViews()
+    {
+        // The resource's booking list and the per-type grid read the same occupancy rule as the
+        // checks: a cancelled request's booking is no longer there.
+        var resource = await CreateExclusiveResource();
+        var request = await GetTestRequestIdAsync();
+        var booking = MakeRequest(resource.Id, request);
+        await _client.PostAsJsonAsync("/api/resource-assignments", booking);
+        var window = $"from={booking.StartUtc.AddDays(-1):O}&to={booking.EndUtc.AddDays(1):O}";
+        Assert.Single(await _client.GetFromJsonAsync<List<ResourceAssignmentInfo>>($"/api/resources/{resource.Id}/assignments?{window}") ?? []);
+
+        await _client.PutAsJsonAsync($"/api/requests/{request}", new UpdateRequestRequest { Status = RequestStatus.Cancelled });
+
+        Assert.Empty(await _client.GetFromJsonAsync<List<ResourceAssignmentInfo>>($"/api/resources/{resource.Id}/assignments?{window}") ?? []);
+    }
+
+    [Fact]
     public async Task ConcurrentCapacity_AllowsUpToTheCapacityAtOnce()
     {
         var created = await _client.PostAsJsonAsync("/api/resources", new CreateResourceRequest
