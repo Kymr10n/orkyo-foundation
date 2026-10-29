@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
-using Npgsql;
 using Orkyo.Shared;
 
 namespace Api.Endpoints;
@@ -27,7 +26,7 @@ public static class ContactEndpoints
         group.MapPost("/", async (
             [FromBody] ContactRequest request,
             IValidator<ContactRequest> validator,
-            IDbConnectionFactory connectionFactory,
+            IContactSubmissionRepository contactSubmissions,
             IEmailService emailService,
             IConfiguration configuration,
             TimeProvider time,
@@ -36,20 +35,7 @@ public static class ContactEndpoints
         {
             return await EndpointHelpers.ExecuteAsync(request, validator, async () =>
             {
-                await using var conn = connectionFactory.CreateControlPlaneConnection();
-                await conn.ExecuteAsync(@"
-                    INSERT INTO contact_submissions (id, name, email, company, subject, message, created_at_utc)
-                    VALUES (@id, @name, @email, @company, @subject, @message, @createdAt)",
-                    p =>
-                    {
-                        p.AddWithValue("id", Guid.NewGuid());
-                        p.AddWithValue("name", request.Name.Trim());
-                        p.AddWithValue("email", request.Email.Trim());
-                        p.AddNullable("company", request.Company?.Trim());
-                        p.AddWithValue("subject", request.Subject);
-                        p.AddWithValue("message", request.Message.Trim());
-                        p.AddWithValue("createdAt", time.GetUtcNow().UtcDateTime);
-                    }, ct);
+                await contactSubmissions.AddAsync(request, time.GetUtcNow().UtcDateTime, ct);
 
                 logger.LogInformation("Contact form submitted (subject={Subject})", request.Subject);
 

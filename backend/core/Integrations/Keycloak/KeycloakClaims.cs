@@ -23,6 +23,18 @@ public static class KeycloakClaims
     /// <summary>Preferred username</summary>
     public const string PreferredUsername = "preferred_username";
 
+    /// <summary>
+    /// Client of a client-credentials (service-account) token. Keycloak 20+ names it
+    /// <c>client_id</c>; older releases <c>clientId</c>. A user's token carries neither.
+    /// </summary>
+    public const string ServiceAccountClientId = "client_id";
+
+    /// <summary>The pre-20 spelling of <see cref="ServiceAccountClientId"/>.</summary>
+    public const string LegacyServiceAccountClientId = "clientId";
+
+    /// <summary>Keycloak's <see cref="PreferredUsername"/> prefix for a client's service-account user.</summary>
+    public const string ServiceAccountUsernamePrefix = "service-account-";
+
     /// <summary>Given name (first name)</summary>
     public const string GivenName = "given_name";
 

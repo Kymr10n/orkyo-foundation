@@ -14,16 +14,9 @@ public partial class ConventionContractTests
     /// <summary>
     /// Endpoint handlers reach the database through repositories. Raw ADO.NET, or an
     /// <c>NpgsqlQueryExtensions</c> query on the handler's own connection, bypasses the tested
-    /// data layer and grows god-class endpoints. These files predate the rule; shrink on touch.
+    /// data layer and grows god-class endpoints. No baseline: the last five files moved their SQL
+    /// into repositories in 2026-10, so the rule admits no exception.
     /// </summary>
-    private static readonly HashSet<string> KnownEndpointDataAccessFiles = new(StringComparer.Ordinal)
-    {
-        "src:Endpoints/Admin/AuditEndpoints.cs",
-        "src:Endpoints/Admin/DiagnosticsAdminEndpoints.cs",
-        "src:Endpoints/ContactEndpoints.cs",
-        "src:Endpoints/QuotaEndpoints.cs",
-        "src:Endpoints/TenantAuditEndpoints.cs",
-    };
 
     [GeneratedRegex(@"new\s+NpgsqlCommand|NpgsqlDataReader|\.OpenAsync\(|(?<![\w.])(?:conn|db)\.(?:QueryPagedAsync|QueryCappedAsync|ExecuteAsync|QueryListAsync|QuerySingleOrDefaultAsync)\(")]
     private static partial Regex EndpointDataAccessRegex();
@@ -122,7 +115,6 @@ public partial class ConventionContractTests
     [
         new("EndpointDataAccess", EndpointDataAccessRegex(), ["src"],
             Scope: f => f.Rel.StartsWith("Endpoints/", StringComparison.Ordinal),
-            Baseline: KnownEndpointDataAccessFiles,
             Exemplars:
             [
                 new("await using var cmd = new NpgsqlCommand(sql, conn);"),
@@ -131,8 +123,7 @@ public partial class ConventionContractTests
                     "the validation wrapper is not data access"),
             ],
             ForbidMessage: "endpoint handlers reach the database through a repository, not raw ADO.NET "
-                + "or a query on their own connection. The grandfathered files are in "
-                + "KnownEndpointDataAccessFiles and shrink on touch."),
+                + "or a query on their own connection (core/Repositories)."),
 
         new("StaticMemoryCache", StaticMemoryCacheRegex(), ["src", "core"],
             Exemplars: [new("private static readonly MemoryCache _principalCache = new(...);")],

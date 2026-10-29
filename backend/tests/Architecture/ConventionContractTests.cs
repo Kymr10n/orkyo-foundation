@@ -83,7 +83,6 @@ public partial class ConventionContractTests
         "core:Services/UserProvisioningService.cs",
         "core:Services/UserLifecycleService.cs",
         "core:Services/AnnouncementBroadcastService.cs",
-        "src:Endpoints/QuotaEndpoints.cs",
     };
 
     private static readonly HashSet<string> SqlLiteralExemptFiles = new(StringComparer.Ordinal)

@@ -40,7 +40,6 @@ public partial class ApiPathContractTests
         "/api/tenants",
         "/api/tenants/can-create",
         "/api/tenants/starter-templates",
-        "/api/tenants/memberships",
         "/api/tenants/{}",
         "/api/tenants/{}/leave",
         "/api/tenants/{}/cancel-deletion",

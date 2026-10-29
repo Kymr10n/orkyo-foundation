@@ -130,6 +130,18 @@ public static class AuthenticationServiceExtensions
                         context.Fail("Token was not issued to this API");
                         return Task.CompletedTask;
                     }
+                    // The backend's own service account gets client-credentials tokens with this
+                    // audience and azp (it calls the Keycloak Admin API with them). Such a token
+                    // names no user, so it is never an API call either.
+                    var username = context.Principal?.FindFirst(KeycloakClaims.PreferredUsername)?.Value;
+                    if (context.Principal?.FindFirst(KeycloakClaims.ServiceAccountClientId) is not null
+                        || context.Principal?.FindFirst(KeycloakClaims.LegacyServiceAccountClientId) is not null
+                        || (username?.StartsWith(KeycloakClaims.ServiceAccountUsernamePrefix, StringComparison.Ordinal) ?? false))
+                    {
+                        logger.LogWarning("Rejected a service-account token (preferred_username={Username})", username);
+                        context.Fail("Service-account tokens are not API calls");
+                        return Task.CompletedTask;
+                    }
                     var sub = context.Principal?.FindFirst(KeycloakClaims.Subject)?.Value ?? "(none)";
                     logger.LogDebug("Token validated for subject {Sub}", sub);
                     return Task.CompletedTask;

@@ -68,6 +68,9 @@ public interface ITenantControlPlaneRepository
     /// <summary>Owner + status for the owner-gated policies, or null when the tenant doesn't exist.</summary>
     Task<TenantOwnerStatus?> GetOwnerStatusAsync(Guid tenantId, CancellationToken ct = default);
 
+    /// <summary>Active memberships of the tenant: the seats it uses.</summary>
+    Task<long> CountActiveMembershipsAsync(Guid tenantId, CancellationToken ct = default);
+
     /// <summary>Role + status of the user's membership in the tenant (any status), or null when no membership row exists.</summary>
     Task<TenantMembershipRoleStatus?> GetMembershipRoleStatusAsync(Guid tenantId, Guid userId, CancellationToken ct = default);
 

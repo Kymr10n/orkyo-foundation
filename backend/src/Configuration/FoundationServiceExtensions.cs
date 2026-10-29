@@ -27,8 +27,8 @@ public static class FoundationServiceExtensions
     /// or repository to foundation is immediately available in all products.
     ///
     /// Product-specific registrations (IDbConnectionFactory, IQuotaEnforcer,
-    /// IAdminAuditService, IBreakGlassSessionStore, etc.) remain in each product's
-    /// Program.cs.
+    /// IAdminAuditService, IBreakGlassSessionStore, ITenantMembershipQuery, etc.) remain in
+    /// each product's Program.cs.
     /// </summary>
     public static IServiceCollection AddFoundationServices(
         this IServiceCollection services, IConfiguration configuration)
@@ -53,6 +53,9 @@ public static class FoundationServiceExtensions
         // SingleFlightCache write carries Size = 1 so such a limit applies.
         services.AddMemoryCache();
         services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
+        // Role and status writes evict through this, so every API process drops the stale entry.
+        services.TryAddSingleton<Api.Services.Caching.IdentityCacheEvictor>();
+        services.AddHostedService<Api.Services.Caching.IdentityCacheEvictionSubscriber>();
         // Analytics payloads get their own bounded instance — see AnalyticsCache for why
         // a SizeLimit on the shared cache would be the wrong fix.
         services.TryAddSingleton<Api.Services.Caching.AnalyticsCache>();
@@ -116,10 +119,13 @@ public static class FoundationServiceExtensions
 
         // ── Repositories ──────────────────────────────────────────────────────
         services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        services.AddScoped<IContactSubmissionRepository, ContactSubmissionRepository>();
         services.AddScoped<ICriteriaRepository, CriteriaRepository>();
         services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
+        services.AddScoped<IPlatformAuditEventRepository, PlatformAuditEventRepository>();
+        services.AddScoped<IPlatformDiagnosticsRepository, PlatformDiagnosticsRepository>();
         services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
         services.AddScoped<IRequestTreeRepository, RequestTreeRepository>();
@@ -143,6 +149,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         services.AddScoped<ITemplateRepository, TemplateRepository>();
         services.AddScoped<IRoutingRepository, RoutingRepository>();
+        services.AddScoped<ITenantAuditEventRepository, TenantAuditEventRepository>();
         services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
         services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();
