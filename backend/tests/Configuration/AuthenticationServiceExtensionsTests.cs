@@ -168,6 +168,41 @@ public class AuthenticationServiceExtensionsTests
         (context.Result?.Failure is null).Should().Be(accepted);
     }
 
+    [Theory]
+    [InlineData("client_id", "orkyo-backend")]
+    [InlineData("clientId", "orkyo-backend")]
+    [InlineData("preferred_username", "service-account-orkyo-backend")]
+    public async Task OnTokenValidated_RejectsServiceAccountTokens(string claim, string value)
+    {
+        var context = TokenValidatedContextWith(new Claim(claim, value));
+
+        await context.Options.Events!.OnTokenValidated(context);
+
+        context.Result?.Failure.Should().NotBeNull("a client-credentials token names no user");
+    }
+
+    [Fact]
+    public async Task OnTokenValidated_AcceptsAUserTokenWithAUsername()
+    {
+        var context = TokenValidatedContextWith(new Claim("preferred_username", "alice@example.com"));
+
+        await context.Options.Events!.OnTokenValidated(context);
+
+        context.Result?.Failure.Should().BeNull();
+    }
+
+    private static TokenValidatedContext TokenValidatedContextWith(Claim extra)
+    {
+        var options = BuildJwtOptions(oidcAuthority: "https://auth.example.com/realms/orkyo", internalAuthority: null);
+        var claims = new List<Claim> { new("sub", "user-1"), new("typ", "Bearer"), new("azp", "orkyo-backend"), extra };
+        var httpContext = new DefaultHttpContext { RequestServices = new ServiceCollection().AddLogging().BuildServiceProvider() };
+        var scheme = new AuthenticationScheme(JwtBearerDefaults.AuthenticationScheme, null, typeof(JwtBearerHandler));
+        return new TokenValidatedContext(httpContext, scheme, options)
+        {
+            Principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "Bearer")),
+        };
+    }
+
     // ── Idempotency ───────────────────────────────────────────────────────────
     // Products call AddOrkyoAuthentication explicitly in Program.cs (per their
     // explicit-registration rule) while AddFoundationServices also calls it. The
