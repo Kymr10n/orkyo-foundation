@@ -82,6 +82,44 @@ public class ConfigurationValidatorTests
         errors.Should().NotContain(e => e.Contains("AllowTenantHeader"));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(BffOptions.DefaultCookieName)]
+    public void Validate_ReturnsError_WhenStagingUsesTheProductionCookieName(string? cookieName)
+    {
+        var values = ValidConfigValues();
+        values[ConfigKeys.BffCookieName] = cookieName;
+        var config = BuildConfig(values);
+
+        var errors = ConfigurationValidator.Validate(config, EnvironmentNames.Staging);
+
+        errors.Should().ContainSingle(e => e.Contains(ConfigKeys.BffCookieName));
+    }
+
+    [Fact]
+    public void Validate_ReturnsNoCookieNameError_WhenStagingHasItsOwnCookieName()
+    {
+        var values = ValidConfigValues();
+        values[ConfigKeys.BffCookieName] = "orkyo-staging-session";
+        var config = BuildConfig(values);
+
+        var errors = ConfigurationValidator.Validate(config, EnvironmentNames.Staging);
+
+        errors.Should().NotContain(e => e.Contains(ConfigKeys.BffCookieName));
+    }
+
+    [Fact]
+    public void Validate_ReturnsNoCookieNameError_InProductionWithTheDefaultName()
+    {
+        var values = ValidConfigValues();
+        values[ConfigKeys.BffCookieName] = BffOptions.DefaultCookieName;
+        var config = BuildConfig(values);
+
+        var errors = ConfigurationValidator.Validate(config, EnvironmentNames.Production);
+
+        errors.Should().NotContain(e => e.Contains(ConfigKeys.BffCookieName));
+    }
+
     [Fact]
     public void Validate_UsesEnvironmentFromConfig_WhenNotPassedExplicitly()
     {

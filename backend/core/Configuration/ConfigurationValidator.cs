@@ -35,6 +35,14 @@ public static class ConfigurationValidator
         if (allowTenantHeader && string.Equals(env, EnvironmentNames.Production, StringComparison.OrdinalIgnoreCase))
             errors.Add("TenantResolution:AllowTenantHeader must NOT be true in Production (tenant impersonation risk)");
 
+        // Staging and production share the cookie domain (staging tenants are sibling hosts
+        // of production ones), so the session cookie name is the only thing keeping a staging
+        // session out of production's cookie. Staging must not use production's default name.
+        var cookieName = configuration[ConfigKeys.BffCookieName];
+        if (string.Equals(env, EnvironmentNames.Staging, StringComparison.OrdinalIgnoreCase)
+            && (string.IsNullOrEmpty(cookieName) || cookieName == BffOptions.DefaultCookieName))
+            errors.Add($"'{ConfigKeys.BffCookieName}' must be set and differ from '{BffOptions.DefaultCookieName}' in Staging: the cookie domain is shared with Production");
+
         foreach (var key in DeploymentConfig.RequiredKeys)
         {
             if (string.IsNullOrEmpty(configuration[key]))
