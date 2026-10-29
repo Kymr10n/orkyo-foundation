@@ -201,6 +201,7 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
         // single tenant, so a stub that returns the ambient TenantContext for any slug is sufficient.
         builder.Services.AddScoped<ITenantResolver>(sp => new TestTenantResolver(sp.GetRequiredService<TenantContext>()));
         builder.Services.AddScoped<Api.Security.Quotas.IQuotaEnforcer, Api.Security.Quotas.NoOpQuotaEnforcer>();
+        builder.Services.AddScoped<ITenantMembershipQuery, ControlPlaneTenantMembershipQuery>();
         builder.Services.AddScoped<IAdminAuditService, AdminAuditService>();
         // Break-glass is a multi-tenant concept; the single-tenant null object is what
         // Community registers, and it is exactly the no-session behaviour these tests expect.

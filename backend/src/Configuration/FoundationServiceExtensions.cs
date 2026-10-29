@@ -27,8 +27,8 @@ public static class FoundationServiceExtensions
     /// or repository to foundation is immediately available in all products.
     ///
     /// Product-specific registrations (IDbConnectionFactory, IQuotaEnforcer,
-    /// IAdminAuditService, IBreakGlassSessionStore, etc.) remain in each product's
-    /// Program.cs.
+    /// IAdminAuditService, IBreakGlassSessionStore, ITenantMembershipQuery, etc.) remain in
+    /// each product's Program.cs.
     /// </summary>
     public static IServiceCollection AddFoundationServices(
         this IServiceCollection services, IConfiguration configuration)

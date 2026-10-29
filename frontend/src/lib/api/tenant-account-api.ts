@@ -10,6 +10,7 @@ import { apiGet, apiPost, apiDelete } from "../core/api-client";
 import { API_PATHS } from "../core/api-paths";
 
 /** One row of the account page's organization list; not the auth session's `TenantMembership`. */
+/** Mirror of backend TenantMembershipResponse (GET /api/tenants/memberships). */
 export interface AccountMembership {
   tenantId: string;
   tenantSlug: string;
@@ -18,7 +19,8 @@ export interface AccountMembership {
   role: string;
   status: string;
   isOwner: boolean;
-  joinedAt: string;
+  /** Null when the edition keeps no membership row (Community's single workspace). */
+  joinedAt: string | null;
 }
 
 interface CanCreateTenantResponse {
