@@ -28,7 +28,8 @@ public static class FoundationWorkerServiceExtensions
         services.AddMemoryCache();
         services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
         // The worker caches no roles but disables users (UserLifecycleService): it publishes the
-        // eviction for the API processes. No subscriber here.
+        // eviction for the API processes over Valkey (VALKEY_CONNECTION, required). No subscriber.
+        services.AddOrkyoValkey(configuration);
         services.TryAddSingleton<Api.Services.Caching.IdentityCacheEvictor>();
         // UserLifecycleService resolves IKeycloakAdminService per run-cycle for disable/purge.
         services.AddKeycloakAdmin(configuration);

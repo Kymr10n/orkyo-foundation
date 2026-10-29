@@ -176,10 +176,22 @@ public sealed class UserLifecycleService
                 _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
 
                 // The worker caches no roles, but the API processes do: publish the eviction so
-                // the disabled user loses access now, not when the cached roles expire.
-                if (_identityCacheEvictor is not null)
-                    foreach (var tenantId in await TenantMembershipSql.TenantIdsOfUserAsync(db, user.Id, ct))
-                        _identityCacheEvictor.EvictRole(user.Id, tenantId);
+                // the disabled user loses access now, not when the cached entries expire. Best
+                // effort — a failure here must not skip the Keycloak disable below.
+                try
+                {
+                    if (_identityCacheEvictor is not null)
+                    {
+                        foreach (var tenantId in await IdentityEvictionSql.TenantIdsOfUserAsync(db, user.Id, ct))
+                            _identityCacheEvictor.EvictRole(user.Id, tenantId);
+                        if (!string.IsNullOrEmpty(user.KeycloakId))
+                            _identityCacheEvictor.EvictPrincipal(user.KeycloakId);
+                    }
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Identity cache eviction for user {UserId} failed; API processes keep the cached entries until their TTL", user.Id);
+                }
 
                 // A Keycloak failure here is logged, not retried: the committed status = 'disabled'
                 // already refuses the user everywhere the app resolves them (identity lookup and

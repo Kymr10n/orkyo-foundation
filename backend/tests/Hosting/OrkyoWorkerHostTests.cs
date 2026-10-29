@@ -115,8 +115,9 @@ public class OrkyoWorkerHostTests
         Assert.True(announcements.IsDue(DateTime.UtcNow, DateTime.UtcNow));
     }
     /// <summary>
-    /// AddFoundationWorkerServices builds KeycloakOptions eagerly, so the keys it requires have
-    /// to be present. Values are irrelevant; nothing here connects.
+    /// AddFoundationWorkerServices builds KeycloakOptions eagerly and requires the Valkey
+    /// connection string, so those keys have to be present. Values are irrelevant; nothing here
+    /// connects.
     /// </summary>
     private static HostBuilderContext BuildContext(string? smtpHost = null) =>
         new(new Dictionary<object, object>())
@@ -130,6 +131,9 @@ public class OrkyoWorkerHostTests
                 [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
                 [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
                 [ConfigKeys.SmtpHost] = smtpHost,
+                // Required since the worker publishes identity-cache evictions; abortConnect=false
+                // makes the multiplexer construct without a reachable server.
+                [ConfigKeys.ValkeyConnection] = "localhost:6379,abortConnect=false",
             }).Build(),
         };
 

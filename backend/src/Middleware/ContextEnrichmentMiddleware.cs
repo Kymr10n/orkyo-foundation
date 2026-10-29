@@ -31,7 +31,6 @@ public sealed class ContextEnrichmentMiddleware
 
     // Key prefixes on the shared cache. Conventional middleware is constructed once for the
     // pipeline, so these entries are process-wide, as the three static caches they replace were.
-    private const string PrincipalKeyPrefix = "identity:principal:";   // externalSubject → PrincipalContext
     // Track which user stubs have already been created (INSERT ON CONFLICT is idempotent, so the
     // worst case of a stale entry is one redundant no-op INSERT after an eviction).
     private const string StubKeyPrefix = "identity:stub:";             // "userId:tenantId" → true
@@ -142,7 +141,7 @@ public sealed class ContextEnrichmentMiddleware
         var subject = tokenProfile.Subject!;
 
         // Check cache first
-        if (_cache.TryGet<PrincipalContext>(PrincipalKeyPrefix + subject, out var cached) && cached != null)
+        if (_cache.TryGet<PrincipalContext>(IdentityCacheKeys.Principal(subject), out var cached) && cached != null)
         {
             // Merge cached DB principal with live token's realm roles
             return new PrincipalContext
@@ -188,7 +187,7 @@ public sealed class ContextEnrichmentMiddleware
         // Cache the DB-sourced principal. The unlinked case above returns without caching:
         // an unlinked subject links within seconds of bootstrap, and a cached null would
         // hold the refusal for the whole TTL.
-        _cache.Set(PrincipalKeyPrefix + subject, principal, CacheTtl);
+        _cache.Set(IdentityCacheKeys.Principal(subject), principal, CacheTtl);
 
         // Merge DB principal with token's realm roles (IsSiteAdmin comes from token, not DB)
         return new PrincipalContext

@@ -57,7 +57,7 @@ public static class AuditEndpoints
 /// <summary>
 /// What the platform audit (control plane) and the tenant audit (tenant database) endpoints
 /// share: the actor-id parsing and the response envelope. The query is in
-/// <see cref="Api.Repositories.AuditEventSql"/>.
+/// <c>AuditEventSql</c> (core/Repositories).
 /// </summary>
 internal static class AuditQuery
 {

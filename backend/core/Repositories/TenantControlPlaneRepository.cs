@@ -15,8 +15,8 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly IdentityCacheEvictor? _identityCacheEvictor;
 
-    /// <param name="identityCache">
-    /// The shared cache the request pipeline keeps each user's tenant role in, evicted when a
+    /// <param name="identityCacheEvictor">
+    /// Evicts the role the request pipeline caches per user and tenant, in every process, when a
     /// membership is deleted. Optional only because orkyo-saas's <c>TenantServiceIntegrationTests</c>
     /// and <c>TenantServiceCreationIntegrationTests</c> compose this by hand; DI always supplies it.
     /// </param>

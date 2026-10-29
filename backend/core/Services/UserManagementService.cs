@@ -145,11 +145,16 @@ public class UserManagementService : IUserManagementService
         cmd.Parameters.AddWithValue("userId", userId);
         await cmd.ExecuteNonQueryAsync(ct);
 
-        // The cached role counts only non-disabled users, so a status change invalidates the
-        // user's role in every tenant they belong to.
+        // The cached role counts only non-disabled users, and the cached principal is read
+        // before any status check, so a status change invalidates both: the role in every
+        // tenant the user belongs to and the principal of every linked subject.
         if (_identityCacheEvictor is not null)
-            foreach (var tenantId in await TenantMembershipSql.TenantIdsOfUserAsync(conn, userId, ct))
+        {
+            foreach (var tenantId in await IdentityEvictionSql.TenantIdsOfUserAsync(conn, userId, ct))
                 _identityCacheEvictor.EvictRole(userId, tenantId);
+            foreach (var subject in await IdentityEvictionSql.ExternalSubjectsOfUserAsync(conn, userId, ct))
+                _identityCacheEvictor.EvictPrincipal(subject);
+        }
     }
 
     public Task PermanentlyDeleteAsync(Guid userId, CancellationToken ct = default) =>

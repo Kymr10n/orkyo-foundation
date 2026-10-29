@@ -24,6 +24,12 @@ public sealed class IdentityCacheEvictor(
     /// <summary>Evicts a user's cached role in one tenant, everywhere.</summary>
     public void EvictRole(Guid userId, Guid tenantId) => Evict(IdentityCacheKeys.Role(userId, tenantId));
 
+    /// <summary>
+    /// Evicts the cached DB principal of an external subject, everywhere. A disabled user must
+    /// stop resolving on the tenant-less routes too, not only lose their tenant roles.
+    /// </summary>
+    public void EvictPrincipal(string externalSubject) => Evict(IdentityCacheKeys.Principal(externalSubject));
+
     private void Evict(string key)
     {
         cache.Remove(key);
@@ -53,19 +59,33 @@ public sealed class IdentityCacheEvictionSubscriber(
     ILogger<IdentityCacheEvictionSubscriber> logger,
     IConnectionMultiplexer? valkey = null) : IHostedService
 {
+    private int _subscribed;
+
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (valkey is null)
             return;
+        // A failed first attempt is retried when the client reconnects: a process that never
+        // subscribed would otherwise serve stale roles for its whole lifetime (StackExchange.Redis
+        // re-subscribes on its own only for a subscription that was registered). Startup itself is
+        // not failed — a Valkey restart during a slot start would then take the API down with it.
+        valkey.ConnectionRestored += async (_, _) => await TrySubscribeAsync();
+        await TrySubscribeAsync();
+    }
+
+    private async Task TrySubscribeAsync()
+    {
+        if (Interlocked.CompareExchange(ref _subscribed, 1, 0) != 0)
+            return;
         try
         {
-            // StackExchange.Redis re-subscribes on its own after a reconnect.
-            await valkey.GetSubscriber().SubscribeAsync(IdentityCacheEvictor.Channel, (_, message) => evictor.OnRemoteEviction(message));
+            await valkey!.GetSubscriber().SubscribeAsync(IdentityCacheEvictor.Channel, (_, message) => evictor.OnRemoteEviction(message));
+            logger.LogInformation("Subscribed to identity cache evictions");
         }
         catch (Exception ex) when (ex is RedisException or ObjectDisposedException)
         {
-            // Not fatal: the API serves without it, with the TTL as the only bound on staleness.
-            logger.LogWarning(ex, "Identity cache eviction channel not subscribed; cached roles expire by TTL only");
+            Interlocked.Exchange(ref _subscribed, 0);
+            logger.LogWarning(ex, "Identity cache eviction channel not subscribed; retried when Valkey reconnects, cached roles expire by TTL until then");
         }
     }
 
