@@ -27,6 +27,9 @@ public static class FoundationWorkerServiceExtensions
         // worker host too. AddMemoryCache is TryAdd: a product's own IMemoryCache wins.
         services.AddMemoryCache();
         services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
+        // The worker caches no roles but disables users (UserLifecycleService): it publishes the
+        // eviction for the API processes. No subscriber here.
+        services.TryAddSingleton<Api.Services.Caching.IdentityCacheEvictor>();
         // UserLifecycleService resolves IKeycloakAdminService per run-cycle for disable/purge.
         services.AddKeycloakAdmin(configuration);
         // Org connections resolve through whichever IDbConnectionFactory the product registered.

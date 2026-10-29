@@ -13,17 +13,17 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
     private const string TenantProjection = "id, slug, display_name, status, db_identifier, owner_user_id, created_at";
 
     private readonly IDbConnectionFactory _connectionFactory;
-    private readonly SingleFlightCache? _identityCache;
+    private readonly IdentityCacheEvictor? _identityCacheEvictor;
 
     /// <param name="identityCache">
     /// The shared cache the request pipeline keeps each user's tenant role in, evicted when a
     /// membership is deleted. Optional only because orkyo-saas's <c>TenantServiceIntegrationTests</c>
     /// and <c>TenantServiceCreationIntegrationTests</c> compose this by hand; DI always supplies it.
     /// </param>
-    public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory, SingleFlightCache? identityCache = null)
+    public TenantControlPlaneRepository(IDbConnectionFactory connectionFactory, IdentityCacheEvictor? identityCacheEvictor = null)
     {
         _connectionFactory = connectionFactory;
-        _identityCache = identityCache;
+        _identityCacheEvictor = identityCacheEvictor;
     }
 
     private static TenantRecord MapTenantRecord(NpgsqlDataReader reader) => new(
@@ -244,7 +244,6 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
         // admins first still cannot race another leave or demotion past the guard.
         if (await ActiveAdminGuard.DeleteAsync(conn, tenantId, userId, ct) == GuardedMembershipWrite.LastActiveAdmin)
             throw new ConflictException(ActiveAdminGuard.RemovalRefused);
-        // Per process instance: another instance keeps the stale role until its TTL runs out.
-        _identityCache?.Remove(IdentityCacheKeys.Role(userId, tenantId));
+        _identityCacheEvictor?.EvictRole(userId, tenantId);
     }
 }

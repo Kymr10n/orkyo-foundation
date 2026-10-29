@@ -37,10 +37,10 @@ public class UserManagementService : IUserManagementService
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly ITenantUserService _tenantUserService;
     private readonly ILogger<UserManagementService> _logger;
-    private readonly SingleFlightCache? _identityCache;
+    private readonly IdentityCacheEvictor? _identityCacheEvictor;
 
-    /// <param name="identityCache">
-    /// The shared cache the request pipeline keeps each user's tenant role in. Optional only
+    /// <param name="identityCacheEvictor">
+    /// Evicts the role the request pipeline caches per user and tenant, in every process. Optional only
     /// because orkyo-saas's <c>UserManagementServiceIntegrationTests</c> composes this service by
     /// hand; DI always supplies it.
     /// </param>
@@ -48,12 +48,12 @@ public class UserManagementService : IUserManagementService
         IDbConnectionFactory connectionFactory,
         ITenantUserService tenantUserService,
         ILogger<UserManagementService> logger,
-        SingleFlightCache? identityCache = null)
+        IdentityCacheEvictor? identityCacheEvictor = null)
     {
         _connectionFactory = connectionFactory;
         _tenantUserService = tenantUserService;
         _logger = logger;
-        _identityCache = identityCache;
+        _identityCacheEvictor = identityCacheEvictor;
     }
 
     /// <summary>
@@ -90,9 +90,8 @@ public class UserManagementService : IUserManagementService
 
         var outcome = await ActiveAdminGuard.SetRoleAsync(conn, org.OrgId, userId, role.ToString().ToLowerInvariant(), ct);
 
-        // A demoted member must not keep the old role for the rest of the cache TTL. The cache
-        // is per process instance: another instance keeps the stale role until its TTL runs out.
-        _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
+        // A demoted member must not keep the old role for the rest of the cache TTL, in any process.
+        _identityCacheEvictor?.EvictRole(userId, org.OrgId);
 
         if (outcome == GuardedMembershipWrite.LastActiveAdmin)
         {
@@ -117,9 +116,8 @@ public class UserManagementService : IUserManagementService
 
         var outcome = await ActiveAdminGuard.DeleteAsync(conn, org.OrgId, userId, ct);
 
-        // A removed member must lose access now, not when the cached role expires. The cache
-        // is per process instance: another instance keeps the stale role until its TTL runs out.
-        _identityCache?.Remove(IdentityCacheKeys.Role(userId, org.OrgId));
+        // A removed member must lose access now, not when the cached role expires.
+        _identityCacheEvictor?.EvictRole(userId, org.OrgId);
 
         if (outcome == GuardedMembershipWrite.LastActiveAdmin)
         {
@@ -146,6 +144,12 @@ public class UserManagementService : IUserManagementService
         cmd.Parameters.AddWithValue("status", status);
         cmd.Parameters.AddWithValue("userId", userId);
         await cmd.ExecuteNonQueryAsync(ct);
+
+        // The cached role counts only non-disabled users, so a status change invalidates the
+        // user's role in every tenant they belong to.
+        if (_identityCacheEvictor is not null)
+            foreach (var tenantId in await TenantMembershipSql.TenantIdsOfUserAsync(conn, userId, ct))
+                _identityCacheEvictor.EvictRole(userId, tenantId);
     }
 
     public Task PermanentlyDeleteAsync(Guid userId, CancellationToken ct = default) =>

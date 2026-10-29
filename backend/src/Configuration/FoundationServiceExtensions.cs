@@ -53,6 +53,9 @@ public static class FoundationServiceExtensions
         // SingleFlightCache write carries Size = 1 so such a limit applies.
         services.AddMemoryCache();
         services.TryAddSingleton<Api.Services.Caching.SingleFlightCache>();
+        // Role and status writes evict through this, so every API process drops the stale entry.
+        services.TryAddSingleton<Api.Services.Caching.IdentityCacheEvictor>();
+        services.AddHostedService<Api.Services.Caching.IdentityCacheEvictionSubscriber>();
         // Analytics payloads get their own bounded instance — see AnalyticsCache for why
         // a SizeLimit on the shared cache would be the wrong fix.
         services.TryAddSingleton<Api.Services.Caching.AnalyticsCache>();

@@ -3,6 +3,7 @@ using Api.Helpers;
 using Api.Integrations.Keycloak;
 using Api.Repositories;
 using Api.Security;
+using Api.Services.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Orkyo.Shared;
 
@@ -38,17 +39,20 @@ public sealed class UserLifecycleService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly TimeProvider _time;
     private readonly UserDataPurger _purger;
+    private readonly IdentityCacheEvictor? _identityCacheEvictor;
 
     public UserLifecycleService(
         ILogger<UserLifecycleService> logger,
         IDbConnectionFactory connectionFactory,
         IServiceScopeFactory scopeFactory,
-        TimeProvider time)
+        TimeProvider time,
+        IdentityCacheEvictor? identityCacheEvictor = null)
     {
         _logger = logger;
         _connectionFactory = connectionFactory;
         _scopeFactory = scopeFactory;
         _time = time;
+        _identityCacheEvictor = identityCacheEvictor;
         _purger = new UserDataPurger(connectionFactory, logger);
     }
 
@@ -170,6 +174,12 @@ public sealed class UserLifecycleService
 
                 await tx.CommitAsync(ct);
                 _logger.LogWarning("User {UserId} deactivated — no response to 3 lifecycle warnings", user.Id);
+
+                // The worker caches no roles, but the API processes do: publish the eviction so
+                // the disabled user loses access now, not when the cached roles expire.
+                if (_identityCacheEvictor is not null)
+                    foreach (var tenantId in await TenantMembershipSql.TenantIdsOfUserAsync(db, user.Id, ct))
+                        _identityCacheEvictor.EvictRole(user.Id, tenantId);
 
                 // A Keycloak failure here is logged, not retried: the committed status = 'disabled'
                 // already refuses the user everywhere the app resolves them (identity lookup and

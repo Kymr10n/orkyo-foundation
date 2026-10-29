@@ -7,6 +7,9 @@ namespace Api.Services.Caching;
 /// </summary>
 public static class IdentityCacheKeys
 {
+    /// <summary>Every identity key starts with this; the eviction channel accepts nothing else.</summary>
+    public const string Prefix = "identity:";
+
     /// <summary>A user's cached role in one tenant (a <c>TenantRole</c>).</summary>
-    public static string Role(Guid userId, Guid tenantId) => $"identity:role:{userId}:{tenantId}";
+    public static string Role(Guid userId, Guid tenantId) => $"{Prefix}role:{userId}:{tenantId}";
 }
