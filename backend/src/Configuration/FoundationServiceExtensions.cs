@@ -116,10 +116,13 @@ public static class FoundationServiceExtensions
 
         // ── Repositories ──────────────────────────────────────────────────────
         services.AddScoped<IAnnouncementRepository, AnnouncementRepository>();
+        services.AddScoped<IContactSubmissionRepository, ContactSubmissionRepository>();
         services.AddScoped<ICriteriaRepository, CriteriaRepository>();
         services.AddScoped<ICriterionApplicabilityRepository, CriterionApplicabilityRepository>();
         services.AddScoped<IFeedbackRepository, FeedbackRepository>();
         services.AddScoped<IGroupCapabilityRepository, GroupCapabilityRepository>();
+        services.AddScoped<IPlatformAuditEventRepository, PlatformAuditEventRepository>();
+        services.AddScoped<IPlatformDiagnosticsRepository, PlatformDiagnosticsRepository>();
         services.AddScoped<IPlatformUserRepository, PlatformUserRepository>();
         services.AddScoped<IRequestRepository, RequestRepository>();
         services.AddScoped<IRequestTreeRepository, RequestTreeRepository>();
@@ -143,6 +146,7 @@ public static class FoundationServiceExtensions
         services.AddScoped<ISiteSettingsRepository, SiteSettingsRepository>();
         services.AddScoped<ITemplateRepository, TemplateRepository>();
         services.AddScoped<IRoutingRepository, RoutingRepository>();
+        services.AddScoped<ITenantAuditEventRepository, TenantAuditEventRepository>();
         services.AddScoped<ITenantControlPlaneRepository, TenantControlPlaneRepository>();
         services.AddScoped<ITenantSettingsRepository, TenantSettingsRepository>();
         services.AddScoped<IUserPreferencesRepository, UserPreferencesRepository>();

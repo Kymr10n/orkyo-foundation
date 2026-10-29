@@ -27,10 +27,6 @@ namespace Api.Endpoints;
 /// </summary>
 public static class TenantAuditEndpoints
 {
-    private const string SelectColumns =
-        "a.id, a.actor_user_id, u.email, u.display_name, a.actor_type, a.action, " +
-        "a.target_type, a.target_id, a.metadata::text AS metadata, a.created_at";
-
     public static void MapTenantAuditEndpoints(this WebApplication app)
     {
         var group = app.MapGroup("/api/audit")
@@ -44,9 +40,8 @@ public static class TenantAuditEndpoints
     }
 
     private static async Task<IResult> GetTenantAuditEvents(
-        ICurrentTenant currentTenant,
         IFeatureGate featureGate,
-        IDbConnectionFactory connectionFactory,
+        ITenantAuditEventRepository auditEvents,
         string? action = null,
         string? actorId = null,
         string? targetType = null,
@@ -62,44 +57,15 @@ public static class TenantAuditEndpoints
         if (!AuditQuery.TryParseActorId(actorId, out var actorUserId))
             return ErrorResponses.BadRequest("actorId must be a GUID");
 
-        // The connection targets THIS tenant's database, so every row already belongs to it —
-        // no tenant_id predicate (and the tenant DB's audit_events has no such column).
-        var org = currentTenant.ToOrgContext();
-
-        var (where, parameters) = AuditQuery.BuildWhere("a.", new AuditEventListFilter(
+        // The repository reads THIS tenant's database (its OrgContext), so every row
+        // already belongs to the tenant.
+        var result = await auditEvents.ListAsync(new AuditEventListFilter(
             Action: action,
             ActorUserId: actorUserId,
             TargetType: targetType,
             TargetId: null,
             FromUtc: from?.ToUniversalTime(),
-            ToUtc: to?.ToUniversalTime()));
-
-        await using var conn = connectionFactory.CreateOrgConnection(org);
-
-        var result = await conn.QueryPagedAsync(
-            PageRequest.From(page, pageSize),
-            $"SELECT COUNT(*) FROM audit_events a {where}",
-            $@"SELECT {SelectColumns}
-               FROM audit_events a
-               LEFT JOIN users u ON u.id = a.actor_user_id
-               {where}
-               ORDER BY a.created_at DESC
-               LIMIT @limit OFFSET @offset",
-            bind: p => { foreach (var wp in parameters) p.Add(wp.Clone()); },
-            map: reader => new TenantAuditEventDto
-            {
-                Id = reader.GetGuid("id"),
-                ActorUserId = reader.GetNullableGuid("actor_user_id"),
-                ActorEmail = reader.GetNullableString("email"),
-                ActorDisplayName = reader.GetNullableString("display_name"),
-                ActorType = reader.GetString("actor_type"),
-                Action = reader.GetString("action"),
-                TargetType = reader.GetNullableString("target_type"),
-                TargetId = reader.GetNullableString("target_id"),
-                Metadata = reader.GetNullableString("metadata"),
-                CreatedAt = reader.GetDateTime("created_at"),
-            },
-            ct);
+            ToUtc: to?.ToUniversalTime()), PageRequest.From(page, pageSize), ct);
 
         return AuditQuery.Envelope(result);
     }

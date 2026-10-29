@@ -27,7 +27,7 @@ public static class QuotaEndpoints
 
     private static async Task<IResult> GetQuotas(
         ICurrentTenant currentTenant,
-        IDbConnectionFactory db,
+        ITenantControlPlaneRepository tenants,
         ISiteRepository siteRepository,
         IResourceRepository resourceRepository,
         IAssetRepository assetRepository,
@@ -38,16 +38,7 @@ public static class QuotaEndpoints
         var tenantId = currentTenant.TenantId;
 
         // ── Live usage ────────────────────────────────────────────────────────
-        long activeSeats;
-        await using (var conn = db.CreateControlPlaneConnection())
-        {
-            await conn.OpenAsync(ct);
-            await using var cmd = new Npgsql.NpgsqlCommand(
-                "SELECT COUNT(*)::bigint FROM tenant_memberships WHERE tenant_id = @tid AND status = 'active'",
-                conn);
-            cmd.Parameters.AddWithValue("tid", tenantId);
-            activeSeats = Convert.ToInt64(await cmd.ExecuteScalarAsync(ct) ?? 0L);
-        }
+        var activeSeats = await tenants.CountActiveMembershipsAsync(tenantId, ct);
 
         var sitesUsed = (long)await siteRepository.GetCountAsync(ct);
         var spacesUsed = (long)await resourceRepository.GetPlaceableCountAsync(ct);

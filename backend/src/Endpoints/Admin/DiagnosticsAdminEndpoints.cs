@@ -1,6 +1,7 @@
 using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
+using Api.Repositories;
 using Api.Security;
 using Api.Services;
 using Microsoft.AspNetCore.Builder;
@@ -37,6 +38,7 @@ public static class DiagnosticsAdminEndpoints
     private static async Task<IResult> GetDiagnostics(
         DeploymentConfig deploymentConfig,
         IDbConnectionFactory connectionFactory,
+        IPlatformDiagnosticsRepository diagnostics,
         IHttpClientFactory httpClientFactory,
         ILogger<EndpointLoggerCategory> logger,
         CancellationToken ct = default)
@@ -52,19 +54,7 @@ public static class DiagnosticsAdminEndpoints
         {
             try
             {
-                await using var conn = connectionFactory.CreateControlPlaneConnection();
-                await conn.OpenAsync(ct);
-
-                // Count applied migrations
-                await using var migCmd = new Npgsql.NpgsqlCommand("SELECT COUNT(*) FROM orkyo_schema_migrations", conn);
-                var migResult = await migCmd.ExecuteScalarAsync(ct);
-                migrationsApplied = migResult is null or DBNull ? 0 : Convert.ToInt32(migResult);
-
-                // Count active tenants
-                await using var tenantCmd = new Npgsql.NpgsqlCommand(
-                    "SELECT COUNT(*) FROM tenants WHERE status != 'deleting'", conn);
-                var tenantResult = await tenantCmd.ExecuteScalarAsync(ct);
-                tenantCount = Convert.ToInt32(tenantResult);
+                (migrationsApplied, tenantCount) = await diagnostics.GetSchemaCountsAsync(ct);
             }
             catch (Exception ex)
             {
@@ -103,28 +93,18 @@ public static class DiagnosticsAdminEndpoints
         }
 
         // ── Worker status ───────────────────────────────────────────────
-        // The worker runs as a separate container and journals every scheduled job in
-        // worker_job_runs (the API never writes there). last_succeeded_at survives failures, so
-        // "running" means a job actually succeeded in the last two hours; a job failing three
-        // times in a row reads "failing" even while others still succeed.
+        // "running" means a job succeeded in the last two hours (see
+        // IPlatformDiagnosticsRepository.GetWorkerActivityAsync); a job failing three times in a
+        // row reads "failing" even while others still succeed.
         string workerStatus;
         DateTime? lastWorkerActivity = null;
 
         try
         {
-            await using var conn = connectionFactory.CreateControlPlaneConnection();
-            await conn.OpenAsync(ct);
-
-            await using var cmd = new Npgsql.NpgsqlCommand(
-                "SELECT MAX(last_succeeded_at) AS last_completed, " +
-                "COALESCE(MAX(last_succeeded_at) > NOW() - INTERVAL '2 hours', false) AS recent, " +
-                "COALESCE(MAX(consecutive_failures), 0) AS worst_failures " +
-                "FROM worker_job_runs", conn);
-            await using var reader = await cmd.ExecuteReaderAsync(ct);
-            await reader.ReadAsync(ct);
-            lastWorkerActivity = reader.GetNullableDateTime("last_completed");
-            workerStatus = reader.GetInt32("worst_failures") >= 3 ? "failing"
-                : reader.GetBoolean("recent") ? "running" : "idle";
+            var activity = await diagnostics.GetWorkerActivityAsync(ct);
+            lastWorkerActivity = activity.LastSucceededAt;
+            workerStatus = activity.WorstConsecutiveFailures >= 3 ? "failing"
+                : activity.SucceededRecently ? "running" : "idle";
         }
         catch (Exception ex)
         {

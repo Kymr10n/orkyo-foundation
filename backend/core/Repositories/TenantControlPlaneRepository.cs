@@ -1,3 +1,4 @@
+using Api.Constants;
 using Api.Helpers;
 using Api.Services;
 using Api.Services.Caching;
@@ -129,6 +130,18 @@ public sealed class TenantControlPlaneRepository : ITenantControlPlaneRepository
             reader => new TenantOwnerStatus(
                 reader.GetNullableGuid("owner_user_id"),
                 reader.GetString("status")), ct);
+    }
+
+    public async Task<long> CountActiveMembershipsAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        await using var conn = _connectionFactory.CreateControlPlaneConnection();
+        return await conn.ExecuteScalarAsync<long>(
+            "SELECT COUNT(*)::bigint FROM tenant_memberships WHERE tenant_id = @tenantId AND status = @active",
+            p =>
+            {
+                p.AddWithValue("tenantId", tenantId);
+                p.AddWithValue("active", MembershipStatusConstants.Active);
+            }, ct);
     }
 
     public async Task<TenantMembershipRoleStatus?> GetMembershipRoleStatusAsync(
