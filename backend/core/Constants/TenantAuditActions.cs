@@ -25,6 +25,10 @@ public static class TenantAuditActions
     public const string SettingsUpdated = "settings.updated";
     public const string SettingsReset = "settings.reset";
 
+    // Tenant data transfer. An import replaces the tenant's data, so both directions are recorded.
+    public const string TransferExported = "transfer.exported";
+    public const string TransferImported = "transfer.imported";
+
     // AI assistant administration. The credential events never carry the key or its
     // ciphertext — only that a key was set, replaced, probed, or removed.
     public const string AiCredentialSaved = "ai.credential_saved";

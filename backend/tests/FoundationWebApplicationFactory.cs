@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Orkyo.Foundation.Migrations;
 using Orkyo.Foundation.Tests.Integration;
 using Orkyo.Foundation.Tests.Mocks;
 using Orkyo.Shared;
@@ -125,6 +126,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
     /// </summary>
     public static EndpointDataSource RouteTable => RouteTableHost.Value;
 
+    /// <summary>The tenant transfer ceiling this host sets: an upload one byte larger is refused.</summary>
+    public const long TransferMaxArchiveBytes = 16 * 1024 * 1024;
+
     // ── App bootstrap ─────────────────────────────────────────────────────────
 
     private static WebApplication BuildWebApplication(
@@ -154,6 +158,8 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
             ["API_ACCESS_TOKEN_PEPPER"] = "test-api-access-pepper-do-not-use-in-prod",
             // Rate limiting disabled in tests to avoid spurious 429s.
             [ConfigKeys.DisableRateLimiting] = "true",
+            // Tenant transfer: small enough that the too-large refusal is cheap to reach.
+            [ConfigKeys.TransferMaxArchiveBytes] = TransferMaxArchiveBytes.ToString(),
         };
         builder.Configuration.AddInMemoryCollection(configuration);
 
@@ -178,6 +184,9 @@ public sealed class FoundationWebApplicationFactory : IAsyncDisposable
 
         // Built the way a product's Program.cs builds it, from the configuration above.
         builder.Services.AddSingleton(DeploymentConfig.FromConfiguration(builder.Configuration));
+        // Both editions register their migration modules in the API process; the tenant
+        // transfer gate reads the schema version from them.
+        builder.Services.AddFoundationMigrations();
 
         builder.Services.AddScoped(_ => new TenantContext
         {

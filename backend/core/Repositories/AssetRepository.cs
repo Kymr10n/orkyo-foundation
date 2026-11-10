@@ -173,13 +173,16 @@ public class AssetRepository(
         return await cmd.ExecuteNonQueryAsync(ct) > 0;
     }
 
+    /// <summary>The storage_bytes quota usage. Shared with the tenant transfer, which reads it inside its own transaction.</summary>
+    internal const string TotalSizeBytesSql =
+        "SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM assets WHERE tenant_id = @tenantId";
+
     public async Task<long> GetTotalSizeBytesAsync(Guid tenantId, CancellationToken ct = default)
     {
         await using var conn = connectionFactory.CreateOrgConnection(orgContext);
         await conn.OpenAsync(ct);
 
-        await using var cmd = new NpgsqlCommand(
-            "SELECT COALESCE(SUM(size_bytes), 0)::bigint FROM assets WHERE tenant_id = @tenantId", conn);
+        await using var cmd = new NpgsqlCommand(TotalSizeBytesSql, conn);
         cmd.Parameters.AddWithValue("tenantId", tenantId);
         var result = await cmd.ExecuteScalarAsync(ct);
         return result is DBNull or null ? 0L : Convert.ToInt64(result);

@@ -48,6 +48,8 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.Conflict(ce.Message),
             PreconditionFailedException pfe
                 => ErrorResponses.PreconditionFailed(pfe.Message),
+            TransferRejectedException tre
+                => ProblemResults.Problem(tre.StatusCode, tre.Code, tre.Message),
             CapabilityNotApplicableException cna
                 => ErrorResponses.BadRequest(cna.Message),
             // Guard-clause failures (ThrowIfNull etc.) are programming errors, not

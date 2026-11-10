@@ -15,6 +15,16 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   (CVE-2026-84939) and Jackson (CVE-2026-68497). Only the `mssql-jdbc` false positive remains.
 
 ### Added
+- **Tenant data transfer, backend (docs/tenant-transfer-spec.md).** A tenant admin can download
+  the tenant's data as one archive (`GET /api/admin/transfer/export`) and load an archive in
+  place of the tenant's data (`POST /api/admin/transfer/import?confirmation=<slug>`, with
+  `POST .../import/validate` as the dry run). The archive moves between editions. An import
+  accepts only an archive of the same schema version, runs in one transaction, keeps the
+  target's users, audit history, settings and AI data, and applies the plan quotas. Every plan
+  has the routes. **Hosts must register their migration modules in the API process** (both
+  editions already do) and set `ORKYO_TRANSFER_MAX_ARCHIVE_BYTES` to enable the import; unset,
+  the import routes answer 503 `transfer_not_configured` and the export still works. The UI
+  follows in a later release.
 - **`ConcurrentCapacity` allocation mode** (docs/scheduling-integrity-spec.md). A placeable
   resource in this mode takes up to `capacity` bookings at the same instant (each counts its
   `allocation_units`, else 1). Only placeable types accept it; the edit dialog offers it for them

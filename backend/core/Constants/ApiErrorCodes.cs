@@ -27,6 +27,24 @@ public static class ApiErrorCodes
     /// <summary>Self-service account deletion refused (409): the caller is an organization's only active admin.</summary>
     public const string AccountLastAdmin = "account_last_admin";
 
+    /// <summary>Tenant transfer: the tenant database is behind the application's schema (422).</summary>
+    public const string TransferSchemaBehind = "transfer_schema_behind";
+
+    /// <summary>Tenant transfer: the archive and this installation have different schema versions (422).</summary>
+    public const string TransferVersionMismatch = "transfer_version_mismatch";
+
+    /// <summary>Tenant transfer: the archive breaks a format rule (422).</summary>
+    public const string TransferArchiveInvalid = "transfer_archive_invalid";
+
+    /// <summary>Tenant transfer: the archive is larger than the configured ceiling (413).</summary>
+    public const string TransferArchiveTooLarge = "transfer_archive_too_large";
+
+    /// <summary>Tenant transfer: another import holds the tenant's tables (409).</summary>
+    public const string TransferBusy = "transfer_busy";
+
+    /// <summary>Tenant transfer: the deployment has not set the archive size ceiling (503).</summary>
+    public const string TransferNotConfigured = "transfer_not_configured";
+
     /// <summary>Resource not found (404)</summary>
     public const string NotFound = "NOT_FOUND";
 

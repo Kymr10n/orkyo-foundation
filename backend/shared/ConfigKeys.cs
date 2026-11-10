@@ -115,6 +115,14 @@ public static class ConfigKeys
     /// <summary>What the admin diagnostics page reports as the deployment mode (e.g. <c>cloud</c>, <c>self-hosted</c>).</summary>
     public const string DeploymentMode = "ORKYO_DEPLOYMENT_MODE";
 
+    // ── Tenant transfer ─────────────────────────────────────────────────────
+    /// <summary>
+    /// Largest tenant transfer archive an import accepts, in bytes. Optional: an unset key
+    /// leaves the import routes unconfigured (they answer 503), the way an unset SMTP host
+    /// leaves mail unconfigured. There is no default — the env templates carry the value.
+    /// </summary>
+    public const string TransferMaxArchiveBytes = "ORKYO_TRANSFER_MAX_ARCHIVE_BYTES";
+
     // ── Notifications ───────────────────────────────────────────────────────
     public const string AlertEmailTo = "ALERT_EMAIL_TO";
     public const string ContactNotificationEmail = "CONTACT_NOTIFICATION_EMAIL";
