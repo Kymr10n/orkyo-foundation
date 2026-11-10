@@ -1,4 +1,4 @@
-FROM quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+FROM quay.io/keycloak/keycloak:26.8.2-1@sha256:723b1d6e254c0fc96d5cffec860c7e0744d6a3277822b865bb538cf891575e41
 # The image tag prefix (<major>.<minor>-orkyo-) is derived from this FROM line by
 # scripts/ci/kc-version.sh. A change here starts a new tag line, and the first release
 # on that line must build an image from a commit that touches keycloak/**. The same
