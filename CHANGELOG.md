@@ -23,8 +23,11 @@ orkyo-saas). The format follows [Keep a Changelog](https://keepachangelog.com/en
   target's users, audit history, settings and AI data, and applies the plan quotas. Every plan
   has the routes. **Hosts must register their migration modules in the API process** (both
   editions already do) and set `ORKYO_TRANSFER_MAX_ARCHIVE_BYTES` to enable the import; unset,
-  the import routes answer 503 `transfer_not_configured` and the export still works. The UI
-  follows in a later release.
+  the import routes answer 503 `transfer_not_configured` and the export still works.
+- **Data Transfer tab** in Administration (`/tenant-admin/data-transfer`), for every tenant
+  admin. It downloads the archive, checks a chosen archive before anything changes (source,
+  rows, blockers, the people who would become placeholders), and imports after the admin
+  types the organization's identifier.
 - **`ConcurrentCapacity` allocation mode** (docs/scheduling-integrity-spec.md). A placeable
   resource in this mode takes up to `capacity` bookings at the same instant (each counts its
   `allocation_units`, else 1). Only placeable types accept it; the edit dialog offers it for them

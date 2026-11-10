@@ -1,6 +1,6 @@
 # Tenant data transfer — specification and implementation plan
 
-Status: **phase A (foundation backend) implemented**. Phases B to E are open. First draft 2026-07-15. Final revision 2026-11-10,
+Status: **phases A and B (foundation backend and frontend) implemented**. Phases C to E are open. First draft 2026-07-15. Final revision 2026-11-10,
 on branch `claude/tenant-db-export-import-y8wytv`. The first draft is archived at
 `requirements/archive/superseded-docs/tenant-transfer-plan.md`. The git history of this file
 records the corrections from the design reviews.
@@ -342,28 +342,28 @@ the import then maps them.
 
 ## 10. User interface
 
-A new tab "Data transfer" (route `data-transfer`) in `TenantAdminPage.tsx`, lazy-routed
-in `TenantApp.tsx` under `RequireTenantAdmin`. Every tenant admin sees the tab. The existing
+A new tab "Data Transfer" (route `data-transfer`) in `TenantAdminPage.tsx`, lazy-routed in
+`TenantApp.tsx` under `RequireTenantAdmin`. Every tenant admin sees the tab. The existing
 semantic Export card in `OrganizationSettings.tsx` stays where it is.
 
-The export card downloads through `apiRawFetch(...).blob()`. It states that an archive loads
-only into the same schema version, and that the archive holds plain text.
+The export card downloads through `apiRawFetch(...).blob()`, with the file name from the
+server. It states that the archive is not encrypted.
 
-The import flow has these stages:
+The import card has these stages:
 
 1. File selection.
-2. Automatic validation.
-3. A summary: source edition, version, date, row counts, matched users, emails without a
-   match, and warnings.
-4. A type-the-slug confirmation dialog.
-5. Upload with progress (XHR with the file as the body, after the pattern in `floorplan-api.ts`).
-6. A completion dialog, then `window.location.reload()`.
+2. Automatic validation, with the upload progress.
+3. A summary: source workspace, edition, version, export time, row count, matched users,
+   blockers, and the emails without a match.
+4. A confirmation with `ConfirmDialog` and its `confirmPhrase`, which is the slug.
+5. The import, with the upload progress.
+6. A result message with a "Reload now" button, which calls `window.location.reload()`.
 
-The confirmation dialog carries the warning. It states that the import erases all current
-data, and that other users cannot save changes during the import. It offers a link that
-exports the current data. This dialog is one of the genuinely-special dialogs that
-`FormDialog` does not cover. The import mutation uses `meta: { errorMessage }`. Tests render
-through `createTestQueryWrapper({ feedback: true })`.
+The upload sends the file as the request body with XMLHttpRequest, because `fetch` gives no
+upload progress. A failure goes through `handleApiError`, so it is an `ApiError` with the
+server code. The three mutations use `meta: { errorMessage }`. The toast description is the
+reason from the server. The confirmation states that the import erases all current data,
+and that other users cannot save changes during the import.
 
 ## 11. Implementation plan
 
@@ -399,8 +399,10 @@ Tests:
 - A consistent export during an import that is not committed, and 409 for a second writer.
 - The routes: admin only, the download, the size ceiling, and an import of the own archive.
 
-**Phase B — foundation frontend**: `api-paths.ts` entries, `transfer-api.ts`, the
-`DataTransferSettings` tab, routes, and vitest tests for the import stages.
+**Phase B — foundation frontend**: `api-paths.ts` entries, `transfer-api.ts`,
+`useTenantTransfer.ts`, the `DataTransferSettings` tab, the route, and vitest tests for the
+API module and for the import stages. The user documentation is
+`orkyo-documentation/src/content/docs/administration/data-transfer.md`.
 
 **Release step**: foundation version bump. Products reference only the pinned package, so
 phases C and D start after the auto-bump PRs land.

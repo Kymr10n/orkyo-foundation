@@ -30,6 +30,7 @@ export function TenantAdminPage() {
       { value: 'ai-assistant', label: 'AI Assistant' },
       { value: 'audit-log', label: 'Audit Log' },
       { value: 'usage-limits', label: 'Usage & Limits' },
+      { value: 'data-transfer', label: 'Data Transfer' },
     ];
   }, [showSites]);
 
