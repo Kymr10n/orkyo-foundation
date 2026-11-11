@@ -7,40 +7,7 @@ import {
   uploadFloorplan,
 } from "./floorplan-api";
 
-// Minimal XHR mock — records calls and exposes trigger helpers
-function makeMockXhr() {
-  const listeners: Record<string, (() => void)[]> = {};
-  const uploadListeners: Record<string, ((e: ProgressEvent) => void)[]> = {};
-  const mock = {
-    status: 200,
-    responseText: "",
-    upload: {
-      addEventListener: vi.fn((event: string, cb: (e: ProgressEvent) => void) => {
-        (uploadListeners[event] ??= []).push(cb);
-      }),
-    },
-    addEventListener: vi.fn((event: string, cb: () => void) => {
-      (listeners[event] ??= []).push(cb);
-    }),
-    open: vi.fn(),
-    setRequestHeader: vi.fn(),
-    send: vi.fn(),
-    // helpers to trigger events in tests
-    _trigger: (event: string) => listeners[event]?.forEach((cb) => cb()),
-    _triggerUpload: (event: string, e: ProgressEvent) =>
-      uploadListeners[event]?.forEach((cb) => cb(e)),
-  };
-  return mock;
-}
-
-// Mock api-utils
-vi.mock("../core/api-utils", () => ({
-  API_BASE_URL: "http://localhost:5000",
-  getApiHeaders: vi.fn(() => ({
-    "Content-Type": "application/json",
-    "X-Tenant-Slug": "test-tenant",
-  })),
-}));
+vi.mock("../core/upload", () => ({ uploadWithProgress: vi.fn() }));
 
 // Mock api-paths
 vi.mock("../core/api-paths", () => ({
@@ -55,6 +22,7 @@ vi.mock("../core/api-paths", () => ({
 vi.mock("../core/api-client", () => ({
   apiDelete: vi.fn(() => Promise.resolve()),
   apiRawFetch: vi.fn(),
+  buildUrl: (path: string) => `http://localhost:5000${path}`,
 }));
 
 describe("floorplan-api", () => {
@@ -63,121 +31,27 @@ describe("floorplan-api", () => {
   });
 
   describe("uploadFloorplan", () => {
-    it("resolves with metadata on successful upload", async () => {
-      const mockMetadata = {
-        assetId: "asset-1",
-        fileName: "test.png",
-        mimeType: "image/png",
-        fileSizeBytes: 5000,
-        checksumSha256: "abc",
-        widthPx: 1024,
-        heightPx: 768,
-        uploadedAt: "2024-01-01T00:00:00Z",
-      };
-      const xhr = makeMockXhr();
-      xhr.status = 200;
-      xhr.responseText = JSON.stringify({ success: true, metadata: mockMetadata });
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
-
-      const file = new File(["content"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file);
-      xhr._trigger("load");
-
-      await expect(promise).resolves.toEqual(mockMetadata);
-      expect(xhr.open).toHaveBeenCalledWith(
-        "POST",
-        "http://localhost:5000/api/sites/site-123/floorplan",
-      );
-      expect(xhr.send).toHaveBeenCalled();
-    });
-
-    it("rejects with server error message on non-2xx response", async () => {
-      const xhr = makeMockXhr();
-      xhr.status = 400;
-      xhr.responseText = JSON.stringify({ message: "File too large" });
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
-
-      const file = new File(["x"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file);
-      xhr._trigger("load");
-
-      await expect(promise).rejects.toThrow("File too large");
-    });
-
-    it("rejects with generic message when error body is not JSON", async () => {
-      const xhr = makeMockXhr();
-      xhr.status = 500;
-      xhr.responseText = "Internal Server Error";
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
-
-      const file = new File(["x"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file);
-      xhr._trigger("load");
-
-      await expect(promise).rejects.toThrow("Upload failed with status 500");
-    });
-
-    it("rejects on network error", async () => {
-      const xhr = makeMockXhr();
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
-
-      const file = new File(["x"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file);
-      xhr._trigger("error");
-
-      await expect(promise).rejects.toThrow("Network error during upload");
-    });
-
-    it("rejects when upload is aborted", async () => {
-      const xhr = makeMockXhr();
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
-
-      const file = new File(["x"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file);
-      xhr._trigger("abort");
-
-      await expect(promise).rejects.toThrow("Upload cancelled");
-    });
-
-    it("calls onProgress with percentage when provided", async () => {
-      const xhr = makeMockXhr();
-      xhr.status = 200;
-      xhr.responseText = JSON.stringify({
-        success: true,
-        metadata: { assetId: "asset-1", fileName: "f.png", mimeType: "image/png", fileSizeBytes: 1, checksumSha256: "abc", widthPx: 1, heightPx: 1, uploadedAt: "" },
-      });
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
-
+    it("sends the file as a form and resolves with the metadata", async () => {
+      const { uploadWithProgress } = await import("../core/upload");
+      const metadata = { assetId: "asset-1", fileName: "test.png" };
+      vi.mocked(uploadWithProgress).mockResolvedValue({ success: true, metadata });
       const onProgress = vi.fn();
-      const file = new File(["x"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file, onProgress);
+      const file = new File(["content"], "floor.png", { type: "image/png" });
 
-      xhr._triggerUpload("progress", { lengthComputable: true, loaded: 50, total: 100 } as ProgressEvent);
-      xhr._trigger("load");
+      await expect(uploadFloorplan("site-123", file, onProgress)).resolves.toEqual(metadata);
 
-      await promise;
-      expect(onProgress).toHaveBeenCalledWith(50);
+      const [url, body, options] = vi.mocked(uploadWithProgress).mock.calls[0];
+      expect(url).toBe("http://localhost:5000/api/sites/site-123/floorplan");
+      expect((body as FormData).get("file")).toBe(file);
+      // No content type: the browser sets it with the multipart boundary.
+      expect(options).toEqual({ onProgress });
     });
 
-    it("does not set Content-Type header (lets browser set multipart boundary)", async () => {
-      const xhr = makeMockXhr();
-      xhr.status = 200;
-      xhr.responseText = JSON.stringify({
-        success: true,
-        metadata: { assetId: "asset-1", fileName: "f.png", mimeType: "image/png", fileSizeBytes: 1, checksumSha256: "abc", widthPx: 1, heightPx: 1, uploadedAt: "" },
-      });
-      vi.stubGlobal("XMLHttpRequest", vi.fn(function () { return xhr; }));
+    it("rejects with the upload's error", async () => {
+      const { uploadWithProgress } = await import("../core/upload");
+      vi.mocked(uploadWithProgress).mockRejectedValue(new Error("File too large"));
 
-      const file = new File(["x"], "floor.png", { type: "image/png" });
-      const promise = uploadFloorplan("site-123", file);
-      xhr._trigger("load");
-      await promise;
-
-      const headerCalls = xhr.setRequestHeader.mock.calls as [string, string][];
-      const contentTypeSet = headerCalls.some(
-        ([key]) => key.toLowerCase() === "content-type",
-      );
-      expect(contentTypeSet).toBe(false);
+      await expect(uploadFloorplan("site-123", new File(["x"], "floor.png"))).rejects.toThrow("File too large");
     });
   });
 

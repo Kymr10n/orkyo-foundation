@@ -3,8 +3,8 @@
  * archive in place of the organization's data. See docs/tenant-transfer-spec.md.
  */
 import { apiRawFetch, buildUrl } from '../core/api-client';
-import { getApiHeaders, handleApiError } from '../core/api-utils';
 import { API_PATHS } from '../core/api-paths';
+import { uploadWithProgress } from '../core/upload';
 
 const ARCHIVE_CONTENT_TYPE = 'application/zip';
 const FALLBACK_FILE_NAME = 'orkyo-transfer.orkyoexport';
@@ -69,41 +69,7 @@ export function importTenantArchive(
   return uploadArchive(buildUrl(API_PATHS.ADMIN.TRANSFER_IMPORT, { confirmation }), archive, onProgress);
 }
 
-/**
- * Sends the archive as the request body — the file itself, not a form. XMLHttpRequest
- * because `fetch` cannot report upload progress, and an archive takes long enough to need it.
- * A failure goes through `handleApiError`, so it carries the same `ApiError` (and the same
- * session handling) as every other call.
- */
+/** Sends the archive as the request body: the file itself, not a form. */
 function uploadArchive<T>(url: string, archive: File, onProgress?: (percent: number) => void): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.withCredentials = true;
-
-    xhr.upload.addEventListener('progress', (event) => {
-      if (onProgress && event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-    });
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          resolve(JSON.parse(xhr.responseText) as T);
-        } catch {
-          reject(new Error('The server sent a response that could not be read.'));
-        }
-        return;
-      }
-      handleApiError(new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText }))
-        .catch((error: unknown) => reject(error instanceof Error ? error : new Error(String(error))));
-    });
-    xhr.addEventListener('error', () => reject(new Error('The connection was lost during the upload.')));
-    xhr.addEventListener('abort', () => reject(new Error('The upload was cancelled.')));
-
-    xhr.open('POST', url);
-    for (const [name, value] of Object.entries(getApiHeaders('POST'))) {
-      if (name.toLowerCase() !== 'content-type') xhr.setRequestHeader(name, value);
-    }
-    xhr.setRequestHeader('Content-Type', ARCHIVE_CONTENT_TYPE);
-    xhr.send(archive);
-  });
+  return uploadWithProgress<T>(url, archive, { contentType: ARCHIVE_CONTENT_TYPE, onProgress });
 }

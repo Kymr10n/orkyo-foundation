@@ -3,6 +3,7 @@ import { exportTenantArchive, importTenantArchive, validateTenantArchive } from 
 import * as apiClient from '../core/api-client';
 import { ApiError } from '../core/api-utils';
 import { API_PATHS } from '../core/api-paths';
+import { uploadWithProgress } from '../core/upload';
 
 vi.mock('../core/api-client', async () => {
   const actual = await vi.importActual<typeof apiClient>('../core/api-client');
@@ -104,6 +105,16 @@ describe('transfer-api', () => {
     expect((error as ApiError).status).toBe(422);
     expect((error as ApiError).code).toBe('transfer_version_mismatch');
     expect((error as ApiError).message).toBe('The archive comes from an older schema version.');
+  });
+
+  it('a body with no content type given goes out without one', async () => {
+    const form = new FormData();
+    const pending = uploadWithProgress(API_PATHS.ADMIN.TRANSFER_IMPORT, form);
+    FakeXhr.last.respond(200, {});
+
+    await pending;
+    expect(FakeXhr.last.body).toBe(form);
+    expect(Object.keys(FakeXhr.last.headers).map((name) => name.toLowerCase())).not.toContain('content-type');
   });
 
   it('a success body that is not JSON, a lost connection and a cancel all reject', async () => {
