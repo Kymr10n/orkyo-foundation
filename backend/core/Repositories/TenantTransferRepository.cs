@@ -83,24 +83,22 @@ public sealed class TenantTransferSession(NpgsqlConnection conn, NpgsqlTransacti
     /// <summary>The ids of the tenant-phase migrations this database has applied.</summary>
     public async Task<IReadOnlyList<string>> ReadJournalIdsAsync(CancellationToken ct = default)
     {
-        await using var cmd = Command(
-            "SELECT id FROM orkyo_schema_migrations WHERE target_database = @target AND success");
-        cmd.Parameters.AddWithValue("target", nameof(MigrationTargetDatabase.Tenant));
-        return await ReadListAsync(cmd, r => r.GetString("id"), ct);
+        return await conn.QueryListAsync(
+            "SELECT id FROM orkyo_schema_migrations WHERE target_database = @target AND success",
+            p => p.AddWithValue("target", nameof(MigrationTargetDatabase.Tenant)),
+            r => r.GetString("id"), ct);
     }
 
     /// <summary>The live columns of every catalog table, in declaration order.</summary>
     public async Task<IReadOnlyDictionary<string, IReadOnlyList<TransferColumn>>> ReadColumnsAsync(
         CancellationToken ct = default)
     {
-        await using var cmd = Command(@"
+        var rows = await conn.QueryListAsync(@"
             SELECT table_name, column_name, udt_name
             FROM information_schema.columns
             WHERE table_schema = 'public' AND table_name = ANY(@tables)
-            ORDER BY table_name, ordinal_position");
-        cmd.Parameters.AddWithValue("tables", TenantTransferTables.All.Select(t => t.Name).ToArray());
-
-        var rows = await ReadListAsync(cmd,
+            ORDER BY table_name, ordinal_position",
+            p => p.AddWithValue("tables", TenantTransferTables.All.Select(t => t.Name).ToArray()),
             r => (Table: r.GetString("table_name"),
                   Column: new TransferColumn(r.GetString("column_name"), r.GetString("udt_name"))),
             ct);
@@ -146,8 +144,9 @@ public sealed class TenantTransferSession(NpgsqlConnection conn, NpgsqlTransacti
 
     public async Task<IReadOnlyList<TransferTargetUser>> ReadUsersAsync(CancellationToken ct = default)
     {
-        await using var cmd = Command("SELECT id, email FROM public.users");
-        return await ReadListAsync(cmd, r => new TransferTargetUser(r.GetGuid("id"), r.GetString("email")), ct);
+        return await conn.QueryListAsync(
+            "SELECT id, email FROM public.users", bind: null,
+            r => new TransferTargetUser(r.GetGuid("id"), r.GetString("email")), ct);
     }
 
     /// <summary>
@@ -285,15 +284,6 @@ public sealed class TenantTransferSession(NpgsqlConnection conn, NpgsqlTransacti
     {
         await using var cmd = Command(sql);
         await cmd.ExecuteNonQueryAsync(ct);
-    }
-
-    private static async Task<List<T>> ReadListAsync<T>(
-        NpgsqlCommand cmd, Func<NpgsqlDataReader, T> map, CancellationToken ct)
-    {
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
-        var rows = new List<T>();
-        while (await reader.ReadAsync(ct)) rows.Add(map(reader));
-        return rows;
     }
 
     private async IAsyncEnumerable<string> ReadRowStreamAsync(

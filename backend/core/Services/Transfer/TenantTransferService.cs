@@ -210,22 +210,18 @@ public sealed class TenantTransferService(
 
         var loaded = TenantTransferTables.Travelling.ToDictionary(t => t.Name, _ => 0L);
         var deferred = new Dictionary<TransferTable, List<(string Id, string Value)>>();
+        TableLoad LoadOf(TransferTable table, List<(string Id, string Value)>? deferredValues) => new(
+            table, columns[table.Name], users.IdMap,
+            encryptedColumns.GetValueOrDefault(table.Name) ?? [], deferredValues);
+
         foreach (var table in TenantTransferTables.Travelling)
         {
-            var load = new TableLoad(
-                table, columns[table.Name], users.IdMap,
-                encryptedColumns.GetValueOrDefault(table.Name) ?? [],
-                table.DeferredColumn is null ? null : deferred[table] = []);
+            var load = LoadOf(table, table.DeferredColumn is null ? null : deferred[table] = []);
             loaded[table.Name] += await LoadTableAsync(session, reader, load, lateRows: false, ct);
 
             // The rows of an earlier table that point at this one go in now.
             foreach (var earlier in TenantTransferTables.Travelling.Where(t => t.LateAfter == table.Name))
-            {
-                var late = new TableLoad(
-                    earlier, columns[earlier.Name], users.IdMap,
-                    encryptedColumns.GetValueOrDefault(earlier.Name) ?? [], Deferred: null);
-                loaded[earlier.Name] += await LoadTableAsync(session, reader, late, lateRows: true, ct);
-            }
+                loaded[earlier.Name] += await LoadTableAsync(session, reader, LoadOf(earlier, null), lateRows: true, ct);
         }
 
         foreach (var (table, count) in loaded)
@@ -246,9 +242,11 @@ public sealed class TenantTransferService(
         await session.CommitAsync(ct);
 
         // After the commit, like every other write: the rollup lives in the control plane and
-        // must not report data that a rollback then takes away.
+        // must not report data that a rollback then takes away. From here the data is in, so
+        // the bookkeeping no longer follows the request: a caller that has gone away must not
+        // leave the usage wrong or the import unrecorded.
         foreach (var (key, before, after) in usages.Where(u => u.After != u.Before))
-            await rollup.RecordDeltaAsync(key, after - before, ct);
+            await rollup.RecordDeltaAsync(key, after - before, CancellationToken.None);
 
         var result = new TransferImportResult
         {
@@ -265,7 +263,7 @@ public sealed class TenantTransferService(
                 rows = result.Rows,
                 matchedUsers = result.MatchedUsers,
                 placeholderUsers = result.PlaceholderUsers,
-            }, ct: ct);
+            }, ct: CancellationToken.None);
         return result;
     }
 

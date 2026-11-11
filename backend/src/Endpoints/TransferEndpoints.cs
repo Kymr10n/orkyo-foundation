@@ -78,13 +78,19 @@ public static class TransferEndpoints
     /// the server's own body limit is lifted for this request so there is one limit, and an
     /// upload past it is answered with 413 and the transfer's own code.
     /// </summary>
-    private static async Task<FileStream> ReceiveArchiveAsync(HttpContext ctx, long maxBytes, CancellationToken ct)
+    internal static async Task<FileStream> ReceiveArchiveAsync(HttpContext ctx, long maxBytes, CancellationToken ct)
     {
         if (ctx.Request.ContentLength > maxBytes) throw TooLarge(maxBytes);
 
-        // Absent under the in-memory test server, and read-only once the body has been touched.
-        if (ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } bodySize)
+        // Absent under the in-memory test server. Read-only once something has read the body:
+        // the server's limit would then cut the upload short, so that is an error, not a skip.
+        if (ctx.Features.Get<IHttpMaxRequestBodySizeFeature>() is { } bodySize)
+        {
+            if (bodySize.IsReadOnly)
+                throw new InvalidOperationException(
+                    "The request body was read before the transfer route could lift the server's body size limit.");
             bodySize.MaxRequestBodySize = null;
+        }
 
         var file = CreateTempFile();
         try
