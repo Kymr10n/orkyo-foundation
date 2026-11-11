@@ -18,6 +18,7 @@ public sealed class InMemoryEmailOutbox : IEmailOutboxRepository
         public required string Subject { get; init; }
         public string? HtmlBody { get; set; }
         public string? TextBody { get; set; }
+        public string? ReplyTo { get; init; }
         public string Status { get; set; } = "pending";
         public int Attempts { get; set; }
         public DateTime NextAttemptAtUtc { get; set; } = DateTime.MinValue;
@@ -37,9 +38,9 @@ public sealed class InMemoryEmailOutbox : IEmailOutboxRepository
 
     public Row Single() => Rows.Should().ContainSingle().Subject;
 
-    public Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
+    public Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null)
     {
-        var row = new Row { Id = Guid.NewGuid(), ToEmail = toEmail, Subject = subject, HtmlBody = htmlBody, TextBody = textBody };
+        var row = new Row { Id = Guid.NewGuid(), ToEmail = toEmail, Subject = subject, HtmlBody = htmlBody, TextBody = textBody, ReplyTo = replyTo };
         lock (_lock) _rows[row.Id] = row;
         return Task.FromResult(row.Id);
     }
@@ -95,5 +96,5 @@ public sealed class InMemoryEmailOutbox : IEmailOutboxRepository
     private DateTime Now => _time.GetUtcNow().UtcDateTime;
     private bool IsDue(Row row) => row.Status == "pending" && row.NextAttemptAtUtc <= Now;
     private static OutboxMessage ToMessage(Row row) =>
-        new(row.Id, row.ToEmail, row.ToEmail, row.Subject, row.HtmlBody ?? "", row.TextBody ?? "", row.Attempts);
+        new(row.Id, row.ToEmail, row.ToEmail, row.Subject, row.HtmlBody ?? "", row.TextBody ?? "", row.Attempts, row.ReplyTo);
 }

@@ -471,6 +471,27 @@ public static class EmailTemplates
         return ($"Your {b.ProductName} Design Partner application was received", html, text);
     }
 
+    /// <summary>
+    /// Confirmation to a visitor who sent the public contact form. The text is fixed on
+    /// purpose: the form is anonymous, so anything the visitor typed (name, message) would let
+    /// a stranger make us mail their words to any address. The mail goes out with Reply-To set
+    /// to the contact inbox, which is why it invites a reply.
+    /// </summary>
+    public static (string subject, string htmlBody, string textBody) GetContactConfirmationEmail(
+        EmailBranding? branding = null)
+    {
+        var b = Resolve(branding);
+        var (html, text) = Layout(b,
+            "Message received",
+            [
+                "Hello,",
+                $"Thank you for contacting {b.ProductName}. We received your message and a member of our team will reply to this address.",
+                "To add details, reply to this email.",
+            ],
+            footerNote: "If you did not send a message through our contact form, you can safely ignore this email.");
+        return ($"We received your message to {b.ProductName}", html, text);
+    }
+
     // ── Admin notifications (feedback / contact) ────────────────────────────────
 
     /// <summary>

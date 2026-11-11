@@ -85,6 +85,7 @@ public sealed class EmailOutboxDeliverer
             // The sender is the transport's: it is SMTP identity, and log-only mail has none.
             var mime = new MimeMessage();
             mime.To.Add(new MailboxAddress(message.ToName, message.ToEmail));
+            if (message.ReplyTo is not null) mime.ReplyTo.Add(MailboxAddress.Parse(message.ReplyTo));
             mime.Subject = message.Subject;
             mime.Body = new BodyBuilder { HtmlBody = message.HtmlBody, TextBody = message.TextBody }.ToMessageBody();
 

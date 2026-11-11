@@ -90,6 +90,21 @@ public class EmailOutboxDelivererTests
         (await ReadRowAsync(id)).Status.Should().Be("sent");
     }
 
+    [Theory]
+    [InlineData("contact@example.com", "contact@example.com")]
+    [InlineData(null, "")]
+    public async Task TryDeliverNow_SetsReplyToOnlyWhenTheRowHasOne(string? replyTo, string expectedHeader)
+    {
+        var transport = Transport(fails: false);
+        var id = await _repo.EnqueueAsync("to@example.com", "To", "Reply", "<p/>", "", replyTo: replyTo);
+
+        await CreateDeliverer(transport).TryDeliverNowAsync(id);
+
+        transport.Verify(t => t.SendAsync(
+            It.Is<MimeMessage>(m => string.Join(",", m.ReplyTo.Mailboxes.Select(a => a.Address)) == expectedHeader),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     [Fact]
     public async Task TryDeliverNow_WhenTheTransportFails_LeavesTheRowPendingForTheWorker()
     {

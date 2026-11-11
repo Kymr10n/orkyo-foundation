@@ -167,13 +167,13 @@ public class ContactEndpointsTests : IAsyncLifetime
 
     // The endpoint reads the notification address from the host's configuration per request, so
     // a test sets it on the shared configuration and clears it again afterwards.
-    private async Task<HttpResponseMessage> SubmitWithNotificationAddressAsync(string? notifyEmail)
+    private async Task<HttpResponseMessage> SubmitWithNotificationAddressAsync(string? notifyEmail, string? visitorEmail = null)
     {
         var configuration = _databaseFixture.Factory.Services.GetRequiredService<IConfiguration>();
         configuration[ConfigKeys.ContactNotificationEmail] = notifyEmail;
         try
         {
-            return await _client.PostAsJsonAsync("/api/contact", ValidPayload());
+            return await _client.PostAsJsonAsync("/api/contact", ValidPayload(visitorEmail));
         }
         finally
         {
@@ -203,6 +203,48 @@ public class ContactEndpointsTests : IAsyncLifetime
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         Email.CallCount(nameof(IEmailService.SendEmailAsync)).Should().Be(before);
+    }
+
+    // ── Visitor confirmation ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task WhenNotificationEmailConfigured_ConfirmsToTheVisitorWithReplyToTheInbox()
+    {
+        var notifyEmail = $"ops-{Guid.NewGuid():N}@test.local";
+        var visitor = $"Visitor-{Guid.NewGuid():N}@test.local";
+
+        var response = await SubmitWithNotificationAddressAsync(notifyEmail, $"  {visitor} ");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var confirmation = Email.RawSends.Should().ContainSingle(s => s.To == visitor).Subject;
+        confirmation.Subject.Should().Be("We received your message to Orkyo");
+        confirmation.ReplyTo.Should().Be(notifyEmail, "a reply to the confirmation must reach a person");
+        confirmation.ToName.Should().BeEmpty("the visitor's name is untrusted input and stays out of the mail");
+        confirmation.DedupeKey.Should().Be(
+            $"contact-confirmation:{visitor.ToLowerInvariant()}:{DateTime.UtcNow:yyyy-MM-dd}",
+            "one confirmation per address per day, however the address is capitalised");
+    }
+
+    [Fact]
+    public async Task Confirmation_DoesNotEchoWhatTheVisitorTyped()
+    {
+        var visitor = $"echo-{Guid.NewGuid():N}@test.local";
+
+        await SubmitWithNotificationAddressAsync($"ops-{Guid.NewGuid():N}@test.local", visitor);
+
+        var html = Email.RawSends.Single(s => s.To == visitor).HtmlBody;
+        html.Should().NotContain("Test User").And.NotContain("Acme Corp").And.NotContain("learn more about Orkyo");
+    }
+
+    [Fact]
+    public async Task WhenNotificationEmailNotConfigured_SendsNoConfirmation()
+    {
+        var visitor = $"unread-{Guid.NewGuid():N}@test.local";
+
+        var response = await SubmitWithNotificationAddressAsync(null, visitor);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        Email.Recipients.Should().NotContain(visitor, "nobody reads the inbox the confirmation would promise a reply from");
     }
 
     [Fact]

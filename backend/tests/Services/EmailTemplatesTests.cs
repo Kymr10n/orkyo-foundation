@@ -312,6 +312,17 @@ public class EmailTemplatesTests
     }
 
     [Fact]
+    public void GetContactConfirmationEmail_IsFixedTextThatInvitesAReply()
+    {
+        var (subject, html, text) = EmailTemplates.GetContactConfirmationEmail();
+
+        subject.Should().Be("We received your message to Orkyo");
+        html.Should().Contain("<!DOCTYPE html>").And.Contain("Hello,").And.Contain("reply to this email");
+        text.Should().Contain("We received your message")
+            .And.Contain("If you did not send a message through our contact form");
+    }
+
+    [Fact]
     public void GetDesignPartnerConfirmationEmail_IsBrandedAndPersonalized()
     {
         var (subject, html, text) = EmailTemplates.GetDesignPartnerConfirmationEmail("Dana");

@@ -6,7 +6,8 @@ namespace Api.Services;
 
 public interface IEmailService
 {
-    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null);
+    /// <param name="replyTo">Reply-To address; null sends replies to the SMTP sender.</param>
+    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null);
     Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
     Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default);
     Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default);
@@ -102,12 +103,12 @@ public class EmailService : IEmailService
     /// email-outbox job. False means it could not even be queued (the database refused the
     /// write), which is the one case where the caller must treat the mail as not sent.
     /// </summary>
-    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
+    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null)
     {
         Guid id;
         try
         {
-            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct, dedupeKey);
+            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct, dedupeKey, replyTo);
         }
         catch (Exception ex)
         {

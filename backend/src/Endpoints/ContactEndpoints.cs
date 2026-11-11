@@ -1,3 +1,4 @@
+using System.Globalization;
 using Api.Configuration;
 using Api.Helpers;
 using Api.Middleware;
@@ -51,6 +52,22 @@ public static class ContactEndpoints
                     request.Message.Trim());
 
                 await emailService.TrySendNotificationAsync(notifyEmail, subject, htmlBody, textBody, logger, "contact notification email");
+
+                // Confirmation to the visitor, only when a person reads the inbox it points to:
+                // it promises a reply, and replies to it land in that inbox. One per address per
+                // day, so repeated submissions cannot turn the form into a mailer.
+                if (!string.IsNullOrEmpty(notifyEmail))
+                {
+                    var visitor = request.Email.Trim();
+                    var (confirmSubject, confirmHtml, confirmText) = EmailTemplates.GetContactConfirmationEmail();
+                    try
+                    {
+                        await emailService.SendEmailAsync(visitor, "", confirmSubject, confirmHtml, confirmText, ct,
+                            dedupeKey: $"contact-confirmation:{visitor.ToLowerInvariant()}:{time.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+                            replyTo: notifyEmail);
+                    }
+                    catch (Exception ex) { logger.LogWarning(ex, "Failed to send contact confirmation email"); }
+                }
 
                 return Results.Ok(new { message = "Message received. We'll be in touch shortly." });
             }, logger, "submit contact form", new { subject = request.Subject });

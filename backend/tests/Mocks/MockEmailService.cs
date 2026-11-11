@@ -39,6 +39,17 @@ public class MockEmailService : IEmailService
     /// <summary>While set, <see cref="SendEmailAsync"/> throws, as a mail server that refuses the connection does.</summary>
     public bool ThrowOnSendEmail { get; set; }
 
+    /// <summary>One <see cref="SendEmailAsync"/> call, as the caller made it.</summary>
+    public sealed record RawSend(string To, string ToName, string Subject, string HtmlBody, string? DedupeKey, string? ReplyTo);
+
+    private readonly List<RawSend> _rawSends = new();
+
+    /// <summary>Every <see cref="SendEmailAsync"/> call so far, in order, with its arguments.</summary>
+    public IReadOnlyList<RawSend> RawSends
+    {
+        get { lock (_lock) return _rawSends.ToList(); }
+    }
+
     public (string toEmail, string displayName, string token) LastSendEmailChangeConfirmationCall { get; private set; }
 
     public string? LastEmailChangedDisplayName { get; private set; }
@@ -50,10 +61,12 @@ public class MockEmailService : IEmailService
     }
 
     public Task<bool> SendEmailAsync(string toEmail, string toName, string subject,
-        string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
-        => ThrowOnSendEmail
-            ? throw new InvalidOperationException("SMTP connection refused")
-            : Record(nameof(SendEmailAsync), toEmail);
+        string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null)
+    {
+        if (ThrowOnSendEmail) throw new InvalidOperationException("SMTP connection refused");
+        lock (_lock) _rawSends.Add(new RawSend(toEmail, toName, subject, htmlBody, dedupeKey, replyTo));
+        return Record(nameof(SendEmailAsync), toEmail);
+    }
 
     public Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default)
         => Record(nameof(SendWelcomeEmailAsync), toEmail);
