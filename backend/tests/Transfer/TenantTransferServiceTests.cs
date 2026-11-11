@@ -441,6 +441,23 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
         rollup.Deltas[QuotaResourceTypes.Spaces].Should().BeGreaterThan(0);
     }
 
+    [Fact]
+    public async Task Import_WhoseCallerLeavesAfterTheCommit_StillReportsUsageAndIsAudited()
+    {
+        await fixture.ResetTargetAsync();
+        using var cts = new CancellationTokenSource();
+        // The first report is the first thing after the commit: the caller goes away there.
+        var rollup = new RecordingRollup(onRecord: cts.Cancel);
+
+        await fixture.CreateService(rollup: rollup)
+            .ImportAsync(Archive(), TenantTransferFixture.TargetSlug, actorUserId: null, cts.Token);
+
+        rollup.Deltas.Keys.Should().BeEquivalentTo(
+            [QuotaResourceTypes.ProductionSites, QuotaResourceTypes.Spaces, QuotaResourceTypes.StorageBytes]);
+        (await fixture.QueryAsync(source: false, "SELECT action FROM audit_events"))
+            .Should().Contain(TenantAuditActions.TransferImported);
+    }
+
     private sealed class LimitedQuota(string key, long limit) : IQuotaEnforcer
     {
         public Task EnsureWithinLimitAsync(string quotaKey, long currentValue, long requestedIncrement, CancellationToken ct = default) =>
@@ -451,12 +468,14 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
         public Task<long> GetLimitAsync(string quotaKey, CancellationToken ct = default) => Task.FromResult(limit);
     }
 
-    private sealed class RecordingRollup : IQuotaUsageRollup
+    private sealed class RecordingRollup(Action? onRecord = null) : IQuotaUsageRollup
     {
         public Dictionary<string, long> Deltas { get; } = [];
 
         public Task RecordDeltaAsync(string quotaKey, long delta, CancellationToken ct = default)
         {
+            onRecord?.Invoke();
+            ct.ThrowIfCancellationRequested();
             Deltas[quotaKey] = delta;
             return Task.CompletedTask;
         }
