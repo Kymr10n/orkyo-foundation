@@ -28,7 +28,7 @@ public sealed class AppExceptionHandler : IExceptionHandler
             : null;
 
     /// <summary>The response for an exception this handler owns, or null to let it fall through.</summary>
-    private static IResult? Map(Exception exception)
+    internal static IResult? Map(Exception exception)
         => exception switch
         {
             // Framework exception: required query/route/body parameter missing from the request.
