@@ -36,6 +36,15 @@ export interface TransferImportResult {
   placeholderUsers: number;
 }
 
+/**
+ * Where an upload is. The browser knows the first two steps; the server reports the rest,
+ * for an import only. `percent` is there where something is measured: bytes sent, rows loaded.
+ */
+export interface TransferProgress {
+  step: 'upload' | 'check' | 'erase' | 'load' | 'finish';
+  percent?: number | null;
+}
+
 export interface TransferArchiveDownload {
   blob: Blob;
   fileName: string;
@@ -52,7 +61,7 @@ export async function exportTenantArchive(): Promise<TransferArchiveDownload> {
 /** Asks the server whether `archive` can be imported here. Changes nothing. */
 export function validateTenantArchive(
   archive: File,
-  onProgress?: (percent: number) => void,
+  onProgress?: (progress: TransferProgress) => void,
 ): Promise<TransferValidationResult> {
   return uploadArchive(buildUrl(API_PATHS.ADMIN.TRANSFER_IMPORT_VALIDATE), archive, onProgress);
 }
@@ -64,12 +73,25 @@ export function validateTenantArchive(
 export function importTenantArchive(
   archive: File,
   confirmation: string,
-  onProgress?: (percent: number) => void,
+  onProgress?: (progress: TransferProgress) => void,
 ): Promise<TransferImportResult> {
   return uploadArchive(buildUrl(API_PATHS.ADMIN.TRANSFER_IMPORT, { confirmation }), archive, onProgress);
 }
 
-/** Sends the archive as the request body: the file itself, not a form. */
-function uploadArchive<T>(url: string, archive: File, onProgress?: (percent: number) => void): Promise<T> {
-  return uploadWithProgress<T>(url, archive, { contentType: ARCHIVE_CONTENT_TYPE, onProgress });
+/**
+ * Sends the archive as the request body: the file itself, not a form. Once the file is sent
+ * the server is checking it, until it says otherwise with a `progress` event.
+ */
+function uploadArchive<T>(
+  url: string,
+  archive: File,
+  onProgress?: (progress: TransferProgress) => void,
+): Promise<T> {
+  return uploadWithProgress<T>(url, archive, {
+    contentType: ARCHIVE_CONTENT_TYPE,
+    onProgress: (percent) => onProgress?.(percent < 100 ? { step: 'upload', percent } : { step: 'check' }),
+    onEvent: (name, data) => {
+      if (name === 'progress') onProgress?.(data as TransferProgress);
+    },
+  });
 }

@@ -3,6 +3,7 @@ import {
   exportTenantArchive,
   importTenantArchive,
   validateTenantArchive,
+  type TransferProgress,
 } from "@foundation/src/lib/api/transfer-api";
 import { downloadFile } from "@foundation/src/lib/utils/import-export";
 
@@ -22,14 +23,14 @@ export const useExportTenantArchive = () =>
   });
 
 /** Ask the server whether an archive can be imported here. Changes nothing. */
-export const useValidateTenantArchive = (onProgress: (percent: number) => void) =>
+export const useValidateTenantArchive = (onProgress: (progress: TransferProgress) => void) =>
   useMutation({
     mutationFn: (archive: File) => validateTenantArchive(archive, onProgress),
     meta: { errorMessage: "Could not read the archive" },
   });
 
 /** Replace the organization's data with an archive. */
-export const useImportTenantArchive = (onProgress: (percent: number) => void) =>
+export const useImportTenantArchive = (onProgress: (progress: TransferProgress) => void) =>
   useMutation({
     mutationFn: ({ archive, confirmation }: { archive: File; confirmation: string }) =>
       importTenantArchive(archive, confirmation, onProgress),

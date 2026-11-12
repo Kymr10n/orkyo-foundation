@@ -1,6 +1,6 @@
 # Tenant data transfer — specification and implementation plan
 
-Status: **phases A and B (foundation backend and frontend) implemented**. Phases C to E are open. Section 13 (import progress) is specified and not implemented. First draft 2026-07-15. Final revision 2026-11-10,
+Status: **phases A and B (foundation backend and frontend) implemented**. Phases C to E are open. First draft 2026-07-15. Final revision 2026-11-10,
 on branch `claude/tenant-db-export-import-y8wytv`. The first draft is archived at
 `requirements/archive/superseded-docs/tenant-transfer-plan.md`. The git history of this file
 records the corrections from the design reviews.
@@ -214,6 +214,9 @@ and `DELETE` grants that the import needs.
 7. Compare the per-table row counts against the manifest. A mismatch throws.
 8. Read the quota usage again and apply the quota limits (section 6). Commit.
 
+The import reports its steps during the transaction (section 13). The endpoint sends them
+to the browser as an event stream.
+
 Any failure before the commit rolls back completely. The target keeps its data. A client
 disconnect cancels through the `CancellationToken` and rolls back. A test asserts this.
 The endpoint deletes the temporary file in all cases.
@@ -262,7 +265,7 @@ after the load. Community uses the no-op enforcer, so the quota steps have no ef
 |---|---|
 | `GET /api/admin/transfer/export` | 200, `application/zip`, streamed. |
 | `POST /api/admin/transfer/import/validate` | 200 with blockers, warnings, user-match preview, table counts. |
-| `POST /api/admin/transfer/import?confirmation=<slug>` | 200 with the import result. |
+| `POST /api/admin/transfer/import?confirmation=<slug>` | 200, `text/event-stream`: the steps, then the import result (section 13.4). |
 
 The group has the shape of `ExportEndpoints.cs`: `/api/admin/transfer`,
 `.RequireAuthorization()`, `.RequireAdminArea()`, and the rate-limit policy
@@ -286,7 +289,9 @@ Status codes:
 | Size ceiling not set | 503 | `transfer_not_configured` |
 
 Errors use `application/problem+json`. `TransferRejectedException` carries the status and
-the code, and `AppExceptionHandler` maps it. The codes are in `ApiErrorCodes`.
+the code, and `AppExceptionHandler` maps it. The codes are in `ApiErrorCodes`. An import
+that fails after its stream starts sends the same problem document as an `error` event
+(section 13.4).
 
 The size ceiling is `ORKYO_TRANSFER_MAX_ARCHIVE_BYTES`. The value has no default in code.
 The env templates carry the value, per the no-fallback convention. If the variable is not
@@ -302,8 +307,10 @@ The SaaS ingress sets two hard limits, because Cloudflare proxies the tenant hos
 - Cloudflare rejects a request body larger than 100 MB on the plan of the `orkyo.com` zone.
   The SaaS env templates therefore set the size ceiling to 90 MiB (`94371840`). The
   Community template sets 1 GiB (`1073741824`).
-- If the origin sends no response for 100 seconds, Cloudflare ends the request with status
+- If the origin sends no data for 100 seconds, Cloudflare ends the request with status
   524. The import then sees a client disconnect and rolls back. The target keeps its data.
+  The event stream sends a keep-alive every 15 seconds, so a long import does not reach
+  this limit. The validation has no stream, and it has no long step.
 
 ## 8. Identity
 
@@ -359,11 +366,11 @@ server. It states that the archive is not encrypted.
 The import card has these stages:
 
 1. File selection.
-2. Automatic validation, with the upload progress.
+2. Automatic validation, with the progress bar (upload, then "Checking the archive").
 3. A summary: source workspace, edition, version, export time, row count, matched users,
    blockers, and the emails without a match.
 4. A confirmation with `ConfirmDialog` and its `confirmPhrase`, which is the slug.
-5. The import, with the upload progress.
+5. The import, with the progress bar and the name of the current step (section 13.3).
 6. A result message with a "Reload now" button, which calls `window.location.reload()`.
 
 The upload sends the file as the request body with XMLHttpRequest, because `fetch` gives no
@@ -451,23 +458,23 @@ Decided:
 
 Open:
 
-1. **Large tenants on SaaS.** The Cloudflare limits in section 7 bound the archive size and
-   the import time. A tenant above these limits cannot import through the UI. Version 1 has
-   no operator path for this case.
+1. **Large tenants on SaaS.** The Cloudflare limit in section 7 bounds the archive size.
+   A tenant above this limit cannot import through the UI. Version 1 has no operator path
+   for this case. The event stream removed the limit on the import time (section 13.7).
 2. **Botched-import recovery on SaaS.** The transaction protects the data path. Recovery
    from a committed but unwanted import uses the operator backups
    (`orkyo-infra/docs/60-backups.md`), not this feature.
 
 ## 13. Import progress
 
-Status: specified 2026-11-12, not implemented. Sections 5, 7 and 10 describe the current
-behavior. The implementation of this section updates them.
+Status: implemented 2026-11-12 in foundation. Sections 5, 7 and 10 include the result.
+This section keeps the design and its reasons.
 
 ### 13.1 Problem and goal
 
-The import card shows the upload percentage only. After the upload, the server loads the
-archive in one request and sends one response at the end. The admin sees no change for up
-to a minute.
+Before this change, the import card showed the upload percentage only. After the upload,
+the server loaded the archive and sent one response at the end. The admin saw no change for
+up to a minute.
 
 The goal is one progress bar with the name of the current step. The bar shows a measured
 percentage where a measurement exists. It shows no invented percentage.
@@ -518,15 +525,16 @@ carries these events:
 
 | Event | Data | Count |
 |---|---|---|
-| `progress` | `{ "step": "erase" }`, `{ "step": "load", "percent": 40 }`, `{ "step": "finish" }` | Many |
+| `progress` | `{ "step": "erase", "percent": null }`, `{ "step": "load", "percent": 40 }`, `{ "step": "finish", "percent": null }` | Many |
 | `result` | The `TransferImportResult` of today | One, last |
 | `error` | The problem document, with its `status` | One, last |
 
 Exactly one of `result` and `error` ends the stream. A stream that ends without one of them
 is a lost connection. The transaction then rolls back, as today.
 
-An `error` event means that the import did not change the data. The server sends `result`
-only after the commit.
+An `error` event with a status less than 500 means that the import did not change the
+data. A status 500 has the code `transfer_failed` and gives no such guarantee, as a failed
+request did before. The server sends `result` only after the commit.
 
 When the whole percentage changes, the server sends a `load` event. One import thus sends
 100 `load` events at most.
@@ -546,7 +554,8 @@ writes one event. `AiChatEndpoints` uses the class. Its behavior and its tests d
 `Action<TransferProgress>? report`. `TransferProgress` is a record with `Step` and a nullable
 `Percent`, in `backend/core/Models/Transfer.cs`. The service calls `report` at the start of
 each server step and after each batch of the load. It holds the last reported percentage
-and skips a call that does not change it. The row total is the sum of `manifest.Tables`.
+and skips a call that does not change it. The row total is the sum of `manifest.Tables` for the `Travels` tables. The users entry
+does not count, because the user merge is not part of the load.
 The service has no knowledge of HTTP. A caller without `report` gets the behavior of today.
 
 **Endpoint.** The handler of `POST /import` does this sequence:
@@ -567,7 +576,9 @@ awaits the import task before it returns, so the request scope outlives the impo
 
 **Errors during the stream.** `AppExceptionHandler.Map` is the one place that maps an
 exception to a problem document. It becomes `internal`, and the handler calls it for the
-`error` event. A cancelled request writes nothing, because no client is there. The
+`error` event. An exception that `Map` does not own becomes a problem document with status
+500 and the code `transfer_failed`. The handler writes it to the log, and the event does not
+carry its message. A cancelled request writes nothing, because no client is there. The
 `TransferRejectedException` and the quota exception thus have the same code and the same
 message before and during the stream.
 
@@ -592,10 +603,10 @@ last event rejects with the message for a lost connection. A JSON response behav
 **API and hook.** `transfer-api.ts` defines one type:
 
 ```ts
-export type TransferProgress =
-  | { step: 'upload'; percent: number }
-  | { step: 'check' | 'erase' | 'finish' }
-  | { step: 'load'; percent: number };
+export interface TransferProgress {
+  step: 'upload' | 'check' | 'erase' | 'load' | 'finish';
+  percent?: number | null;
+}
 ```
 
 `importTenantArchive` and `validateTenantArchive` take `onProgress(progress: TransferProgress)`.
@@ -633,13 +644,13 @@ Backend:
 - The service reports `erase`, then `load` with a percentage that only increases, then
   `finish`. The last `load` event has 100 percent. An archive with no rows reports no
   `load` percentage below 100.
-- The route, on the Kestrel host of `TransferArchiveUploadKestrelTests`: an import of the
-  own archive returns `text/event-stream` with `progress` events and one `result`.
-- Each check of section 13.4 returns its HTTP status and a problem document, not a stream.
-- A failure after the lock (a row count that does not match the manifest, a quota above
-  the limit) returns status 200 with one `error` event. The target data does not change.
-- A cancel during the stream rolls back. The existing test covers the service. A new test
-  covers the route.
+- The route, in `TransferEndpointsIntegrationTests`: an import of the own archive returns
+  `text/event-stream` with `progress` events and one `result`. A wrong confirmation returns
+  its HTTP status and a problem document, not a stream.
+- The stream handler, in `TransferImportStreamTests`, with no database: a failure before the
+  first report keeps its status. A failure after the first report is one `error` event with
+  the problem document. A server fault is `transfer_failed` without its message. A silent
+  step gets keep-alives. A cancel writes no last event, and the handler awaits the import.
 
 Frontend:
 

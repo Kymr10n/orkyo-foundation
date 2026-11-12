@@ -23,10 +23,36 @@ import {
   useImportTenantArchive,
   useValidateTenantArchive,
 } from "@foundation/src/hooks/useTenantTransfer";
-import type { TransferValidationResult } from "@foundation/src/lib/api/transfer-api";
+import type { TransferProgress, TransferValidationResult } from "@foundation/src/lib/api/transfer-api";
 import { SettingsPageHeader } from "./SettingsPageHeader";
 
 const ARCHIVE_EXTENSION = ".orkyoexport";
+
+const STEP_LABELS: Record<TransferProgress["step"], string> = {
+  upload: "Uploading",
+  check: "Checking the archive",
+  erase: "Removing the current data",
+  load: "Loading the data",
+  finish: "Finishing",
+};
+
+/** The current step and, where the step is measured, how far it is. */
+function TransferProgressBar({ progress }: { progress: TransferProgress }) {
+  const percent = progress.percent ?? undefined;
+  const label = STEP_LABELS[progress.step];
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground" role="status">
+        {percent === undefined ? label : `${label}: ${percent}%`}
+      </p>
+      {/* Without a value the element is indeterminate: the step runs, and is not measured. */}
+      <progress className="h-2 w-full accent-primary" aria-label={label} max={100} value={percent} />
+    </div>
+  );
+}
+
+const UPLOAD_START: TransferProgress = { step: "upload", percent: 0 };
 
 function totalRows(tables: Record<string, number>): number {
   return Object.values(tables).reduce((sum, count) => sum + count, 0);
@@ -56,7 +82,7 @@ export function DataTransferSettings() {
   const tenantSlug = membership?.slug ?? "";
 
   const [archive, setArchive] = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
+  const [progress, setProgress] = useState(UPLOAD_START);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const exportMutation = useExportTenantArchive();
@@ -70,7 +96,7 @@ export function DataTransferSettings() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null;
     setArchive(file);
-    setProgress(0);
+    setProgress(UPLOAD_START);
     validateMutation.reset();
     importMutation.reset();
     if (file) validateMutation.mutate(file);
@@ -78,7 +104,7 @@ export function DataTransferSettings() {
 
   const handleImport = () => {
     if (!archive) return;
-    setProgress(0);
+    setProgress(UPLOAD_START);
     importMutation.mutate({ archive, confirmation: tenantSlug });
   };
 
@@ -156,10 +182,7 @@ export function DataTransferSettings() {
               </div>
 
               {(validateMutation.isPending || importMutation.isPending) && (
-                <p className="text-sm text-muted-foreground" role="status">
-                  {importMutation.isPending ? "Importing" : "Checking the archive"}
-                  {progress < 100 ? `: ${progress}% uploaded` : ". This can take a minute."}
-                </p>
+                <TransferProgressBar progress={progress} />
               )}
 
               {validation && !importMutation.isPending && (

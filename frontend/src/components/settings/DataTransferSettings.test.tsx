@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'sonner';
@@ -9,6 +9,7 @@ import {
   exportTenantArchive,
   importTenantArchive,
   validateTenantArchive,
+  type TransferProgress,
   type TransferValidationResult,
 } from '@foundation/src/lib/api/transfer-api';
 import { downloadFile } from '@foundation/src/lib/utils/import-export';
@@ -113,6 +114,26 @@ describe('DataTransferSettings', () => {
     expect(vi.mocked(importTenantArchive).mock.calls[0].slice(0, 2)).toEqual([archive, 'my-org']);
     expect(screen.getByRole('button', { name: 'Reload now' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Archive file')).not.toBeInTheDocument();
+  });
+
+  it('shows the step an upload is in, with a bar that is measured only where the step is', async () => {
+    let report!: (progress: TransferProgress) => void;
+    vi.mocked(validateTenantArchive).mockImplementation((_, onProgress) => {
+      report = onProgress!;
+      return new Promise(() => {});
+    });
+    renderWithQuery(<DataTransferSettings />, { feedback: true });
+    await chooseArchive();
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Uploading: 0%');
+
+    act(() => report({ step: 'load', percent: 40 }));
+    expect(screen.getByRole('status')).toHaveTextContent('Loading the data: 40%');
+    expect(screen.getByRole('progressbar', { name: 'Loading the data' })).toHaveAttribute('value', '40');
+
+    act(() => report({ step: 'erase', percent: null }));
+    expect(screen.getByRole('status')).toHaveTextContent(/^Removing the current data$/);
+    expect(screen.getByRole('progressbar', { name: 'Removing the current data' })).not.toHaveAttribute('value');
   });
 
   it('reports a refused import with the server reason and keeps the archive chosen', async () => {
