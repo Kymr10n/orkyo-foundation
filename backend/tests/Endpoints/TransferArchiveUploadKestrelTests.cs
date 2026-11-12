@@ -74,6 +74,23 @@ public class TransferArchiveUploadKestrelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ABodyThatWasAlreadyRead_IsAnError_NotAnUploadCutShortByTheServerLimit()
+    {
+        var ctx = new DefaultHttpContext();
+        ctx.Features.Set<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>(new ReadOnlyBodySize());
+
+        var act = () => TransferEndpoints.ReceiveArchiveAsync(ctx, ArchiveCeiling, default);
+
+        (await act.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("body size limit");
+    }
+
+    private sealed class ReadOnlyBodySize : Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature
+    {
+        public bool IsReadOnly => true;
+        public long? MaxRequestBodySize { get; set; } = ServerBodyLimit;
+    }
+
+    [Fact]
     public async Task TheServerBodyLimit_StillHoldsForOtherRoutes()
     {
         var response = await _client.PostAsync("/other", Body(64 * ServerBodyLimit, chunked: false));

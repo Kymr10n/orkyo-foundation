@@ -291,7 +291,9 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
     public static TheoryData<string> BrokenArchives => new(
         "not-a-zip", "extra-entry", "missing-entry", "bad-manifest", "format-version",
         "row-with-extra-column", "row-count", "unknown-user", "bad-user-list",
-        "duplicate-entry", "oversized-manifest", "binary-value-no-row-names", "row-without-its-binary-value", "row-that-breaks-a-foreign-key", "value-of-the-wrong-type");
+        "duplicate-entry", "oversized-manifest", "binary-value-no-row-names", "row-without-its-binary-value", "row-that-breaks-a-foreign-key", "value-of-the-wrong-type",
+        "manifest-with-null-tables", "row-that-is-not-json", "row-too-large", "binary-row-without-id",
+        "deferred-row-without-id");
 
     [Theory]
     [MemberData(nameof(BrokenArchives))]
@@ -372,12 +374,39 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
                 orphan["site_id"] = Guid.NewGuid().ToString();
                 TenantTransferFixture.ReplaceEntry(zip, lastTable, orphan.ToJsonString());
                 break;
+            case "manifest-with-null-tables":
+                var hollow = Manifest();
+                hollow["tables"] = null;
+                SaveManifest(hollow);
+                break;
+            case "row-that-is-not-json":
+                TenantTransferFixture.ReplaceEntry(zip, lastTable, "not json");
+                break;
+            case "row-too-large":
+                TenantTransferFixture.ReplaceEntry(
+                    zip, lastTable, $"{{\"x\":\"{new string('x', TenantArchive.MaxRowChars + 1)}\"}}");
+                break;
+            case "binary-row-without-id":
+                BlankFirstRowId(zip, "tables/assets.ndjson");
+                break;
+            case "deferred-row-without-id":
+                BlankFirstRowId(zip, "tables/list_definitions.ndjson");
+                break;
             case "value-of-the-wrong-type":
                 var mistyped = JsonNode.Parse(TenantTransferFixture.ReadEntry(zip, lastTable).Trim())!.AsObject();
                 mistyped["site_id"] = "not-a-uuid";
                 TenantTransferFixture.ReplaceEntry(zip, lastTable, mistyped.ToJsonString());
                 break;
         }
+    }
+
+    private static void BlankFirstRowId(ZipArchive zip, string entry)
+    {
+        var lines = TenantTransferFixture.ReadEntry(zip, entry).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var first = JsonNode.Parse(lines[0])!.AsObject();
+        first["id"] = null;
+        lines[0] = first.ToJsonString();
+        TenantTransferFixture.ReplaceEntry(zip, entry, string.Join('\n', lines));
     }
 
     [Fact]
