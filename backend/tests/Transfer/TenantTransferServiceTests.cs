@@ -166,10 +166,10 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
         {
             TenantTransferFixture.ReadEntry(zip, "tables/resources.ndjson").Should().Contain(TenantTransferFixture.SecretNote);
             TenantTransferFixture.ReadEntry(zip, "tables/sites.ndjson").Should().Contain(TenantTransferFixture.SecretAddress);
-            TenantTransferFixture.ReadEntry(zip, "tables/assets.ndjson")
-                .Should().Contain(Convert.ToHexString(TenantTransferFixture.SecretFloorplan));
-            TenantTransferFixture.ReadEntry(zip, TenantArchive.ManifestEntry)
-                .Should().Contain("resources.notes").And.Contain("sites.address").And.Contain("assets.data");
+            TenantTransferFixture.ReadEntry(zip, "tables/assets.ndjson").Should().NotContain("\"data\"");
+            zip.Entries.Where(e => e.FullName.StartsWith("blobs/assets/", StringComparison.Ordinal))
+                .Select(e => TenantTransferFixture.ReadEntry(zip, e.FullName))
+                .Should().Contain(System.Text.Encoding.UTF8.GetString(TenantTransferFixture.SecretFloorplan));
         }
 
         await ImportAsync(Archive());
@@ -178,8 +178,11 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
         fixture.Encryption.IsProtected(note).Should().BeTrue("the value is encrypted at rest again");
         fixture.Encryption.UnprotectString(note, TenantTransferFixture.TargetTenantId).Should().Be(TenantTransferFixture.SecretNote);
 
-        var address = (await fixture.QueryAsync(source: false, "SELECT address FROM sites WHERE address LIKE 'orkyoenc:%'")).Single();
-        fixture.Encryption.UnprotectString(address, TenantTransferFixture.TargetTenantId).Should().Be(TenantTransferFixture.SecretAddress);
+        // Every address is encrypted now, also the ones the source held as plain text.
+        var addresses = await fixture.QueryAsync(source: false, "SELECT address FROM sites WHERE address IS NOT NULL");
+        addresses.Should().OnlyContain(a => fixture.Encryption.IsProtected(a));
+        addresses.Select(a => fixture.Encryption.UnprotectString(a, TenantTransferFixture.TargetTenantId))
+            .Should().Contain(TenantTransferFixture.SecretAddress);
 
         var floorplan = Convert.FromHexString((await fixture.QueryAsync(source: false,
             $"SELECT encode(data, 'hex') FROM assets WHERE size_bytes = {TenantTransferFixture.SecretFloorplan.Length}")).Single());
@@ -195,6 +198,38 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
         (await fixture.QueryAsync(source: false,
             "SELECT COUNT(*) FROM assets WHERE enc_algorithm IS NULL OR substring(data from 1 for 4) <> 'ORK1'::bytea"))
             .Single().Should().Be("0");
+    }
+
+    [Fact]
+    public async Task TextThatLooksEncrypted_InAColumnTheApplicationDoesNotEncrypt_TravelsAsItIs()
+    {
+        await fixture.ResetTargetAsync();
+        const string name = "orkyoenc:not an envelope";
+        await fixture.QueryAsync(source: false, $"UPDATE sites SET name = '{name}' RETURNING id");
+
+        using var archive = new MemoryStream();
+        await fixture.CreateService().ExportAsync(archive, actorUserId: null);
+        archive.Position = 0;
+        await ImportAsync(archive);
+
+        (await fixture.QueryAsync(source: false, "SELECT name FROM sites")).Should().Equal([name]);
+    }
+
+    [Fact]
+    public async Task Export_OfRequestsWhoseParentsFormARing_FailsInsteadOfLeavingThemOut()
+    {
+        await fixture.ResetTargetAsync();
+        await ImportAsync(Archive());
+        // The application refuses this; only a direct write can produce it.
+        await fixture.QueryAsync(source: false, @"
+            WITH pair AS (SELECT (array_agg(id ORDER BY id))[1] AS a, (array_agg(id ORDER BY id))[2] AS b
+                          FROM requests WHERE parent_request_id IS NULL)
+            UPDATE requests r SET parent_request_id = CASE WHEN r.id = pair.a THEN pair.b ELSE pair.a END
+            FROM pair WHERE r.id IN (pair.a, pair.b) RETURNING r.id");
+
+        var act = () => fixture.CreateService().ExportAsync(new MemoryStream(), actorUserId: null);
+
+        (await act.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*requests*ring*");
     }
 
     // ── Version gate ─────────────────────────────────────────────────────────
@@ -255,8 +290,8 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
 
     public static TheoryData<string> BrokenArchives => new(
         "not-a-zip", "extra-entry", "missing-entry", "bad-manifest", "format-version",
-        "encrypted-column-of-unknown-table", "row-with-extra-column", "row-count", "unknown-user", "bad-user-list",
-        "duplicate-entry", "oversized-manifest", "row-that-breaks-a-foreign-key", "value-of-the-wrong-type");
+        "row-with-extra-column", "row-count", "unknown-user", "bad-user-list",
+        "duplicate-entry", "oversized-manifest", "binary-value-no-row-names", "row-without-its-binary-value", "row-that-breaks-a-foreign-key", "value-of-the-wrong-type");
 
     [Theory]
     [MemberData(nameof(BrokenArchives))]
@@ -299,10 +334,11 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
                 future["formatVersion"] = 2;
                 SaveManifest(future);
                 break;
-            case "encrypted-column-of-unknown-table":
-                var claims = Manifest();
-                claims["encryptedColumns"]!.AsArray().Add("tenant_settings.value");
-                SaveManifest(claims);
+            case "binary-value-no-row-names":
+                TenantTransferFixture.ReplaceEntry(zip, $"blobs/assets/{Guid.NewGuid()}", "stray");
+                break;
+            case "row-without-its-binary-value":
+                zip.Entries.First(e => e.FullName.StartsWith("blobs/assets/", StringComparison.Ordinal)).Delete();
                 break;
             case "row-with-extra-column":
                 var row = JsonNode.Parse(TenantTransferFixture.ReadEntry(zip, lastTable).Trim())!.AsObject();
@@ -576,8 +612,8 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
                 }
                 // Setting the deferred column is an UPDATE, and the table's trigger stamps it.
                 if (table.DeferredColumn is not null) values.Remove("updated_at");
-                // The seed stores floorplans unencrypted, as an old installation would. Once
-                // one value of a column travels decrypted, the import encrypts them all.
+                // The seed stores floorplans unencrypted, as an old installation would. The
+                // import encrypts every value of a column the application encrypts.
                 values.Remove("enc_algorithm");
                 values.Remove("enc_key_version");
                 if (source)

@@ -30,12 +30,6 @@ public sealed record TransferManifest
 
     /// <summary>Rows per table, <c>users</c> included. An import that loads a different count fails.</summary>
     public required IReadOnlyDictionary<string, long> Tables { get; init; }
-
-    /// <summary>
-    /// The <c>table.column</c> names whose values the export decrypted. An import encrypts
-    /// them again under the target tenant.
-    /// </summary>
-    public required IReadOnlyList<string> EncryptedColumns { get; init; }
 }
 
 /// <summary>A reason an archive cannot be imported into this tenant.</summary>

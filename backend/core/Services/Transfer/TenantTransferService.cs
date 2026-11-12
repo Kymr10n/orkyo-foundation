@@ -75,10 +75,8 @@ public sealed class TenantTransferService(
         // the archive or in none of it.
         await using var session = await repository.BeginAsync(IsolationLevel.RepeatableRead, ct);
         ThrowIfBlocked(gate.CheckDatabase(await session.ReadJournalIdsAsync(ct)));
-        var columns = await session.ReadColumnsAsync(ct);
 
         var counts = new Dictionary<string, long>(StringComparer.Ordinal);
-        var encryptedColumns = new SortedSet<string>(StringComparer.Ordinal);
 
         using (var zip = new ZipArchive(destination, ZipArchiveMode.Create, leaveOpen: true))
         {
@@ -87,10 +85,24 @@ public sealed class TenantTransferService(
 
             foreach (var table in TenantTransferTables.Travelling)
             {
-                var binaryColumns = BinaryColumns(columns, table);
-                var rows = session.ReadRowsAsync(table, ct)
-                    .Select(row => Decrypt(table, row, binaryColumns, encryptedColumns));
+                var rows = session.ReadRowsAsync(table, ct).Select(row => Decrypt(table, row));
                 counts[table.Name] = await TenantArchive.WriteLinesAsync(zip, TenantArchive.TableEntry(table), rows, ct);
+
+                // The parents-first read walks down from the rows with no parent, so it never
+                // reaches a row whose parents form a ring. The application refuses to make
+                // one; if the data has one anyway, the archive must not quietly leave it out.
+                if (table.ParentColumn is not null && counts[table.Name] != await session.CountRowsAsync(table, ct))
+                    throw new InvalidOperationException(
+                        $"The table '{table.Name}' holds rows whose parents form a ring. The export cannot order them.");
+
+                if (table.BlobColumn is null) continue;
+                await foreach (var (rowId, stored) in session.ReadBlobsAsync(table, ct))
+                {
+                    var bytes = table.EncryptedColumns.Contains(table.BlobColumn)
+                        ? encryption.UnprotectBytes(stored, org.OrgId)
+                        : stored;
+                    await TenantArchive.WriteBlobAsync(zip, TenantArchive.BlobEntry(table, rowId), bytes, ct);
+                }
             }
 
             await TenantArchive.WriteManifestAsync(zip, new TransferManifest
@@ -103,7 +115,6 @@ public sealed class TenantTransferService(
                 SourceTenantSlug = org.OrgSlug,
                 SchemaVersion = gate.Current,
                 Tables = counts,
-                EncryptedColumns = encryptedColumns.ToList(),
             }, ct);
         }
 
@@ -113,26 +124,18 @@ public sealed class TenantTransferService(
         return $"orkyo-transfer-{org.OrgSlug}-{exportedAt:yyyyMMdd-HHmmss}.orkyoexport";
     }
 
-    private string Decrypt(
-        TransferTable table, string row, IReadOnlySet<string> binaryColumns, ISet<string> encryptedColumns)
+    private string Decrypt(TransferTable table, string row)
     {
-        var values = JsonNode.Parse(row)!.AsObject();
-        foreach (var (column, value) in values.ToList())
-        {
-            if (value is not JsonValue json || !json.TryGetValue<string>(out var text)) continue;
+        var encrypted = table.EncryptedColumns.Where(c => c != table.BlobColumn).ToList();
+        if (encrypted.Count == 0) return row;
 
-            if (binaryColumns.Contains(column))
-            {
-                var stored = FromHex(text);
-                if (!encryption.IsProtected(stored)) continue;
-                values[column] = ToHex(encryption.UnprotectBytes(stored, org.OrgId));
-            }
-            else
-            {
-                if (!encryption.IsProtected(text)) continue;
-                values[column] = encryption.UnprotectString(text, org.OrgId);
-            }
-            encryptedColumns.Add($"{table.Name}.{column}");
+        var values = JsonNode.Parse(row)!.AsObject();
+        foreach (var column in encrypted)
+        {
+            // A value that is not an envelope comes back as it is: a row written before the
+            // column was encrypted.
+            if (TryGetString(values, column, out var stored))
+                values[column] = encryption.UnprotectString(stored, org.OrgId);
         }
         return values.ToJsonString(RowJson);
     }
@@ -189,7 +192,6 @@ public sealed class TenantTransferService(
 
         using var reader = TenantArchive.Open(archive, MaxArchiveBytes);
         var manifest = await reader.ReadManifestAsync(ct);
-        var encryptedColumns = EncryptedColumnsByTable(manifest);
 
         await using var session = await repository.BeginAsync(IsolationLevel.ReadCommitted, ct);
         ThrowIfBlocked(gate.CheckDatabase(await session.ReadJournalIdsAsync(ct)));
@@ -209,10 +211,10 @@ public sealed class TenantTransferService(
         await InsertPlaceholdersAsync(session, users.Placeholders, columns, ct);
 
         var loaded = TenantTransferTables.Travelling.ToDictionary(t => t.Name, _ => 0L);
+        var blobs = new BlobTally();
         var deferred = new Dictionary<TransferTable, List<(string Id, string Value)>>();
-        TableLoad LoadOf(TransferTable table, List<(string Id, string Value)>? deferredValues) => new(
-            table, columns[table.Name], users.IdMap,
-            encryptedColumns.GetValueOrDefault(table.Name) ?? [], deferredValues);
+        TableLoad LoadOf(TransferTable table, List<(string Id, string Value)>? deferredValues) =>
+            new(table, columns[table.Name], users.IdMap, deferredValues, blobs);
 
         foreach (var table in TenantTransferTables.Travelling)
         {
@@ -229,6 +231,8 @@ public sealed class TenantTransferService(
             if (count != manifest.Tables.GetValueOrDefault(table, -1))
                 throw TenantArchive.Invalid($"The archive's row count for '{table}' does not match its manifest.");
         }
+        if (blobs.Loaded != reader.BlobCount)
+            throw TenantArchive.Invalid("The archive holds a binary value that no row names.");
         var rows = loaded.Values.Sum();
 
         foreach (var (table, pairs) in deferred)
@@ -308,8 +312,14 @@ public sealed class TenantTransferService(
         TransferTable Table,
         IReadOnlyList<TransferColumn> Columns,
         IReadOnlyDictionary<Guid, Guid> UserIds,
-        IReadOnlySet<string> EncryptedColumns,
-        List<(string Id, string Value)>? Deferred);
+        List<(string Id, string Value)>? Deferred,
+        BlobTally Blobs);
+
+    /// <summary>How many of the archive's binary values the rows have named so far.</summary>
+    private sealed class BlobTally
+    {
+        public int Loaded { get; set; }
+    }
 
     /// <summary>
     /// Loads one table's rows. A table with a late column is read twice: once for the rows
@@ -323,11 +333,11 @@ public sealed class TenantTransferService(
         var batch = new StringBuilder("[");
         var batchRows = 0;
 
-        async Task FlushAsync()
+        async Task FlushAsync(byte[]? blob = null)
         {
             if (batchRows == 0) return;
             batch.Append(']');
-            loaded += await session.InsertRowsAsync(load.Table, load.Columns, batch.ToString(), ct);
+            loaded += await session.InsertRowsAsync(load.Table, load.Columns, batch.ToString(), blob, ct);
             batch.Clear().Append('[');
             batchRows = 0;
         }
@@ -340,15 +350,40 @@ public sealed class TenantTransferService(
             if (batchRows > 0) batch.Append(',');
             batch.Append(Prepare(load, values));
             batchRows++;
-            if (batchRows >= BatchRows || batch.Length >= BatchChars) await FlushAsync();
+            if (load.Table.BlobColumn is not null)
+                await FlushAsync(await ReadBlobAsync(reader, load, values, ct));
+            else if (batchRows >= BatchRows || batch.Length >= BatchChars)
+                await FlushAsync();
         }
         await FlushAsync();
         return loaded;
     }
 
-    /// <summary>One archive line as a row, refused unless it has exactly the target's columns.</summary>
+    /// <summary>
+    /// The binary value of one row, as the target stores it, or null when the row has none.
+    /// </summary>
+    private async Task<byte[]?> ReadBlobAsync(
+        TenantArchive.Reader reader, TableLoad load, JsonObject values, CancellationToken ct)
+    {
+        var table = load.Table;
+        if (!TryGetString(values, "id", out var raw) || !Guid.TryParse(raw, out var rowId))
+            throw TenantArchive.Invalid($"A row of '{table.Name}' has no id.");
+
+        var bytes = await reader.ReadBlobAsync(TenantArchive.BlobEntry(table, rowId), ct);
+        if (bytes is null) return null;
+        load.Blobs.Loaded++;
+        return table.EncryptedColumns.Contains(table.BlobColumn!)
+            ? encryption.ProtectBytes(bytes, org.OrgId)
+            : bytes;
+    }
+
+    /// <summary>
+    /// One archive line as a row, refused unless it has exactly the target's columns. The
+    /// binary column is not one of them: it travels beside the row.
+    /// </summary>
     private static JsonObject Parse(TableLoad load, string line)
     {
+        var expected = load.Columns.Where(c => c.Name != load.Table.BlobColumn).ToList();
         JsonObject? values;
         try
         {
@@ -358,7 +393,7 @@ public sealed class TenantTransferService(
         {
             values = null;
         }
-        return values is not null && values.Count == load.Columns.Count && load.Columns.All(c => values.ContainsKey(c.Name))
+        return values is not null && values.Count == expected.Count && expected.All(c => values.ContainsKey(c.Name))
             ? values
             : throw TenantArchive.Invalid($"A row of '{load.Table.Name}' does not have the columns this version stores.");
     }
@@ -379,26 +414,18 @@ public sealed class TenantTransferService(
                 : throw TenantArchive.Invalid($"A row of '{table.Name}' names a user the archive does not contain.");
         }
 
-        if (table.Name == TenantTransferTables.Assets)
-            values["tenant_id"] = org.OrgId.ToString();
-
-        foreach (var column in load.Columns.Where(c => load.EncryptedColumns.Contains(c.Name)))
+        foreach (var column in table.EncryptedColumns.Where(c => c != table.BlobColumn))
         {
-            if (!TryGetString(values, column.Name, out var plain)) continue;
-            if (column.IsBinary)
-            {
-                values[column.Name] = ToHex(encryption.ProtectBytes(FromHex(plain), org.OrgId));
-                if (table.Name == TenantTransferTables.Assets)
-                {
-                    // The envelope a floorplan now has is this installation's, not the source's.
-                    values["enc_algorithm"] = encryption.Algorithm;
-                    values["enc_key_version"] = encryption.KeyVersion;
-                }
-            }
-            else
-            {
-                values[column.Name] = encryption.ProtectString(plain, org.OrgId);
-            }
+            if (TryGetString(values, column, out var plain))
+                values[column] = encryption.ProtectString(plain, org.OrgId);
+        }
+
+        if (table.Name == TenantTransferTables.Assets)
+        {
+            // The envelope a floorplan gets here is this installation's, not the source's.
+            values["tenant_id"] = org.OrgId.ToString();
+            values["enc_algorithm"] = encryption.Algorithm;
+            values["enc_key_version"] = encryption.KeyVersion;
         }
 
         if (load.Deferred is not null && TryGetString(values, table.DeferredColumn!, out var target))
@@ -447,31 +474,6 @@ public sealed class TenantTransferService(
         return users;
     }
 
-    /// <summary>
-    /// The manifest's <c>table.column</c> list, per table. The list is the archive's claim, so
-    /// every entry must name a table that travels. A column the table does not have is never
-    /// looked up, and a column that cannot hold an envelope fails its insert.
-    /// </summary>
-    private static Dictionary<string, HashSet<string>> EncryptedColumnsByTable(TransferManifest manifest)
-    {
-        var travelling = TenantTransferTables.Travelling.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
-        var byTable = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        foreach (var entry in manifest.EncryptedColumns)
-        {
-            var parts = entry?.Split('.') ?? [];
-            if (parts.Length != 2 || !travelling.Contains(parts[0]))
-                throw TenantArchive.Invalid("The archive manifest is not valid.");
-            if (!byTable.TryGetValue(parts[0], out var columns))
-                byTable[parts[0]] = columns = new HashSet<string>(StringComparer.Ordinal);
-            columns.Add(parts[1]);
-        }
-        return byTable;
-    }
-
-    private static HashSet<string> BinaryColumns(
-        IReadOnlyDictionary<string, IReadOnlyList<TransferColumn>> columns, TransferTable table) =>
-        columns[table.Name].Where(c => c.IsBinary).Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
-
     private static bool TryGetString(JsonObject values, string column, out string value)
     {
         value = "";
@@ -483,23 +485,4 @@ public sealed class TenantTransferService(
         if (blocker is not null)
             throw new TransferRejectedException(422, blocker.Code, blocker.Message);
     }
-
-    // PostgreSQL writes bytea into JSON in its hex form: \x followed by two digits per byte.
-    private const string HexPrefix = "\\x";
-
-    private static byte[] FromHex(string text)
-    {
-        try
-        {
-            return text.StartsWith(HexPrefix, StringComparison.Ordinal)
-                ? Convert.FromHexString(text.AsSpan(HexPrefix.Length))
-                : throw new FormatException();
-        }
-        catch (FormatException)
-        {
-            throw TenantArchive.Invalid("A binary value in the archive is not valid.");
-        }
-    }
-
-    private static string ToHex(byte[] bytes) => HexPrefix + Convert.ToHexString(bytes);
 }

@@ -5,16 +5,14 @@ using Api.Helpers;
 using Api.Services;
 using Api.Services.Transfer;
 using Npgsql;
+using NpgsqlTypes;
 using Orkyo.Migrations.Abstractions;
 
 namespace Api.Repositories;
 
 /// <summary>A column of a tenant table as the live schema declares it.</summary>
 /// <param name="TypeName">The PostgreSQL type name (<c>udt_name</c>): <c>uuid</c>, <c>text</c>, <c>bytea</c>, …</param>
-public sealed record TransferColumn(string Name, string TypeName)
-{
-    public bool IsBinary => TypeName == "bytea";
-}
+public sealed record TransferColumn(string Name, string TypeName);
 
 /// <summary>A row of the tenant's <c>users</c> table, as far as the user merge needs it.</summary>
 public sealed record TransferTargetUser(Guid Id, string Email);
@@ -109,13 +107,16 @@ public sealed class TenantTransferSession(NpgsqlConnection conn, NpgsqlTransacti
     }
 
     /// <summary>
-    /// Every row of <paramref name="table"/> as one JSON object, streamed. A table that
-    /// references itself comes out parents first, so a load in the same order never inserts a
-    /// child before its parent.
+    /// Every row of <paramref name="table"/> as one JSON object, streamed, without the table's
+    /// binary column. A table that references itself comes out parents first, so a load in
+    /// the same order never inserts a child before its parent.
     /// </summary>
     public IAsyncEnumerable<string> ReadRowsAsync(TransferTable table, CancellationToken ct = default)
     {
         var name = Quote(table.Name);
+        var row = table.BlobColumn is { } blob
+            ? $"(to_jsonb(t) - '{blob.Replace("'", "''")}')::text AS row"
+            : "to_jsonb(t)::text AS row";
         var sql = table.ParentColumn is { } parent
             ? $@"
                 WITH RECURSIVE tree AS (
@@ -124,11 +125,29 @@ public sealed class TenantTransferSession(NpgsqlConnection conn, NpgsqlTransacti
                     SELECT child.id, tree.depth + 1
                     FROM public.{name} child JOIN tree ON child.{Quote(parent)} = tree.id
                 )
-                SELECT to_jsonb(t)::text AS row
+                SELECT {row}
                 FROM public.{name} t JOIN tree ON tree.id = t.id
                 ORDER BY tree.depth"
-            : $"SELECT to_jsonb(t)::text AS row FROM public.{name} t";
+            : $"SELECT {row} FROM public.{name} t";
         return ReadRowStreamAsync(sql, ct);
+    }
+
+    public async Task<long> CountRowsAsync(TransferTable table, CancellationToken ct = default)
+    {
+        await using var cmd = Command($"SELECT COUNT(*) FROM public.{Quote(table.Name)}");
+        return (long)(await cmd.ExecuteScalarAsync(ct))!;
+    }
+
+    /// <summary>The binary values of <paramref name="table"/>, one at a time, with the id of their row.</summary>
+    public async IAsyncEnumerable<(Guid RowId, byte[] Bytes)> ReadBlobsAsync(
+        TransferTable table, [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var blob = Quote(table.BlobColumn!);
+        await using var cmd = Command(
+            $"SELECT id, {blob} AS bytes FROM public.{Quote(table.Name)} WHERE {blob} IS NOT NULL");
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            yield return (reader.GetGuid("id"), (byte[])reader["bytes"]);
     }
 
     /// <summary>
@@ -209,17 +228,23 @@ public sealed class TenantTransferSession(NpgsqlConnection conn, NpgsqlTransacti
 
     /// <summary>
     /// Inserts a batch of rows given as a JSON array of objects. PostgreSQL converts each
-    /// value to its column's type. Returns the number of rows inserted.
+    /// value to its column's type. The binary column of a table is not in the JSON: every row
+    /// of the batch gets <paramref name="blob"/>, so such a table loads one row per batch.
+    /// Returns the number of rows inserted.
     /// </summary>
     public async Task<int> InsertRowsAsync(
-        TransferTable table, IReadOnlyList<TransferColumn> columns, string rowsJson, CancellationToken ct = default)
+        TransferTable table, IReadOnlyList<TransferColumn> columns, string rowsJson, byte[]? blob,
+        CancellationToken ct = default)
     {
         var name = Quote(table.Name);
         var columnList = string.Join(", ", columns.Select(c => Quote(c.Name)));
+        var valueList = string.Join(", ", columns.Select(c => c.Name == table.BlobColumn ? "@blob" : Quote(c.Name)));
         await using var cmd = Command($@"
             INSERT INTO public.{name} ({columnList})
-            SELECT {columnList} FROM jsonb_populate_recordset(NULL::public.{name}, @rows)");
+            SELECT {valueList} FROM jsonb_populate_recordset(NULL::public.{name}, @rows)");
         cmd.Parameters.AddJsonb("rows", rowsJson);
+        if (table.BlobColumn is not null)
+            cmd.Parameters.AddNullable("blob", blob).NpgsqlDbType = NpgsqlDbType.Bytea;
         return await ExecuteLoadAsync(cmd, table, ct);
     }
 

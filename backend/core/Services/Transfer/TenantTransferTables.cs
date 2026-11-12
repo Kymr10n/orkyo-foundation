@@ -40,6 +40,15 @@ public enum TransferTableClass
 /// as NULL.
 /// </param>
 /// <param name="LateAfter">The table <paramref name="LateColumn"/> references.</param>
+/// <param name="BlobColumn">
+/// The table's binary column. Its values travel as bytes, one archive entry per row, and never
+/// as text inside the row: a floorplan as text costs many times its size in memory.
+/// </param>
+/// <param name="EncryptedColumns">
+/// Columns the application encrypts at rest under the tenant's id. The archive carries their
+/// plain values: the export decrypts them, and the import encrypts them under the target.
+/// No other column is ever read as an envelope, whatever its text looks like.
+/// </param>
 public sealed record TransferTable(
     string Name,
     TransferTableClass Class,
@@ -47,17 +56,22 @@ public sealed record TransferTable(
     string? DeferredColumn = null,
     string? ParentColumn = null,
     string? LateColumn = null,
-    string? LateAfter = null);
+    string? LateAfter = null,
+    string? BlobColumn = null,
+    IReadOnlyList<string>? EncryptedColumns = null)
+{
+    public IReadOnlyList<string> EncryptedColumns { get; } = EncryptedColumns ?? [];
+}
 
 /// <summary>
 /// The one classification of every tenant-phase table for a tenant transfer. The lock
-/// statement, the erase order, the load order and the user-id rewrite all come from this
+/// statement, the erase order, the load order, the user-id rewrite and the re-encryption all come from this
 /// list, so there is no second list to keep in step.
 /// <para>
 /// <see cref="All"/> is ordered parents-first: a table appears after every table it
 /// references, the deferred and late columns aside. <c>TenantTransferTableConformanceTests</c> checks
 /// the list against a freshly migrated tenant database, so a migration that adds a table,
-/// a foreign key or a user column fails the build until the table is classified here.
+/// a foreign key, a user column or a binary column fails the build until it is classified here.
 /// </para>
 /// </summary>
 public static class TenantTransferTables
@@ -72,12 +86,12 @@ public static class TenantTransferTables
         // The tenant's user mirror. In Community it is also the account table.
         new(Users, TransferTableClass.Merged, []),
 
-        new("sites", TransferTableClass.Travels, []),
+        new("sites", TransferTableClass.Travels, [], EncryptedColumns: ["description", "address"]),
         new("resource_types", TransferTableClass.Travels, []),
         new("criteria", TransferTableClass.Travels, []),
         new("criterion_resource_types", TransferTableClass.Travels, []),
         new("resource_groups", TransferTableClass.Travels, []),
-        new("resources", TransferTableClass.Travels, ["linked_user_id"]),
+        new("resources", TransferTableClass.Travels, ["linked_user_id"], EncryptedColumns: ["notes"]),
         new("resource_group_members", TransferTableClass.Travels, []),
         new("resource_capabilities", TransferTableClass.Travels, []),
         new("resource_group_capabilities", TransferTableClass.Travels, []),
@@ -110,7 +124,8 @@ public static class TenantTransferTables
         new("scheduling_settings", TransferTableClass.Travels, []),
         new("preset_applications", TransferTableClass.Travels, ["applied_by_user_id"]),
         new("preset_mappings", TransferTableClass.Travels, []),
-        new(Assets, TransferTableClass.Travels, ["created_by_user_id", "updated_by_user_id"]),
+        new(Assets, TransferTableClass.Travels, ["created_by_user_id", "updated_by_user_id"],
+            BlobColumn: "data", EncryptedColumns: ["data"]),
         // Site roles. Nothing writes this table today; its rows travel with the sites they name.
         new("memberships", TransferTableClass.Travels, ["user_id"]),
 
