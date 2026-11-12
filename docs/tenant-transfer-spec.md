@@ -47,41 +47,48 @@ content type `application/zip`. The export writes the archive to a temporary fil
 sends the file. A failure during the export therefore gives an error response, not an
 incomplete download.
 
-Entries: `manifest.json`, `users.ndjson`, and one `tables/<table>.ndjson` per `Travels`
-table. The manifest holds these fields:
+Entries: `manifest.json`, `users.ndjson`, one `tables/<table>.ndjson` per `Travels`
+table, and one `blobs/<table>/<row id>` per binary value. The manifest holds these fields:
 
 - The format version, the source edition, and the app version.
 - The export time, the source tenant id, and the source slug.
 - The schema version: the sorted migration ids of section 4.
 - The row count of each table.
-- The list of encrypted columns.
 
 Row encoding: one JSON object per line. PostgreSQL converts the values in both directions.
 The export reads each row with `to_jsonb`. The import inserts batches of rows with
-`jsonb_populate_recordset`. The application code therefore has no type table. A `bytea`
-value travels in the PostgreSQL hex form (`\x…`). The tenant schema has 11 column types and
-no arrays, enums, ranges, sequences or generated columns.
+`jsonb_populate_recordset`. The application code therefore has no type table. The tenant
+schema has 11 column types and no arrays, enums, ranges, sequences or generated columns.
+
+A binary value does not travel in its row. The catalog names the binary column of a table
+(`assets.data`). The row omits this column, and the value is a separate entry of bytes. A
+row with a binary value loads in a batch of one row. A measurement gave the reason: a
+floorplan of 10 MiB as text in the row used 760 MiB of memory during an import. As a
+separate entry, the same floorplan uses 75 MiB.
 
 NDJSON is necessary because the import transforms rows: user-id remap, `tenant_id` rewrite,
 and re-encryption. One batch holds 500 rows or 8 MiB of text, and is one `INSERT`.
 
 The archive is external input. These rules apply to the reader:
 
-- The archive must hold exactly the entries of the catalog. A different entry list causes
-  rejection.
+- The archive must hold exactly the entries of the catalog, and binary values. A different
+  entry list causes rejection. A binary value that no row names causes rejection.
 - Table names come from the catalog. Column names come from the live target schema. The
   import never builds SQL from archive text.
 - A row whose keys differ from the target columns causes rejection.
 - A row that names a user that the archive does not contain causes rejection.
 - The reader counts the uncompressed data. A total of more than ten times the size
   ceiling causes rejection. This rule stops a decompression bomb.
-- A row of more than 64 MiB of text causes rejection.
+- A row of more than 4 MiB of text causes rejection. A binary value of more than 64 MiB
+  causes rejection.
 
-The export reads all tables in one `REPEATABLE READ` transaction. For every text value, the
-export calls `IEncryptionService.IsProtected`. A protected value is decrypted with the source
-tenant id and its column is recorded in the manifest. The import encrypts every value of a
-recorded column with the target tenant id. Envelopes are self-describing, so this detection
-does not need a hand-written column list. For `assets`, the import also sets `enc_algorithm`
+The export reads all tables in one `REPEATABLE READ` transaction. The catalog names the
+columns that the application encrypts: `sites.description`, `sites.address`,
+`resources.notes` and `assets.data`. The export decrypts the values of these columns with
+the source tenant id. The import encrypts them with the target tenant id. No other column
+is read as an envelope. Text in a different column that starts with the envelope prefix
+therefore travels unchanged. A new encrypted column must be added to the catalog. For
+`assets`, the import also sets `enc_algorithm`
 and `enc_key_version` from the target encryption service. `size_bytes` and `checksum_sha256`
 describe the plain text and do not change.
 
