@@ -11,6 +11,9 @@ public class SiteRepository : ISiteRepository
     private const string SelectColumns =
         "id, code, name, description, address, created_at, updated_at";
 
+    /// <summary>The production_sites quota usage. Shared with the tenant transfer, which reads it inside its own transaction.</summary>
+    internal const string CountSql = "SELECT COUNT(*) FROM sites";
+
     private readonly OrgContext _orgContext;
     private readonly IOrgDbConnectionFactory _connectionFactory;
     private readonly IEncryptionService _encryption;
@@ -75,8 +78,7 @@ public class SiteRepository : ISiteRepository
     public async Task<int> GetCountAsync(CancellationToken ct = default)
     {
         await using var conn = _connectionFactory.CreateOrgConnection(_orgContext);
-        return (int)await conn.ExecuteScalarAsync<long>(
-            "SELECT COUNT(*) FROM sites", null, ct);
+        return (int)await conn.ExecuteScalarAsync<long>(CountSql, null, ct);
     }
 
     public async Task<SiteInfo> CreateAsync(string code, string name, string? description, string? address, CancellationToken ct = default)

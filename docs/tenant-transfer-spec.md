@@ -1,6 +1,6 @@
 # Tenant data transfer — specification and implementation plan
 
-Status: **final plan, not implemented**. First draft 2026-07-15. Final revision 2026-11-10,
+Status: **phase A (foundation backend) implemented**. Phases B to E are open. First draft 2026-07-15. Final revision 2026-11-10,
 on branch `claude/tenant-db-export-import-y8wytv`. The first draft is archived at
 `requirements/archive/superseded-docs/tenant-transfer-plan.md`. The git history of this file
 records the corrections from the design reviews.
@@ -43,49 +43,46 @@ Out of scope:
 ## 2. Archive format (version 1)
 
 The archive is a ZIP file, name `orkyo-transfer-<slug>-<yyyyMMdd-HHmmss>.orkyoexport`,
-content type `application/zip`. ZIP streams to the non-seekable response body.
+content type `application/zip`. The export writes the archive to a temporary file and then
+sends the file. A failure during the export therefore gives an error response, not an
+incomplete download.
 
-Entries: `manifest.json` first, then one `tables/<NNN>_<table>.ndjson` per table in catalog
-order. The manifest holds these fields:
+Entries: `manifest.json`, `users.ndjson`, and one `tables/<table>.ndjson` per `Travels`
+table. The manifest holds these fields:
 
-- The format version, the source edition, and `APP_VERSION`.
+- The format version, the source edition, and the app version.
 - The export time, the source tenant id, and the source slug.
-- The tenant-phase rows of `orkyo_schema_migrations` (id and module).
+- The schema version: the sorted migration ids of section 4.
 - The row count of each table.
 - The list of encrypted columns.
 
-Row encoding: one JSON object per row. The tenant schema has 11 column types and no arrays,
-enums, ranges, sequences or generated columns.
-
-| Column type | JSON encoding |
-|---|---|
-| `uuid`, `text`, `varchar`, `char`, `citext` | String. |
-| `timestamptz` | String, ISO-8601 UTC. |
-| `date`, `time` | String, ISO-8601. |
-| `numeric` | String. |
-| `boolean`, `integer`, `bigint` | Native JSON. |
-| `jsonb` | Inline JSON. |
-| `bytea` | String, Base64. |
+Row encoding: one JSON object per line. PostgreSQL converts the values in both directions.
+The export reads each row with `to_jsonb`. The import inserts batches of rows with
+`jsonb_populate_recordset`. The application code therefore has no type table. A `bytea`
+value travels in the PostgreSQL hex form (`\x…`). The tenant schema has 11 column types and
+no arrays, enums, ranges, sequences or generated columns.
 
 NDJSON is necessary because the import transforms rows: user-id remap, `tenant_id` rewrite,
-and re-encryption. The import loads each table with one
-`COPY … FROM STDIN (FORMAT BINARY)` through `NpgsqlBinaryImporter`.
+and re-encryption. One batch holds 500 rows or 8 MiB of text, and is one `INSERT`.
 
 The archive is external input. These rules apply to the reader:
 
-- Table names come from the catalog. Column names and types come from the live target
-  schema. The import never builds SQL from archive text.
-- An archive entry that is not a catalog table causes rejection.
+- The archive must hold exactly the entries of the catalog. A different entry list causes
+  rejection.
+- Table names come from the catalog. Column names come from the live target schema. The
+  import never builds SQL from archive text.
 - A row whose keys differ from the target columns causes rejection.
-- The reader counts the uncompressed bytes. A total of more than ten times the size
+- A row that names a user that the archive does not contain causes rejection.
+- The reader counts the uncompressed data. A total of more than ten times the size
   ceiling causes rejection. This rule stops a decompression bomb.
+- A row of more than 64 MiB of text causes rejection.
 
 The export reads all tables in one `REPEATABLE READ` transaction. For every text value, the
 export calls `IEncryptionService.IsProtected`. A protected value is decrypted with the source
-tenant id and its column is recorded in the manifest. The import re-encrypts the recorded
-columns with the target tenant id. Envelopes are self-describing, so this detection does not
-need a hand-written column list. For `assets`, the import also sets `enc_algorithm` and
-`enc_key_version` from the target encryption service. `size_bytes` and `checksum_sha256`
+tenant id and its column is recorded in the manifest. The import encrypts every value of a
+recorded column with the target tenant id. Envelopes are self-describing, so this detection
+does not need a hand-written column list. For `assets`, the import also sets `enc_algorithm`
+and `enc_key_version` from the target encryption service. `size_bytes` and `checksum_sha256`
 describe the plain text and do not change.
 
 The archive therefore holds plain text, including floorplan images. The UI and the
@@ -124,29 +121,35 @@ Tables that do not travel, with reasons. Every other table has class `Travels`.
 | `calendar_feed_tokens` | `Erased` | Token hashes are bearer credentials. Users mint new feed URLs after the import. |
 | `search_documents` | `Erased` | Derived. The search triggers rebuild it during the load. |
 
-The catalog also holds two lists per table:
+The catalog also holds the user-id columns of each table. Five columns of `Travels` tables
+reference `users.id` with a foreign key. `resource_scan_codes.created_by_user_id` references
+it without one, on purpose. The import remaps these six columns (section 8).
 
-- **User-id columns.** Five columns of `Travels` tables reference `users.id` with a foreign
-  key. `resource_scan_codes.created_by_user_id` references it without one, on purpose. The
-  import remaps these six columns (section 8).
-- **Deferred columns.** The schema has two foreign-key cycles: `list_definitions` ↔
-  `list_columns`, and `resource_custom_fields` ↔ `list_instances`. The columns
-  `list_definitions.display_column_id` and `resource_custom_fields.list_instance_id` break
-  the cycles. Both are nullable. Section 5 gives their treatment.
+Three tables need a special load order. The catalog records one column for each:
 
-The self-reference `requests.parent_request_id` needs no treatment. PostgreSQL checks a
-foreign key at the end of a statement, and one COPY loads the complete table.
+| Table and column | Problem | Treatment |
+|---|---|---|
+| `list_definitions.display_column_id` | A definition names one of its own columns. | Deferred column: loaded as `NULL`, then set with one `UPDATE` after the load. |
+| `list_instances.field_id` | A lookup field names a shared instance, and a resource instance names its field. Check constraints forbid a `NULL` load. | Late rows: rows without a field load first, rows with a field load after `resource_custom_fields`. |
+| `requests.parent_request_id` | A request names its parent request. | Parent column: the export writes parents before children. |
+
+The `UPDATE` of the deferred column fires the `updated_at` trigger. The `updated_at` value
+of a list definition with a display column is therefore the import time.
 
 A conformance test (`TenantTransferTableConformanceTests`) compares the catalog against a
 freshly migrated tenant database. It asserts these facts:
 
-- Every live base table appears in the catalog.
-- Without the deferred columns, the travel order is a valid foreign-key topological order.
-- Every deferred column is nullable.
-- No sequences and no generated columns exist.
+- The catalog names exactly the live base tables.
+- Without the deferred and late columns, the load order is a valid foreign-key topological
+  order.
+- Late rows load after the table that they reference, and before every other table that
+  references their table.
+- Every deferred, late and parent column is nullable, on a table with the primary key `id`.
+- No sequences and no generated columns exist. Only `assets` has a `tenant_id` column.
+- A `Travels` table references only `Travels` tables and `users`.
 - No `Kept` table has a foreign key to a `Travels` or `Erased` table.
-- Every `Travels` column that references `users.id` appears in the user-column list. The
-  test finds these columns by constraint and by the `*user_id*` name pattern.
+- The user-column list equals the `Travels` columns that reference `users.id`. The test
+  finds these columns by constraint and by the `*user_id*` name pattern.
 
 The implementation plan puts this test before the catalog, so the catalog is correct by
 construction.
@@ -158,19 +161,21 @@ therefore have the same schema version.
 
 The schema version is the set of tenant-phase migration ids of the foundation module.
 Scripts with `MigrationScope.TenantDatabaseOnly` (the feedback pair) are not part of the
-set. The gate reads the set from the unfiltered `FoundationMigrationModule`. Journal entries
-of other modules (for example `community`) are not part of the set, because those
-migrations create no tables and no columns.
+set, because Community does not run them. Scripts of other modules (for example
+`community`) are not part of the set, because those migrations create no tables and no
+columns.
 
-The gate has three inputs: the manifest journal entries, the target database journal, and
-the code-known set.
+The gate reads the code-known set from the `IMigrationModule` set of the API process. Both
+editions register their modules there. The gate has two more inputs: the journal of the
+tenant database, and the schema version in the manifest.
 
-1. The target journal must equal the code-known set. A target that is behind is rejected
-   with error `transfer_target_behind` and the message "run the migrator first".
-2. The archive set must equal the code-known set. A different set is rejected with error
-   `transfer_version_mismatch`. If the archive is older, the message is "upgrade the source
-   installation and export again". If the archive is newer, the message is "upgrade this
-   installation first".
+1. The tenant journal must contain the code-known set. A database that is behind is
+   rejected with error `transfer_schema_behind` and the message "run the migrator first".
+   This check applies to the export and to the import.
+2. The archive schema version must equal the code-known set. A different set is rejected
+   with error `transfer_version_mismatch`. If the archive is older, the message is "upgrade
+   the source installation and export again". If the archive is newer, the message is
+   "upgrade this installation first".
 
 The gate does not accept an older archive, for this reason. A migration class header
 describes rollback safety. It does not show that a migration is safe to skip. Migrations
@@ -192,12 +197,13 @@ and `DELETE` grants that the import needs.
    Readers continue and see the old data until the commit. A lock timeout returns 409 with
    error `transfer_busy`.
 2. Read the quota usage of the target (section 6).
-3. Erase. Set the deferred columns to `NULL`. Then `DELETE` from every `Travels` and
-   `Erased` table, in reverse catalog order.
+3. Erase. `DELETE` from every `Erased` table, then from every `Travels` table in reverse
+   load order. In this order, the foreign keys of the two cycles cascade or set `NULL`.
 4. Merge the users (section 8).
-5. Load each table in catalog order with COPY and the row transforms (user-id remap,
-   `assets.tenant_id` rewrite, re-encryption). The deferred columns load as `NULL`.
-6. Set the deferred columns from the archive values with one `UPDATE` per column.
+5. Load each table in catalog order, in batches, with the row transforms (user-id remap,
+   `assets.tenant_id` rewrite, re-encryption). The late rows of a table load after the table
+   that they reference.
+6. Set the deferred column from the archive values.
 7. Compare the per-table row counts against the manifest. A mismatch throws.
 8. Read the quota usage again and apply the quota limits (section 6). Commit.
 
@@ -234,9 +240,10 @@ the load. The SQL text is shared with `SiteRepository.GetCountAsync`,
 `ResourceRepository.GetPlaceableCountAsync` and `AssetRepository.GetTotalSizeBytesAsync`.
 There is one query text for each value, with two callers.
 
-Before the commit, the import calls `IQuotaEnforcer.EnsureWithinLimitAsync` with the new
-value of each key. A value above the limit rolls back and returns the existing
-`quota_exceeded` error. After the commit, the import calls
+Before the commit, the import calls `IQuotaEnforcer.EnsureWithinLimitAsync` for each key
+whose usage increases. A value above the limit rolls back and returns the existing
+`quota_exceeded` error. An import that does not increase a usage is not checked for that
+key, which agrees with the service layer. After the commit, the import calls
 `IQuotaUsageRollup.RecordDeltaAsync` with the difference of each key.
 
 `POST /import/validate` does not report a quota blocker, because the usage is known only
@@ -263,19 +270,25 @@ Status codes:
 
 | Case | Status | Error code |
 |---|---|---|
-| Gate blocker | 422 | `transfer_target_behind` or `transfer_version_mismatch` |
+| Database behind, or different schema version | 422 | `transfer_schema_behind`, `transfer_version_mismatch` |
 | Archive that breaks a reader rule | 422 | `transfer_archive_invalid` |
 | Quota above the limit | Existing mapping | `quota_exceeded` |
-| Lock timeout | 409 (`ConflictException`) | `transfer_busy` |
+| Lock timeout | 409 | `transfer_busy` |
 | Wrong confirmation | 400 | |
-| Upload above the size ceiling | 413 | |
+| Upload above the size ceiling | 413 | `transfer_archive_too_large` |
+| Size ceiling not set | 503 | `transfer_not_configured` |
 
-Errors use `application/problem+json`, and the new codes go into `ApiErrorCodes`.
+Errors use `application/problem+json`. `TransferRejectedException` carries the status and
+the code, and `AppExceptionHandler` maps it. The codes are in `ApiErrorCodes`.
 
-The POST routes raise `IHttpMaxRequestBodySizeFeature.MaxRequestBodySize` to
-`ORKYO_TRANSFER_MAX_ARCHIVE_BYTES` in an endpoint filter, before the body is read. Both
-products cap Kestrel at 10 MB globally, and this is the first per-endpoint raise. The value
-has no default in code. The env templates carry the default, per the no-fallback convention.
+The size ceiling is `ORKYO_TRANSFER_MAX_ARCHIVE_BYTES`. The value has no default in code.
+The env templates carry the value, per the no-fallback convention. If the variable is not
+set, the POST routes return 503 and the export continues to work. A value that is not a
+positive integer stops the application at startup.
+
+Both products cap Kestrel at 10 MB globally. The POST routes remove that cap for the
+request and count the bytes during the copy to the temporary file. There is thus one
+limit, and an upload above it returns 413 with the transfer error code.
 
 The SaaS ingress sets two hard limits, because Cloudflare proxies the tenant hosts:
 
@@ -296,7 +309,7 @@ An imported user without a match is inserted under its imported id as an inactiv
 placeholder. The insert follows the `ON CONFLICT` convention from `docs/conventions.md`.
 A placeholder has these values:
 
-- Email `transfer-placeholder+<first8-of-id>@invalid.orkyo`.
+- Email `transfer-placeholder+<id>@invalid.orkyo`, with the id as 32 hex digits.
 - The imported display name. If the name is empty, the original email is the display name.
 - `keycloak_id` null.
 - `keycloak_metadata` = `{"transfer_placeholder": true, "original_email": "<email>"}`.
@@ -360,29 +373,31 @@ CLAUDE.md of each repo. Commits carry a `Docs-impact:` trailer. New endpoint gro
 `RouteInventoryTests` entry in both products. `./scripts/test-downstream.sh` runs before the
 foundation PR merges.
 
-**Phase A — foundation backend** (`backend/core/Services/Transfer/`, endpoints in
-`backend/src/Endpoints/TransferEndpoints.cs`), in this order:
+**Phase A — foundation backend** (`backend/core/Services/Transfer/`, the repository in
+`backend/core/Repositories/`, endpoints in `backend/src/Endpoints/TransferEndpoints.cs`):
 
 1. `TenantTransferTableConformanceTests`, then `TenantTransferTables`.
-2. `TransferSchemaInspector` (live columns and types).
-3. `TenantArchiveWriter` and `TenantArchiveReader`.
-4. `TenantTransferVersionGate` (references `Orkyo.Migration.Abstractions` only).
-5. `TransferUserRelinker`.
-6. `TenantTransferRepository`. It holds all SQL, because `ConventionContractTests` forbids
-   SQL in services. The three usage queries move to shared query text.
-7. `TenantTransferService`, a concrete class without an interface.
-8. Endpoint wiring in `FoundationEndpointExtensions` and `FoundationServiceExtensions`.
+2. `TenantArchive`: the entry names, the writer, and the reader with its bounds.
+3. `TenantTransferVersionGate`. `Orkyo.Foundation.Core` references
+   `Orkyo.Migration.Abstractions` for the `IMigrationModule` contract.
+4. `TransferUserMatcher`.
+5. `TenantTransferRepository` and `TenantTransferSession`. They hold all SQL, because
+   `ConventionContractTests` forbids SQL in services. The three usage queries are shared
+   constants of the site, resource and asset repositories.
+6. `TenantTransferService`, a concrete class without an interface.
+7. `TransferEndpoints`, with wiring in `FoundationEndpointExtensions` and
+   `FoundationServiceExtensions`.
 
-Tests against `DatabaseFixture`:
+Tests:
 
-- The gate matrix: target behind, archive older, archive newer, entries of another module,
-  and `TenantDatabaseOnly` ids.
-- Round trip with all column types, re-encryption, user-id remap, the id-first user match,
-  and the deferred columns.
-- Rollback after a failure in the load, and rollback after a cancel.
-- A consistent export during an import, and 409 for a second import.
-- The reader rules: an unknown entry, different row keys, and the uncompressed size bound.
-- A quota above the limit, with a test enforcer.
+- Against two tenant databases, with the demo seed as the source data: round trip of every
+  `Travels` table, the user merge, re-encryption, the `Kept` and `Erased` tables, and the
+  search index.
+- The gate: database behind, archive older, archive newer, archive different.
+- The reader rules, each with a check that the target did not change.
+- Rollback after a cancel, and rollback after a quota above the limit.
+- A consistent export during an import that is not committed, and 409 for a second writer.
+- The routes: admin only, the download, the size ceiling, and an import of the own archive.
 
 **Phase B — foundation frontend**: `api-paths.ts` entries, `transfer-api.ts`, the
 `DataTransferSettings` tab, routes, and vitest tests for the import stages.

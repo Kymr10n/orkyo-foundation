@@ -47,6 +47,13 @@ public sealed record DeploymentConfig
     /// <summary>Base64-encoded 32-byte AES-256 master key for at-rest field/blob encryption.</summary>
     public required string MasterEncryptionKey { get; init; }
 
+    // ── Tenant transfer ──────────────────────────────────────────────────
+    /// <summary>
+    /// Largest transfer archive an import accepts, in bytes; null when the deployment has not
+    /// configured the import. See <see cref="ConfigKeys.TransferMaxArchiveBytes"/>.
+    /// </summary>
+    public long? TransferMaxArchiveBytes { get; init; }
+
     // ── Logging ──────────────────────────────────────────────────────────
     public string LogLevel { get; init; } = "";
 
@@ -163,6 +170,8 @@ public sealed record DeploymentConfig
 
             MasterEncryptionKey = Require(ConfigKeys.MasterEncryptionKey),
 
+            TransferMaxArchiveBytes = ParseTransferMaxArchiveBytes(configuration),
+
             // Display-only (two admin diagnostics panels). No deployment sets this key and
             // nothing reads the property to configure logging, so no default: an unset key
             // reports as unset instead of claiming a level nobody chose.
@@ -178,6 +187,21 @@ public sealed record DeploymentConfig
         config.DecodeMasterEncryptionKey();
 
         return config;
+    }
+
+    /// <summary>
+    /// Unset means "import not configured". A set value that is not a positive whole number
+    /// is a deployment error and fails the start, like a malformed master key.
+    /// </summary>
+    private static long? ParseTransferMaxArchiveBytes(IConfiguration configuration)
+    {
+        var raw = configuration.GetNonEmptyOrNull(ConfigKeys.TransferMaxArchiveBytes);
+        if (raw is null) return null;
+        return long.TryParse(raw, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var bytes) && bytes > 0
+            ? bytes
+            : throw new InvalidOperationException(
+                $"{ConfigKeys.TransferMaxArchiveBytes} must be a positive whole number of bytes (got '{raw}').");
     }
 
     // ── Redaction ────────────────────────────────────────────────────────
