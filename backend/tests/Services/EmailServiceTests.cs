@@ -146,6 +146,31 @@ public class EmailServiceTests
         result.Should().BeFalse("a mail that could not be queued is the one case the caller must treat as not sent");
     }
 
+    [Theory]
+    [InlineData("victim@example.com\nBcc: other@example.com", null)]
+    [InlineData("a b@example.com", null)]
+    [InlineData("Evil <victim@example.com>", null)]
+    [InlineData("to@example.com", "not an address")]
+    public async Task SendEmailAsync_WhenAnAddressIsNotDeliverable_RefusesWithoutQueuing(string toEmail, string? replyTo)
+    {
+        var result = await _emailService.SendEmailAsync(toEmail, "", "Subject", "<p/>", "", replyTo: replyTo);
+
+        result.Should().BeFalse("a mail MimeKit cannot address would only die in the outbox and page the dead-mail alert");
+        _outbox.Rows.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("ok.name+tag@sub.example.co", null)]
+    [InlineData("frank@pinnacledrilling.ca", "contact@example.com")]
+    [InlineData("ünï@exämple.de", "Orkyo <contact@example.com>")]
+    public async Task SendEmailAsync_QueuesEveryDeliverableAddress(string toEmail, string? replyTo)
+    {
+        var result = await _emailService.SendEmailAsync(toEmail, "", "Subject", "<p/>", "", replyTo: replyTo);
+
+        result.Should().BeTrue();
+        _outbox.Single().ReplyTo.Should().Be(replyTo);
+    }
+
     [Fact]
     public async Task TemplatedSends_WhenTransportFails_AreQueuedNotLost()
     {

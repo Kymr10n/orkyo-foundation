@@ -212,16 +212,20 @@ public class ContactEndpointsTests : IAsyncLifetime
     {
         var notifyEmail = $"ops-{Guid.NewGuid():N}@test.local";
         var visitor = $"Visitor-{Guid.NewGuid():N}@test.local";
+        var dayBefore = DateTime.UtcNow;
 
         var response = await SubmitWithNotificationAddressAsync(notifyEmail, $"  {visitor} ");
+        var dayAfter = DateTime.UtcNow;
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var confirmation = Email.RawSends.Should().ContainSingle(s => s.To == visitor).Subject;
         confirmation.Subject.Should().Be("We received your message to Orkyo");
         confirmation.ReplyTo.Should().Be(notifyEmail, "a reply to the confirmation must reach a person");
         confirmation.ToName.Should().BeEmpty("the visitor's name is untrusted input and stays out of the mail");
-        confirmation.DedupeKey.Should().Be(
-            $"contact-confirmation:{visitor.ToLowerInvariant()}:{DateTime.UtcNow:yyyy-MM-dd}",
+        // Either side of the request, so a run across UTC midnight does not flake.
+        confirmation.DedupeKey.Should().BeOneOf(
+            [$"contact-confirmation:{visitor.ToLowerInvariant()}:{dayBefore:yyyy-MM-dd}",
+             $"contact-confirmation:{visitor.ToLowerInvariant()}:{dayAfter:yyyy-MM-dd}"],
             "one confirmation per address per day, however the address is capitalised");
     }
 
