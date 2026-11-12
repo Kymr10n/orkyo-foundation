@@ -93,8 +93,17 @@ public class TransferEndpointsIntegrationTests(DatabaseFixture fixture)
 
         var response = await client.PostAsync($"{Import}?confirmation={TestConstants.TenantSlug}", ArchiveContent(archive));
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
-        var result = (await response.Content.ReadFromJsonAsync<TransferImportResult>(Json))!;
+        var stream = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, stream);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/event-stream");
+        stream.Should().StartWith("event: progress\ndata: {\"step\":\"erase\"");
+        stream.Should().Contain("{\"step\":\"load\",\"percent\":100}");
+
+        // The result is the last event.
+        const string resultEvent = "event: result\ndata: ";
+        stream.Should().Contain(resultEvent).And.NotContain("event: error");
+        var result = JsonSerializer.Deserialize<TransferImportResult>(
+            stream[(stream.LastIndexOf(resultEvent, StringComparison.Ordinal) + resultEvent.Length)..].Trim(), Json)!;
         result.PlaceholderUsers.Should().Be(0);
         result.Rows.Should().BeGreaterThan(0);
 
@@ -109,7 +118,9 @@ public class TransferEndpointsIntegrationTests(DatabaseFixture fixture)
         var response = await fixture.CreateAuthorizedClient()
             .PostAsync($"{Import}?confirmation=someone-else", ArchiveContent(await ExportAsync()));
 
+        // Refused before the import reported anything: a status code, not a stream.
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        response.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
     }
 
     [Fact]

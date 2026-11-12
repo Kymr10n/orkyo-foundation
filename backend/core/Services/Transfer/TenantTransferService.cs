@@ -185,7 +185,8 @@ public sealed class TenantTransferService(
     /// confirm that the current data goes away.
     /// </summary>
     public async Task<TransferImportResult> ImportAsync(
-        Stream archive, string? confirmation, Guid? actorUserId, CancellationToken ct = default)
+        Stream archive, string? confirmation, Guid? actorUserId, CancellationToken ct = default,
+        Action<TransferProgress>? report = null)
     {
         if (!string.Equals(confirmation, org.OrgSlug, StringComparison.Ordinal))
             throw new ArgumentException("The confirmation does not match this organization's identifier.");
@@ -201,6 +202,11 @@ public sealed class TenantTransferService(
             throw new TransferRejectedException(409, ApiErrorCodes.TransferBusy,
                 "Another import or a long-running change holds this organization's data. Try again in a moment.");
 
+        // The checks a caller can act on are behind us: from here the import does its work.
+        var progress = new LoadProgress(
+            report, TenantTransferTables.Travelling.Sum(t => manifest.Tables.GetValueOrDefault(t.Name)));
+        report?.Invoke(new TransferProgress(TransferProgress.Erase));
+
         var columns = await session.ReadColumnsAsync(ct);
         var usageBefore = await session.ReadUsageAsync(org.OrgId, ct);
 
@@ -214,7 +220,9 @@ public sealed class TenantTransferService(
         var blobs = new BlobTally();
         var deferred = new Dictionary<TransferTable, List<(string Id, string Value)>>();
         TableLoad LoadOf(TransferTable table, List<(string Id, string Value)>? deferredValues) =>
-            new(table, columns[table.Name], users.IdMap, deferredValues, blobs);
+            new(table, columns[table.Name], users.IdMap, deferredValues, blobs, progress);
+
+        progress.Rows(0);
 
         foreach (var table in TenantTransferTables.Travelling)
         {
@@ -225,6 +233,8 @@ public sealed class TenantTransferService(
             foreach (var earlier in TenantTransferTables.Travelling.Where(t => t.LateAfter == table.Name))
                 loaded[earlier.Name] += await LoadTableAsync(session, reader, LoadOf(earlier, null), lateRows: true, ct);
         }
+
+        report?.Invoke(new TransferProgress(TransferProgress.Finish));
 
         foreach (var (table, count) in loaded)
         {
@@ -313,7 +323,29 @@ public sealed class TenantTransferService(
         IReadOnlyList<TransferColumn> Columns,
         IReadOnlyDictionary<Guid, Guid> UserIds,
         List<(string Id, string Value)>? Deferred,
-        BlobTally Blobs);
+        BlobTally Blobs,
+        LoadProgress Progress);
+
+    /// <summary>
+    /// Reports the load as a whole percentage of the rows the manifest announces, once per
+    /// value: an import says at most a hundred times how far it is.
+    /// </summary>
+    private sealed class LoadProgress(Action<TransferProgress>? report, long totalRows)
+    {
+        private long _rows;
+        private int _percent = -1;
+
+        public void Rows(long loaded)
+        {
+            _rows += loaded;
+            // An archive that names more rows than its manifest fails the count check later;
+            // until then it must not report more than everything.
+            var percent = totalRows == 0 ? 100 : (int)Math.Min(100, _rows * 100 / totalRows);
+            if (percent == _percent) return;
+            _percent = percent;
+            report?.Invoke(new TransferProgress(TransferProgress.Load, percent));
+        }
+    }
 
     /// <summary>How many of the archive's binary values the rows have named so far.</summary>
     private sealed class BlobTally
@@ -337,7 +369,9 @@ public sealed class TenantTransferService(
         {
             if (batchRows == 0) return;
             batch.Append(']');
-            loaded += await session.InsertRowsAsync(load.Table, load.Columns, batch.ToString(), blob, ct);
+            var inserted = await session.InsertRowsAsync(load.Table, load.Columns, batch.ToString(), blob, ct);
+            loaded += inserted;
+            load.Progress.Rows(inserted);
             batch.Clear().Append('[');
             batchRows = 0;
         }

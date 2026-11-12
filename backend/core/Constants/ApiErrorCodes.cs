@@ -45,6 +45,9 @@ public static class ApiErrorCodes
     /// <summary>Tenant transfer: the deployment has not set the archive size ceiling (503).</summary>
     public const string TransferNotConfigured = "transfer_not_configured";
 
+    /// <summary>Tenant transfer: a server fault ended the import after its progress stream had started (500).</summary>
+    public const string TransferFailed = "transfer_failed";
+
     /// <summary>Resource not found (404)</summary>
     public const string NotFound = "NOT_FOUND";
 

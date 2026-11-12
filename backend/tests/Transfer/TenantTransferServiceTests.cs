@@ -395,13 +395,34 @@ public class TenantTransferServiceTests(TenantTransferFixture fixture) : IClassF
     }
 
     [Fact]
+    public async Task Import_ReportsItsSteps_AndTheLoadAsARisingPercentage()
+    {
+        await fixture.ResetTargetAsync();
+        var reported = new List<Api.Models.TransferProgress>();
+
+        await fixture.CreateService().ImportAsync(
+            Archive(), TenantTransferFixture.TargetSlug, actorUserId: null, report: reported.Add);
+
+        reported[0].Should().Be(new Api.Models.TransferProgress("erase"));
+        reported[^1].Should().Be(new Api.Models.TransferProgress("finish"));
+        var load = reported.Skip(1).SkipLast(1).ToList();
+        load.Should().OnlyContain(p => p.Step == "load");
+        load.Select(p => p.Percent!.Value).Should().BeInAscendingOrder().And.OnlyHaveUniqueItems();
+        load[0].Percent.Should().Be(0);
+        load[^1].Percent.Should().Be(100);
+    }
+
+    [Fact]
     public async Task Import_WithoutTheSlugAsConfirmation_IsABadRequest()
     {
         await fixture.ResetTargetAsync();
+        var reported = new List<Api.Models.TransferProgress>();
 
-        var act = () => fixture.CreateService().ImportAsync(Archive(), TenantTransferFixture.SourceSlug, null);
+        var act = () => fixture.CreateService()
+            .ImportAsync(Archive(), TenantTransferFixture.SourceSlug, null, report: reported.Add);
 
         await act.Should().ThrowAsync<ArgumentException>();
+        reported.Should().BeEmpty();
         await AssertTargetUntouchedAsync();
     }
 

@@ -69,3 +69,14 @@ public sealed record TransferImportResult
 
     public required int PlaceholderUsers { get; init; }
 }
+
+/// <summary>
+/// Where a running import is. <see cref="Percent"/> is set for the load only, the one step
+/// with something to measure: rows loaded of the rows the manifest announces.
+/// </summary>
+public sealed record TransferProgress(string Step, int? Percent = null)
+{
+    public const string Erase = "erase";
+    public const string Load = "load";
+    public const string Finish = "finish";
+}
