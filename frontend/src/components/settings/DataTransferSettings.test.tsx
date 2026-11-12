@@ -112,7 +112,11 @@ describe('DataTransferSettings', () => {
 
     expect(await screen.findByText(/The import is complete: 42 rows loaded/)).toBeInTheDocument();
     expect(vi.mocked(importTenantArchive).mock.calls[0].slice(0, 2)).toEqual([archive, 'my-org']);
-    expect(screen.getByRole('button', { name: 'Reload now' })).toBeInTheDocument();
+    const reload = vi.fn();
+    vi.stubGlobal('location', { ...window.location, reload });
+    await userEvent.click(screen.getByRole('button', { name: 'Reload now' }));
+    expect(reload).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
     expect(screen.queryByLabelText('Archive file')).not.toBeInTheDocument();
   });
 
