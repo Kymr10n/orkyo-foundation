@@ -1,6 +1,6 @@
 # Tenant data transfer — specification and implementation plan
 
-Status: **phases A and B (foundation backend and frontend) implemented**. Phases C to E are open. First draft 2026-07-15. Final revision 2026-11-10,
+Status: **phases A and B (foundation backend and frontend) implemented**. Phases C to E are open. Section 13 (import progress) is specified and not implemented. First draft 2026-07-15. Final revision 2026-11-10,
 on branch `claude/tenant-db-export-import-y8wytv`. The first draft is archived at
 `requirements/archive/superseded-docs/tenant-transfer-plan.md`. The git history of this file
 records the corrections from the design reviews.
@@ -457,3 +457,212 @@ Open:
 2. **Botched-import recovery on SaaS.** The transaction protects the data path. Recovery
    from a committed but unwanted import uses the operator backups
    (`orkyo-infra/docs/60-backups.md`), not this feature.
+
+## 13. Import progress
+
+Status: specified 2026-11-12, not implemented. Sections 5, 7 and 10 describe the current
+behavior. The implementation of this section updates them.
+
+### 13.1 Problem and goal
+
+The import card shows the upload percentage only. After the upload, the server loads the
+archive in one request and sends one response at the end. The admin sees no change for up
+to a minute.
+
+The goal is one progress bar with the name of the current step. The bar shows a measured
+percentage where a measurement exists. It shows no invented percentage.
+
+This section does not change the import transaction, the archive format, or the checks.
+
+### 13.2 Design decisions
+
+| Decision | Value | Reason |
+|---|---|---|
+| Transport | Server-Sent Events on the response of `POST /import` | WHATWG standard. `/api/ai/chat` uses the same mechanism through the same proxies. |
+| Background job with a status route | Rejected | It needs a job identifier, stored state and a second route for a request of about one minute. |
+| WebSocket | Rejected | The stream has one direction. The application has no WebSocket infrastructure. |
+| Error format | RFC 9457 problem document, as today | One error contract before and during the stream. |
+| Validation route | Unchanged, JSON | It reads the manifest and the users only. It has no long step. |
+| Progress unit | Rows loaded of the manifest row total | The manifest gives the total before the load starts. |
+| Keep-alive | SSE comment every 15 seconds | The proxies measure idle time. The comment resets it. |
+
+### 13.3 Steps
+
+The client knows the first two steps. The server reports the other three.
+
+| Step | Source | Bar | Label |
+|---|---|---|---|
+| `upload` | Upload progress of the browser | Bytes sent of the file size | "Uploading: 40%" |
+| `check` | The upload is complete and no event is there | Indeterminate | "Checking the archive" |
+| `erase` | Server event | Indeterminate | "Removing the current data" |
+| `load` | Server event | Rows loaded of the row total | "Loading the data: 40%" |
+| `finish` | Server event | Indeterminate | "Finishing" |
+
+The step `erase` starts after the lock (section 5, step 1). It includes the user merge.
+The step `load` is section 5, step 5. The step `finish` includes the deferred column, the
+row count comparison, the quota check, the commit, the quota deltas and the audit event.
+
+The bar shows one step at a time. It does not combine the steps into one total percentage,
+because the durations of the steps have no fixed ratio.
+
+### 13.4 Wire contract
+
+The response of `POST /api/admin/transfer/import` changes. The request does not change.
+
+Before the first event, the response is the same as today. Each of these checks fails with
+its HTTP status and a problem document: the size ceiling, the confirmation, the manifest,
+the version gate and the lock. Section 7 gives the codes.
+
+After the lock, the response has status 200 and the content type `text/event-stream`. It
+carries these events:
+
+| Event | Data | Count |
+|---|---|---|
+| `progress` | `{ "step": "erase" }`, `{ "step": "load", "percent": 40 }`, `{ "step": "finish" }` | Many |
+| `result` | The `TransferImportResult` of today | One, last |
+| `error` | The problem document, with its `status` | One, last |
+
+Exactly one of `result` and `error` ends the stream. A stream that ends without one of them
+is a lost connection. The transaction then rolls back, as today.
+
+An `error` event means that the import did not change the data. The server sends `result`
+only after the commit.
+
+When the whole percentage changes, the server sends a `load` event. One import thus sends
+100 `load` events at most.
+
+When the stream is silent for 15 seconds, the server sends a comment line (`: keep-alive`).
+
+### 13.5 Backend
+
+**Shared SSE helper.** The functions `WriteEventAsync`, `WriteHeartbeatAsync` and
+`StreamWithHeartbeatAsync` are private parts of `AiChatEndpoints` today. They move to one
+static class `ServerSentEvents` in `backend/src/Helpers/`. The class also sets the three
+response headers (`Content-Type`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`).
+`StreamWithHeartbeatAsync` becomes generic in the event type and takes the function that
+writes one event. `AiChatEndpoints` uses the class. Its behavior and its tests do not change.
+
+**Service.** `TenantTransferService.ImportAsync` gets one optional parameter,
+`Action<TransferProgress>? report`. `TransferProgress` is a record with `Step` and a nullable
+`Percent`, in `backend/core/Models/Transfer.cs`. The service calls `report` at the start of
+each server step and after each batch of the load. It holds the last reported percentage
+and skips a call that does not change it. The row total is the sum of `manifest.Tables`.
+The service has no knowledge of HTTP. A caller without `report` gets the behavior of today.
+
+**Endpoint.** The handler of `POST /import` does this sequence:
+
+1. It receives the archive, as today.
+2. It creates an unbounded `Channel<TransferProgress>` and starts `ImportAsync`. The
+   `report` function writes to the channel. When the import task ends, the handler
+   completes the channel.
+3. It waits for the first item of the channel. If the channel completes with no item, the
+   handler awaits the task. The exception goes to `AppExceptionHandler`, and the response
+   has the HTTP status of today.
+4. With the first item, it starts the stream through `ServerSentEvents`. It writes each
+   item as a `progress` event, with the keep-alive.
+5. It awaits the task. It writes `result`, or it writes `error`.
+
+Only the handler writes to the response, so the stream needs no lock. The handler always
+awaits the import task before it returns, so the request scope outlives the import.
+
+**Errors during the stream.** `AppExceptionHandler.Map` is the one place that maps an
+exception to a problem document. It becomes `internal`, and the handler calls it for the
+`error` event. A cancelled request writes nothing, because no client is there. The
+`TransferRejectedException` and the quota exception thus have the same code and the same
+message before and during the stream.
+
+**OpenAPI.** The route declares `text/event-stream` for status 200.
+
+### 13.6 Frontend
+
+**Shared SSE reader.** `ai-api.ts` holds the code that splits a stream into events. That
+code moves to `lib/core/sse.ts` as one function. The function takes the buffered text and
+returns the complete events (`name`, `data`) and the remaining text. `streamAiChat` uses
+the function.
+
+**Upload helper.** `uploadWithProgress` in `lib/core/upload.ts` gets one option,
+`onEvent(name, data)`. The request stays an XMLHttpRequest, because `fetch` gives no upload
+progress. If the response has the content type `text/event-stream`, the helper reads
+`responseText` in each `progress` event of the request. It gives the new events to
+`onEvent`. The promise resolves with the data of the `result` event. An `error` event goes
+through `handleApiError`, with a `Response` that the helper builds from the problem
+document. The caller thus gets the same `ApiError` as for an HTTP error. A stream with no
+last event rejects with the message for a lost connection. A JSON response behaves as today.
+
+**API and hook.** `transfer-api.ts` defines one type:
+
+```ts
+export type TransferProgress =
+  | { step: 'upload'; percent: number }
+  | { step: 'check' | 'erase' | 'finish' }
+  | { step: 'load'; percent: number };
+```
+
+`importTenantArchive` and `validateTenantArchive` take `onProgress(progress: TransferProgress)`.
+They report `upload` from the upload percentage, `check` at 100 percent, and the server
+steps from the `progress` events. `useTenantTransfer.ts` passes the callback through.
+
+**Component.** `DataTransferSettings` holds one `TransferProgress` state in place of the
+number. A small `TransferProgressBar` in the same file shows the label of section 13.3 and
+a native `<progress>` element. The element has `value` and `max` for a step with a
+percentage, and no `value` for an indeterminate step. The native element gives the
+`progressbar` role and needs no new dependency. The label stays in the `role="status"`
+paragraph of today. The validation and the import use the same bar.
+
+### 13.7 Ingress
+
+The stream removes the time limit of section 7. Cloudflare and nginx measure the time
+without data, and the events and the keep-alive reset that time. The size limit of 100 MB
+stays.
+
+- The import locations in `orkyo-infra/nginx/snippets/app-routing.conf` need no new
+  directive. The response carries `X-Accel-Buffering: no`, and `text/event-stream` is not in
+  `gzip_types`. The comment of the locations changes, because the 100 seconds are now idle
+  time.
+- `orkyo-infra/docs/runbooks/tenant-transfer.md` changes its "Import time" row and its
+  status 524 row.
+- The Community example `release/nginx/community.conf.example` (phase D) needs no buffering
+  directive for the same reason.
+- Open question 1 of section 12 keeps the size part only.
+
+### 13.8 Tests
+
+Backend:
+
+- `ServerSentEvents`: the existing heartbeat tests of the AI endpoint move with the code.
+- The service reports `erase`, then `load` with a percentage that only increases, then
+  `finish`. The last `load` event has 100 percent. An archive with no rows reports no
+  `load` percentage below 100.
+- The route, on the Kestrel host of `TransferArchiveUploadKestrelTests`: an import of the
+  own archive returns `text/event-stream` with `progress` events and one `result`.
+- Each check of section 13.4 returns its HTTP status and a problem document, not a stream.
+- A failure after the lock (a row count that does not match the manifest, a quota above
+  the limit) returns status 200 with one `error` event. The target data does not change.
+- A cancel during the stream rolls back. The existing test covers the service. A new test
+  covers the route.
+
+Frontend:
+
+- `sse.ts`: complete events, an event split across two chunks, a comment line.
+- `upload.ts`: a JSON response as today, a stream with `result`, a stream with `error`
+  as an `ApiError`, a stream with no last event.
+- `DataTransferSettings`: the label and the bar for each step, and the bar for validation.
+
+### 13.9 Implementation order
+
+The work goes on the open branches, with the rules of section 11.
+
+1. Backend, on `claude/tenant-transfer-backend` (#321): `ServerSentEvents` with the move
+   of the AI code, then the `report` parameter, then the endpoint.
+2. Frontend, on `claude/tenant-transfer-frontend` (#322): `sse.ts` with the move of the AI
+   code, then the `onEvent` option, then the API, the hook and the bar. Sections 5, 7, 10
+   and 12 of this file change in the same pull request.
+3. Infra (#83): the comment and the runbook rows of section 13.7.
+4. Documentation (#42): the import stages in `data-transfer.md`.
+
+### 13.10 Out of scope
+
+- Progress of the export. The browser shows the download.
+- Progress inside the validation, after the upload.
+- A cancel button. A closed tab cancels the import, as today.
+- A resume after a lost connection. The import starts again from the file.
