@@ -118,6 +118,25 @@ public class TenantTransferTableConformanceTests(PostgresFixture fixture)
     }
 
     [Fact]
+    public async Task BlobColumns_AreExactlyTheBinaryColumnsThatTravel_AndEncryptedColumnsExist()
+    {
+        var travelling = TenantTransferTables.Travelling.Select(t => t.Name).ToArray();
+        var columns = await QueryAsync(@"
+            SELECT table_name || '.' || column_name || ':' || udt_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = ANY(@tables)",
+            r => r.GetString(0), ("tables", travelling));
+
+        var blobs = TenantTransferTables.Travelling.Where(t => t.BlobColumn is not null).ToList();
+        blobs.Select(t => $"{t.Name}.{t.BlobColumn}:bytea").Should().BeEquivalentTo(
+            columns.Where(c => c.EndsWith(":bytea", StringComparison.Ordinal)),
+            "a binary value travels as its own archive entry, never as text inside the row");
+        columns.Should().Contain(blobs.Select(t => $"{t.Name}.id:uuid"), "a binary entry is named by the id of its row");
+
+        var declared = TenantTransferTables.Travelling.SelectMany(t => t.EncryptedColumns.Select(c => $"{t.Name}.{c}"));
+        declared.Should().BeSubsetOf(columns.Select(c => c[..c.IndexOf(':')]));
+    }
+
+    [Fact]
     public async Task UserColumns_CoverEveryTravellingColumnThatHoldsAUserId()
     {
         var catalog = TenantTransferTables.All.ToDictionary(t => t.Name);
