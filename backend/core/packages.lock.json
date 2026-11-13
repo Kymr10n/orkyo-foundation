@@ -4,9 +4,9 @@
     "net10.0": {
       "Anthropic": {
         "type": "Direct",
-        "requested": "[12.60.0, )",
-        "resolved": "12.60.0",
-        "contentHash": "zpU/1gEHxvCn4yapX4vrL31jNtIoLkU3sWsFfBq83uYrWGbt2wm3i4gpSUNg5LFyiDvT6T9KYfCh6OTpJN90KA==",
+        "requested": "[13.4.0, )",
+        "resolved": "13.4.0",
+        "contentHash": "EuYkx2rsxq49XqIkSM1oNhy9EBKI8QVJfZlNDsNZUCWELh2VVPC5E4BL1URPQxK0kFL2AEkVIa4ypdYVrXQLNQ==",
         "dependencies": {
           "Microsoft.Extensions.AI.Abstractions": "10.5.1"
         }
