@@ -10,6 +10,7 @@ using Api.Services;
 using Api.Services.Ai;
 using Api.Services.AutoSchedule;
 using Api.Services.Reporting;
+using Api.Services.Transfer;
 using Api.Validators;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -187,6 +188,11 @@ public static class FoundationServiceExtensions
             Log.Warning(EmailTransportRegistration.LogOnlyWarning);
         services.AddScoped<IBackgroundDispatcher, BackgroundDispatcher>();
         services.AddScoped<IExportService, ExportService>();
+        // Tenant data transfer. The gate reads the IMigrationModule set the edition registers
+        // (AddFoundationMigrations or its equivalent) to know the schema version this build expects.
+        services.AddScoped<TenantTransferRepository>();
+        services.AddSingleton<TenantTransferVersionGate>();
+        services.AddScoped<TenantTransferService>();
         services.AddScoped<ICalendarFeedService, CalendarFeedService>();
         services.AddScoped<IAssetStorageService, AssetStorageService>();
         // Self-registration stays on unless an edition opts out in its own

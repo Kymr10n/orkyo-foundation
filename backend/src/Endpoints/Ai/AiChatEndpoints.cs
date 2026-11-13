@@ -1,4 +1,4 @@
-using System.Text.Json;
+using Api.Helpers;
 using Api.Middleware;
 using Api.Services.Ai;
 using Microsoft.AspNetCore.Builder;
@@ -42,8 +42,6 @@ public sealed record AiChatContext
 /// </summary>
 public static class AiChatEndpoints
 {
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-
     public static void MapAiChatEndpoints(this IEndpointRouteBuilder app)
     {
         var group = app.MapGroup("/api/ai")
@@ -68,11 +66,7 @@ public static class AiChatEndpoints
     {
         var logger = loggerFactory.CreateLogger(typeof(AiChatEndpoints));
 
-        http.Response.ContentType = "text/event-stream";
-        http.Response.Headers.CacheControl = "no-cache";
-        // Ask any reverse proxy in front of us not to buffer, so the stream stays a stream
-        // without needing proxy configuration changed for this one endpoint.
-        http.Response.Headers["X-Accel-Buffering"] = "no";
+        ServerSentEvents.Start(http.Response);
 
         var turn = new AiChatRequest
         {
@@ -86,7 +80,7 @@ public static class AiChatEndpoints
 
         try
         {
-            await StreamWithHeartbeatAsync(http.Response, chat.RunTurnAsync(turn, ct), HeartbeatInterval, ct);
+            await StreamWithHeartbeatAsync(http.Response, chat.RunTurnAsync(turn, ct), ServerSentEvents.HeartbeatInterval, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -107,71 +101,10 @@ public static class AiChatEndpoints
         }
     }
 
-    /// <summary>
-    /// How long the stream may stay silent. A turn spends most of its time waiting on the
-    /// model, which produces nothing to send, and anything between us and the browser —
-    /// a reverse proxy, a CDN, a corporate middlebox — is entitled to drop a connection it
-    /// believes has gone idle. A comment line costs nothing and resets every such timer.
-    /// </summary>
-    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-
-    /// <summary>
-    /// Writes the turn's events, emitting an SSE comment whenever the gap since the last
-    /// write approaches <see cref="HeartbeatInterval"/>. Comments are the protocol's own
-    /// keepalive: the client skips any line starting with ':' and sees only real events.
-    /// </summary>
     /// <remarks>Internal so tests can drive it with an interval short enough to observe.</remarks>
-    internal static async Task StreamWithHeartbeatAsync(
-        HttpResponse response, IAsyncEnumerable<AiChatEvent> events, TimeSpan heartbeatInterval, CancellationToken ct)
-    {
-        var enumerator = events.GetAsyncEnumerator(ct);
-        Task<bool>? pending = null;
-        try
-        {
-            while (true)
-            {
-                pending = enumerator.MoveNextAsync().AsTask();
-
-                // Wait for the next event, but never longer than the heartbeat interval. The
-                // linked source stops the pending delay as soon as the turn moves on, so a
-                // long turn does not accumulate timers.
-                while (true)
-                {
-                    using var beat = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                    var delay = Task.Delay(heartbeatInterval, beat.Token);
-                    var winner = await Task.WhenAny(pending, delay);
-                    beat.Cancel();
-
-                    if (winner == pending) break;
-                    await WriteHeartbeatAsync(response, ct);
-                }
-
-                var moved = await pending;
-                pending = null;
-                if (!moved) break;
-
-                var (name, payload) = Describe(enumerator.Current);
-                await WriteEventAsync(response, name, payload, ct);
-            }
-        }
-        finally
-        {
-            // An async iterator refuses DisposeAsync while a MoveNextAsync is still in
-            // flight (NotSupportedException) — and on a failure path that refusal would
-            // mask the exception that actually brought us here. Drain the pending advance
-            // first; it completes promptly because the iterator observes the same ct, and
-            // its own outcome no longer matters.
-            if (pending is not null)
-            {
-                try { await pending; }
-                catch
-                {
-                    // Deliberately swallowed: surfacing the original exception is the point.
-                }
-            }
-            await enumerator.DisposeAsync();
-        }
-    }
+    internal static Task StreamWithHeartbeatAsync(
+        HttpResponse response, IAsyncEnumerable<AiChatEvent> events, TimeSpan heartbeatInterval, CancellationToken ct) =>
+        ServerSentEvents.StreamAsync(response, events, Describe, heartbeatInterval, ct);
 
     private static (string Name, object Payload) Describe(AiChatEvent evt) => evt switch
     {
@@ -206,33 +139,19 @@ public static class AiChatEndpoints
 
         try
         {
-            await WriteEventAsync(response, "error", new
+            await ServerSentEvents.WriteEventAsync(response, "error", new
             {
                 code = timedOut ? "turn_timeout" : "turn_failed",
                 message = timedOut
                     ? "That took longer than the assistant is allowed to spend. Try a narrower question."
                     : "The assistant stopped before it finished. Try again.",
             }, CancellationToken.None);
-            await WriteEventAsync(response, "done", new { }, CancellationToken.None);
+            await ServerSentEvents.WriteEventAsync(response, "done", new { }, CancellationToken.None);
         }
         catch (Exception writeFailure)
         {
             // The connection is gone too. Nothing left to tell anyone.
             logger.LogDebug(writeFailure, "Could not report the turn failure to the client");
         }
-    }
-
-    /// <summary>An SSE comment: ignored by the client, but traffic as far as the network is concerned.</summary>
-    private static async Task WriteHeartbeatAsync(HttpResponse response, CancellationToken ct)
-    {
-        await response.WriteAsync(": keep-alive\n\n", ct);
-        await response.Body.FlushAsync(ct);
-    }
-
-    private static async Task WriteEventAsync(HttpResponse response, string name, object payload, CancellationToken ct)
-    {
-        await response.WriteAsync($"event: {name}\n", ct);
-        await response.WriteAsync($"data: {JsonSerializer.Serialize(payload, Json)}\n\n", ct);
-        await response.Body.FlushAsync(ct);
     }
 }

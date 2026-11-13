@@ -40,7 +40,7 @@ import { AUTH_STAGES, AUTH_EVENTS, ROUTE_ABOUT, ROUTE_ACCOUNT, ROUTE_ASSETS,
   ROUTE_TENANT_ADMIN_SITES, ROUTE_TENANT_ADMIN_USERS, ROUTE_TENANT_ADMIN_ORGANIZATION,
   ROUTE_TENANT_ADMIN_CONFIGURATION, ROUTE_TENANT_ADMIN_INTEGRATIONS,
   ROUTE_TENANT_ADMIN_API_ACCESS, ROUTE_TENANT_ADMIN_AI_ASSISTANT,
-  ROUTE_TENANT_ADMIN_AUDIT_LOG, ROUTE_TENANT_ADMIN_USAGE_LIMITS,
+  ROUTE_TENANT_ADMIN_AUDIT_LOG, ROUTE_TENANT_ADMIN_USAGE_LIMITS, ROUTE_TENANT_ADMIN_DATA_TRANSFER,
   ROUTE_CONFIGURATION_RESOURCE_TYPES, ROUTE_CONFIGURATION_CATALOG,
   ROUTE_CONFIGURATION_LIST_DEFINITIONS,
   isBlockedTenantState } from '@foundation/src/constants/auth';
@@ -89,6 +89,7 @@ const PlatformApiSettings = lazy(() => import('@foundation/src/components/settin
 const AiAssistantSettings = lazy(() => import('@foundation/src/components/settings/AiAssistantSettings').then(m => ({ default: m.AiAssistantSettings })));
 const AuditLogTab = lazy(() => import('@foundation/src/components/admin/AuditLogTab').then(m => ({ default: m.AuditLogTab })));
 const UsageLimitsSettings = lazy(() => import('@foundation/src/components/settings/UsageLimitsSettings').then(m => ({ default: m.UsageLimitsSettings })));
+const DataTransferSettings = lazy(() => import('@foundation/src/components/settings/DataTransferSettings').then(m => ({ default: m.DataTransferSettings })));
 const FloorplanView = lazy(() => import('@foundation/src/components/spaces/FloorplanView').then(m => ({ default: m.FloorplanView })));
 
 /** Route prefixes where the AppLayout TopBar (with its own ThemeToggle) is rendered. */
@@ -293,6 +294,7 @@ function TenantAppRoutes({
             <Route path={ROUTE_TENANT_ADMIN_AI_ASSISTANT} element={<AiAssistantSettings upgradeHref={aiAssistantUnavailableRedirectTo ?? reportingApiUnavailableRedirectTo} />} />
             <Route path={ROUTE_TENANT_ADMIN_AUDIT_LOG} element={<AuditLogTab upgradeHref={reportingApiUnavailableRedirectTo} />} />
             <Route path={ROUTE_TENANT_ADMIN_USAGE_LIMITS} element={<UsageLimitsSettings />} />
+            <Route path={ROUTE_TENANT_ADMIN_DATA_TRANSFER} element={<DataTransferSettings />} />
           </Route>
 
           {/* Resources — how the tenant shapes what it schedules. Admin-gated like

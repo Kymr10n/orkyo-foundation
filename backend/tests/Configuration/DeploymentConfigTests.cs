@@ -234,6 +234,47 @@ public class DeploymentConfigTests
     }
 
     /// <summary>Returns the minimum set of required keys, optionally merged with overrides.</summary>
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("", null)]
+    [InlineData("94371840", 94371840L)]
+    public void TransferMaxArchiveBytes_IsOptional_AndUnsetMeansNotConfigured(string? raw, long? expected)
+    {
+        var config = BuildConfig(RequiredValues(ConfigKeys.TransferMaxArchiveBytes, raw));
+
+        DeploymentConfig.FromConfiguration(config).TransferMaxArchiveBytes.Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-1")]
+    [InlineData("90MiB")]
+    [InlineData("1.5")]
+    public void TransferMaxArchiveBytes_ThatIsNotAPositiveWholeNumber_StopsTheStart(string raw)
+    {
+        var config = BuildConfig(RequiredValues(ConfigKeys.TransferMaxArchiveBytes, raw));
+
+        var act = () => DeploymentConfig.FromConfiguration(config);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage($"*{ConfigKeys.TransferMaxArchiveBytes}*");
+    }
+
+    /// <summary>The keys every deployment must set, plus one more.</summary>
+    private static Dictionary<string, string?> RequiredValues(string key, string? value) => new()
+    {
+        [ConfigKeys.AppBaseUrl] = "http://localhost:8080",
+        [ConfigKeys.OidcAuthority] = "http://localhost:8180/realms/orkyo",
+        [ConfigKeys.KeycloakUrl] = "http://localhost:8180",
+        [ConfigKeys.KeycloakRealm] = "orkyo",
+        [ConfigKeys.KeycloakBackendClientId] = "orkyo-backend",
+        [ConfigKeys.KeycloakBackendClientSecret] = "secret",
+        [ConfigKeys.KeycloakPasswordCheckClientId] = TestConstants.CheckClientId,
+        [ConfigKeys.KeycloakPasswordCheckClientSecret] = TestConstants.CheckClientCredential,
+        [ConfigKeys.ConnectionStringPostgresPath] = "Host=localhost;Database=postgres",
+        [ConfigKeys.MasterEncryptionKey] = TestConstants.MasterEncryptionKey,
+        [key] = value,
+    };
+
     private static Dictionary<string, string?> RequiredValues(Dictionary<string, string?>? overrides = null)
     {
         var values = new Dictionary<string, string?>

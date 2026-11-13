@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\shared\Orkyo.Shared.csproj" />
+    <!-- Contracts only (no runtime dependency): the tenant transfer gate reads the registered
+         IMigrationModule set to know the schema version this build expects. -->
+    <ProjectReference Include="..\migration-abstractions\Orkyo.Migration.Abstractions.csproj" />
   </ItemGroup>
 
   <!-- The shipped starter presets (StarterTemplateCatalog → PresetTemplateLoader). Embedded so

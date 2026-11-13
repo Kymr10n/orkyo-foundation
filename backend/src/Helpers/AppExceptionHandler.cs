@@ -28,7 +28,7 @@ public sealed class AppExceptionHandler : IExceptionHandler
             : null;
 
     /// <summary>The response for an exception this handler owns, or null to let it fall through.</summary>
-    private static IResult? Map(Exception exception)
+    internal static IResult? Map(Exception exception)
         => exception switch
         {
             // Framework exception: required query/route/body parameter missing from the request.
@@ -48,6 +48,8 @@ public sealed class AppExceptionHandler : IExceptionHandler
                 => ErrorResponses.Conflict(ce.Message),
             PreconditionFailedException pfe
                 => ErrorResponses.PreconditionFailed(pfe.Message),
+            TransferRejectedException tre
+                => ProblemResults.Problem(tre.StatusCode, tre.Code, tre.Message),
             CapabilityNotApplicableException cna
                 => ErrorResponses.BadRequest(cna.Message),
             // Guard-clause failures (ThrowIfNull etc.) are programming errors, not

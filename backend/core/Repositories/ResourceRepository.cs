@@ -128,6 +128,9 @@ public class ResourceRepository(
     // deactivated its resource, so an inactive one was already invisible to these reads.
     private const string PlaceableScope = "rt.has_geometry AND r.is_active";
 
+    /// <summary>The spaces quota usage. Shared with the tenant transfer, which reads it inside its own transaction.</summary>
+    internal const string PlaceableCountSql = $"SELECT COUNT(*) {FromClause} WHERE {PlaceableScope}";
+
     // Shared WHERE assembly for the list reads. UsesCurrentSite reports whether a fragment
     // references the cs lateral — a COUNT over such a WHERE must use ReadFrom, not FromClause.
     private static (List<string> Where, bool UsesCurrentSite) BuildFilter(
@@ -465,8 +468,7 @@ public class ResourceRepository(
     public async Task<int> GetPlaceableCountAsync(CancellationToken ct = default)
     {
         await using var db = connectionFactory.CreateOrgConnection(orgContext);
-        return (int)await db.ExecuteScalarAsync<long>(
-            $"SELECT COUNT(*) {FromClause} WHERE {PlaceableScope}", null, ct);
+        return (int)await db.ExecuteScalarAsync<long>(PlaceableCountSql, null, ct);
     }
 
     // Not static: it decrypts `notes`, which needs the injected service and the org id. Keeping
