@@ -7,6 +7,7 @@ namespace Api.Repositories;
 
 /// <summary>One mail waiting in the outbox, as a sender needs it.</summary>
 /// <param name="Attempts">Delivery attempts made before this one.</param>
+/// <param name="ReplyTo">Reply-To address, or null for none: replies then go to the sender.</param>
 public sealed record OutboxMessage(
     Guid Id,
     string ToEmail,
@@ -14,7 +15,8 @@ public sealed record OutboxMessage(
     string Subject,
     string HtmlBody,
     string TextBody,
-    int Attempts);
+    int Attempts,
+    string? ReplyTo = null);
 
 /// <summary>
 /// The mail outbox: every outbound mail is written here, fully rendered, before any
@@ -26,9 +28,9 @@ public interface IEmailOutboxRepository
     /// Stores a rendered mail as pending and due now. Returns its id. With a
     /// <paramref name="dedupeKey"/>, a second enqueue of the same key is a no-op that returns
     /// the existing row's id, so a producer that is re-run after an interruption cannot queue
-    /// the same mail twice.
+    /// the same mail twice. A <paramref name="replyTo"/> becomes the mail's Reply-To header.
     /// </summary>
-    Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null);
+    Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null);
 
     /// <summary>
     /// Claims one pending row by id for <see cref="EmailOutboxPolicy.ClaimLease"/>. Null when
@@ -60,7 +62,7 @@ public interface IEmailOutboxRepository
 /// </summary>
 public sealed class EmailOutboxRepository : IEmailOutboxRepository
 {
-    private const string Columns = "id, to_email, to_name, subject, html_body, text_body, attempts";
+    private const string Columns = "id, to_email, to_name, subject, html_body, text_body, attempts, reply_to";
 
     private readonly IDbConnectionFactory _connectionFactory;
 
@@ -69,15 +71,15 @@ public sealed class EmailOutboxRepository : IEmailOutboxRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
+    public async Task<Guid> EnqueueAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null)
     {
         await using var conn = _connectionFactory.CreateControlPlaneConnection();
         await conn.OpenAsync(ct);
         // The no-op update on conflict makes RETURNING yield the existing row; DO NOTHING
         // would return no row at all. The partial unique index ignores NULL keys.
         await using var cmd = new NpgsqlCommand(@"
-            INSERT INTO email_outbox (to_email, to_name, subject, html_body, text_body, dedupe_key)
-            VALUES (@toEmail, @toName, @subject, @html, @text, @dedupeKey)
+            INSERT INTO email_outbox (to_email, to_name, subject, html_body, text_body, dedupe_key, reply_to)
+            VALUES (@toEmail, @toName, @subject, @html, @text, @dedupeKey, @replyTo)
             ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
                 DO UPDATE SET dedupe_key = EXCLUDED.dedupe_key
             RETURNING id", conn);
@@ -87,6 +89,7 @@ public sealed class EmailOutboxRepository : IEmailOutboxRepository
         cmd.Parameters.AddWithValue("html", htmlBody);
         cmd.Parameters.AddWithValue("text", textBody);
         cmd.Parameters.AddNullable("dedupeKey", dedupeKey);
+        cmd.Parameters.AddNullable("replyTo", replyTo);
         return (Guid)(await cmd.ExecuteScalarAsync(ct))!;
     }
 
@@ -183,7 +186,8 @@ public sealed class EmailOutboxRepository : IEmailOutboxRepository
                 reader.GetString("subject"),
                 reader.GetNullableString("html_body") ?? string.Empty,
                 reader.GetNullableString("text_body") ?? string.Empty,
-                reader.GetInt32("attempts")));
+                reader.GetInt32("attempts"),
+                reader.GetNullableString("reply_to")));
         }
         return rows;
     }

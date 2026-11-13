@@ -83,6 +83,16 @@ public class EmailOutboxRepositoryTests
     }
 
     [Fact]
+    public async Task Enqueue_KeepsTheReplyToAddress_AndLeavesItNullWhenNoneIsGiven()
+    {
+        var withReply = await _repo.EnqueueAsync("a@example.com", "A", "Reply", "<p/>", "", replyTo: "contact@example.com");
+        var without = await _repo.EnqueueAsync("b@example.com", "B", "NoReply", "<p/>", "");
+
+        (await _repo.ClaimAsync(withReply))!.ReplyTo.Should().Be("contact@example.com");
+        (await _repo.ClaimAsync(without))!.ReplyTo.Should().BeNull();
+    }
+
+    [Fact]
     public async Task ClaimDue_SkipsRowsThatAreNotDueYet()
     {
         var due = await _repo.EnqueueAsync("due@example.com", "D", "Due", "<p/>", "");

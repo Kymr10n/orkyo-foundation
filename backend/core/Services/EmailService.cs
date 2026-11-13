@@ -1,12 +1,14 @@
 using Api.Configuration;
 using Api.Repositories;
+using MimeKit;
 using Orkyo.Shared;
 
 namespace Api.Services;
 
 public interface IEmailService
 {
-    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null);
+    /// <param name="replyTo">Reply-To address; null sends replies to the SMTP sender.</param>
+    Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null);
     Task<bool> SendWelcomeEmailAsync(string toEmail, string displayName, CancellationToken ct = default);
     Task<bool> SendInvitationEmailAsync(string toEmail, string token, DateTime expiresAt, CancellationToken ct = default);
     Task<bool> SendLifecycleWarningEmailAsync(string toEmail, string displayName, string confirmToken, int warningNumber, CancellationToken ct = default);
@@ -102,12 +104,22 @@ public class EmailService : IEmailService
     /// email-outbox job. False means it could not even be queued (the database refused the
     /// write), which is the one case where the caller must treat the mail as not sent.
     /// </summary>
-    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null)
+    public async Task<bool> SendEmailAsync(string toEmail, string toName, string subject, string htmlBody, string textBody, CancellationToken ct = default, string? dedupeKey = null, string? replyTo = null)
     {
+        // Public forms pass the visitor's address straight through, and their validators only
+        // check for one '@'. An address MimeKit cannot build a header from would fail every
+        // attempt, die in the outbox and page the EmailOutboxDeadMail alert, so it is refused
+        // here with the same calls the deliverer makes.
+        if (!IsDeliverable(toName, toEmail, replyTo))
+        {
+            _logger.LogWarning("Refused to queue email: the recipient or Reply-To address is not deliverable");
+            return false;
+        }
+
         Guid id;
         try
         {
-            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct, dedupeKey);
+            id = await _outbox.EnqueueAsync(toEmail, toName, subject, htmlBody, textBody, ct, dedupeKey, replyTo);
         }
         catch (Exception ex)
         {
@@ -118,6 +130,19 @@ public class EmailService : IEmailService
         // Best effort: a failure here is recorded on the row and the worker retries.
         await _deliverer.TryDeliverNowAsync(id, ct);
         return true;
+    }
+
+    private static bool IsDeliverable(string toName, string toEmail, string? replyTo)
+    {
+        try
+        {
+            _ = new MailboxAddress(toName, toEmail);
+        }
+        catch (ParseException)
+        {
+            return false;
+        }
+        return replyTo is null || MailboxAddress.TryParse(replyTo, out _);
     }
 
     private string BuildTokenLink(string path, string queryParam, string token) =>
