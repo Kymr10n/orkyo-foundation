@@ -10,9 +10,11 @@
 set -euo pipefail
 
 dockerfile="${1:-keycloak/Dockerfile}"
-version=$(sed -nE 's#^FROM[[:space:]]+quay\.io/keycloak/keycloak:([0-9]+\.[0-9]+)\.[0-9]+([@[:space:]].*)?$#\1#p' "$dockerfile" | head -n1)
+# Upstream republishes a patch release as <patch>-<build> (26.8.2-1) when it rebuilds
+# the image. The build number is not part of the tag prefix.
+version=$(sed -nE 's#^FROM[[:space:]]+quay\.io/keycloak/keycloak:([0-9]+\.[0-9]+)\.[0-9]+(-[0-9]+)?([@[:space:]].*)?$#\1#p' "$dockerfile" | head -n1)
 if [ -z "$version" ]; then
-  echo "::error::No 'FROM quay.io/keycloak/keycloak:<major>.<minor>.<patch>' line in $dockerfile" >&2
+  echo "::error::No 'FROM quay.io/keycloak/keycloak:<major>.<minor>.<patch>[-<build>]' line in $dockerfile" >&2
   exit 1
 fi
 echo "KC_VERSION=$version"
