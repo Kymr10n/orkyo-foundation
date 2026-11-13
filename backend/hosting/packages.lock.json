@@ -385,9 +385,13 @@
           "Microsoft.Extensions.Diagnostics.HealthChecks": "[10.0.13, )",
           "Microsoft.Extensions.Http": "[10.0.13, )",
           "Npgsql": "[10.0.3, )",
+          "Orkyo.Migration.Abstractions": "[0.1.0, )",
           "Orkyo.Shared": "[0.1.0, )",
           "StackExchange.Redis": "[3.4.29, )"
         }
+      },
+      "orkyo.migration.abstractions": {
+        "type": "Project"
       },
       "orkyo.shared": {
         "type": "Project",

@@ -187,6 +187,9 @@ export const API_PATHS = {
     PRESETS_EXPORT: '/api/admin/presets/export',
     PRESETS_APPLICATIONS: '/api/admin/presets/applications',
     EXPORT: '/api/admin/export',
+    TRANSFER_EXPORT: '/api/admin/transfer/export',
+    TRANSFER_IMPORT_VALIDATE: '/api/admin/transfer/import/validate',
+    TRANSFER_IMPORT: '/api/admin/transfer/import',
     SETTINGS: '/api/admin/settings',
     DIAGNOSTICS: '/api/admin/diagnostics',
     // Control-plane audit (all tenants, includes ip_address/request_id). NOT the

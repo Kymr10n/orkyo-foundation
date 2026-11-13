@@ -320,9 +320,13 @@
           "Google.OrTools": "[9.15.6755, )",
           "MailKit": "[4.18.2, )",
           "Npgsql": "[10.0.3, )",
+          "Orkyo.Migration.Abstractions": "[0.1.0, )",
           "Orkyo.Shared": "[0.1.0, )",
           "StackExchange.Redis": "[3.4.29, )"
         }
+      },
+      "orkyo.migration.abstractions": {
+        "type": "Project"
       },
       "orkyo.shared": {
         "type": "Project"
