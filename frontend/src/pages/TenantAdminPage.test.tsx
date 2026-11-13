@@ -32,6 +32,7 @@ function renderAt(initialPath: string) {
           <Route path="configuration" element={<Stub id="config-settings" />} />
           <Route path="integrations" element={<Stub id="integrations-settings" />} />
           <Route path="usage-limits" element={<Stub id="usage-settings" />} />
+          <Route path="data-transfer" element={<Stub id="data-transfer-settings" />} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -51,7 +52,7 @@ describe('TenantAdminPage', () => {
 
   it('renders all six governance tabs', () => {
     renderAt('/tenant-admin/sites');
-    for (const label of ['Sites', 'Users', 'Organization', 'Configuration', 'Integrations', 'Usage & Limits']) {
+    for (const label of ['Sites', 'Users', 'Organization', 'Configuration', 'Integrations', 'Usage & Limits', 'Data Transfer']) {
       expect(screen.getByRole('tab', { name: label })).toBeInTheDocument();
     }
   });

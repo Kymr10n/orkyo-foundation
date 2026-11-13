@@ -1,6 +1,6 @@
-import { apiDelete, apiRawFetch } from '../core/api-client';
-import { API_BASE_URL, getApiHeaders } from '../core/api-utils';
+import { apiDelete, apiRawFetch, buildUrl } from '../core/api-client';
 import { API_PATHS } from '../core/api-paths';
+import { uploadWithProgress } from '../core/upload';
 
 export interface FloorplanMetadata {
   assetId: string;
@@ -33,59 +33,9 @@ export async function uploadFloorplan(
   const formData = new FormData();
   formData.append('file', file);
 
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.withCredentials = true;
-
-    if (onProgress) {
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const progress = Math.round((e.loaded / e.total) * 100);
-          onProgress(progress);
-        }
-      });
-    }
-
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const response: UploadFloorplanResponse = JSON.parse(xhr.responseText);
-          resolve(response.metadata);
-        } catch {
-          reject(new Error('Invalid response format'));
-        }
-      } else {
-        try {
-          const error = JSON.parse(xhr.responseText);
-          reject(new Error(error.message || 'Upload failed'));
-        } catch {
-          reject(new Error(`Upload failed with status ${xhr.status}`));
-        }
-      }
-    });
-
-    xhr.addEventListener('error', () => {
-      reject(new Error('Network error during upload'));
-    });
-
-    xhr.addEventListener('abort', () => {
-      reject(new Error('Upload cancelled'));
-    });
-
-    const uploadUrl = `${API_BASE_URL}${API_PATHS.siteFloorplan(siteId)}`;
-    xhr.open('POST', uploadUrl);
-
-    // Set headers from getApiHeaders() but exclude Content-Type for multipart/form-data
-    const headers = getApiHeaders('POST');
-    Object.entries(headers).forEach(([key, value]) => {
-      // Don't set Content-Type - browser will set it automatically with boundary for FormData
-      if (key.toLowerCase() !== 'content-type') {
-        xhr.setRequestHeader(key, value);
-      }
-    });
-
-    xhr.send(formData);
-  });
+  const response = await uploadWithProgress<UploadFloorplanResponse>(
+    buildUrl(API_PATHS.siteFloorplan(siteId)), formData, { onProgress });
+  return response.metadata;
 }
 
 export async function getFloorplanMetadata(siteId: string): Promise<FloorplanMetadata | null> {

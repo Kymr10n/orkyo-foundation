@@ -72,3 +72,37 @@ describe('streamAiChat request shape', () => {
     ]);
   });
 });
+
+describe('streamAiChat stream', () => {
+  /** A response whose body arrives in the given pieces. */
+  function respondWith(...chunks: string[]) {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+        controller.close();
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, body })));
+  }
+
+  it('yields the events as they complete, across chunk boundaries and keep-alives', async () => {
+    respondWith(
+      'event: status\ndata: {"phase":"thinking"}\n\n: keep-alive\n\nevent: mess',
+      'age\ndata: {"text":"Hello"}\n\n',
+      'event: done\ndata: {}\n\n',
+    );
+
+    expect(await runTurn()).toEqual([
+      { type: 'status', phase: 'thinking', tool: null },
+      { type: 'message', text: 'Hello' },
+      { type: 'done' },
+    ]);
+  });
+
+  it('drops a frame it cannot read and an event it does not know, and keeps going', async () => {
+    respondWith('event: message\ndata: {not json\n\nevent: mystery\ndata: {}\n\nevent: done\ndata: {}\n\n');
+
+    expect(await runTurn()).toEqual([{ type: 'done' }]);
+  });
+});

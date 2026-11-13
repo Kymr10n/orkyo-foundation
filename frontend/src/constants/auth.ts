@@ -232,6 +232,7 @@ export const ROUTE_TENANT_ADMIN_API_ACCESS = `${ROUTE_TENANT_ADMIN}/api-access`;
 export const ROUTE_TENANT_ADMIN_AI_ASSISTANT = `${ROUTE_TENANT_ADMIN}/ai-assistant`;
 export const ROUTE_TENANT_ADMIN_AUDIT_LOG = `${ROUTE_TENANT_ADMIN}/audit-log`;
 export const ROUTE_TENANT_ADMIN_USAGE_LIMITS = `${ROUTE_TENANT_ADMIN}/usage-limits`;
+export const ROUTE_TENANT_ADMIN_DATA_TRANSFER = `${ROUTE_TENANT_ADMIN}/data-transfer`;
 
 /** Resources tabs. */
 export const ROUTE_CONFIGURATION_RESOURCE_TYPES = `${ROUTE_CONFIGURATION}/resource-types`;

@@ -1,6 +1,6 @@
 # Tenant data transfer — specification and implementation plan
 
-Status: **phase A (foundation backend) implemented**. Phases B to E are open. First draft 2026-07-15. Final revision 2026-11-10,
+Status: **phases A and B (foundation backend and frontend) implemented**. Phases C to E are open. First draft 2026-07-15. Final revision 2026-11-10,
 on branch `claude/tenant-db-export-import-y8wytv`. The first draft is archived at
 `requirements/archive/superseded-docs/tenant-transfer-plan.md`. The git history of this file
 records the corrections from the design reviews.
@@ -47,41 +47,48 @@ content type `application/zip`. The export writes the archive to a temporary fil
 sends the file. A failure during the export therefore gives an error response, not an
 incomplete download.
 
-Entries: `manifest.json`, `users.ndjson`, and one `tables/<table>.ndjson` per `Travels`
-table. The manifest holds these fields:
+Entries: `manifest.json`, `users.ndjson`, one `tables/<table>.ndjson` per `Travels`
+table, and one `blobs/<table>/<row id>` per binary value. The manifest holds these fields:
 
 - The format version, the source edition, and the app version.
 - The export time, the source tenant id, and the source slug.
 - The schema version: the sorted migration ids of section 4.
 - The row count of each table.
-- The list of encrypted columns.
 
 Row encoding: one JSON object per line. PostgreSQL converts the values in both directions.
 The export reads each row with `to_jsonb`. The import inserts batches of rows with
-`jsonb_populate_recordset`. The application code therefore has no type table. A `bytea`
-value travels in the PostgreSQL hex form (`\x…`). The tenant schema has 11 column types and
-no arrays, enums, ranges, sequences or generated columns.
+`jsonb_populate_recordset`. The application code therefore has no type table. The tenant
+schema has 11 column types and no arrays, enums, ranges, sequences or generated columns.
+
+A binary value does not travel in its row. The catalog names the binary column of a table
+(`assets.data`). The row omits this column, and the value is a separate entry of bytes. A
+row with a binary value loads in a batch of one row. A measurement gave the reason: a
+floorplan of 10 MiB as text in the row used 760 MiB of memory during an import. As a
+separate entry, the same floorplan uses 75 MiB.
 
 NDJSON is necessary because the import transforms rows: user-id remap, `tenant_id` rewrite,
 and re-encryption. One batch holds 500 rows or 8 MiB of text, and is one `INSERT`.
 
 The archive is external input. These rules apply to the reader:
 
-- The archive must hold exactly the entries of the catalog. A different entry list causes
-  rejection.
+- The archive must hold exactly the entries of the catalog, and binary values. A different
+  entry list causes rejection. A binary value that no row names causes rejection.
 - Table names come from the catalog. Column names come from the live target schema. The
   import never builds SQL from archive text.
 - A row whose keys differ from the target columns causes rejection.
 - A row that names a user that the archive does not contain causes rejection.
 - The reader counts the uncompressed data. A total of more than ten times the size
   ceiling causes rejection. This rule stops a decompression bomb.
-- A row of more than 64 MiB of text causes rejection.
+- A row of more than 4 MiB of text causes rejection. A binary value of more than 64 MiB
+  causes rejection.
 
-The export reads all tables in one `REPEATABLE READ` transaction. For every text value, the
-export calls `IEncryptionService.IsProtected`. A protected value is decrypted with the source
-tenant id and its column is recorded in the manifest. The import encrypts every value of a
-recorded column with the target tenant id. Envelopes are self-describing, so this detection
-does not need a hand-written column list. For `assets`, the import also sets `enc_algorithm`
+The export reads all tables in one `REPEATABLE READ` transaction. The catalog names the
+columns that the application encrypts: `sites.description`, `sites.address`,
+`resources.notes` and `assets.data`. The export decrypts the values of these columns with
+the source tenant id. The import encrypts them with the target tenant id. No other column
+is read as an envelope. Text in a different column that starts with the envelope prefix
+therefore travels unchanged. A new encrypted column must be added to the catalog. For
+`assets`, the import also sets `enc_algorithm`
 and `enc_key_version` from the target encryption service. `size_bytes` and `checksum_sha256`
 describe the plain text and do not change.
 
@@ -207,6 +214,9 @@ and `DELETE` grants that the import needs.
 7. Compare the per-table row counts against the manifest. A mismatch throws.
 8. Read the quota usage again and apply the quota limits (section 6). Commit.
 
+The import reports its steps during the transaction (section 13). The endpoint sends them
+to the browser as an event stream.
+
 Any failure before the commit rolls back completely. The target keeps its data. A client
 disconnect cancels through the `CancellationToken` and rolls back. A test asserts this.
 The endpoint deletes the temporary file in all cases.
@@ -255,7 +265,7 @@ after the load. Community uses the no-op enforcer, so the quota steps have no ef
 |---|---|
 | `GET /api/admin/transfer/export` | 200, `application/zip`, streamed. |
 | `POST /api/admin/transfer/import/validate` | 200 with blockers, warnings, user-match preview, table counts. |
-| `POST /api/admin/transfer/import?confirmation=<slug>` | 200 with the import result. |
+| `POST /api/admin/transfer/import?confirmation=<slug>` | 200, `text/event-stream`: the steps, then the import result (section 13.4). |
 
 The group has the shape of `ExportEndpoints.cs`: `/api/admin/transfer`,
 `.RequireAuthorization()`, `.RequireAdminArea()`, and the rate-limit policy
@@ -279,7 +289,9 @@ Status codes:
 | Size ceiling not set | 503 | `transfer_not_configured` |
 
 Errors use `application/problem+json`. `TransferRejectedException` carries the status and
-the code, and `AppExceptionHandler` maps it. The codes are in `ApiErrorCodes`.
+the code, and `AppExceptionHandler` maps it. The codes are in `ApiErrorCodes`. An import
+that fails after its stream starts sends the same problem document as an `error` event
+(section 13.4).
 
 The size ceiling is `ORKYO_TRANSFER_MAX_ARCHIVE_BYTES`. The value has no default in code.
 The env templates carry the value, per the no-fallback convention. If the variable is not
@@ -295,8 +307,10 @@ The SaaS ingress sets two hard limits, because Cloudflare proxies the tenant hos
 - Cloudflare rejects a request body larger than 100 MB on the plan of the `orkyo.com` zone.
   The SaaS env templates therefore set the size ceiling to 90 MiB (`94371840`). The
   Community template sets 1 GiB (`1073741824`).
-- If the origin sends no response for 100 seconds, Cloudflare ends the request with status
+- If the origin sends no data for 100 seconds, Cloudflare ends the request with status
   524. The import then sees a client disconnect and rolls back. The target keeps its data.
+  The event stream sends a keep-alive every 15 seconds, so a long import does not reach
+  this limit. The validation has no stream, and it has no long step.
 
 ## 8. Identity
 
@@ -342,28 +356,28 @@ the import then maps them.
 
 ## 10. User interface
 
-A new tab "Data transfer" (route `data-transfer`) in `TenantAdminPage.tsx`, lazy-routed
-in `TenantApp.tsx` under `RequireTenantAdmin`. Every tenant admin sees the tab. The existing
+A new tab "Data Transfer" (route `data-transfer`) in `TenantAdminPage.tsx`, lazy-routed in
+`TenantApp.tsx` under `RequireTenantAdmin`. Every tenant admin sees the tab. The existing
 semantic Export card in `OrganizationSettings.tsx` stays where it is.
 
-The export card downloads through `apiRawFetch(...).blob()`. It states that an archive loads
-only into the same schema version, and that the archive holds plain text.
+The export card downloads through `apiRawFetch(...).blob()`, with the file name from the
+server. It states that the archive is not encrypted.
 
-The import flow has these stages:
+The import card has these stages:
 
 1. File selection.
-2. Automatic validation.
-3. A summary: source edition, version, date, row counts, matched users, emails without a
-   match, and warnings.
-4. A type-the-slug confirmation dialog.
-5. Upload with progress (XHR with the file as the body, after the pattern in `floorplan-api.ts`).
-6. A completion dialog, then `window.location.reload()`.
+2. Automatic validation, with the progress bar (upload, then "Checking the archive").
+3. A summary: source workspace, edition, version, export time, row count, matched users,
+   blockers, and the emails without a match.
+4. A confirmation with `ConfirmDialog` and its `confirmPhrase`, which is the slug.
+5. The import, with the progress bar and the name of the current step (section 13.3).
+6. A result message with a "Reload now" button, which calls `window.location.reload()`.
 
-The confirmation dialog carries the warning. It states that the import erases all current
-data, and that other users cannot save changes during the import. It offers a link that
-exports the current data. This dialog is one of the genuinely-special dialogs that
-`FormDialog` does not cover. The import mutation uses `meta: { errorMessage }`. Tests render
-through `createTestQueryWrapper({ feedback: true })`.
+The upload sends the file as the request body with XMLHttpRequest, because `fetch` gives no
+upload progress. A failure goes through `handleApiError`, so it is an `ApiError` with the
+server code. The three mutations use `meta: { errorMessage }`. The toast description is the
+reason from the server. The confirmation states that the import erases all current data,
+and that other users cannot save changes during the import.
 
 ## 11. Implementation plan
 
@@ -399,8 +413,10 @@ Tests:
 - A consistent export during an import that is not committed, and 409 for a second writer.
 - The routes: admin only, the download, the size ceiling, and an import of the own archive.
 
-**Phase B — foundation frontend**: `api-paths.ts` entries, `transfer-api.ts`, the
-`DataTransferSettings` tab, routes, and vitest tests for the import stages.
+**Phase B — foundation frontend**: `api-paths.ts` entries, `transfer-api.ts`,
+`useTenantTransfer.ts`, the `DataTransferSettings` tab, the route, and vitest tests for the
+API module and for the import stages. The user documentation is
+`orkyo-documentation/src/content/docs/administration/data-transfer.md`.
 
 **Release step**: foundation version bump. Products reference only the pinned package, so
 phases C and D start after the auto-bump PRs land.
@@ -442,9 +458,222 @@ Decided:
 
 Open:
 
-1. **Large tenants on SaaS.** The Cloudflare limits in section 7 bound the archive size and
-   the import time. A tenant above these limits cannot import through the UI. Version 1 has
-   no operator path for this case.
+1. **Large tenants on SaaS.** The Cloudflare limit in section 7 bounds the archive size.
+   A tenant above this limit cannot import through the UI. Version 1 has no operator path
+   for this case. The event stream removed the limit on the import time (section 13.7).
 2. **Botched-import recovery on SaaS.** The transaction protects the data path. Recovery
    from a committed but unwanted import uses the operator backups
    (`orkyo-infra/docs/60-backups.md`), not this feature.
+
+## 13. Import progress
+
+Status: implemented 2026-11-12 in foundation. Sections 5, 7 and 10 include the result.
+This section keeps the design and its reasons.
+
+### 13.1 Problem and goal
+
+Before this change, the import card showed the upload percentage only. After the upload,
+the server loaded the archive and sent one response at the end. The admin saw no change for
+up to a minute.
+
+The goal is one progress bar with the name of the current step. The bar shows a measured
+percentage where a measurement exists. It shows no invented percentage.
+
+This section does not change the import transaction, the archive format, or the checks.
+
+### 13.2 Design decisions
+
+| Decision | Value | Reason |
+|---|---|---|
+| Transport | Server-Sent Events on the response of `POST /import` | WHATWG standard. `/api/ai/chat` uses the same mechanism through the same proxies. |
+| Background job with a status route | Rejected | It needs a job identifier, stored state and a second route for a request of about one minute. |
+| WebSocket | Rejected | The stream has one direction. The application has no WebSocket infrastructure. |
+| Error format | RFC 9457 problem document, as today | One error contract before and during the stream. |
+| Validation route | Unchanged, JSON | It reads the manifest and the users only. It has no long step. |
+| Progress unit | Rows loaded of the manifest row total | The manifest gives the total before the load starts. |
+| Keep-alive | SSE comment every 15 seconds | The proxies measure idle time. The comment resets it. |
+
+### 13.3 Steps
+
+The client knows the first two steps. The server reports the other three.
+
+| Step | Source | Bar | Label |
+|---|---|---|---|
+| `upload` | Upload progress of the browser | Bytes sent of the file size | "Uploading: 40%" |
+| `check` | The upload is complete and no event is there | Indeterminate | "Checking the archive" |
+| `erase` | Server event | Indeterminate | "Removing the current data" |
+| `load` | Server event | Rows loaded of the row total | "Loading the data: 40%" |
+| `finish` | Server event | Indeterminate | "Finishing" |
+
+The step `erase` starts after the lock (section 5, step 1). It includes the user merge.
+The step `load` is section 5, step 5. The step `finish` includes the deferred column, the
+row count comparison, the quota check, the commit, the quota deltas and the audit event.
+
+The bar shows one step at a time. It does not combine the steps into one total percentage,
+because the durations of the steps have no fixed ratio.
+
+### 13.4 Wire contract
+
+The response of `POST /api/admin/transfer/import` changes. The request does not change.
+
+Before the first event, the response is the same as today. Each of these checks fails with
+its HTTP status and a problem document: the size ceiling, the confirmation, the manifest,
+the version gate and the lock. Section 7 gives the codes.
+
+After the lock, the response has status 200 and the content type `text/event-stream`. It
+carries these events:
+
+| Event | Data | Count |
+|---|---|---|
+| `progress` | `{ "step": "erase", "percent": null }`, `{ "step": "load", "percent": 40 }`, `{ "step": "finish", "percent": null }` | Many |
+| `result` | The `TransferImportResult` of today | One, last |
+| `error` | The problem document, with its `status` | One, last |
+
+Exactly one of `result` and `error` ends the stream. A stream that ends without one of them
+is a lost connection. The transaction then rolls back, as today.
+
+An `error` event with a status less than 500 means that the import did not change the
+data. A status 500 has the code `transfer_failed` and gives no such guarantee, as a failed
+request did before. The server sends `result` only after the commit.
+
+When the whole percentage changes, the server sends a `load` event. One import thus sends
+100 `load` events at most.
+
+When the stream is silent for 15 seconds, the server sends a comment line (`: keep-alive`).
+
+### 13.5 Backend
+
+**Shared SSE helper.** The functions `WriteEventAsync`, `WriteHeartbeatAsync` and
+`StreamWithHeartbeatAsync` are private parts of `AiChatEndpoints` today. They move to one
+static class `ServerSentEvents` in `backend/src/Helpers/`. The class also sets the three
+response headers (`Content-Type`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`).
+`StreamWithHeartbeatAsync` becomes generic in the event type and takes the function that
+writes one event. `AiChatEndpoints` uses the class. Its behavior and its tests do not change.
+
+**Service.** `TenantTransferService.ImportAsync` gets one optional parameter,
+`Action<TransferProgress>? report`. `TransferProgress` is a record with `Step` and a nullable
+`Percent`, in `backend/core/Models/Transfer.cs`. The service calls `report` at the start of
+each server step and after each batch of the load. It holds the last reported percentage
+and skips a call that does not change it. The row total is the sum of `manifest.Tables` for the `Travels` tables. The users entry
+does not count, because the user merge is not part of the load.
+The service has no knowledge of HTTP. A caller without `report` gets the behavior of today.
+
+**Endpoint.** The handler of `POST /import` does this sequence:
+
+1. It receives the archive, as today.
+2. It creates an unbounded `Channel<TransferProgress>` and starts `ImportAsync`. The
+   `report` function writes to the channel. When the import task ends, the handler
+   completes the channel.
+3. It waits for the first item of the channel. If the channel completes with no item, the
+   handler awaits the task. The exception goes to `AppExceptionHandler`, and the response
+   has the HTTP status of today.
+4. With the first item, it starts the stream through `ServerSentEvents`. It writes each
+   item as a `progress` event, with the keep-alive.
+5. It awaits the task. It writes `result`, or it writes `error`.
+
+Only the handler writes to the response, so the stream needs no lock. The handler always
+awaits the import task before it returns, so the request scope outlives the import.
+
+**Errors during the stream.** `AppExceptionHandler.Map` is the one place that maps an
+exception to a problem document. It becomes `internal`, and the handler calls it for the
+`error` event. An exception that `Map` does not own becomes a problem document with status
+500 and the code `transfer_failed`. The handler writes it to the log, and the event does not
+carry its message. A cancelled request writes nothing, because no client is there. The
+`TransferRejectedException` and the quota exception thus have the same code and the same
+message before and during the stream.
+
+**OpenAPI.** The route declares `text/event-stream` for status 200.
+
+### 13.6 Frontend
+
+**Shared SSE reader.** `ai-api.ts` holds the code that splits a stream into events. That
+code moves to `lib/core/sse.ts` as one function. The function takes the buffered text and
+returns the complete events (`name`, `data`) and the remaining text. `streamAiChat` uses
+the function.
+
+**Upload helper.** `uploadWithProgress` in `lib/core/upload.ts` gets one option,
+`onEvent(name, data)`. The request stays an XMLHttpRequest, because `fetch` gives no upload
+progress. If the response has the content type `text/event-stream`, the helper reads
+`responseText` in each `progress` event of the request. It gives the new events to
+`onEvent`. The promise resolves with the data of the `result` event. An `error` event goes
+through `handleApiError`, with a `Response` that the helper builds from the problem
+document. The caller thus gets the same `ApiError` as for an HTTP error. A stream with no
+last event rejects with the message for a lost connection. A JSON response behaves as today.
+
+**API and hook.** `transfer-api.ts` defines one type:
+
+```ts
+export interface TransferProgress {
+  step: 'upload' | 'check' | 'erase' | 'load' | 'finish';
+  percent?: number | null;
+}
+```
+
+`importTenantArchive` and `validateTenantArchive` take `onProgress(progress: TransferProgress)`.
+They report `upload` from the upload percentage, `check` at 100 percent, and the server
+steps from the `progress` events. `useTenantTransfer.ts` passes the callback through.
+
+**Component.** `DataTransferSettings` holds one `TransferProgress` state in place of the
+number. A small `TransferProgressBar` in the same file shows the label of section 13.3 and
+a native `<progress>` element. The element has `value` and `max` for a step with a
+percentage, and no `value` for an indeterminate step. The native element gives the
+`progressbar` role and needs no new dependency. The label stays in the `role="status"`
+paragraph of today. The validation and the import use the same bar.
+
+### 13.7 Ingress
+
+The stream removes the time limit of section 7. Cloudflare and nginx measure the time
+without data, and the events and the keep-alive reset that time. The size limit of 100 MB
+stays.
+
+- The import locations in `orkyo-infra/nginx/snippets/app-routing.conf` need no new
+  directive. The response carries `X-Accel-Buffering: no`, and `text/event-stream` is not in
+  `gzip_types`. The comment of the locations changes, because the 100 seconds are now idle
+  time.
+- `orkyo-infra/docs/runbooks/tenant-transfer.md` changes its "Import time" row and its
+  status 524 row.
+- The Community example `release/nginx/community.conf.example` (phase D) needs no buffering
+  directive for the same reason.
+- Open question 1 of section 12 keeps the size part only.
+
+### 13.8 Tests
+
+Backend:
+
+- `ServerSentEvents`: the existing heartbeat tests of the AI endpoint move with the code.
+- The service reports `erase`, then `load` with a percentage that only increases, then
+  `finish`. The last `load` event has 100 percent. An archive with no rows reports no
+  `load` percentage below 100.
+- The route, in `TransferEndpointsIntegrationTests`: an import of the own archive returns
+  `text/event-stream` with `progress` events and one `result`. A wrong confirmation returns
+  its HTTP status and a problem document, not a stream.
+- The stream handler, in `TransferImportStreamTests`, with no database: a failure before the
+  first report keeps its status. A failure after the first report is one `error` event with
+  the problem document. A server fault is `transfer_failed` without its message. A silent
+  step gets keep-alives. A cancel writes no last event, and the handler awaits the import.
+
+Frontend:
+
+- `sse.ts`: complete events, an event split across two chunks, a comment line.
+- `upload.ts`: a JSON response as today, a stream with `result`, a stream with `error`
+  as an `ApiError`, a stream with no last event.
+- `DataTransferSettings`: the label and the bar for each step, and the bar for validation.
+
+### 13.9 Implementation order
+
+The work goes on the open branches, with the rules of section 11.
+
+1. Backend, on `claude/tenant-transfer-backend` (#321): `ServerSentEvents` with the move
+   of the AI code, then the `report` parameter, then the endpoint.
+2. Frontend, on `claude/tenant-transfer-frontend` (#322): `sse.ts` with the move of the AI
+   code, then the `onEvent` option, then the API, the hook and the bar. Sections 5, 7, 10
+   and 12 of this file change in the same pull request.
+3. Infra (#83): the comment and the runbook rows of section 13.7.
+4. Documentation (#42): the import stages in `data-transfer.md`.
+
+### 13.10 Out of scope
+
+- Progress of the export. The browser shows the download.
+- Progress inside the validation, after the upload.
+- A cancel button. A closed tab cancels the import, as today.
+- A resume after a lost connection. The import starts again from the file.

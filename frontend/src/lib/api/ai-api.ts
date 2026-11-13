@@ -11,6 +11,7 @@
 import { apiGet, apiPut, apiDelete, apiPost, buildUrl } from '../core/api-client';
 import { logger } from '../core/logger';
 import { getApiHeaders } from '../core/api-utils';
+import { takeSseEvents } from '../core/sse';
 
 // ── Credentials ────────────────────────────────────────────────────────────────
 
@@ -220,8 +221,7 @@ export type AiChatEvent =
  * Runs one turn, yielding events as the server produces them.
  *
  * `EventSource` cannot POST, so this reads the Server-Sent Events stream off `fetch`
- * directly. The parser is deliberately minimal — the server only ever emits
- * `event:`/`data:` pairs separated by a blank line, plus heartbeat comment lines.
+ * directly.
  *
  * Aborting the passed signal stops the turn server-side too, so closing the panel does
  * not leave tokens being spent on an answer nobody will read.
@@ -262,14 +262,12 @@ export async function* streamAiChat(
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Events are separated by a blank line; anything incomplete stays buffered.
-      let separator = buffer.indexOf('\n\n');
-      while (separator !== -1) {
-        const chunk = buffer.slice(0, separator);
-        buffer = buffer.slice(separator + 2);
-        const event = parseSseChunk(chunk);
+      // Anything incomplete stays buffered.
+      const { events, rest } = takeSseEvents(buffer);
+      buffer = rest;
+      for (const { name, data } of events) {
+        const event = toAiChatEvent(name, data);
         if (event) yield event;
-        separator = buffer.indexOf('\n\n');
       }
     }
   } finally {
@@ -277,18 +275,7 @@ export async function* streamAiChat(
   }
 }
 
-function parseSseChunk(chunk: string): AiChatEvent | null {
-  let name = '';
-  let data = '';
-
-  for (const line of chunk.split('\n')) {
-    if (line.startsWith(':')) continue; // heartbeat
-    if (line.startsWith('event:')) name = line.slice(6).trim();
-    else if (line.startsWith('data:')) data += line.slice(5).trim();
-  }
-
-  if (!name || !data) return null;
-
+function toAiChatEvent(name: string, data: string): AiChatEvent | null {
   try {
     const payload = JSON.parse(data);
     switch (name) {
